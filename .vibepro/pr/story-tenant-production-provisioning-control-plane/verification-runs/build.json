@@ -4,11 +4,11 @@
   "exit_code": 0,
   "evidence_source": "runner_direct",
   "producer": "vibepro verify run",
-  "kind": "integration",
+  "kind": "build",
   "story_id": "story-tenant-production-provisioning-control-plane",
   "runtime_identity": {
     "schema_version": "0.2.0",
-    "collected_at": "2026-08-19T05:23:09.791Z",
+    "collected_at": "2026-08-19T05:24:26.760Z",
     "mode": "normal",
     "source_kind": "npm_package",
     "test_context": null,
@@ -67,22 +67,22 @@
   "observed": {
     "status": "pass",
     "evidence_source": "runner_direct",
-    "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
-    "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+    "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+    "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log",
     "exit_code": "0",
-    "duration_ms": "43079",
-    "started_at": "2026-08-19T05:23:10.044Z",
-    "finished_at": "2026-08-19T05:23:53.123Z",
+    "duration_ms": "1206",
+    "started_at": "2026-08-19T05:24:26.953Z",
+    "finished_at": "2026-08-19T05:24:28.159Z",
     "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
     "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
     "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
     "worktree_sampled": "true",
     "worktree_sampling_complete": "true",
-    "worktree_sha256_before": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
-    "worktree_sha256_after": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
-    "stdout_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
-    "output_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
-    "output_bytes": "3579",
+    "worktree_sha256_before": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+    "worktree_sha256_after": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output_bytes": "0",
     "log_truncated": "false",
     "output_metrics": "none",
     "timed_out": "false",
@@ -97,34 +97,22 @@
     "worktree_changed_during_run": "false",
     "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
     "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
-    "worktree_diff_sha256_before": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5",
-    "worktree_diff_sha256_after": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5"
+    "worktree_diff_sha256_before": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015",
+    "worktree_diff_sha256_after": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015"
   },
   "run": {
     "argv": [
       "npx",
-      "vitest",
-      "run",
-      "--maxWorkers=1",
-      "tests/server/bootstrap/tenant-runtime-internal-server.test.js",
-      "tests/server/bootstrap/slack-installation-control-plane-auth-order.test.js",
-      "tests/server/bootstrap/slack-installation-control-plane.test.js",
-      "tests/server/cloudflare/tenant-runtime-bridge.test.js",
-      "tests/server/cloudflare/slack-installation-control-plane-bridge.test.js",
-      "tests/server/routes/tenant-runtime-bootstrap.test.js",
-      "tests/server/routes/tenant-runtime-contract.test.js",
-      "tests/server/routes/slack-installation-control-plane.test.js",
-      "tests/server/scripts/multitenant-platform-schema-migration.test.js",
-      "tests/server/scripts/provision-tenant.test.js",
-      "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js",
-      "tests/server/scripts/tenant-production-provisioning-migration.test.js",
-      "tests/server/services/multitenant"
+      "tsc",
+      "--noEmit",
+      "-p",
+      "public/jsconfig.json"
     ],
-    "command": "npx vitest run --maxWorkers=1 tests/server/bootstrap/tenant-runtime-internal-server.test.js tests/server/bootstrap/slack-installation-control-plane-auth-order.test.js tests/server/bootstrap/slack-installation-control-plane.test.js tests/server/cloudflare/tenant-runtime-bridge.test.js tests/server/cloudflare/slack-installation-control-plane-bridge.test.js tests/server/routes/tenant-runtime-bootstrap.test.js tests/server/routes/tenant-runtime-contract.test.js tests/server/routes/slack-installation-control-plane.test.js tests/server/scripts/multitenant-platform-schema-migration.test.js tests/server/scripts/provision-tenant.test.js tests/server/scripts/tenant-production-provisioning-migration.integration.test.js tests/server/scripts/tenant-production-provisioning-migration.test.js tests/server/services/multitenant",
+    "command": "npx tsc --noEmit -p public/jsconfig.json",
     "cwd": ".",
-    "started_at": "2026-08-19T05:23:10.044Z",
-    "finished_at": "2026-08-19T05:23:53.123Z",
-    "duration_ms": 43079,
+    "started_at": "2026-08-19T05:24:26.953Z",
+    "finished_at": "2026-08-19T05:24:28.159Z",
+    "duration_ms": 1206,
     "exit_code": 0,
     "signal": null,
     "timed_out": false,
@@ -134,8 +122,8 @@
     "max_output_bytes": 67108864,
     "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
     "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
-    "worktree_sha256_before": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
-    "worktree_sha256_after": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+    "worktree_sha256_before": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+    "worktree_sha256_after": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
     "tree_mutated_during_run": false,
     "head_moved_during_run": false,
     "worktree_changed_during_run": false,
@@ -145,17 +133,10 @@
     "counts": null,
     "node_version": "v26.3.1",
     "harness_env_removed": [],
-    "log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+    "log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log",
     "log_truncated": false
   },
-  "discarded_agent_observations": [
-    {
-      "key": "tests",
-      "agent_value": "284",
-      "computed_value": null,
-      "reason": "key is computed by the runner and was not observed in this run; the agent value is not recorded"
-    }
-  ],
+  "discarded_agent_observations": [],
   "warnings": [
     {
       "id": "managed_worktree_locality",
@@ -173,14 +154,9 @@
       "managed_worktree": null
     },
     {
-      "id": "verification_observation_overridden",
+      "id": "verification_run_produced_no_output",
       "command_name": "verify run",
-      "reason": "agent-supplied --observed values were discarded for computed keys: tests"
-    },
-    {
-      "id": "verification_run_counts_not_parsed",
-      "command_name": "verify run",
-      "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+      "reason": "the command exited 0 without printing anything; a silent success is not evidence that any check ran"
     }
   ]
 }

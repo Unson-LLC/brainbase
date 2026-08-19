@@ -35,8 +35,8 @@
         {
           "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
           "case": "defines tenant key, append-only revision history, and revision FKs",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b8753436c257fa72bf59b8f5fbc3a22eff16d5fc"
         }
       ],
       "mapped_evidence": [],
@@ -70,8 +70,8 @@
         {
           "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
           "case": "defines tenant key, append-only revision history, and revision FKs",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b8753436c257fa72bf59b8f5fbc3a22eff16d5fc"
         }
       ],
       "mapped_evidence": [],
@@ -105,8 +105,8 @@
         {
           "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
           "case": "enforces workspace logical uniqueness, provisioning idempotency, and service capabilities",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b8753436c257fa72bf59b8f5fbc3a22eff16d5fc"
         }
       ],
       "mapped_evidence": [],
@@ -142,13 +142,13 @@
         {
           "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
           "case": "defines tenant key, append-only revision history, and revision FKs",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b8753436c257fa72bf59b8f5fbc3a22eff16d5fc"
         },
         {
           "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
           "case": "passes the reserved canonical connection identity and next revision to the credential store on reinstall",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "ba44f74e9419e4b9ad77dca8623bf654640825e9"
         }
       ],
@@ -183,8 +183,8 @@
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "replays the same operation without duplicate writes",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         }
       ],
       "mapped_evidence": [],
@@ -222,38 +222,38 @@
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "reclaims a failed operation with the same fingerprint and fences the old attempt",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         },
         {
           "file": "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
           "case": "resolves one canonical project with a bounded, separate read client",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "4c10c5fdfa6eb2dfe9d175b8215fab17e39dc91d"
         },
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "fails closed on ambiguous Graph project and never writes a Graph person",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         },
         {
           "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
           "case": "requires the canonical runtime contract binding fields",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "6d7ccb7bcca11ac0bb7cd6b88fdfa92d4f233054"
         },
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "returns a redacted readback receipt after an atomic apply",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         },
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "fails closed when a canonical contract revision already has a different payload",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         }
       ],
       "mapped_evidence": [],
@@ -289,8 +289,8 @@
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "fails closed on ambiguous Graph project and never writes a Graph person",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         }
       ],
       "mapped_evidence": [],
@@ -326,14 +326,14 @@
         {
           "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
           "case": "rejects unknown tenant identity and secret material without echoing the value",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "6d7ccb7bcca11ac0bb7cd6b88fdfa92d4f233054"
         },
         {
           "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
           "case": "does not persist secret bodies or model service actors as Graph persons",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b8753436c257fa72bf59b8f5fbc3a22eff16d5fc"
         }
       ],
       "mapped_evidence": [],
@@ -369,14 +369,14 @@
         {
           "file": "tests/server/scripts/provision-tenant.test.js",
           "case": "keeps check and dry-run safe and requires explicit approval for apply",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "92b57b99d86de7b571788d56718baacd4f22f214"
         },
         {
           "file": "tests/server/scripts/tenant-production-provisioning-migration.test.js",
           "case": "requires one mode and explicit approval plus actor for apply",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "43795eb019401abc413a04a608cc6ba8f659ab62"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "46e2a5dee50686d31cb3d603dd724503be24a3ea"
         }
       ],
       "mapped_evidence": [],
@@ -412,26 +412,26 @@
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "returns a redacted readback receipt after an atomic apply",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         },
         {
           "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
           "case": "requires the canonical runtime contract binding fields",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "6d7ccb7bcca11ac0bb7cd6b88fdfa92d4f233054"
         },
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "returns a redacted readback receipt after an atomic apply",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         },
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "fails closed when a canonical contract revision already has a different payload",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         }
       ],
       "mapped_evidence": [],
@@ -468,26 +468,26 @@
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "reclaims a failed operation with the same fingerprint and fences the old attempt",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         },
         {
           "file": "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
           "case": "resolves one canonical project with a bounded, separate read client",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "4c10c5fdfa6eb2dfe9d175b8215fab17e39dc91d"
         },
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "records a redacted failed operation after an apply rollback",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         },
         {
           "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
           "case": "reclaims a failed operation with the same fingerprint and fences the old attempt",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
         }
       ],
       "mapped_evidence": [],
@@ -524,31 +524,31 @@
         {
           "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
           "case": "claims before OAuth and suppresses a concurrent callback",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "c640ec4a9fc64b795a2d58266336a0f1184a14e2"
         },
         {
           "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
           "case": "writes and reads back the intent, connection revision, opaque credential and exchange ledger atomically",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "ba44f74e9419e4b9ad77dca8623bf654640825e9"
         },
         {
           "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
           "case": "returns the completed ledger result before exchanging a replayed OAuth code",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "c640ec4a9fc64b795a2d58266336a0f1184a14e2"
         },
         {
           "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
           "case": "marks failed claims retryable and fences stale completion",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "c640ec4a9fc64b795a2d58266336a0f1184a14e2"
         },
         {
           "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
           "case": "claims concurrent callbacks before OAuth so only one external exchange and registration occur",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "blob_oid": "ba44f74e9419e4b9ad77dca8623bf654640825e9"
         }
       ],
@@ -575,7 +575,7 @@
   },
   "accepted_spec_lineage": {
     "status": "resolved",
-    "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+    "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
     "spec_path": ".vibepro/spec/story-tenant-production-provisioning-control-plane/spec.json",
     "spec_blob_oid": "79b9934774d5460091ccc403d70cb747df41daa2",
     "story_path": "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md",
@@ -603,5 +603,5 @@
     "examples": []
   },
   "created_at": "2026-08-18T17:09:31.259Z",
-  "updated_at": "2026-08-18T23:06:27.983Z"
+  "updated_at": "2026-08-19T05:25:30.817Z"
 }

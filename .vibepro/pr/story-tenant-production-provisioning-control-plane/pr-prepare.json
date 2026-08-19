@@ -1,9 +1,9 @@
 {
   "schema_version": "0.2.0",
-  "created_at": "2026-08-18T23:06:27.977Z",
+  "created_at": "2026-08-19T05:25:30.811Z",
   "runtime_identity": {
     "schema_version": "0.2.0",
-    "collected_at": "2026-08-18T23:06:27.038Z",
+    "collected_at": "2026-08-19T05:25:29.958Z",
     "mode": "normal",
     "source_kind": "npm_package",
     "test_context": null,
@@ -112,21 +112,117 @@
   },
   "git": {
     "current_branch": "codex/tenant-production-provisioning-control-plane",
-    "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-    "base_ref": "develop",
-    "head_ref": "9cead354c8e6d462f786cacb697c4910feb00182",
+    "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "base_ref": "origin/develop",
+    "head_ref": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
     "changed_files": [
       {
         "status": "M",
-        "path": ".claude/scripts/hooks/lib/vibepro-runtime-contract.mjs"
-      },
-      {
-        "status": "M",
-        "path": ".env.example"
+        "path": ".github/workflows/graph-writer-contract.yml"
       },
       {
         "status": "A",
-        "path": ".vibepro/spec/story-brainbase-multitenant-platform/spec.json"
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/head-binding.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-body.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/traceability.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/parallel-dispatch.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-plan.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-gate_evidence.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-pr_split_scope.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-release_risk.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-summary.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-summary.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/parallel-dispatch.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-plan.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-architecture_boundary.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-product_requirement.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-spec_consistency.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-tenant-production-provisioning-control-plane/drift.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-tenant-production-provisioning-control-plane/drift.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-tenant-production-provisioning-control-plane/pre-spec-readiness.json"
       },
       {
         "status": "A",
@@ -134,58 +230,6 @@
       },
       {
         "status": "M",
-        "path": "AGENTS.md"
-      },
-      {
-        "status": "M",
-        "path": "CLAUDE.md"
-      },
-      {
-        "status": "M",
-        "path": "config/com.brainbase.mcp-nocodb.plist"
-      },
-      {
-        "status": "M",
-        "path": "config/com.brainbase.mcp-slack-salestailor.plist"
-      },
-      {
-        "status": "M",
-        "path": "config/com.brainbase.mcp-slack-t0882t8n9uh-upload.plist"
-      },
-      {
-        "status": "M",
-        "path": "config/com.brainbase.mcp-slack-t0882t8n9uh.plist"
-      },
-      {
-        "status": "M",
-        "path": "config/com.brainbase.mcp-slack-techknight.plist"
-      },
-      {
-        "status": "M",
-        "path": "config/com.brainbase.mcp-slack-unson.plist"
-      },
-      {
-        "status": "M",
-        "path": "config/com.brainbase.sns-feedback-metrics-poller.plist"
-      },
-      {
-        "status": "M",
-        "path": "config/com.brainbase.sns-scheduled-publisher.plist"
-      },
-      {
-        "status": "M",
-        "path": "docs/architecture/ADR-011-sns-posting-ledger-boundary.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/architecture/ADR-017-agent-first-product-surface.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/architecture/sns-approval-schedules-posting-architecture.md"
-      },
-      {
-        "status": "A",
         "path": "docs/architecture/story-brainbase-multitenant-platform.md"
       },
       {
@@ -193,15 +237,7 @@
         "path": "docs/architecture/story-tenant-production-provisioning-control-plane.md"
       },
       {
-        "status": "A",
-        "path": "docs/contracts/intent-to-outcome-evidence-v1.md"
-      },
-      {
-        "status": "A",
-        "path": "docs/decisions/2026-08-18_intent-to-outcome-north-star.md"
-      },
-      {
-        "status": "A",
+        "status": "M",
         "path": "docs/management/stories/active/story-brainbase-multitenant-platform.md"
       },
       {
@@ -209,32 +245,12 @@
         "path": "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md"
       },
       {
-        "status": "A",
-        "path": "docs/runbooks/cloudflare-tenant-runtime-bridge.md"
-      },
-      {
-        "status": "A",
+        "status": "M",
         "path": "docs/runbooks/multitenant-platform-schema-migration.md"
       },
       {
         "status": "M",
-        "path": "docs/runbooks/sns-scheduled-publisher.md"
-      },
-      {
-        "status": "A",
         "path": "docs/specs/brainbase-multitenant-platform-spec.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/specs/sns-growth-cockpit-ui-transition-spec.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/specs/sns-scheduled-publisher-spec.md"
-      },
-      {
-        "status": "A",
-        "path": "docs/specs/story-brainbase-multitenant-platform.vibepro.json"
       },
       {
         "status": "A",
@@ -243,34 +259,6 @@
       {
         "status": "A",
         "path": "docs/specs/story-tenant-production-provisioning-control-plane.vibepro.json"
-      },
-      {
-        "status": "M",
-        "path": "docs/stories/sns-scheduled-publisher-story.md"
-      },
-      {
-        "status": "M",
-        "path": "mcp/brainbase/src/indexer/index.ts"
-      },
-      {
-        "status": "M",
-        "path": "mcp/brainbase/src/server.ts"
-      },
-      {
-        "status": "A",
-        "path": "mcp/brainbase/src/tools/tenant-boundary-tools.ts"
-      },
-      {
-        "status": "M",
-        "path": "mcp/brainbase/tests/tools/entity-resolver.test.ts"
-      },
-      {
-        "status": "A",
-        "path": "mcp/brainbase/tests/tools/tenant-boundary-tools.test.ts"
-      },
-      {
-        "status": "M",
-        "path": "package-lock.json"
       },
       {
         "status": "M",
@@ -289,27 +277,7 @@
         "path": "packages/cloudflare-slack-installation-control-plane-bridge/wrangler.jsonc"
       },
       {
-        "status": "A",
-        "path": "packages/cloudflare-tenant-runtime-bridge/package.json"
-      },
-      {
-        "status": "A",
-        "path": "packages/cloudflare-tenant-runtime-bridge/src/worker.js"
-      },
-      {
-        "status": "A",
-        "path": "packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc"
-      },
-      {
         "status": "M",
-        "path": "scripts/ai-session-adapter/codex-envelope-builder.mjs"
-      },
-      {
-        "status": "M",
-        "path": "scripts/import-sns-review-pack-to-ledger.js"
-      },
-      {
-        "status": "A",
         "path": "scripts/migrate-multitenant-platform-schema.js"
       },
       {
@@ -317,20 +285,8 @@
         "path": "scripts/migrate-tenant-production-provisioning.js"
       },
       {
-        "status": "M",
-        "path": "scripts/poll-sns-feedback-metrics.js"
-      },
-      {
         "status": "A",
         "path": "scripts/provision-tenant.js"
-      },
-      {
-        "status": "M",
-        "path": "scripts/run-nocodb-mcp.sh"
-      },
-      {
-        "status": "M",
-        "path": "scripts/run-sns-scheduled-posts.js"
       },
       {
         "status": "M",
@@ -342,10 +298,6 @@
       },
       {
         "status": "M",
-        "path": "server/bootstrap/graceful-shutdown.js"
-      },
-      {
-        "status": "M",
         "path": "server/bootstrap/register-api-routes.js"
       },
       {
@@ -353,24 +305,8 @@
         "path": "server/bootstrap/slack-installation-control-plane.js"
       },
       {
-        "status": "A",
-        "path": "server/bootstrap/tenant-runtime-internal-server.js"
-      },
-      {
         "status": "M",
         "path": "server/middleware/csrf.js"
-      },
-      {
-        "status": "M",
-        "path": "server/middleware/personal-knowledge-access.js"
-      },
-      {
-        "status": "A",
-        "path": "server/middleware/tenant-entrypoint.js"
-      },
-      {
-        "status": "M",
-        "path": "server/routes/info-ssot.js"
       },
       {
         "status": "A",
@@ -378,71 +314,31 @@
       },
       {
         "status": "M",
-        "path": "server/routes/sns-growth.js"
-      },
-      {
-        "status": "A",
         "path": "server/routes/tenant-runtime.js"
       },
       {
         "status": "M",
-        "path": "server/services/auth-service.js"
-      },
-      {
-        "status": "M",
-        "path": "server/services/meeting-minutes/context-receipt-service.js"
-      },
-      {
-        "status": "A",
-        "path": "server/services/multitenant/canonical-json.js"
-      },
-      {
-        "status": "A",
-        "path": "server/services/multitenant/canonical-wire-validator.js"
-      },
-      {
-        "status": "A",
-        "path": "server/services/multitenant/contract-usage-ledger.js"
-      },
-      {
-        "status": "A",
-        "path": "server/services/multitenant/credential-broker.js"
-      },
-      {
-        "status": "A",
-        "path": "server/services/multitenant/errors.js"
-      },
-      {
-        "status": "A",
         "path": "server/services/multitenant/ids.js"
       },
       {
         "status": "A",
+        "path": "server/services/multitenant/migration-plan-attestor.js"
+      },
+      {
+        "status": "M",
         "path": "server/services/multitenant/migration-planner.js"
       },
       {
-        "status": "A",
-        "path": "server/services/multitenant/postgres-contract-usage-ledger.js"
-      },
-      {
-        "status": "A",
+        "status": "M",
         "path": "server/services/multitenant/postgres-migration-adapter.js"
       },
       {
-        "status": "A",
+        "status": "M",
         "path": "server/services/multitenant/postgres-repository.js"
       },
       {
         "status": "A",
-        "path": "server/services/multitenant/protocol-contract.js"
-      },
-      {
-        "status": "A",
         "path": "server/services/multitenant/provisioning-manifest.js"
-      },
-      {
-        "status": "A",
-        "path": "server/services/multitenant/service-auth.js"
       },
       {
         "status": "A",
@@ -458,22 +354,6 @@
       },
       {
         "status": "A",
-        "path": "server/services/multitenant/tenant-authority.js"
-      },
-      {
-        "status": "A",
-        "path": "server/services/multitenant/tenant-boundary.js"
-      },
-      {
-        "status": "A",
-        "path": "server/services/multitenant/tenant-context-producer.js"
-      },
-      {
-        "status": "A",
-        "path": "server/services/multitenant/tenant-context.js"
-      },
-      {
-        "status": "A",
         "path": "server/services/multitenant/tenant-provisioner.js"
       },
       {
@@ -481,64 +361,20 @@
         "path": "server/services/multitenant/tenant-provisioning-resolvers.js"
       },
       {
-        "status": "A",
+        "status": "M",
         "path": "server/services/multitenant/tenant-runtime-services.js"
       },
       {
-        "status": "A",
-        "path": "server/services/multitenant/trusted-provider-forwarder.js"
-      },
-      {
-        "status": "A",
+        "status": "M",
         "path": "server/services/multitenant/workspace-connection-registry.js"
       },
       {
         "status": "M",
-        "path": "server/services/personal-knowledge/personal-knowledge-promotion-service.js"
-      },
-      {
-        "status": "M",
-        "path": "server/services/sns/posting-ledger-repository.js"
-      },
-      {
-        "status": "M",
-        "path": "server/services/sns/sns-ledger-publish-service.js"
-      },
-      {
-        "status": "M",
-        "path": "server/services/sns/sns-scheduled-publisher.js"
-      },
-      {
-        "status": "A",
         "path": "server/sql/multitenant-platform-schema.sql"
       },
       {
         "status": "A",
         "path": "server/sql/tenant-production-provisioning-schema.sql"
-      },
-      {
-        "status": "A",
-        "path": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/conformance/mana-brainbase-tenant-context.source-lock.json"
-      },
-      {
-        "status": "M",
-        "path": "tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts"
-      },
-      {
-        "status": "A",
-        "path": "tests/fixtures/multitenant-contract/v1/negative.json"
-      },
-      {
-        "status": "A",
-        "path": "tests/fixtures/multitenant-contract/v1/non-applicable.json"
-      },
-      {
-        "status": "A",
-        "path": "tests/fixtures/multitenant-contract/v1/positive.json"
       },
       {
         "status": "A",
@@ -550,39 +386,7 @@
       },
       {
         "status": "A",
-        "path": "tests/server/bootstrap/sns-growth-production-boundary.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/server/bootstrap/sns-posting-ledger-runtime-config.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/bootstrap/tenant-runtime-internal-server.test.js"
-      },
-      {
-        "status": "A",
         "path": "tests/server/cloudflare/slack-installation-control-plane-bridge.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/cloudflare/tenant-runtime-bridge.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/server/middleware/personal-knowledge-access.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/middleware/tenant-entrypoint.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/server/routes/info-ssot-context.test.js"
       },
       {
         "status": "A",
@@ -590,18 +394,10 @@
       },
       {
         "status": "M",
-        "path": "tests/server/routes/sns-growth.test.js"
-      },
-      {
-        "status": "A",
         "path": "tests/server/routes/tenant-runtime-bootstrap.test.js"
       },
       {
-        "status": "A",
-        "path": "tests/server/routes/tenant-runtime-contract.test.js"
-      },
-      {
-        "status": "A",
+        "status": "M",
         "path": "tests/server/scripts/multitenant-platform-schema-migration.test.js"
       },
       {
@@ -617,60 +413,28 @@
         "path": "tests/server/scripts/tenant-production-provisioning-migration.test.js"
       },
       {
+        "status": "A",
+        "path": "tests/server/services/multitenant/migration-plan-attestor.test.js"
+      },
+      {
         "status": "M",
-        "path": "tests/server/services/meeting-minutes-context-receipt-service.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/services/multitenant/canonical-wire-strictness.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/services/multitenant/contract-fixtures.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/services/multitenant/contract-usage-ledger.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/services/multitenant/credential-broker.test.js"
-      },
-      {
-        "status": "A",
         "path": "tests/server/services/multitenant/migration-planner.test.js"
       },
       {
-        "status": "A",
+        "status": "M",
         "path": "tests/server/services/multitenant/persistence-schema.test.js"
       },
       {
-        "status": "A",
-        "path": "tests/server/services/multitenant/postgres-contract-usage-ledger.test.js"
-      },
-      {
-        "status": "A",
+        "status": "M",
         "path": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js"
       },
       {
-        "status": "A",
+        "status": "M",
         "path": "tests/server/services/multitenant/postgres-repository.test.js"
       },
       {
         "status": "A",
-        "path": "tests/server/services/multitenant/protocol-contract.test.js"
-      },
-      {
-        "status": "A",
         "path": "tests/server/services/multitenant/provisioning-manifest.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/services/multitenant/schema-migration-runner.integration.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/services/multitenant/service-auth.test.js"
       },
       {
         "status": "A",
@@ -690,18 +454,6 @@
       },
       {
         "status": "A",
-        "path": "tests/server/services/multitenant/tenant-authority.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/services/multitenant/tenant-authorization-boundary.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/services/multitenant/tenant-boundary-entrypoints.test.js"
-      },
-      {
-        "status": "A",
         "path": "tests/server/services/multitenant/tenant-provisioner.test.js"
       },
       {
@@ -713,64 +465,97 @@
         "path": "tests/server/services/multitenant/tenant-provisioning-schema.test.js"
       },
       {
-        "status": "A",
-        "path": "tests/server/services/multitenant/test-helpers.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/services/multitenant/trusted-provider-forwarder.test.js"
-      },
-      {
-        "status": "A",
+        "status": "M",
         "path": "tests/server/services/multitenant/workspace-connection.test.js"
-      },
-      {
-        "status": "A",
-        "path": "tests/server/services/personal-knowledge-promotion-service.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/sns/ops/poll-sns-feedback-metrics.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/sns/ops/run-sns-scheduled-posts.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/sns/posting-ledger/posting-ledger-repository.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/sns/publishing/sns-ledger-publish-service.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/unit/auth-service-service-token.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/unit/runtime-worktree-launchd.test.js"
-      },
-      {
-        "status": "M",
-        "path": "tests/unit/vibepro-runtime-hook-contract.test.js"
-      },
-      {
-        "status": "A",
-        "path": "vitest.conformance.config.js"
       }
     ],
-    "dirty_files": [],
-    "commit_count": 78
+    "dirty_files": [
+      {
+        "status": "M",
+        "path": "vibepro/pr/story-tenant-production-provisioning-control-plane/pr-body.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/traceability.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/parallel-dispatch.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-plan.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-gate_evidence.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-pr_split_scope.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-release_risk.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-summary.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-summary.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/parallel-dispatch.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-plan.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-architecture_boundary.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-product_requirement.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-spec_consistency.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.md"
+      }
+    ],
+    "commit_count": 17
   },
   "spec": {
     "present": true,
@@ -783,22 +568,320 @@
   },
   "verification": {
     "recorded": true,
-    "updated_at": "2026-08-18T23:05:18.389Z",
+    "updated_at": "2026-08-19T05:24:28.665Z",
     "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json",
     "commands": [
       {
-        "kind": "typecheck",
+        "kind": "build",
         "status": "pass",
-        "command": "npm run typecheck",
-        "summary": "vibepro verify run executed the typecheck command: exit_code=0, duration_ms=1132, status=pass computed from the exit code | agent summary: PR1260 exact HEAD typecheck",
+        "command": "npx tsc --noEmit -p public/jsconfig.json",
+        "summary": "vibepro verify run executed the build command: exit_code=0, duration_ms=1206, status=pass computed from the exit code | agent summary: 現HEADのTypeScript build-time型検査。production DBは未接続。",
         "summary_authority": "agent_provided_non_authoritative",
         "evidence_source": "runner_direct",
         "observation": {
           "targets": [
-            "server/services/multitenant"
+            "public/jsconfig.json"
           ],
           "scenarios": [
-            "repository typecheck at exact PR1260 HEAD"
+            "TypeScript build-time contracts compile without type errors"
+          ],
+          "values": {
+            "status": "pass",
+            "exit_code": "0",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+            "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log",
+            "duration_ms": "1206",
+            "started_at": "2026-08-19T05:24:26.953Z",
+            "finished_at": "2026-08-19T05:24:28.159Z",
+            "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+            "worktree_sha256_after": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_bytes": "0",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "120000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v26.3.1",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_diff_sha256_before": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015",
+            "worktree_diff_sha256_after": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015",
+            "production_db": "not_collected"
+          }
+        },
+        "computed_observation": {
+          "producer": "vibepro verify run",
+          "computed_keys": [
+            "status",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "exit_code",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "values": {
+            "status": "pass",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+            "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log",
+            "exit_code": "0",
+            "duration_ms": "1206",
+            "started_at": "2026-08-19T05:24:26.953Z",
+            "finished_at": "2026-08-19T05:24:28.159Z",
+            "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+            "worktree_sha256_after": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_bytes": "0",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "120000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v26.3.1",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_diff_sha256_before": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015",
+            "worktree_diff_sha256_after": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015"
+          },
+          "artifact_derived_keys": [
+            "status",
+            "exit_code",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+          "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log",
+          "tree_mutated_during_run": false,
+          "head_moved_during_run": false,
+          "worktree_changed_during_run": false,
+          "worktree_sampled": true,
+          "worktree_sampling_complete": true,
+          "output_metrics": "none"
+        },
+        "computed_counts": null,
+        "artifact_check": {
+          "status": "verified",
+          "format": "generic_status",
+          "artifact_outcome": "pass",
+          "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+        },
+        "observation_check": {
+          "status": "recorded",
+          "reason": "observation states the inspected targets and what was observed"
+        },
+        "git_context": {
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "current_branch": "codex/tenant-production-provisioning-control-plane",
+          "dirty": false,
+          "raw_dirty": true,
+          "status_fingerprint_hash": "7481afc914d7b583c09d74f09f4a2861584a1146de6304253ec44a43a9e722a9",
+          "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "fingerprint_scope": {
+            "user_excludes": [
+              ".vibepro/",
+              ".worktrees/vibepro/"
+            ]
+          },
+          "recorded_at": "2026-08-19T05:24:28.657Z"
+        },
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "strict_head",
+          "status": "strict_head",
+          "reason": "strict HEAD binding was requested for this evidence",
+          "recorded_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "surface_files": [
+            {
+              "path": "public/jsconfig.json",
+              "sha256": "303777ab23ad522b042364ce813ee0f5ce4dfba74595985f48406b7225b3f934",
+              "size": 303
+            }
+          ],
+          "missing_files": [],
+          "surface_hash": "749b39f3f6c0cf7099cfa3c801c8566d6b3159b54becb71a24868121adb5b20d"
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "verify run",
+            "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+            "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+            "expected_root": null,
+            "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "managed_worktree": null
+          },
+          {
+            "id": "verification_run_produced_no_output",
+            "command_name": "verify run",
+            "reason": "the command exited 0 without printing anything; a silent success is not evidence that any check ran"
+          }
+        ],
+        "runtime_identity": {
+          "schema_version": "0.2.0",
+          "collected_at": "2026-08-19T05:24:28.388Z",
+          "mode": "normal",
+          "source_kind": "npm_package",
+          "test_context": null,
+          "package": {
+            "name": "vibepro",
+            "version": "0.2.0-beta.10",
+            "exact_version": "0.2.0-beta.10",
+            "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+          },
+          "cli": {
+            "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+            "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+            "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+          },
+          "release_manifest": {
+            "status": "valid",
+            "manifest": {
+              "schema_version": "0.1.0",
+              "package": {
+                "name": "vibepro",
+                "version": "0.2.0-beta.10",
+                "package_json_sha256": "12514f6d7d96aafde4a75c9886cb4f8046762c7d0d2b063c381d887269beab7d",
+                "entrypoint": "bin/vibepro.js"
+              },
+              "source_git": {
+                "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+                "origin_url": "https://github.com/Unson-LLC/vibepro",
+                "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+                "origin_main_relation": "same",
+                "dirty": false
+              }
+            },
+            "errors": []
+          },
+          "source_git": {
+            "is_git_repo": false,
+            "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+            "branch": null,
+            "origin_url": "https://github.com/Unson-LLC/vibepro",
+            "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+            "origin_main_relation": "published",
+            "dirty": false,
+            "dirty_summary": []
+          },
+          "identity_digest": "c785934050bf71cd6644d7c40477854fbab61a75a25fc7e2849fcd52aa1917d9",
+          "integrity": {
+            "status": "trusted",
+            "code": null,
+            "purpose": "evidence_generation",
+            "reasons": [
+              "manifested immutable npm runtime"
+            ]
+          }
+        },
+        "executed_at": "2026-08-19T05:24:28.159Z",
+        "trust_status": "trusted"
+      },
+      {
+        "kind": "typecheck",
+        "status": "pass",
+        "command": "npm run typecheck",
+        "summary": "vibepro verify run executed the typecheck command: exit_code=0, duration_ms=1087, status=pass computed from the exit code | agent summary: 現HEADのTypeScript型検査。production DBは未接続。",
+        "summary_authority": "agent_provided_non_authoritative",
+        "evidence_source": "runner_direct",
+        "observation": {
+          "targets": [
+            "public/jsconfig.json",
+            "server/services/multitenant/migration-planner.js",
+            "server/services/multitenant/postgres-migration-adapter.js"
+          ],
+          "scenarios": [
+            "TypeScript source contracts compile without type errors"
           ],
           "values": {
             "status": "pass",
@@ -806,16 +889,16 @@
             "evidence_source": "runner_direct",
             "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
             "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
-            "duration_ms": "1132",
-            "started_at": "2026-08-18T23:05:16.763Z",
-            "finished_at": "2026-08-18T23:05:17.895Z",
-            "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "duration_ms": "1087",
+            "started_at": "2026-08-19T05:24:22.213Z",
+            "finished_at": "2026-08-19T05:24:23.300Z",
+            "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_before": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
+            "worktree_sha256_after": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
             "stdout_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
             "output_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
             "output_bytes": "73",
@@ -831,10 +914,12 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_diff_sha256_before": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f",
+            "worktree_diff_sha256_after": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f",
+            "typecheck_scope": "public/jsconfig.json",
+            "production_db": "not_collected"
           }
         },
         "computed_observation": {
@@ -881,16 +966,16 @@
             "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
             "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
             "exit_code": "0",
-            "duration_ms": "1132",
-            "started_at": "2026-08-18T23:05:16.763Z",
-            "finished_at": "2026-08-18T23:05:17.895Z",
-            "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "duration_ms": "1087",
+            "started_at": "2026-08-19T05:24:22.213Z",
+            "finished_at": "2026-08-19T05:24:23.300Z",
+            "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_before": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
+            "worktree_sha256_after": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
             "stdout_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
             "output_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
             "output_bytes": "73",
@@ -906,10 +991,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_diff_sha256_before": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f",
+            "worktree_diff_sha256_after": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f"
           },
           "artifact_derived_keys": [
             "status",
@@ -968,11 +1053,11 @@
           "reason": "observation states the inspected targets and what was observed"
         },
         "git_context": {
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "current_branch": "codex/tenant-production-provisioning-control-plane",
           "dirty": false,
-          "raw_dirty": false,
-          "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "raw_dirty": true,
+          "status_fingerprint_hash": "7e31320ad7d1d588c7d9e12b14437dda89bc072fee1c37f534e667bb5d56c780",
           "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
           "fingerprint_scope": {
             "user_excludes": [
@@ -980,7 +1065,7 @@
               ".worktrees/vibepro/"
             ]
           },
-          "recorded_at": "2026-08-18T23:05:18.383Z"
+          "recorded_at": "2026-08-19T05:24:23.793Z"
         },
         "content_binding": {
           "schema_version": "0.1.0",
@@ -988,10 +1073,26 @@
           "mode": "strict_head",
           "status": "strict_head",
           "reason": "strict HEAD binding was requested for this evidence",
-          "recorded_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "surface_files": [],
+          "recorded_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "surface_files": [
+            {
+              "path": "public/jsconfig.json",
+              "sha256": "303777ab23ad522b042364ce813ee0f5ce4dfba74595985f48406b7225b3f934",
+              "size": 303
+            },
+            {
+              "path": "server/services/multitenant/migration-planner.js",
+              "sha256": "e4c7880d82a9854009b213e9fe33c77cb11efb862bcdecc3c96fda5b985de611",
+              "size": 6122
+            },
+            {
+              "path": "server/services/multitenant/postgres-migration-adapter.js",
+              "sha256": "c750b51190a5e0621716016a1b74832b8d34b44cf06db0c9a9c5b59491d96252",
+              "size": 21166
+            }
+          ],
           "missing_files": [],
-          "surface_hash": null
+          "surface_hash": "e8a773c448fbacc6b4efc3db468c0f5211baee903545da6880121c1c9c78e7c7"
         },
         "warnings": [
           {
@@ -1005,8 +1106,8 @@
             "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
             "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
             "expected_root": null,
-            "expected_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "current_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "managed_worktree": null
           },
           {
@@ -1017,7 +1118,7 @@
         ],
         "runtime_identity": {
           "schema_version": "0.2.0",
-          "collected_at": "2026-08-18T23:05:18.113Z",
+          "collected_at": "2026-08-19T05:24:23.526Z",
           "mode": "normal",
           "source_kind": "npm_package",
           "test_context": null,
@@ -1072,23 +1173,26 @@
             ]
           }
         },
-        "executed_at": "2026-08-18T23:05:17.895Z",
+        "executed_at": "2026-08-19T05:24:23.300Z",
         "trust_status": "trusted"
       },
       {
         "kind": "integration",
         "status": "pass",
-        "command": "npx vitest run tests/server/services/multitenant tests/server/scripts/tenant-production-provisioning-migration.test.js tests/server/scripts/tenant-production-provisioning-migration.integration.test.js --maxWorkers=1",
-        "summary": "vibepro verify run executed the integration command: exit_code=0, duration_ms=32060, status=pass computed from the exit code | agent summary: PR1260 exact HEAD multitenant provisioning integration verification",
+        "command": "npx vitest run --maxWorkers=1 tests/server/bootstrap/tenant-runtime-internal-server.test.js tests/server/bootstrap/slack-installation-control-plane-auth-order.test.js tests/server/bootstrap/slack-installation-control-plane.test.js tests/server/cloudflare/tenant-runtime-bridge.test.js tests/server/cloudflare/slack-installation-control-plane-bridge.test.js tests/server/routes/tenant-runtime-bootstrap.test.js tests/server/routes/tenant-runtime-contract.test.js tests/server/routes/slack-installation-control-plane.test.js tests/server/scripts/multitenant-platform-schema-migration.test.js tests/server/scripts/provision-tenant.test.js tests/server/scripts/tenant-production-provisioning-migration.integration.test.js tests/server/scripts/tenant-production-provisioning-migration.test.js tests/server/services/multitenant",
+        "summary": "vibepro verify run executed the integration command: exit_code=0, duration_ms=43079, status=pass computed from the exit code | agent summary: 現HEADで本番テナント経路38ファイルを実行。production DBは未接続。",
         "summary_authority": "agent_provided_non_authoritative",
         "evidence_source": "runner_direct",
         "observation": {
           "targets": [
-            "server/services/multitenant",
-            "scripts/migrate-tenant-production-provisioning.js"
+            "tests/server/bootstrap",
+            "tests/server/cloudflare",
+            "tests/server/routes",
+            "tests/server/scripts",
+            "tests/server/services/multitenant"
           ],
           "scenarios": [
-            "tenant provisioning, migration, credential boundary, and fail-closed controls"
+            "Slack認証・Cloudflare bridge・route・provision/migration CLIを含む変更経路"
           ],
           "values": {
             "status": "pass",
@@ -1096,35 +1200,37 @@
             "evidence_source": "runner_direct",
             "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
             "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
-            "duration_ms": "32060",
-            "started_at": "2026-08-18T23:04:28.303Z",
-            "finished_at": "2026-08-18T23:05:00.363Z",
-            "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "duration_ms": "43079",
+            "started_at": "2026-08-19T05:23:10.044Z",
+            "finished_at": "2026-08-19T05:23:53.123Z",
+            "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-            "stdout_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
-            "output_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
-            "output_bytes": "2679",
+            "worktree_sha256_before": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+            "worktree_sha256_after": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+            "stdout_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+            "output_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+            "output_bytes": "3579",
             "log_truncated": "false",
             "output_metrics": "none",
             "timed_out": "false",
             "output_limit_exceeded": "false",
             "external_kill_signal": "none",
-            "timeout_ms": "180000",
+            "timeout_ms": "120000",
             "max_output_bytes": "67108864",
             "harness_env_removed": "none",
             "runner_node_version": "v26.3.1",
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_diff_sha256_before": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5",
+            "worktree_diff_sha256_after": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5",
+            "test_files": "38",
+            "production_db": "not_collected"
           }
         },
         "computed_observation": {
@@ -1171,35 +1277,35 @@
             "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
             "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
             "exit_code": "0",
-            "duration_ms": "32060",
-            "started_at": "2026-08-18T23:04:28.303Z",
-            "finished_at": "2026-08-18T23:05:00.363Z",
-            "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "duration_ms": "43079",
+            "started_at": "2026-08-19T05:23:10.044Z",
+            "finished_at": "2026-08-19T05:23:53.123Z",
+            "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-            "stdout_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
-            "output_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
-            "output_bytes": "2679",
+            "worktree_sha256_before": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+            "worktree_sha256_after": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+            "stdout_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+            "output_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+            "output_bytes": "3579",
             "log_truncated": "false",
             "output_metrics": "none",
             "timed_out": "false",
             "output_limit_exceeded": "false",
             "external_kill_signal": "none",
-            "timeout_ms": "180000",
+            "timeout_ms": "120000",
             "max_output_bytes": "67108864",
             "harness_env_removed": "none",
             "runner_node_version": "v26.3.1",
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+            "worktree_diff_sha256_before": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5",
+            "worktree_diff_sha256_after": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5"
           },
           "artifact_derived_keys": [
             "status",
@@ -1258,11 +1364,11 @@
           "reason": "observation states the inspected targets and what was observed"
         },
         "git_context": {
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "current_branch": "codex/tenant-production-provisioning-control-plane",
           "dirty": false,
-          "raw_dirty": false,
-          "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "raw_dirty": true,
+          "status_fingerprint_hash": "9feb293e30c8bd458dcf45653252d085f72c4319c40e6b4be3523e112abffd0b",
           "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
           "fingerprint_scope": {
             "user_excludes": [
@@ -1270,7 +1376,7 @@
               ".worktrees/vibepro/"
             ]
           },
-          "recorded_at": "2026-08-18T23:05:01.027Z"
+          "recorded_at": "2026-08-19T05:23:53.717Z"
         },
         "content_binding": {
           "schema_version": "0.1.0",
@@ -1278,16 +1384,10 @@
           "mode": "strict_head",
           "status": "strict_head",
           "reason": "strict HEAD binding was requested for this evidence",
-          "recorded_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "surface_files": [
-            {
-              "path": "scripts/migrate-tenant-production-provisioning.js",
-              "sha256": "8c7c5312dd7728ebbbbc53086c4b809cd7eb24f06728304fafc42bdd212965f1",
-              "size": 45418
-            }
-          ],
+          "recorded_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "surface_files": [],
           "missing_files": [],
-          "surface_hash": "77352c167484ed1f91dc75b6677184eddc05b0c1b12fc6643ccbe9167c69211f"
+          "surface_hash": null
         },
         "warnings": [
           {
@@ -1301,9 +1401,14 @@
             "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
             "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
             "expected_root": null,
-            "expected_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "current_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "managed_worktree": null
+          },
+          {
+            "id": "verification_observation_overridden",
+            "command_name": "verify run",
+            "reason": "agent-supplied --observed values were discarded for computed keys: tests"
           },
           {
             "id": "verification_run_counts_not_parsed",
@@ -1313,7 +1418,7 @@
         ],
         "runtime_identity": {
           "schema_version": "0.2.0",
-          "collected_at": "2026-08-18T23:05:00.638Z",
+          "collected_at": "2026-08-19T05:23:53.384Z",
           "mode": "normal",
           "source_kind": "npm_package",
           "test_context": null,
@@ -1368,7 +1473,7 @@
             ]
           }
         },
-        "executed_at": "2026-08-18T23:05:00.363Z",
+        "executed_at": "2026-08-19T05:23:53.123Z",
         "trust_status": "trusted"
       }
     ]
@@ -1378,15 +1483,15 @@
     "status": "needs_review",
     "summary": {
       "stage_count": 7,
-      "pass": 0,
-      "needs_review": 7,
+      "pass": 1,
+      "needs_review": 6,
       "block": 0,
-      "stale": 0
+      "stale": 1
     },
     "stages": [
       {
         "stage": "planning_spec",
-        "status": "needs_review",
+        "status": "pass",
         "roles": [
           "product_requirement",
           "architecture_boundary",
@@ -1916,8 +2021,8 @@
           {
             "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
             "case": "defines tenant key, append-only revision history, and revision FKs",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b8753436c257fa72bf59b8f5fbc3a22eff16d5fc"
           }
         ],
         "mapped_evidence": [],
@@ -1951,8 +2056,8 @@
           {
             "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
             "case": "defines tenant key, append-only revision history, and revision FKs",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b8753436c257fa72bf59b8f5fbc3a22eff16d5fc"
           }
         ],
         "mapped_evidence": [],
@@ -1986,8 +2091,8 @@
           {
             "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
             "case": "enforces workspace logical uniqueness, provisioning idempotency, and service capabilities",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b8753436c257fa72bf59b8f5fbc3a22eff16d5fc"
           }
         ],
         "mapped_evidence": [],
@@ -2023,13 +2128,13 @@
           {
             "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
             "case": "defines tenant key, append-only revision history, and revision FKs",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b8753436c257fa72bf59b8f5fbc3a22eff16d5fc"
           },
           {
             "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
             "case": "passes the reserved canonical connection identity and next revision to the credential store on reinstall",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "ba44f74e9419e4b9ad77dca8623bf654640825e9"
           }
         ],
@@ -2064,8 +2169,8 @@
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "replays the same operation without duplicate writes",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           }
         ],
         "mapped_evidence": [],
@@ -2103,38 +2208,38 @@
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "reclaims a failed operation with the same fingerprint and fences the old attempt",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           },
           {
             "file": "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
             "case": "resolves one canonical project with a bounded, separate read client",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "4c10c5fdfa6eb2dfe9d175b8215fab17e39dc91d"
           },
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "fails closed on ambiguous Graph project and never writes a Graph person",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           },
           {
             "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
             "case": "requires the canonical runtime contract binding fields",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "6d7ccb7bcca11ac0bb7cd6b88fdfa92d4f233054"
           },
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "returns a redacted readback receipt after an atomic apply",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           },
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "fails closed when a canonical contract revision already has a different payload",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           }
         ],
         "mapped_evidence": [],
@@ -2170,8 +2275,8 @@
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "fails closed on ambiguous Graph project and never writes a Graph person",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           }
         ],
         "mapped_evidence": [],
@@ -2207,14 +2312,14 @@
           {
             "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
             "case": "rejects unknown tenant identity and secret material without echoing the value",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "6d7ccb7bcca11ac0bb7cd6b88fdfa92d4f233054"
           },
           {
             "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
             "case": "does not persist secret bodies or model service actors as Graph persons",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b8753436c257fa72bf59b8f5fbc3a22eff16d5fc"
           }
         ],
         "mapped_evidence": [],
@@ -2250,14 +2355,14 @@
           {
             "file": "tests/server/scripts/provision-tenant.test.js",
             "case": "keeps check and dry-run safe and requires explicit approval for apply",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "92b57b99d86de7b571788d56718baacd4f22f214"
           },
           {
             "file": "tests/server/scripts/tenant-production-provisioning-migration.test.js",
             "case": "requires one mode and explicit approval plus actor for apply",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "43795eb019401abc413a04a608cc6ba8f659ab62"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "46e2a5dee50686d31cb3d603dd724503be24a3ea"
           }
         ],
         "mapped_evidence": [],
@@ -2293,26 +2398,26 @@
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "returns a redacted readback receipt after an atomic apply",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           },
           {
             "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
             "case": "requires the canonical runtime contract binding fields",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "6d7ccb7bcca11ac0bb7cd6b88fdfa92d4f233054"
           },
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "returns a redacted readback receipt after an atomic apply",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           },
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "fails closed when a canonical contract revision already has a different payload",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           }
         ],
         "mapped_evidence": [],
@@ -2349,26 +2454,26 @@
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "reclaims a failed operation with the same fingerprint and fences the old attempt",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           },
           {
             "file": "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
             "case": "resolves one canonical project with a bounded, separate read client",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "4c10c5fdfa6eb2dfe9d175b8215fab17e39dc91d"
           },
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "records a redacted failed operation after an apply rollback",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           },
           {
             "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
             "case": "reclaims a failed operation with the same fingerprint and fences the old attempt",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+            "blob_oid": "b69ff4f76157d2aa31190527ed97b72eae235499"
           }
         ],
         "mapped_evidence": [],
@@ -2405,31 +2510,31 @@
           {
             "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
             "case": "claims before OAuth and suppresses a concurrent callback",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "c640ec4a9fc64b795a2d58266336a0f1184a14e2"
           },
           {
             "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
             "case": "writes and reads back the intent, connection revision, opaque credential and exchange ledger atomically",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "ba44f74e9419e4b9ad77dca8623bf654640825e9"
           },
           {
             "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
             "case": "returns the completed ledger result before exchanging a replayed OAuth code",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "c640ec4a9fc64b795a2d58266336a0f1184a14e2"
           },
           {
             "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
             "case": "marks failed claims retryable and fences stale completion",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "c640ec4a9fc64b795a2d58266336a0f1184a14e2"
           },
           {
             "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
             "case": "claims concurrent callbacks before OAuth so only one external exchange and registration occur",
-            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
             "blob_oid": "ba44f74e9419e4b9ad77dca8623bf654640825e9"
           }
         ],
@@ -2450,7 +2555,7 @@
     "scenario_lineage": null,
     "accepted_spec_lineage": {
       "status": "resolved",
-      "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+      "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
       "spec_path": ".vibepro/spec/story-tenant-production-provisioning-control-plane/spec.json",
       "spec_blob_oid": "79b9934774d5460091ccc403d70cb747df41daa2",
       "story_path": "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md",

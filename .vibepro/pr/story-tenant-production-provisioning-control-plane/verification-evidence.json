@@ -1,10 +1,10 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-tenant-production-provisioning-control-plane",
-  "updated_at": "2026-08-18T23:05:18.389Z",
+  "updated_at": "2026-08-19T05:24:28.665Z",
   "runtime_identity": {
     "schema_version": "0.2.0",
-    "collected_at": "2026-08-18T23:05:18.113Z",
+    "collected_at": "2026-08-19T05:24:28.388Z",
     "mode": "normal",
     "source_kind": "npm_package",
     "test_context": null,
@@ -71,22 +71,375 @@
       "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
       "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
       "expected_root": null,
-      "expected_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-      "current_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+      "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+      "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
       "managed_worktree": null
+    },
+    {
+      "id": "verification_run_produced_no_output",
+      "command_name": "verify run",
+      "reason": "the command exited 0 without printing anything; a silent success is not evidence that any check ran"
     },
     {
       "id": "verification_run_counts_not_parsed",
       "command_name": "verify run",
       "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+    },
+    {
+      "id": "verification_observation_overridden",
+      "command_name": "verify run",
+      "reason": "agent-supplied --observed values were discarded for computed keys: tests"
     }
   ],
   "commands": [
     {
+      "kind": "build",
+      "status": "pass",
+      "command": "npx tsc --noEmit -p public/jsconfig.json",
+      "summary": "vibepro verify run executed the build command: exit_code=0, duration_ms=1206, status=pass computed from the exit code | agent summary: 現HEADのTypeScript build-time型検査。production DBは未接続。",
+      "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+      "artifact_check": {
+        "status": "verified",
+        "format": "generic_status",
+        "artifact_outcome": "pass",
+        "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+      },
+      "artifact_observed_values": {
+        "status": "pass",
+        "exit_code": "0",
+        "evidence_source": "runner_direct",
+        "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+        "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log",
+        "duration_ms": "1206",
+        "started_at": "2026-08-19T05:24:26.953Z",
+        "finished_at": "2026-08-19T05:24:28.159Z",
+        "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "worktree_sampled": "true",
+        "worktree_sampling_complete": "true",
+        "worktree_sha256_before": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+        "worktree_sha256_after": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_bytes": "0",
+        "log_truncated": "false",
+        "output_metrics": "none",
+        "timed_out": "false",
+        "output_limit_exceeded": "false",
+        "external_kill_signal": "none",
+        "timeout_ms": "120000",
+        "max_output_bytes": "67108864",
+        "harness_env_removed": "none",
+        "runner_node_version": "v26.3.1",
+        "tree_mutated_during_run": "false",
+        "head_moved_during_run": "false",
+        "worktree_changed_during_run": "false",
+        "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+        "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+        "worktree_diff_sha256_before": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015",
+        "worktree_diff_sha256_after": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015"
+      },
+      "observation": {
+        "targets": [
+          "public/jsconfig.json"
+        ],
+        "scenarios": [
+          "TypeScript build-time contracts compile without type errors"
+        ],
+        "values": {
+          "status": "pass",
+          "exit_code": "0",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+          "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log",
+          "duration_ms": "1206",
+          "started_at": "2026-08-19T05:24:26.953Z",
+          "finished_at": "2026-08-19T05:24:28.159Z",
+          "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+          "worktree_sha256_after": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "output_bytes": "0",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "120000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v26.3.1",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_diff_sha256_before": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015",
+          "worktree_diff_sha256_after": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015",
+          "production_db": "not_collected"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "evidence_source": "runner_direct",
+      "computed_observation": {
+        "producer": "vibepro verify run",
+        "computed_keys": [
+          "status",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "exit_code",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "values": {
+          "status": "pass",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+          "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log",
+          "exit_code": "0",
+          "duration_ms": "1206",
+          "started_at": "2026-08-19T05:24:26.953Z",
+          "finished_at": "2026-08-19T05:24:28.159Z",
+          "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+          "worktree_sha256_after": "8d54dbf9e372cde80d04a6768d7be4197aa055a2b8dcc70c12b73e0eddab4d98",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "output_bytes": "0",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "120000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v26.3.1",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_diff_sha256_before": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015",
+          "worktree_diff_sha256_after": "dbc4c8e824523dc0806e08269141d4eaf64469f9111147c51987765af1afb015"
+        },
+        "artifact_derived_keys": [
+          "status",
+          "exit_code",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+        "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log",
+        "tree_mutated_during_run": false,
+        "head_moved_during_run": false,
+        "worktree_changed_during_run": false,
+        "worktree_sampled": true,
+        "worktree_sampling_complete": true,
+        "output_metrics": "none"
+      },
+      "executed_at": "2026-08-19T05:24:28.159Z",
+      "git_context": {
+        "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "current_branch": "codex/tenant-production-provisioning-control-plane",
+        "dirty": false,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "7481afc914d7b583c09d74f09f4a2861584a1146de6304253ec44a43a9e722a9",
+        "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-08-19T05:24:28.657Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "strict_head",
+        "status": "strict_head",
+        "reason": "strict HEAD binding was requested for this evidence",
+        "recorded_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "surface_files": [
+          {
+            "path": "public/jsconfig.json",
+            "sha256": "303777ab23ad522b042364ce813ee0f5ce4dfba74595985f48406b7225b3f934",
+            "size": 303
+          }
+        ],
+        "missing_files": [],
+        "surface_hash": "749b39f3f6c0cf7099cfa3c801c8566d6b3159b54becb71a24868121adb5b20d"
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-08-19T05:24:28.388Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.10",
+          "exact_version": "0.2.0-beta.10",
+          "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+          "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.10",
+              "package_json_sha256": "12514f6d7d96aafde4a75c9886cb4f8046762c7d0d2b063c381d887269beab7d",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "c785934050bf71cd6644d7c40477854fbab61a75a25fc7e2849fcd52aa1917d9",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": {
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "verify run",
+        "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+        "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+        "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+        "expected_root": null,
+        "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "managed_worktree": null
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "verify run",
+          "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+          "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+          "expected_root": null,
+          "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "managed_worktree": null
+        },
+        {
+          "id": "verification_run_produced_no_output",
+          "command_name": "verify run",
+          "reason": "the command exited 0 without printing anything; a silent success is not evidence that any check ran"
+        }
+      ]
+    },
+    {
       "kind": "typecheck",
       "status": "pass",
       "command": "npm run typecheck",
-      "summary": "vibepro verify run executed the typecheck command: exit_code=0, duration_ms=1132, status=pass computed from the exit code | agent summary: PR1260 exact HEAD typecheck",
+      "summary": "vibepro verify run executed the typecheck command: exit_code=0, duration_ms=1087, status=pass computed from the exit code | agent summary: 現HEADのTypeScript型検査。production DBは未接続。",
       "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
       "artifact_check": {
         "status": "verified",
@@ -100,16 +453,16 @@
         "evidence_source": "runner_direct",
         "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
         "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
-        "duration_ms": "1132",
-        "started_at": "2026-08-18T23:05:16.763Z",
-        "finished_at": "2026-08-18T23:05:17.895Z",
-        "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
-        "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
-        "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+        "duration_ms": "1087",
+        "started_at": "2026-08-19T05:24:22.213Z",
+        "finished_at": "2026-08-19T05:24:23.300Z",
+        "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
         "worktree_sampled": "true",
         "worktree_sampling_complete": "true",
-        "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-        "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+        "worktree_sha256_before": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
+        "worktree_sha256_after": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
         "stdout_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
         "output_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
         "output_bytes": "73",
@@ -125,17 +478,19 @@
         "tree_mutated_during_run": "false",
         "head_moved_during_run": "false",
         "worktree_changed_during_run": "false",
-        "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+        "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+        "worktree_diff_sha256_before": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f",
+        "worktree_diff_sha256_after": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f"
       },
       "observation": {
         "targets": [
-          "server/services/multitenant"
+          "public/jsconfig.json",
+          "server/services/multitenant/migration-planner.js",
+          "server/services/multitenant/postgres-migration-adapter.js"
         ],
         "scenarios": [
-          "repository typecheck at exact PR1260 HEAD"
+          "TypeScript source contracts compile without type errors"
         ],
         "values": {
           "status": "pass",
@@ -143,16 +498,16 @@
           "evidence_source": "runner_direct",
           "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
           "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
-          "duration_ms": "1132",
-          "started_at": "2026-08-18T23:05:16.763Z",
-          "finished_at": "2026-08-18T23:05:17.895Z",
-          "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "duration_ms": "1087",
+          "started_at": "2026-08-19T05:24:22.213Z",
+          "finished_at": "2026-08-19T05:24:23.300Z",
+          "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "worktree_sampled": "true",
           "worktree_sampling_complete": "true",
-          "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-          "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+          "worktree_sha256_before": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
+          "worktree_sha256_after": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
           "stdout_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
           "output_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
           "output_bytes": "73",
@@ -168,10 +523,12 @@
           "tree_mutated_during_run": "false",
           "head_moved_during_run": "false",
           "worktree_changed_during_run": "false",
-          "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_diff_sha256_before": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f",
+          "worktree_diff_sha256_after": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f",
+          "typecheck_scope": "public/jsconfig.json",
+          "production_db": "not_collected"
         }
       },
       "observation_check": {
@@ -223,16 +580,16 @@
           "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
           "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
           "exit_code": "0",
-          "duration_ms": "1132",
-          "started_at": "2026-08-18T23:05:16.763Z",
-          "finished_at": "2026-08-18T23:05:17.895Z",
-          "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "duration_ms": "1087",
+          "started_at": "2026-08-19T05:24:22.213Z",
+          "finished_at": "2026-08-19T05:24:23.300Z",
+          "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "worktree_sampled": "true",
           "worktree_sampling_complete": "true",
-          "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-          "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+          "worktree_sha256_before": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
+          "worktree_sha256_after": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
           "stdout_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
           "output_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
           "output_bytes": "73",
@@ -248,10 +605,10 @@
           "tree_mutated_during_run": "false",
           "head_moved_during_run": "false",
           "worktree_changed_during_run": "false",
-          "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_diff_sha256_before": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f",
+          "worktree_diff_sha256_after": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f"
         },
         "artifact_derived_keys": [
           "status",
@@ -298,13 +655,13 @@
         "worktree_sampling_complete": true,
         "output_metrics": "none"
       },
-      "executed_at": "2026-08-18T23:05:17.895Z",
+      "executed_at": "2026-08-19T05:24:23.300Z",
       "git_context": {
-        "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+        "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
         "current_branch": "codex/tenant-production-provisioning-control-plane",
         "dirty": false,
-        "raw_dirty": false,
-        "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "raw_dirty": true,
+        "status_fingerprint_hash": "7e31320ad7d1d588c7d9e12b14437dda89bc072fee1c37f534e667bb5d56c780",
         "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
         "fingerprint_scope": {
           "user_excludes": [
@@ -312,7 +669,7 @@
             ".worktrees/vibepro/"
           ]
         },
-        "recorded_at": "2026-08-18T23:05:18.383Z"
+        "recorded_at": "2026-08-19T05:24:23.793Z"
       },
       "content_binding": {
         "schema_version": "0.1.0",
@@ -320,14 +677,30 @@
         "mode": "strict_head",
         "status": "strict_head",
         "reason": "strict HEAD binding was requested for this evidence",
-        "recorded_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-        "surface_files": [],
+        "recorded_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "surface_files": [
+          {
+            "path": "public/jsconfig.json",
+            "sha256": "303777ab23ad522b042364ce813ee0f5ce4dfba74595985f48406b7225b3f934",
+            "size": 303
+          },
+          {
+            "path": "server/services/multitenant/migration-planner.js",
+            "sha256": "e4c7880d82a9854009b213e9fe33c77cb11efb862bcdecc3c96fda5b985de611",
+            "size": 6122
+          },
+          {
+            "path": "server/services/multitenant/postgres-migration-adapter.js",
+            "sha256": "c750b51190a5e0621716016a1b74832b8d34b44cf06db0c9a9c5b59491d96252",
+            "size": 21166
+          }
+        ],
         "missing_files": [],
-        "surface_hash": null
+        "surface_hash": "e8a773c448fbacc6b4efc3db468c0f5211baee903545da6880121c1c9c78e7c7"
       },
       "runtime_identity": {
         "schema_version": "0.2.0",
-        "collected_at": "2026-08-18T23:05:18.113Z",
+        "collected_at": "2026-08-19T05:24:23.526Z",
         "mode": "normal",
         "source_kind": "npm_package",
         "test_context": null,
@@ -391,8 +764,8 @@
         "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
         "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
         "expected_root": null,
-        "expected_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-        "current_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+        "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
         "managed_worktree": null
       },
       "warnings": [
@@ -407,8 +780,8 @@
           "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
           "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
           "expected_root": null,
-          "expected_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "current_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "managed_worktree": null
         },
         {
@@ -421,8 +794,8 @@
     {
       "kind": "integration",
       "status": "pass",
-      "command": "npx vitest run tests/server/services/multitenant tests/server/scripts/tenant-production-provisioning-migration.test.js tests/server/scripts/tenant-production-provisioning-migration.integration.test.js --maxWorkers=1",
-      "summary": "vibepro verify run executed the integration command: exit_code=0, duration_ms=32060, status=pass computed from the exit code | agent summary: PR1260 exact HEAD multitenant provisioning integration verification",
+      "command": "npx vitest run --maxWorkers=1 tests/server/bootstrap/tenant-runtime-internal-server.test.js tests/server/bootstrap/slack-installation-control-plane-auth-order.test.js tests/server/bootstrap/slack-installation-control-plane.test.js tests/server/cloudflare/tenant-runtime-bridge.test.js tests/server/cloudflare/slack-installation-control-plane-bridge.test.js tests/server/routes/tenant-runtime-bootstrap.test.js tests/server/routes/tenant-runtime-contract.test.js tests/server/routes/slack-installation-control-plane.test.js tests/server/scripts/multitenant-platform-schema-migration.test.js tests/server/scripts/provision-tenant.test.js tests/server/scripts/tenant-production-provisioning-migration.integration.test.js tests/server/scripts/tenant-production-provisioning-migration.test.js tests/server/services/multitenant",
+      "summary": "vibepro verify run executed the integration command: exit_code=0, duration_ms=43079, status=pass computed from the exit code | agent summary: 現HEADで本番テナント経路38ファイルを実行。production DBは未接続。",
       "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
       "artifact_check": {
         "status": "verified",
@@ -436,43 +809,46 @@
         "evidence_source": "runner_direct",
         "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
         "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
-        "duration_ms": "32060",
-        "started_at": "2026-08-18T23:04:28.303Z",
-        "finished_at": "2026-08-18T23:05:00.363Z",
-        "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
-        "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
-        "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+        "duration_ms": "43079",
+        "started_at": "2026-08-19T05:23:10.044Z",
+        "finished_at": "2026-08-19T05:23:53.123Z",
+        "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
         "worktree_sampled": "true",
         "worktree_sampling_complete": "true",
-        "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-        "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-        "stdout_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
-        "output_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
-        "output_bytes": "2679",
+        "worktree_sha256_before": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+        "worktree_sha256_after": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+        "stdout_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+        "output_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+        "output_bytes": "3579",
         "log_truncated": "false",
         "output_metrics": "none",
         "timed_out": "false",
         "output_limit_exceeded": "false",
         "external_kill_signal": "none",
-        "timeout_ms": "180000",
+        "timeout_ms": "120000",
         "max_output_bytes": "67108864",
         "harness_env_removed": "none",
         "runner_node_version": "v26.3.1",
         "tree_mutated_during_run": "false",
         "head_moved_during_run": "false",
         "worktree_changed_during_run": "false",
-        "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+        "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+        "worktree_diff_sha256_before": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5",
+        "worktree_diff_sha256_after": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5"
       },
       "observation": {
         "targets": [
-          "server/services/multitenant",
-          "scripts/migrate-tenant-production-provisioning.js"
+          "tests/server/bootstrap",
+          "tests/server/cloudflare",
+          "tests/server/routes",
+          "tests/server/scripts",
+          "tests/server/services/multitenant"
         ],
         "scenarios": [
-          "tenant provisioning, migration, credential boundary, and fail-closed controls"
+          "Slack認証・Cloudflare bridge・route・provision/migration CLIを含む変更経路"
         ],
         "values": {
           "status": "pass",
@@ -480,35 +856,37 @@
           "evidence_source": "runner_direct",
           "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
           "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
-          "duration_ms": "32060",
-          "started_at": "2026-08-18T23:04:28.303Z",
-          "finished_at": "2026-08-18T23:05:00.363Z",
-          "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "duration_ms": "43079",
+          "started_at": "2026-08-19T05:23:10.044Z",
+          "finished_at": "2026-08-19T05:23:53.123Z",
+          "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "worktree_sampled": "true",
           "worktree_sampling_complete": "true",
-          "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-          "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-          "stdout_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
-          "output_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
-          "output_bytes": "2679",
+          "worktree_sha256_before": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+          "worktree_sha256_after": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+          "stdout_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+          "output_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+          "output_bytes": "3579",
           "log_truncated": "false",
           "output_metrics": "none",
           "timed_out": "false",
           "output_limit_exceeded": "false",
           "external_kill_signal": "none",
-          "timeout_ms": "180000",
+          "timeout_ms": "120000",
           "max_output_bytes": "67108864",
           "harness_env_removed": "none",
           "runner_node_version": "v26.3.1",
           "tree_mutated_during_run": "false",
           "head_moved_during_run": "false",
           "worktree_changed_during_run": "false",
-          "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_diff_sha256_before": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5",
+          "worktree_diff_sha256_after": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5",
+          "test_files": "38",
+          "production_db": "not_collected"
         }
       },
       "observation_check": {
@@ -560,35 +938,35 @@
           "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
           "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
           "exit_code": "0",
-          "duration_ms": "32060",
-          "started_at": "2026-08-18T23:04:28.303Z",
-          "finished_at": "2026-08-18T23:05:00.363Z",
-          "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "duration_ms": "43079",
+          "started_at": "2026-08-19T05:23:10.044Z",
+          "finished_at": "2026-08-19T05:23:53.123Z",
+          "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "worktree_sampled": "true",
           "worktree_sampling_complete": "true",
-          "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-          "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
-          "stdout_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
-          "output_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
-          "output_bytes": "2679",
+          "worktree_sha256_before": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+          "worktree_sha256_after": "c9bbff9edc71462f9049f186282a1f8f935461148bafdc458e0e23e265bf93cd",
+          "stdout_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+          "output_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+          "output_bytes": "3579",
           "log_truncated": "false",
           "output_metrics": "none",
           "timed_out": "false",
           "output_limit_exceeded": "false",
           "external_kill_signal": "none",
-          "timeout_ms": "180000",
+          "timeout_ms": "120000",
           "max_output_bytes": "67108864",
           "harness_env_removed": "none",
           "runner_node_version": "v26.3.1",
           "tree_mutated_during_run": "false",
           "head_moved_during_run": "false",
           "worktree_changed_during_run": "false",
-          "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+          "worktree_diff_sha256_before": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5",
+          "worktree_diff_sha256_after": "eae61e0c05286b9404ae0071c3f5241d1c28ca54d8dc2a568f2481077369c0f5"
         },
         "artifact_derived_keys": [
           "status",
@@ -635,13 +1013,21 @@
         "worktree_sampling_complete": true,
         "output_metrics": "none"
       },
-      "executed_at": "2026-08-18T23:05:00.363Z",
+      "observation_overrides": [
+        {
+          "key": "tests",
+          "agent_value": "284",
+          "computed_value": null,
+          "reason": "key is computed by the runner and was not observed in this run; the agent value is not recorded"
+        }
+      ],
+      "executed_at": "2026-08-19T05:23:53.123Z",
       "git_context": {
-        "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+        "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
         "current_branch": "codex/tenant-production-provisioning-control-plane",
         "dirty": false,
-        "raw_dirty": false,
-        "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "raw_dirty": true,
+        "status_fingerprint_hash": "9feb293e30c8bd458dcf45653252d085f72c4319c40e6b4be3523e112abffd0b",
         "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
         "fingerprint_scope": {
           "user_excludes": [
@@ -649,7 +1035,7 @@
             ".worktrees/vibepro/"
           ]
         },
-        "recorded_at": "2026-08-18T23:05:01.027Z"
+        "recorded_at": "2026-08-19T05:23:53.717Z"
       },
       "content_binding": {
         "schema_version": "0.1.0",
@@ -657,20 +1043,14 @@
         "mode": "strict_head",
         "status": "strict_head",
         "reason": "strict HEAD binding was requested for this evidence",
-        "recorded_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-        "surface_files": [
-          {
-            "path": "scripts/migrate-tenant-production-provisioning.js",
-            "sha256": "8c7c5312dd7728ebbbbc53086c4b809cd7eb24f06728304fafc42bdd212965f1",
-            "size": 45418
-          }
-        ],
+        "recorded_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "surface_files": [],
         "missing_files": [],
-        "surface_hash": "77352c167484ed1f91dc75b6677184eddc05b0c1b12fc6643ccbe9167c69211f"
+        "surface_hash": null
       },
       "runtime_identity": {
         "schema_version": "0.2.0",
-        "collected_at": "2026-08-18T23:05:00.638Z",
+        "collected_at": "2026-08-19T05:23:53.384Z",
         "mode": "normal",
         "source_kind": "npm_package",
         "test_context": null,
@@ -734,8 +1114,8 @@
         "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
         "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
         "expected_root": null,
-        "expected_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-        "current_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+        "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+        "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
         "managed_worktree": null
       },
       "warnings": [
@@ -750,9 +1130,14 @@
           "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
           "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
           "expected_root": null,
-          "expected_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
-          "current_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+          "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
           "managed_worktree": null
+        },
+        {
+          "id": "verification_observation_overridden",
+          "command_name": "verify run",
+          "reason": "agent-supplied --observed values were discarded for computed keys: tests"
         },
         {
           "id": "verification_run_counts_not_parsed",
