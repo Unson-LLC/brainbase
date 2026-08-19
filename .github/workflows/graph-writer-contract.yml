@@ -34,5 +34,9 @@ jobs:
           tests/server/scripts/ontology-writer-inventory.test.js
           tests/server/scripts/brainbase-graph-http-client.test.js
           tests/server/scripts/admin-api-path-surface-smoke.test.js
+          tests/unit/info-ssot-knowledge-graph-repository.test.js
+          tests/unit/personal-knowledge-promotion-service.test.js
+          tests/server/routes/personal-knowledge-routes.test.js
+          tests/server/services/personal-knowledge-schema.test.js
       - name: Run tenant production provisioning contract suite
         run: npm run test:tenant-production-provisioning
