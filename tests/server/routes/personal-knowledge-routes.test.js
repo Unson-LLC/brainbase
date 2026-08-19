@@ -14,6 +14,9 @@ function createApp() {
         requestPromotion: vi.fn(async () => ({ request_id: 'kpr_1', status: 'pending_owner_approval' })),
         decideOwnerPromotion: vi.fn(async () => ({ request_id: 'kpr_1', status: 'pending_org_review' })),
         listOrganizationReviews: vi.fn(async () => [{ request_id: 'kpr_1', status: 'pending_org_review' }]),
+        saveNormalizedPromotion: vi.fn(async () => ({
+            request_id: 'kpr_1', status: 'pending_org_review', normalized_payload_hash: 'sha256:abc'
+        })),
         reviewOrganizationPromotion: vi.fn(async () => ({ request_id: 'kpr_1', status: 'org_rejected' }))
     };
     const app = express();
@@ -70,11 +73,21 @@ describe('personal knowledge routes', () => {
         expect(promotionService.decideOwnerPromotion).toHaveBeenCalledTimes(2);
     });
 
-    it('exposes a distinct organization review queue and decision path', async () => {
+    it('exposes normalization, organization review queue, and decision as separate contracts', async () => {
         const { app, promotionService } = createApp();
+        const normalizedPayload = {
+            schema_version: 'personal_knowledge_normalized.v1',
+            kind: 'decision',
+            entity: { id: 'decision_1', type: 'decision', payload: { statement: '採用する' } },
+            decision_domain: 'general'
+        };
 
         const queue = await request(app)
             .get('/api/personal-knowledge/organization-reviews?limit=10')
+            .expect(200);
+        const normalization = await request(app)
+            .put('/api/personal-knowledge/promotions/kpr_1/normalized-payload')
+            .send({ normalized_payload: normalizedPayload })
             .expect(200);
         const decision = await request(app)
             .post('/api/personal-knowledge/promotions/kpr_1/organization-decision')
@@ -82,10 +95,16 @@ describe('personal knowledge routes', () => {
             .expect(200);
 
         expect(queue.body.reviews).toHaveLength(1);
+        expect(normalization.body.normalized_payload_hash).toBe('sha256:abc');
         expect(decision.body.status).toBe('org_rejected');
         expect(promotionService.listOrganizationReviews).toHaveBeenCalledWith(
             { limit: '10' },
             expect.objectContaining({ access: expect.objectContaining({ role: 'gm' }) })
+        );
+        expect(promotionService.saveNormalizedPromotion).toHaveBeenCalledWith(
+            'kpr_1',
+            { normalized_payload: normalizedPayload },
+            expect.any(Object)
         );
         expect(promotionService.reviewOrganizationPromotion).toHaveBeenCalledWith(
             'kpr_1',
@@ -94,17 +113,23 @@ describe('personal knowledge routes', () => {
         );
     });
 
-    it('propagates promotion authorization status codes', async () => {
+    it('propagates promotion authorization status and structured quarantine details', async () => {
         const { app, promotionService } = createApp();
         promotionService.reviewOrganizationPromotion.mockRejectedValueOnce(
-            Object.assign(new Error('personal_knowledge_distinct_organization_reviewer_required'), { status: 403 })
+            Object.assign(new Error('personal_knowledge_graph_promotion_quarantined'), {
+                status: 409,
+                details: { reason: 'decision_authority_unverified' }
+            })
         );
 
         const res = await request(app)
             .post('/api/personal-knowledge/promotions/kpr_1/organization-decision')
             .send({ decision: 'approve' })
-            .expect(403);
+            .expect(409);
 
-        expect(res.body.error).toBe('personal_knowledge_distinct_organization_reviewer_required');
+        expect(res.body).toEqual({
+            error: 'personal_knowledge_graph_promotion_quarantined',
+            details: { reason: 'decision_authority_unverified' }
+        });
     });
 });
