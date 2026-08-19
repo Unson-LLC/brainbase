@@ -11,6 +11,7 @@ UI_API_URL="${BRAINBASE_UI_API_URL:-http://127.0.0.1:31013}"
 UI_RUNTIME="${BRAINBASE_UI_RUNTIME_ROOT:-/Users/ksato/workspace/repos/.runtime/brainbase-31013}"
 MCP_RUNTIME="${BRAINBASE_MCP_RUNTIME_ROOT:-$UI_RUNTIME}"
 MCP_LABEL="${BRAINBASE_MCP_LAUNCHD_LABEL:-com.brainbase.mcp-brainbase}"
+CHATGPT_TUNNEL_LABEL="${BRAINBASE_CHATGPT_TUNNEL_LAUNCHD_LABEL:-com.brainbase.chatgpt-mcp-tunnel}"
 RECEIPT="${BRAINBASE_MCP_RECONCILE_RECEIPT:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.last}"
 LOCK_DIR="${BRAINBASE_MCP_RECONCILE_LOCK:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.lock}"
 INFISICAL_BIN="${INFISICAL_BIN:-/Users/ksato/.local/bin/infisical}"
@@ -97,6 +98,33 @@ done
 BRAINBASE_REPO_ROOT="$MCP_RUNTIME" INFISICAL_BIN="$INFISICAL_BIN" scripts/run-brainbase-mcp.sh --check >&2 || \
   fail "MCP post-restart authentication check failed"
 
+# The ChatGPT tunnel owns a long-lived stdio child. Restart it after the MCP
+# build changes so ChatGPT observes the same runtime SHA. Tunnel availability
+# is an external integration and must not roll back an otherwise healthy
+# Brainbase deployment; record and warn instead.
+CHATGPT_TUNNEL_STATUS="not_loaded"
+if launchctl print "gui/$(id -u)/${CHATGPT_TUNNEL_LABEL}" >/dev/null 2>&1; then
+  CHATGPT_TUNNEL_STATUS="restart_failed"
+  log "restarting installed ChatGPT Secure MCP Tunnel"
+  if launchctl kickstart -k "gui/$(id -u)/${CHATGPT_TUNNEL_LABEL}"; then
+    CHATGPT_TUNNEL_STATUS="unhealthy"
+    for ((attempt = 1; attempt <= 10; attempt += 1)); do
+      if launchctl print "gui/$(id -u)/${CHATGPT_TUNNEL_LABEL}" 2>/dev/null | grep -q 'state = running'; then
+        CHATGPT_TUNNEL_STATUS="running"
+        break
+      fi
+      sleep 1
+    done
+  fi
+
+  if [ "$CHATGPT_TUNNEL_STATUS" != "running" ]; then
+    log "WARNING: ChatGPT Secure MCP Tunnel status is ${CHATGPT_TUNNEL_STATUS}; core deployment remains active"
+  fi
+fi
+
 mkdir -p "$(dirname "$RECEIPT")"
-printf 'sha=%s\ncompleted_at=%s\n' "$TARGET_SHA" "$(date -u +%FT%TZ)" > "$RECEIPT"
-log "complete: UI and MCP are on ${TARGET_SHA:0:12}, task API authentication is healthy"
+printf 'sha=%s\ncompleted_at=%s\nchatgpt_tunnel=%s\n' \
+  "$TARGET_SHA" \
+  "$(date -u +%FT%TZ)" \
+  "$CHATGPT_TUNNEL_STATUS" > "$RECEIPT"
+log "complete: UI and MCP are on ${TARGET_SHA:0:12}, task API authentication is healthy, ChatGPT tunnel=${CHATGPT_TUNNEL_STATUS}"

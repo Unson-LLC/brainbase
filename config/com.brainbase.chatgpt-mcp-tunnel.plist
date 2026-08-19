@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.brainbase.chatgpt-mcp-tunnel</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__RUNTIME_ROOT__/scripts/run-chatgpt-brainbase-tunnel.sh</string>
+    <string>run</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BRAINBASE_REPO_ROOT</key>
+    <string>__RUNTIME_ROOT__</string>
+    <key>BRAINBASE_CHATGPT_TUNNEL_PROFILE</key>
+    <string>brainbase-chatgpt</string>
+    <key>BRAINBASE_ENTITY_SOURCE</key>
+    <string>graphapi</string>
+    <key>BRAINBASE_WIKI_API_URL</key>
+    <string>http://127.0.0.1:31013</string>
+    <key>INFISICAL_BIN</key>
+    <string>__HOME__/.local/bin/infisical</string>
+    <key>TUNNEL_CLIENT_BIN</key>
+    <string>__HOME__/.local/bin/tunnel-client</string>
+    <key>PATH</key>
+    <string>__HOME__/.nvm/versions/node/v22.22.0/bin:__HOME__/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/brainbase-chatgpt-mcp-tunnel.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/brainbase-chatgpt-mcp-tunnel.error.log</string>
+
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+</dict>
+</plist>

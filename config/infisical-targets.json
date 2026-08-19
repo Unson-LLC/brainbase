@@ -30,6 +30,21 @@
         "BRAINBASE_JUDGMENT_BINDING_SECRET"
       ]
     },
+    "openai-brainbase-tunnel": {
+      "description": "OpenAI Secure MCP Tunnel identity for ChatGPT -> Brainbase stdio",
+      "org": "unson",
+      "projectId": "ce20541c-02b9-4523-bbe0-49d50b2fcc19",
+      "env": "prod",
+      "path": "/mcp/openai-brainbase-tunnel",
+      "authFiles": [
+        "~/.brainbase/runtime-env/openai-mcp-tunnel.universal-auth.env",
+        "@org:unson"
+      ],
+      "requiredKeys": [
+        "CONTROL_PLANE_API_KEY",
+        "OPENAI_MCP_TUNNEL_ID"
+      ]
+    },
     "nocodb-mcp": {
       "description": "NocoDB MCP runtime env",
       "org": "unson",
