@@ -15,6 +15,7 @@ const MIGRATIONS = [
     { id: 'candidate-store', path: 'server/sql/candidate-store-schema.sql' },
     { id: 'knowledge-events', path: 'server/sql/knowledge-event-schema.sql' },
     { id: 'personal-knowledge', path: 'server/sql/personal-knowledge-schema.sql' },
+    { id: 'personal-knowledge', path: 'server/sql/personal-knowledge-two-stage-promotion.sql' },
     { id: 'integration-accounts', path: 'server/sql/integration-accounts-schema.sql' },
     { id: 'sns-posting-ledger', path: 'server/sql/sns-posting-ledger-schema.sql' }
 ];
@@ -25,7 +26,7 @@ export function selectedMigrations(argv = process.argv.slice(2)) {
     const requested = argv[onlyIndex + 1];
     const selected = MIGRATIONS.filter((migration) => migration.id === requested);
     if (selected.length === 0) {
-        throw new Error(`Unknown migration id: ${requested}. Available: ${MIGRATIONS.map((migration) => migration.id).join(', ')}`);
+        throw new Error(`Unknown migration id: ${requested}. Available: ${[...new Set(MIGRATIONS.map((migration) => migration.id))].join(', ')}`);
     }
     return selected;
 }
