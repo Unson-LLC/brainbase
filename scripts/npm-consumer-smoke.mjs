@@ -40,6 +40,7 @@ function assertIncludes(output, expected, command) {
 function consumerProbeSource() {
   return `import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { validateJudgmentDAG } from '@unson/brainbase-mcp/judgment-dag';
 
 const [serverEntrypoint, dataDir] = process.argv.slice(2);
 for (const forbiddenName of ['NODE_OPTIONS', 'NODE_PATH', 'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY']) {
@@ -47,6 +48,16 @@ for (const forbiddenName of ['NODE_OPTIONS', 'NODE_PATH', 'HTTPS_PROXY', 'HTTP_P
 }
 if (process.env.NPM_CONFIG_REGISTRY !== 'https://registry.npmjs.org/') {
   throw new Error('consumer environment did not force the public npm registry');
+}
+const judgmentDag = validateJudgmentDAG({
+  id: 'consumer-smoke', version: '1', nodes: [{
+    id: 'context.smoke', node_type: 'observation', layer: 'context',
+    scope: { type: 'personal', id: 'consumer' }, version: '1', description: 'smoke',
+    depends_on: [], input_contract: 'smoke.in', output_contract: 'smoke.out', runner_type: 'deterministic'
+  }], edges: []
+});
+if (!judgmentDag.valid || judgmentDag.execution_order[0] !== 'context.smoke') {
+  throw new Error('Judgment DAG subpath import did not validate a consumer fixture');
 }
 const transport = new StdioClientTransport({
   command: process.execPath,
@@ -169,6 +180,9 @@ export async function runConsumerSmoke(tarballPath, options = {}) {
     const installedPackageRoot = path.join(consumerRoot, 'node_modules/@unson/brainbase-mcp');
     const manifest = JSON.parse(await readFile(path.join(installedPackageRoot, 'package.json'), 'utf8'));
     await access(path.join(installedPackageRoot, 'dist'));
+    await access(path.join(installedPackageRoot, 'dist/judgment-dag.js'));
+    await access(path.join(installedPackageRoot, 'dist/judgment-dag.d.ts'));
+    await access(path.join(installedPackageRoot, 'contracts/judgment-dag/schema.json'));
     await access(path.join(installedPackageRoot, 'src')).then(
       () => { throw new Error('installed Brainbase package unexpectedly contains repository source files'); },
       () => undefined
@@ -208,6 +222,7 @@ export async function runConsumerSmoke(tarballPath, options = {}) {
       consumerRoot,
       cli: { help: 'passed', start: 'passed', seed: 'passed', doctor: 'passed' },
       mcp: { toolsList: 'passed', contextReadback: 'passed', toolCount: mcp.toolCount },
+      judgmentDag: { subpathImport: 'passed', executionOrder: ['context.smoke'] },
       runtime: { command: process.execPath, cliTarget: brainbase.target, mcpTarget: brainbaseMcp.target }
     };
   } finally {

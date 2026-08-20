@@ -41,19 +41,23 @@ function node(
 function nodes(): JudgmentDAGNode[] {
   return [
     node('context.customer', 'observation', 'context', []),
-    node('judgment.fit', 'judgment', 'judgment', ['context.customer']),
+    node('context.account', 'observation', 'context', []),
+    node('judgment.fit', 'judgment', 'judgment', ['context.customer', 'context.account']),
     node('resource.scope', 'resource', 'resource', ['judgment.fit']),
     node('execution.proposal', 'execution', 'execution', ['resource.scope']),
-    node('evaluation.outcome', 'evaluation', 'evaluation', ['execution.proposal'])
+    node('execution.outcome', 'outcome', 'execution', ['execution.proposal']),
+    node('evaluation.result', 'evaluation', 'evaluation', ['execution.outcome'])
   ];
 }
 
 function edges(): JudgmentDAGEdge[] {
   return [
     { from: 'context.customer', to: 'judgment.fit', relation: 'depends_on' },
+    { from: 'context.account', to: 'judgment.fit', relation: 'depends_on' },
     { from: 'judgment.fit', to: 'resource.scope', relation: 'depends_on' },
     { from: 'resource.scope', to: 'execution.proposal', relation: 'depends_on' },
-    { from: 'execution.proposal', to: 'evaluation.outcome', relation: 'depends_on' }
+    { from: 'execution.proposal', to: 'execution.outcome', relation: 'depends_on' },
+    { from: 'execution.outcome', to: 'evaluation.result', relation: 'depends_on' }
   ];
 }
 
@@ -69,8 +73,8 @@ function dag(id: string, dagNodes: JudgmentDAGNode[], dagEdges: JudgmentDAGEdge[
 export const validJudgmentDAG = deepFreeze(dag('j0-valid', nodes(), edges()));
 
 const missingNodes = nodes();
-missingNodes[1] = {
-  ...missingNodes[1],
+missingNodes[2] = {
+  ...missingNodes[2],
   depends_on: ['context.missing']
 };
 export const missingDependencyJudgmentDAG = deepFreeze(
@@ -86,6 +90,16 @@ export const reverseLayerJudgmentDAG = deepFreeze(
   dag('j0-reverse-layer', reverseLayerNodes, edges())
 );
 
+const mismatchedLayerNodes = nodes();
+mismatchedLayerNodes[0] = {
+  ...mismatchedLayerNodes[0],
+  node_type: 'outcome',
+  layer: 'evaluation'
+};
+export const nodeTypeLayerMismatchJudgmentDAG = deepFreeze(
+  dag('j0-node-type-layer-mismatch', mismatchedLayerNodes, edges())
+);
+
 const cycleNodes = [...nodes(), node('context.peer', 'observation', 'context', ['context.customer'])];
 cycleNodes[0] = {
   ...cycleNodes[0],
@@ -93,4 +107,25 @@ cycleNodes[0] = {
 };
 export const cycleJudgmentDAG = deepFreeze(
   dag('j0-cycle', cycleNodes, edges())
+);
+
+function invalidMetadataDag(field: string, value: unknown): unknown {
+  return {
+    id: 'j0-invalid-metadata',
+    version: '2026-08-20.1',
+    nodes: validJudgmentDAG.nodes.map((candidate) => (
+      candidate.id === 'context.account' ? { ...candidate, [field]: value } : candidate
+    )),
+    edges: validJudgmentDAG.edges
+  };
+}
+
+export const invalidAuthorityMetadataJudgmentDAG = deepFreeze(
+  invalidMetadataDag('authority', { owner: { displayName: undefined } })
+);
+export const invalidProvenanceMetadataJudgmentDAG = deepFreeze(
+  invalidMetadataDag('provenance', [{ source: ['fixture', undefined] }])
+);
+export const invalidEvaluationMetadataJudgmentDAG = deepFreeze(
+  invalidMetadataDag('evaluation', { criteria: new Date('2026-08-20T00:00:00.000Z') })
 );

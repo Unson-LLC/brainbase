@@ -70,6 +70,10 @@ describe('npm tarball consumer smoke', () => {
         toolsList: 'passed',
         contextReadback: 'passed'
       },
+      judgmentDag: {
+        subpathImport: 'passed',
+        executionOrder: ['context.smoke']
+      },
       runtime: {
         command: process.execPath,
         cliTarget: 'dist/cli.js',

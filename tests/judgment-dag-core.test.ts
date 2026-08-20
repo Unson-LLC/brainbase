@@ -6,7 +6,11 @@ import {
 } from '../src/judgment-dag-core.js';
 import {
   cycleJudgmentDAG,
+  invalidAuthorityMetadataJudgmentDAG,
+  invalidEvaluationMetadataJudgmentDAG,
+  invalidProvenanceMetadataJudgmentDAG,
   missingDependencyJudgmentDAG,
+  nodeTypeLayerMismatchJudgmentDAG,
   reverseLayerJudgmentDAG,
   validJudgmentDAG
 } from './fixtures/judgment-dag-core.js';
@@ -20,11 +24,13 @@ describe('Judgment DAG core contract', () => {
       dag_id: 'j0-valid',
       dag_version: '2026-08-20.1',
       execution_order: [
+        'context.account',
         'context.customer',
         'judgment.fit',
         'resource.scope',
         'execution.proposal',
-        'evaluation.outcome'
+        'execution.outcome',
+        'evaluation.result'
       ]
     });
     expect(Object.isFrozen(validJudgmentDAG)).toBe(true);
@@ -53,6 +59,26 @@ describe('Judgment DAG core contract', () => {
     );
   });
 
+  it('rejects a node type masquerading as a different layer', () => {
+    expect(() => validateJudgmentDAG(nodeTypeLayerMismatchJudgmentDAG)).toThrowError(
+      expect.objectContaining<Partial<JudgmentDAGValidationError>>({
+        code: 'invalid_contract'
+      })
+    );
+  });
+
+  it.each([
+    ['authority', invalidAuthorityMetadataJudgmentDAG],
+    ['provenance', invalidProvenanceMetadataJudgmentDAG],
+    ['evaluation', invalidEvaluationMetadataJudgmentDAG]
+  ])('rejects recursively invalid %s metadata before execution', (_field, dag) => {
+    expect(() => validateJudgmentDAG(dag)).toThrowError(
+      expect.objectContaining<Partial<JudgmentDAGValidationError>>({
+        code: 'invalid_contract'
+      })
+    );
+  });
+
   it('rejects a cycle before producing an execution order', () => {
     expect(() => validateJudgmentDAG(cycleJudgmentDAG)).toThrowError(
       expect.objectContaining<Partial<JudgmentDAGValidationError>>({
@@ -69,5 +95,17 @@ describe('Judgment DAG core contract', () => {
     expect(() => assertValidJudgmentDAG(cycleJudgmentDAG)).toThrowError(
       expect.objectContaining({ code: 'cycle' })
     );
+  });
+
+  it('uses node ID ascending as a stable topological tie-break', () => {
+    const reordered = {
+      ...validJudgmentDAG,
+      nodes: [...validJudgmentDAG.nodes].reverse(),
+      edges: [...validJudgmentDAG.edges].reverse()
+    };
+
+    const expected = validateJudgmentDAG(validJudgmentDAG).execution_order;
+    expect(validateJudgmentDAG(reordered).execution_order).toEqual(expected);
+    expect(expected.slice(0, 2)).toEqual(['context.account', 'context.customer']);
   });
 });

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract": "judgment-dag-core",
+  "status": "accepted",
+  "accepted_base_commit": "7e5d5693f988f4ba84072c5910ef32f0e70871e1",
+  "sources": [
+    { "kind": "architecture", "path": "docs/architecture/judgment-dag-core.md", "sha256": "198373bd099130f303e5f75d6ad453ad1c1f8ca7d841a961722835af51a9b2cd" },
+    { "kind": "milestones", "path": "docs/management/judgment-dag-milestones.md", "sha256": "ef51313f33de64f702fd6c86012984bd70cf99eeca5b4f4cfc27f6cb266172bd" }
+  ],
+  "notes": [
+    "Outcome is produced and recorded by the Execution DAG and maps to the execution layer.",
+    "This J0 contract slice does not implement runner, artifact, execution-log, replay, evaluation, or mutation protection; those remain J0-2 non-goals and unverified."
+  ]
+}

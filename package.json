@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Local-first Brainbase MCP server and personal onboarding kit.",
   "type": "module",
   "license": "MIT",
@@ -10,12 +10,24 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./judgment-dag": {
+      "types": "./dist/judgment-dag.d.ts",
+      "import": "./dist/judgment-dag.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "brainbase-mcp": "dist/index.js",
     "brainbase": "dist/cli.js"
   },
   "files": [
     "dist",
+    "contracts",
     "README.md",
     "LICENSE",
     "SECURITY.md"

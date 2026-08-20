@@ -28,6 +28,22 @@ export const JUDGMENT_DAG_LAYERS = [
 
 export type JudgmentDAGLayer = (typeof JUDGMENT_DAG_LAYERS)[number];
 
+/**
+ * The accepted ontology has five layers. An outcome is the result produced
+ * by the Execution DAG; it is not a sixth layer of its own.
+ */
+export const JUDGMENT_DAG_NODE_TYPE_TO_LAYER: Readonly<
+  Record<JudgmentDAGNodeType, JudgmentDAGLayer>
+> = {
+  observation: 'context',
+  judgment: 'judgment',
+  decision: 'judgment',
+  resource: 'resource',
+  execution: 'execution',
+  outcome: 'execution',
+  evaluation: 'evaluation'
+};
+
 export const JUDGMENT_DAG_SCOPE_TYPES = ['personal', 'project', 'organization'] as const;
 export type JudgmentDAGScopeType = (typeof JUDGMENT_DAG_SCOPE_TYPES)[number];
 
@@ -54,7 +70,13 @@ export const JUDGMENT_DAG_EDGE_RELATIONS = [
 
 export type JudgmentDAGEdgeRelation = (typeof JUDGMENT_DAG_EDGE_RELATIONS)[number];
 
-export type JudgmentDAGMetadata = string | readonly string[] | Readonly<Record<string, unknown>>;
+export type JudgmentDAGMetadata =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly JudgmentDAGMetadata[]
+  | { readonly [key: string]: JudgmentDAGMetadata };
 
 export interface JudgmentDAGScope {
   readonly type: JudgmentDAGScopeType;
@@ -192,6 +214,46 @@ function requireArray(value: unknown, path: string): unknown[] {
   return value;
 }
 
+function validateMetadata(value: unknown, path: string, active: Set<object> = new Set()): void {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    return;
+  }
+  if (typeof value === 'number') {
+    if (Number.isFinite(value)) {
+      return;
+    }
+    invalidContract(`${path} must contain only finite JSON numbers`);
+  }
+  if (typeof value !== 'object') {
+    invalidContract(`${path} must contain JSON-compatible metadata`);
+  }
+
+  const objectValue = value as object;
+  if (active.has(objectValue)) {
+    invalidContract(`${path} must not contain cyclic metadata`);
+  }
+  active.add(objectValue);
+
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      if (!(index in value)) {
+        invalidContract(`${path}[${index}] must be defined`);
+      }
+      validateMetadata(value[index], `${path}[${index}]`, active);
+    }
+  } else {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      invalidContract(`${path} must contain only plain metadata objects`);
+    }
+    for (const [key, child] of Object.entries(value)) {
+      validateMetadata(child, `${path}.${key}`, active);
+    }
+  }
+
+  active.delete(objectValue);
+}
+
 function validateNode(value: unknown, index: number): JudgmentDAGNode {
   const path = `nodes[${index}]`;
   const node = requireRecord(value, path);
@@ -211,6 +273,10 @@ function validateNode(value: unknown, index: number): JudgmentDAGNode {
   }
   if (!isOneOf(JUDGMENT_DAG_SCOPE_TYPES, scope.type)) {
     invalidContract(`${path}.scope.type is not a supported scope type`);
+  }
+
+  if (JUDGMENT_DAG_NODE_TYPE_TO_LAYER[nodeType] !== layer) {
+    invalidContract(`${path}.layer does not match ${path}.node_type`);
   }
 
   requireNonEmptyString(node.id, `${path}.id`);
@@ -240,6 +306,15 @@ function validateNode(value: unknown, index: number): JudgmentDAGNode {
   }
   if (node.provenance !== undefined && !Array.isArray(node.provenance)) {
     invalidContract(`${path}.provenance must be an array`);
+  }
+  if (node.authority !== undefined) {
+    validateMetadata(node.authority, `${path}.authority`);
+  }
+  if (node.provenance !== undefined) {
+    validateMetadata(node.provenance, `${path}.provenance`);
+  }
+  if (node.evaluation !== undefined) {
+    validateMetadata(node.evaluation, `${path}.evaluation`);
   }
 
   return node as unknown as JudgmentDAGNode;
@@ -290,7 +365,7 @@ function findCycle(
 
     state.set(nodeId, 1);
     path.push(nodeId);
-    for (const dependencyId of dependenciesByNode.get(nodeId) ?? []) {
+    for (const dependencyId of [...(dependenciesByNode.get(nodeId) ?? [])].sort()) {
       const cycle = visit(dependencyId);
       if (cycle !== undefined) {
         return cycle;
@@ -301,8 +376,8 @@ function findCycle(
     return undefined;
   }
 
-  for (const node of nodes) {
-    const cycle = visit(node.id);
+  for (const nodeId of nodes.map((node) => node.id).sort()) {
+    const cycle = visit(nodeId);
     if (cycle !== undefined) {
       return cycle;
     }
@@ -416,16 +491,23 @@ export function validateJudgmentDAG(value: unknown): JudgmentDAGValidationResult
   const remainingDependencies = new Map(
     [...dependenciesByNode.entries()].map(([id, dependencies]) => [id, dependencies.size])
   );
-  const executionOrder: string[] = nodes
+  const ready: string[] = nodes
     .filter((node) => remainingDependencies.get(node.id) === 0)
-    .map((node) => node.id);
-  for (let index = 0; index < executionOrder.length; index += 1) {
-    const completedNodeId = executionOrder[index];
-    for (const dependentId of dependentsByNode.get(completedNodeId) ?? []) {
+    .map((node) => node.id)
+    .sort();
+  const executionOrder: string[] = [];
+  while (ready.length > 0) {
+    const completedNodeId = ready.shift();
+    if (completedNodeId === undefined) {
+      break;
+    }
+    executionOrder.push(completedNodeId);
+    for (const dependentId of [...(dependentsByNode.get(completedNodeId) ?? [])].sort()) {
       const remaining = (remainingDependencies.get(dependentId) ?? 0) - 1;
       remainingDependencies.set(dependentId, remaining);
       if (remaining === 0) {
-        executionOrder.push(dependentId);
+        ready.push(dependentId);
+        ready.sort();
       }
     }
   }
