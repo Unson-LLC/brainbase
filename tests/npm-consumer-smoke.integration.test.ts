@@ -88,6 +88,17 @@ describe('npm tarball consumer smoke', () => {
           'context.account', 'context.customer', 'judgment.fit', 'resource.scope',
           'execution.proposal', 'execution.outcome', 'evaluation.result'
         ],
+        runnerExecution: {
+          executionOrder: ['context.alpha', 'context.zeta', 'judgment.answer'],
+          runnerVersions: [
+            { runner_type: 'deterministic', version: 'consumer-deterministic-v1' }
+          ],
+          directDependencyOutputs: [
+            { node_id: 'context.alpha', output: { node_id: 'context.alpha', source: 'consumer' } },
+            { node_id: 'context.zeta', output: { node_id: 'context.zeta', source: 'consumer' } }
+          ],
+          immutable: true
+        },
         negativeBoundaries: {
           missing_dependency: { status: 'passed', errorCode: 'missing_dependency' },
           cycle: { status: 'passed', errorCode: 'cycle' },

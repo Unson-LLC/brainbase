@@ -1,0 +1,42 @@
+{
+  "task_id": "task-j0-local-deterministic-runner",
+  "story_id": "story-j0-local-deterministic-runner",
+  "status": "in_progress",
+  "owner": "codex-orchestrator",
+  "base_sha": "0ee5db39ac8f91a484628cc07a2df21cdfb149b7",
+  "branch": "codex/j0/local-deterministic-runner",
+  "worktree": "/private/tmp/brainbase-j0-local-runner",
+  "allowed_paths": [
+    ".vibepro/config.json",
+    ".vibepro/spec/story-j0-local-deterministic-runner/spec.json",
+    "docs/management/stories/active/story-j0-local-deterministic-runner.md",
+    "docs/architecture/story-j0-local-deterministic-runner.md",
+    "docs/specs/j0-local-deterministic-runner.md",
+    "docs/management/tasks/j0-local-deterministic-runner.json",
+    "src/judgment-dag-runner.ts",
+    "src/judgment-dag.ts",
+    "tests/judgment-dag-runner.test.ts",
+    "scripts/npm-consumer-smoke.mjs",
+    "tests/npm-consumer-smoke.integration.test.ts"
+  ],
+  "forbidden_paths": [
+    "src/judgment-dag-core.ts",
+    "contracts/judgment-dag",
+    "src/index.ts",
+    "src/server.ts",
+    "src/tools.ts",
+    "src/judgment-host.ts",
+    "database",
+    "migrations",
+    "deployment",
+    "secrets",
+    "customer-data"
+  ],
+  "stages": [
+    {"id": "contract", "status": "completed", "evidence": ["docs/management/stories/active/story-j0-local-deterministic-runner.md", "docs/architecture/story-j0-local-deterministic-runner.md", "docs/specs/j0-local-deterministic-runner.md"]},
+    {"id": "red", "status": "completed", "evidence": ["tests/judgment-dag-runner.test.ts"]},
+    {"id": "green", "status": "completed", "evidence": ["src/judgment-dag-runner.ts", "src/judgment-dag.ts", "scripts/npm-consumer-smoke.mjs"]},
+    {"id": "regression", "status": "in_progress", "evidence": ["focused test: 33 passed", "fresh tarball consumer: passed", "build: passed", "typecheck: passed", "clean full test: pending after implementation commit"]},
+    {"id": "gate", "status": "pending", "evidence": ["VibePro final spec", "exact-HEAD verification", "independent reviews"]}
+  ]
+}

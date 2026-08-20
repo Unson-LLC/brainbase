@@ -48,6 +48,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import {
   JudgmentDAGValidationError,
+  executeJudgmentDAG,
   validateJudgmentDAG
 } from '@unson/brainbase-mcp/judgment-dag';
 
@@ -184,6 +185,70 @@ invalidMetadata.nodes.find((node) => node.id === 'context.account').authority = 
 };
 const invalidMetadataCode = expectValidationCode('invalid recursive metadata', invalidMetadata, 'invalid_contract');
 
+const runnerNode = (id, nodeType, layer, dependsOn) => ({
+  id,
+  node_type: nodeType,
+  layer,
+  scope: { type: 'project', id: 'j0-consumer-smoke' },
+  version: '1.0.0',
+  description: 'consumer runner node ' + id,
+  depends_on: dependsOn,
+  input_contract: 'consumer.runner.input.v1',
+  output_contract: 'consumer.runner.output.v1',
+  runner_type: 'deterministic'
+});
+const runnerDag = {
+  id: 'j0-consumer-smoke-runner',
+  version: '2026-08-21.1',
+  nodes: [
+    runnerNode('context.alpha', 'observation', 'context', []),
+    runnerNode('context.zeta', 'observation', 'context', []),
+    runnerNode('judgment.answer', 'judgment', 'judgment', ['context.zeta', 'context.alpha'])
+  ],
+  edges: [
+    { from: 'context.alpha', to: 'judgment.answer', relation: 'depends_on' },
+    { from: 'context.zeta', to: 'judgment.answer', relation: 'depends_on' }
+  ]
+};
+const runnerRecord = await executeJudgmentDAG({
+  run_id: 'consumer-smoke-run',
+  dag: runnerDag,
+  input: { source: 'consumer' },
+  runners: {
+    deterministic: {
+      version: 'consumer-deterministic-v1',
+      run: ({ node }) => ({
+        node_id: node.id,
+        source: 'consumer'
+      })
+    }
+  }
+});
+function isDeeplyFrozen(value, seen = new Set()) {
+  if (value === null || typeof value !== 'object' || seen.has(value)) return true;
+  seen.add(value);
+  return Object.isFrozen(value) && Object.values(value).every((child) => isDeeplyFrozen(child, seen));
+}
+if (!isDeeplyFrozen(runnerRecord)) throw new Error('executeJudgmentDAG did not return an immutable record');
+const runnerAnswer = runnerRecord.nodes.find((node) => node.node_id === 'judgment.answer');
+const expectedRunnerDependencyOutputs = [
+  { node_id: 'context.alpha', output: { node_id: 'context.alpha', source: 'consumer' } },
+  { node_id: 'context.zeta', output: { node_id: 'context.zeta', source: 'consumer' } }
+];
+if (JSON.stringify(runnerRecord.execution_order) !== JSON.stringify([
+  'context.alpha', 'context.zeta', 'judgment.answer'
+])) {
+  throw new Error('executeJudgmentDAG did not preserve stable consumer execution order');
+}
+if (JSON.stringify(runnerRecord.runner_versions) !== JSON.stringify([
+  { runner_type: 'deterministic', version: 'consumer-deterministic-v1' }
+])) {
+  throw new Error('executeJudgmentDAG did not read back the deterministic runner version');
+}
+if (JSON.stringify(runnerAnswer?.dependency_outputs) !== JSON.stringify(expectedRunnerDependencyOutputs)) {
+  throw new Error('executeJudgmentDAG did not expose stable direct dependency outputs');
+}
+
 const [serverEntrypoint, dataDir] = process.argv.slice(2);
 for (const forbiddenName of ['NODE_OPTIONS', 'NODE_PATH', 'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY']) {
   if (process.env[forbiddenName]) throw new Error(\`consumer environment leaked \${forbiddenName}\`);
@@ -236,6 +301,12 @@ try {
         mirror_mismatch: { status: 'passed', errorCode: mirrorMismatchCode },
         scope_boundary_violation: { status: 'passed', errorCode: scopeBoundaryCode },
         invalid_contract: { status: 'passed', errorCode: invalidMetadataCode }
+      },
+      runnerExecution: {
+        executionOrder: runnerRecord.execution_order,
+        runnerVersions: runnerRecord.runner_versions,
+        directDependencyOutputs: runnerAnswer?.dependency_outputs ?? [],
+        immutable: isDeeplyFrozen(runnerRecord)
       }
     }
   }));

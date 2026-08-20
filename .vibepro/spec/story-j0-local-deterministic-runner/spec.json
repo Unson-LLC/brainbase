@@ -1,0 +1,431 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-j0-local-deterministic-runner",
+  "generated_at": "2026-08-21T00:00:00.000Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "accepted_contract"
+  },
+  "previous_spec_id": "2026-08-21T00:00:00.000Z",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "self_hosted",
+    "tenant_identity": {
+      "canonical_key": "scope",
+      "resolved_from": [
+        "JudgmentDAGNode.scope.type",
+        "JudgmentDAGNode.scope.id"
+      ],
+      "resolution_point": "validateJudgmentDAG preflight before runner registration checks",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "runner_input.node.scope",
+        "runner_input.dependency_outputs",
+        "run_record.dag.nodes.scope"
+      ],
+      "verified_surfaces": [
+        "runner_input.node.scope",
+        "runner_input.dependency_outputs",
+        "run_record.dag.nodes.scope"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Judgment DAG local run record",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "scope",
+        "partition_key": "scope.type/scope.id",
+        "trust_zone": "caller-owned local execution input",
+        "residue_policy": "no persistence in J0 local runner",
+        "data_owner": "caller",
+        "credential_scope": "none"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "scope",
+      "scope": "none in J0 local runner",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "caller"
+      ],
+      "residency": "in-memory execution only",
+      "migration": "not applicable in J0",
+      "rollback": "not applicable in J0"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "self_hosted"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        {
+          "tenant_scope": "scope.type/scope.id",
+          "tenant_key_source": "caller-provided node.scope",
+          "trust_zone": "caller-owned local execution input",
+          "data_owner": "caller"
+        }
+      ],
+      "boundary_edges": [
+        {
+          "tenant_scope": "scope.type/scope.id",
+          "tenant_key_source": "both dependency endpoints",
+          "sharing_mode": "tenant_partitioned",
+          "credential_scope": "none",
+          "connection_mode": "not_applicable_pure_runner",
+          "deployment_mode": "self_hosted"
+        }
+      ]
+    },
+    "boundary": {
+      "scope_equality": "validateJudgmentDAG requires exact scope.type and scope.id equality for dependencies before runner calls",
+      "cross_scope_authorization": "non_goal",
+      "runner_authorization": "non_goal"
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "scope_note": "J0 propagates caller-owned exact node scope into an in-memory run only. Scanner pass means no cross-scope fallback or persistence is introduced; it does not assert hosted authorization, secret, database, or deployment capability.",
+        "propagation_surfaces": [
+          "runner_input.node.scope",
+          "runner_input.dependency_outputs",
+          "run_record.dag.nodes.scope"
+        ],
+        "graph": {
+          "tenant_entities": [
+            {
+              "id": "JudgmentDAGNode.scope",
+              "tenant_scope": "scope.type/scope.id",
+              "tenant_key_source": "caller-provided node.scope",
+              "trust_zone": "caller-owned local execution input",
+              "data_owner": "caller"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "id": "dependency_scope_equality",
+              "tenant_scope": "scope.type/scope.id",
+              "tenant_key_source": "both dependency endpoints",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "none",
+              "connection_mode": "not_applicable_pure_runner",
+              "deployment_mode": "self_hosted"
+            }
+          ],
+          "tenant_key": "scope",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "self_hosted"
+          ]
+        },
+        "spec": {
+          "tenant_key": "scope",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "self_hosted"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "scope",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "self_hosted"
+          ]
+        },
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "scanner_evidence": {
+          "tenant_boundary": "tests/judgment-dag-core.test.ts rejects exact scope type and id mismatches before execution",
+          "tenant_key_propagation": "tests/judgment-dag-runner.test.ts snapshots node scope and direct dependency outputs",
+          "cross_tenant_authorization": "docs/specs/j0-local-deterministic-runner.md declares authorization outside J0 and forbids fallback",
+          "state_partitioning": "src/judgment-dag-runner.ts returns an in-memory caller-owned run record and persists nothing",
+          "sandbox_isolation": "docs/specs/j0-local-deterministic-runner.md excludes hosted sandbox and external side effects",
+          "connection_routing": "src/judgment-dag-runner.ts performs no connection lookup or fallback",
+          "secret_scope": "docs/management/tasks/j0-local-deterministic-runner.json forbids secrets",
+          "canonical_data_owner": "docs/specs/j0-local-deterministic-runner.md fixes caller inputs and outputs as the only runtime data",
+          "deployment_topology": "src/judgment-dag.ts is a side-effect-free library surface with no deployment route",
+          "cross_tenant_negative_evidence": "tests/judgment-dag-core.test.ts rejects dependencies crossing exact scope boundaries"
+        },
+        "negative_scenario_evidence": {
+          "unknown_tenant": "existing J0 schema and runtime require non-empty scope.type and scope.id",
+          "ambiguous_tenant": "one node has exactly one strict scope object and unknown keys are rejected",
+          "unavailable_connection": "not applicable: J0 local runner performs no connection lookup and cannot fall back",
+          "no_data": "not applicable: J0 local runner performs no retrieval",
+          "cross_tenant_candidate": "existing J0 validator rejects both scope type and scope ID mismatches before runner calls"
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "JudgmentDAGRunRequest、runner登録、runner入力、node実行記録、run記録をreadonlyな公開型として./judgment-dagから提供する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001",
+            "text_snippet": "readonlyな公開型"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "JudgmentDAGRunRequest"
+          },
+          {
+            "file": "src/judgment-dag.ts",
+            "anchor": "executeJudgmentDAG"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "exports the readonly runner contract from the side-effect-free public subpath"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "exports the readonly runner contract from the side-effect-free public subpath"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "DAG構造と全nodeに必要なrunner登録をrunner呼出し前に検証し、欠落または不正な登録をmachine-readable errorで拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002",
+            "text_snippet": "runnerを一度も呼ぶ前にfail-closed"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "JudgmentDAGExecutionError"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "fails closed for missing or invalid runners before any runner call"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "fails closed for missing or invalid runners before any runner call"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "validateJudgmentDAGが返す安定順序で各nodeを一度だけ直列実行し、runnerへID順で渡すdependency_outputsは宣言済みの直接依存だけに限定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003",
+            "text_snippet": "安定したtopological order"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "executeJudgmentDAG"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "executes in stable order and exposes only ID-sorted direct dependency outputs"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "executes in stable order and exposes only ID-sorted direct dependency outputs"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "DAG、run input、dependency outputs、runner outputsをJSON-compatible snapshotとして分離し、非JSON値、非plain object、非有限数、循環値をfail-closedで拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004",
+            "text_snippet": "JSON snapshot化"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "snapshotJSON"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "snapshots mutation boundaries and rejects non-JSON values, cycles, and non-plain objects"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "snapshots mutation boundaries and rejects non-JSON values, cycles, and non-plain objects"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "成功runはrun_id、DAG identityとsnapshot、run input、execution order、runner version、node contract refs、node outputを含むdeep-frozen recordを返し、同じ明示入力とrunnerに対して同値になる。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005",
+            "text_snippet": "deep-frozenな記録"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "JudgmentDAGRunRecord"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "returns a deeply frozen deterministic record without reading clock or randomness"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "returns a deeply frozen deterministic record without reading clock or randomness"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "既存J0 schema、fixture、digest、source-lock、package deep import、MCP/CLI起動面を変更せず、J0回帰、公開consumer、full test、build、typecheckを通す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006",
+            "text_snippet": "既存J0契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag.ts",
+            "anchor": "Side-effect-free public entrypoint"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-public-contract.test.ts",
+            "case": "publishes a side-effect-free subpath and locked machine artifacts"
+          },
+          {
+            "file": "tests/npm-consumer-smoke.integration.test.ts",
+            "case": "runs the public CLI and MCP tools/list from a fresh installed consumer"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-public-contract.test.ts",
+            "must_cover": "publishes a side-effect-free subpath and locked machine artifacts"
+          },
+          {
+            "file_glob": "tests/npm-consumer-smoke.integration.test.ts",
+            "must_cover": "runs the public CLI and MCP tools/list from a fresh installed consumer"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    }
+  ]
+}

@@ -33,8 +33,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-j0-local-deterministic-runner",
+        "title": "J0 ローカル決定論的ランナーと不変run記録",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-j0-judgment-dag-core-contract"
+    "current_story_id": "story-j0-local-deterministic-runner"
   }
 }
