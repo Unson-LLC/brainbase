@@ -5,9 +5,10 @@
   "files": [
     { "path": "contracts/judgment-dag/fixture.json", "sha256": "fb78df795707a93f66f69b4274e60677734b4346cc5de1527507e0814ce6e03e" },
     { "path": "contracts/judgment-dag/schema.json", "sha256": "87f0b0638ba62de447e14b1534ac8fe5a3353bffd729510733d4ab07adee09bc" },
-    { "path": "contracts/judgment-dag/source-lock.json", "sha256": "b6bc08d6bad661d2c1be8f793432a85ab408f6618cab7c932fc67388c61c6e05" },
+    { "path": "contracts/judgment-dag/source-lock.json", "sha256": "ab20c03f5e9b22e770e74ffc28d0f27396fbbb27f817fcd34f502ffa041d253e" },
+    { "path": "docs/architecture/judgment-dag-core.md", "sha256": "e92245273dd3454031296dd7bc10c5e05e07f41749416afd683438bc7ad1a35a" },
     { "path": "src/judgment-dag-core.ts", "sha256": "e7f8023340b8715b49cb2d547b04c0e1305879580ebd3969ac0ec62225489102" },
     { "path": "src/judgment-dag.ts", "sha256": "6da4063cd7294215f3e4c58b2242ece2883cd0010a8235a60465735e0a168bcd" }
   ],
-  "digest": "e2804a1faade7b83f971ac305a6757e3454463462d1394d36a7e280cd427ae40"
+  "digest": "ebc073e21dcf8fbbed7bca2b5703174b7399f06dd7352a16288071b91f3ba5b6"
 }

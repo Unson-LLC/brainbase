@@ -27,8 +27,10 @@ describe('public Judgment DAG machine contract', () => {
     const sourceLock = JSON.parse(await readFile(path.join(root, 'contracts/judgment-dag/source-lock.json'), 'utf8'));
     expect(sourceLock.status).toBe('accepted');
     expect(sourceLock.accepted_base_commit).toBe('7e5d5693f988f4ba84072c5910ef32f0e70871e1');
+    expect(execFileSync('git', ['rev-parse', sourceLock.accepted_base_commit], { cwd: root }).toString().trim())
+      .toBe(sourceLock.accepted_base_commit);
     for (const source of sourceLock.sources) {
-      const content = execFileSync('git', ['show', `${sourceLock.accepted_base_commit}:${source.path}`], { cwd: root });
+      const content = await readFile(path.join(root, source.path));
       expect(sha256(content)).toBe(source.sha256);
     }
 

@@ -97,6 +97,12 @@ Forbidden:
 ### Layer 4: Execution DAG
 Turns approved commitments into actions and records execution artifacts.
 
+An **outcome** is the result that the Execution DAG generates and records. It is
+an execution-layer node, not an independent sixth layer. The canonical node
+type-to-layer mapping is `observation -> context`, `judgment/decision ->
+judgment`, `resource -> resource`, `execution/outcome -> execution`, and
+`evaluation -> evaluation`.
+
 Examples:
 - create task
 - send proposal
@@ -163,6 +169,9 @@ execution
 outcome
 evaluation
 ```
+
+The `outcome` node type therefore remains in the Execution layer even though
+the flow diagram shows it between Execution and Evaluation.
 
 Ontology growth must be driven by failed real use cases, not by speculative completeness.
 
