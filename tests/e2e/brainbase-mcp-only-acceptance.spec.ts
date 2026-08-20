@@ -117,6 +117,7 @@ describe('brainbase-mcp-only story acceptance', () => {
       || file === 'README.md'
       || file === 'SECURITY.md'
       || file === 'package.json'
+      || file === 'contracts/brainbase-public-contract.v1.json'
       || file.startsWith('dist/')
     )), 'brainbase-mcp-only ac:11 The package tarball excludes UI/internal artifacts, raw personal data, VibePro workbench files, and tests.').toBe(true);
   }, 30_000);

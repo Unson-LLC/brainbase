@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "1.0.0",
+  "package": {
+    "name": "@unson/brainbase-mcp",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "bin": {
+      "brainbase-mcp": "dist/index.js",
+      "brainbase": "dist/cli.js"
+    }
+  },
+  "mcpTools": [
+    { "name": "get_context", "requiredInput": [] },
+    { "name": "list_entities", "requiredInput": [] },
+    { "name": "search", "requiredInput": ["query"] },
+    { "name": "search_personal_kg", "requiredInput": ["query"] },
+    { "name": "onboarding_status", "requiredInput": [] },
+    { "name": "brainbase_onboarding_start", "requiredInput": ["sources", "valueTarget"] },
+    { "name": "brainbase_onboarding_get", "requiredInput": ["runId"] },
+    { "name": "brainbase_onboarding_ingest", "requiredInput": ["candidates", "runId", "source"] },
+    { "name": "brainbase_onboarding_review", "requiredInput": ["actions", "runId"] },
+    { "name": "brainbase_onboarding_first_value", "requiredInput": ["action", "runId"] },
+    { "name": "get_ontology", "requiredInput": [] },
+    { "name": "audit_ontology", "requiredInput": [] },
+    { "name": "infer_decisions", "requiredInput": [] },
+    { "name": "ontology_impact", "requiredInput": [] },
+    { "name": "resolve_entity", "requiredInput": ["asOf", "text"] }
+  ],
+  "cliCommands": [
+    "onboard:init",
+    "onboard:seed",
+    "onboard:install",
+    "onboard:agent",
+    "onboard:start",
+    "onboard:demo",
+    "onboard:recommend",
+    "onboard:diagnose-sources",
+    "onboard:plan",
+    "onboard:projects",
+    "onboard:candidates",
+    "onboard:import",
+    "onboard:extract",
+    "onboard:apply",
+    "onboard:routines",
+    "onboard:skills",
+    "ontology:show",
+    "ontology:audit",
+    "ontology:migrate",
+    "judgment:hook",
+    "judgment:install",
+    "doctor",
+    "mcp"
+  ]
+}

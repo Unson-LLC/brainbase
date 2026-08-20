@@ -16,6 +16,7 @@
   },
   "files": [
     "dist",
+    "contracts",
     "README.md",
     "LICENSE",
     "SECURITY.md"
