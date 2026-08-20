@@ -1,162 +1,306 @@
 ---
-title: Organization Judgment DAG Milestones
+title: Organization Judgment DAG Component Roadmap
 status: active
 date: 2026-08-20
-scope: brainbase-unson / enterprise
+scope: brainbase-unson / enterprise organization deployment
+governed_by: docs/management/milestones/brainbase-program-master-roadmap.md
+program_packages:
+  - G0
+  - C0
+  - D0
+  - V1
+  - V2
+  - R2
+  - E0
 ---
 
-# Organization Judgment DAG Milestones
+# Organization Judgment DAG Component Roadmap
 
-These milestones align `brainbase-unson` with the shared Judgment DAG core while keeping enterprise concerns as extensions rather than schema forks.
+## 0. Program order
 
-## M0 — Shared-core alignment
+この文書はorganization / enterprise領域の詳細なcomponent roadmapである。cross-repositoryの依存順・並列実行条件・完成判定は、[`milestones/brainbase-program-master-roadmap.md`](./milestones/brainbase-program-master-roadmap.md)を正本とする。
 
-Goal: remove architecture ambiguity between OSS and organization versions.
+旧`M0〜M8`は次へ読み替える。
 
-Exit criteria:
-- Organization DAG explicitly reuses OSS node/edge semantics.
-- Enterprise-only responsibilities are listed as governance/runtime extensions.
-- Brainbase/Mana boundary is cognition substrate vs autonomous operation.
-- Existing docs that imply organization-only judgment semantics are treated as superseded where they conflict.
+| 旧ID | Program ID |
+|---|---|
+| M0 Shared-core alignment | R0 + C0 |
+| M1 Brainbase Deployment DAG v0 | D0 |
+| M2 Expert judgment capture | D0 |
+| M3 Agent-assisted deployment | G0 + D0 |
+| M4 Growin proof | V1 |
+| M5 Second-company proof | V2 |
+| M6 Enterprise Authority Graph | A0 + G0 |
+| M7 Replay / organizational backtest | R1 + R2 |
+| M8 Production enterprise operations | E0 |
 
-## M1 — Brainbase Deployment DAG v0
+## 1. Architecture invariant
 
-Goal: represent the real deployment process as an explicit DAG before automating it.
+`brainbase-unson`はorganization専用の別DAG schemaを定義しない。
 
-Initial nodes:
-- customer context collection
-- maturity judgment
-- problem structure judgment
-- deployment pattern judgment
-- scope decision
-- resource decision
-- proposal execution
-- implementation execution
-- outcome evaluation
+```text
+brainbase OSS
+  ├─ shared ontology primitives
+  ├─ Judgment DAG node / edge semantics
+  ├─ local runtime and runner interfaces
+  ├─ artifact / execution log
+  ├─ versioning / replay / evaluation
+  └─ personal / project / organization scope
+          ↓ consume
+brainbase-unson
+  ├─ tenant identity
+  ├─ Canonical Company Authority
+  ├─ Authority Graph
+  ├─ approval / escalation
+  ├─ RBAC / clearance
+  ├─ managed connectors
+  ├─ audit / compliance
+  ├─ hosted / multi-user runtime
+  └─ organization operations
+```
 
-Exit criteria:
-- One real deployment can be traversed end-to-end.
-- Every Keigo-only decision is represented as an explicit human-run node.
-- Node inputs/outputs and dependencies are visible.
-- Customer-specific artifacts remain in customer scope.
+依存方向は`brainbase-unson -> brainbase`のみとし、organization版に同名の別semantic implementationを作らない。
 
-## M2 — Expert judgment capture
+## 2. Program dependency
 
-Goal: turn tacit deployment judgment into reusable organizational capability.
+```text
+J0 + A0 + P0
+  -> G0 Governed execution
 
-Deliverables:
-- escalation event capture
-- rationale/evidence attachment
-- H0-H4 delegation maturity tracking
-- reusable-pattern promotion candidate flow
+J0 + G0
+  -> C0 OSS / Organization conformance
+  -> D0 Brainbase Deployment DAG
 
-Exit criteria:
-- Keigo escalations can be counted per deployment.
-- Repeated escalations can be clustered into missing judgment nodes or missing context.
-- At least one repeated expert judgment is promoted into a reusable deployment node/policy.
+T0 + A0 + P0 + G0 + C0
+  -> V0 Internal proof
 
-## M3 — Agent-assisted deployment
+D0 + C0 + V0
+  -> V1 Growin
 
-Goal: move selected nodes from human-only to agent-draft/approval.
+V1 + C0
+  -> V2 Second company
 
-Deliverables:
-- agent runners using explicit context contracts
-- human approval steps
-- authority checks
-- output comparison against expert decisions
+R1 + V1
+  -> R2 Organizational backtest
 
-Exit criteria:
-- At least two material judgment nodes reach H2 or higher.
-- Agent output is auditable against the exact inputs used.
-- Low-confidence/authority-sensitive cases escalate instead of auto-committing.
+V2 + R2 + O0 + C0
+  -> E0 Enterprise production
+```
 
-## M4 — Growin design-partner proof
+## 3. G0 — Governed organization execution
 
-Goal: prove the Company Brain model against a real organization rather than a synthetic ontology.
+**目的**
 
-Exit criteria:
-- Growin has at least one live judgment chain from evidence → judgment → decision → resource → action → outcome.
-- Brainbase can answer: current policy, why it exists, what evidence supports it, who can change it, and what it affects downstream.
-- Invalid/superseded judgments do not appear as current policy.
-- Growin-specific requirements are separated from reusable Brainbase core requirements.
+OSSのrunner contractを、会社権限・承認・監査へ接続する。
 
-## M5 — Second-company portability proof
+**Deliverables**
 
-Goal: distinguish product capability from Growin-specific consulting.
-
-Target: Kartz Media Works or another second design partner.
-
-Exit criteria:
-- The second deployment reuses the same DAG semantics without schema fork.
-- Reusable Deployment nodes are reused as-is or versioned explicitly.
-- Customer-specific adapters remain outside shared core.
-- The second deployment requires fewer Keigo escalations than the first on comparable phases.
-
-## M6 — Enterprise Authority Graph
-
-Goal: make organizational decision rights executable and auditable.
-
-Deliverables:
-- accountable owner
-- approver/veto/escalation
-- scoped authority
-- validity period
-- delegated authority
+- human / agent / external / committee runner
+- pending human step
+- approval queue
+- accountable owner / approver / veto / escalation
+- scoped / delegated / time-bounded authority
 - threshold-based approval
+- signed Canonical Execution Context binding
+- immutable audit event
+- retry / locking / idempotency
+- low-confidence / authority-sensitive escalation
 
-Exit criteria:
-- Brainbase can resolve who is authorized to commit a material decision in context.
-- Agent confidence cannot override authority.
-- Organization changes can invalidate or supersede authority without rewriting historical decisions.
+**Exit gate**
 
-## M7 — Replay / organizational backtest
+- same nodeをhumanとagentが同一input contractで実行できる。
+- agent confidenceがauthorityを上書きしない。
+- unauthorized approver、stale context、missing accountable ownerを拒否する。
+- approval、execution artifact、authority receiptが結合される。
+- Executionがupstream Judgmentをsilent rewriteしない。
 
-Goal: evaluate decision structures using recorded historical context and outcomes.
+## 4. C0 — OSS / Organization complete conformance
 
-Deliverables:
-- immutable run snapshots
+**目的**
+
+organization版をOSSの完全上位互換にし、semantic forkと二重実装を排除する。
+
+**Deliverables**
+
+- OSS public surface inventory
+- npm exports / CLI / MCP / module / persistence / config mapping
+- version-pinned public contract
+- organization adapter
+- same-name semantic conformance
+- organization-only extension inventory
+- migration / compatibility / deprecation policy
+- OSS contract suiteをorganization CIで実行
+
+**Exit gate**
+
+- OSS全公開contractがorganization CIでexact versionに対してpassする。
+- authentication、tenant、authority、failure semanticsを含めて一致する。
+- local-only機能はsafe adapterまたは明示的`non_applicable`になる。
+- organization版に別のJudgment DAG coreが存在しない。
+- 入口数だけで上位互換を宣言しない。
+
+## 5. D0 — Brainbase Deployment DAG dogfood
+
+### D0-A. Deployment DAG v0
+
+Initial chain:
+
+```text
+Customer Context
+  -> Customer Maturity Judgment
+  -> Problem Structure Judgment
+  -> Deployment Pattern Selection
+  -> Scope / Resource Decision
+  -> Proposal
+  -> Implementation
+  -> Outcome Evaluation
+```
+
+**Exit gate**
+
+- real deployment 1件をend-to-endでtraverseできる。
+- customer-specific artifactをcustomer scopeへ保持する。
+- all Keigo-only decisionをhuman-run nodeとして表示する。
+- input / output / dependency / artifactが閲覧できる。
+
+### D0-B. Expert judgment capture
+
+**Deliverables**
+
+- escalation event
+- rationale / evidence
+- missing context / missing judgment node classification
+- H0〜H4 delegation maturity
+- reusable-pattern promotion candidate
+
+Maturity:
+
+```text
+H0 expert-only implicit
+H1 expert-only explicit contract
+H2 agent drafts, expert approves
+H3 agent executes, expert audits
+H4 delegated, exception-only escalation
+```
+
+**Exit gate**
+
+- expert escalation count / deploymentを計測できる。
+- repeated escalationをmissing nodeまたはmissing contextへclusterできる。
+- 少なくとも1つの反復判断をreusable node / policyへ昇格する。
+
+### D0-C. Agent-assisted deployment
+
+**Deliverables**
+
+- explicit context contractを使うagent runner
+- human approval
+- authority check
+- expert decisionとのcomparison
+- low confidence escalation
+
+**Exit gate**
+
+- material judgment node 2件以上がH2以上へ移る。
+- exact inputに対してagent outputをauditできる。
+- authority-sensitive caseをauto-commitしない。
+
+## 6. V1 — Growin design-partner proof
+
+**目的**
+
+synthetic ontologyではなく実会社でCompany Brainを証明する。
+
+**Exit gate**
+
+- evidence→judgment→decision→resource→action→outcomeのlive chainが1件以上ある。
+- current policy、根拠、変更権限、downstream impactを回答できる。
+- invalid / superseded judgmentをcurrentとして返さない。
+- Growin固有要件とreusable Brainbase coreを分離する。
+- D0のexpert escalation baselineと比較できる。
+
+## 7. V2 — Second-company portability proof
+
+**Target**
+
+Kartz Media Worksまたは別の第二design partner。
+
+**Exit gate**
+
+- same DAG semanticsをschema forkなしで使う。
+- reusable Deployment nodeを再利用または明示的versioningする。
+- customer-specific adapterをshared core外へ保つ。
+- comparable phaseのKeigo escalationが第一社より減る。
+- Growin固有consultingとproduct capabilityを区別できる。
+
+## 8. R2 — Organizational replay / backtest
+
+**目的**
+
+実組織のrecorded contextとoutcomeを使い、判断構造のversion改善を検証する。
+
+**Deliverables**
+
+- immutable organization run snapshot
+- recorded context replay
 - DAG version comparison
 - outcome attachment
-- explicit goal/evaluation function
+- explicit goal / evaluation function
 - node-level calibration
+- causal evidence limitation
+- promotion / supersession candidate
 
-Exit criteria:
-- A prior organization decision can be replayed from the recorded context.
-- A proposed DAG version can be compared to the prior version without altering history.
-- Evaluation distinguishes bad outcome from bad judgment when the causal evidence is insufficient.
+**Exit gate**
 
-## M8 — Production enterprise operations
+- prior organization decisionをrecorded contextから再生できる。
+- proposed versionとの比較がhistoryを変更しない。
+- bad outcomeとbad judgmentを証拠なしに同一視しない。
+- causal evidence不足を断定へ丸めない。
 
-Goal: make the shared Judgment DAG safe for multi-user organizational operation.
+## 9. E0 — Production enterprise operations
 
-Deliverables:
-- RBAC / clearance
-- SSO/directory integration
-- approval queues
+**目的**
+
+shared Judgment DAGを複数組織で安全・継続的に運用する。
+
+**Deliverables**
+
+- RBAC / clearance / data classification
+- SSO / SCIM / directory integration
+- approval queue operations
 - immutable audit retention
-- managed connectors
-- secret lifecycle
-- concurrency and locking
-- retries/failure recovery
-- observability
+- managed connector / secret lifecycle
+- concurrency / locking
+- retry / failure recovery
+- HA / backup / disaster recovery
+- observability / SLO / cost attribution
+- retention / deletion / export
+- onboarding / offboarding
 
-Exit criteria:
-- Enterprise controls wrap the shared DAG model without creating a second semantic implementation.
-- A customer can operate a production Company Brain with explicit authority and audit trails.
+**Exit gate**
 
-## KPI hierarchy
+- enterprise controlがshared DAG modelを包み、second semantic implementationを作らない。
+- customerがexplicit authorityとaudit trail付きで本番運用できる。
+- failure drill、restore、credential rotation、tenant deletionをreadbackできる。
+- V2、R2、O0の成果がproduction pathで維持される。
+
+## 10. KPI hierarchy
 
 Primary:
-- expert escalations requiring Keigo per deployment
+
+- expert escalations requiring Keigo / deployment
 
 Secondary:
+
 - Keigo hours / deployment
 - gross profit / Keigo hour
-- % material nodes at H3/H4
+- material nodeのH3/H4比率
 - reusable judgment node ratio
 - deployment cycle time
-- judgment replay coverage
+- replay coverage
 - authority resolution coverage
 - outcome calibration by DAG version
+- second-company reuse ratio
+- boundary incident count
 
-A milestone is not complete because documents or ontology types exist. It is complete only when real judgment moves through the DAG with observable inputs, authority, output, and evaluation.
+document数、ontology type数、agent数は完了指標ではない。real judgmentがobservable input、authority、output、outcome、evaluationを通過して初めて進捗とする。
