@@ -116,6 +116,8 @@ describe('brainbase-mcp-only story acceptance', () => {
       file === 'LICENSE'
       || file === 'README.md'
       || file === 'SECURITY.md'
+      || file === 'docs/architecture/judgment-dag-core.md'
+      || file === 'docs/management/judgment-dag-milestones.md'
       || file === 'package.json'
       || file.startsWith('contracts/')
       || file.startsWith('dist/')

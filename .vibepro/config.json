@@ -5,24 +5,11 @@
   "output": {
     "language": "ja"
   },
-  "execution": {
-    "managed_worktree": "disabled"
-  },
   "budgets": {
     "pr_artifact_bytes": 16384
   },
   "brainbase": {
     "stories": [
-      {
-        "story_id": "story-vibepro-diagnosis-commercialization-roadmap",
-        "title": "M1: VibePro 診断→商用化ロードマップ",
-        "ssot": "NocoDB",
-        "horizon": null,
-        "view": null,
-        "period": null,
-        "started_at": null,
-        "due_at": null
-      },
       {
         "story_id": "story-j0-judgment-dag-core-contract",
         "title": "J0 typed DAG contract and preflight validation",
@@ -34,62 +21,6 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
-      },
-      {
-        "story_id": "story-product-auth-account-access",
-        "title": "認証とアカウント利用開始を成立させる",
-        "ssot": "local",
-        "status": "active",
-        "horizon": "quarter",
-        "view": "business",
-        "period": null,
-        "started_at": null,
-        "due_at": null,
-        "category": "product",
-        "contract_type": "new_capability",
-        "derived_by": "vibepro-story-derive"
-      },
-      {
-        "story_id": "story-product-onboarding",
-        "title": "オンボーディング体験を安定化する",
-        "ssot": "local",
-        "status": "active",
-        "horizon": "quarter",
-        "view": "business",
-        "period": "2026Q3",
-        "started_at": "2026-08-21",
-        "due_at": null,
-        "category": "product",
-        "contract_type": "new_capability",
-        "derived_by": "vibepro-story-derive"
-      },
-      {
-        "story_id": "story-quality-test-ci-readiness",
-        "title": "テストとCIを開発ゲートとして整える",
-        "ssot": "local",
-        "status": "active",
-        "horizon": "month",
-        "view": "dev",
-        "period": null,
-        "started_at": null,
-        "due_at": null,
-        "category": "quality",
-        "contract_type": "quality_hardening",
-        "derived_by": "vibepro-story-derive"
-      },
-      {
-        "story_id": "story-docs-story-ssot-recovery",
-        "title": "要求とStoryの正本を復元する",
-        "ssot": "local",
-        "status": "active",
-        "horizon": "month",
-        "view": "dev",
-        "period": null,
-        "started_at": null,
-        "due_at": null,
-        "category": "docs",
-        "contract_type": "docs_policy_change",
-        "derived_by": "vibepro-story-derive"
       }
     ],
     "current_story_id": "story-j0-judgment-dag-core-contract"

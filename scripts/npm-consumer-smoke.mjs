@@ -40,10 +40,16 @@ function assertIncludes(output, expected, command) {
 }
 
 function consumerProbeSource() {
-  return `import { readFile } from 'node:fs/promises';
+  return `import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { validateJudgmentDAG } from '@unson/brainbase-mcp/judgment-dag';
+import {
+  JudgmentDAGValidationError,
+  validateJudgmentDAG
+} from '@unson/brainbase-mcp/judgment-dag';
 
 const legacyOntology = await import('@unson/brainbase-mcp/dist/ontology.js');
 if (Object.keys(legacyOntology).length === 0) {
@@ -56,12 +62,127 @@ const contractArtifactPaths = {
   digest: '@unson/brainbase-mcp/contracts/judgment-dag/digest.json'
 };
 const contractArtifacts = {};
+const artifactContents = {};
 for (const [name, packagePath] of Object.entries(contractArtifactPaths)) {
   const resolved = await import.meta.resolve(packagePath);
   const contents = await readFile(new URL(resolved), 'utf8');
-  JSON.parse(contents);
+  artifactContents[name] = JSON.parse(contents);
   contractArtifacts[name] = { packagePath, resolved, bytes: Buffer.byteLength(contents) };
 }
+
+const sourceLockPath = fileURLToPath(contractArtifacts.sourceLock.resolved);
+const packageRoot = path.resolve(path.dirname(sourceLockPath), '../..');
+const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+const snapshot = (value) => JSON.stringify(value, (key, entry) => (
+  entry === undefined ? '__undefined__' : entry
+));
+function packageRelativeFile(relativePath) {
+  const windowsAbsolute = typeof relativePath === 'string' && relativePath.length >= 3 &&
+    relativePath[1] === ':' && (relativePath[2] === '/' || relativePath.charCodeAt(2) === 92);
+  if (typeof relativePath !== 'string' || relativePath.length === 0 || path.isAbsolute(relativePath) ||
+      windowsAbsolute || relativePath.indexOf(String.fromCharCode(92)) !== -1 ||
+      relativePath.split('/').includes('..')) {
+    throw new Error('contract hash path is not a package-relative file: ' + String(relativePath));
+  }
+  const resolved = path.resolve(packageRoot, relativePath);
+  const packageBoundary = packageRoot + path.sep;
+  if (resolved !== packageRoot && !resolved.startsWith(packageBoundary)) {
+    throw new Error('contract hash path escapes the package root: ' + relativePath);
+  }
+  return resolved;
+}
+async function verifyFileHash(file) {
+  const actual = sha256(await readFile(packageRelativeFile(file.path)));
+  if (actual !== file.sha256) {
+    throw new Error('contract hash mismatch for ' + file.path);
+  }
+}
+const sourceLock = artifactContents.sourceLock;
+if (sourceLock.repository !== 'https://github.com/Unson-LLC/brainbase' ||
+    !/^[0-9a-f]{40}$/.test(sourceLock.accepted_base_commit)) {
+  throw new Error('source-lock immutable source identity is incomplete');
+}
+if (!Array.isArray(sourceLock.sources) ||
+    new Set(sourceLock.sources.map((source) => source.path)).size !== sourceLock.sources.length) {
+  throw new Error('source-lock contains duplicate or invalid source paths');
+}
+for (const source of sourceLock.sources) await verifyFileHash(source);
+
+const digest = artifactContents.digest;
+if (!Array.isArray(digest.files)) throw new Error('digest does not contain file hashes');
+const digestPaths = digest.files.map((file) => file.path);
+if (new Set(digestPaths).size !== digestPaths.length ||
+    JSON.stringify(digestPaths) !== JSON.stringify([...digestPaths].sort((left, right) => left.localeCompare(right)))) {
+  throw new Error('digest file paths are not unique and canonically ordered');
+}
+for (const file of digest.files) await verifyFileHash(file);
+const canonicalDigest = digest.files.map((file) => (
+  file.path + String.fromCharCode(0) + file.sha256 + String.fromCharCode(10)
+)).join('');
+if (sha256(canonicalDigest) !== digest.digest) {
+  throw new Error('digest aggregate does not match its canonical file hashes');
+}
+
+const fixture = artifactContents.fixture;
+const expectedExecutionOrder = [
+  'context.account', 'context.customer', 'judgment.fit', 'resource.scope',
+  'execution.proposal', 'execution.outcome', 'evaluation.result'
+];
+function cloneFixture() {
+  return structuredClone(fixture);
+}
+function expectValidationCode(label, candidate, expectedCode) {
+  const before = snapshot(candidate);
+  let error;
+  try {
+    validateJudgmentDAG(candidate);
+  } catch (caught) {
+    error = caught;
+  }
+  if (!(error instanceof JudgmentDAGValidationError) || error.code !== expectedCode) {
+    throw new Error(label + ' returned ' + (error?.code ?? 'no error') + ', expected ' + expectedCode);
+  }
+  if (snapshot(candidate) !== before) throw new Error(label + ' mutated its input');
+  return error.code;
+}
+const fixtureBefore = snapshot(fixture);
+const fixtureResult = validateJudgmentDAG(fixture);
+if (JSON.stringify(fixtureResult.execution_order) !== JSON.stringify(expectedExecutionOrder)) {
+  throw new Error('canonical fixture execution order was not read back');
+}
+if (snapshot(fixture) !== fixtureBefore) throw new Error('valid fixture validation mutated its input');
+const reorderedFixture = cloneFixture();
+reorderedFixture.nodes.reverse();
+reorderedFixture.edges.reverse();
+if (JSON.stringify(validateJudgmentDAG(reorderedFixture).execution_order) !== JSON.stringify(expectedExecutionOrder)) {
+  throw new Error('canonical fixture execution order is not stable under input ordering');
+}
+const missingDependency = cloneFixture();
+missingDependency.nodes.find((node) => node.id === 'judgment.fit').depends_on = ['context.missing'];
+const missingDependencyCode = expectValidationCode('missing dependency', missingDependency, 'missing_dependency');
+const cycle = cloneFixture();
+cycle.nodes.find((node) => node.id === 'context.account').depends_on = ['context.customer'];
+cycle.nodes.find((node) => node.id === 'context.customer').depends_on = ['context.account'];
+cycle.edges.push(
+  { from: 'context.account', to: 'context.customer', relation: 'depends_on' },
+  { from: 'context.customer', to: 'context.account', relation: 'depends_on' }
+);
+const cycleCode = expectValidationCode('cycle', cycle, 'cycle');
+const mirrorMismatch = cloneFixture();
+mirrorMismatch.edges.shift();
+const mirrorMismatchCode = expectValidationCode('depends_on mirror mismatch', mirrorMismatch, 'invalid_contract');
+const scopeBoundary = cloneFixture();
+scopeBoundary.nodes.find((node) => node.id === 'context.customer').scope = {
+  type: 'project', id: 'project-outside-j0-fixture'
+};
+const scopeBoundaryCode = expectValidationCode(
+  'scope boundary', scopeBoundary, 'scope_boundary_violation'
+);
+const invalidMetadata = cloneFixture();
+invalidMetadata.nodes.find((node) => node.id === 'context.account').authority = {
+  owner: { displayName: undefined }
+};
+const invalidMetadataCode = expectValidationCode('invalid recursive metadata', invalidMetadata, 'invalid_contract');
 
 const [serverEntrypoint, dataDir] = process.argv.slice(2);
 for (const forbiddenName of ['NODE_OPTIONS', 'NODE_PATH', 'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY']) {
@@ -69,16 +190,6 @@ for (const forbiddenName of ['NODE_OPTIONS', 'NODE_PATH', 'HTTPS_PROXY', 'HTTP_P
 }
 if (process.env.NPM_CONFIG_REGISTRY !== 'https://registry.npmjs.org/') {
   throw new Error('consumer environment did not force the public npm registry');
-}
-const judgmentDag = validateJudgmentDAG({
-  id: 'consumer-smoke', version: '1', nodes: [{
-    id: 'context.smoke', node_type: 'observation', layer: 'context',
-    scope: { type: 'personal', id: 'consumer' }, version: '1', description: 'smoke',
-    depends_on: [], input_contract: 'smoke.in', output_contract: 'smoke.out', runner_type: 'deterministic'
-  }], edges: []
-});
-if (!judgmentDag.valid || judgmentDag.execution_order[0] !== 'context.smoke') {
-  throw new Error('Judgment DAG subpath import did not validate a consumer fixture');
 }
 const transport = new StdioClientTransport({
   command: process.execPath,
@@ -111,7 +222,22 @@ try {
     toolNames: result.tools.map((tool) => tool.name),
     contextReadback: { project: 'Atlas', relationship: '田中', decisionPrinciple: '正規エンティティ同士をIDで接続する' },
     legacyDeepImport: 'passed',
-    contractArtifacts: Object.fromEntries(Object.keys(contractArtifacts).map((name) => [name, 'passed']))
+    contractArtifacts: Object.fromEntries(Object.keys(contractArtifacts).map((name) => [name, 'passed'])),
+    judgmentDag: {
+      contractVerification: {
+        sourceLockSources: sourceLock.sources.length,
+        digestFiles: digest.files.length,
+        aggregateDigest: digest.digest
+      },
+      executionOrder: fixtureResult.execution_order,
+      negativeBoundaries: {
+        missing_dependency: { status: 'passed', errorCode: missingDependencyCode },
+        cycle: { status: 'passed', errorCode: cycleCode },
+        mirror_mismatch: { status: 'passed', errorCode: mirrorMismatchCode },
+        scope_boundary_violation: { status: 'passed', errorCode: scopeBoundaryCode },
+        invalid_contract: { status: 'passed', errorCode: invalidMetadataCode }
+      }
+    }
   }));
 } finally {
   await client.close();
@@ -253,7 +379,7 @@ export async function runConsumerSmoke(tarballPath, options = {}) {
         subpathImport: 'passed',
         legacyDeepImport: mcp.legacyDeepImport,
         contractArtifacts: Object.fromEntries(CONTRACT_ARTIFACT_NAMES.map((name) => [name, mcp.contractArtifacts[name]])),
-        executionOrder: ['context.smoke']
+        ...mcp.judgmentDag
       },
       runtime: { command: process.execPath, cliTarget: brainbase.target, mcpTarget: brainbaseMcp.target }
     };

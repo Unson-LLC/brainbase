@@ -12,9 +12,17 @@ import {
 const root = process.cwd();
 const sha256 = (value: Buffer | string): string => createHash('sha256').update(value).digest('hex');
 
+function packageRelativePath(relativePath: string): string {
+  expect(relativePath).not.toMatch(/^\//u);
+  expect(relativePath).not.toMatch(/^[A-Za-z]:[\\/]/u);
+  expect(relativePath.split(/[\\/]/u)).not.toContain('..');
+  return path.resolve(root, relativePath);
+}
+
 describe('public Judgment DAG machine contract', () => {
   it('publishes a side-effect-free subpath and locked machine artifacts', async () => {
     const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+    const readme = await readFile(path.join(root, 'README.md'), 'utf8');
     expect(manifest.version).toBe('0.4.0');
     expect(manifest.main).toBe('dist/index.js');
     expect(manifest.exports['.'].import).toBe('./dist/index.js');
@@ -23,6 +31,11 @@ describe('public Judgment DAG machine contract', () => {
       import: './dist/judgment-dag.js'
     });
     expect(manifest.exports['./dist/*']).toBe('./dist/*');
+    expect(manifest.files).toContain('docs/architecture/judgment-dag-core.md');
+    expect(manifest.files).toContain('docs/management/judgment-dag-milestones.md');
+    expect(readme).toContain('source-lock.sources');
+    expect(readme).toContain('digest.files');
+    expect(readme).toContain('path + NUL + sha256 + LF');
     for (const artifact of ['schema', 'fixture', 'source-lock', 'digest']) {
       expect(manifest.exports[`./contracts/judgment-dag/${artifact}.json`])
         .toBe(`./contracts/judgment-dag/${artifact}.json`);
@@ -35,20 +48,24 @@ describe('public Judgment DAG machine contract', () => {
     ]);
     const sourceLock = JSON.parse(await readFile(path.join(root, 'contracts/judgment-dag/source-lock.json'), 'utf8'));
     expect(sourceLock.status).toBe('accepted');
+    expect(sourceLock.repository).toBe('https://github.com/Unson-LLC/brainbase');
     expect(sourceLock.accepted_base_commit).toBe('7e5d5693f988f4ba84072c5910ef32f0e70871e1');
     expect(execFileSync('git', ['rev-parse', sourceLock.accepted_base_commit], { cwd: root }).toString().trim())
       .toBe(sourceLock.accepted_base_commit);
     for (const source of sourceLock.sources) {
-      const content = await readFile(path.join(root, source.path));
+      const content = await readFile(packageRelativePath(source.path));
       expect(sha256(content)).toBe(source.sha256);
     }
 
     const digest = JSON.parse(await readFile(path.join(root, 'contracts/judgment-dag/digest.json'), 'utf8'));
+    const digestPaths = digest.files.map((file: { path: string }) => file.path);
+    expect(digestPaths).toEqual([...digestPaths].sort((left, right) => left.localeCompare(right)));
     const canonical = digest.files.map((file: { path: string; sha256: string }) => `${file.path}\0${file.sha256}\n`).join('');
     expect(digest.digest).toBe(sha256(canonical));
     for (const file of digest.files) {
-      expect(sha256(await readFile(path.join(root, file.path)))).toBe(file.sha256);
+      expect(sha256(await readFile(packageRelativePath(file.path)))).toBe(file.sha256);
     }
+    expect(digestPaths.every((filePath: string) => !filePath.startsWith('src/'))).toBe(true);
   });
 
   it('keeps schema exact key sets and runtime contract keys in parity', async () => {

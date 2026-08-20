@@ -33,6 +33,8 @@ console.log(checked.execution_order); // deterministic node-ID ascending tie-bre
 
 `node.depends_on`と`relation: "depends_on"` edgeは完全なmirrorであり、missing・cycle・reverse-layer・scope不一致は実行前に拒否されます。
 
+配布済みconsumerは、installed package rootから`source-lock.sources`と`digest.files`の各package-relative pathをSHA-256で再計算し、`digest.files`をpath順に`path + NUL + sha256 + LF`で連結したaggregate digestまでreadbackします。`source-lock`はimmutableな`repository`と`accepted_base_commit`を示し、`src/`のような非同梱ファイルはhash対象にしません。
+
 この契約はrunner、artifact、execution log、replay/evaluation、Execution/Evaluation mutation protectionを含まないJ0-2非目標のcore sliceです。
 
 ## マニュアル
