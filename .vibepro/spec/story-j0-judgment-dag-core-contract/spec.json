@@ -73,7 +73,7 @@
       "type": "invariant",
       "statement": "dependencyの両nodeのscope.typeとscope.idが完全一致しなければscope_boundary_violationでfail-closedする。cross-scope promotion/authority evidenceは後続非目標で、structural validは実行権限証拠にならない。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004", "text_snippet": "scope.typeとscope.idが完全一致しなければscope_boundary_violation" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004", "text_snippet": "dependencyの両nodeの`scope.type`と`scope.id`が完全一致しない場合は`scope_boundary_violation`でfail-closedする。" }],
         "architecture_refs": [{ "file": "docs/architecture/judgment-dag-core.md", "anchor": "Scope model" }],
         "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "scope_boundary_violation" }],
         "test_refs": [

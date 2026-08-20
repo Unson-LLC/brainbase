@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const CONTRACT_ARTIFACT_NAMES = ['schema', 'fixture', 'sourceLock', 'digest'];
+
 function run(command, args, cwd, environment) {
   const result = spawnSync(command, args, {
     cwd,
@@ -38,9 +40,28 @@ function assertIncludes(output, expected, command) {
 }
 
 function consumerProbeSource() {
-  return `import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+  return `import { readFile } from 'node:fs/promises';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { validateJudgmentDAG } from '@unson/brainbase-mcp/judgment-dag';
+
+const legacyOntology = await import('@unson/brainbase-mcp/dist/ontology.js');
+if (Object.keys(legacyOntology).length === 0) {
+  throw new Error('legacy dist/ontology.js deep import returned no exports');
+}
+const contractArtifactPaths = {
+  schema: '@unson/brainbase-mcp/contracts/judgment-dag/schema.json',
+  fixture: '@unson/brainbase-mcp/contracts/judgment-dag/fixture.json',
+  sourceLock: '@unson/brainbase-mcp/contracts/judgment-dag/source-lock.json',
+  digest: '@unson/brainbase-mcp/contracts/judgment-dag/digest.json'
+};
+const contractArtifacts = {};
+for (const [name, packagePath] of Object.entries(contractArtifactPaths)) {
+  const resolved = await import.meta.resolve(packagePath);
+  const contents = await readFile(new URL(resolved), 'utf8');
+  JSON.parse(contents);
+  contractArtifacts[name] = { packagePath, resolved, bytes: Buffer.byteLength(contents) };
+}
 
 const [serverEntrypoint, dataDir] = process.argv.slice(2);
 for (const forbiddenName of ['NODE_OPTIONS', 'NODE_PATH', 'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY']) {
@@ -88,7 +109,9 @@ try {
   process.stdout.write(JSON.stringify({
     toolCount: result.tools.length,
     toolNames: result.tools.map((tool) => tool.name),
-    contextReadback: { project: 'Atlas', relationship: '田中', decisionPrinciple: '正規エンティティ同士をIDで接続する' }
+    contextReadback: { project: 'Atlas', relationship: '田中', decisionPrinciple: '正規エンティティ同士をIDで接続する' },
+    legacyDeepImport: 'passed',
+    contractArtifacts: Object.fromEntries(Object.keys(contractArtifacts).map((name) => [name, 'passed']))
   }));
 } finally {
   await client.close();
@@ -215,6 +238,10 @@ export async function runConsumerSmoke(tarballPath, options = {}) {
     const mcp = JSON.parse(run(process.execPath, [probePath, brainbaseMcp.resolved, dataDir], consumerRoot, environment));
     if (!mcp.toolNames.includes('get_context')) throw new Error('brainbase-mcp tools/list omitted get_context');
     if (!mcp.contextReadback) throw new Error('brainbase-mcp get_context readback was not verified');
+    if (mcp.legacyDeepImport !== 'passed') throw new Error('legacy dist/ontology.js deep import was not verified');
+    if (!CONTRACT_ARTIFACT_NAMES.every((name) => mcp.contractArtifacts?.[name] === 'passed')) {
+      throw new Error('all Judgment DAG contract artifacts were not read through package subpaths');
+    }
 
     return {
       packageName: manifest.name,
@@ -222,7 +249,12 @@ export async function runConsumerSmoke(tarballPath, options = {}) {
       consumerRoot,
       cli: { help: 'passed', start: 'passed', seed: 'passed', doctor: 'passed' },
       mcp: { toolsList: 'passed', contextReadback: 'passed', toolCount: mcp.toolCount },
-      judgmentDag: { subpathImport: 'passed', executionOrder: ['context.smoke'] },
+      judgmentDag: {
+        subpathImport: 'passed',
+        legacyDeepImport: mcp.legacyDeepImport,
+        contractArtifacts: Object.fromEntries(CONTRACT_ARTIFACT_NAMES.map((name) => [name, mcp.contractArtifacts[name]])),
+        executionOrder: ['context.smoke']
+      },
       runtime: { command: process.execPath, cliTarget: brainbase.target, mcpTarget: brainbaseMcp.target }
     };
   } finally {

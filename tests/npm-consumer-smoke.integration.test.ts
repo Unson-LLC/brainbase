@@ -72,6 +72,13 @@ describe('npm tarball consumer smoke', () => {
       },
       judgmentDag: {
         subpathImport: 'passed',
+        legacyDeepImport: 'passed',
+        contractArtifacts: {
+          schema: 'passed',
+          fixture: 'passed',
+          sourceLock: 'passed',
+          digest: 'passed'
+        },
         executionOrder: ['context.smoke']
       },
       runtime: {

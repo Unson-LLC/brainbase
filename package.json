@@ -19,6 +19,11 @@
       "types": "./dist/judgment-dag.d.ts",
       "import": "./dist/judgment-dag.js"
     },
+    "./dist/*": "./dist/*",
+    "./contracts/judgment-dag/schema.json": "./contracts/judgment-dag/schema.json",
+    "./contracts/judgment-dag/fixture.json": "./contracts/judgment-dag/fixture.json",
+    "./contracts/judgment-dag/source-lock.json": "./contracts/judgment-dag/source-lock.json",
+    "./contracts/judgment-dag/digest.json": "./contracts/judgment-dag/digest.json",
     "./package.json": "./package.json"
   },
   "bin": {

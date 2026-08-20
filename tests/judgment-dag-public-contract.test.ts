@@ -22,6 +22,11 @@ describe('public Judgment DAG machine contract', () => {
       types: './dist/judgment-dag.d.ts',
       import: './dist/judgment-dag.js'
     });
+    expect(manifest.exports['./dist/*']).toBe('./dist/*');
+    for (const artifact of ['schema', 'fixture', 'source-lock', 'digest']) {
+      expect(manifest.exports[`./contracts/judgment-dag/${artifact}.json`])
+        .toBe(`./contracts/judgment-dag/${artifact}.json`);
+    }
 
     const fixture = JSON.parse(await readFile(path.join(root, 'contracts/judgment-dag/fixture.json'), 'utf8'));
     expect(validateJudgmentDAG(fixture).execution_order).toEqual([

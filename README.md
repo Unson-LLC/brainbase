@@ -23,7 +23,10 @@ Judgment DAGの型と副作用のない事前検証は、公開`./judgment-dag` 
 import { readFileSync } from 'node:fs';
 import { validateJudgmentDAG } from '@unson/brainbase-mcp/judgment-dag';
 
-const dag = JSON.parse(readFileSync('contracts/judgment-dag/fixture.json', 'utf8'));
+const fixtureUrl = import.meta.resolve(
+  '@unson/brainbase-mcp/contracts/judgment-dag/fixture.json'
+);
+const dag = JSON.parse(readFileSync(new URL(fixtureUrl), 'utf8'));
 const checked = validateJudgmentDAG(dag);
 console.log(checked.execution_order); // deterministic node-ID ascending tie-break
 ```
