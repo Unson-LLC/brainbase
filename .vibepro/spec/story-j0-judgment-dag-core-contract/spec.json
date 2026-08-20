@@ -57,14 +57,14 @@
         ],
         "test_refs": [
           { "file": "tests/judgment-dag-core.test.ts", "case": "rejects a dependency that does not name a node before execution" },
-          { "file": "tests/judgment-dag-core.test.ts", "case": "requires the node dependency and depends_on edge representations to be exact mirrors: rejects %s" },
+          { "file": "tests/judgment-dag-core.test.ts", "case": "rejects a dependency from a later layer" },
           { "file": "tests/judgment-dag-core.test.ts", "case": "rejects a cycle before producing an execution order" }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "rejects a dependency that does not name a node before execution" },
-          { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "requires the node dependency and depends_on edge representations to be exact mirrors: rejects %s" }
+          { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "rejects a dependency from a later layer" }
         ]
       }
     },
