@@ -25,6 +25,9 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'authorize_tenant_resource',
   'mesh_query',
   'mesh_peers',
+  'graph_export_snapshot',
+  'graph_get_plan_receipt',
+  'graph_validate',
 ]);
 
 const WRITE_TOOL_NAMES = new Set([
@@ -36,6 +39,9 @@ const WRITE_TOOL_NAMES = new Set([
   'create_task',
   'update_task',
   'transition_task',
+  'graph_plan_mutations',
+  'graph_apply_plan',
+  'graph_rollback_plan',
 ]);
 
 export function annotateToolCapabilities(tools: Tool[]): Tool[] {

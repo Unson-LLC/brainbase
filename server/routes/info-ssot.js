@@ -32,6 +32,13 @@ export function createInfoSSOTRouter(infoSSOTService, { auditTenantGuard = (_req
     // Write
     router.post('/graph/entities', controller.upsertGraphEntity);
     router.post('/graph/edges', controller.upsertGraphEdge);
+    router.post('/graph/maintenance/snapshots', controller.exportGraphSnapshot);
+    router.post('/graph/maintenance/human-gate-receipts', controller.recordGraphHumanGateReceipt);
+    router.post('/graph/maintenance/plans', controller.planGraphMutations);
+    router.post('/graph/maintenance/plans/:planId/apply', controller.applyGraphPlan);
+    router.get('/graph/maintenance/plans/:planId/receipt', controller.getGraphPlanReceipt);
+    router.post('/graph/maintenance/plans/:planId/rollback', controller.rollbackGraphPlan);
+    router.post('/graph/maintenance/validate', controller.validateGraphMaintenance);
     router.post('/events', controller.createEvent);
     router.post('/decisions', controller.createDecision);
     router.post('/raci', controller.createRaci);

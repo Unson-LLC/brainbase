@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VibePro Story Report</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --fg: #14171f;
+      --muted: #667085;
+      --panel: #ffffff;
+      --panel-2: #f0f3f8;
+      --border: #d7dee8;
+      --good: #0f766e;
+      --warn: #a16207;
+      --danger: #b42318;
+      --info: #1d4ed8;
+      --neutral: #475467;
+      --code: #eef2f7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220;
+        --fg: #e8edf5;
+        --muted: #9aa8bc;
+        --panel: #101827;
+        --panel-2: #172235;
+        --border: #2d3a4f;
+        --code: #1d2939;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1220px, calc(100% - 24px)); margin: 16px auto 40px; }
+    .topbar, section, article.card, .lane, .timeline-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .topbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 20px; margin-bottom: 12px; }
+    .brand { font-weight: 700; color: var(--info); }
+    section { padding: 18px; margin: 12px 0; }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.25; letter-spacing: 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; }
+    .meta, .muted, .eyebrow { color: var(--muted); }
+    .meta, .eyebrow { margin: 0; font-size: 12px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+    .hero h2 { font-size: 22px; margin: 4px 0; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; background: transparent; border: 0; padding: 0; }
+    .metric { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 92px; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin: 6px 0; font-size: 20px; overflow-wrap: anywhere; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; background: transparent; border: 0; padding: 0; }
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .flow-step { position: relative; padding: 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; min-height: 110px; overflow-wrap: anywhere; }
+    .flow-step:not(:last-child)::after { content: "->"; position: absolute; right: -12px; top: 44px; color: var(--muted); }
+    .cards, .node-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .card { padding: 14px; overflow-wrap: anywhere; }
+    .card p { margin: 6px 0 0; }
+    .lane-board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 10px; overflow-x: auto; }
+    .lane { padding: 14px; min-width: 240px; }
+    .lane ul, .card ul { padding-left: 18px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; overflow-wrap: anywhere; }
+    th, td { border: 1px solid var(--border); padding: 8px; text-align: left; vertical-align: top; }
+    th { background: var(--panel-2); }
+    code, pre { background: var(--code); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { padding: 0.1rem 0.3rem; }
+    pre { padding: 10px; overflow: auto; white-space: pre-wrap; }
+    .timeline { display: grid; gap: 10px; }
+    .timeline-item { padding: 12px; }
+    .status { display: inline-block; border-radius: 999px; padding: 4px 10px; font-weight: 700; font-size: 12px; border: 1px solid currentColor; }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+    .info { color: var(--info); }
+    .neutral { color: var(--neutral); }
+    .dag-svg { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+    .dag-node { fill: var(--panel); stroke: var(--border); }
+    .dag-text { fill: var(--fg); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .dag-edge { stroke: var(--muted); stroke-width: 1.5; marker-end: url(#arrow); }
+    @media (max-width: 860px) {
+      .metrics, .grid-2, .flow, .cards, .node-grid { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { display: none; }
+      .hero, .topbar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main data-vibepro-report="story-report">
+    <header class="topbar">
+      <div>
+        <h1>VibePro Story Report</h1>
+        <p class="meta">Generated by VibePro at 2026-08-20T16:11:43.047Z</p>
+      </div>
+      <span class="brand">VibePro</span>
+    </header>
+
+      <section class="hero" data-overall-status="needs_review">
+        <div>
+          <p class="eyebrow">Story diagnostics dashboard</p>
+          <h2>Graph SSOTデータ整備 Phase 0 MCP</h2>
+          <p class="muted">story-graph-maintenance-phase0 / view:- / period:-</p>
+        </div>
+        <span class="status warn">needs_review</span>
+      </section>
+      <section class="metrics"><article class="metric"><span>Story</span><strong>story-graph-maintenance-phase0</strong><span>Graph SSOTデータ整備 Phase 0 MCP</span></article><article class="metric"><span>Latest Run</span><strong>2026-08-20T161128Z</strong><span>needs_review</span></article><article class="metric"><span>Runs</span><strong>1</strong><span>historical</span></article><article class="metric"><span>Journey</span><strong>not_required</strong><span>not_required</span></article><article class="metric"><span>Findings</span><strong>4</strong><span>in latest evidence</span></article></section>
+      <section>
+        <h2>Story Artifacts</h2>
+
+    <table>
+      <thead><tr><th>Artifact</th><th>Path</th></tr></thead>
+      <tbody>
+        <tr><td>story-report.md</td><td><a href="story-report.md">story-report.md</a></td></tr><tr><td>tasks.md</td><td><a href="tasks/tasks.md">tasks/tasks.md</a></td></tr>
+      </tbody>
+    </table>
+
+        <p>Graph: <a href="../../graphify/graph.html">../../graphify/graph.html</a></p>
+      </section>
+      <section>
+        <h2>Journey Context</h2>
+
+    <table>
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Required</td><td>no</td></tr><tr><td>Status</td><td>not_required</td></tr><tr><td>Artifact kind</td><td>-</td></tr><tr><td>Curated</td><td>no</td></tr><tr><td>Curation status</td><td>not_required</td></tr><tr><td>Handoff</td><td>no</td></tr><tr><td>Journey ID</td><td>default-product-journey</td></tr><tr><td>Detection</td><td>-</td></tr><tr><td>Source docs</td><td>-</td></tr><tr><td>Reason</td><td>No UI/Journey signals were found in the Story metadata or tracked Story docs.</td></tr>
+      </tbody>
+    </table>
+
+        <p class="muted">Next actions: なし</p>
+      </section>
+      <section>
+        <h2>Latest Run Artifacts (2026-08-20T161128Z)</h2>
+
+    <table>
+      <thead><tr><th>Artifact</th><th>Path</th></tr></thead>
+      <tbody>
+        <tr><td>summary.md</td><td><a href="../../diagnostics/2026-08-20T161128Z/summary.md">../../diagnostics/2026-08-20T161128Z/summary.md</a></td></tr><tr><td>risk-register.md</td><td><a href="../../diagnostics/2026-08-20T161128Z/risk-register.md">../../diagnostics/2026-08-20T161128Z/risk-register.md</a></td></tr><tr><td>evidence.json</td><td><a href="../../diagnostics/2026-08-20T161128Z/evidence.json">../../diagnostics/2026-08-20T161128Z/evidence.json</a></td></tr><tr><td>finding-review.md</td><td><a href="../../diagnostics/2026-08-20T161128Z/finding-review.md">../../diagnostics/2026-08-20T161128Z/finding-review.md</a></td></tr><tr><td>architecture-profile.md</td><td><a href="../../diagnostics/2026-08-20T161128Z/architecture-profile.md">../../diagnostics/2026-08-20T161128Z/architecture-profile.md</a></td></tr><tr><td>static-site-check-result.md</td><td><a href="../../diagnostics/2026-08-20T161128Z/static-site-check-result.md">../../diagnostics/2026-08-20T161128Z/static-site-check-result.md</a></td></tr><tr><td>component-style-check-result.md</td><td><a href="../../diagnostics/2026-08-20T161128Z/component-style-check-result.md">../../diagnostics/2026-08-20T161128Z/component-style-check-result.md</a></td></tr><tr><td>flow-design-check-result.md</td><td><a href="../../diagnostics/2026-08-20T161128Z/flow-design-check-result.md">../../diagnostics/2026-08-20T161128Z/flow-design-check-result.md</a></td></tr><tr><td>gesture_interaction_check</td><td><a href="../../diagnostics/2026-08-20T161128Z/gesture-interaction-check-result.md">../../diagnostics/2026-08-20T161128Z/gesture-interaction-check-result.md</a></td></tr><tr><td>terminal-link-check-result.md</td><td><a href="../../diagnostics/2026-08-20T161128Z/terminal-link-check-result.md">../../diagnostics/2026-08-20T161128Z/terminal-link-check-result.md</a></td></tr><tr><td>refactoring-delta.md</td><td><a href="../../diagnostics/2026-08-20T161128Z/refactoring-delta.md">../../diagnostics/2026-08-20T161128Z/refactoring-delta.md</a></td></tr><tr><td>requirement-consistency.md</td><td><a href="../../diagnostics/2026-08-20T161128Z/requirement-consistency.md">../../diagnostics/2026-08-20T161128Z/requirement-consistency.md</a></td></tr><tr><td>spec_drift</td><td><a href="../../diagnostics/2026-08-20T161128Z/spec-drift.md">../../diagnostics/2026-08-20T161128Z/spec-drift.md</a></td></tr><tr><td>tasks.json</td><td><a href="tasks/tasks.json">tasks/tasks.json</a></td></tr><tr><td>tasks.md</td><td><a href="tasks/tasks.md">tasks/tasks.md</a></td></tr>
+      </tbody>
+    </table>
+
+      </section>
+      <section>
+        <h2>Findings (latest run)</h2>
+
+    <table>
+      <thead><tr><th>ID</th><th>Title</th><th>Severity</th></tr></thead>
+      <tbody>
+        <tr><td>VP-STATIC-003</td><td>XSS につながり得る DOM 操作がある</td><td>High</td></tr><tr><td>VP-UI-001</td><td>旧デザインコンポーネントのトークン候補が残っている</td><td>Medium</td></tr><tr><td>VP-FLOW-006</td><td>クリック可能に見えるUIに操作契約がない候補がある</td><td>High</td></tr><tr><td>VP-NET-003</td><td>静的にroute実体を確定できないAPI client callがある</td><td>Medium</td></tr>
+      </tbody>
+    </table>
+
+      </section>
+
+  </main>
+</body>
+</html>

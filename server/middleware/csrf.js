@@ -239,6 +239,17 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Graph maintenance is a machine-only API. The controller rejects cookie
+        // auth and requires a signed tenant identity plus project authorization.
+        const requestPath = String(req.originalUrl || req.path || '').split('?')[0];
+        if (
+            requestPath.startsWith('/api/info/graph/maintenance/')
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
         const tokenHeader = req.headers?.['x-csrf-token'];
         const sessionHeader = req.headers?.['x-session-id'];
         const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;

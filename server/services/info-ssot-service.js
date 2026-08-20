@@ -570,6 +570,7 @@ export class InfoSSOTService {
                 payload = EXCLUDED.payload,
                 role_min = EXCLUDED.role_min,
                 sensitivity = EXCLUDED.sensitivity,
+                version = graph_entities.version + 1,
                 updated_at = NOW()`,
             [
                 id,
@@ -618,6 +619,7 @@ export class InfoSSOTService {
                 payload = EXCLUDED.payload,
                 role_min = EXCLUDED.role_min,
                 sensitivity = EXCLUDED.sensitivity,
+                version = graph_edges.version + 1,
                 updated_at = NOW()`,
             [
                 edgeId,
@@ -972,6 +974,7 @@ export class InfoSSOTService {
             await client.query('SELECT set_config($1, $2, true)', ['app.role', access.role]);
             await client.query('SELECT set_config($1, $2, true)', ['app.project_codes', access.projectCodes.join(',')]);
             await client.query('SELECT set_config($1, $2, true)', ['app.clearance', access.clearance.join(',')]);
+            await client.query('SELECT set_config($1, $2, true)', ['app.organization_id', access.organizationId || access.tenantId || '']);
             const result = await handler(client);
             if (ownsTransaction) await client.query('COMMIT');
             return result;
@@ -1167,7 +1170,10 @@ export class InfoSSOTService {
 
     async ensureProject(client, { projectCode, projectName }) {
         const { rows } = await client.query(
-            'SELECT id FROM projects WHERE code = $1 LIMIT 1',
+            `SELECT id FROM projects
+             WHERE code = $1
+               AND (organization_id IS NULL OR organization_id = NULLIF(current_setting('app.organization_id', true), ''))
+             LIMIT 1`,
             [projectCode]
         );
         if (rows.length > 0) {
@@ -1187,7 +1193,8 @@ export class InfoSSOTService {
         }
         const id = this.generateId('prj');
         await client.query(
-            'INSERT INTO projects (id, code, name) VALUES ($1, $2, $3)',
+            `INSERT INTO projects (id, code, name, organization_id)
+             VALUES ($1, $2, $3, NULLIF(current_setting('app.organization_id', true), ''))`,
             [id, projectCode, projectName]
         );
         await this.upsertGraphEntity(client, {

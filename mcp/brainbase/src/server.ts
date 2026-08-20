@@ -47,6 +47,7 @@ import {
   handleMeetingMinutesContextToolCall,
 } from './tools/meeting-minutes-context-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
+import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from './tools/graph-maintenance-tools.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
 import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
 import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
@@ -1028,6 +1029,7 @@ const publishedTools = annotateToolCapabilities([
   ...tools,
   ...controlPlaneTools,
   ...onboardingTools,
+  ...graphMaintenanceTools,
   ...judgmentResolutionTools,
   ...knowledgeResolutionTools,
   ...meetingMinutesContextTools,
@@ -1206,6 +1208,11 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           tokenManager: globalTokenManager,
         }),
         (toolName, extensionArgs) => dispatchOnboardingToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleGraphMaintenanceToolCall(toolName, extensionArgs, {
+          apiUrl: resolveBrainbaseApiUrl(),
+          configuredProjectCodes,
+          tokenManager: globalTokenManager,
+        }),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),

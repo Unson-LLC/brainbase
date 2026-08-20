@@ -1,0 +1,692 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-maintenance-phase0",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": ["signed service Bearer token", "projects.organization_id"],
+      "resolution_point": "Graph maintenance controller and transaction preflight",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": ["mcp", "rest_api", "transaction", "migration", "audit_receipt"],
+      "verified_surfaces": ["mcp", "rest_api", "transaction", "migration", "audit_receipt"]
+    },
+    "resources": [
+      {
+        "name": "Graph entities, edges, maintenance plans and receipts",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_code",
+        "trust_zone": "Brainbase PostgreSQL transaction",
+        "residue_policy": "lifecycle retirement plus immutable receipt retention",
+        "data_owner": "Brainbase organization",
+        "credential_scope": "organization and project scoped service Bearer"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "organization and project scoped service Bearer",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": ["Brainbase organization"],
+      "residency": "tenant-partitioned Brainbase PostgreSQL",
+      "migration": "idempotent schema migration with unambiguous organization ownership backfill",
+      "rollback": "same-tenant inverse restoration with full affected-scope hash readback"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": ["managed_shared"],
+    "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+    "graph_metadata": {
+      "tenant_entities": ["organization", "project", "graph_entity", "graph_edge", "maintenance_plan", "maintenance_receipt"],
+      "boundary_edges": ["organization owns project", "project scopes graph row", "plan and receipt bind organization and projects"]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": ["mcp", "rest_api", "transaction", "migration", "audit_receipt"],
+        "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["managed_shared"],
+          "tenant_entities": [
+            {
+              "tenant_scope": "Graph maintenance project scope",
+              "tenant_key_source": "signed Bearer organization_id and projects.organization_id",
+              "trust_zone": "Brainbase PostgreSQL transaction",
+              "data_owner": "Brainbase organization"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "organization-owned project Graph rows",
+              "tenant_key_source": "organization_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "organization and project scoped service Bearer",
+              "connection_mode": "pooled PostgreSQL with transaction preflight",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {"tenant_key": "organization_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared"]},
+        "implementation": {"tenant_key": "organization_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared"]}
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "MCPサーバーはGraph保守領域でgraph_export_snapshot、graph_plan_mutations、graph_apply_plan、graph_get_plan_receipt、graph_rollback_plan、graph_validateの6つのtoolを登録し、Bearer認証済みproject scopeへ転送する。",
+      "rationale": "Phase 0の操作入口を6つの明示的なMCP toolに固定し、project境界の外側へ到達させない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-001",
+            "text_snippet": "MCP tools exactly: graph_export_snapshot, graph_plan_mutations, graph_apply_plan, graph_get_plan_receipt, graph_rollback_plan, graph_validate"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/tools/graph-maintenance-tools.ts",
+            "anchor": "graph_export_snapshot"
+          },
+          {
+            "file": "mcp/brainbase/src/tools/graph-maintenance-tools.ts",
+            "anchor": "graph_validate"
+          },
+          {
+            "file": "mcp/brainbase/src/tools/graph-maintenance-tools.ts",
+            "anchor": "handleGraphMaintenanceToolCall"
+          },
+          {
+            "file": "mcp/brainbase/src/server.ts",
+            "anchor": "graphMaintenanceTools"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "case": "6つの保守toolをproduction serverへ登録する"
+          },
+          {
+            "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "case": "6つのtoolをREST契約どおりのmethod/path/bodyで呼ぶ"
+          },
+          {
+            "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "case": "scope外projectはHTTPへ到達する前に拒否する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "mcp/brainbase/src/tools/graph-maintenance-tools.ts",
+            "must_contain": "graph_validate"
+          },
+          {
+            "file_glob": "mcp/brainbase/src/server.ts",
+            "must_contain": "graphMaintenanceTools"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "must_cover": "6つのtoolをREST契約どおりのmethod/path/bodyで呼ぶ"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T16:29:46.240Z",
+      "last_revised_at": "2026-08-20T16:30:08.220Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "Info SSOT RESTはsnapshot、plan、apply、receipt、rollback、validateの6 endpointを登録し、Graph保守serviceへ委譲する。",
+      "rationale": "MCPから利用するREST境界を固定し、controllerで認証・入力境界を確定してからserviceへ渡す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-002",
+            "text_snippet": "Graph maintenance REST/MCP contractはsnapshot、plan、apply、receipt、rollback、validateを提供する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/routes/info-ssot.js",
+            "anchor": "/graph/maintenance/snapshots"
+          },
+          {
+            "file": "server/routes/info-ssot.js",
+            "anchor": "/graph/maintenance/plans/:planId/apply"
+          },
+          {
+            "file": "server/routes/info-ssot.js",
+            "anchor": "/graph/maintenance/validate"
+          },
+          {
+            "file": "server/controllers/info-ssot-controller.js",
+            "anchor": "maintenanceAccess"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/routes/graph-maintenance-contract.test.js",
+            "case": "6つのREST routeがcontrollerからserviceへ正しいmethod/body/queryを渡す"
+          },
+          {
+            "file": "tests/server/middleware/csrf-graph-maintenance-contract.test.js",
+            "case": "Bearer machine requestだけをCSRFから免除する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/routes/info-ssot.js",
+            "must_contain": "/graph/maintenance/plans/:planId/apply"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/routes/graph-maintenance-contract.test.js",
+            "must_cover": "6つのREST routeがcontrollerからserviceへ正しいmethod/body/queryを渡す"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T16:29:46.240Z",
+      "last_revised_at": "2026-08-20T16:30:08.220Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "GraphMaintenanceServiceは署名tenant authorization、project scope、gmまたはceo roleを確認してからGraph保守のDB transactionへ進む。",
+      "rationale": "tenantとprojectを同時に束縛し、許可された保守担当者だけがtransaction境界へ到達できるようにする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-003",
+            "text_snippet": "signed tenant authorizationとproject scopeを要求する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "assertMaintenanceAccess"
+          },
+          {
+            "file": "server/controllers/info-ssot-controller.js",
+            "anchor": "maintenanceAccess"
+          },
+          {
+            "file": "server/services/info-ssot-service.js",
+            "anchor": "withAccessContext"
+          },
+          {
+            "file": "server/middleware/csrf.js",
+            "anchor": "/api/info/graph/maintenance/"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "署名tenant、project scope、gm以上を必須にする"
+          },
+          {
+            "file": "tests/server/middleware/csrf-graph-maintenance-contract.test.js",
+            "case": "Bearer machine requestだけをCSRFから免除する"
+          }
+        ]
+      },
+      "confidence": 0.98,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/graph-maintenance-service.js",
+            "must_contain": "Signed tenant authorization with organization is required"
+          },
+          {
+            "file_glob": "server/services/info-ssot-service.js",
+            "must_contain": "BEGIN"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "署名tenant、project scope、gm以上を必須にする"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T16:29:46.240Z",
+      "last_revised_at": "2026-08-20T16:30:08.220Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Graph maintenance planはreason、idempotency_key、project scope、snapshot hash、bulk operation limitを検証し、各mutationのexpected_versionを一致させる。",
+      "rationale": "dry-runとapplyの対象を同じsnapshotへ固定し、再送・大量変更・楽観ロック競合を黙って成功させない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004",
+            "text_snippet": "expected_version、idempotency key、bulk limit、dry-run/apply snapshot hash equality、reason required"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "buildGraphPlan"
+          },
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "requireVersion"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "input_fingerprint"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "snapshot hash conflict"
+          },
+          {
+            "file": "server/sql/info-ssot-schema.sql",
+            "anchor": "UNIQUE (organization_id, project_id, idempotency_key)"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "理由、件数上限、expected_version、scopeを必須ガードにする"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/graph-maintenance-engine.js",
+            "must_contain": "bulk operation limit exceeded"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "理由、件数上限、expected_version、scopeを必須ガードにする"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T16:29:46.240Z",
+      "last_revised_at": "2026-08-20T16:30:08.220Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "applyGraphOperationsはpatch_entity、merge_entities、retire_entity、move_scope、upsert_edge、retire_edge、normalize_aliasの7操作だけを適用し、validateGraphSnapshotはduplicate、orphan、duplicate_edge、version不整合を検出する。",
+      "rationale": "Phase 0のmutation vocabularyを固定し、entity、edge、project scopeの構造違反をapply前後で検出する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-005",
+            "text_snippet": "Allowed mutation ops: patch_entity, merge_entities, retire_entity, move_scope, upsert_edge, retire_edge, normalize_alias"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "GRAPH_MAINTENANCE_OPERATIONS"
+          },
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "validateGraphSnapshot"
+          },
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "duplicate_edge"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "Snapshot → Dry Run → Patch → Validation → Rollbackで元状態へ戻る"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "理由、件数上限、expected_version、scopeを必須ガードにする"
+          }
+        ]
+      },
+      "confidence": 0.98,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/graph-maintenance-engine.js",
+            "must_contain": "duplicate_edge"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "Snapshot → Dry Run → Patch → Validation → Rollbackで元状態へ戻る"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T16:29:46.240Z",
+      "last_revised_at": "2026-08-20T16:30:08.220Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "mutationはsensitivityを下げず、active Decisionのretireには同一tenant、project、decisionへ束縛されたapproved Human Gate receiptを要求する。",
+      "rationale": "機密性を下げる変更とActive Decisionのretireを、明示的なHuman Gateなしに実行しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "ac_id": "AC-006",
+            "text_snippet": "no sensitivity lowering; Active Decision retire requires Human Gate receipt"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "sensitivity cannot be lowered"
+          },
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "human_gate_receipt is required for Active Decision"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "status='approved'"
+          },
+          {
+            "file": "server/sql/info-ssot-schema.sql",
+            "anchor": "CREATE TABLE IF NOT EXISTS graph_maintenance_human_gate_receipts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "Sensitivity引き下げとActive DecisionのGateなしRetireを拒否する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/graph-maintenance-service.js",
+            "must_contain": "status='approved'"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "Sensitivity引き下げとActive DecisionのGateなしRetireを拒否する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T16:29:46.240Z",
+      "last_revised_at": "2026-08-20T16:30:08.220Z"
+    },
+    {
+      "id": "INV-005",
+      "type": "invariant",
+      "statement": "applyとrollbackのReceiptはplan、tenant、project、before_hash、after_hash、statusを記録し、同一planの各receipt_typeを一度だけappend-onlyで保存する。",
+      "rationale": "planのapplyとrollbackを同一のreceipt履歴でreadbackできるようにし、planned、applied、rolled_backの状態遷移と監査履歴を分離しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6,
+            "ac_id": "AC-007",
+            "text_snippet": "rollback receiptを発行し、original stateへ戻る"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "createReceipt"
+          },
+          {
+            "file": "server/sql/info-ssot-schema.sql",
+            "anchor": "CREATE TABLE IF NOT EXISTS graph_maintenance_receipts"
+          },
+          {
+            "file": "server/sql/info-ssot-schema.sql",
+            "anchor": "graph_maintenance_receipts_no_update_delete"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "executes Snapshot → Dry Run → Apply → re-fetch → Validate → Rollback and restores the original rows"
+          },
+          {
+            "file": "tests/server/routes/graph-maintenance-contract.test.js",
+            "case": "6つのREST routeがcontrollerからserviceへ正しいmethod/body/queryを渡す"
+          }
+        ]
+      },
+      "confidence": 0.97,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/sql/info-ssot-schema.sql",
+            "must_contain": "UNIQUE (plan_id, receipt_type)"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "must_cover": "executes Snapshot → Dry Run → Apply → re-fetch → Validate → Rollback and restores the original rows"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T16:29:46.240Z",
+      "last_revised_at": "2026-08-20T16:30:08.220Z"
+    },
+    {
+      "id": "INV-006",
+      "type": "invariant",
+      "statement": "Info SSOT migrationはGraph entityとedgeへPhase 0のlifecycle_statusとversionを追加し、maintenance snapshot、plan、Human Gate receipt、Receiptのschemaを冪等に作成する。",
+      "rationale": "既存Graphのversioned snapshot境界を壊さず、schema migrationを再実行しても同じproject、entity、edge、receipt構造を保つ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 7,
+            "ac_id": "AC-008",
+            "text_snippet": "Phase 0 schema migrationとPostgreSQL roundtripを確認する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/sql/info-ssot-schema.sql",
+            "anchor": "ALTER TABLE graph_entities ADD COLUMN IF NOT EXISTS"
+          },
+          {
+            "file": "server/sql/info-ssot-schema.sql",
+            "anchor": "CREATE TABLE IF NOT EXISTS graph_maintenance_snapshots"
+          },
+          {
+            "file": "server/sql/info-ssot-schema.sql",
+            "anchor": "CREATE TABLE IF NOT EXISTS graph_maintenance_plans"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "adds Phase 0 columns/tables and backfills only unambiguous organization ownership"
+          }
+        ]
+      },
+      "confidence": 0.97,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/sql/info-ssot-schema.sql",
+            "must_contain": "CREATE TABLE IF NOT EXISTS graph_maintenance_plans"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "must_cover": "adds Phase 0 columns/tables and backfills only unambiguous organization ownership"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T16:29:46.240Z",
+      "last_revised_at": "2026-08-20T16:30:08.220Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "PostgreSQL acceptance pathはSnapshot → Dry Run → Apply → re-fetch → Validate → Rollbackを実行し、applyとrollbackのReceiptおよびoriginal snapshot rowsとhashをreadbackで確認する。",
+      "rationale": "現行のunit testはdeterministicなbefore image、patch、validation、rollback hashを確認する。PostgreSQL migrationを含む完全往復はopt-in integration testとして定義されているが、このSpec記録時点では未実行である。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 8,
+            "ac_id": "AC-009",
+            "text_snippet": "Snapshot → Dry Run → Patch → 再取得 → Validation → Rollback → original state"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "exportSnapshot"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "planMutations"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "applyPlan"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "rollbackPlan"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "validate(access"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "Snapshot → Dry Run → Patch → Validation → Rollbackで元状態へ戻る"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "executes Snapshot → Dry Run → Apply → re-fetch → Validate → Rollback and restores the original rows"
+          }
+        ]
+      },
+      "confidence": 0.96,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/graph-maintenance-service.js",
+            "must_contain": "rollbackPlan"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "must_cover": "executes Snapshot → Dry Run → Apply → re-fetch → Validate → Rollback and restores the original rows"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T16:29:46.240Z",
+      "last_revised_at": "2026-08-20T16:30:08.220Z"
+    }
+  ],
+  "diagrams": [
+    {
+      "kind": "er",
+      "mermaid": "erDiagram\n  PROJECT ||--o{ GRAPH_ENTITY : scopes\n  PROJECT ||--o{ GRAPH_EDGE : scopes\n  PROJECT ||--o{ GRAPH_MAINTENANCE_SNAPSHOT : captures\n  PROJECT ||--o{ GRAPH_MAINTENANCE_PLAN : owns\n  GRAPH_MAINTENANCE_PLAN ||--o{ GRAPH_MAINTENANCE_RECEIPT : records\n  GRAPH_MAINTENANCE_PLAN ||--o{ HUMAN_GATE_RECEIPT : requires",
+      "entities": [
+        "project",
+        "entity",
+        "edge",
+        "snapshot",
+        "plan",
+        "receipt",
+        "Human Gate receipt"
+      ],
+      "rationale": "Phase 0 SQL adds project-scoped snapshot, plan, Human Gate receipt, and Receipt persistence for entity and edge mutations."
+    },
+    {
+      "kind": "state",
+      "mermaid": "stateDiagram-v2\n  [*] --> planned\n  planned --> applied\n  applied --> rolled_back\n  planned --> [*]\n  rolled_back --> [*]",
+      "entities": [
+        "planned",
+        "applied",
+        "rolled_back"
+      ],
+      "rationale": "A plan is created as planned, becomes applied after readback and apply Receipt, and becomes rolled_back only after a valid rollback Receipt."
+    },
+    {
+      "kind": "threat_model",
+      "mermaid": "flowchart TD\n  Actor[Signed tenant actor] --> Scope[Project scope and role check]\n  Scope --> DryRun[Bounded dry-run plan]\n  DryRun --> Gate[Approved Human Gate for active Decision]\n  Gate --> Apply[Apply and immutable Receipt]\n  Apply --> Validate[Validation and rollback readback]",
+      "rationale": "Graph maintenance crosses tenant authorization, project scope, CSRF, sensitivity, and Human Gate boundaries."
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q-001",
+      "question": "実PostgreSQLでmigrationとSnapshot → Dry Run → Apply → re-fetch → Validate → Rollbackの完全往復を実行し、MCP/REST/DBの同一Receiptとoriginal snapshot hashをreadbackで確認する。",
+      "blocker": true
+    }
+  ],
+  "generated_at": "2026-08-20T16:30:08.219Z",
+  "previous_spec_id": "2026-08-20T16:29:46.238Z"
+}

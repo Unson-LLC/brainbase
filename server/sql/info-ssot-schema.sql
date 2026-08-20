@@ -4,8 +4,36 @@
 CREATE TABLE IF NOT EXISTS projects (
   id text PRIMARY KEY,
   code text UNIQUE NOT NULL,
-  name text NOT NULL
+  name text NOT NULL,
+  organization_id text
 );
+
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS organization_id text;
+
+-- Backfill only when the permission catalog gives one unambiguous tenant owner.
+-- Ambiguous/unmapped projects intentionally stay NULL and maintenance fails closed.
+DO $$
+BEGIN
+  -- Resolve the optional permission catalog through the active search path so
+  -- schema-scoped migrations and isolated tenant databases receive the same
+  -- unambiguous project-owner backfill as the public deployment.
+  IF to_regclass('organizations') IS NOT NULL THEN
+    EXECUTE $sql$
+      UPDATE projects p
+      SET organization_id = owners.organization_id
+      FROM (
+        SELECT project_code, MIN(organization_id) AS organization_id
+        FROM (
+          SELECT o.id AS organization_id, unnest(o.projects) AS project_code
+          FROM organizations o
+        ) memberships
+        GROUP BY project_code
+        HAVING COUNT(DISTINCT organization_id) = 1
+      ) owners
+      WHERE p.code = owners.project_code AND p.organization_id IS NULL
+    $sql$;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS people (
   id text PRIMARY KEY,
@@ -123,6 +151,119 @@ CREATE INDEX IF NOT EXISTS idx_auth_audit_person_id ON auth_audit_logs(person_id
 CREATE INDEX IF NOT EXISTS idx_graph_edges_from_id ON graph_edges(from_id);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_to_id ON graph_edges(to_id);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_rel_type ON graph_edges(rel_type);
+
+ALTER TABLE graph_entities ADD COLUMN IF NOT EXISTS lifecycle_status text NOT NULL DEFAULT 'active';
+ALTER TABLE graph_entities ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+ALTER TABLE graph_edges ADD COLUMN IF NOT EXISTS lifecycle_status text NOT NULL DEFAULT 'active';
+ALTER TABLE graph_edges ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'graph_entities_version_positive') THEN
+    ALTER TABLE graph_entities ADD CONSTRAINT graph_entities_version_positive CHECK (version >= 1);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'graph_edges_version_positive') THEN
+    ALTER TABLE graph_edges ADD CONSTRAINT graph_edges_version_positive CHECK (version >= 1);
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS graph_maintenance_snapshots (
+  id text PRIMARY KEY,
+  organization_id text NOT NULL,
+  project_id text NOT NULL REFERENCES projects(id),
+  snapshot_hash text NOT NULL,
+  snapshot jsonb NOT NULL,
+  created_by text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS graph_maintenance_plans (
+  id text PRIMARY KEY,
+  organization_id text NOT NULL,
+  project_id text NOT NULL REFERENCES projects(id),
+  snapshot_id text NOT NULL REFERENCES graph_maintenance_snapshots(id),
+  base_snapshot_hash text NOT NULL,
+  after_snapshot_hash text NOT NULL,
+  idempotency_key text NOT NULL,
+  input_fingerprint text NOT NULL,
+  reason text NOT NULL,
+  operations jsonb NOT NULL,
+  before_snapshot jsonb NOT NULL,
+  after_snapshot jsonb NOT NULL,
+  status text NOT NULL DEFAULT 'planned',
+  created_by text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  applied_at timestamptz,
+  rolled_back_at timestamptz,
+  UNIQUE (organization_id, project_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS graph_maintenance_human_gate_receipts (
+  id text PRIMARY KEY,
+  organization_id text NOT NULL,
+  project_id text NOT NULL REFERENCES projects(id),
+  decision_id text NOT NULL,
+  status text NOT NULL CHECK (status IN ('approved', 'rejected', 'revoked')),
+  approved_by text NOT NULL,
+  approved_at timestamptz NOT NULL,
+  evidence jsonb NOT NULL DEFAULT '{}'::jsonb,
+  UNIQUE (organization_id, project_id, decision_id, id)
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'graph_maintenance_human_gate_approved_by_nonempty') THEN
+    ALTER TABLE graph_maintenance_human_gate_receipts
+      ADD CONSTRAINT graph_maintenance_human_gate_approved_by_nonempty CHECK (btrim(approved_by) <> '');
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION prevent_graph_maintenance_human_gate_receipt_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'graph maintenance Human Gate receipts are append-only';
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'graph_maintenance_human_gate_receipts_no_update_delete') THEN
+    CREATE TRIGGER graph_maintenance_human_gate_receipts_no_update_delete
+      BEFORE UPDATE OR DELETE ON graph_maintenance_human_gate_receipts
+      FOR EACH ROW EXECUTE FUNCTION prevent_graph_maintenance_human_gate_receipt_mutation();
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS graph_maintenance_receipts (
+  id text PRIMARY KEY,
+  plan_id text NOT NULL REFERENCES graph_maintenance_plans(id),
+  organization_id text NOT NULL,
+  project_id text NOT NULL REFERENCES projects(id),
+  receipt_type text NOT NULL CHECK (receipt_type IN ('apply', 'rollback')),
+  status text NOT NULL,
+  before_hash text NOT NULL,
+  after_hash text NOT NULL,
+  result jsonb NOT NULL DEFAULT '{}'::jsonb,
+  actor_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  UNIQUE (plan_id, receipt_type)
+);
+
+CREATE OR REPLACE FUNCTION prevent_graph_maintenance_receipt_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'graph maintenance receipts are append-only';
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'graph_maintenance_receipts_no_update_delete') THEN
+    CREATE TRIGGER graph_maintenance_receipts_no_update_delete
+      BEFORE UPDATE OR DELETE ON graph_maintenance_receipts
+      FOR EACH ROW EXECUTE FUNCTION prevent_graph_maintenance_receipt_mutation();
+  END IF;
+END $$;
 
 DO $$
 BEGIN

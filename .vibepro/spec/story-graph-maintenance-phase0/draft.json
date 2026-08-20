@@ -1,0 +1,131 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-maintenance-phase0",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "MCPはsnapshot、plan、apply、receipt、rollback、validateの6つのGraph保守toolだけを認証済みproject scopeで公開する。",
+      "origin": {
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/tools/graph-maintenance-tools.ts"
+          },
+          {
+            "file": "mcp/brainbase/src/server.ts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "case": "6つの保守toolをproduction serverへ登録する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-20T16:13:11.254Z",
+      "last_revised_at": "2026-08-20T16:13:11.254Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "applyとrollbackは同一tenant/project transaction内でsnapshot hash、expected_version、idempotency、Receiptを検査し、他tenantのIDを上書きしない。",
+      "origin": {
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js"
+          },
+          {
+            "file": "server/sql/info-ssot-schema.sql"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js"
+          }
+        ]
+      },
+      "confidence": 0.98,
+      "first_seen_at": "2026-08-20T16:13:11.254Z",
+      "last_revised_at": "2026-08-20T16:13:11.254Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "sensitivityは低下させず、Active Decisionのretireは同一tenant/project/decisionへ束縛された承認済みHuman Gate Receiptを必要とする。",
+      "origin": {
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "Sensitivity引き下げとActive DecisionのGateなしRetireを拒否する"
+          }
+        ]
+      },
+      "confidence": 0.98,
+      "first_seen_at": "2026-08-20T16:13:11.254Z",
+      "last_revised_at": "2026-08-20T16:13:11.254Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "SnapshotからDry Run、Patch、再取得、Validation、Rollbackを実行すると元のsnapshot hashへ戻る。",
+      "origin": {
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "Snapshot → Dry Run → Patch → Validation → Rollbackで元状態へ戻る"
+          }
+        ]
+      },
+      "confidence": 0.95,
+      "first_seen_at": "2026-08-20T16:13:11.254Z",
+      "last_revised_at": "2026-08-20T16:13:11.254Z"
+    }
+  ],
+  "planned_test_suites": [
+    {
+      "layer": "unit",
+      "covers": [
+        "mutation guards",
+        "hash and version semantics"
+      ]
+    },
+    {
+      "layer": "integration",
+      "covers": [
+        "authenticated REST and MCP contracts",
+        "PostgreSQL transaction roundtrip"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q-001",
+      "question": "本番適用前に一時PostgreSQLでmigrationと完全roundtripを実行する。",
+      "owner": "platform",
+      "status": "open"
+    }
+  ],
+  "generated_at": "2026-08-20T16:13:11.252Z",
+  "previous_spec_id": null
+}
