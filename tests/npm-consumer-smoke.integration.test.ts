@@ -70,6 +70,32 @@ describe('npm tarball consumer smoke', () => {
         toolsList: 'passed',
         contextReadback: 'passed'
       },
+      judgmentDag: {
+        subpathImport: 'passed',
+        legacyDeepImport: 'passed',
+        contractArtifacts: {
+          schema: 'passed',
+          fixture: 'passed',
+          sourceLock: 'passed',
+          digest: 'passed'
+        },
+        contractVerification: {
+          sourceLockSources: 2,
+          digestFiles: 6,
+          aggregateDigest: expect.stringMatching(/^[a-f0-9]{64}$/u)
+        },
+        executionOrder: [
+          'context.account', 'context.customer', 'judgment.fit', 'resource.scope',
+          'execution.proposal', 'execution.outcome', 'evaluation.result'
+        ],
+        negativeBoundaries: {
+          missing_dependency: { status: 'passed', errorCode: 'missing_dependency' },
+          cycle: { status: 'passed', errorCode: 'cycle' },
+          mirror_mismatch: { status: 'passed', errorCode: 'invalid_contract' },
+          scope_boundary_violation: { status: 'passed', errorCode: 'scope_boundary_violation' },
+          invalid_contract: { status: 'passed', errorCode: 'invalid_contract' }
+        }
+      },
       runtime: {
         command: process.execPath,
         cliTarget: 'dist/cli.js',

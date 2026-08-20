@@ -8,6 +8,35 @@ Ontology 2.0.0は、ローカルファイルへ持ち運べる意味契約に、
 
 このリポジトリに、社内BrainbaseのUI、セッション実行基盤、xterm転送、ワークフロー管制、SNS運用、ホスト型バックエンド、Infisical設定、雲孫の社内データは含みません。それらは社内版`brainbase-unson`の範囲です。
 
+## Judgment DAG公開契約
+
+Judgment DAGの型と副作用のない事前検証は、公開`./judgment-dag` subpath（`@unson/brainbase-mcp/judgment-dag`）から利用できます。機械可読の4つの契約ファイルは次のとおりです。
+
+- `contracts/judgment-dag/schema.json`
+- `contracts/judgment-dag/fixture.json`
+- `contracts/judgment-dag/source-lock.json`
+- `contracts/judgment-dag/digest.json`
+
+最小の検証例:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { validateJudgmentDAG } from '@unson/brainbase-mcp/judgment-dag';
+
+const fixtureUrl = import.meta.resolve(
+  '@unson/brainbase-mcp/contracts/judgment-dag/fixture.json'
+);
+const dag = JSON.parse(readFileSync(new URL(fixtureUrl), 'utf8'));
+const checked = validateJudgmentDAG(dag);
+console.log(checked.execution_order); // deterministic node-ID ascending tie-break
+```
+
+`node.depends_on`と`relation: "depends_on"` edgeは完全なmirrorであり、missing・cycle・reverse-layer・scope不一致は実行前に拒否されます。
+
+配布済みconsumerは、installed package rootから`source-lock.sources`と`digest.files`の各package-relative pathをSHA-256で再計算し、`digest.files`をpath順に`path + NUL + sha256 + LF`で連結したaggregate digestまでreadbackします。`source-lock`はimmutableな`repository`と`accepted_base_commit`を示し、`src/`のような非同梱ファイルはhash対象にしません。
+
+この契約はrunner、artifact、execution log、replay/evaluation、Execution/Evaluation mutation protectionを含まないJ0-2非目標のcore sliceです。
+
 ## マニュアル
 
 Read the public onboarding manual at [brainbase.pages.dev](https://brainbase.pages.dev/). It guides users through five phases: choose one real use case, register approved work context, prove the first value, add only necessary sources, and operationalize Skills, routines, and MCP.

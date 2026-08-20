@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.1.0",
+  "tool": "vibepro",
+  "workspace": ".vibepro",
+  "output": {
+    "language": "ja"
+  },
+  "budgets": {
+    "pr_artifact_bytes": 16384
+  },
+  "brainbase": {
+    "stories": [
+      {
+        "story_id": "story-j0-judgment-dag-core-contract",
+        "title": "J0 typed DAG contract and preflight validation",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      }
+    ],
+    "current_story_id": "story-j0-judgment-dag-core-contract"
+  }
+}

@@ -97,6 +97,9 @@ describe('MCP-only repository hygiene', () => {
 
     expect(packageJson.files).toEqual([
       'dist',
+      'contracts',
+      'docs/architecture/judgment-dag-core.md',
+      'docs/management/judgment-dag-milestones.md',
       'README.md',
       'LICENSE',
       'SECURITY.md'
@@ -108,7 +111,10 @@ describe('MCP-only repository hygiene', () => {
       file === 'LICENSE'
       || file === 'README.md'
       || file === 'SECURITY.md'
+      || file === 'docs/architecture/judgment-dag-core.md'
+      || file === 'docs/management/judgment-dag-milestones.md'
       || file === 'package.json'
+      || file.startsWith('contracts/')
       || file.startsWith('dist/')
     ))).toBe(true);
   }, 30_000);

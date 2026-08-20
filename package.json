@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Local-first Brainbase MCP server and personal onboarding kit.",
   "type": "module",
   "license": "MIT",
@@ -10,12 +10,31 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./judgment-dag": {
+      "types": "./dist/judgment-dag.d.ts",
+      "import": "./dist/judgment-dag.js"
+    },
+    "./dist/*": "./dist/*",
+    "./contracts/judgment-dag/schema.json": "./contracts/judgment-dag/schema.json",
+    "./contracts/judgment-dag/fixture.json": "./contracts/judgment-dag/fixture.json",
+    "./contracts/judgment-dag/source-lock.json": "./contracts/judgment-dag/source-lock.json",
+    "./contracts/judgment-dag/digest.json": "./contracts/judgment-dag/digest.json",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "brainbase-mcp": "dist/index.js",
     "brainbase": "dist/cli.js"
   },
   "files": [
     "dist",
+    "contracts",
+    "docs/architecture/judgment-dag-core.md",
+    "docs/management/judgment-dag-milestones.md",
     "README.md",
     "LICENSE",
     "SECURITY.md"
@@ -40,6 +59,7 @@
     "onboard:seed": "node dist/cli.js onboard:seed",
     "onboard:demo": "node dist/cli.js onboard:demo",
     "onboard:install": "node dist/cli.js onboard:install",
+    "contracts:generate": "node scripts/generate-judgment-dag-contract-artifacts.mjs",
     "release:plan": "node scripts/npm-release.mjs plan",
     "release:validate": "node scripts/npm-release.mjs validate",
     "release:publish": "node scripts/npm-release.mjs publish",

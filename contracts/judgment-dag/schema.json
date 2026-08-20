@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Unson-LLC/brainbase/blob/develop/contracts/judgment-dag/schema.json",
+  "title": "Brainbase Judgment DAG core contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "nodes", "edges"],
+  "properties": {
+    "id": { "$ref": "#/$defs/identifier" },
+    "version": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+    "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![\\s\\S]*[\\u0000-\\u001F\\u007F])(?=[\\s\\S]*\\S)[\\s\\S]+$"
+    },
+    "metadata": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array", "items": { "$ref": "#/$defs/metadata" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/metadata" } }
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "enum": ["personal", "project", "organization"] },
+        "id": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "node_type", "layer", "scope", "version", "description", "depends_on", "input_contract", "output_contract", "runner_type"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "node_type": { "enum": ["observation", "judgment", "decision", "resource", "execution", "outcome", "evaluation"] },
+        "layer": { "enum": ["context", "judgment", "resource", "execution", "evaluation"] },
+        "scope": { "$ref": "#/$defs/scope" },
+        "version": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "description": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "depends_on": { "type": "array", "items": { "$ref": "#/$defs/identifier" }, "uniqueItems": true },
+        "input_contract": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "output_contract": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "runner_type": { "enum": ["deterministic", "agent", "human", "committee", "external"] },
+        "authority": { "$ref": "#/$defs/metadata" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "valid_from": { "type": ["string", "null"] },
+        "valid_to": { "type": ["string", "null"] },
+        "provenance": { "type": "array", "items": { "$ref": "#/$defs/metadata" } },
+        "evaluation": { "$ref": "#/$defs/metadata" }
+      },
+      "allOf": [
+        { "if": { "properties": { "node_type": { "const": "observation" } } }, "then": { "properties": { "layer": { "const": "context" } } } },
+        { "if": { "properties": { "node_type": { "enum": ["judgment", "decision"] } } }, "then": { "properties": { "layer": { "const": "judgment" } } } },
+        { "if": { "properties": { "node_type": { "const": "resource" } } }, "then": { "properties": { "layer": { "const": "resource" } } } },
+        { "if": { "properties": { "node_type": { "enum": ["execution", "outcome"] } } }, "then": { "properties": { "layer": { "const": "execution" } } } },
+        { "if": { "properties": { "node_type": { "const": "evaluation" } } }, "then": { "properties": { "layer": { "const": "evaluation" } } } }
+      ]
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "relation"],
+      "properties": {
+        "from": { "$ref": "#/$defs/identifier" },
+        "to": { "$ref": "#/$defs/identifier" },
+        "relation": { "enum": ["depends_on", "supports", "contradicts", "gates", "supersedes", "produces", "evaluated_by", "triggers"] }
+      }
+    }
+  }
+}

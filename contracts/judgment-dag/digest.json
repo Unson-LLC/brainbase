@@ -1,0 +1,32 @@
+{
+  "contract": "judgment-dag-core",
+  "algorithm": "sha256",
+  "canonicalization": "UTF-8 lines sorted by path as path + NUL + sha256 + LF",
+  "files": [
+    {
+      "path": "contracts/judgment-dag/fixture.json",
+      "sha256": "c191ea129c55c97d131998698a79f656c900150fb97abb4715aa44d2abca39c5"
+    },
+    {
+      "path": "contracts/judgment-dag/schema.json",
+      "sha256": "af783617e76dc3cdc878210311821f9b0e982b31102ab6bf46ad726d5423745d"
+    },
+    {
+      "path": "contracts/judgment-dag/source-lock.json",
+      "sha256": "c7b3020fe3952d90bd8ed991f613be66c0798983bb6cc2285a9aefff7ab2f0e9"
+    },
+    {
+      "path": "docs/architecture/judgment-dag-core.md",
+      "sha256": "24305aaa97df9c734d468c49f52784e94b77a4f506bae41d482bee05625d7e2a"
+    },
+    {
+      "path": "docs/management/judgment-dag-milestones.md",
+      "sha256": "ef51313f33de64f702fd6c86012984bd70cf99eeca5b4f4cfc27f6cb266172bd"
+    },
+    {
+      "path": "README.md",
+      "sha256": "7cd5721b9a932f5b43dd01557dfbcd8ea73563d5d23337fabdd322367d678e28"
+    }
+  ],
+  "digest": "fd5587b97cf343290c7d6c78f365d2d78bef668b04578e5ab55c67886ba0e827"
+}
