@@ -1,6 +1,4 @@
 {
-  "$schema": "./schema.json",
-  "fixture_id": "j0-valid",
   "id": "j0-valid",
   "version": "2026-08-20.1",
   "nodes": [

@@ -6,7 +6,7 @@
  * later milestones and must not be coupled to this core surface.
  */
 
-export const JUDGMENT_DAG_NODE_TYPES = [
+export const JUDGMENT_DAG_NODE_TYPES = Object.freeze([
   'observation',
   'judgment',
   'decision',
@@ -14,17 +14,17 @@ export const JUDGMENT_DAG_NODE_TYPES = [
   'execution',
   'outcome',
   'evaluation'
-] as const;
+] as const);
 
 export type JudgmentDAGNodeType = (typeof JUDGMENT_DAG_NODE_TYPES)[number];
 
-export const JUDGMENT_DAG_LAYERS = [
+export const JUDGMENT_DAG_LAYERS = Object.freeze([
   'context',
   'judgment',
   'resource',
   'execution',
   'evaluation'
-] as const;
+] as const);
 
 export type JudgmentDAGLayer = (typeof JUDGMENT_DAG_LAYERS)[number];
 
@@ -32,9 +32,7 @@ export type JudgmentDAGLayer = (typeof JUDGMENT_DAG_LAYERS)[number];
  * The accepted ontology has five layers. An outcome is the result produced
  * by the Execution DAG; it is not a sixth layer of its own.
  */
-export const JUDGMENT_DAG_NODE_TYPE_TO_LAYER: Readonly<
-  Record<JudgmentDAGNodeType, JudgmentDAGLayer>
-> = {
+export const JUDGMENT_DAG_NODE_TYPE_TO_LAYER = Object.freeze({
   observation: 'context',
   judgment: 'judgment',
   decision: 'judgment',
@@ -42,22 +40,26 @@ export const JUDGMENT_DAG_NODE_TYPE_TO_LAYER: Readonly<
   execution: 'execution',
   outcome: 'execution',
   evaluation: 'evaluation'
-};
+} as const satisfies Record<JudgmentDAGNodeType, JudgmentDAGLayer>);
 
-export const JUDGMENT_DAG_SCOPE_TYPES = ['personal', 'project', 'organization'] as const;
+export const JUDGMENT_DAG_SCOPE_TYPES = Object.freeze([
+  'personal',
+  'project',
+  'organization'
+] as const);
 export type JudgmentDAGScopeType = (typeof JUDGMENT_DAG_SCOPE_TYPES)[number];
 
-export const JUDGMENT_DAG_RUNNER_TYPES = [
+export const JUDGMENT_DAG_RUNNER_TYPES = Object.freeze([
   'deterministic',
   'agent',
   'human',
   'committee',
   'external'
-] as const;
+] as const);
 
 export type JudgmentDAGRunnerType = (typeof JUDGMENT_DAG_RUNNER_TYPES)[number];
 
-export const JUDGMENT_DAG_EDGE_RELATIONS = [
+export const JUDGMENT_DAG_EDGE_RELATIONS = Object.freeze([
   'depends_on',
   'supports',
   'contradicts',
@@ -66,9 +68,37 @@ export const JUDGMENT_DAG_EDGE_RELATIONS = [
   'produces',
   'evaluated_by',
   'triggers'
-] as const;
+] as const);
 
 export type JudgmentDAGEdgeRelation = (typeof JUDGMENT_DAG_EDGE_RELATIONS)[number];
+
+/**
+ * Exact JSON object keys accepted by the runtime contract. Metadata records
+ * are intentionally not listed here because their nested keys are arbitrary.
+ */
+export const JUDGMENT_DAG_ALLOWED_KEYS = Object.freeze({
+  root: Object.freeze(['id', 'version', 'nodes', 'edges'] as const),
+  node: Object.freeze([
+    'id',
+    'node_type',
+    'layer',
+    'scope',
+    'version',
+    'description',
+    'depends_on',
+    'input_contract',
+    'output_contract',
+    'runner_type',
+    'authority',
+    'confidence',
+    'valid_from',
+    'valid_to',
+    'provenance',
+    'evaluation'
+  ] as const),
+  scope: Object.freeze(['type', 'id'] as const),
+  edge: Object.freeze(['from', 'to', 'relation'] as const)
+} as const);
 
 export type JudgmentDAGMetadata =
   | string
@@ -200,6 +230,18 @@ function requireRecord(value: unknown, path: string): Record<string, unknown> {
   return value;
 }
 
+function requireExactKeys(
+  value: Record<string, unknown>,
+  allowedKeys: readonly string[],
+  path: string
+): void {
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key)) {
+      invalidContract(`${path}.${key} is not an allowed contract field`);
+    }
+  }
+}
+
 function requireNonEmptyString(value: unknown, path: string): string {
   if (!isNonEmptyString(value)) {
     invalidContract(`${path} must be a non-empty string`);
@@ -257,10 +299,12 @@ function validateMetadata(value: unknown, path: string, active: Set<object> = ne
 function validateNode(value: unknown, index: number): JudgmentDAGNode {
   const path = `nodes[${index}]`;
   const node = requireRecord(value, path);
+  requireExactKeys(node, JUDGMENT_DAG_ALLOWED_KEYS.node, path);
   const nodeType = node.node_type;
   const layer = node.layer;
   const runnerType = node.runner_type;
   const scope = requireRecord(node.scope, `${path}.scope`);
+  requireExactKeys(scope, JUDGMENT_DAG_ALLOWED_KEYS.scope, `${path}.scope`);
 
   if (!isOneOf(JUDGMENT_DAG_NODE_TYPES, nodeType)) {
     invalidContract(`${path}.node_type is not a supported node type`);
@@ -327,6 +371,7 @@ function validateEdge(
 ): JudgmentDAGEdge {
   const path = `edges[${index}]`;
   const edge = requireRecord(value, path);
+  requireExactKeys(edge, JUDGMENT_DAG_ALLOWED_KEYS.edge, path);
   const from = requireNonEmptyString(edge.from, `${path}.from`);
   const to = requireNonEmptyString(edge.to, `${path}.to`);
   if (!isOneOf(JUDGMENT_DAG_EDGE_RELATIONS, edge.relation)) {
@@ -389,10 +434,13 @@ function findCycle(
  * Validate a DAG before any runner can execute it.
  *
  * The input is never mutated. Dependencies declared on nodes and explicit
- * `depends_on` edges are both checked; duplicate declarations are harmless.
+ * `depends_on` edges are both checked; duplicate declarations of the same
+ * dependency pair are deduplicated across those two representations, while
+ * duplicate node IDs and duplicate edge relations are rejected.
  */
 export function validateJudgmentDAG(value: unknown): JudgmentDAGValidationResult {
   const dag = requireRecord(value, 'dag');
+  requireExactKeys(dag, JUDGMENT_DAG_ALLOWED_KEYS.root, 'dag');
   const dagId = requireNonEmptyString(dag.id, 'dag.id');
   const dagVersion = requireNonEmptyString(dag.version, 'dag.version');
   const nodeValues = requireArray(dag.nodes, 'dag.nodes');

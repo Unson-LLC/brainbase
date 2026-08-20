@@ -5,6 +5,15 @@ import {
   validateJudgmentDAG
 } from '../src/judgment-dag-core.js';
 import {
+  JUDGMENT_DAG_ALLOWED_KEYS,
+  JUDGMENT_DAG_EDGE_RELATIONS,
+  JUDGMENT_DAG_LAYERS,
+  JUDGMENT_DAG_NODE_TYPE_TO_LAYER,
+  JUDGMENT_DAG_NODE_TYPES,
+  JUDGMENT_DAG_RUNNER_TYPES,
+  JUDGMENT_DAG_SCOPE_TYPES
+} from '../src/judgment-dag.js';
+import {
   cycleJudgmentDAG,
   invalidAuthorityMetadataJudgmentDAG,
   invalidEvaluationMetadataJudgmentDAG,
@@ -68,6 +77,53 @@ describe('Judgment DAG core contract', () => {
   });
 
   it.each([
+    ['duplicate node IDs', {
+      ...validJudgmentDAG,
+      nodes: [...validJudgmentDAG.nodes, validJudgmentDAG.nodes[0]]
+    }, 'duplicate_node'],
+    ['duplicate dependency declarations', {
+      ...validJudgmentDAG,
+      nodes: validJudgmentDAG.nodes.map((node) => node.id === 'judgment.fit'
+        ? { ...node, depends_on: [...node.depends_on, 'context.customer'] }
+        : node)
+    }, 'invalid_contract'],
+    ['duplicate edge declarations', {
+      ...validJudgmentDAG,
+      edges: [...validJudgmentDAG.edges, validJudgmentDAG.edges[0]]
+    }, 'invalid_contract']
+  ] as const)('rejects %s before execution', (_label, dag, code) => {
+    expect(() => validateJudgmentDAG(dag)).toThrowError(
+      expect.objectContaining<Partial<JudgmentDAGValidationError>>({ code })
+    );
+  });
+
+  it.each([
+    ['root', { ...validJudgmentDAG, unexpected: true }],
+    ['node', {
+      ...validJudgmentDAG,
+      nodes: validJudgmentDAG.nodes.map((node, index) => index === 0
+        ? { ...node, unexpected: true }
+        : node)
+    }],
+    ['scope', {
+      ...validJudgmentDAG,
+      nodes: validJudgmentDAG.nodes.map((node, index) => index === 0
+        ? { ...node, scope: { ...node.scope, unexpected: true } }
+        : node)
+    }],
+    ['edge', {
+      ...validJudgmentDAG,
+      edges: validJudgmentDAG.edges.map((edge, index) => index === 0
+        ? { ...edge, unexpected: true }
+        : edge)
+    }]
+  ] as const)('rejects an unknown %s contract field', (_label, dag) => {
+    expect(() => validateJudgmentDAG(dag)).toThrowError(
+      expect.objectContaining<Partial<JudgmentDAGValidationError>>({ code: 'invalid_contract' })
+    );
+  });
+
+  it.each([
     ['authority', invalidAuthorityMetadataJudgmentDAG],
     ['provenance', invalidProvenanceMetadataJudgmentDAG],
     ['evaluation', invalidEvaluationMetadataJudgmentDAG]
@@ -107,5 +163,35 @@ describe('Judgment DAG core contract', () => {
     const expected = validateJudgmentDAG(validJudgmentDAG).execution_order;
     expect(validateJudgmentDAG(reordered).execution_order).toEqual(expected);
     expect(expected.slice(0, 2)).toEqual(['context.account', 'context.customer']);
+  });
+
+  it('deep-freezes public semantic constants so consumers cannot alter validation rules', () => {
+    const semanticArrays = [
+      JUDGMENT_DAG_NODE_TYPES,
+      JUDGMENT_DAG_LAYERS,
+      JUDGMENT_DAG_SCOPE_TYPES,
+      JUDGMENT_DAG_RUNNER_TYPES,
+      JUDGMENT_DAG_EDGE_RELATIONS
+    ];
+    for (const values of semanticArrays) {
+      expect(Object.isFrozen(values)).toBe(true);
+      expect(() => (values as unknown as string[]).push('tampered')).toThrow(TypeError);
+      expect(() => { (values as unknown as string[])[0] = 'tampered'; }).toThrow(TypeError);
+      expect(Reflect.deleteProperty(values, '0')).toBe(false);
+    }
+
+    expect(Object.isFrozen(JUDGMENT_DAG_NODE_TYPE_TO_LAYER)).toBe(true);
+    const map = JUDGMENT_DAG_NODE_TYPE_TO_LAYER as Record<string, string>;
+    expect(() => { map.outcome = 'evaluation'; }).toThrow(TypeError);
+    expect(Reflect.deleteProperty(map, 'outcome')).toBe(false);
+    expect(map.outcome).toBe('execution');
+    expect(Object.isFrozen(JUDGMENT_DAG_ALLOWED_KEYS)).toBe(true);
+    for (const keys of Object.values(JUDGMENT_DAG_ALLOWED_KEYS)) {
+      expect(Object.isFrozen(keys)).toBe(true);
+    }
+    expect(validateJudgmentDAG(validJudgmentDAG).execution_order).toEqual([
+      'context.account', 'context.customer', 'judgment.fit', 'resource.scope',
+      'execution.proposal', 'execution.outcome', 'evaluation.result'
+    ]);
   });
 });

@@ -6,21 +6,10 @@
   "additionalProperties": false,
   "required": ["id", "version", "nodes", "edges"],
   "properties": {
-    "$schema": { "type": "string" },
-    "fixture_id": { "type": "string", "minLength": 1 },
     "id": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "minLength": 1 },
     "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
     "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } }
-  },
-  "x-node-type-layer-map": {
-    "observation": "context",
-    "judgment": "judgment",
-    "decision": "judgment",
-    "resource": "resource",
-    "execution": "execution",
-    "outcome": "execution",
-    "evaluation": "evaluation"
   },
   "$defs": {
     "metadata": {
