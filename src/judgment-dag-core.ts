@@ -216,6 +216,10 @@ function isNonEmptyString(value: unknown): value is string {
   return isString(value) && value.trim().length > 0;
 }
 
+function isSafeIdentifier(value: unknown): value is string {
+  return isNonEmptyString(value) && !/[\u0000-\u001F\u007F]/u.test(value);
+}
+
 function isOneOf<const T extends readonly string[]>(values: T, value: unknown): value is T[number] {
   return isString(value) && (values as readonly string[]).includes(value);
 }
@@ -246,6 +250,13 @@ function requireExactKeys(
 function requireNonEmptyString(value: unknown, path: string): string {
   if (!isNonEmptyString(value)) {
     invalidContract(`${path} must be a non-empty string`);
+  }
+  return value;
+}
+
+function requireIdentifier(value: unknown, path: string): string {
+  if (!isSafeIdentifier(value)) {
+    invalidContract(`${path} must be a non-empty string without control characters`);
   }
   return value;
 }
@@ -324,8 +335,8 @@ function validateNode(value: unknown, index: number): JudgmentDAGNode {
     invalidContract(`${path}.layer does not match ${path}.node_type`);
   }
 
-  requireNonEmptyString(node.id, `${path}.id`);
-  requireNonEmptyString(scope.id, `${path}.scope.id`);
+  requireIdentifier(node.id, `${path}.id`);
+  requireIdentifier(scope.id, `${path}.scope.id`);
   requireNonEmptyString(node.version, `${path}.version`);
   requireNonEmptyString(node.description, `${path}.description`);
   requireNonEmptyString(node.input_contract, `${path}.input_contract`);
@@ -333,7 +344,7 @@ function validateNode(value: unknown, index: number): JudgmentDAGNode {
 
   const dependencies = requireArray(node.depends_on, `${path}.depends_on`);
   for (let index = 0; index < dependencies.length; index += 1) {
-    requireNonEmptyString(dependencies[index], `${path}.depends_on[${index}]`);
+    requireIdentifier(dependencies[index], `${path}.depends_on[${index}]`);
   }
   if (new Set(dependencies).size !== dependencies.length) {
     invalidContract(`${path}.depends_on must not contain duplicate node IDs`);
@@ -373,8 +384,8 @@ function validateEdge(
   const path = `edges[${index}]`;
   const edge = requireRecord(value, path);
   requireExactKeys(edge, JUDGMENT_DAG_ALLOWED_KEYS.edge, path);
-  const from = requireNonEmptyString(edge.from, `${path}.from`);
-  const to = requireNonEmptyString(edge.to, `${path}.to`);
+  const from = requireIdentifier(edge.from, `${path}.from`);
+  const to = requireIdentifier(edge.to, `${path}.to`);
   if (!isOneOf(JUDGMENT_DAG_EDGE_RELATIONS, edge.relation)) {
     invalidContract(`${path}.relation is not a supported edge relation`);
   }
@@ -389,7 +400,16 @@ function validateEdge(
 }
 
 function edgeKey(from: string, to: string): string {
-  return `${from}\u0000${to}`;
+  // A delimiter-based key aliases pairs such as ("a\0b", "c") and
+  // ("a", "b\0c"). JSON preserves the pair structure even if an unsafe
+  // identifier reaches this internal helper, while public identifiers are
+  // rejected by the schema/runtime before this point.
+  return JSON.stringify([from, to]);
+}
+
+function edgePairLabel(pair: string): string {
+  const [from, to] = JSON.parse(pair) as [string, string];
+  return `${from} -> ${to}`;
 }
 
 function findCycle(
@@ -442,7 +462,7 @@ function findCycle(
 export function validateJudgmentDAG(value: unknown): JudgmentDAGValidationResult {
   const dag = requireRecord(value, 'dag');
   requireExactKeys(dag, JUDGMENT_DAG_ALLOWED_KEYS.root, 'dag');
-  const dagId = requireNonEmptyString(dag.id, 'dag.id');
+  const dagId = requireIdentifier(dag.id, 'dag.id');
   const dagVersion = requireNonEmptyString(dag.version, 'dag.version');
   const nodeValues = requireArray(dag.nodes, 'dag.nodes');
   const edgeValues = requireArray(dag.edges, 'dag.edges');
@@ -535,12 +555,12 @@ export function validateJudgmentDAG(value: unknown): JudgmentDAGValidationResult
 
   for (const pair of nodeDependencyPairs) {
     if (!edgeDependencyPairs.has(pair)) {
-      invalidContract(`depends_on edge is missing for node dependency ${pair.replace('\u0000', ' -> ')}`);
+      invalidContract(`depends_on edge is missing for node dependency ${edgePairLabel(pair)}`);
     }
   }
   for (const pair of edgeDependencyPairs) {
     if (!nodeDependencyPairs.has(pair)) {
-      invalidContract(`node dependency is missing for depends_on edge ${pair.replace('\u0000', ' -> ')}`);
+      invalidContract(`node dependency is missing for depends_on edge ${edgePairLabel(pair)}`);
     }
   }
 

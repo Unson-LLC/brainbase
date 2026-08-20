@@ -13,7 +13,11 @@ canonical_story: docs/management/stories/active/story-j0-judgment-dag-core-contr
 
 `JudgmentDAG` contains immutable-compatible nodes and edges. Node type/layer compatibility is fixed as `observation->context`, `judgment/decision->judgment`, `resource->resource`, `execution/outcome->execution`, and `evaluation->evaluation`. `node.depends_on` is the executable topology SSOT; every dependency pair must have exactly one matching `relation=depends_on` edge, and every such edge must have exactly one matching node dependency. Validation is a pure, fail-closed preflight operation and returns a deterministic topological order with node-ID ascending tie-breaks. Both endpoints of each dependency must have identical `scope.type` and `scope.id`.
 
+Public identifiers (`id`, `scope.id`, dependency IDs, and edge endpoints) are non-empty strings without control characters. The internal dependency-pair key preserves the ordered pair structure, so delimiter collisions cannot bypass the exact mirror check. The schema and runtime reject the same invalid identifier candidates.
+
 The `depends_on` edge is a required exact mirror, not a duplicate declaration. Structural validity does not grant execution authority. Cross-scope promotion and authority evidence are later scope and governance work, not this contract slice.
+
+The machine-level multi-tenancy contract is limited to this exact scope boundary. It records the caller-provided scope as the canonical key and fails closed for missing, ambiguous, or cross-scope candidates; cross-scope authorization, hosted/runtime isolation, secret lookup, database partitioning, and deployment topology are explicit non-goals.
 
 ## Acceptance/test references
 
@@ -32,3 +36,5 @@ The package root remains the MCP startup entrypoint. Only the `./judgment-dag` s
 ## Explicit non-goals
 
 This slice does not implement or verify runner execution, artifact storage, execution logs, replay, evaluation mutation, or Execution/Evaluation mutation protection. Those are J0-2 follow-up scope and must not be inferred from this contract or its tests.
+
+It also does not implement or verify cross-scope authorization, runtime isolation, secret scope, database partitioning, or deployment topology. The multi-tenancy evidence is a static contract/schema/runtime boundary record only.

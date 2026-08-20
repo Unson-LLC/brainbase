@@ -117,6 +117,32 @@ describe('Judgment DAG core contract', () => {
     );
   });
 
+  it('rejects control characters in public IDs before edge-key mirror collisions', () => {
+    const contextAccount = validJudgmentDAG.nodes.find((node) => node.id === 'context.account');
+    const contextCustomer = validJudgmentDAG.nodes.find((node) => node.id === 'context.customer');
+    const judgmentFit = validJudgmentDAG.nodes.find((node) => node.id === 'judgment.fit');
+    const resourceScope = validJudgmentDAG.nodes.find((node) => node.id === 'resource.scope');
+    if (!contextAccount || !contextCustomer || !judgmentFit || !resourceScope) {
+      throw new Error('fixture nodes missing');
+    }
+
+    const collisionDag = {
+      ...validJudgmentDAG,
+      id: 'j0-control-id',
+      nodes: [
+        { ...contextAccount, id: 'a\u0000b' },
+        { ...judgmentFit, id: 'c', depends_on: ['a\u0000b'] },
+        { ...contextCustomer, id: 'a', depends_on: [] },
+        { ...resourceScope, id: 'b\u0000c', depends_on: [] }
+      ],
+      edges: [{ from: 'a', to: 'b\u0000c', relation: 'depends_on' as const }]
+    };
+
+    expect(() => validateJudgmentDAG(collisionDag)).toThrowError(
+      expect.objectContaining<Partial<JudgmentDAGValidationError>>({ code: 'invalid_contract' })
+    );
+  });
+
   it.each([
     ['scope type', { type: 'organization', id: 'project-j0-fixture' }],
     ['scope ID', { type: 'project', id: 'project-j0-other' }]

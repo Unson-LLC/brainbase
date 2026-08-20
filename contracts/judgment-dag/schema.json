@@ -6,12 +6,17 @@
   "additionalProperties": false,
   "required": ["id", "version", "nodes", "edges"],
   "properties": {
-    "id": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "id": { "$ref": "#/$defs/identifier" },
     "version": { "type": "string", "minLength": 1, "pattern": "\\S" },
     "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
     "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } }
   },
   "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![\\s\\S]*[\\u0000-\\u001F\\u007F])(?=[\\s\\S]*\\S)[\\s\\S]+$"
+    },
     "metadata": {
       "anyOf": [
         { "type": "string" },
@@ -28,7 +33,7 @@
       "required": ["type", "id"],
       "properties": {
         "type": { "enum": ["personal", "project", "organization"] },
-        "id": { "type": "string", "minLength": 1, "pattern": "\\S" }
+        "id": { "$ref": "#/$defs/identifier" }
       }
     },
     "node": {
@@ -36,13 +41,13 @@
       "additionalProperties": false,
       "required": ["id", "node_type", "layer", "scope", "version", "description", "depends_on", "input_contract", "output_contract", "runner_type"],
       "properties": {
-        "id": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "id": { "$ref": "#/$defs/identifier" },
         "node_type": { "enum": ["observation", "judgment", "decision", "resource", "execution", "outcome", "evaluation"] },
         "layer": { "enum": ["context", "judgment", "resource", "execution", "evaluation"] },
         "scope": { "$ref": "#/$defs/scope" },
         "version": { "type": "string", "minLength": 1, "pattern": "\\S" },
         "description": { "type": "string", "minLength": 1, "pattern": "\\S" },
-        "depends_on": { "type": "array", "items": { "type": "string", "minLength": 1, "pattern": "\\S" }, "uniqueItems": true },
+        "depends_on": { "type": "array", "items": { "$ref": "#/$defs/identifier" }, "uniqueItems": true },
         "input_contract": { "type": "string", "minLength": 1, "pattern": "\\S" },
         "output_contract": { "type": "string", "minLength": 1, "pattern": "\\S" },
         "runner_type": { "enum": ["deterministic", "agent", "human", "committee", "external"] },
@@ -66,8 +71,8 @@
       "additionalProperties": false,
       "required": ["from", "to", "relation"],
       "properties": {
-        "from": { "type": "string", "minLength": 1, "pattern": "\\S" },
-        "to": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "from": { "$ref": "#/$defs/identifier" },
+        "to": { "$ref": "#/$defs/identifier" },
         "relation": { "enum": ["depends_on", "supports", "contradicts", "gates", "supersedes", "produces", "evaluated_by", "triggers"] }
       }
     }

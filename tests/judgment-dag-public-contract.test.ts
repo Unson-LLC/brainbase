@@ -84,6 +84,7 @@ describe('public Judgment DAG machine contract', () => {
     const validate = ajv.compile(schema);
     const candidates = [
       ['dag.id', { ...fixture, id: '   ' }],
+      ['dag.id control character', { ...fixture, id: 'dag\u0000id' }],
       ['dag.version', { ...fixture, version: '\t' }],
       ['node.id', {
         ...fixture,
@@ -91,10 +92,22 @@ describe('public Judgment DAG machine contract', () => {
           ? { ...node, id: '  ' }
           : node)
       }],
+      ['node.id control character', {
+        ...fixture,
+        nodes: fixture.nodes.map((node: Record<string, unknown>, index: number) => index === 0
+          ? { ...node, id: 'node\u0000id' }
+          : node)
+      }],
       ['scope.id', {
         ...fixture,
         nodes: fixture.nodes.map((node: Record<string, unknown>, index: number) => index === 0
           ? { ...node, scope: { ...(node.scope as Record<string, unknown>), id: '  ' } }
+          : node)
+      }],
+      ['scope.id control character', {
+        ...fixture,
+        nodes: fixture.nodes.map((node: Record<string, unknown>, index: number) => index === 0
+          ? { ...node, scope: { ...(node.scope as Record<string, unknown>), id: 'scope\u0000id' } }
           : node)
       }],
       ['node.version', {
@@ -127,6 +140,12 @@ describe('public Judgment DAG machine contract', () => {
           ? { ...node, depends_on: ['\t', 'context.account'] }
           : node)
       }],
+      ['depends_on control character', {
+        ...fixture,
+        nodes: fixture.nodes.map((node: Record<string, unknown>) => node.id === 'judgment.fit'
+          ? { ...node, depends_on: ['context\u0000account', 'context.account'] }
+          : node)
+      }],
       ['edge.from', {
         ...fixture,
         edges: fixture.edges.map((edge: Record<string, unknown>, index: number) => index === 0
@@ -137,6 +156,18 @@ describe('public Judgment DAG machine contract', () => {
         ...fixture,
         edges: fixture.edges.map((edge: Record<string, unknown>, index: number) => index === 0
           ? { ...edge, to: '\n' }
+          : edge)
+      }],
+      ['edge.from control character', {
+        ...fixture,
+        edges: fixture.edges.map((edge: Record<string, unknown>, index: number) => index === 0
+          ? { ...edge, from: 'context\u0000account' }
+          : edge)
+      }],
+      ['edge.to control character', {
+        ...fixture,
+        edges: fixture.edges.map((edge: Record<string, unknown>, index: number) => index === 0
+          ? { ...edge, to: 'judgment\u0000fit' }
           : edge)
       }]
     ] as const;

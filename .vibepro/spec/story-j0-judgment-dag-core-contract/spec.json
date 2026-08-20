@@ -6,52 +6,295 @@
       "id": "AC-001",
       "type": "invariant",
       "statement": "JudgmentDAGNode、JudgmentDAGEdge、JudgmentDAGは、node_type、layer、scope、version、契約境界、runner_type、依存関係をreadonly型とstrict schemaで表現する。",
-      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "index": 0 }], "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "JudgmentDAGNode" }, { "file": "src/judgment-dag.ts", "anchor": "validateJudgmentDAG" }, { "file": "contracts/judgment-dag/schema.json", "anchor": "$defs.node" }] },
-      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "immutable fixture" }, { "file_glob": "tests/judgment-dag-public-contract.test.ts", "must_cover": "schema exact key sets" }] }
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
+        "code_refs": [
+          { "file": "src/judgment-dag-core.ts", "anchor": "JudgmentDAGNode" },
+          { "file": "src/judgment-dag.ts", "anchor": "validateJudgmentDAG" },
+          { "file": "contracts/judgment-dag/schema.json", "anchor": "$defs.node" }
+        ],
+        "test_refs": [
+          { "file": "tests/judgment-dag-core.test.ts", "case": "deep-freezes public semantic constants so consumers cannot alter validation rules" },
+          { "file": "tests/judgment-dag-public-contract.test.ts", "case": "keeps schema exact key sets and runtime contract keys in parity" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "deep-freezes public semantic constants so consumers cannot alter validation rules" },
+          { "file_glob": "tests/judgment-dag-public-contract.test.ts", "must_cover": "keeps schema exact key sets and runtime contract keys in parity" }
+        ]
+      }
     },
     {
       "id": "AC-002",
       "type": "scenario",
       "statement": "Context→Judgment→Resource→Execution→Evaluationの正常DAGを、node ID昇順tie-breakの決定的な実行順序で検証できる。",
-      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "index": 1 }], "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "validateJudgmentDAG" }, { "file": "tests/fixtures/judgment-dag-core.ts", "anchor": "validJudgmentDAG" }] },
-      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "deterministic order" }] }
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
+        "code_refs": [
+          { "file": "src/judgment-dag-core.ts", "anchor": "validateJudgmentDAG" },
+          { "file": "tests/fixtures/judgment-dag-core.ts", "anchor": "validJudgmentDAG" }
+        ],
+        "test_refs": [
+          { "file": "tests/judgment-dag-core.test.ts", "case": "validates an immutable five-layer fixture and returns deterministic order" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "validates an immutable five-layer fixture and returns deterministic order" }
+        ]
+      }
     },
     {
       "id": "AC-003",
       "type": "invariant",
       "statement": "node.depends_onが実行トポロジーSSOTであり、各dependency pairとrelation=depends_on edgeはexactly oneの完全mirrorでなければならない。missing、reverse-layer、cycle、重複、node type/layer不一致を実行前に拒否する。",
-      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "index": 2 }], "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "dependencyPairs" }, { "file": "tests/judgment-dag-core.test.ts", "anchor": "exact mirrors" }] },
-      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "missing dependency" }, { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "duplicate declarations" }] }
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }],
+        "code_refs": [
+          { "file": "src/judgment-dag-core.ts", "anchor": "dependencyPairs" },
+          { "file": "tests/judgment-dag-core.test.ts", "anchor": "exact mirrors" }
+        ],
+        "test_refs": [
+          { "file": "tests/judgment-dag-core.test.ts", "case": "rejects a dependency that does not name a node before execution" },
+          { "file": "tests/judgment-dag-core.test.ts", "case": "requires the node dependency and depends_on edge representations to be exact mirrors: rejects %s" },
+          { "file": "tests/judgment-dag-core.test.ts", "case": "rejects a cycle before producing an execution order" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "rejects a dependency that does not name a node before execution" },
+          { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "requires the node dependency and depends_on edge representations to be exact mirrors: rejects %s" }
+        ]
+      }
     },
     {
       "id": "AC-004",
       "type": "invariant",
       "statement": "dependencyの両nodeのscope.typeとscope.idが完全一致しなければscope_boundary_violationでfail-closedする。cross-scope promotion/authority evidenceは後続非目標で、structural validは実行権限証拠にならない。",
-      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "index": 3 }], "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "scope_boundary_violation" }, { "file": "docs/architecture/judgment-dag-core.md", "anchor": "Scope model" }] },
-      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "exact scope boundary" }] }
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004" }],
+        "architecture_refs": [{ "file": "docs/architecture/judgment-dag-core.md", "anchor": "Scope model" }],
+        "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "scope_boundary_violation" }],
+        "test_refs": [
+          { "file": "tests/judgment-dag-core.test.ts", "case": "rejects a dependency crossing the exact scope boundary (%s)" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "rejects a dependency crossing the exact scope boundary (%s)" }
+        ]
+      }
     },
     {
       "id": "AC-005",
       "type": "invariant",
       "statement": "authority、provenance、evaluation metadataは再帰的なJSON互換値だけを受理し、cycle、undefined、非plain objectなどを拒否する。",
-      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "index": 4 }], "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "validateMetadata" }] },
-      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "recursively invalid metadata" }] }
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-005" }],
+        "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "validateMetadata" }],
+        "test_refs": [
+          { "file": "tests/judgment-dag-core.test.ts", "case": "rejects recursively invalid %s metadata before execution" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "rejects recursively invalid %s metadata before execution" }
+        ]
+      }
     },
     {
       "id": "AC-006",
       "type": "invariant",
       "statement": "validationは入力を変更せず、immutable fixtureと同値な並べ替えfixtureに対して同じ安定した結果を返す。",
-      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "index": 5 }], "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "executionOrder" }, { "file": "tests/judgment-dag-core.test.ts", "anchor": "stable topological tie-break" }] },
-      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "without changing" }] }
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
+        "code_refs": [
+          { "file": "src/judgment-dag-core.ts", "anchor": "executionOrder" },
+          { "file": "tests/judgment-dag-core.test.ts", "anchor": "stable topological tie-break" }
+        ],
+        "test_refs": [
+          { "file": "tests/judgment-dag-core.test.ts", "case": "asserts the contract without changing the immutable fixture" },
+          { "file": "tests/judgment-dag-core.test.ts", "case": "uses node ID ascending as a stable topological tie-break" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "asserts the contract without changing the immutable fixture" },
+          { "file_glob": "tests/judgment-dag-core.test.ts", "must_cover": "uses node ID ascending as a stable topological tie-break" }
+        ]
+      }
     },
     {
       "id": "AC-007",
       "type": "invariant",
       "statement": "schema、fixture、source-lock、digestとside-effect-free consumer importを公開し、同一candidate群のschema/runtime非空文字列受理集合を一致させる。",
-      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "index": 6 }], "code_refs": [{ "file": "contracts/judgment-dag/schema.json", "anchor": "$defs" }, { "file": "contracts/judgment-dag/source-lock.json", "anchor": "sources" }, { "file": "contracts/judgment-dag/digest.json", "anchor": "files" }, { "file": "src/judgment-dag.ts", "anchor": "side-effect-free public entrypoint" }] },
-      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/judgment-dag-public-contract.test.ts", "must_cover": "schema and runtime non-empty string acceptance sets in parity" }, { "file_glob": "tests/npm-consumer-smoke.integration.test.ts", "must_cover": "judgment-dag" }] }
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-007" }],
+        "code_refs": [
+          { "file": "contracts/judgment-dag/schema.json", "anchor": "$defs" },
+          { "file": "contracts/judgment-dag/source-lock.json", "anchor": "sources" },
+          { "file": "contracts/judgment-dag/digest.json", "anchor": "files" },
+          { "file": "src/judgment-dag.ts", "anchor": "JUDGMENT_DAG_ALLOWED_KEYS" }
+        ],
+        "test_refs": [
+          { "file": "tests/judgment-dag-public-contract.test.ts", "case": "publishes a side-effect-free subpath and locked machine artifacts" },
+          { "file": "tests/judgment-dag-public-contract.test.ts", "case": "keeps the schema and runtime non-empty string acceptance sets in parity" },
+          { "file": "tests/npm-consumer-smoke.integration.test.ts", "case": "runs the public CLI and MCP tools/list from a fresh installed consumer" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/judgment-dag-public-contract.test.ts", "must_cover": "publishes a side-effect-free subpath and locked machine artifacts" },
+          { "file_glob": "tests/judgment-dag-public-contract.test.ts", "must_cover": "keeps the schema and runtime non-empty string acceptance sets in parity" },
+          { "file_glob": "tests/npm-consumer-smoke.integration.test.ts", "must_cover": "runs the public CLI and MCP tools/list from a fresh installed consumer" }
+        ]
+      }
     }
   ],
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "self_hosted",
+    "tenant_identity": {
+      "canonical_key": "scope",
+      "resolved_from": ["JudgmentDAGNode.scope.type", "JudgmentDAGNode.scope.id"],
+      "resolution_point": "validateJudgmentDAG preflight before execution",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": ["node.scope", "dependency.edge"],
+      "verified_surfaces": ["node.scope", "dependency.edge"]
+    },
+    "resources": [
+      {
+        "name": "Judgment DAG dependency topology",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "scope",
+        "partition_key": "scope.type/scope.id",
+        "trust_zone": "caller-owned local validation input",
+        "residue_policy": "no persistence in J0 preflight",
+        "data_owner": "caller-provided DAG",
+        "credential_scope": "none"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "scope",
+      "scope": "none in J0 pure validation",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": ["caller-provided DAG"],
+      "residency": "in-memory validation only",
+      "migration": "not applicable in J0",
+      "rollback": "not applicable in J0"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": ["self_hosted"],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": ["JudgmentDAGNode.scope"],
+      "boundary_edges": ["dependency.scope.type", "dependency.scope.id"]
+    },
+    "boundary": {
+      "scope_equality": "dependency.scope.type and dependency.scope.id must match exactly",
+      "cross_scope_authorization": "non_goal",
+      "runner_authorization": "non_goal"
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": ["node.scope", "dependency.edge"],
+        "graph": {
+          "tenant_entities": [
+            {
+              "id": "JudgmentDAGNode.scope",
+              "tenant_scope": "scope.type/scope.id",
+              "tenant_key_source": "caller-provided node.scope",
+              "trust_zone": "caller-owned local validation input",
+              "data_owner": "caller-provided DAG"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "id": "dependency_scope_equality",
+              "tenant_scope": "scope.type/scope.id",
+              "tenant_key_source": "both dependency endpoints",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "none",
+              "connection_mode": "not_applicable_pure_validator",
+              "deployment_mode": "self_hosted"
+            }
+          ],
+          "tenant_key": "scope",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["self_hosted"]
+        },
+        "spec": {
+          "tenant_key": "scope",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["self_hosted"]
+        },
+        "implementation": {
+          "tenant_key": "scope",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["self_hosted"]
+        },
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "scanner_evidence": {
+          "tenant_boundary": "tests/judgment-dag-core.test.ts: rejects a dependency crossing the exact scope boundary",
+          "tenant_key_propagation": "src/judgment-dag-core.ts: validateNode and dependency endpoint scope comparison",
+          "cross_tenant_authorization": "docs/specs/j0-judgment-dag-core-contract.md: structural validity grants no authority; cross-scope execution is outside J0",
+          "state_partitioning": "docs/specs/j0-judgment-dag-core-contract.md: no persisted state; caller-owned DAG is partitioned by exact scope pair",
+          "sandbox_isolation": "docs/specs/j0-judgment-dag-core-contract.md: no runner or sandbox exists in J0",
+          "connection_routing": "docs/specs/j0-judgment-dag-core-contract.md: no connection or hosted runtime exists in J0",
+          "secret_scope": "docs/management/tasks/j0-judgment-dag-core-contract.json: secrets and credentials are outside J0",
+          "canonical_data_owner": "contracts/judgment-dag/schema.json: caller-provided DAG is the sole validation input",
+          "deployment_topology": "package.json: library-only self-hosted consumer surface; no deployment implementation",
+          "cross_tenant_negative_evidence": "tests/judgment-dag-core.test.ts: scope type and scope ID mismatch cases fail closed"
+        },
+        "negative_scenario_evidence": {
+          "unknown_tenant": "contracts/judgment-dag/schema.json requires scope.type and scope.id; missing identifiers are denied as invalid_contract",
+          "ambiguous_tenant": "one node has exactly one scope object; unknown or duplicate scope representations are denied by additionalProperties false and runtime exact-key validation",
+          "unavailable_connection": "not applicable: J0 performs no connection lookup and cannot fall back to another scope",
+          "no_data": "not applicable: J0 validates caller input and performs no data retrieval",
+          "cross_tenant_candidate": "tests/judgment-dag-core.test.ts rejects both scope.type and scope.id mismatch"
+        }
+      }
+    }
+  },
   "generated_at": "2026-08-21T00:00:00.000Z",
   "generated_by": { "caller": "codex", "stage": "accepted_contract_update" },
   "previous_spec_id": "spec-j0-judgment-dag-core-contract"

@@ -16,6 +16,6 @@
     { "id": "AC-006", "requirement": "Pure validation, immutable fixtures, and stable order", "refs": ["tests/judgment-dag-core.test.ts"] },
     { "id": "AC-007", "requirement": "Machine artifacts, schema/runtime parity, and consumer contract", "refs": ["contracts/judgment-dag/schema.json", "contracts/judgment-dag/fixture.json", "contracts/judgment-dag/source-lock.json", "contracts/judgment-dag/digest.json", "tests/judgment-dag-public-contract.test.ts", "tests/npm-consumer-smoke.integration.test.ts"] }
   ],
-  "non_goals": ["runner", "artifact", "execution_log", "replay", "evaluation_mutation_protection", "execution_evaluation_mutation_protection"],
+  "non_goals": ["runner", "artifact", "execution_log", "replay", "evaluation_mutation_protection", "execution_evaluation_mutation_protection", "cross_scope_authorization", "cross_scope_runtime", "secret_scope", "database_partitioning", "deployment_topology"],
   "verification_status": "unverified_for_non_goals"
 }

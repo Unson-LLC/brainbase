@@ -9,6 +9,7 @@
   ],
   "notes": [
     "Outcome is produced and recorded by the Execution DAG and maps to the execution layer.",
-    "This J0 contract slice does not implement runner, artifact, execution-log, replay, evaluation, or mutation protection; those remain J0-2 non-goals and unverified."
+    "This J0 contract slice does not implement runner, artifact, execution-log, replay, evaluation, or mutation protection; those remain J0-2 non-goals and unverified.",
+    "Public DAG identifiers reject C0 and DEL control characters so dependency pair keys cannot collide."
   ]
 }
