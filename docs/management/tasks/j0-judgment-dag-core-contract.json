@@ -4,14 +4,17 @@
   "story_id": "story-j0-judgment-dag-core-contract",
   "spec_id": "spec-j0-judgment-dag-core-contract",
   "architecture": "docs/architecture/judgment-dag-core.md",
+  "canonical_story": "docs/management/stories/active/story-j0-judgment-dag-core-contract.md",
   "source_lock": "contracts/judgment-dag/source-lock.json",
   "accepted_base_commit": "7e5d5693f988f4ba84072c5910ef32f0e70871e1",
   "acceptance_criteria": [
-    { "id": "AC-001", "refs": ["src/judgment-dag-core.ts", "src/judgment-dag.ts"] },
-    { "id": "AC-002", "refs": ["tests/judgment-dag-core.test.ts"] },
-    { "id": "AC-003", "refs": ["tests/judgment-dag-core.test.ts"] },
-    { "id": "AC-004", "refs": ["tests/judgment-dag-core.test.ts"] },
-    { "id": "AC-005", "refs": ["tests/judgment-dag-public-contract.test.ts", "tests/npm-consumer-smoke.integration.test.ts"] }
+    { "id": "AC-001", "requirement": "Typed contract, compatibility map, and strict schema", "refs": ["src/judgment-dag-core.ts", "src/judgment-dag.ts", "contracts/judgment-dag/schema.json"] },
+    { "id": "AC-002", "requirement": "Deterministic valid five-layer happy path", "refs": ["tests/judgment-dag-core.test.ts", "contracts/judgment-dag/fixture.json"] },
+    { "id": "AC-003", "requirement": "Dependency integrity, exact mirror, and type/layer rejection", "refs": ["src/judgment-dag-core.ts", "tests/judgment-dag-core.test.ts"] },
+    { "id": "AC-004", "requirement": "Exact-scope fail-closed boundary and non-authority boundary", "refs": ["src/judgment-dag-core.ts", "docs/architecture/judgment-dag-core.md", "tests/judgment-dag-core.test.ts"] },
+    { "id": "AC-005", "requirement": "Recursive metadata validation", "refs": ["src/judgment-dag-core.ts", "tests/judgment-dag-core.test.ts"] },
+    { "id": "AC-006", "requirement": "Pure validation, immutable fixtures, and stable order", "refs": ["tests/judgment-dag-core.test.ts"] },
+    { "id": "AC-007", "requirement": "Machine artifacts, schema/runtime parity, and consumer contract", "refs": ["contracts/judgment-dag/schema.json", "contracts/judgment-dag/fixture.json", "contracts/judgment-dag/source-lock.json", "contracts/judgment-dag/digest.json", "tests/judgment-dag-public-contract.test.ts", "tests/npm-consumer-smoke.integration.test.ts"] }
   ],
   "non_goals": ["runner", "artifact", "execution_log", "replay", "evaluation_mutation_protection", "execution_evaluation_mutation_protection"],
   "verification_status": "unverified_for_non_goals"

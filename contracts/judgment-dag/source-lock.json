@@ -4,7 +4,7 @@
   "status": "accepted",
   "accepted_base_commit": "7e5d5693f988f4ba84072c5910ef32f0e70871e1",
   "sources": [
-    { "kind": "architecture", "path": "docs/architecture/judgment-dag-core.md", "sha256": "e92245273dd3454031296dd7bc10c5e05e07f41749416afd683438bc7ad1a35a" },
+    { "kind": "architecture", "path": "docs/architecture/judgment-dag-core.md", "sha256": "24305aaa97df9c734d468c49f52784e94b77a4f506bae41d482bee05625d7e2a" },
     { "kind": "milestones", "path": "docs/management/judgment-dag-milestones.md", "sha256": "ef51313f33de64f702fd6c86012984bd70cf99eeca5b4f4cfc27f6cb266172bd" }
   ],
   "notes": [

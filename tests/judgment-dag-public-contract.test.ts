@@ -76,4 +76,82 @@ describe('public Judgment DAG machine contract', () => {
     expect(validate(fixture)).toBe(true);
     expect(validate({ ...fixture, unexpected: true })).toBe(false);
   });
+
+  it('keeps the schema and runtime non-empty string acceptance sets in parity', async () => {
+    const schema = JSON.parse(await readFile(path.join(root, 'contracts/judgment-dag/schema.json'), 'utf8'));
+    const fixture = JSON.parse(await readFile(path.join(root, 'contracts/judgment-dag/fixture.json'), 'utf8'));
+    const ajv = new Ajv2020({ strict: true });
+    const validate = ajv.compile(schema);
+    const candidates = [
+      ['dag.id', { ...fixture, id: '   ' }],
+      ['dag.version', { ...fixture, version: '\t' }],
+      ['node.id', {
+        ...fixture,
+        nodes: fixture.nodes.map((node: Record<string, unknown>, index: number) => index === 0
+          ? { ...node, id: '  ' }
+          : node)
+      }],
+      ['scope.id', {
+        ...fixture,
+        nodes: fixture.nodes.map((node: Record<string, unknown>, index: number) => index === 0
+          ? { ...node, scope: { ...(node.scope as Record<string, unknown>), id: '  ' } }
+          : node)
+      }],
+      ['node.version', {
+        ...fixture,
+        nodes: fixture.nodes.map((node: Record<string, unknown>, index: number) => index === 0
+          ? { ...node, version: '\n' }
+          : node)
+      }],
+      ['node.description', {
+        ...fixture,
+        nodes: fixture.nodes.map((node: Record<string, unknown>, index: number) => index === 0
+          ? { ...node, description: ' \t ' }
+          : node)
+      }],
+      ['node.input_contract', {
+        ...fixture,
+        nodes: fixture.nodes.map((node: Record<string, unknown>, index: number) => index === 0
+          ? { ...node, input_contract: '  ' }
+          : node)
+      }],
+      ['node.output_contract', {
+        ...fixture,
+        nodes: fixture.nodes.map((node: Record<string, unknown>, index: number) => index === 0
+          ? { ...node, output_contract: '\r\n' }
+          : node)
+      }],
+      ['depends_on item', {
+        ...fixture,
+        nodes: fixture.nodes.map((node: Record<string, unknown>) => node.id === 'judgment.fit'
+          ? { ...node, depends_on: ['\t', 'context.account'] }
+          : node)
+      }],
+      ['edge.from', {
+        ...fixture,
+        edges: fixture.edges.map((edge: Record<string, unknown>, index: number) => index === 0
+          ? { ...edge, from: '  ' }
+          : edge)
+      }],
+      ['edge.to', {
+        ...fixture,
+        edges: fixture.edges.map((edge: Record<string, unknown>, index: number) => index === 0
+          ? { ...edge, to: '\n' }
+          : edge)
+      }]
+    ] as const;
+
+    for (const [label, candidate] of candidates) {
+      const schemaAccepts = validate(candidate);
+      let runtimeAccepts = true;
+      try {
+        validateJudgmentDAG(candidate);
+      } catch {
+        runtimeAccepts = false;
+      }
+      expect(schemaAccepts, `${label}: schema acceptance`).toBe(false);
+      expect(runtimeAccepts, `${label}: runtime acceptance`).toBe(false);
+      expect(schemaAccepts).toBe(runtimeAccepts);
+    }
+  });
 });

@@ -106,7 +106,11 @@ cycleNodes[0] = {
   depends_on: ['context.peer']
 };
 export const cycleJudgmentDAG = deepFreeze(
-  dag('j0-cycle', cycleNodes, edges())
+  dag('j0-cycle', cycleNodes, [
+    ...edges(),
+    { from: 'context.peer', to: 'context.customer', relation: 'depends_on' },
+    { from: 'context.customer', to: 'context.peer', relation: 'depends_on' }
+  ])
 );
 
 function invalidMetadataDag(field: string, value: unknown): unknown {

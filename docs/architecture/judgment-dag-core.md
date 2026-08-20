@@ -192,7 +192,14 @@ evaluated_by
 triggers
 ```
 
-`depends_on` defines executable DAG topology. Relations such as `member_of`, `owned_by`, or `accountable_for` remain graph semantics and can be referenced by DAG nodes.
+`depends_on` defines executable DAG topology. `node.depends_on` is the
+topology SSOT: every dependency pair must have exactly one matching
+`relation=depends_on` edge, and every `relation=depends_on` edge must have
+exactly one matching node dependency. The edge is a required complete mirror,
+not an optional duplicate declaration; a one-sided or mismatched
+representation is `invalid_contract`. Relations such as `member_of`,
+`owned_by`, or `accountable_for` remain graph semantics and can be referenced
+by DAG nodes.
 
 ## Scope model: personal and organization use the same DAG
 
@@ -217,6 +224,13 @@ Organization Policy
 ```
 
 A judgment can therefore move from an individual's learned heuristic into an organizational capability without translation into a separate schema.
+
+J0-1 does not implement cross-scope promotion or authority evidence. Before
+execution, both nodes in every dependency pair must have exactly equal
+`scope.type` and `scope.id`; otherwise validation fails closed with the
+machine-readable code `scope_boundary_violation`. A structurally valid DAG is
+not evidence of execution authority, approval, or promotion. Those governance
+boundaries remain later-scope work.
 
 ## Runtime principles inherited from FX / keiba DAG work
 

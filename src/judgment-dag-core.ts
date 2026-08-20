@@ -153,6 +153,7 @@ export type JudgmentDAGValidationCode =
   | 'invalid_contract'
   | 'duplicate_node'
   | 'missing_dependency'
+  | 'scope_boundary_violation'
   | 'reverse_layer_dependency'
   | 'cycle';
 
@@ -331,8 +332,8 @@ function validateNode(value: unknown, index: number): JudgmentDAGNode {
   requireNonEmptyString(node.output_contract, `${path}.output_contract`);
 
   const dependencies = requireArray(node.depends_on, `${path}.depends_on`);
-  if (!dependencies.every(isString)) {
-    invalidContract(`${path}.depends_on must contain only node IDs`);
+  for (let index = 0; index < dependencies.length; index += 1) {
+    requireNonEmptyString(dependencies[index], `${path}.depends_on[${index}]`);
   }
   if (new Set(dependencies).size !== dependencies.length) {
     invalidContract(`${path}.depends_on must not contain duplicate node IDs`);
@@ -434,9 +435,9 @@ function findCycle(
  * Validate a DAG before any runner can execute it.
  *
  * The input is never mutated. Dependencies declared on nodes and explicit
- * `depends_on` edges are both checked; duplicate declarations of the same
- * dependency pair are deduplicated across those two representations, while
- * duplicate node IDs and duplicate edge relations are rejected.
+ * `depends_on` edges are both checked. They are two required representations
+ * of the same dependency topology and must be exact mirrors; other edge
+ * relations are not part of the execution topology.
  */
 export function validateJudgmentDAG(value: unknown): JudgmentDAGValidationResult {
   const dag = requireRecord(value, 'dag');
@@ -464,6 +465,7 @@ export function validateJudgmentDAG(value: unknown): JudgmentDAGValidationResult
   );
   const dependentsByNode = new Map<string, string[]>(nodes.map((node) => [node.id, []]));
   const dependencyPairs = new Set<string>();
+  const nodeDependencyPairs = new Set<string>();
 
   function addDependency(dependencyId: string, dependentId: string): void {
     const dependent = nodeById.get(dependentId);
@@ -472,6 +474,14 @@ export function validateJudgmentDAG(value: unknown): JudgmentDAGValidationResult
       throw new JudgmentDAGValidationError(
         'missing_dependency',
         `Node ${dependentId} depends on missing node ${dependencyId}`,
+        { node_id: dependentId, dependency_id: dependencyId }
+      );
+    }
+
+    if (dependency.scope.type !== dependent.scope.type || dependency.scope.id !== dependent.scope.id) {
+      throw new JudgmentDAGValidationError(
+        'scope_boundary_violation',
+        `Dependency ${dependencyId} -> ${dependentId} crosses an exact scope boundary`,
         { node_id: dependentId, dependency_id: dependencyId }
       );
     }
@@ -503,18 +513,13 @@ export function validateJudgmentDAG(value: unknown): JudgmentDAGValidationResult
 
   for (const node of nodes) {
     for (const dependencyId of node.depends_on) {
-      if (!nodeById.has(dependencyId)) {
-        throw new JudgmentDAGValidationError(
-          'missing_dependency',
-          `Node ${node.id} depends on missing node ${dependencyId}`,
-          { node_id: node.id, dependency_id: dependencyId }
-        );
-      }
+      nodeDependencyPairs.add(edgeKey(dependencyId, node.id));
       addDependency(dependencyId, node.id);
     }
   }
 
   const seenEdges = new Set<string>();
+  const edgeDependencyPairs = new Set<string>();
   const edges = edgeValues.map((value, index) => validateEdge(value, index, nodeById));
   for (const edge of edges) {
     const key = `${edge.relation}:${edgeKey(edge.from, edge.to)}`;
@@ -523,7 +528,19 @@ export function validateJudgmentDAG(value: unknown): JudgmentDAGValidationResult
     }
     seenEdges.add(key);
     if (edge.relation === 'depends_on') {
+      edgeDependencyPairs.add(edgeKey(edge.from, edge.to));
       addDependency(edge.from, edge.to);
+    }
+  }
+
+  for (const pair of nodeDependencyPairs) {
+    if (!edgeDependencyPairs.has(pair)) {
+      invalidContract(`depends_on edge is missing for node dependency ${pair.replace('\u0000', ' -> ')}`);
+    }
+  }
+  for (const pair of edgeDependencyPairs) {
+    if (!nodeDependencyPairs.has(pair)) {
+      invalidContract(`node dependency is missing for depends_on edge ${pair.replace('\u0000', ' -> ')}`);
     }
   }
 

@@ -98,6 +98,42 @@ describe('Judgment DAG core contract', () => {
   });
 
   it.each([
+    ['a node dependency without its matching depends_on edge', {
+      ...validJudgmentDAG,
+      edges: validJudgmentDAG.edges.filter((edge) => !(
+        edge.from === 'context.account' && edge.to === 'judgment.fit' && edge.relation === 'depends_on'
+      ))
+    }],
+    ['a depends_on edge without its matching node dependency', {
+      ...validJudgmentDAG,
+      edges: [
+        ...validJudgmentDAG.edges,
+        { from: 'context.customer', to: 'resource.scope', relation: 'depends_on' as const }
+      ]
+    }]
+  ] as const)('requires the node dependency and depends_on edge representations to be exact mirrors: rejects %s', (_label, dag) => {
+    expect(() => validateJudgmentDAG(dag)).toThrowError(
+      expect.objectContaining<Partial<JudgmentDAGValidationError>>({ code: 'invalid_contract' })
+    );
+  });
+
+  it.each([
+    ['scope type', { type: 'organization', id: 'project-j0-fixture' }],
+    ['scope ID', { type: 'project', id: 'project-j0-other' }]
+  ] as const)('rejects a dependency crossing the exact scope boundary (%s)', (_label, scope) => {
+    const dag = {
+      ...validJudgmentDAG,
+      nodes: validJudgmentDAG.nodes.map((node) => node.id === 'context.customer'
+        ? { ...node, scope }
+        : node)
+    };
+
+    expect(() => validateJudgmentDAG(dag)).toThrowError(
+      expect.objectContaining({ code: 'scope_boundary_violation' })
+    );
+  });
+
+  it.each([
     ['root', { ...validJudgmentDAG, unexpected: true }],
     ['node', {
       ...validJudgmentDAG,
