@@ -7,11 +7,11 @@
       "type": "invariant",
       "statement": "JudgmentDAGNode、JudgmentDAGEdge、JudgmentDAGは、node_type、layer、scope、version、契約境界、runner_type、依存関係をreadonly型とstrict schemaで表現する。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001", "text_snippet": "node、edge、DAG、node type/layer compatibility" }],
         "code_refs": [
           { "file": "src/judgment-dag-core.ts", "anchor": "JudgmentDAGNode" },
           { "file": "src/judgment-dag.ts", "anchor": "validateJudgmentDAG" },
-          { "file": "contracts/judgment-dag/schema.json", "anchor": "$defs.node" }
+          { "file": "contracts/judgment-dag/schema.json", "anchor": "\"node\": {" }
         ],
         "test_refs": [
           { "file": "tests/judgment-dag-core.test.ts", "case": "deep-freezes public semantic constants so consumers cannot alter validation rules" },
@@ -30,7 +30,7 @@
       "type": "scenario",
       "statement": "Context→Judgment→Resource→Execution→Evaluationの正常DAGを、node ID昇順tie-breakの決定的な実行順序で検証できる。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002", "text_snippet": "正常な五層fixtureを検証し、node ID昇順をtie-break" }],
         "code_refs": [
           { "file": "src/judgment-dag-core.ts", "anchor": "validateJudgmentDAG" },
           { "file": "tests/fixtures/judgment-dag-core.ts", "anchor": "validJudgmentDAG" }
@@ -50,7 +50,7 @@
       "type": "invariant",
       "statement": "node.depends_onが実行トポロジーSSOTであり、各dependency pairとrelation=depends_on edgeはexactly oneの完全mirrorでなければならない。missing、reverse-layer、cycle、重複、node type/layer不一致を実行前に拒否する。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003", "text_snippet": "dependency integrityを実行前に検証" }],
         "code_refs": [
           { "file": "src/judgment-dag-core.ts", "anchor": "dependencyPairs" },
           { "file": "tests/judgment-dag-core.test.ts", "anchor": "exact mirrors" }
@@ -73,7 +73,7 @@
       "type": "invariant",
       "statement": "dependencyの両nodeのscope.typeとscope.idが完全一致しなければscope_boundary_violationでfail-closedする。cross-scope promotion/authority evidenceは後続非目標で、structural validは実行権限証拠にならない。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004", "text_snippet": "scope.typeとscope.idが完全一致しなければscope_boundary_violation" }],
         "architecture_refs": [{ "file": "docs/architecture/judgment-dag-core.md", "anchor": "Scope model" }],
         "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "scope_boundary_violation" }],
         "test_refs": [
@@ -91,7 +91,7 @@
       "type": "invariant",
       "statement": "authority、provenance、evaluation metadataは再帰的なJSON互換値だけを受理し、cycle、undefined、非plain objectなどを拒否する。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-005" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-005", "text_snippet": "authority、provenance、evaluation metadata" }],
         "code_refs": [{ "file": "src/judgment-dag-core.ts", "anchor": "validateMetadata" }],
         "test_refs": [
           { "file": "tests/judgment-dag-core.test.ts", "case": "rejects recursively invalid %s metadata before execution" }
@@ -108,7 +108,7 @@
       "type": "invariant",
       "statement": "validationは入力を変更せず、immutable fixtureと同値な並べ替えfixtureに対して同じ安定した結果を返す。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006", "text_snippet": "validationは入力を変更せず" }],
         "code_refs": [
           { "file": "src/judgment-dag-core.ts", "anchor": "executionOrder" },
           { "file": "tests/judgment-dag-core.test.ts", "anchor": "stable topological tie-break" }
@@ -130,7 +130,7 @@
       "type": "invariant",
       "statement": "schema、fixture、source-lock、digestとside-effect-free consumer importを公開し、同一candidate群のschema/runtime非空文字列受理集合を一致させる。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-007" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-007", "text_snippet": "versioned machine artifacts" }],
         "code_refs": [
           { "file": "contracts/judgment-dag/schema.json", "anchor": "$defs" },
           { "file": "contracts/judgment-dag/source-lock.json", "anchor": "sources" },
@@ -207,8 +207,24 @@
       "cross_tenant_candidate"
     ],
     "graph_metadata": {
-      "tenant_entities": ["JudgmentDAGNode.scope"],
-      "boundary_edges": ["dependency.scope.type", "dependency.scope.id"]
+      "tenant_entities": [
+        {
+          "tenant_scope": "scope.type/scope.id",
+          "tenant_key_source": "caller-provided node.scope",
+          "trust_zone": "caller-owned local validation input",
+          "data_owner": "caller-provided DAG"
+        }
+      ],
+      "boundary_edges": [
+        {
+          "tenant_scope": "scope.type/scope.id",
+          "tenant_key_source": "both dependency endpoints",
+          "sharing_mode": "tenant_partitioned",
+          "credential_scope": "none",
+          "connection_mode": "not_applicable_pure_validator",
+          "deployment_mode": "self_hosted"
+        }
+      ]
     },
     "boundary": {
       "scope_equality": "dependency.scope.type and dependency.scope.id must match exactly",
@@ -218,6 +234,7 @@
     "verification": {
       "scanner_coverage": "verified",
       "evidence": {
+        "scope_note": "J0 validates exact scope.type and scope.id equality before execution only. Scanner pass values mean the static contract has no corresponding cross-scope authorization, hosted/runtime isolation, secret lookup, database partitioning, or deployment implementation; those surfaces are explicit non-goals, not shipped capabilities.",
         "propagation_surfaces": ["node.scope", "dependency.edge"],
         "graph": {
           "tenant_entities": [
