@@ -1,0 +1,216 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-j0-judgment-dag-core-contract",
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "JudgmentDAGNode、JudgmentDAGEdge、JudgmentDAGは、node_type、layer、scope、version、契約境界、runner_type、依存関係をreadonly型で表現する。",
+      "rationale": "共有コアの意味モデルをGraph ontology型や公開MCP/CLI面と分離し、後続runnerが同じ契約を利用できるようにする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-core.ts",
+            "anchor": "JudgmentDAGNode"
+          },
+          {
+            "file": "src/judgment-dag-core.ts",
+            "anchor": "JudgmentDAGEdge"
+          },
+          {
+            "file": "src/judgment-dag-core.ts",
+            "anchor": "JudgmentDAG"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "src/judgment-dag-core.ts",
+            "must_contain": "readonly"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-core.test.ts",
+            "must_cover": "immutable fixture"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T00:00:00.000Z",
+      "last_revised_at": "2026-08-20T17:02:28.351Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "Context→Judgment→Resource→Execution→Evaluationの正常DAGを、実行順序を決定的に返して検証できる。",
+      "rationale": "M1の5層DAG契約を後続deterministic runnerへ渡す前提を固定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-core.ts",
+            "anchor": "validateJudgmentDAG"
+          },
+          {
+            "file": "tests/fixtures/judgment-dag-core.ts",
+            "anchor": "validJudgmentDAG"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-core.test.ts",
+            "case": "validates an immutable five-layer fixture and returns deterministic order"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-core.test.ts",
+            "must_cover": "deterministic order"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T00:00:00.000Z",
+      "last_revised_at": "2026-08-20T17:02:28.351Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "存在しないdepends_on node IDを含むDAGは、実行順序を返す前にmissing_dependencyとして失敗する。",
+      "rationale": "依存関係の欠落をrunnerや外部副作用の後で検出しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-core.ts",
+            "anchor": "missing_dependency"
+          },
+          {
+            "file": "tests/fixtures/judgment-dag-core.ts",
+            "anchor": "missingDependencyJudgmentDAG"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-core.test.ts",
+            "case": "rejects a dependency that does not name a node before execution"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-core.test.ts",
+            "must_cover": "missing_dependency"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T00:00:00.000Z",
+      "last_revised_at": "2026-08-20T17:02:28.351Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "後続layerのnodeをdepends_onに指定するDAGは、実行前にreverse_layer_dependencyとして失敗する。",
+      "rationale": "ContextからEvaluationへ進むlayer所有権を保ち、後続layerが上流判断を再実装する構造を防ぐ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-core.ts",
+            "anchor": "reverse_layer_dependency"
+          },
+          {
+            "file": "tests/fixtures/judgment-dag-core.ts",
+            "anchor": "reverseLayerJudgmentDAG"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-core.test.ts",
+            "case": "rejects a dependency from a later layer"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-core.test.ts",
+            "must_cover": "reverse_layer_dependency"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T00:00:00.000Z",
+      "last_revised_at": "2026-08-20T17:02:28.351Z"
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "同一layer内を含むdepends_on cycleを持つDAGは、cycleとして失敗し、実行順序を返さない。",
+      "rationale": "layer検査を通過する循環も含め、DAGでない構造をrunnerへ渡さない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-core.ts",
+            "anchor": "findCycle"
+          },
+          {
+            "file": "tests/fixtures/judgment-dag-core.ts",
+            "anchor": "cycleJudgmentDAG"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-core.test.ts",
+            "case": "rejects a cycle before producing an execution order"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-core.test.ts",
+            "must_cover": "cycle"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T00:00:00.000Z",
+      "last_revised_at": "2026-08-20T17:02:28.351Z"
+    }
+  ],
+  "generated_at": "2026-08-20T17:02:28.350Z",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": null
+}
