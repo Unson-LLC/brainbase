@@ -1,8 +1,10 @@
 node_modules/
 dist/
 coverage/
-.vibepro/
 .DS_Store
 *.tgz
 .brainbase-test/
-.vibepro/
+.vibepro/*
+!.vibepro/config.json
+.vibepro-store/
+.worktrees/vibepro/
