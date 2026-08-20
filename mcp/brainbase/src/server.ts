@@ -52,6 +52,7 @@ import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/jud
 import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
 import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
+import { annotateToolCapabilities } from './tools/tool-annotations.js';
 import {
   buildKnowledgeOwnerAudit,
   buildKnowledgeToolContent,
@@ -1023,8 +1024,20 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   }
 }
 
+const publishedTools = annotateToolCapabilities([
+  ...tools,
+  ...controlPlaneTools,
+  ...onboardingTools,
+  ...judgmentResolutionTools,
+  ...knowledgeResolutionTools,
+  ...meetingMinutesContextTools,
+  ...taskTools,
+  ...tenantBoundaryTools,
+  ...meshTools,
+]);
+
 export const __testing = {
-  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...meetingMinutesContextTools, ...taskTools, ...tenantBoundaryTools],
+  tools: publishedTools,
   dispatchOnboardingToolCall,
   dispatchJudgmentResolutionBeforeModel,
   dispatchKnowledgeResolutionToolCall,
@@ -1174,7 +1187,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...meetingMinutesContextTools, ...taskTools, ...tenantBoundaryTools, ...meshTools] };
+    return { tools: publishedTools };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
