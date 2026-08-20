@@ -44,7 +44,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run",
+    "test": "vitest run --exclude tests/npm-prepublication-evidence.integration.test.ts",
     "test:integration": "vitest run tests/mcp-contract.test.ts tests/ontology-cli.test.ts tests/npm-release-validation.integration.test.ts tests/npm-consumer-smoke.integration.test.ts",
     "test:consumer-smoke": "vitest run tests/npm-consumer-smoke.integration.test.ts",
     "test:integration:release-evidence": "vitest run tests/npm-release-validation.integration.test.ts tests/npm-prepublication-evidence.integration.test.ts",

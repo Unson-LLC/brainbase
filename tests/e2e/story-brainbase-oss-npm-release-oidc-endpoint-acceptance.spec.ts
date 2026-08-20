@@ -173,8 +173,13 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
       new URL('../../package.json', import.meta.url),
       'utf8'
     ));
-    expect(packageJson.scripts.test, 'ac-7 keeps the unit and workflow suite').toBe('vitest run');
+    expect(packageJson.scripts.test, 'ac-7 keeps the unit and workflow suite outside release-only evidence').toBe(
+      'vitest run --exclude tests/npm-prepublication-evidence.integration.test.ts'
+    );
     expect(packageJson.scripts['test:integration'], 'ac-7 keeps release integration validation').toContain('tests/npm-release-validation.integration.test.ts');
+    expect(packageJson.scripts['test:integration:release-evidence'], 'ac-7 keeps prepublication evidence explicit').toContain(
+      'tests/npm-prepublication-evidence.integration.test.ts'
+    );
     expect(packageJson.scripts['test:e2e'], 'ac-7 keeps the E2E runner available for the focused Story file').toMatch(/^vitest run /u);
     expect(packageJson.scripts.build, 'ac-7 keeps the TypeScript build validation').toBe('tsc -p tsconfig.json');
   });

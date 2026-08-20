@@ -1,0 +1,37 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-npm-postpublication-regression",
+  "generated_by": { "caller": "codex", "stage": "maintenance" },
+  "clauses": [
+    {
+      "id": "NPM-POST-001",
+      "type": "invariant",
+      "statement": "通常のnpm testは公開前専用テストを除外し、公開済みversionでも通常回帰を実行できる。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 0 }],
+        "architecture_refs": [{ "file": "docs/architecture/story-npm-postpublication-regression.md", "section": "決定" }],
+        "code_refs": [{ "file": "package.json", "anchor": "tests/npm-prepublication-evidence.integration.test.ts" }],
+        "test_refs": [{ "file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-7 keeps every focused release validation command executable" }]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "NPM-POST-002",
+      "type": "invariant",
+      "statement": "test:integration:release-evidenceは公開前専用テストを明示的に含み、そのfail-closed検査を維持する。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 1 }, { "kind": "acceptance_criteria", "index": 2 }],
+        "architecture_refs": [{ "file": "docs/architecture/story-npm-postpublication-regression.md", "section": "決定" }],
+        "code_refs": [
+          { "file": "package.json", "anchor": "test:integration:release-evidence" },
+          { "file": "scripts/npm-prepublication-evidence.mjs", "anchor": "Target npm version is not proven absent" }
+        ],
+        "test_refs": [
+          { "file": "tests/npm-prepublication-evidence.integration.test.ts", "case": "binds production audit, tarball hashes, and registry absence to the clean current HEAD" },
+          { "file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-7 keeps every focused release validation command executable" }
+        ]
+      },
+      "confidence": 1
+    }
+  ]
+}

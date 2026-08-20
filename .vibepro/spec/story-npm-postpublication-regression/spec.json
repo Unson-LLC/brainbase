@@ -1,0 +1,124 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-npm-postpublication-regression",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "maintenance"
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "通常のnpm testは公開前専用テストを除外し、公開済みversionでも通常回帰を実行できる。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-1",
+            "text_snippet": "npm testは公開前専用テストを除外"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-4",
+            "text_snippet": "受け入れテストが通常回帰と公開前専用コマンドの分離を固定"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-npm-postpublication-regression.md",
+            "section": "決定"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "package.json",
+            "anchor": "tests/npm-prepublication-evidence.integration.test.ts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts",
+            "case": "AC-7 keeps every focused release validation command executable"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts",
+            "must_cover": "AC-7 keeps every focused release validation command executable"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-20T23:36:21.804Z",
+      "last_revised_at": "2026-08-20T23:38:03.327Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "test:integration:release-evidenceは公開前専用テストを明示的に含み、そのfail-closed検査を維持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-2",
+            "text_snippet": "test:integration:release-evidenceは公開前専用テストを明示的に含む"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-3",
+            "text_snippet": "registry不存在、clean HEAD、tarball integrity検査は変更しない"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-npm-postpublication-regression.md",
+            "section": "決定"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "package.json",
+            "anchor": "test:integration:release-evidence"
+          },
+          {
+            "file": "scripts/npm-prepublication-evidence.mjs",
+            "anchor": "Target npm version is not proven absent"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/npm-prepublication-evidence.integration.test.ts",
+            "case": "binds production audit, tarball hashes, and registry absence to the clean current HEAD"
+          },
+          {
+            "file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts",
+            "case": "AC-7 keeps every focused release validation command executable"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/npm-prepublication-evidence.integration.test.ts",
+            "must_cover": "rejects a version already present in the registry"
+          },
+          {
+            "file_glob": "tests/npm-prepublication-evidence.integration.test.ts",
+            "must_cover": "rejects a dirty HEAD before collecting release evidence"
+          },
+          {
+            "file_glob": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts",
+            "must_cover": "AC-7 keeps every focused release validation command executable"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-20T23:36:21.804Z",
+      "last_revised_at": "2026-08-20T23:38:03.327Z"
+    }
+  ],
+  "generated_at": "2026-08-20T23:38:03.325Z",
+  "previous_spec_id": "2026-08-20T23:36:21.803Z"
+}
