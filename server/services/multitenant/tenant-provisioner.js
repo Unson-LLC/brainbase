@@ -812,6 +812,41 @@ async function readbackCore(client, manifest, project, registry = null) {
     };
 }
 
+async function setTenantContext(client, tenantId) {
+    await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [tenantId]);
+}
+
+async function readConnectionPreflight(client, manifest, project, phase) {
+    let transactionStarted = false;
+    try {
+        await client.query('BEGIN');
+        transactionStarted = true;
+        await client.query("SET LOCAL lock_timeout = '5s'");
+        await setTenantContext(client, manifest.tenant_id);
+        const coreState = phase === 'connection' ? await readbackCore(client, manifest, project) : null;
+        const existingConnection = await client.query(
+            `SELECT connection_id, connection_revision
+               FROM workspace_connections
+              WHERE tenant_id = $1
+                AND provider = $2
+                AND workspace_id = $3
+                AND app_id = $4
+                AND status IN ('pending', 'active', 'reauth_required')
+              LIMIT 2`,
+            [manifest.tenant_id, manifest.workspace_connection.provider,
+                manifest.workspace_connection.workspace_id, manifest.workspace_connection.app_id]
+        );
+        await client.query('COMMIT');
+        transactionStarted = false;
+        return { coreState, existingConnection };
+    } catch (error) {
+        if (transactionStarted) {
+            try { await client.query('ROLLBACK'); } catch { /* preserve safe original error */ }
+        }
+        throw error;
+    }
+}
+
 export async function exportServiceActorJwks({ client, tenantKey, actorId } = {}) {
     if (!client || typeof client.query !== 'function') {
         throw new TenantProvisioningError('DATABASE_REQUIRED', 'A PostgreSQL client is required');
@@ -949,19 +984,12 @@ export async function provisionTenant({
         // connections (including reinstalls) must pass exact canonical
         // credential metadata verification in the resolver.
         let coreState = null;
-        if (phase === 'connection') coreState = await readbackCore(client, normalizedManifest, project);
-        const existingConnection = phase === 'core' ? { rows: [] } : await client.query(
-            `SELECT connection_id, connection_revision
-               FROM workspace_connections
-              WHERE tenant_id = $1
-                AND provider = $2
-                AND workspace_id = $3
-                AND app_id = $4
-                AND status IN ('pending', 'active', 'reauth_required')
-              LIMIT 2`,
-            [normalizedManifest.tenant_id, normalizedManifest.workspace_connection.provider,
-                normalizedManifest.workspace_connection.workspace_id, normalizedManifest.workspace_connection.app_id]
-        );
+        let existingConnection = { rows: [] };
+        if (phase !== 'core') {
+            const preflight = await readConnectionPreflight(client, normalizedManifest, project, phase);
+            coreState = preflight.coreState;
+            existingConnection = preflight.existingConnection;
+        }
         if (phase !== 'core') assertCredentialResult(await credentialResolver.verifyOpaqueReference({
             tenant_id: normalizedManifest.tenant_id,
             tenant_key: normalizedManifest.tenant_key,
@@ -975,6 +1003,7 @@ export async function provisionTenant({
         await client.query('BEGIN');
         transactionStarted = true;
         await client.query("SET LOCAL lock_timeout = '5s'");
+        await setTenantContext(client, normalizedManifest.tenant_id);
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [normalizedManifest.tenant_key]);
         if (commit) await assertClaimedOperation(client, claimed.operation_id, claimTokenHash);
         if (phase === 'connection') coreState = await readbackCore(client, normalizedManifest, project);
