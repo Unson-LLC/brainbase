@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Unson-LLC/brainbase-unson/contracts/mana-brainbase-company-authority/v1/schema/company-authority-resolution-response.schema.json",
+  "title": "CompanyAuthorityResolutionResponseV1",
+  "description": "Producer-owned wire envelope. The JSONPath $ root carries the signed context at $.context on success or one canonical authority error at $.error on failure; failures have no business effect.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_id", "correlation_id", "context", "error"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "contract_id": { "const": "mana-brainbase-company-authority/v1" },
+    "correlation_id": { "type": "string", "minLength": 1 },
+    "context": {
+      "anyOf": [
+        { "$ref": "canonical-execution-context.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "error": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "phase", "retryable", "business_effect"],
+          "properties": {
+            "code": { "enum": ["DESIRED_EFFECT_REQUIRED", "COMPANY_AUTHORITY_REQUIRED", "COMPANY_AUTHORITY_EFFECT_MISMATCH", "COMPANY_AUTHORITY_DENIED", "PERSON_UNKNOWN", "PERSON_AMBIGUOUS", "AUTHORITY_CROSS_ORG", "AUTHORITY_SCOPE_MISMATCH", "AUTHORITY_CONTEXT_STALE", "APPROVER_MISMATCH", "AUTHORITY_UNAVAILABLE", "MEMBERSHIP_INACTIVE", "PERSONAL_OWNER_REQUIRED", "PERSONAL_SCOPE_MISMATCH", "AUTHORITY_CONTEXT_INVALID_SIGNATURE", "AUTHORITY_CONTEXT_EXPIRED", "AUTHORITY_REPLAY_CONFLICT"] },
+            "phase": { "const": "authority" },
+            "retryable": { "type": "boolean" },
+            "business_effect": { "const": false }
+          }
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    { "properties": { "context": { "type": "object" }, "error": { "type": "null" } } },
+    { "properties": { "context": { "type": "null" }, "error": { "type": "object" } } }
+  ]
+}

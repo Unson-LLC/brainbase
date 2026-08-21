@@ -1,0 +1,355 @@
+// @vitest-environment node
+
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
+import { describe, expect, it } from 'vitest';
+
+import {
+    CANONICAL_ERROR_CODES,
+    COMPANY_AUTHORITY_CAPABILITY,
+    CONTRACT_ID,
+    applyFixtureMutations,
+    canonicalJson,
+    createDetachedJws,
+    validateCanonicalExecutionContext,
+    validateObservedExecutionRequest,
+    validateWireResponse,
+    verifyDetachedJws
+} from '../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
+
+const contractRoot = resolve('contracts/mana-brainbase-company-authority/v1');
+const fixtureRoot = resolve(contractRoot, 'fixtures');
+
+async function readJson(relativePath, root = contractRoot) {
+    return JSON.parse(await readFile(resolve(root, relativePath), 'utf8'));
+}
+
+async function fixtureSetDigest(manifest) {
+    const hash = createHash('sha256');
+    for (const relativePath of manifest.fixture_files) {
+        hash.update(relativePath);
+        hash.update(Buffer.from([0]));
+        hash.update(await readFile(resolve(contractRoot, relativePath)));
+    }
+    return hash.digest('hex');
+}
+
+function pointerValue(value, pointer) {
+    return pointer.split('/').filter(Boolean).reduce((current, token) => current[token], value);
+}
+
+const contract = await readJson('producer.contract.json');
+const sourceLock = await readJson('source-lock.json');
+const manifest = await readJson('fixtures/manifest.json');
+const fixtures = await readJson(manifest.cases);
+const testKey = await readJson('fixtures/test-key.json');
+const fixtureSchema = await readJson('fixtures/fixture.schema.json');
+const observedRequestSchema = await readJson('schema/observed-execution-request.schema.json');
+const canonicalContextSchema = await readJson('schema/canonical-execution-context.schema.json');
+const responseSchema = await readJson('schema/company-authority-resolution-response.schema.json');
+const schemaValidators = (() => {
+    const ajv = new Ajv2020({ strict: false });
+    addFormats(ajv);
+    ajv.addSchema(observedRequestSchema, observedRequestSchema.$id);
+    ajv.addSchema(canonicalContextSchema, canonicalContextSchema.$id);
+    ajv.addSchema(responseSchema, responseSchema.$id);
+    ajv.addSchema(fixtureSchema, fixtureSchema.$id);
+    return {
+        fixture: ajv.getSchema(fixtureSchema.$id),
+        response: ajv.getSchema(responseSchema.$id)
+    };
+})();
+
+describe('Brainbase company authority producer contract v1', () => {
+    it('fixes the request/context wire path and company_authority_v1 capability path', () => {
+        expect(contract.contract_id).toBe(CONTRACT_ID);
+        expect(contract.contract_status).toBe('contract_ready');
+        expect(contract.wire.request).toBe('$');
+        expect(contract.wire.success_response).toBe('$');
+        expect(contract.wire.success_context).toBe('$.context');
+        expect(contract.wire.error).toBe('$.error');
+        expect(contract.wire.response_context).toBe('$.context');
+        expect(contract.wire.response_error).toBe('$.error');
+        expect(contract.required_capability).toBe(COMPANY_AUTHORITY_CAPABILITY);
+        expect(contract.required_capability_path).toBe('$.context.tenant_context.authorization.capability_ids');
+        expect(contract.canonical_context.required_capability_path)
+            .toBe('$.context.tenant_context.authorization.capability_ids');
+        expect(contract.wire.company_authority_capability_path)
+            .toBe('$.context.tenant_context.authorization.capability_ids');
+        expect(contract.canonical_json.profile).toBe('RFC8785_JCS');
+        expect(contract.signature.profile).toBe('detached-jws-ed25519');
+        expect(contract.canonical_error_codes).toEqual(CANONICAL_ERROR_CODES);
+    });
+
+    it('pins a manifest digest without producer commit self-reference', async () => {
+        expect(manifest.fixture_set_status).toBe('materialized');
+        expect(manifest.hash_algorithm).toBe('sha256(relative_path + NUL + file_bytes)');
+        expect(await fixtureSetDigest(manifest)).toBe(manifest.fixture_set_sha256);
+        expect(sourceLock.fixture_set_sha256).toBe(manifest.fixture_set_sha256);
+        expect(sourceLock.manifest_version).toBe(manifest.manifest_version);
+        expect(sourceLock).not.toHaveProperty('commit');
+        expect(sourceLock).not.toHaveProperty('head');
+        expect(sourceLock).not.toHaveProperty('producer_merge_sha');
+    });
+
+    it('validates cases through the manifest-referenced fixture schema and exact manifest coverage', () => {
+        expect(manifest.fixture_schema).toBe('fixtures/fixture.schema.json');
+        expect(manifest.cases).toBe('fixtures/cases.json');
+        expect(schemaValidators.fixture(fixtures), JSON.stringify(schemaValidators.fixture.errors)).toBe(true);
+
+        const positiveIds = fixtures.positive.map(({ id }) => id);
+        const negativeIds = fixtures.negative.map(({ id }) => id);
+        expect(positiveIds).toHaveLength(manifest.positive_case_count);
+        expect(negativeIds).toHaveLength(manifest.negative_case_count);
+        expect(new Set(positiveIds).size).toBe(positiveIds.length);
+        expect(new Set(negativeIds).size).toBe(negativeIds.length);
+        expect(new Set(manifest.positive_case_ids).size).toBe(manifest.positive_case_ids.length);
+        expect(new Set(manifest.negative_case_ids).size).toBe(manifest.negative_case_ids.length);
+        expect(manifest.positive_case_ids).toEqual(positiveIds);
+        expect(manifest.negative_case_ids).toEqual(negativeIds);
+        expect(fixtures.positive).toHaveLength(9);
+        expect(fixtures.negative).toHaveLength(28);
+    });
+
+    it('validates deterministic synthetic positive payloads and all four decisions', () => {
+        expect(fixtures.synthetic_data_only).toBe(true);
+        const decisions = new Set();
+        for (const fixture of fixtures.positive) {
+            validateObservedExecutionRequest(fixture.request);
+            if (fixture.context) {
+                validateCanonicalExecutionContext(fixture.context, {
+                    expectedAudience: contract.signature.audience,
+                    now: fixture.evaluation_time,
+                    request: fixture.request
+                });
+                verifyDetachedJws(fixture.context, testKey.public_jwk);
+                expect(fixture.context.tenant_context.authorization.capability_ids)
+                    .toContain(COMPANY_AUTHORITY_CAPABILITY);
+                decisions.add(fixture.context.authority.decision);
+                if (fixture.context.authority.decision === 'deny') {
+                    expect(fixture.expected.code).toBe('COMPANY_AUTHORITY_DENIED');
+                    expect(fixture.expected.outcome).toBe('deny_without_effect');
+                }
+                if (fixture.context.authority.decision === 'approval') {
+                    expect(fixture.context.authority.approver_person_id).toBe('person-umeda');
+                }
+                if (fixture.context.authority.decision === 'human_action') {
+                    expect(fixture.context.authority.responsible_person_id).toBe(fixture.context.actor.canonical_person_id);
+                }
+                if (fixture.operation === 'personal') {
+                    expect(fixture.context.scope.owner_person_id).toBe(fixture.context.actor.canonical_person_id);
+                }
+            }
+        }
+        expect([...decisions].sort()).toEqual(['approval', 'auto', 'deny', 'human_action']);
+    });
+
+    it('binds all four tenant/person matrix entries to concrete positive fixtures', () => {
+        expect(fixtures.tenant_person_matrix).toHaveLength(4);
+        const positiveById = new Map(fixtures.positive.map((fixture) => [fixture.id, fixture]));
+        for (const entry of fixtures.tenant_person_matrix) {
+            expect(entry.positive_case_id).toEqual(expect.any(String));
+            const fixture = positiveById.get(entry.positive_case_id);
+            expect(fixture?.context).toBeTruthy();
+            expect(fixture.context.tenant_context.tenant.tenant_id).toBe(entry.tenant_id);
+            expect(fixture.context.actor.canonical_person_id).toBe(entry.person_id);
+            expect(fixture.request.provider_identity.authenticated_subject_id).toBe(entry.person_id);
+        }
+    });
+
+    it('keeps Personal cross-person negatives independent and directionally distinct', () => {
+        const positiveById = new Map(fixtures.positive.map((fixture) => [fixture.id, fixture]));
+        const satoToUmeda = fixtures.negative.find(({ id }) => id === 'NEG-PERSONAL-CROSS-PERSON-SATO-TO-UMEDA');
+        const umedaToSato = fixtures.negative.find(({ id }) => id === 'NEG-PERSONAL-CROSS-PERSON-UMEDA-TO-SATO');
+        assert.ok(satoToUmeda);
+        assert.ok(umedaToSato);
+        const satoBase = positiveById.get(satoToUmeda.base_fixture);
+        const umedaBase = positiveById.get(umedaToSato.base_fixture);
+        assert.ok(satoBase?.context);
+        assert.ok(umedaBase?.context);
+
+        expect(satoBase.context.actor.canonical_person_id).toBe('person-sato');
+        expect(satoBase.context.scope.owner_person_id).toBe('person-sato');
+        expect(satoToUmeda.personal_target_person_id).toBe('person-umeda');
+        expect(umedaToSato.base_fixture).not.toBe(satoToUmeda.base_fixture);
+        expect(umedaBase.context.actor.canonical_person_id).toBe('person-umeda');
+        expect(umedaBase.context.scope.owner_person_id).toBe('person-umeda');
+        expect(umedaToSato.personal_target_person_id).toBe('person-sato');
+    });
+
+    it.each(fixtures.negative)('$id fails closed with $expected.code', (fixture) => {
+        const base = fixtures.positive.find(({ id }) => id === fixture.base_fixture);
+        assert.ok(base, `base fixture not found: ${fixture.base_fixture}`);
+        const mutated = applyFixtureMutations({ request: base.request, context: base.context }, fixture.mutations);
+        let thrown;
+        try {
+            if (fixture.target === 'request') validateObservedExecutionRequest(mutated.request);
+            else if (fixture.target === 'context') {
+                validateCanonicalExecutionContext(mutated.context, {
+                    expectedAudience: contract.signature.audience,
+                    now: fixture.evaluation_time ?? base.evaluation_time
+                });
+                verifyDetachedJws(mutated.context, testKey.public_jwk);
+            } else if (fixture.target === 'binding') {
+                validateCanonicalExecutionContext(mutated.context, {
+                    expectedAudience: contract.signature.audience,
+                    now: fixture.evaluation_time ?? base.evaluation_time,
+                    request: mutated.request,
+                    expectedRevisions: fixture.expected_revisions,
+                    identityStatus: fixture.identity_status,
+                    crossOrg: fixture.cross_org,
+                    scopeMismatch: fixture.scope_mismatch,
+                    membershipStatus: fixture.membership_status,
+                    authorityUnavailable: fixture.authority_unavailable,
+                    approvalSubjectId: fixture.approval_subject_id,
+                    personalTargetPersonId: fixture.personal_target_person_id,
+                    replayConflict: fixture.replay_conflict
+                });
+            } else {
+                throw new Error(`unknown fixture target: ${fixture.target}`);
+            }
+        } catch (error) {
+            thrown = error;
+        }
+        expect(thrown?.code).toBe(fixture.expected.code);
+        expect(fixture.expected.business_effects).toEqual({
+            business_api_called: false,
+            llm_called: false,
+            credential_lease_issued: false,
+            external_side_effect: false
+        });
+    });
+
+    it('keeps canonical JSON stable for signature input and rejects tampering', () => {
+        const fixture = fixtures.positive.find(({ id }) => id === 'POS-AUTO-COMPANY-READ');
+        const unsigned = structuredClone(fixture.context);
+        delete unsigned.integrity;
+        expect(canonicalJson(unsigned)).toBe(fixture.unsigned_context_canonical_json);
+        expect(createDetachedJws(unsigned, testKey.private_jwk, testKey.key_id))
+            .toBe(fixture.context.integrity.value);
+        const tampered = structuredClone(fixture.context);
+        tampered.scope.resource_ref = 'company://tenant-a/other';
+        let thrown;
+        try {
+            verifyDetachedJws(tampered, testKey.public_jwk);
+        } catch (error) {
+            thrown = error;
+        }
+        expect(thrown?.code).toBe('AUTHORITY_CONTEXT_INVALID_SIGNATURE');
+    });
+
+    it('accepts valid Unicode pairs and rejects only lone UTF-16 surrogates', () => {
+        expect(canonicalJson({ emoji: '😀', han: '𠮷' })).toBe('{"emoji":"😀","han":"𠮷"}');
+        expect(() => canonicalJson('\ud83d')).toThrow(/surrogates/);
+        expect(() => canonicalJson('\ude00')).toThrow(/surrogates/);
+    });
+
+    it('accepts RFC3339 offset timestamps consistently in schema and reference validator', () => {
+        const base = fixtures.positive.find(({ id }) => id === 'POS-AUTO-COMPANY-READ');
+        const offsetContext = structuredClone(base.context);
+        offsetContext.issued_at = '2026-08-21T09:00:00+09:00';
+        offsetContext.expires_at = '2026-08-21T09:05:00+09:00';
+        offsetContext.tenant_context.issued_at = '2026-08-21T09:00:00+09:00';
+        offsetContext.tenant_context.expires_at = '2026-08-21T09:05:00+09:00';
+        const response = {
+            schema_version: '1.0',
+            contract_id: CONTRACT_ID,
+            correlation_id: base.request.correlation_id,
+            context: offsetContext,
+            error: null
+        };
+        expect(schemaValidators.response(response)).toBe(true);
+        expect(() => validateCanonicalExecutionContext(offsetContext, {
+            expectedAudience: contract.signature.audience,
+            now: '2026-08-21T09:01:00+09:00',
+            request: base.request
+        })).not.toThrow();
+    });
+
+    it('validates response schema and enforces exactly one context or error', () => {
+        const normal = fixtures.positive.find(({ id }) => id === 'POS-AUTO-COMPANY-READ');
+        const diagnostic = fixtures.positive.find(({ id }) => id === 'POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC');
+        const success = {
+            schema_version: '1.0',
+            contract_id: CONTRACT_ID,
+            correlation_id: normal.request.correlation_id,
+            context: normal.context,
+            error: null
+        };
+        const diagnosticError = {
+            schema_version: '1.0',
+            contract_id: CONTRACT_ID,
+            correlation_id: diagnostic.request.correlation_id,
+            context: null,
+            error: {
+                code: 'AUTHORITY_UNAVAILABLE',
+                phase: 'authority',
+                retryable: true,
+                business_effect: false
+            }
+        };
+        expect(schemaValidators.response(success)).toBe(true);
+        expect(schemaValidators.response(diagnosticError)).toBe(true);
+        expect(() => validateWireResponse(success)).not.toThrow();
+        expect(() => validateWireResponse(diagnosticError)).not.toThrow();
+
+        const neither = { ...success, context: null };
+        const both = { ...diagnosticError, context: normal.context, error: diagnosticError.error };
+        expect(schemaValidators.response(neither)).toBe(false);
+        expect(schemaValidators.response(both)).toBe(false);
+        expect(() => validateWireResponse(neither)).toThrow(/exactly one/);
+        expect(() => validateWireResponse(both)).toThrow(/exactly one/);
+    });
+
+    it('pins diagnostic allowlist, diagnostic outcome, and response context/error paths', () => {
+        const diagnostic = fixtures.positive.find(({ id }) => id === 'POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC');
+        expect(diagnostic).toBeDefined();
+        expect(diagnostic.expected.outcome).toBe('diagnostic_allowed');
+        expect(diagnostic.operation).toBe('connection_diagnostic');
+        expect(diagnostic.request.requested_action.capability_id).toBe('connection_diagnostic');
+        expect(diagnostic.context).toBeNull();
+        expect(contract.fixture_coverage.diagnostic_allowlist).toContain(diagnostic.operation);
+        expect(contract.wire.success_response).toBe('$');
+        expect(contract.wire.success_context).toBe('$.context');
+        expect(contract.wire.response_context).toBe('$.context');
+        expect(contract.wire.error).toBe('$.error');
+        expect(contract.wire.response_error).toBe('$.error');
+
+        const diagnosticError = {
+            schema_version: '1.0',
+            contract_id: CONTRACT_ID,
+            correlation_id: diagnostic.request.correlation_id,
+            context: null,
+            error: {
+                code: 'AUTHORITY_UNAVAILABLE',
+                phase: 'authority',
+                retryable: true,
+                business_effect: false
+            }
+        };
+        expect(schemaValidators.response(diagnosticError)).toBe(true);
+        expect(() => validateWireResponse(diagnosticError)).not.toThrow();
+    });
+
+    it('records the expected negative matrix categories and exact error vocabulary', () => {
+        expect(fixtures.required_case_categories).toEqual(expect.arrayContaining([
+            'desired_effect_explicit',
+            'company_authority_required',
+            'decision_modes',
+            'unknown_person',
+            'cross_org',
+            'stale_revision',
+            'wrong_approver',
+            'personal_no_fallback',
+            'context_integrity'
+        ]));
+        for (const fixture of fixtures.negative) {
+            expect(CANONICAL_ERROR_CODES).toContain(fixture.expected.code);
+            expect(pointerValue(fixture, '/expected/business_effects/external_side_effect')).toBe(false);
+        }
+    });
+});

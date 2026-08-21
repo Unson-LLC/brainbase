@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Unson-LLC/brainbase-unson/contracts/mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json",
+  "title": "CanonicalExecutionContextV1",
+  "description": "Brainbase-resolved and signed authority context. Runtime identity and requested action are never copied into authority claims without resolution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tenant_context", "actor", "scope", "authority", "evidence", "issued_at", "expires_at", "integrity"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "tenant_context": { "$ref": "#/$defs/tenant_context" },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["external_subject_id", "canonical_person_id", "membership_id", "membership_revision"],
+      "properties": {
+        "external_subject_id": { "type": "string", "minLength": 1 },
+        "canonical_person_id": { "type": "string", "minLength": 1 },
+        "membership_id": { "type": "string", "minLength": 1 },
+        "membership_revision": { "$ref": "#/$defs/revision" }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["organization_id", "project_id", "resource_ref", "owner_person_id", "placement_id"],
+      "properties": {
+        "organization_id": { "type": "string", "minLength": 1 },
+        "project_id": { "type": "string", "minLength": 1 },
+        "resource_ref": { "type": "string", "minLength": 1 },
+        "owner_person_id": { "type": ["string", "null"], "minLength": 1 },
+        "placement_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "capability_id", "responsible_person_id", "accountable_person_id", "approver_person_id", "delegated_by_person_id", "policy_revision", "raci_revision", "resource_revision", "allowed_effects", "stop_conditions"],
+      "properties": {
+        "decision": { "enum": ["auto", "approval", "human_action", "deny"] },
+        "capability_id": { "const": "company_authority_v1" },
+        "responsible_person_id": { "type": ["string", "null"], "minLength": 1 },
+        "accountable_person_id": { "type": ["string", "null"], "minLength": 1 },
+        "approver_person_id": { "type": ["string", "null"], "minLength": 1 },
+        "delegated_by_person_id": { "type": ["string", "null"], "minLength": 1 },
+        "policy_revision": { "$ref": "#/$defs/revision" },
+        "raci_revision": { "$ref": "#/$defs/revision" },
+        "resource_revision": { "$ref": "#/$defs/revision" },
+        "allowed_effects": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["read", "write", "external_side_effect"] } },
+        "stop_conditions": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity_resolution_receipt_id", "authority_resolution_receipt_id"],
+      "properties": {
+        "identity_resolution_receipt_id": { "type": "string", "minLength": 1 },
+        "authority_resolution_receipt_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "algorithm", "key_id", "value"],
+      "properties": {
+        "method": { "const": "jws_detached" },
+        "algorithm": { "const": "EdDSA" },
+        "key_id": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "pattern": "^[A-Za-z0-9_-]+\\.\\.[A-Za-z0-9_-]+$" }
+      }
+    },
+    "tenant_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "protocol_id", "protocol_version", "issuer", "audience", "tenant", "workspace_connection", "actor", "authorization", "placement", "slack", "correlation_id", "operation_id", "idempotency_key", "contract_revision", "credential", "issued_at", "expires_at", "integrity"],
+      "properties": {
+        "schema_version": { "const": "1.0" },
+        "protocol_id": { "const": "mana-brainbase-tenant-context" },
+        "protocol_version": { "const": "1.0" },
+        "issuer": { "const": "brainbase" },
+        "audience": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "tenant": {
+          "type": "object", "additionalProperties": false, "required": ["tenant_id", "tenant_revision"],
+          "properties": { "tenant_id": { "type": "string", "minLength": 1 }, "tenant_revision": { "$ref": "#/$defs/revision" } }
+        },
+        "workspace_connection": {
+          "type": "object", "additionalProperties": false, "required": ["connection_id", "connection_revision", "status", "provider", "installation_id", "workspace_id", "app_id"],
+          "properties": {
+            "connection_id": { "type": "string", "minLength": 1 },
+            "connection_revision": { "$ref": "#/$defs/revision" },
+            "status": { "const": "active" },
+            "provider": { "const": "slack" },
+            "installation_id": { "type": "string", "minLength": 1 },
+            "workspace_id": { "type": "string", "minLength": 1 },
+            "app_id": { "type": "string", "minLength": 1 }
+          }
+        },
+        "actor": {
+          "type": "object", "additionalProperties": false, "required": ["principal_id", "principal_type", "authenticated_subject_id"],
+          "properties": {
+            "principal_id": { "type": "string", "minLength": 1 },
+            "principal_type": { "enum": ["person", "service"] },
+            "authenticated_subject_id": { "type": "string", "minLength": 1 },
+            "delegated_by": { "type": "string", "minLength": 1 }
+          }
+        },
+        "authorization": {
+          "type": "object", "additionalProperties": false, "required": ["organization_ids", "project_ids", "data_scopes", "capability_ids"],
+          "properties": {
+            "organization_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+            "project_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+            "data_scopes": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+            "capability_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "placement": {
+          "type": "object", "additionalProperties": false, "required": ["deployment_id", "profile"],
+          "properties": { "deployment_id": { "type": "string", "minLength": 1 }, "profile": { "type": "string", "minLength": 1 } }
+        },
+        "slack": {
+          "type": "object", "additionalProperties": false, "required": ["event_id", "channel_id"],
+          "properties": { "event_id": { "type": "string", "minLength": 1 }, "channel_id": { "type": "string", "minLength": 1 }, "enterprise_id": { "type": "string", "minLength": 1 }, "thread_ts": { "type": "string", "minLength": 1 }, "requester_id": { "type": "string", "minLength": 1 } }
+        },
+        "correlation_id": { "type": "string", "minLength": 1 },
+        "operation_id": { "type": "string", "minLength": 1 },
+        "idempotency_key": { "type": "string", "minLength": 1 },
+        "contract_revision": { "$ref": "#/$defs/revision" },
+        "credential": {
+          "type": "object", "additionalProperties": false, "required": ["mode", "credential_ref", "billing_principal_id"],
+          "properties": { "mode": { "type": "string", "minLength": 1 }, "credential_ref": { "type": "string", "minLength": 1 }, "billing_principal_id": { "type": "string", "minLength": 1 } }
+        },
+        "issued_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "integrity": { "$ref": "#/$defs/integrity" }
+      }
+    }
+  }
+}

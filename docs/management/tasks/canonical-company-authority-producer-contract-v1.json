@@ -1,0 +1,70 @@
+{
+  "task_id": "canonical-company-authority-producer-contract-v1",
+  "story_id": "story-canonical-company-authority-producer-contract-v1",
+  "status": "contract_ready",
+  "priority": "high",
+  "milestone": "M0-company-authority-and-personal-boundary",
+  "architecture": [
+    "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
+    "docs/architecture/canonical-company-authority-producer-contract-v1.md"
+  ],
+  "spec": "docs/specs/canonical-company-authority-producer-contract-v1.md",
+  "scope": {
+    "allowed": [
+      "docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
+      "docs/architecture/canonical-company-authority-producer-contract-v1.md",
+      "docs/specs/canonical-company-authority-producer-contract-v1.md",
+      "docs/management/tasks/canonical-company-authority-producer-contract-v1.json",
+      "contracts/mana-brainbase-company-authority/v1/**",
+      "tests/conformance/brainbase-company-authority-producer-contract.test.js",
+      ".vibepro/** story-scoped specification/review artifacts"
+    ],
+    "forbidden": [
+      "server/**",
+      "routes/**",
+      "DB/migrations",
+      "deployment",
+      "secrets",
+      "customer data",
+      "mana-runtime worktree",
+      "package files"
+    ],
+    "production_action": false
+  },
+  "deliverables": {
+    "observed_request_schema": "contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json",
+    "canonical_context_schema": "contracts/mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json",
+    "wire_response_schema": "contracts/mana-brainbase-company-authority/v1/schema/company-authority-resolution-response.schema.json",
+    "producer_contract": "contracts/mana-brainbase-company-authority/v1/producer.contract.json",
+    "source_lock": "contracts/mana-brainbase-company-authority/v1/source-lock.json",
+    "fixture_manifest": "contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json",
+    "fixture_payload": "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json",
+    "reference_validator": "contracts/mana-brainbase-company-authority/v1/reference/wire.mjs"
+  },
+  "acceptance": [
+    "ObservedExecutionRequestV1 has an explicit desired_effect and no runtime authority claims.",
+    "CanonicalExecutionContextV1 is signed and wired at the response JSONPath $.context.",
+    "tenant_context.authorization.capability_ids contains company_authority_v1 at the exact path.",
+    "RFC8785 JCS, UTF-8, detached Ed25519 JWS, TTL, audience, and protected header are fixed.",
+    "auto, approval, human_action, and deny each have deterministic positive coverage.",
+    "Unknown/ambiguous/cross-org/stale/wrong approver/Personal/signature/expiry/replay negatives fail closed with canonical errors.",
+    "Fixture digest is manifest versioned and excludes the manifest; producer self-reference is absent.",
+    "Trusted kid-to-key resolution, key rotation, and key revocation are runtime non-goals; the reference validator is non-authoritative and production cutover is blocked pending separately verified runtime trust and consumer enforcement.",
+    "No runtime or production action is performed."
+  ],
+  "tdd": {
+    "red": "Run the targeted conformance test before producer artifacts exist and record the expected missing-contract failure.",
+    "green": "Run the targeted conformance test and deterministic Node validator across all 9 positive and 28 negative fixtures.",
+    "regression": ["npm run test:conformance:mana-brainbase -- tests/conformance/brainbase-company-authority-producer-contract.test.js", "node --check contracts/mana-brainbase-company-authority/v1/reference/wire.mjs", "git diff --check"]
+  },
+  "evidence": {
+    "contract_version": "1.0.0",
+    "manifest_version": "1.0",
+    "fixture_set_sha256": "55d7e6ace96faa4c62da801ec97e7d639841741ca8760433b6690720c54d64f7",
+    "synthetic_data_only": true,
+    "customer_data": "not_used",
+    "secrets": "not_used",
+    "runtime_changes": "none",
+    "downstream_merge_sha": "not_recorded_in_producer_lock"
+  }
+}

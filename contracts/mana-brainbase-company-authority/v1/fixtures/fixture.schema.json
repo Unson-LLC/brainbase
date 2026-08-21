@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Unson-LLC/brainbase-unson/contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json",
+  "title": "Brainbase company authority producer conformance fixtures v1",
+  "description": "Deterministic synthetic producer payloads and negative mutations. No customer data, secrets, or production authority are included.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_id", "synthetic_data_only", "manifest_version", "required_case_categories", "tenant_person_matrix", "positive", "negative"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "contract_id": { "const": "mana-brainbase-company-authority/v1" },
+    "synthetic_data_only": { "const": true },
+    "manifest_version": { "const": "1.0" },
+    "required_case_categories": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "tenant_person_matrix": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tenant_id", "person_id", "positive_case_id"],
+        "properties": {
+          "tenant_id": { "enum": ["tenant-a", "tenant-b"] },
+          "person_id": { "enum": ["person-sato", "person-umeda"] },
+          "positive_case_id": { "type": "string", "pattern": "^POS-[A-Z0-9-]+$" }
+        }
+      }
+    },
+    "positive": { "type": "array", "minItems": 4, "items": { "$ref": "#/$defs/positive" } },
+    "negative": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/negative" } }
+  },
+  "$defs": {
+    "positive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "category", "request", "context", "evaluation_time", "operation", "expected", "guards", "notes"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^POS-[A-Z0-9-]+$" },
+        "kind": { "const": "positive" },
+        "category": { "type": "string", "minLength": 1 },
+        "request": { "$ref": "../schema/observed-execution-request.schema.json" },
+        "context": { "anyOf": [{ "$ref": "../schema/canonical-execution-context.schema.json" }, { "type": "null" }] },
+        "unsigned_context_canonical_json": { "type": "string", "minLength": 1 },
+        "evaluation_time": { "type": "string", "format": "date-time" },
+        "operation": { "type": "string", "minLength": 1 },
+        "expected": { "$ref": "#/$defs/expected" },
+        "guards": { "$ref": "#/$defs/guards" },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "negative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "category", "base_fixture", "target", "mutations", "expected", "guards"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^NEG-[A-Z0-9-]+$" },
+        "kind": { "const": "negative" },
+        "category": { "type": "string", "minLength": 1 },
+        "base_fixture": { "type": "string", "pattern": "^POS-[A-Z0-9-]+$" },
+        "target": { "enum": ["request", "context", "binding"] },
+        "mutations": { "type": "array", "items": { "$ref": "#/$defs/mutation" } },
+        "evaluation_time": { "type": "string", "format": "date-time" },
+        "identity_status": { "enum": ["unknown", "ambiguous"] },
+        "cross_org": { "const": true },
+        "scope_mismatch": { "const": true },
+        "membership_status": { "const": "inactive" },
+        "authority_unavailable": { "const": true },
+        "approval_subject_id": { "type": "string", "minLength": 1 },
+        "personal_target_person_id": { "type": "string", "minLength": 1 },
+        "replay_conflict": { "const": true },
+        "expected_revisions": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "membership": { "$ref": "../schema/canonical-execution-context.schema.json#/$defs/revision" },
+            "resource": { "$ref": "../schema/canonical-execution-context.schema.json#/$defs/revision" },
+            "raci": { "$ref": "../schema/canonical-execution-context.schema.json#/$defs/revision" },
+            "policy": { "$ref": "../schema/canonical-execution-context.schema.json#/$defs/revision" },
+            "tenant": { "$ref": "../schema/canonical-execution-context.schema.json#/$defs/revision" },
+            "connection": { "$ref": "../schema/canonical-execution-context.schema.json#/$defs/revision" }
+          }
+        },
+        "expected": { "$ref": "#/$defs/expected" },
+        "guards": { "$ref": "#/$defs/guards" }
+      }
+    },
+    "mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "path"],
+      "properties": {
+        "operation": { "enum": ["delete", "set", "append", "remove_capability"] },
+        "path": { "type": "string", "pattern": "^/" },
+        "value": {}
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "operation": { "enum": ["set", "append"] } } },
+          "then": { "required": ["value"] }
+        }
+      ]
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "code"],
+      "properties": {
+        "outcome": { "type": "string", "minLength": 1 },
+        "code": { "anyOf": [{ "type": "null" }, { "enum": ["DESIRED_EFFECT_REQUIRED", "COMPANY_AUTHORITY_REQUIRED", "COMPANY_AUTHORITY_EFFECT_MISMATCH", "COMPANY_AUTHORITY_DENIED", "PERSON_UNKNOWN", "PERSON_AMBIGUOUS", "AUTHORITY_CROSS_ORG", "AUTHORITY_SCOPE_MISMATCH", "AUTHORITY_CONTEXT_STALE", "APPROVER_MISMATCH", "AUTHORITY_UNAVAILABLE", "MEMBERSHIP_INACTIVE", "PERSONAL_OWNER_REQUIRED", "PERSONAL_SCOPE_MISMATCH", "AUTHORITY_CONTEXT_INVALID_SIGNATURE", "AUTHORITY_CONTEXT_EXPIRED", "AUTHORITY_REPLAY_CONFLICT"] }] },
+        "business_effects": { "$ref": "#/$defs/business_effects" }
+      }
+    },
+    "business_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["business_api_called", "llm_called", "credential_lease_issued", "external_side_effect"],
+      "properties": {
+        "business_api_called": { "const": false },
+        "llm_called": { "const": false },
+        "credential_lease_issued": { "const": false },
+        "external_side_effect": { "const": false }
+      }
+    },
+    "guards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["business_effect_before_validation", "fallback_allowed", "synthetic_data_only"],
+      "properties": {
+        "business_effect_before_validation": { "const": false },
+        "fallback_allowed": { "const": false },
+        "synthetic_data_only": { "const": true }
+      }
+    }
+  }
+}

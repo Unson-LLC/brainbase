@@ -1,0 +1,145 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-canonical-company-authority-producer-contract-v1",
+  "generated_by": { "caller": "codex", "stage": "static_fallback" },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "ObservedExecutionRequestV1 accepts only observed provider identity, requested action, delivery metadata, and correlation; desired_effect is explicit.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 0, "ac_id": "AC-001", "text_snippet": "ObservedExecutionRequestV1 requires an explicit desired_effect and carries no resolved authority claims." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Request and response wire" }],
+        "test_refs": [{ "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "validates deterministic synthetic positive payloads and all four decisions" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "validates deterministic synthetic positive payloads and all four decisions" }]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json"]
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "CanonicalExecutionContextV1 is wired at the response JSONPath $.context and includes company_authority_v1 at $.context.tenant_context.authorization.capability_ids.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-002", "text_snippet": "The successful response context and company authority capability path are fixed." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Request and response wire" }],
+        "test_refs": [{ "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "fixes the request/context wire path and company_authority_v1 capability path" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "fixes the request/context wire path and company_authority_v1 capability path" }]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json", "contracts/mana-brainbase-company-authority/v1/schema/company-authority-resolution-response.schema.json"]
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "RFC8785 JCS and detached Ed25519 JWS are fixed, and invalid signature, expiry, and replay fail closed before business effect.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 2, "ac_id": "AC-003", "text_snippet": "RFC 8785 JCS, detached Ed25519 JWS, and integrity failures are fixed." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Canonical JSON and signature" }],
+        "test_refs": [{ "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "keeps canonical JSON stable for signature input and rejects tampering" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "keeps canonical JSON stable for signature input and rejects tampering" }]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/producer.contract.json", "contracts/mana-brainbase-company-authority/v1/reference/wire.mjs"]
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "The deterministic synthetic manifest covers four decision modes, two tenants by two people, and all required canonical negative errors.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "ac_id": "AC-006", "text_snippet": "The deterministic two-tenant by two-person fixture set and manifest digest are fixed." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Conformance payload and lock" }],
+        "test_refs": [
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "validates cases through the manifest-referenced fixture schema and exact manifest coverage" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "binds all four tenant/person matrix entries to concrete positive fixtures" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "validates cases through the manifest-referenced fixture schema and exact manifest coverage" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "binds all four tenant/person matrix entries to concrete positive fixtures" }
+        ]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json", "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json"]
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "The producer lock records manifest version and fixture digest without producer commit/head/merge SHA; runtime and production actions remain untouched.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 6, "ac_id": "AC-007", "text_snippet": "Conformance proves contract readiness only; runtime and production action remain outside the boundary." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Boundaries and non-goals" }],
+        "test_refs": [{ "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins a manifest digest without producer commit self-reference" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins a manifest digest without producer commit self-reference" }]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/source-lock.json", "docs/management/tasks/canonical-company-authority-producer-contract-v1.json"]
+    }
+  ],
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "hybrid",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": ["signed TenantContextEnvelopeV1", "Brainbase canonical tenant/person authority"],
+      "resolution_point": "Brainbase authority producer before CanonicalExecutionContextV1 emission",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": ["observed_request", "canonical_context", "wire_response", "fixture_manifest"],
+      "verified_surfaces": ["observed_request", "canonical_context", "wire_response", "fixture_manifest"]
+    },
+    "resources": [{
+      "name": "company authority execution context",
+      "sharing": "tenant_partitioned",
+      "tenant_key": "tenant_id",
+      "partition_key": "tenant_id/person_id/resource_ref",
+      "trust_zone": "Brainbase authority producer contract",
+      "residue_policy": "synthetic fixture only; no customer data",
+      "data_owner": "Brainbase Tenant Authority",
+      "credential_scope": "tenant-bound opaque authority context (fixture only)"
+    }],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "tenant-bound opaque authority context (fixture only)",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": ["Brainbase Tenant Authority"],
+      "residency": "contract-only synthetic payloads; no runtime or customer data",
+      "migration": "No data migration is part of A0 contract preparation",
+      "rollback": "Discard contract artifacts; no runtime state is changed"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"],
+    "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+    "graph_metadata": {
+      "tenant_entities": ["tenant", "person", "membership", "workspace_connection", "authority_context"],
+      "boundary_edges": ["tenant and person resolve through Brainbase authority before context emission", "no cross-tenant or cross-person fallback"]
+    },
+    "verification": {
+      "scanner_coverage": "unverified",
+      "evidence": {
+        "propagation_surfaces": ["observed_request", "canonical_context", "wire_response", "fixture_manifest"],
+        "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+        "spec": { "tenant_key": "tenant_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"] },
+        "implementation": { "tenant_key": "tenant_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"] }
+      }
+    }
+  },
+  "open_questions": [],
+  "generated_at": "2026-08-21T00:00:00.000Z"
+}
