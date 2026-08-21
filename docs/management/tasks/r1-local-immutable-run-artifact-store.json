@@ -270,15 +270,27 @@
     },
     "error_shapes": {
       "save": {
-        "required_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
-        "allowed_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
+        "required_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "failure_phase", "effects"],
+        "allowed_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "failure_phase", "effects"],
         "literals": {"ok": false, "operation": "save", "status": "error"},
         "fields": {
           "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": true},
           "run_id": {"type": "string", "min_length": 1, "nullable": true},
-          "record": {"type": "null", "const": null}
+          "record": {"type": "null", "const": null},
+          "failure_phase": {"type": "string", "enum": ["reservation", "temporary_write", "artifact_publish", "binding_publish", "commit_verify"], "nullable": true}
         },
-        "effects": {"required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"], "all_values": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}
+        "effects": {
+          "required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"],
+          "value_contract": {
+            "success_record_returned": false,
+            "artifact_bytes_changed": "actual boolean for operation-created temporary or published-unbound artifact-root bytes; false for pre-publication validation and reservation failures",
+            "binding_changed": "actual boolean for binding bytes published by this operation",
+            "repair_attempted": false,
+            "overwrite_attempted": false,
+            "delete_attempted": "actual boolean; true only when owner cleanup of operation-created temporary bytes was attempted",
+            "runner_invocations": 0
+          }
+        }
       },
       "reload": {
         "required_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
@@ -312,6 +324,7 @@
       "binding_missing_or_mismatch": "binding is absent or does not point to requested artifact_id",
       "non_regular_file": "locator resolves to a directory, device, FIFO, socket, or symlink",
       "cross_filesystem": "reservation, binding, and artifact root have different devices",
+      "storage_io_error": "reservation/lock, temporary open/write/fsync, rename/artifact fsync, binding create/fsync, or commit readback/verify failed",
       "not_found": "no committed artifact is visible at the safe locator"
     },
     "raw_os_errors_are_not_contract": true
@@ -321,8 +334,8 @@
     "fresh_process_protocol": [
       "process/store A seeds the artifact or crash fixture, records artifact bytes and binding bytes, then closes",
       "fresh process/store B reopens the same root and performs exactly one save/reload/list operation",
-      "B asserts the exact code and result shape, record is absent on error, runner_invocations=0, and no repair/overwrite/delete occurred",
-      "B reads artifact and binding bytes again and asserts existing bytes and binding are unchanged"
+      "B asserts the exact code and result shape, save failure_phase, case-specific effects, record is absent on error, runner_invocations=0, and no repair/overwrite occurred",
+      "B reads pre-existing committed artifact and binding bytes again and asserts they are unchanged; storage fault cases separately read back operation-created temporary, published-unbound, and binding bytes"
     ],
     "cases": [
       {"id": "tamper", "fixture": "one envelope byte changed", "operation": "reload", "expected_code": "integrity_mismatch"},
@@ -343,6 +356,16 @@
       {"id": "dot-segment", "fixture": "dot or dot-dot segment in locator", "operation": "reload", "expected_code": "invalid_path"},
       {"id": "url-scheme", "fixture": "URL scheme in locator", "operation": "reload", "expected_code": "invalid_path"},
       {"id": "cross-filesystem", "fixture": "reservation and artifact root on different device", "operation": "save", "expected_code": "cross_filesystem"},
+      {"id": "reservation-io-failure", "fixture": "fault injected while acquiring the per-run reservation or lock", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "reservation", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}},
+      {"id": "temporary-open-io-failure", "fixture": "fault injected before the temporary file is created", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "temporary_write", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}},
+      {"id": "temporary-write-io-failure", "fixture": "fault injected after partial temporary bytes are written", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "temporary_write", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": true, "runner_invocations": 0}, "readback": "owner cleanup attempted; no committed visibility"},
+      {"id": "temporary-fsync-io-failure", "fixture": "fault injected while fsyncing complete temporary bytes", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "temporary_write", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": true, "runner_invocations": 0}, "readback": "owner cleanup attempted; no committed visibility"},
+      {"id": "temporary-cleanup-io-failure", "fixture": "temporary write fails and the owner cleanup unlink also fails", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "temporary_write", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": true, "runner_invocations": 0}, "readback": "hidden temporary bytes remain and are not listable or reloadable"},
+      {"id": "atomic-rename-io-failure", "fixture": "fault injected while renaming the complete temporary envelope", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "artifact_publish", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": true, "runner_invocations": 0}, "readback": "owner temporary cleanup attempted; no committed visibility"},
+      {"id": "artifact-fsync-io-failure", "fixture": "rename succeeds and artifact fsync fails", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "artifact_publish", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}, "readback": "published-unbound bytes remain invisible and are not cleaned up"},
+      {"id": "binding-create-io-failure", "fixture": "artifact publication succeeds and create-once binding creation fails", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "binding_publish", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}, "readback": "published-unbound bytes remain invisible and are recoverable only by an exact next save"},
+      {"id": "binding-fsync-io-failure", "fixture": "binding publication succeeds and binding fsync fails", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "binding_publish", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": true, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}, "readback": "artifact and binding bytes are read back truthfully; no success is returned"},
+      {"id": "commit-verify-io-failure", "fixture": "artifact and binding publication succeed and final commit readback or verification fails", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "commit_verify", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": true, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}, "readback": "next exact save must converge through idempotent or recovery verification"},
       {"id": "symlink", "fixture": "symlink at locator", "operation": "reload", "expected_code": "non_regular_file"},
       {"id": "directory", "fixture": "directory at locator", "operation": "reload", "expected_code": "non_regular_file"},
       {"id": "device", "fixture": "device at locator", "operation": "reload", "expected_code": "non_regular_file"},
@@ -360,8 +383,8 @@
     "common_assertions": [
       "save/reload error result.record is exactly null; list error result.items and result.count are exactly null; success_record_returned is false for every error",
       "runner_invocations is exactly 0",
-      "artifact bytes, binding bytes, and committed artifact identity are unchanged",
-      "repair_attempted, overwrite_attempted, and delete_attempted are false",
+      "pre-existing committed artifact bytes, binding bytes, and committed artifact identity are unchanged",
+      "repair_attempted and overwrite_attempted are false; ordinary validation/conflict/path errors have all effects zero, while storage fault effects and failure_phase match the actual operation-created bytes and owner cleanup attempt",
       "committed list success returns only artifact_id/run_id/binding=verified items under the caller-owned root, count=items.length, and artifact_id ascending UTF-8 bytewise lexicographic order",
       "list scans direct children of the caller-owned root only, never recurses or follows directories/symlinks, and excludes all nested entries",
       "temporary list success is empty and temporary reload is not_found; published-unbound list success is empty and published-unbound reload is binding_missing_or_mismatch; each preserves bytes/binding and performs no cleanup"
@@ -412,10 +435,10 @@
       "ac_id": "AC-004",
       "assertion_id": "r1-ac004-atomic-save",
       "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
-      "pre_fix_red_assertion": "fail when a conflicting writer creates temp/final bytes before reservation and binding check, or when cross-filesystem claim is attempted",
-      "expected_result": "new/idempotent save follows reservation->binding check->temp->rename->create-once and exposes no partial state; allowed success pairs are new+created, new+recovered, and idempotent+existing only",
-      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-004.json",
-      "release_block_condition": "block if ordering, atomicity, same-device check, or crash-state visibility is unproven"
+      "pre_fix_red_assertion": "fail when a conflicting writer creates temp/final bytes before reservation and binding check, cross-filesystem claim is attempted, or any reservation/temp/rename/artifact fsync/binding/commit-verify I/O fault is returned with an unstable code, wrong phase, or false effects",
+      "expected_result": "new/idempotent save follows reservation->binding check->temp write/fsync->rename/artifact fsync->create-once binding/fsync->commit verify; every storage fault returns storage_io_error, exact failure_phase, truthful effects/readback, no success record, and unchanged pre-existing committed bytes",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-004-storage-io-faults.json",
+      "release_block_condition": "block if ordering, atomicity, same-device check, crash-state visibility, fault phase, effects, or fresh-process readback is unproven"
     },
     {
       "ac_id": "AC-005",
@@ -448,16 +471,16 @@
       "ac_id": "AC-008",
       "assertion_id": "r1-ac008-filesystem-and-concurrency",
       "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
-      "pre_fix_red_assertion": "fail when traversal, absolute path, NUL, separator, dot, URL, symlink, non-regular file, cross-device claim, partial state, or concurrent last-write-wins is possible",
-      "expected_result": "path_escape, invalid_path, non_regular_file, cross_filesystem, or conflict exact code; flat-layout list scans caller-owned root direct children only without recursion or directory/symlink following, returns only direct-child committed items with verified bindings, count=items.length, and artifact_id ascending UTF-8 bytewise lexicographic order, and excludes nested entries; temporary list/reload are empty/not_found and published-unbound list/reload are empty/binding_missing_or_mismatch",
+      "pre_fix_red_assertion": "fail when traversal, absolute path, NUL, separator, dot, URL, symlink, non-regular file, cross-device claim, partial state, concurrent last-write-wins, or a filesystem I/O fault lacks stable storage_io_error/failure_phase/effects",
+      "expected_result": "path_escape, invalid_path, non_regular_file, cross_filesystem, conflict, or storage_io_error exact code; storage fault phases and effects match readback; flat-layout list scans caller-owned root direct children only without recursion or directory/symlink following, returns only direct-child committed items with verified bindings, count=items.length, and artifact_id ascending UTF-8 bytewise lexicographic order, and excludes nested entries; temporary list/reload are empty/not_found and published-unbound list/reload are empty/binding_missing_or_mismatch",
       "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-008.json",
-      "release_block_condition": "block if any fixture lacks root containment, no-cleanup, invisibility, create-once, committed-list order, or list-error-shape evidence"
+      "release_block_condition": "block if any fixture lacks root containment, owner-cleanup truthfulness, invisibility, create-once, storage fault phase/effects, committed-list order, or list-error-shape evidence"
     },
     {
       "ac_id": "AC-009",
       "assertion_id": "r1-ac009-red-contract",
       "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
-      "pre_fix_red_assertion": "each listed pre-fix defect must fail before GREEN implementation; a pre-fix pass is a RED evidence failure",
+      "pre_fix_red_assertion": "each listed pre-fix defect, including raw/unstable storage I/O errors and incorrect failure_phase/effects, must fail before GREEN implementation; a pre-fix pass is a RED evidence failure",
       "expected_result": "RED receipt contains each assertion id and its observed pre-fix failure, then GREEN receipt is separate",
       "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-009.json",
       "release_block_condition": "block if RED is absent, mixed with GREEN, or a known unsafe behavior passes"
@@ -490,6 +513,7 @@
       "canonical digest and RFC 8785 JCS key-order/number/Unicode/lone-surrogate fixtures",
       "same-content idempotency and same-run_id conflict",
       "per-run reservation ordering, atomic publish, partial write, crash states, and concurrent writer behavior",
+      "fault injection for reservation/lock, temporary open/write/fsync and cleanup, rename/artifact fsync, binding create/fsync, and commit readback/verify with storage_io_error, exact failure_phase, truthful effects, and fresh-process readback",
       "tamper, truncation, zero-byte, unknown version, and extra-field rejection",
       "envelope/payload/record run_id equality and fail-closed mismatches",
       "path traversal, symlink, non-regular file, and root containment negatives",
@@ -501,7 +525,7 @@
     ],
     "required_assertion_units": [
       "save/reload negative fixtures assert exact result code/status and record=null; list error fixtures assert exact code/status, items=null, and count=null",
-      "every negative fixture asserts runner_invocations=0, no repair/overwrite/delete, and unchanged artifact/binding bytes",
+      "every negative fixture asserts runner_invocations=0, no repair/overwrite, and unchanged pre-existing committed artifact/binding bytes; ordinary errors assert all effects zero while storage faults assert exact new-byte, binding-publication, and owner-cleanup effects",
       "cross-filesystem, absolute path, NUL, slash/backslash separator, dot segment, URL scheme, symlink, and non-regular file are separate fixture assertions",
       "published-unbound exact same-run recovery is distinct from different-content conflict; both assert no implicit cleanup",
       "committed list success asserts exact items/count/root-scope/binding shape and artifact_id ascending UTF-8 bytewise lexicographic order",

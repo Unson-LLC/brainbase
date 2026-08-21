@@ -127,15 +127,15 @@ reservation、binding、artifact rootは同じfilesystemであることを実装
 - reloadは同じ7 keyだけを返す。`operation=reload`、`status=loaded`、`record`は検証済みでrecursive deep-frozenなJ0 record、`binding=verified`である。
 - listは`{ok, operation, status, items, count}`だけを返し、`artifact_id`、`run_id`、`record`、`binding`をrootに持たない。artifact storeはseparatorを含まないartifact_id由来locatorを使うflat layoutであり、listはcaller-owned root直下だけを走査してdirectoryへ再帰せず、symlinkをfollowしない。`status=empty`は`items=[]`・`count=0`、`status=committed`はroot直下の全committed artifactを`{artifact_id, run_id, binding=verified}`として返し、`artifact_id`のUTF-8 bytewise lexicographic昇順で一意に並べ、`count=items.length`とする。temporary、published-unbound、nested entryは含めない。temporaryはlist=`empty`・reload=`not_found`、published-unboundはlist=`empty`・reload=`binding_missing_or_mismatch`であり、いずれもcleanupしない。
 
-失敗結果もoperationごとにexact shapeを分ける。save/reloadは`{ok=false, operation, status=error, code, artifact_id, run_id, record=null, effects}`、listは`{ok=false, operation=list, status=error, code, items=null, count=null, effects}`だけを返す。いずれの`effects`も`success_record_returned=false`、artifact/binding bytes変更なし、repair/overwrite/deleteなし、`runner_invocations=0`を必須値とする。
+失敗結果もoperationごとにexact shapeを分ける。saveは`{ok=false, operation=save, status=error, code, artifact_id, run_id, record=null, failure_phase, effects}`、reloadは`{ok=false, operation=reload, status=error, code, artifact_id, run_id, record=null, effects}`、listは`{ok=false, operation=list, status=error, code, items=null, count=null, effects}`だけを返す。saveの`failure_phase`は通常の検証・競合・path errorでnull、storage I/O errorでは`reservation`、`temporary_write`、`artifact_publish`、`binding_publish`、`commit_verify`のいずれかを必須とする。全errorで`success_record_returned=false`、`repair_attempted=false`、`overwrite_attempted=false`、`runner_invocations=0`とする一方、`artifact_bytes_changed`、`binding_changed`、`delete_attempted`は操作中に実際に起きたtemporary/published-unbound/binding bytes変更とowner cleanup試行を偽りなく表す。pre-existing committed artifact/binding bytesは全失敗で不変とする。
 
 VibePro `0.2.0-beta.11`の`pr prepare`読戻しはAC-002・AC-011だけをmapped（2/11）、残り9件をunmappedとする。Taskの11/11 coverageとdraft clauseの13/13 `test_refs`はplanning contractであってPR-ready evidenceではない。別のimplementation/verification changeでaccepted Specと実test/evidenceを結合し`pr prepare`を再生成するまで、draftのaccepted化、証拠なしのfinal Spec、PR ready主張を禁止する。
 
-固定error codeは次の通りである。`invalid_artifact_id`はartifact_idの形式不正、`invalid_path`はabsolute/NUL/separator/dot/URLなどlocator入力不正、`path_escape`はroot外解決、`schema_invalid`はenvelope/payload/record/JCS/schema不正、`integrity_mismatch`はstored bytes・canonical envelope・digest・identity不一致、`binding_missing_or_mismatch`はbinding欠落または別artifact指示、`non_regular_file`はsymlinkを含むregular file以外、`cross_filesystem`はreservation/binding/artifact rootのdevice不一致、`conflict`は同じrun_idの異なるcanonical content、`not_found`はcommitted artifact不在を表す。raw OS errorは契約ではない。
+固定error codeは次の通りである。`invalid_artifact_id`はartifact_idの形式不正、`invalid_path`はabsolute/NUL/separator/dot/URLなどlocator入力不正、`path_escape`はroot外解決、`schema_invalid`はenvelope/payload/record/JCS/schema不正、`integrity_mismatch`はstored bytes・canonical envelope・digest・identity不一致、`binding_missing_or_mismatch`はbinding欠落または別artifact指示、`non_regular_file`はsymlinkを含むregular file以外、`cross_filesystem`はreservation/binding/artifact rootのdevice不一致、`conflict`は同じrun_idの異なるcanonical content、`storage_io_error`はreservation/lock、temporary open/write/fsync、rename/artifact fsync、binding create/fsync、commit readback/verifyのI/O失敗、`not_found`はcommitted artifact不在を表す。raw OS errorは契約ではない。
 
 ## Fresh process/store negative E2Eとfixture単位のassertion
 
-後続の`tests/judgment-dag-artifact-store.test.ts`は、process/store Aが同一rootへfixtureをseedしてartifact bytes・binding bytesを記録して終了し、fresh process/store Bが同じrootをreopenして一操作だけ実行する二段階で検証する。Bは固定`code`とresult shapeを確認し、save/reload errorでは`record=null`、list errorでは`items=null`・`count=null`、全errorで`runner_invocations=0`、`repair_attempted=false`、`overwrite_attempted=false`、`delete_attempted=false`を確認する。最後にAのartifact・binding bytesとcommitted identityを再読込し、既存状態がbyte-for-byte不変であることを確認する。修復、overwrite、unlink、削除、暗黙cleanupはどのnegative caseでも発生してはならない。
+後続の`tests/judgment-dag-artifact-store.test.ts`は、process/store Aが同一rootへfixtureをseedしてartifact bytes・binding bytesを記録して終了し、fresh process/store Bが同じrootをreopenして一操作だけ実行する二段階で検証する。Bは固定`code`、saveの`failure_phase`、result shape、case別`effects`を確認し、save/reload errorでは`record=null`、list errorでは`items=null`・`count=null`、全errorで`runner_invocations=0`、`repair_attempted=false`、`overwrite_attempted=false`を確認する。最後にAのpre-existing committed artifact・binding bytesとidentityを再読込し、byte-for-byte不変であることを確認する。通常の検証・競合・path errorは全effects zeroとし、storage faultは新規temporary/published-unbound/binding bytesとowner cleanup試行をreadbackして一致させる。
 
 | Fixture/assertion unit | Operation | Expected result |
 | --- | --- | --- |
@@ -157,6 +157,16 @@ VibePro `0.2.0-beta.11`の`pr prepare`読戻しはAC-002・AC-011だけをmapped
 | dot segment locator | reload | `invalid_path` |
 | URL-scheme locator | reload | `invalid_path` |
 | reservation/artifact root on different device | save | `cross_filesystem`、atomic claimなし |
+| reservation/lock I/O fault | save | `storage_io_error`、`failure_phase=reservation`、effects all zero |
+| temporary open I/O fault | save | `storage_io_error`、`failure_phase=temporary_write`、effects all zero |
+| temporary write I/O fault | save | `storage_io_error`、`failure_phase=temporary_write`、temporary bytes changed、owner cleanup attempted |
+| temporary fsync I/O fault | save | `storage_io_error`、`failure_phase=temporary_write`、temporary bytes changed、owner cleanup attempted |
+| temporary cleanup fault after write failure | save | `storage_io_error`、`failure_phase=temporary_write`、`delete_attempted=true`、hidden temporary bytesをreadback |
+| atomic rename I/O fault | save | `storage_io_error`、`failure_phase=artifact_publish`、temporary bytes changed、owner cleanup attempted |
+| artifact fsync I/O fault after rename | save | `storage_io_error`、`failure_phase=artifact_publish`、published-unbound保持、cleanupなし |
+| binding create I/O fault | save | `storage_io_error`、`failure_phase=binding_publish`、published-unbound保持、binding変更なし |
+| binding fsync I/O fault after publication | save | `storage_io_error`、`failure_phase=binding_publish`、artifact/binding bytes changed、cleanupなし |
+| commit readback/verify I/O fault | save | `storage_io_error`、`failure_phase=commit_verify`、artifact/binding bytes changed、成功を返さない |
 | symlink at locator | reload | `non_regular_file`、symlink followなし |
 | directory at locator | reload | `non_regular_file` |
 | device at locator | reload | `non_regular_file` |
@@ -192,7 +202,8 @@ canonicalizationは独自規則を作らず、RFC 8785 JSON Canonicalization Sch
 - `atomically_renamed`: canonical envelope fileが存在するが、binding作成までは`published-unbound`であり、通常のlist/reload/APIから不可視。
 - `binding_created`: create-once bindingが同じartifact_idを指した時だけcompleted artifactとして可視。
 - `committed`: bindingとenvelopeのintegrityを再確認した成功状態。
-- lock中の失敗はbindingを作成せず、tempをownerがcleanupする。crash後に残るtempは不可視で、将来の明示的maintenance storyだけが同じreservation境界でcleanupする。
+- reservation/lockのI/O失敗は共有bytesを変更せず`failure_phase=reservation`で返す。temporary open前の失敗もbytes変更なし、write/fsync後の失敗はownerが自分のtempだけをcleanupし、試行した時点で`delete_attempted=true`とする。cleanup自体が失敗した場合はhidden tempを残し、`artifact_bytes_changed=true`とfresh-process readbackを一致させる。
+- rename失敗はowner tempのcleanupを試みる。rename成功後のartifact fsync失敗はpublished-unboundを削除せず`artifact_bytes_changed=true`で返す。binding create失敗もpublished-unboundを保持する。binding publish/fsync後またはcommit readback/verify失敗は`binding_changed=true`を含む実effectsを返し、成功を返さない。次の完全一致saveだけがlock内のidempotent/recovery規則で収束できる。
 - crash後に残る`published-unbound`はcompleted artifactではなく、save/reloadの暗黙cleanup対象でもない。次回同じrun_idのlock保持者は、要求envelopeと完全一致する時だけcreate-once bindingで回復し、異なる要求なら新しいartifactを公開せずdenyする。unbound fileを削除・再利用するcleanupはこのStoryの外側でのみ行う。
 
 同じrun_idの同時writerはper-run lockで直列化する。同じcanonical payloadなら既存bindingを検証してidempotentに返し、異なるpayloadなら最初のbindingを守り後続をconflictにする。last-write-wins、部分bytesの勝利、競合時の削除を認めない。

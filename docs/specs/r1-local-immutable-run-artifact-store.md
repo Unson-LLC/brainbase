@@ -124,13 +124,13 @@ save、reload、listは、後続実装で次のresult envelopeへ正規化する
 
 成功結果はoperationごとにexact shapeを分け、余分なkeyを認めない。saveは`{ok, operation, status, artifact_id, run_id, record, binding}`で`record=null`、許可pairは`status=new`かつ`binding=created|recovered`、または`status=idempotent`かつ`binding=existing`の3通りだけである。reloadは同じ7 keyで`status=loaded`、`record`は検証済みでrecursive deep-frozenなJ0 record、`binding=verified`。artifact storeはseparatorを含まないartifact_id由来locatorを使うflat layoutであり、listはcaller-owned root直下だけを走査してdirectoryへ再帰せず、symlinkをfollowしない。listは`{ok, operation, status, items, count}`だけを返し、単一artifact keyをrootに持たない。list `empty`は`items=[]`・`count=0`、`committed`はroot直下の全committed artifactを`{artifact_id, run_id, binding=verified}`として返し、`artifact_id`のUTF-8 bytewise lexicographic昇順で一意に並べ、`count=items.length`とする。temporary、published-unbound、nested entryは含めない。temporaryはlist=`empty`・reload=`not_found`、published-unboundはlist=`empty`・reload=`binding_missing_or_mismatch`であり、いずれもcleanupしない。
 
-失敗結果もoperationごとにexact shapeを分ける。save/reloadは`{ok=false, operation, status=error, code, artifact_id, run_id, record=null, effects}`、listは`{ok=false, operation=list, status=error, code, items=null, count=null, effects}`だけを返す。全errorの`effects`は`success_record_returned=false`、`artifact_bytes_changed=false`、`binding_changed=false`、`repair_attempted=false`、`overwrite_attempted=false`、`delete_attempted=false`、`runner_invocations=0`を必須値とする。固定codeは`conflict`、`invalid_artifact_id`、`invalid_path`、`path_escape`、`schema_invalid`、`integrity_mismatch`、`binding_missing_or_mismatch`、`non_regular_file`、`cross_filesystem`、`not_found`であり、raw OS error文字列を契約値にしない。
+失敗結果もoperationごとにexact shapeを分ける。saveは`{ok=false, operation=save, status=error, code, artifact_id, run_id, record=null, failure_phase, effects}`、reloadは`{ok=false, operation=reload, status=error, code, artifact_id, run_id, record=null, effects}`、listは`{ok=false, operation=list, status=error, code, items=null, count=null, effects}`だけを返す。saveの`failure_phase`は通常の検証・競合・path errorでnull、storage I/O errorでは`reservation|temporary_write|artifact_publish|binding_publish|commit_verify`のいずれかである。全errorで`success_record_returned=false`、`repair_attempted=false`、`overwrite_attempted=false`、`runner_invocations=0`を必須とし、`artifact_bytes_changed`、`binding_changed`、`delete_attempted`はこの操作が実際に作ったtemporary/published-unbound/binding bytesとowner cleanup試行を表す。pre-existing committed bytesは常に不変とする。固定codeは`conflict`、`invalid_artifact_id`、`invalid_path`、`path_escape`、`schema_invalid`、`integrity_mismatch`、`binding_missing_or_mismatch`、`non_regular_file`、`cross_filesystem`、`storage_io_error`、`not_found`であり、raw OS error文字列を契約値にしない。
 
 VibePro `0.2.0-beta.11`の`pr prepare`読戻しはAC-002・AC-011の2/11だけをmapped、残り9/11をunmappedとする。Taskの11/11 coverageとdraftの13/13 `test_refs`はplanning contractであり、PR-ready evidenceではない。別のimplementation/verification changeでaccepted Specと実test/evidenceを結合し`pr prepare`を再生成するまで、draftのaccepted化、証拠なしのfinal Spec、Task coverageからのPR ready主張を禁止する。
 
 ## Fresh process/store negative E2Eとassertion units
 
-後続テストはA/B fresh process protocolを使う。Aが同一rootへartifactまたはcrash fixtureをseedし、artifact・binding bytesを記録して終了する。fresh process/store Bが同じrootをreopenして一操作だけ行い、上記のexact result shape/code、save/reload errorの`record=null`、list errorの`items=null`・`count=null`、`runner_invocations=0`、修復・overwrite・deleteなしを確認する。Bの後にbytes、binding、committed identityを再読込し、既存状態が不変であることを確認する。
+後続テストはA/B fresh process protocolを使う。Aが同一rootへartifactまたはcrash fixtureをseedし、artifact・binding bytesを記録して終了する。fresh process/store Bが同じrootをreopenして一操作だけ行い、上記のexact result shape/code、saveの`failure_phase`、case別`effects`、save/reload errorの`record=null`、list errorの`items=null`・`count=null`、`runner_invocations=0`、修復・overwriteなしを確認する。Bの後にpre-existing committed bytes、binding、identityを再読込し、不変であることを確認する。storage faultでは新規temporary/published-unbound/binding bytesとowner cleanup試行を別にreadbackする。
 
 fixture/assertionは次を個別に持つ。
 
@@ -139,6 +139,7 @@ fixture/assertionは次を個別に持つ。
 - malformed artifact_idは`invalid_artifact_id`、unknown schema/extra fieldは`schema_invalid`、別artifactを指すbindingは`binding_missing_or_mismatch`、committed artifact不在は`not_found`とする。
 - root escapeは`path_escape`。absolute path、NUL、slash separator、backslash separator、dot segment、URL schemeは各々`invalid_path`。
 - reservation/binding/artifact rootのcross-filesystem claimは`cross_filesystem`で、atomic claimを試さない。
+- reservation/lock、temporary open/write/fsync、rename/artifact fsync、binding create/fsync、commit readback/verifyのfault injectionは`storage_io_error`と対応する`failure_phase`を返す。write/fsync後のowner temp cleanup試行は`delete_attempted=true`、cleanup失敗時はhidden tempを保持する。rename後はpublished-unboundを保持し、binding publication後は`binding_changed=true`を返して成功に丸めない。
 - symlink、directory、device、FIFO、socketは各々`non_regular_file`で、symlink followをしない。
 - temporaryとpublished-unboundはlistで`empty`、reloadでsuccess recordなしとし、通常処理がcleanupしない。
 
@@ -152,7 +153,7 @@ committed list successは、`items`がcaller-owned root直下のcommitted artifa
 | published-unbound file reloaded | reload | `binding_missing_or_mismatch`、success recordなし、cleanupなし |
 | nested directory内のvalid-looking committed envelope、temporary、published-unbound | list | non-recursive、directory/symlinkをfollowせず全nested entryを除外、`status=empty`、cleanupなし |
 
-すべてのnegative assertionは、失敗resultのoperation別required keys、save/reloadでは`record=null`、listでは`items=null`・`count=null`、runner count 0、no repair/overwrite/delete、artifact/binding bytes unchangedを同時に検証する。
+すべてのnegative assertionは、失敗resultのoperation別required keys、save/reloadでは`record=null`、listでは`items=null`・`count=null`、runner count 0、no repair/overwrite、pre-existing committed artifact/binding bytes unchangedを同時に検証する。通常errorはeffects all zero、storage faultは`failure_phase`と実際のnew bytes・binding publication・owner cleanup試行を個別に固定する。
 
 ## Fail-closed matrix
 
@@ -160,7 +161,7 @@ committed list successは、`items`がcaller-owned root直下のcommitted artifa
 | --- | --- | --- |
 | Identity | artifact_id形式不正、run_id欠落、source lock差替え、envelope/payload/record run_id不一致 | reject、filesystem effectなし |
 | Serialization | RFC 8785 JCS key order/number/Unicode/lone-surrogate fixture違反、unknown field、非JSON値、cycle、sparse array、非有限数 | reject、artifactを公開しない |
-| Save atomicity | reservation前の公開、write中断、zero-byte、rename前読取り、partial target、cross-filesystem claim | final artifactとして見せない |
+| Save atomicity | reservation/lock、temporary open/write/fsync、rename/artifact fsync、binding create/fsync、commit verifyのI/O fault、reservation前の公開、write中断、zero-byte、rename前読取り、partial target、cross-filesystem claim | `storage_io_error` + exact `failure_phase` + truthful effects、非committed stateをfinal artifactとして見せない |
 | Idempotency | same run_id and same bytes | one immutable artifact、idempotent success |
 | Run conflict | same run_id and different content/digest | conflict、existing binding/artifact unchanged |
 | Immutability | overwrite、unlink+replace、digest mismatch、tamper | reject、既存artifactを変更しない |
@@ -182,6 +183,7 @@ committed list successは、`items`がcaller-owned root直下のcommitted artifa
 - symlink、absolute path、path traversalでroot外へ到達できる。
 - 同時writerの最後の内容がbindingを置き換える。
 - temporary/partial/published-unbound fileをcompleted artifactとして読み込める、または曖昧な自動cleanupで削除・再利用できる。
+- storage I/O failureを成功、raw OS文字列、誤ったphase/effectsへ丸められる。
 - reloadしたnested objectの変更が次回reloadやidentityへ伝播する。
 
 これらをpre-fix HEADでもpassするテストはRED証拠として不十分であり、既知の不具合を表す失敗を先に記録する。
@@ -195,6 +197,7 @@ J0 hard dependencyとこのdraftのreviewが成立した別changeで、synthetic
 - envelope/payload/record run_id完全一致と各層不一致のfail-closed
 - same payload idempotencyとsame run_id different content conflict
 - per-run reservation先行、atomic temporary publish、partial write、crash-after-writeのtemporary/published-unbound境界、concurrent writer
+- reservation/lock、temporary open/write/fsync、rename/artifact fsync、binding create/fsync、commit readback/verifyのfault injectionと`storage_io_error`・`failure_phase`・truthful effects/readback
 - tamper、truncation、zero-byte、unknown version、extra fieldのreload rejection
 - traversal、symlink、non-regular file、root containmentのnegative matrix
 - reload objectのrecursive deep-freezeとcaller/storage mutation isolation
