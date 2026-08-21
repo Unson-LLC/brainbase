@@ -213,6 +213,14 @@ function normalizeActor(value) {
 }
 
 export function normalizeProvisioningManifest(input) {
+    return normalizeManifest(input, { requireConnection: true });
+}
+
+export function normalizeTenantCoreProvisioningManifest(input) {
+    return normalizeManifest(input, { requireConnection: false });
+}
+
+function normalizeManifest(input, { requireConnection }) {
     assertRecord(input, 'manifest');
     scanForSecretMaterial(input);
     assertKnownKeys(input, ALLOWED_ROOT_KEYS, 'manifest');
@@ -224,12 +232,20 @@ export function normalizeProvisioningManifest(input) {
         tenant_id: requiredString(input.tenant_id, 'tenant_id', TENANT_ID),
         display_name: requiredString(input.display_name, 'display_name', /^\S.{0,254}$/u),
         project_code: requiredString(input.project_code, 'project_code', /^[a-z][a-z0-9_-]{1,63}$/u),
-        workspace_connection: normalizeConnection(input.workspace_connection),
         service_actor: normalizeActor(input.service_actor)
     };
+    if (requireConnection) normalized.workspace_connection = normalizeConnection(input.workspace_connection);
+    else if (input.workspace_connection !== undefined) {
+        fail('MANIFEST_FIELD_FORBIDDEN', 'workspace_connection is not allowed during tenant core bootstrap');
+    }
     if (input.contract_revision === undefined) fail('MANIFEST_INVALID', 'contract_revision is required');
     normalized.contract_revision = normalizeContract(input.contract_revision);
     return deepFreeze(normalized);
+}
+
+export function canonicalTenantCoreProvisioningFingerprint(manifest) {
+    const normalized = normalizeTenantCoreProvisioningManifest(manifest);
+    return createHash('sha256').update(canonicalJson(normalized)).digest('hex');
 }
 
 export function canonicalProvisioningFingerprint(manifest) {
