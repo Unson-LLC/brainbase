@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "current": "1.0.0",
+  "current": "1.1.0",
   "releases": [
     {
       "version": "1.0.0",
-      "status": "active",
+      "status": "retired",
       "effective_at": "2026-08-01T00:00:00.000Z",
       "path": "releases/1.0.0.json",
       "content_digest_algorithm": "sha256",
@@ -29,7 +29,7 @@
     },
     {
       "version": "1.1.0",
-      "status": "proposed",
+      "status": "active",
       "effective_at": "2026-08-21T00:00:00.000Z",
       "path": "releases/1.1.0.json",
       "content_digest_algorithm": "sha256",
@@ -46,7 +46,11 @@
         ],
         "migration_required": false,
         "verification": "impacted_relation_zero_violations"
-      }
+      },
+      "receipt_path": "publications/1.1.0.receipt.json",
+      "receipt_digest_algorithm": "sha256",
+      "receipt_digest": "0b3dea585a021e24b039492c50c0b0dab629c55d1c43adb0c28cae74ef992d41",
+      "source_commit_sha": "554be0476cec464a4b9b33ec8b8a1c203a9861ad"
     }
   ]
 }
