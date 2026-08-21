@@ -4,7 +4,7 @@
   "contract_role": "brainbase_authority_producer",
   "lock_status": "producer_contract_ready",
   "manifest_version": "1.0",
-  "fixture_set_sha256": "60f97105af730e17260e348592d313f9d02d141044b22fa0a141ea8ea577718a",
+  "fixture_set_sha256": "226afa0187439696f40f1afecf25e2526764df13c1f87a9117580530e720add9",
   "producer": {
     "repository": "Unson-LLC/brainbase-unson",
     "authority_architecture_ref": "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
@@ -12,7 +12,7 @@
     "authority_story_ref": "docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
     "contract_version": "1.0.0",
     "manifest_version": "1.0",
-    "fixture_set_sha256": "60f97105af730e17260e348592d313f9d02d141044b22fa0a141ea8ea577718a",
+    "fixture_set_sha256": "226afa0187439696f40f1afecf25e2526764df13c1f87a9117580530e720add9",
     "fixture_files": [
       "fixtures/cases.json",
       "fixtures/fixture.schema.json",
@@ -22,7 +22,10 @@
     "observed_request_schema": "schema/observed-execution-request.schema.json",
     "wire_response_schema": "schema/company-authority-resolution-response.schema.json",
     "canonical_context_wire_location": "$.context",
+    "requested_operation_capability_path": "$.context.authority.capability_id",
     "company_authority_capability_path": "$.context.tenant_context.authorization.capability_ids",
+    "company_authority_capability_role": "protocol_marker",
+    "error_correlation_path": "$.error.correlation_id",
     "downstream_merged_sha_policy": "The consumer records the merged producer SHA after merge; it is intentionally absent from this producer lock."
   },
   "canonical_json": {

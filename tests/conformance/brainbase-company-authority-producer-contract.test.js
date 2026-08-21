@@ -76,11 +76,27 @@ describe('Brainbase company authority producer contract v1', () => {
         expect(contract.wire.response_context).toBe('$.context');
         expect(contract.wire.response_error).toBe('$.error');
         expect(contract.required_capability).toBe(COMPANY_AUTHORITY_CAPABILITY);
+        expect(contract.required_capability_role).toBe('protocol_marker');
         expect(contract.required_capability_path).toBe('$.context.tenant_context.authorization.capability_ids');
+        expect(contract.requested_operation_capability_path).toBe('$.context.authority.capability_id');
         expect(contract.canonical_context.required_capability_path)
             .toBe('$.context.tenant_context.authorization.capability_ids');
+        expect(contract.canonical_context.requested_operation_capability_path)
+            .toBe('$.context.authority.capability_id');
+        expect(contract.wire.requested_operation_capability_path).toBe('$.context.authority.capability_id');
         expect(contract.wire.company_authority_capability_path)
             .toBe('$.context.tenant_context.authorization.capability_ids');
+        expect(contract.wire.error_correlation_path).toBe('$.error.correlation_id');
+        expect(observedRequestSchema['x-requested-operation-capability-path'])
+            .toBe('$.requested_action.capability_id');
+        expect(canonicalContextSchema['x-requested-operation-capability-path'])
+            .toBe('$.authority.capability_id');
+        expect(canonicalContextSchema['x-protocol-capability-marker']).toEqual({
+            path: '$.tenant_context.authorization.capability_ids',
+            value: COMPANY_AUTHORITY_CAPABILITY,
+            role: 'protocol_marker'
+        });
+        expect(responseSchema['x-error-correlation-path']).toBe('$.error.correlation_id');
         expect(contract.canonical_json.profile).toBe('RFC8785_JCS');
         expect(contract.signature.profile).toBe('detached-jws-ed25519');
         expect(contract.canonical_error_codes).toEqual(CANONICAL_ERROR_CODES);
@@ -96,9 +112,15 @@ describe('Brainbase company authority producer contract v1', () => {
             'actor.canonical_person_id == tenant_context.actor.principal_id',
             'scope.organization_id in tenant_context.authorization.organization_ids',
             'scope.project_id in tenant_context.authorization.project_ids',
-            'scope.placement_id == tenant_context.placement.deployment_id'
+            'scope.placement_id == tenant_context.placement.deployment_id',
+            'request.provider_identity.workspace_id == tenant_context.workspace_connection.workspace_id',
+            'request.provider_identity.app_id == tenant_context.workspace_connection.app_id',
+            'request.provider_identity.enterprise_id == tenant_context.slack.enterprise_id',
+            'request.delivery.channel_id == tenant_context.slack.channel_id',
+            'request.delivery.thread_ts == tenant_context.slack.thread_ts',
+            'request.delivery.event_id == tenant_context.slack.event_id'
         ]);
-        expect(canonicalContextSchema['x-cross-layer-bindings']).toHaveLength(6);
+        expect(canonicalContextSchema['x-cross-layer-bindings']).toHaveLength(12);
     });
 
     it('pins a manifest digest without producer commit self-reference', async () => {
@@ -175,6 +197,10 @@ describe('Brainbase company authority producer contract v1', () => {
                 verifyDetachedJws(fixture.context, testKey.public_jwk);
                 expect(fixture.context.tenant_context.authorization.capability_ids)
                     .toContain(COMPANY_AUTHORITY_CAPABILITY);
+                expect(fixture.context.authority.capability_id)
+                    .toBe(fixture.request.requested_action.capability_id);
+                expect(fixture.context.authority.capability_id)
+                    .not.toBe(COMPANY_AUTHORITY_CAPABILITY);
                 decisions.add(fixture.context.authority.decision);
                 if (fixture.context.authority.decision === 'deny') {
                     expect(fixture.expected.code).toBe('COMPANY_AUTHORITY_DENIED');
@@ -192,6 +218,31 @@ describe('Brainbase company authority producer contract v1', () => {
             }
         }
         expect([...decisions].sort()).toEqual(['approval', 'auto', 'deny', 'human_action']);
+    });
+
+    it('separates the requested operation capability from the protocol marker', () => {
+        const base = fixtures.positive.find(({ id }) => id === 'POS-AUTO-COMPANY-READ');
+        assert.ok(base?.context);
+        const request = structuredClone(base.request);
+        const context = structuredClone(base.context);
+        request.requested_action.capability_id = 'company_read';
+        context.authority.capability_id = 'company_read';
+        expect(context.tenant_context.authorization.capability_ids)
+            .toContain(COMPANY_AUTHORITY_CAPABILITY);
+        expect(context.authority.capability_id).not.toBe(COMPANY_AUTHORITY_CAPABILITY);
+        expect(schemaValidators.observed(request), JSON.stringify(schemaValidators.observed.errors)).toBe(true);
+        expect(schemaValidators.response({
+            schema_version: '1.0',
+            contract_id: CONTRACT_ID,
+            correlation_id: request.correlation_id,
+            context,
+            error: null
+        }), JSON.stringify(schemaValidators.response.errors)).toBe(true);
+        expect(() => validateCanonicalExecutionContext(context, {
+            expectedAudience: contract.signature.audience,
+            now: base.evaluation_time,
+            request
+        })).not.toThrow();
     });
 
     it('rejects cross-layer identity and scope mismatches and non-Slack providers', () => {
@@ -370,7 +421,7 @@ describe('Brainbase company authority producer contract v1', () => {
         expect(() => canonicalJson('\ude00')).toThrow(/surrogates/);
     });
 
-    it('accepts RFC3339 offset timestamps consistently in schema and reference validator', () => {
+    it('rejects RFC3339 offset timestamps because the shared verifier is Z-only', () => {
         const base = fixtures.positive.find(({ id }) => id === 'POS-AUTO-COMPANY-READ');
         const offsetContext = structuredClone(base.context);
         offsetContext.issued_at = '2026-08-21T09:00:00+09:00';
@@ -384,12 +435,12 @@ describe('Brainbase company authority producer contract v1', () => {
             context: offsetContext,
             error: null
         };
-        expect(schemaValidators.response(response)).toBe(true);
+        expect(schemaValidators.response(response)).toBe(false);
         expect(() => validateCanonicalExecutionContext(offsetContext, {
             expectedAudience: contract.signature.audience,
             now: '2026-08-21T09:01:00+09:00',
             request: base.request
-        })).not.toThrow();
+        })).toThrow(/date-time|invalid|TIME/);
     });
 
     it('validates response schema and enforces exactly one context or error', () => {
@@ -408,6 +459,7 @@ describe('Brainbase company authority producer contract v1', () => {
             correlation_id: diagnostic.request.correlation_id,
             context: null,
             error: {
+                correlation_id: diagnostic.request.correlation_id,
                 code: 'AUTHORITY_UNAVAILABLE',
                 phase: 'authority',
                 retryable: true,
@@ -418,6 +470,11 @@ describe('Brainbase company authority producer contract v1', () => {
         expect(schemaValidators.response(diagnosticError)).toBe(true);
         expect(() => validateWireResponseStructure(success)).not.toThrow();
         expect(() => validateWireResponseStructure(diagnosticError)).not.toThrow();
+
+        const mismatchedErrorCorrelation = structuredClone(diagnosticError);
+        mismatchedErrorCorrelation.error.correlation_id = 'corr-other';
+        expect(() => validateWireResponseStructure(mismatchedErrorCorrelation))
+            .toThrow(/correlation/);
 
         const neither = { ...success, context: null };
         const both = { ...diagnosticError, context: normal.context, error: diagnosticError.error };
@@ -447,6 +504,7 @@ describe('Brainbase company authority producer contract v1', () => {
             correlation_id: diagnostic.request.correlation_id,
             context: null,
             error: {
+                correlation_id: diagnostic.request.correlation_id,
                 code: 'AUTHORITY_UNAVAILABLE',
                 phase: 'authority',
                 retryable: true,

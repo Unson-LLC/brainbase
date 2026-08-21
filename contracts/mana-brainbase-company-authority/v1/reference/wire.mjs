@@ -11,6 +11,7 @@ export const COMPANY_AUTHORITY_CAPABILITY = 'company_authority_v1';
 export const MAX_TTL_SECONDS = 300;
 export const MAX_CLOCK_SKEW_SECONDS = 30;
 export const PROTECTED_TYP = 'application/mana-brainbase-company-authority+jws';
+export const TENANT_CONTEXT_PROTECTED_TYP = 'application/mana-brainbase-tenant-context+jws';
 export const CANONICAL_ERROR_CODES = Object.freeze([
     'DESIRED_EFFECT_REQUIRED',
     'COMPANY_AUTHORITY_REQUIRED',
@@ -52,7 +53,7 @@ const EFFECTS = new Set(['read', 'write', 'external_side_effect']);
 const PROVIDERS = new Set(['slack']);
 const REVISION = /^(0|[1-9][0-9]*)$/;
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
-const TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/;
+const TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?Z$/;
 
 export class ContractError extends Error {
     constructor(code, message, details = {}) {
@@ -146,13 +147,11 @@ function parseTimestamp(value) {
     const fraction = match[7] === undefined ? 0 : Number(`0.${match[7]}`);
     if (month < 1 || month > 12 || day < 1 || day > [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month]
         || (month === 2 && day === 29 && !(year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)))) return null;
-    const offset = match[8] === 'Z' ? 0 : Number(match[8].slice(1, 3)) * 60 + Number(match[8].slice(4, 6));
-    if (offset > 23 * 60 + 59 || hour > 23 || minute > 59 || second > 60) return null;
-    const sign = match[8] === 'Z' || match[8][0] === '+' ? 1 : -1;
+    if (hour > 23 || minute > 59 || second > 60) return null;
     const base = new Date(0);
     base.setUTCFullYear(year, month - 1, day);
     base.setUTCHours(hour, minute, second === 60 ? 59 : second, Math.floor(fraction * 1000));
-    const utc = base.getTime() - (sign === 1 ? offset : -offset) * 60 * 1000;
+    const utc = base.getTime();
     if (!Number.isFinite(utc)) return null;
     if (second === 60) {
         const leapBase = new Date(utc);
@@ -212,7 +211,11 @@ function requireCallerEvaluationTime(now) {
     return now;
 }
 
-function validateTenantContext(value) {
+function validateTenantContext(value, {
+    expectedAudience,
+    expectedDeploymentId,
+    now
+} = {}) {
     requiredKeys(value, [
         'schema_version', 'protocol_id', 'protocol_version', 'issuer', 'audience', 'tenant',
         'workspace_connection', 'actor', 'authorization', 'placement', 'slack', 'correlation_id',
@@ -257,7 +260,13 @@ function validateTenantContext(value) {
     revision(value.contract_revision, '$.tenant_context.contract_revision');
     requiredKeys(value.credential, ['mode', 'credential_ref', 'billing_principal_id'], [], '$.tenant_context.credential');
     for (const field of ['mode', 'credential_ref', 'billing_principal_id']) string(value.credential[field], `$.tenant_context.credential.${field}`);
-    validateTimeWindow(value, value.issued_at);
+    validateTimeWindow(value, now ?? value.issued_at);
+    if (expectedAudience !== undefined && !audienceContains(value.audience, expectedAudience)) {
+        fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'tenant context audience is not accepted');
+    }
+    if (expectedDeploymentId !== undefined && value.placement.deployment_id !== expectedDeploymentId) {
+        fail('AUTHORITY_SCOPE_MISMATCH', 'tenant context deployment does not match the caller expectation');
+    }
     validateIntegrity(value.integrity, '$.tenant_context.integrity', 'tenant-context');
 }
 
@@ -292,6 +301,8 @@ function validateAuthority(value) {
 function validateCrossLayerBindings(context, request) {
     const nestedActor = context.tenant_context.actor;
     const authorization = context.tenant_context.authorization;
+    const workspaceConnection = context.tenant_context.workspace_connection;
+    const slack = context.tenant_context.slack;
 
     if (nestedActor.authenticated_subject_id !== context.actor.external_subject_id) {
         fail('AUTHORITY_SCOPE_MISMATCH', 'nested authenticated subject does not bind to the outer actor', {
@@ -328,6 +339,34 @@ function validateCrossLayerBindings(context, request) {
             request_path: '$.provider_identity.authenticated_subject_id',
             outer_path: '$.actor.external_subject_id'
         });
+    }
+    if (request) {
+        const providerBindings = [
+            ['workspace_id', workspaceConnection.workspace_id, '$.tenant_context.workspace_connection.workspace_id'],
+            ['app_id', workspaceConnection.app_id, '$.tenant_context.workspace_connection.app_id'],
+            ['enterprise_id', slack.enterprise_id, '$.tenant_context.slack.enterprise_id']
+        ];
+        for (const [field, nestedValue, nestedPath] of providerBindings) {
+            if (request.provider_identity[field] !== undefined && request.provider_identity[field] !== nestedValue) {
+                fail('AUTHORITY_SCOPE_MISMATCH', `${field} does not bind request and tenant context`, {
+                    request_path: `$.provider_identity.${field}`,
+                    nested_path: nestedPath
+                });
+            }
+        }
+        const deliveryBindings = [
+            ['channel_id', slack.channel_id],
+            ['thread_ts', slack.thread_ts],
+            ['event_id', slack.event_id]
+        ];
+        for (const [field, nestedValue] of deliveryBindings) {
+            if (request.delivery?.[field] !== undefined && request.delivery[field] !== nestedValue) {
+                fail('AUTHORITY_SCOPE_MISMATCH', `${field} does not bind request and tenant context`, {
+                    request_path: `$.delivery.${field}`,
+                    nested_path: `$.tenant_context.slack.${field}`
+                });
+            }
+        }
     }
 }
 
@@ -370,6 +409,7 @@ export function validateObservedExecutionRequest(request) {
 
 export function validateCanonicalExecutionContext(context, {
     expectedAudience = 'mana-runtime',
+    expectedDeploymentId,
     now,
     request,
     expectedRevisions,
@@ -384,7 +424,7 @@ export function validateCanonicalExecutionContext(context, {
 } = {}) {
     requiredKeys(context, ['schema_version', 'tenant_context', 'actor', 'scope', 'authority', 'evidence', 'issued_at', 'expires_at', 'integrity'], [], '$');
     if (context.schema_version !== SCHEMA_VERSION) fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'context schema_version is invalid');
-    validateTenantContext(context.tenant_context);
+    validateTenantContext(context.tenant_context, { now });
     requiredKeys(context.actor, ['external_subject_id', 'canonical_person_id', 'membership_id', 'membership_revision'], [], '$.actor');
     for (const field of ['external_subject_id', 'canonical_person_id', 'membership_id']) string(context.actor[field], `$.actor.${field}`);
     revision(context.actor.membership_revision, '$.actor.membership_revision');
@@ -398,15 +438,20 @@ export function validateCanonicalExecutionContext(context, {
     validateTimeWindow(context, now ?? context.issued_at);
     validateIntegrity(context.integrity, '$.integrity');
 
+    validateTenantContext(context.tenant_context, {
+        expectedAudience,
+        expectedDeploymentId: expectedDeploymentId ?? context.scope.placement_id,
+        now
+    });
+
     if (request) validateObservedExecutionRequest(request);
     validateCrossLayerBindings(context, request);
 
     if (!audienceContains(context.tenant_context.audience, expectedAudience)) {
         fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'context audience is not accepted');
     }
-    if (!context.tenant_context.authorization.capability_ids.includes(COMPANY_AUTHORITY_CAPABILITY)
-        || context.authority.capability_id !== COMPANY_AUTHORITY_CAPABILITY) {
-        fail('COMPANY_AUTHORITY_REQUIRED', 'company_authority_v1 is required at the fixed capability path');
+    if (!context.tenant_context.authorization.capability_ids.includes(COMPANY_AUTHORITY_CAPABILITY)) {
+        fail('COMPANY_AUTHORITY_REQUIRED', 'company_authority_v1 protocol marker is required in tenant authorization');
     }
     if (request) {
         if (request.correlation_id !== context.tenant_context.correlation_id) {
@@ -508,8 +553,8 @@ function decodeBase64Url(value) {
     return Buffer.from(value, 'base64url');
 }
 
-function protectedHeader(keyId) {
-    return { alg: 'EdDSA', b64: false, crit: ['b64'], kid: keyId, typ: PROTECTED_TYP };
+function protectedHeader(keyId, typ = PROTECTED_TYP) {
+    return { alg: 'EdDSA', b64: false, crit: ['b64'], kid: keyId, typ };
 }
 
 function signingInput(context, protected64) {
@@ -525,7 +570,10 @@ export function createDetachedJws(context, privateJwk, keyId) {
     return `${protected64}..${base64Url(signature)}`;
 }
 
-export function verifyDetachedJws(context, publicJwk) {
+export function verifyDetachedJws(context, publicJwk, {
+    expectedTyp = PROTECTED_TYP,
+    expectedKeyId
+} = {}) {
     const value = context?.integrity?.value;
     const keyId = context?.integrity?.key_id;
     if (typeof value !== 'string' || typeof keyId !== 'string') fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'integrity is missing');
@@ -538,7 +586,9 @@ export function verifyDetachedJws(context, publicJwk) {
     } catch {
         fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'protected header is invalid');
     }
-    if (canonicalJson(header) !== protectedBytes.toString('utf8') || canonicalJson(header) !== canonicalJson(protectedHeader(keyId))) {
+    if (canonicalJson(header) !== protectedBytes.toString('utf8')
+        || canonicalJson(header) !== canonicalJson(protectedHeader(keyId, expectedTyp))
+        || (expectedKeyId !== undefined && keyId !== expectedKeyId)) {
         fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'protected header is not canonical');
     }
     const signature = decodeBase64Url(parts[2]);
@@ -581,7 +631,11 @@ export function applyFixtureMutations(value, mutations = []) {
  * freshness against a caller clock; use acceptCompanyAuthorityResponse for
  * consumer acceptance.
  */
-export function validateWireResponseStructure(response) {
+export function validateWireResponseStructure(response, {
+    expectedAudience = 'mana-runtime',
+    expectedDeploymentId,
+    now
+} = {}) {
     requiredKeys(response, ['schema_version', 'contract_id', 'correlation_id', 'context', 'error'], [], '$');
     if (response.schema_version !== SCHEMA_VERSION || response.contract_id !== CONTRACT_ID) {
         fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'wire response identity is invalid');
@@ -593,13 +647,20 @@ export function validateWireResponseStructure(response) {
         fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'wire response must contain exactly one context or error');
     }
     if (hasContext) {
-        validateCanonicalExecutionContext(response.context, { now: response.context.issued_at });
+        validateCanonicalExecutionContext(response.context, {
+            expectedAudience,
+            expectedDeploymentId,
+            now: now ?? response.context.issued_at
+        });
         if (response.context.tenant_context.correlation_id !== response.correlation_id) {
             fail('AUTHORITY_SCOPE_MISMATCH', 'wire response correlation_id does not bind context');
         }
     }
     if (hasError) {
-        requiredKeys(response.error, ['code', 'phase', 'retryable', 'business_effect'], [], '$.error');
+        requiredKeys(response.error, ['correlation_id', 'code', 'phase', 'retryable', 'business_effect'], [], '$.error');
+        if (response.error.correlation_id !== response.correlation_id) {
+            fail('AUTHORITY_SCOPE_MISMATCH', 'wire response correlation_id does not bind error');
+        }
         if (!CANONICAL_ERROR_CODES.includes(response.error.code)) fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'unknown canonical error code');
         if (response.error.phase !== 'authority') fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'error phase is invalid');
         if (response.error.retryable !== true && response.error.retryable !== false) fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'retryable must be boolean');
@@ -610,8 +671,11 @@ export function validateWireResponseStructure(response) {
 
 export function acceptCompanyAuthorityResponse(response, {
     expectedAudience = 'mana-runtime',
+    expectedDeploymentId,
     now,
     publicJwk,
+    tenantContextPublicJwk,
+    tenantContextKeyId,
     request,
     expectedRevisions,
     identityStatus,
@@ -624,8 +688,13 @@ export function acceptCompanyAuthorityResponse(response, {
     replayConflict = false
 } = {}) {
     requireCallerEvaluationTime(now);
-    validateWireResponseStructure(response);
-    if (response.context === null) return response;
+    validateWireResponseStructure(response, { expectedAudience, expectedDeploymentId });
+    if (response.context === null) {
+        if (request && request.correlation_id !== response.correlation_id) {
+            fail('AUTHORITY_SCOPE_MISMATCH', 'request correlation_id does not bind error response');
+        }
+        return response;
+    }
     if (publicJwk === undefined) {
         fail(
             'AUTHORITY_CONTEXT_INVALID_SIGNATURE',
@@ -635,8 +704,13 @@ export function acceptCompanyAuthorityResponse(response, {
     }
 
     verifyDetachedJws(response.context, publicJwk);
+    verifyDetachedJws(response.context.tenant_context, tenantContextPublicJwk ?? publicJwk, {
+        expectedTyp: TENANT_CONTEXT_PROTECTED_TYP,
+        expectedKeyId: tenantContextKeyId
+    });
     validateCanonicalExecutionContext(response.context, {
         expectedAudience,
+        expectedDeploymentId,
         now,
         request,
         expectedRevisions,
@@ -649,5 +723,8 @@ export function acceptCompanyAuthorityResponse(response, {
         personalTargetPersonId,
         replayConflict
     });
+    if (response.context.authority.decision === 'deny') {
+        fail('COMPANY_AUTHORITY_DENIED', 'deny decision cannot be accepted as a successful context');
+    }
     return response;
 }

@@ -2,7 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Unson-LLC/brainbase-unson/contracts/mana-brainbase-company-authority/v1/schema/company-authority-resolution-response.schema.json",
   "title": "CompanyAuthorityResolutionResponseV1",
-  "description": "Producer-owned wire envelope. The JSONPath $ root carries the signed context at $.context on success or one canonical authority error at $.error on failure; failures have no business effect.",
+  "description": "Producer-owned wire envelope. The JSONPath $ root carries the signed context at $.context on success or one canonical authority error at $.error on failure; failures have no business effect. Error correlation_id is bound to the root correlation_id.",
+  "x-error-correlation-path": "$.error.correlation_id",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "contract_id", "correlation_id", "context", "error"],
@@ -22,8 +23,9 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["code", "phase", "retryable", "business_effect"],
+          "required": ["correlation_id", "code", "phase", "retryable", "business_effect"],
           "properties": {
+            "correlation_id": { "type": "string", "minLength": 1 },
             "code": { "enum": ["DESIRED_EFFECT_REQUIRED", "COMPANY_AUTHORITY_REQUIRED", "COMPANY_AUTHORITY_EFFECT_MISMATCH", "COMPANY_AUTHORITY_DENIED", "PERSON_UNKNOWN", "PERSON_AMBIGUOUS", "AUTHORITY_CROSS_ORG", "AUTHORITY_SCOPE_MISMATCH", "AUTHORITY_CONTEXT_STALE", "APPROVER_MISMATCH", "AUTHORITY_UNAVAILABLE", "MEMBERSHIP_INACTIVE", "PERSONAL_OWNER_REQUIRED", "PERSONAL_SCOPE_MISMATCH", "AUTHORITY_CONTEXT_INVALID_SIGNATURE", "AUTHORITY_CONTEXT_EXPIRED", "AUTHORITY_REPLAY_CONFLICT"] },
             "phase": { "const": "authority" },
             "retryable": { "type": "boolean" },

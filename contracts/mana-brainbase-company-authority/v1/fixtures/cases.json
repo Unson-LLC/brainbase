@@ -65,7 +65,7 @@
           "enterprise_id": "synthetic-enterprise"
         },
         "requested_action": {
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_read",
           "resource_ref": "company://tenant-a/project-a/read",
           "project_hint": "project-a",
           "desired_effect": "read"
@@ -73,7 +73,7 @@
         "delivery": {
           "channel_id": "channel-tenant-a",
           "thread_ts": "thread-tenant-a",
-          "event_id": "pos-auto-company-read"
+          "event_id": "evt-tenant-a-person-sato"
         },
         "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB1"
       },
@@ -129,7 +129,8 @@
             "event_id": "evt-tenant-a-person-sato",
             "channel_id": "channel-tenant-a",
             "thread_ts": "thread-tenant-a",
-            "requester_id": "person-sato"
+            "requester_id": "person-sato",
+            "enterprise_id": "synthetic-enterprise"
           },
           "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB1",
           "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC1",
@@ -146,7 +147,7 @@
             "method": "jws_detached",
             "algorithm": "EdDSA",
             "key_id": "synthetic-a0-20260821",
-            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..c3vCwvAsNYgbGi7vWC6RVJdOfrif39UWiRB_slw1YvGyKDPS1td9nAIA4aMqyvWHGgz9qlAShN5ihb-gv1okCQ"
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..E-RkHRmHBdtfBoSUg5CRrY2eOlwPkvSTygYKC49qzZqZy-lWoNeMxawXXt7U9GWGfzB7wtwIHIwPe3Z-2iaOCw"
           }
         },
         "actor": {
@@ -164,7 +165,7 @@
         },
         "authority": {
           "decision": "auto",
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_read",
           "responsible_person_id": null,
           "accountable_person_id": "person-sato",
           "approver_person_id": null,
@@ -191,10 +192,10 @@
           "method": "jws_detached",
           "algorithm": "EdDSA",
           "key_id": "synthetic-a0-20260821",
-          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..oOyO8SrJ44YAGHEs1BWazbNIukEXQ9k5xCpOcXbiU63KFTeLCE5yFcFVOk9U3HGGrAXwzNh5nvWF9mlbsM5KCw"
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..VUyiDnH1wTq0d_BDlpBAR0xzCALUUevR6ScR4rhv9QELFyJw_8dZQY0qd8rkeOW0KV6dqyST-0y5uqXFMHoiBA"
         }
       },
-      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"company_authority_v1\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/read\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB1\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_S2a00iCEOobAfDUv0vWyG4bh6rKcJ4tL_1mI03dOHpQ\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..c3vCwvAsNYgbGi7vWC6RVJdOfrif39UWiRB_slw1YvGyKDPS1td9nAIA4aMqyvWHGgz9qlAShN5ihb-gv1okCQ\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC1\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"company_read\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/read\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB1\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_S2a00iCEOobAfDUv0vWyG4bh6rKcJ4tL_1mI03dOHpQ\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..E-RkHRmHBdtfBoSUg5CRrY2eOlwPkvSTygYKC49qzZqZy-lWoNeMxawXXt7U9GWGfzB7wtwIHIwPe3Z-2iaOCw\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC1\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
       "evaluation_time": "2026-08-21T00:01:00Z",
       "operation": "company",
       "expected": {
@@ -221,7 +222,7 @@
           "enterprise_id": "synthetic-enterprise"
         },
         "requested_action": {
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_read",
           "resource_ref": "company://tenant-a/project-a/read-umeda",
           "project_hint": "project-a",
           "desired_effect": "read"
@@ -229,7 +230,7 @@
         "delivery": {
           "channel_id": "channel-tenant-a",
           "thread_ts": "thread-tenant-a",
-          "event_id": "pos-auto-company-read-umeda"
+          "event_id": "evt-tenant-a-person-umeda"
         },
         "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB2"
       },
@@ -285,7 +286,8 @@
             "event_id": "evt-tenant-a-person-umeda",
             "channel_id": "channel-tenant-a",
             "thread_ts": "thread-tenant-a",
-            "requester_id": "person-umeda"
+            "requester_id": "person-umeda",
+            "enterprise_id": "synthetic-enterprise"
           },
           "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB2",
           "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC2",
@@ -302,7 +304,7 @@
             "method": "jws_detached",
             "algorithm": "EdDSA",
             "key_id": "synthetic-a0-20260821",
-            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..TzUffIdp5xTUApLpKhCxTLyvkyaeQJ1oizM6MnXeiYgV9tRGtgT0_B8CSbTGzhofT2ZmioJBRAP1PTbf5HXABQ"
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..B9WCk8i3w2gxV4DLMPVodqUtar-L8wOrZvr81O6P2XDinzKQaEFV25Ila6RcYFg7JD5hOgRD6qpGLMVvHvYyCA"
           }
         },
         "actor": {
@@ -320,7 +322,7 @@
         },
         "authority": {
           "decision": "auto",
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_read",
           "responsible_person_id": null,
           "accountable_person_id": "person-umeda",
           "approver_person_id": null,
@@ -347,10 +349,10 @@
           "method": "jws_detached",
           "algorithm": "EdDSA",
           "key_id": "synthetic-a0-20260821",
-          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..Y4qIClB8oORV5bd6uzcKdfWrlhqxs6yDJz1ZQw6R2KFpI7L5ibvEIRo17ZiG4Uvo_PpIiTaLUzXSRG24c8b3AQ"
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..58BvgBL7hYVuRUh6wUPvqiLgClWaiMxQdupRAZ-9S3u8P11d9GX5yNYDkkwfv9SWuabu2HNdFkA4_2enu6brAQ"
         }
       },
-      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-umeda\",\"external_subject_id\":\"person-umeda\",\"membership_id\":\"membership-tenant-a-person-umeda\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-umeda\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"company_authority_v1\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-umeda-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-umeda\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/read-umeda\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-umeda\",\"principal_id\":\"person-umeda\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB2\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_Vg94ekqOsfxdCHvbHEyy4EuhJZmG0CZnoGy08HXPJjg\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..TzUffIdp5xTUApLpKhCxTLyvkyaeQJ1oizM6MnXeiYgV9tRGtgT0_B8CSbTGzhofT2ZmioJBRAP1PTbf5HXABQ\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC2\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"event_id\":\"evt-tenant-a-person-umeda\",\"requester_id\":\"person-umeda\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-umeda\",\"external_subject_id\":\"person-umeda\",\"membership_id\":\"membership-tenant-a-person-umeda\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-umeda\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"company_read\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-umeda-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-umeda\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/read-umeda\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-umeda\",\"principal_id\":\"person-umeda\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB2\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_Vg94ekqOsfxdCHvbHEyy4EuhJZmG0CZnoGy08HXPJjg\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..B9WCk8i3w2gxV4DLMPVodqUtar-L8wOrZvr81O6P2XDinzKQaEFV25Ila6RcYFg7JD5hOgRD6qpGLMVvHvYyCA\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC2\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-umeda\",\"requester_id\":\"person-umeda\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
       "evaluation_time": "2026-08-21T00:01:00Z",
       "operation": "company",
       "expected": {
@@ -377,7 +379,7 @@
           "enterprise_id": "synthetic-enterprise"
         },
         "requested_action": {
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_external_side_effect",
           "resource_ref": "company://tenant-a/project-a/external",
           "project_hint": "project-a",
           "desired_effect": "external_side_effect"
@@ -385,7 +387,7 @@
         "delivery": {
           "channel_id": "channel-tenant-a",
           "thread_ts": "thread-tenant-a",
-          "event_id": "pos-approval-external-side-effect"
+          "event_id": "evt-tenant-a-person-sato"
         },
         "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB3"
       },
@@ -441,7 +443,8 @@
             "event_id": "evt-tenant-a-person-sato",
             "channel_id": "channel-tenant-a",
             "thread_ts": "thread-tenant-a",
-            "requester_id": "person-sato"
+            "requester_id": "person-sato",
+            "enterprise_id": "synthetic-enterprise"
           },
           "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB3",
           "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC3",
@@ -458,7 +461,7 @@
             "method": "jws_detached",
             "algorithm": "EdDSA",
             "key_id": "synthetic-a0-20260821",
-            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..VrrFRgDUtJbtvSit7xuBnmJJzEQOm3o2Rmm45gFinpwbJm5w5_-Z8BOxfOONNiPzPtyjVTEmKjzpIqePJ73BDg"
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..H0YD3UN1X_0ZKf4T57sXMlSVJ-BMsRKGN_mQfxm64nclN1cPtG_YzpIjomqStveecDtUz0hv5frmxP4gqjHxBg"
           }
         },
         "actor": {
@@ -476,7 +479,7 @@
         },
         "authority": {
           "decision": "approval",
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_external_side_effect",
           "responsible_person_id": null,
           "accountable_person_id": "person-sato",
           "approver_person_id": "person-umeda",
@@ -503,10 +506,10 @@
           "method": "jws_detached",
           "algorithm": "EdDSA",
           "key_id": "synthetic-a0-20260821",
-          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..WsQq4U5y3zFWSWD7oPT_m6T6Wigyuj03VQE-hcQH7UQDDHMJAdkKMpl6bUDNVbM7sLztPU0GOZsFbIk5_d1RBQ"
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..pSoXUJkFLndeJRIHCWzdnutdMjrCwhnt-w68ql-Rspip4ZCUFnhk1zlAAyWboh9x7cqueazQTzL5oz7SV7PPAA"
         }
       },
-      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"external_side_effect\"],\"approver_person_id\":\"person-umeda\",\"capability_id\":\"company_authority_v1\",\"decision\":\"approval\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-approval\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/external\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB3\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_R90qwGHALkj6yR__Vuq3JiWitHghiDc5QZCiFqKmySc\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..VrrFRgDUtJbtvSit7xuBnmJJzEQOm3o2Rmm45gFinpwbJm5w5_-Z8BOxfOONNiPzPtyjVTEmKjzpIqePJ73BDg\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC3\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"external_side_effect\"],\"approver_person_id\":\"person-umeda\",\"capability_id\":\"company_external_side_effect\",\"decision\":\"approval\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-approval\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/external\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB3\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_R90qwGHALkj6yR__Vuq3JiWitHghiDc5QZCiFqKmySc\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..H0YD3UN1X_0ZKf4T57sXMlSVJ-BMsRKGN_mQfxm64nclN1cPtG_YzpIjomqStveecDtUz0hv5frmxP4gqjHxBg\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC3\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
       "evaluation_time": "2026-08-21T00:01:00Z",
       "operation": "company",
       "expected": {
@@ -533,7 +536,7 @@
           "enterprise_id": "synthetic-enterprise"
         },
         "requested_action": {
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_write",
           "resource_ref": "company://tenant-b/project-b/write",
           "project_hint": "project-b",
           "desired_effect": "write"
@@ -541,7 +544,7 @@
         "delivery": {
           "channel_id": "channel-tenant-b",
           "thread_ts": "thread-tenant-b",
-          "event_id": "pos-human-action-company-write"
+          "event_id": "evt-tenant-b-person-umeda"
         },
         "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB4"
       },
@@ -597,7 +600,8 @@
             "event_id": "evt-tenant-b-person-umeda",
             "channel_id": "channel-tenant-b",
             "thread_ts": "thread-tenant-b",
-            "requester_id": "person-umeda"
+            "requester_id": "person-umeda",
+            "enterprise_id": "synthetic-enterprise"
           },
           "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB4",
           "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC4",
@@ -614,7 +618,7 @@
             "method": "jws_detached",
             "algorithm": "EdDSA",
             "key_id": "synthetic-a0-20260821",
-            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..qnPgRK2TteV5AfTVpWxcUSycmJHADRvdfYBbDYwYPR2XGjj51Gj4K65uyrKv5_GXv96I1D0Y6MwmH6eyxECRAw"
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..gt___2qON8EE6yiyftxeohdMrSc4S4uLhmbMNnM7uF4WjymFyN8DnbRblZFYLD-M364EYaiertoD_dvAtMuaBA"
           }
         },
         "actor": {
@@ -632,7 +636,7 @@
         },
         "authority": {
           "decision": "human_action",
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_write",
           "responsible_person_id": "person-umeda",
           "accountable_person_id": "person-umeda",
           "approver_person_id": null,
@@ -659,10 +663,10 @@
           "method": "jws_detached",
           "algorithm": "EdDSA",
           "key_id": "synthetic-a0-20260821",
-          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..iejWSXWH4n2wO77COyf2z13EyqV0yyIbmn-BOiY7O09I1enHeFwdgIXT4dFdpm-v_1DGdGAR1YWUBrVRjcXrAQ"
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..6NXaijEhSlhSOjA2PiYt6zF09Udr5jI-7Hck5OHKszWeO8WtIUkDDGM2isFC0jGEhQLMt8qXeUc19E8kxLHCAg"
         }
       },
-      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-umeda\",\"external_subject_id\":\"person-umeda\",\"membership_id\":\"membership-tenant-b-person-umeda\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-umeda\",\"allowed_effects\":[\"write\"],\"approver_person_id\":null,\"capability_id\":\"company_authority_v1\",\"decision\":\"human_action\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":\"person-umeda\",\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-b-person-umeda-human_action\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-b-person-umeda\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-b\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"project_id\":\"project-b\",\"resource_ref\":\"company://tenant-b/project-b/write\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-umeda\",\"principal_id\":\"person-umeda\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-b\"],\"project_ids\":[\"project-b\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB4\",\"credential\":{\"billing_principal_id\":\"billing-tenant-b\",\"credential_ref\":\"credential-tenant-b\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_Z7U_vmfZVct9wHEWoLGaGLpJd9iUTyZZDeQKOu-n0pU\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..qnPgRK2TteV5AfTVpWxcUSycmJHADRvdfYBbDYwYPR2XGjj51Gj4K65uyrKv5_GXv96I1D0Y6MwmH6eyxECRAw\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC4\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-b\",\"event_id\":\"evt-tenant-b-person-umeda\",\"requester_id\":\"person-umeda\",\"thread_ts\":\"thread-tenant-b\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAW\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAY\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-b\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-b\"}}}",
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-umeda\",\"external_subject_id\":\"person-umeda\",\"membership_id\":\"membership-tenant-b-person-umeda\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-umeda\",\"allowed_effects\":[\"write\"],\"approver_person_id\":null,\"capability_id\":\"company_write\",\"decision\":\"human_action\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":\"person-umeda\",\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-b-person-umeda-human_action\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-b-person-umeda\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-b\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"project_id\":\"project-b\",\"resource_ref\":\"company://tenant-b/project-b/write\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-umeda\",\"principal_id\":\"person-umeda\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-b\"],\"project_ids\":[\"project-b\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB4\",\"credential\":{\"billing_principal_id\":\"billing-tenant-b\",\"credential_ref\":\"credential-tenant-b\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_Z7U_vmfZVct9wHEWoLGaGLpJd9iUTyZZDeQKOu-n0pU\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..gt___2qON8EE6yiyftxeohdMrSc4S4uLhmbMNnM7uF4WjymFyN8DnbRblZFYLD-M364EYaiertoD_dvAtMuaBA\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC4\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-b\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-b-person-umeda\",\"requester_id\":\"person-umeda\",\"thread_ts\":\"thread-tenant-b\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAW\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAY\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-b\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-b\"}}}",
       "evaluation_time": "2026-08-21T00:01:00Z",
       "operation": "company",
       "expected": {
@@ -695,7 +699,7 @@
           "enterprise_id": "synthetic-enterprise"
         },
         "requested_action": {
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_write",
           "resource_ref": "company://tenant-b/project-a/deny",
           "project_hint": "project-a",
           "desired_effect": "write"
@@ -703,7 +707,7 @@
         "delivery": {
           "channel_id": "channel-tenant-b",
           "thread_ts": "thread-tenant-b",
-          "event_id": "pos-deny-company-write"
+          "event_id": "evt-tenant-b-person-sato"
         },
         "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB5"
       },
@@ -759,7 +763,8 @@
             "event_id": "evt-tenant-b-person-sato",
             "channel_id": "channel-tenant-b",
             "thread_ts": "thread-tenant-b",
-            "requester_id": "person-sato"
+            "requester_id": "person-sato",
+            "enterprise_id": "synthetic-enterprise"
           },
           "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB5",
           "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC5",
@@ -776,7 +781,7 @@
             "method": "jws_detached",
             "algorithm": "EdDSA",
             "key_id": "synthetic-a0-20260821",
-            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9.._uUHwMoV7cFBVl7Y4XSBPWRoG9Qngi2fQFpZftgnyMtIWBQv9VBmGAty4UD7MU3zKguDMBxrE84NBFhHaf3gDA"
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..jk7OAT1xhR3F0uoOCtqzg7rt5eZo_yefCnnCtWw8B8AoMoDtpKqJEhcD_bLxEu33JIkEPIGOogCiKeBNyjUdAw"
           }
         },
         "actor": {
@@ -794,7 +799,7 @@
         },
         "authority": {
           "decision": "deny",
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_write",
           "responsible_person_id": null,
           "accountable_person_id": "person-sato",
           "approver_person_id": null,
@@ -821,10 +826,10 @@
           "method": "jws_detached",
           "algorithm": "EdDSA",
           "key_id": "synthetic-a0-20260821",
-          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..Wo3H6uFEJtA9lWLS29dBrkJ3m27P2CVMnVZBBAlsHyAbsEeJWpDQqkSAcxYp1qmPkObe9KQ6b5xwxAIhd-dmBg"
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9.._PRkFYat7Wm0FUW5gLlXPCYKuKqvzaPrCMaLxuW7YnLKJcGynrQtDtv5BLvqMLMSECrsQS9or253wrWXA8C8AQ"
         }
       },
-      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-b-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"write\"],\"approver_person_id\":null,\"capability_id\":\"company_authority_v1\",\"decision\":\"deny\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-b-person-sato-deny\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-b-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-b\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-b/project-a/deny\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-b\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB5\",\"credential\":{\"billing_principal_id\":\"billing-tenant-b\",\"credential_ref\":\"credential-tenant-b\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_pe1xICd2-93mtS1FvNPpnY10BJrXSR0OzoLRRJHVDsM\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9.._uUHwMoV7cFBVl7Y4XSBPWRoG9Qngi2fQFpZftgnyMtIWBQv9VBmGAty4UD7MU3zKguDMBxrE84NBFhHaf3gDA\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC5\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-b\",\"event_id\":\"evt-tenant-b-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-b\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAW\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAY\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-b\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-b\"}}}",
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-b-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"write\"],\"approver_person_id\":null,\"capability_id\":\"company_write\",\"decision\":\"deny\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-b-person-sato-deny\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-b-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-b\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-b/project-a/deny\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-b\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB5\",\"credential\":{\"billing_principal_id\":\"billing-tenant-b\",\"credential_ref\":\"credential-tenant-b\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_pe1xICd2-93mtS1FvNPpnY10BJrXSR0OzoLRRJHVDsM\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..jk7OAT1xhR3F0uoOCtqzg7rt5eZo_yefCnnCtWw8B8AoMoDtpKqJEhcD_bLxEu33JIkEPIGOogCiKeBNyjUdAw\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC5\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-b\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-b-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-b\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAW\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAY\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-b\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-b\"}}}",
       "evaluation_time": "2026-08-21T00:01:00Z",
       "operation": "company",
       "expected": {
@@ -845,13 +850,14 @@
       "wire_response": {
         "schema_version": "1.0",
         "contract_id": "mana-brainbase-company-authority/v1",
-      "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB5",
+        "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB5",
         "context": null,
         "error": {
           "code": "COMPANY_AUTHORITY_DENIED",
           "phase": "authority",
           "retryable": false,
-          "business_effect": false
+          "business_effect": false,
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB5"
         }
       },
       "notes": "A signed deny has no business effect."
@@ -869,7 +875,7 @@
           "enterprise_id": "synthetic-enterprise"
         },
         "requested_action": {
-          "capability_id": "company_authority_v1",
+          "capability_id": "personal_read",
           "resource_ref": "personal://person-sato/notes",
           "project_hint": "project-a",
           "desired_effect": "read"
@@ -877,7 +883,7 @@
         "delivery": {
           "channel_id": "channel-tenant-a",
           "thread_ts": "thread-tenant-a",
-          "event_id": "pos-personal-auto-owner"
+          "event_id": "evt-tenant-a-person-sato"
         },
         "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB6"
       },
@@ -933,7 +939,8 @@
             "event_id": "evt-tenant-a-person-sato",
             "channel_id": "channel-tenant-a",
             "thread_ts": "thread-tenant-a",
-            "requester_id": "person-sato"
+            "requester_id": "person-sato",
+            "enterprise_id": "synthetic-enterprise"
           },
           "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB6",
           "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC6",
@@ -950,7 +957,7 @@
             "method": "jws_detached",
             "algorithm": "EdDSA",
             "key_id": "synthetic-a0-20260821",
-            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..jGtxq4tSKiDnPlDsOfZwY0pNpWIrBEDWnFWq4I4iLTYAm18hilE4k7COTZPrp8szHWZtzaf2dINbiHw5aFmnBA"
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..o9u5WBMoMoNbMvCsHzfS395q4U7W1frkRBi9HQchLpNEqBQJvWXI4UPt9TebI4uzH-KXlo8FX9kOJUfXyigNBg"
           }
         },
         "actor": {
@@ -968,7 +975,7 @@
         },
         "authority": {
           "decision": "auto",
-          "capability_id": "company_authority_v1",
+          "capability_id": "personal_read",
           "responsible_person_id": null,
           "accountable_person_id": "person-sato",
           "approver_person_id": null,
@@ -995,10 +1002,10 @@
           "method": "jws_detached",
           "algorithm": "EdDSA",
           "key_id": "synthetic-a0-20260821",
-          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..2eNC7NtsYF4tbJcr6zneeCPVOrnlutwSxlbQljFJd5Ic1nNcPf3ZPX1xV8v0EYs3J0QSMLDeVzwQYmyctzBoDw"
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..-_Y67J8Y8iJitgKE3Us-vTcs5PRJj_Mp7VKMMKuKOEcw9Ia0vM6KQ0om_9AKHqJ5UVRPennHSLbc9ndz_RtEAg"
         }
       },
-      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"company_authority_v1\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":\"person-sato\",\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"personal://person-sato/notes\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"personal\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB6\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_Z8v0bxnN4QBksp-XtDkABCF81fkx3e5zZMJ1zoxvPsc\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..jGtxq4tSKiDnPlDsOfZwY0pNpWIrBEDWnFWq4I4iLTYAm18hilE4k7COTZPrp8szHWZtzaf2dINbiHw5aFmnBA\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC6\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"personal_read\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":\"person-sato\",\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"personal://person-sato/notes\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"personal\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB6\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_Z8v0bxnN4QBksp-XtDkABCF81fkx3e5zZMJ1zoxvPsc\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..o9u5WBMoMoNbMvCsHzfS395q4U7W1frkRBi9HQchLpNEqBQJvWXI4UPt9TebI4uzH-KXlo8FX9kOJUfXyigNBg\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC6\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
       "evaluation_time": "2026-08-21T00:01:00Z",
       "operation": "personal",
       "expected": {
@@ -1025,7 +1032,7 @@
           "enterprise_id": "synthetic-enterprise"
         },
         "requested_action": {
-          "capability_id": "company_authority_v1",
+          "capability_id": "personal_read",
           "resource_ref": "personal://person-umeda/notes",
           "project_hint": "project-a",
           "desired_effect": "read"
@@ -1033,7 +1040,7 @@
         "delivery": {
           "channel_id": "channel-tenant-a",
           "thread_ts": "thread-tenant-a",
-          "event_id": "pos-personal-auto-owner-umeda"
+          "event_id": "evt-tenant-a-person-umeda"
         },
         "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB7"
       },
@@ -1089,7 +1096,8 @@
             "event_id": "evt-tenant-a-person-umeda",
             "channel_id": "channel-tenant-a",
             "thread_ts": "thread-tenant-a",
-            "requester_id": "person-umeda"
+            "requester_id": "person-umeda",
+            "enterprise_id": "synthetic-enterprise"
           },
           "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB7",
           "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC7",
@@ -1106,7 +1114,7 @@
             "method": "jws_detached",
             "algorithm": "EdDSA",
             "key_id": "synthetic-a0-20260821",
-            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..lcmbpGQKYfvCxi3VY7QGgNoeiaWlhwxc3mKM6BLrpmL0I-mLrQ5xvk9rxgs4GYByC7LAuL8kuEMwtoSLMp1ECw"
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..HpMnVnaqG-MCyRvjnyFZTbCYE0z9f6stQnfxakodH9XnaU0EuDJPV71t_i78P_K3yJt63ugOzDSQqEpOfkFfBQ"
           }
         },
         "actor": {
@@ -1124,7 +1132,7 @@
         },
         "authority": {
           "decision": "auto",
-          "capability_id": "company_authority_v1",
+          "capability_id": "personal_read",
           "responsible_person_id": null,
           "accountable_person_id": "person-umeda",
           "approver_person_id": null,
@@ -1151,10 +1159,10 @@
           "method": "jws_detached",
           "algorithm": "EdDSA",
           "key_id": "synthetic-a0-20260821",
-          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..TRWZEQY0izl5hjhJ0JME1DlO73rym68KP2l48AK1DPCqIrNOel31xrDGz4iokYoOuRBsBNEuuhn6RiFU0H1lBg"
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..E2nyGyaOoU1oXJtnnDjaoqK9zKBfQ7weXOyPN8fWIwWnihUhzM__C4C6CB4sYNBwvjFYMM4kZ4IEXa8tfeFPDw"
         }
       },
-      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-umeda\",\"external_subject_id\":\"person-umeda\",\"membership_id\":\"membership-tenant-a-person-umeda\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-umeda\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"company_authority_v1\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-umeda-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-umeda\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":\"person-umeda\",\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"personal://person-umeda/notes\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-umeda\",\"principal_id\":\"person-umeda\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"personal\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB7\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_71Qu1g5uBCX-SN7OZ2Yk1HbWwkBF15ZOeE_pXy40hYw\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..lcmbpGQKYfvCxi3VY7QGgNoeiaWlhwxc3mKM6BLrpmL0I-mLrQ5xvk9rxgs4GYByC7LAuL8kuEMwtoSLMp1ECw\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC7\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"event_id\":\"evt-tenant-a-person-umeda\",\"requester_id\":\"person-umeda\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-umeda\",\"external_subject_id\":\"person-umeda\",\"membership_id\":\"membership-tenant-a-person-umeda\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-umeda\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"personal_read\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-umeda-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-umeda\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":\"person-umeda\",\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"personal://person-umeda/notes\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-umeda\",\"principal_id\":\"person-umeda\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"personal\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB7\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_71Qu1g5uBCX-SN7OZ2Yk1HbWwkBF15ZOeE_pXy40hYw\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..HpMnVnaqG-MCyRvjnyFZTbCYE0z9f6stQnfxakodH9XnaU0EuDJPV71t_i78P_K3yJt63ugOzDSQqEpOfkFfBQ\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC7\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-umeda\",\"requester_id\":\"person-umeda\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
       "evaluation_time": "2026-08-21T00:01:00Z",
       "operation": "personal",
       "expected": {
@@ -1181,7 +1189,7 @@
           "enterprise_id": "synthetic-enterprise"
         },
         "requested_action": {
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_external_side_effect",
           "resource_ref": "company://tenant-a/project-a/external-redelivery",
           "project_hint": "project-a",
           "desired_effect": "external_side_effect"
@@ -1189,7 +1197,7 @@
         "delivery": {
           "channel_id": "channel-tenant-a",
           "thread_ts": "thread-tenant-a",
-          "event_id": "pos-queue-redelivery-idempotent"
+          "event_id": "evt-tenant-a-person-sato"
         },
         "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB8"
       },
@@ -1245,7 +1253,8 @@
             "event_id": "evt-tenant-a-person-sato",
             "channel_id": "channel-tenant-a",
             "thread_ts": "thread-tenant-a",
-            "requester_id": "person-sato"
+            "requester_id": "person-sato",
+            "enterprise_id": "synthetic-enterprise"
           },
           "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB8",
           "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC1",
@@ -1262,7 +1271,7 @@
             "method": "jws_detached",
             "algorithm": "EdDSA",
             "key_id": "synthetic-a0-20260821",
-            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..gx-I5vw9INGL57_Ej647DbPf90UCIl30aYZJxTsrproQTrkewBG4dKhWSKIzVlVbRtJ8o5EwkTULq73nuOXiDQ"
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..HZR6DXIPOyk2FN0Hn9qK0PsZQSMepwpynE_HZeVI1IP4EN-1EPbqpB4-KC5CE_hatRObDUfk3o3tfhdfDkp6CQ"
           }
         },
         "actor": {
@@ -1280,7 +1289,7 @@
         },
         "authority": {
           "decision": "auto",
-          "capability_id": "company_authority_v1",
+          "capability_id": "company_external_side_effect",
           "responsible_person_id": null,
           "accountable_person_id": "person-sato",
           "approver_person_id": null,
@@ -1307,10 +1316,10 @@
           "method": "jws_detached",
           "algorithm": "EdDSA",
           "key_id": "synthetic-a0-20260821",
-          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..Shwv28CKFDg5btd3RpnrB4srRnrrnbwPBqpL0OUQ_r1lzAFa7si1_NvHevQFlMGEFWPxqxGv2GPVtUvoipJRDg"
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..5SHYR36gUJjNrARex3WyUYg4M6LNbUALCK_3FGNjvKz6lgLWzB3zARwDW73Bzf5rrNG5N9F_M7ktO_IYnTuaDA"
         }
       },
-      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"external_side_effect\"],\"approver_person_id\":null,\"capability_id\":\"company_authority_v1\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/external-redelivery\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB8\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_S2a00iCEOobAfDUv0vWyG4bh6rKcJ4tL_1mI03dOHpQ\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..gx-I5vw9INGL57_Ej647DbPf90UCIl30aYZJxTsrproQTrkewBG4dKhWSKIzVlVbRtJ8o5EwkTULq73nuOXiDQ\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC1\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"external_side_effect\"],\"approver_person_id\":null,\"capability_id\":\"company_external_side_effect\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/external-redelivery\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB8\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_S2a00iCEOobAfDUv0vWyG4bh6rKcJ4tL_1mI03dOHpQ\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..HZR6DXIPOyk2FN0Hn9qK0PsZQSMepwpynE_HZeVI1IP4EN-1EPbqpB4-KC5CE_hatRObDUfk3o3tfhdfDkp6CQ\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC1\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
       "evaluation_time": "2026-08-21T00:01:00Z",
       "operation": "company",
       "expected": {
@@ -1364,7 +1373,8 @@
           "code": "AUTHORITY_UNAVAILABLE",
           "phase": "authority",
           "retryable": true,
-          "business_effect": false
+          "business_effect": false,
+          "correlation_id": "cor-tenant-b-person-umeda-diagnostic"
         }
       },
       "notes": "Only allowlisted diagnostics may report authority unavailable."
@@ -1497,7 +1507,9 @@
         {
           "operation": "set",
           "path": "/context/tenant_context/authorization/organization_ids",
-          "value": ["organization-tenant-b"]
+          "value": [
+            "organization-tenant-b"
+          ]
         }
       ],
       "expected": {
@@ -1526,7 +1538,9 @@
         {
           "operation": "set",
           "path": "/context/tenant_context/authorization/project_ids",
-          "value": ["project-b"]
+          "value": [
+            "project-b"
+          ]
         }
       ],
       "expected": {

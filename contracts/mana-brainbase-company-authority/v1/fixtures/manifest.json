@@ -12,7 +12,7 @@
     "fixtures/fixture.schema.json",
     "fixtures/test-key.json"
   ],
-  "fixture_set_sha256": "60f97105af730e17260e348592d313f9d02d141044b22fa0a141ea8ea577718a",
+  "fixture_set_sha256": "226afa0187439696f40f1afecf25e2526764df13c1f87a9117580530e720add9",
   "hash_algorithm": "sha256(relative_path + NUL + file_bytes)",
   "manifest_excluded_from_hash": true,
   "synthetic_data_only": true,
@@ -33,6 +33,7 @@
     "diagnostic_allowlist",
     "queue_redelivery_idempotency",
     "context_integrity",
+    "operation_capability_separation",
     "request_authority_field_forbidden",
     "cross_layer_binding",
     "provider_scope_v1",

@@ -9,7 +9,9 @@
   "fixture_manifest": "fixtures/manifest.json",
   "fixture_schema": "fixtures/fixture.schema.json",
   "required_capability": "company_authority_v1",
+  "required_capability_role": "protocol_marker",
   "required_capability_path": "$.context.tenant_context.authorization.capability_ids",
+  "requested_operation_capability_path": "$.context.authority.capability_id",
   "schemas": {
     "observed_execution_request_v1": "schema/observed-execution-request.schema.json",
     "canonical_execution_context_v1": "schema/canonical-execution-context.schema.json",
@@ -22,8 +24,10 @@
     "error": "$.error",
     "response_context": "$.context",
     "response_error": "$.error",
+    "requested_operation_capability_path": "$.context.authority.capability_id",
     "company_authority_capability_path": "$.context.tenant_context.authorization.capability_ids",
     "company_authority_capability": "company_authority_v1",
+    "error_correlation_path": "$.error.correlation_id",
     "context_schema_version": "1.0"
   },
   "observed_request_boundary": {
@@ -68,7 +72,9 @@
     "schema": "schema/canonical-execution-context.schema.json",
     "authority_decision_values": ["auto", "approval", "human_action", "deny"],
     "required_capability": "company_authority_v1",
+    "required_capability_role": "protocol_marker",
     "required_capability_path": "$.context.tenant_context.authorization.capability_ids",
+    "requested_operation_capability_path": "$.context.authority.capability_id",
     "personal_owner_path": "scope.owner_person_id",
     "revision_claims": [
       "tenant_context.tenant.tenant_revision",
@@ -80,7 +86,8 @@
     ],
     "same_request_bindings": [
       "tenant_context.correlation_id == request.correlation_id",
-      "authority.capability_id == request.requested_action.capability_id",
+      "authority.capability_id == request.requested_action.capability_id (requested operation capability)",
+      "tenant_context.authorization.capability_ids contains company_authority_v1 (protocol marker)",
       "request.requested_action.desired_effect in authority.allowed_effects",
       "scope.resource_ref == request.requested_action.resource_ref"
     ],
@@ -90,7 +97,13 @@
       "actor.canonical_person_id == tenant_context.actor.principal_id",
       "scope.organization_id in tenant_context.authorization.organization_ids",
       "scope.project_id in tenant_context.authorization.project_ids",
-      "scope.placement_id == tenant_context.placement.deployment_id"
+      "scope.placement_id == tenant_context.placement.deployment_id",
+      "request.provider_identity.workspace_id == tenant_context.workspace_connection.workspace_id",
+      "request.provider_identity.app_id == tenant_context.workspace_connection.app_id",
+      "request.provider_identity.enterprise_id == tenant_context.slack.enterprise_id",
+      "request.delivery.channel_id == tenant_context.slack.channel_id",
+      "request.delivery.thread_ts == tenant_context.slack.thread_ts",
+      "request.delivery.event_id == tenant_context.slack.event_id"
     ]
   },
   "canonical_json": {
@@ -117,7 +130,14 @@
     "maximum_ttl_seconds": 300,
     "maximum_clock_skew_seconds": 30,
     "issuer": "brainbase",
-    "audience": ["mana-runtime"]
+    "audience": ["mana-runtime"],
+    "nested_tenant_context": {
+      "typ": "application/mana-brainbase-tenant-context+jws",
+      "trusted_key": "consumer-supplied trusted public key",
+      "same_caller_evaluation_time": true,
+      "audience": ["mana-runtime"],
+      "deployment": "expectedDeploymentId or context.scope.placement_id"
+    }
   },
   "canonical_error_codes": [
     "DESIRED_EFFECT_REQUIRED",
@@ -155,6 +175,7 @@
   "fixture_coverage": {
     "positive_case_count": 9,
     "negative_case_count": 46,
+    "operation_capability_examples": ["company_read", "company_write", "company_external_side_effect", "personal_read"],
     "decision_modes": ["auto", "approval", "human_action", "deny"],
     "tenant_person_matrix": "2 tenants x 2 persons; each row links positive_case_id to a signed context",
     "diagnostic_allowlist": ["health", "protocol_negotiation", "provisioning", "connection_diagnostic", "tenant_isolation_test"],

@@ -2,7 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Unson-LLC/brainbase-unson/contracts/mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json",
   "title": "CanonicalExecutionContextV1",
-  "description": "Brainbase-resolved and signed authority context. Runtime identity and requested action are never copied into authority claims without resolution.",
+  "description": "Brainbase-resolved and signed authority context. authority.capability_id is the requested operation capability; tenant_context.authorization.capability_ids contains company_authority_v1 as a protocol marker. Runtime identity and requested action are never copied into authority claims without resolution.",
+  "x-requested-operation-capability-path": "$.authority.capability_id",
+  "x-protocol-capability-marker": {
+    "path": "$.tenant_context.authorization.capability_ids",
+    "value": "company_authority_v1",
+    "role": "protocol_marker"
+  },
   "x-cross-layer-bindings": [
     {
       "request": "$.provider_identity.authenticated_subject_id",
@@ -37,6 +43,42 @@
     {
       "outer": "$.scope.placement_id",
       "nested": "$.tenant_context.placement.deployment_id",
+      "relation": "equals",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    },
+    {
+      "request": "$.provider_identity.workspace_id",
+      "nested": "$.tenant_context.workspace_connection.workspace_id",
+      "relation": "equals",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    },
+    {
+      "request": "$.provider_identity.app_id",
+      "nested": "$.tenant_context.workspace_connection.app_id",
+      "relation": "equals",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    },
+    {
+      "request": "$.provider_identity.enterprise_id",
+      "nested": "$.tenant_context.slack.enterprise_id",
+      "relation": "equals",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    },
+    {
+      "request": "$.delivery.channel_id",
+      "nested": "$.tenant_context.slack.channel_id",
+      "relation": "equals",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    },
+    {
+      "request": "$.delivery.thread_ts",
+      "nested": "$.tenant_context.slack.thread_ts",
+      "relation": "equals",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    },
+    {
+      "request": "$.delivery.event_id",
+      "nested": "$.tenant_context.slack.event_id",
       "relation": "equals",
       "error_code": "AUTHORITY_SCOPE_MISMATCH"
     }
@@ -76,7 +118,7 @@
       "required": ["decision", "capability_id", "responsible_person_id", "accountable_person_id", "approver_person_id", "delegated_by_person_id", "policy_revision", "raci_revision", "resource_revision", "allowed_effects", "stop_conditions"],
       "properties": {
         "decision": { "enum": ["auto", "approval", "human_action", "deny"] },
-        "capability_id": { "const": "company_authority_v1" },
+        "capability_id": { "type": "string", "minLength": 1 },
         "responsible_person_id": { "type": ["string", "null"], "minLength": 1 },
         "accountable_person_id": { "type": ["string", "null"], "minLength": 1 },
         "approver_person_id": { "type": ["string", "null"], "minLength": 1 },
@@ -97,8 +139,8 @@
         "authority_resolution_receipt_id": { "type": "string", "minLength": 1 }
       }
     },
-    "issued_at": { "type": "string", "format": "date-time" },
-    "expires_at": { "type": "string", "format": "date-time" },
+    "issued_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$" },
+    "expires_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$" },
     "integrity": { "$ref": "#/$defs/integrity" }
   },
   "$defs": {
@@ -174,8 +216,8 @@
           "type": "object", "additionalProperties": false, "required": ["mode", "credential_ref", "billing_principal_id"],
           "properties": { "mode": { "type": "string", "minLength": 1 }, "credential_ref": { "type": "string", "minLength": 1 }, "billing_principal_id": { "type": "string", "minLength": 1 } }
         },
-        "issued_at": { "type": "string", "format": "date-time" },
-        "expires_at": { "type": "string", "format": "date-time" },
+        "issued_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$" },
+        "expires_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$" },
         "integrity": { "$ref": "#/$defs/integrity" }
       }
     }

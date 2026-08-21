@@ -11,9 +11,13 @@ import { describe, expect, it } from 'vitest';
 import {
     CONTRACT_ID,
     acceptCompanyAuthorityResponse,
+    createDetachedJws,
     validateWireResponseStructure
 } from '../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
-import { verifyTenantContext } from '../../server/services/multitenant/tenant-context.js';
+import {
+    createSignedTenantContext,
+    verifyTenantContext
+} from '../../server/services/multitenant/tenant-context.js';
 
 const contractRoot = resolve('contracts/mana-brainbase-company-authority/v1');
 
@@ -64,6 +68,35 @@ function signedResponse(fixture) {
     };
 }
 
+function resignedOuterResponse(fixture, context) {
+    const unsigned = structuredClone(context);
+    delete unsigned.integrity;
+    return {
+        ...signedResponse(fixture),
+        context: {
+            ...unsigned,
+            integrity: {
+                method: 'jws_detached',
+                algorithm: 'EdDSA',
+                key_id: testKey.key_id,
+                value: createDetachedJws(unsigned, testKey.private_jwk, testKey.key_id)
+            }
+        }
+    };
+}
+
+function resignedNestedResponse(fixture, mutateNested) {
+    const context = structuredClone(fixture.context);
+    const unsignedTenantContext = structuredClone(context.tenant_context);
+    delete unsignedTenantContext.integrity;
+    mutateNested(unsignedTenantContext);
+    context.tenant_context = createSignedTenantContext(unsignedTenantContext, {
+        key_id: testKey.key_id,
+        private_key: testKey.private_jwk
+    });
+    return resignedOuterResponse(fixture, context);
+}
+
 describe('Brainbase company authority A0 consumer boundary', () => {
     it('reads the producer source lock, manifest, schemas, and reference wire module', async () => {
         expect(sourceLock.contract_id).toBe(CONTRACT_ID);
@@ -96,7 +129,7 @@ describe('Brainbase company authority A0 consumer boundary', () => {
     it.each([
         'POS-DENY-COMPANY-WRITE',
         'POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC'
-    ])('accepts complete external wire envelopes for deny and unavailable cases', (caseId) => {
+    ])('accepts complete error envelopes for deny and unavailable cases', (caseId) => {
         const fixture = fixtures.positive.find(({ id }) => id === caseId);
         assert.ok(fixture, `positive fixture not found: ${caseId}`);
         expect(fixture.wire_response).toBeDefined();
@@ -172,5 +205,99 @@ describe('Brainbase company authority A0 consumer boundary', () => {
         })).toThrow(expect.objectContaining({
             code: 'AUTHORITY_CONTEXT_EXPIRED'
         }));
+    });
+
+    it('binds request Slack identity and delivery fields to the nested tenant context', () => {
+        const fixture = fixtures.positive.find(({ id }) => id === 'POS-AUTO-COMPANY-READ');
+        assert.ok(fixture);
+        const mismatches = [
+            ['workspace_id', (request) => { request.provider_identity.workspace_id = 'workspace-other'; }],
+            ['app_id', (request) => { request.provider_identity.app_id = 'app-other'; }],
+            ['enterprise_id', (request) => { request.provider_identity.enterprise_id = 'enterprise-other'; }],
+            ['channel_id', (request) => { request.delivery.channel_id = 'channel-other'; }],
+            ['thread_ts', (request) => { request.delivery.thread_ts = 'thread-other'; }],
+            ['event_id', (request) => { request.delivery.event_id = 'event-other'; }]
+        ];
+        for (const [field, mutate] of mismatches) {
+            const request = structuredClone(fixture.request);
+            mutate(request);
+            expect(() => acceptCompanyAuthorityResponse(signedResponse(fixture), {
+                expectedAudience: contract.signature.audience,
+                now: fixture.evaluation_time,
+                publicJwk: testKey.public_jwk,
+                request
+            }), field).toThrow(expect.objectContaining({ code: 'AUTHORITY_SCOPE_MISMATCH' }));
+        }
+    });
+
+    it('verifies the nested TenantContext signature with the trusted key', () => {
+        const fixture = fixtures.positive.find(({ id }) => id === 'POS-AUTO-COMPANY-READ');
+        assert.ok(fixture);
+        const tamperedNested = resignedOuterResponse(fixture, {
+            ...structuredClone(fixture.context),
+            tenant_context: {
+                ...structuredClone(fixture.context.tenant_context),
+                credential: {
+                    ...structuredClone(fixture.context.tenant_context.credential),
+                    credential_ref: 'credential://tampered'
+                }
+            }
+        });
+        expect(() => acceptCompanyAuthorityResponse(tamperedNested, {
+            expectedAudience: contract.signature.audience,
+            now: fixture.evaluation_time,
+            publicJwk: testKey.public_jwk,
+            request: fixture.request
+        })).toThrow(expect.objectContaining({ code: 'AUTHORITY_CONTEXT_INVALID_SIGNATURE' }));
+    });
+
+    it('checks nested TenantContext freshness against the same caller now', () => {
+        const fixture = fixtures.positive.find(({ id }) => id === 'POS-AUTO-COMPANY-READ');
+        assert.ok(fixture);
+        const response = resignedNestedResponse(fixture, (tenantContext) => {
+            tenantContext.expires_at = '2026-08-21T00:04:00Z';
+        });
+        expect(() => acceptCompanyAuthorityResponse(response, {
+            expectedAudience: contract.signature.audience,
+            now: '2026-08-21T00:04:40Z',
+            publicJwk: testKey.public_jwk,
+            request: fixture.request
+        })).toThrow(expect.objectContaining({ code: 'AUTHORITY_CONTEXT_EXPIRED' }));
+    });
+
+    it('checks nested TenantContext deployment against the caller expectation', () => {
+        const fixture = fixtures.positive.find(({ id }) => id === 'POS-AUTO-COMPANY-READ');
+        assert.ok(fixture);
+        expect(() => acceptCompanyAuthorityResponse(signedResponse(fixture), {
+            expectedAudience: contract.signature.audience,
+            expectedDeploymentId: 'deployment-other',
+            now: fixture.evaluation_time,
+            publicJwk: testKey.public_jwk,
+            request: fixture.request
+        })).toThrow(expect.objectContaining({ code: 'AUTHORITY_SCOPE_MISMATCH' }));
+    });
+
+    it('does not accept a signed deny decision as a successful context', () => {
+        const fixture = fixtures.positive.find(({ id }) => id === 'POS-DENY-COMPANY-WRITE');
+        assert.ok(fixture?.context);
+        expect(() => acceptCompanyAuthorityResponse(signedResponse(fixture), {
+            expectedAudience: contract.signature.audience,
+            now: fixture.evaluation_time,
+            publicJwk: testKey.public_jwk,
+            request: fixture.request
+        })).toThrow(expect.objectContaining({ code: 'COMPANY_AUTHORITY_DENIED' }));
+    });
+
+    it('binds an error envelope correlation id to both the wire root and request', () => {
+        const fixture = fixtures.positive.find(({ id }) => id === 'POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC');
+        assert.ok(fixture?.wire_response);
+        const response = structuredClone(fixture.wire_response);
+        response.error.correlation_id = 'corr-other';
+        expect(() => acceptCompanyAuthorityResponse(response, {
+            expectedAudience: contract.signature.audience,
+            now: fixture.evaluation_time,
+            publicJwk: testKey.public_jwk,
+            request: fixture.request
+        })).toThrow(expect.objectContaining({ code: 'AUTHORITY_SCOPE_MISMATCH' }));
     });
 });

@@ -15,7 +15,7 @@ This document fixes the A0 preparation boundary. It does not implement the resol
 
 ## Request and response wire
 
-The request body is validated by `contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json`. v1 accepts only the Slack provider because the nested `TenantContextEnvelopeV1` is Slack-backed; `codex`, `claude_code`, and `service` require a later provider-specific nested-envelope contract. It contains provider identity, requested action, optional delivery metadata, and `correlation_id`. `desired_effect` is required and is never inferred from a capability name. `project_hint` is a routing hint, not an authority claim. Resolved person, organization, project, owner, RACI, approver, decision, policy, and credential fields are explicitly forbidden and rejected by both the schema and reference validator.
+The request body is validated by `contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json`. v1 accepts only the Slack provider because the nested `TenantContextEnvelopeV1` is Slack-backed; `codex`, `claude_code`, and `service` require a later provider-specific nested-envelope contract. It contains provider identity, a requested operation capability, optional delivery metadata, and `correlation_id`. `desired_effect` is required and is never inferred from a capability name. `project_hint` is a routing hint, not an authority claim. `company_authority_v1` is not sent as the requested operation capability; it is the protocol marker required in the signed nested authorization list. Resolved person, organization, project, owner, RACI, approver, decision, policy, and credential fields are explicitly forbidden and rejected by both the schema and reference validator.
 
 The response is validated by `schema/company-authority-resolution-response.schema.json`:
 
@@ -27,7 +27,7 @@ response.correlation_id
 `$.error`: CanonicalAuthorityError | null
 ```
 
-The response envelope is the JSONPath `$` root. The success context is exactly `$.context`. Its required capability is exactly `$.context.tenant_context.authorization.capability_ids[] == "company_authority_v1"`. The error location is exactly `$.error`; an error always has `business_effect: false`.
+The response envelope is the JSONPath `$` root. The success context is exactly `$.context`. The requested operation capability is `$.context.authority.capability_id` and must equal `$.requested_action.capability_id`; `company_authority_v1` at `$.context.tenant_context.authorization.capability_ids[]` is the required protocol marker, not the requested operation capability. The error location is exactly `$.error`; an error always has `business_effect: false` and `error.correlation_id` equal to the root `correlation_id`.
 
 ## CanonicalExecutionContextV1
 
@@ -44,7 +44,7 @@ evidence: identity_resolution_receipt_id, authority_resolution_receipt_id
 issued_at, expires_at, integrity
 ```
 
-`authority.decision` is one of `auto`, `approval`, `human_action`, or `deny`. `authority.capability_id` is `company_authority_v1`. The context is bound to the request by the same correlation ID, capability ID, requested effect, and resource reference. Cross-layer bindings are also mandatory: the request authenticated subject equals the outer actor subject; the outer subject and canonical person equal the nested actor subject and principal; the outer organization and project are contained in nested authorization; and the outer placement equals nested `placement.deployment_id`. Unknown, ambiguous, inactive, cross-organization, out-of-scope, or stale claims never become a default claim.
+`authority.decision` is one of `auto`, `approval`, `human_action`, or `deny`. `authority.capability_id` is the requested operation capability and equals `request.requested_action.capability_id`; it is deliberately distinct from the `company_authority_v1` protocol marker in the nested authorization list. The context is bound to the request by the same correlation ID, requested operation capability, requested effect, and resource reference. Cross-layer bindings are also mandatory: the request authenticated subject equals the outer actor subject; the outer subject and canonical person equal the nested actor subject and principal; the outer organization and project are contained in nested authorization; the outer placement equals nested `placement.deployment_id`; and Slack workspace/app/enterprise plus delivery channel/thread/event fields equal the nested workspace connection and Slack fields. Unknown, ambiguous, inactive, cross-organization, out-of-scope, or stale claims never become a default claim.
 
 ## Canonical JSON and signature
 
@@ -57,7 +57,7 @@ signing_input = ASCII(base64url(protected) + ".") || UTF8(JCS(unsigned_context))
 compact = base64url(protected) + ".." + base64url(signature)
 ```
 
-The profile is compatible with the existing tenant-context detached-JWS convention while using a distinct media type. Maximum context TTL is 300 seconds and accepted clock skew is 30 seconds. Audience must include `mana-runtime`; issuer is `brainbase`. The synthetic key under `fixtures/test-key.json` is conformance-only and is not a deployment secret.
+The profile is compatible with the existing tenant-context detached-JWS convention while using a distinct media type. Both the outer company-authority JWS (`application/mana-brainbase-company-authority+jws`) and the nested TenantContext JWS (`application/mana-brainbase-tenant-context+jws`) are verified before consumer acceptance. The nested signature uses a consumer-supplied trusted public key, the same caller evaluation time, expected `mana-runtime` audience, and expected deployment. Maximum context TTL is 300 seconds and accepted clock skew is 30 seconds; timestamp strings are UTC `Z` form only, matching the shared verifier. Audience must include `mana-runtime`; issuer is `brainbase`. The synthetic key under `fixtures/test-key.json` is conformance-only and is not a deployment secret.
 
 Trusted `kid`-to-key resolution, key rotation, and key revocation are runtime non-goals for A0. The reference validator supplies conformance evidence only and is not an authority or trust store. Production cutover is blocked until runtime trust-store resolution, rotation/revocation policy, and downstream signature verification are separately implemented and verified.
 
