@@ -37,6 +37,101 @@ describe('GraphMaintenanceService authorization', () => {
         expect(client.query).toHaveBeenCalledTimes(3);
     });
 
+    it('replaceSnapshotは既存のorphanを増やさない変更を許容する', async () => {
+        const before = {
+            project_code: 'brainbase',
+            entities: [{ id: 'entity_a', entity_type: 'person', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }],
+            edges: [{ id: 'edge_orphan', from_id: 'entity_a', to_id: 'missing_entity', rel_type: 'knows', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }]
+        };
+        const after = structuredClone(before);
+        after.entities[0].lifecycle_status = 'retired';
+        after.entities[0].version = 2;
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase' }] };
+            if (sql.includes('SELECT id FROM graph_entities') || sql.includes('SELECT id FROM graph_edges')) return { rows: [] };
+            if (sql.includes('INSERT INTO graph_entities') || sql.includes('INSERT INTO graph_edges')) return { rowCount: 1, rows: [] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        await expect(service.replaceSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, after, { baseline: before })).resolves.toBeUndefined();
+        expect(client.query).toHaveBeenCalledTimes(5);
+    });
+
+    it('rejects a stored plan snapshot whose content no longer matches its hash before mutation', async () => {
+        const before = {
+            project_code: 'brainbase',
+            entities: [{ id: 'entity_a', entity_type: 'person', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }],
+            edges: []
+        };
+        before.hash = hashGraphSnapshot(before);
+        const after = structuredClone(before);
+        after.entities[0].version = 2;
+        after.hash = hashGraphSnapshot(after);
+        const plan = {
+            id: 'plan_tampered', project_id: 'project_brainbase', organization_id: 'org_1', project_code: 'brainbase', status: 'planned',
+            base_snapshot_hash: before.hash, after_snapshot_hash: after.hash,
+            before_snapshot: before, after_snapshot: structuredClone(after)
+        };
+        plan.after_snapshot.entities[0].payload.tampered = true;
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
+            throw new Error(`mutation query must not run: ${sql}`);
+        }) };
+        const tamperService = new GraphMaintenanceService({ infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) } });
+        await expect(tamperService.applyPlan({ organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm' }, {
+            projectCode: 'brainbase', planId: 'plan_tampered', snapshotHash: before.hash
+        })).rejects.toThrow('stored plan snapshot hash mismatch');
+        expect(client.query).toHaveBeenCalledTimes(2);
+    });
+
+    it('rejects an introduced orphan that is absent from the immutable baseline', async () => {
+        const before = {
+            project_code: 'brainbase',
+            entities: [{ id: 'entity_a', entity_type: 'person', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }],
+            edges: []
+        };
+        const image = structuredClone(before);
+        image.edges.push({ id: 'edge_new_orphan', from_id: 'entity_a', to_id: 'missing_new', rel_type: 'knows', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 });
+        const client = { query: vi.fn() };
+        await expect(service.loadSnapshotImage(client, { organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm' }, image, {
+            baseline: before
+        })).rejects.toThrow('Graph snapshot image is invalid: orphan');
+        expect(client.query).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing planned row during baseline-relative readback', async () => {
+        const image = {
+            project_code: 'brainbase',
+            entities: [
+                { id: 'entity_a', entity_type: 'person', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 },
+                { id: 'entity_b', entity_type: 'person', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }
+            ],
+            edges: []
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase' }] };
+            if (sql.includes('SELECT ge.id, ge.entity_type')) return { rows: [image.entities[0]] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        await expect(service.loadSnapshotImage(client, { organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm' }, image, {
+            baseline: image
+        })).rejects.toThrow('Graph snapshot image contains missing or inaccessible records');
+    });
+
+    it('keeps strict validation when no immutable baseline is supplied', async () => {
+        const invalid = {
+            project_code: 'brainbase',
+            entities: [{ id: 'entity_a', entity_type: 'person', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }],
+            edges: [{ id: 'edge_orphan', from_id: 'entity_a', to_id: 'missing_entity', rel_type: 'knows', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }]
+        };
+        const client = { query: vi.fn() };
+        await expect(service.replaceSnapshot(client, { organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm' }, invalid))
+            .rejects.toThrow('Graph snapshot is invalid: orphan');
+        expect(client.query).not.toHaveBeenCalled();
+    });
+
     it('Human Gate receiptは署名Bearerの人間principalからのみ供給できる', async () => {
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('SELECT id, code, organization_id FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };

@@ -81,6 +81,10 @@ function introducedValidationIssues(before, after) {
     });
 }
 
+export function findIntroducedGraphValidationIssues(beforeSnapshot, afterSnapshot) {
+    return introducedValidationIssues(validateGraphSnapshot(beforeSnapshot), validateGraphSnapshot(afterSnapshot));
+}
+
 function findEntity(state, id) {
     const entity = state.entities.find((item) => item.id === id);
     if (!entity) throw new Error(`Unknown entity: ${id}`);

@@ -1,5 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { buildGraphPlan, hashGraphSnapshot, validateGraphSnapshot } from './graph-maintenance-engine.js';
+import {
+    buildGraphPlan,
+    findIntroducedGraphValidationIssues,
+    hashGraphSnapshot,
+    validateGraphSnapshot
+} from './graph-maintenance-engine.js';
 
 function fingerprint(value) {
     return `sha256:${createHash('sha256').update(JSON.stringify(value)).digest('hex')}`;
@@ -17,10 +22,13 @@ function uniqueIds(records) {
     return [...new Set(records.map((record) => record.id))];
 }
 
-function assertValidSnapshot(snapshot, prefix = 'Graph snapshot is invalid') {
+function assertValidSnapshot(snapshot, prefix = 'Graph snapshot is invalid', baseline = null) {
     const validation = validateGraphSnapshot(snapshot);
-    if (!validation.valid) {
-        throw new Error(`${prefix}: ${validation.issues.map((item) => item.category).join(',')}`);
+    const issues = baseline
+        ? findIntroducedGraphValidationIssues(baseline, snapshot)
+        : validation.issues;
+    if (issues.length) {
+        throw new Error(`${prefix}: ${issues.map((item) => item.category).join(',')}`);
     }
 }
 
@@ -71,8 +79,8 @@ export class GraphMaintenanceService {
         return { project, snapshot };
     }
 
-    async loadSnapshotImage(client, access, image, { lock = false } = {}) {
-        assertValidSnapshot(image, 'Graph snapshot image is invalid');
+    async loadSnapshotImage(client, access, image, { lock = false, baseline = null } = {}) {
+        assertValidSnapshot(image, 'Graph snapshot image is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
         const codes = [...new Set([image.project_code, ...image.entities.map((item) => item.project_code), ...image.edges.map((item) => item.project_code)])];
         if (!codes.every((code) => access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
@@ -108,7 +116,16 @@ export class GraphMaintenanceService {
                  WHERE ge.id=ANY($1::text[]) AND p.organization_id=$2`,
                 [endpointIds, organizationId]
             );
-            if (endpointRows.rows.length !== endpointIds.length) throw new Error('Graph edge endpoint tenant conflict');
+            if (endpointRows.rows.length !== endpointIds.length) {
+                const accessibleEndpointIds = new Set(endpointRows.rows.map((row) => row.id));
+                const baselineOrphanIds = new Set((baseline ? validateGraphSnapshot(baseline).issues : [])
+                    .filter((issue) => issue.category === 'orphan')
+                    .map((issue) => issue.id));
+                const inaccessibleEdges = edges.rows.filter((edge) => !accessibleEndpointIds.has(edge.from_id) || !accessibleEndpointIds.has(edge.to_id));
+                if (!inaccessibleEdges.every((edge) => baselineOrphanIds.has(edge.id))) {
+                    throw new Error('Graph edge endpoint tenant conflict');
+                }
+            }
         }
         const snapshot = { project_code: image.project_code, entities: entities.rows, edges: edges.rows };
         snapshot.hash = hashGraphSnapshot(snapshot);
@@ -274,8 +291,8 @@ export class GraphMaintenanceService {
         };
     }
 
-    async replaceSnapshot(client, access, snapshot) {
-        assertValidSnapshot(snapshot);
+    async replaceSnapshot(client, access, snapshot, { baseline = null } = {}) {
+        assertValidSnapshot(snapshot, 'Graph snapshot is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
         const codes = [...new Set([snapshot.project_code, ...snapshot.entities.map((item) => item.project_code), ...snapshot.edges.map((item) => item.project_code)])];
         const projects = await client.query(
@@ -354,10 +371,15 @@ export class GraphMaintenanceService {
             if (existing) return existing;
             if (plan.status !== 'planned') throw new Error(`Plan is not applicable: ${plan.status}`);
             if (snapshotHash !== plan.base_snapshot_hash) throw new Error('snapshot hash mismatch');
+            if (hashGraphSnapshot(plan.before_snapshot) !== plan.base_snapshot_hash
+                || hashGraphSnapshot(plan.after_snapshot) !== plan.after_snapshot_hash) {
+                throw new Error('stored plan snapshot hash mismatch');
+            }
+            assertValidSnapshot(plan.after_snapshot, 'Stored Graph plan introduced invalid state', plan.before_snapshot);
             const { snapshot: current } = await this.loadSnapshot(client, access, projectCode, { lock: true });
             if (current.hash !== plan.base_snapshot_hash) throw new Error('snapshot hash conflict');
-            await this.replaceSnapshot(client, access, plan.after_snapshot);
-            const readback = await this.loadSnapshotImage(client, access, plan.after_snapshot, { lock: true });
+            await this.replaceSnapshot(client, access, plan.after_snapshot, { baseline: plan.before_snapshot });
+            const readback = await this.loadSnapshotImage(client, access, plan.after_snapshot, { lock: true, baseline: plan.before_snapshot });
             if (readback.hash !== plan.after_snapshot_hash) throw new Error('Graph apply readback hash mismatch');
             const receipt = await this.createReceipt(client, access, plan, 'apply', plan.base_snapshot_hash, readback.hash);
             await client.query(`UPDATE graph_maintenance_plans SET status='applied', applied_at=NOW() WHERE id=$1`, [planId]);
@@ -414,7 +436,11 @@ export class GraphMaintenanceService {
             if (previousRollback) return previousRollback;
             const applyReceipt = await this.findReceipt(client, planId, 'apply');
             if (!applyReceipt || applyReceipt.receipt_id !== applyReceiptId) throw new Error('Valid apply receipt is required for rollback');
-            const current = await this.loadSnapshotImage(client, access, plan.after_snapshot, { lock: true });
+            if (hashGraphSnapshot(plan.before_snapshot) !== plan.base_snapshot_hash
+                || hashGraphSnapshot(plan.after_snapshot) !== plan.after_snapshot_hash) {
+                throw new Error('stored plan snapshot hash mismatch');
+            }
+            const current = await this.loadSnapshotImage(client, access, plan.after_snapshot, { lock: true, baseline: plan.before_snapshot });
             if (current.hash !== plan.after_snapshot_hash) throw new Error('rollback snapshot hash conflict');
             const beforeEdgeIds = new Set(plan.before_snapshot.edges.map((edge) => edge.id));
             const createdEdgeIds = [...new Set(plan.after_snapshot.edges.map((edge) => edge.id).filter((id) => !beforeEdgeIds.has(id)))];
@@ -436,8 +462,8 @@ export class GraphMaintenanceService {
                 const remains = await client.query(`SELECT id FROM graph_edges WHERE id=ANY($1::text[])`, [createdEdgeIds]);
                 if (remains.rows.length) throw new Error('Graph rollback created-edge cleanup failed');
             }
-            await this.replaceSnapshot(client, access, plan.before_snapshot);
-            const readback = await this.loadSnapshotImage(client, access, plan.before_snapshot, { lock: true });
+            await this.replaceSnapshot(client, access, plan.before_snapshot, { baseline: plan.before_snapshot });
+            const readback = await this.loadSnapshotImage(client, access, plan.before_snapshot, { lock: true, baseline: plan.before_snapshot });
             if (readback.hash !== plan.base_snapshot_hash) throw new Error('Graph rollback readback hash mismatch');
             const receipt = await this.createReceipt(client, access, plan, 'rollback', current.hash, readback.hash);
             await client.query(`UPDATE graph_maintenance_plans SET status='rolled_back', rolled_back_at=NOW() WHERE id=$1`, [planId]);

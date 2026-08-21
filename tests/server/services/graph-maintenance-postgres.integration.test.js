@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 import { GraphMaintenanceService } from '../../../server/services/graph-maintenance-service.js';
+import { validateGraphSnapshot } from '../../../server/services/graph-maintenance-engine.js';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
 
@@ -190,6 +191,49 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
                 after_hash: initialSnapshot.snapshot_hash
             }
         ]);
+    });
+
+    it('keeps an existing orphan unchanged while Apply and Rollback complete', async () => {
+        await database.pool.query(`
+            INSERT INTO graph_edges
+                (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+            VALUES
+                ('edge_existing_orphan', 'project_entity_a', 'missing_entity', 'legacy_reference',
+                 'project_phase0', '{}', 'member', 'internal', 'active', 1)
+        `);
+        try {
+            const baseline = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+            const plan = await service.planMutations(access, {
+                projectCode: 'brainbase',
+                snapshotId: baseline.snapshot_id,
+                idempotencyKey: 'phase0-existing-orphan-roundtrip-1',
+                reason: 'Existing orphan must not block an unrelated safe maintenance mutation',
+                operations: [{
+                    operation: 'patch_entity',
+                    entity_id: 'project_entity_b',
+                    expected_version: 1,
+                    patch: { existing_orphan_roundtrip: true }
+                }]
+            });
+
+            const applyReceipt = await service.applyPlan(access, {
+                projectCode: 'brainbase', planId: plan.plan_id, snapshotHash: plan.snapshot_hash
+            });
+            expect(applyReceipt).toMatchObject({ receipt_type: 'apply', after_hash: plan.after_snapshot_hash });
+            const applied = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+            expect(applied.snapshot_hash).toBe(plan.after_snapshot_hash);
+            expect(validateGraphSnapshot(applied).issues).toEqual([{ category: 'orphan', id: 'edge_existing_orphan' }]);
+
+            const rollbackReceipt = await service.rollbackPlan(access, {
+                projectCode: 'brainbase', planId: plan.plan_id, applyReceiptId: applyReceipt.receipt_id
+            });
+            expect(rollbackReceipt).toMatchObject({ receipt_type: 'rollback', after_hash: baseline.snapshot_hash });
+            const restored = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+            expect(restored.snapshot_hash).toBe(baseline.snapshot_hash);
+            expect(validateGraphSnapshot(restored).issues).toEqual([{ category: 'orphan', id: 'edge_existing_orphan' }]);
+        } finally {
+            await database.pool.query(`DELETE FROM graph_edges WHERE id='edge_existing_orphan'`);
+        }
     });
 });
 

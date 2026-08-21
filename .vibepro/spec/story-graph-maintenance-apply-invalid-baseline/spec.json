@@ -1,0 +1,379 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-maintenance-apply-invalid-baseline",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "implementation"
+  },
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "signed service Bearer token",
+        "projects.organization_id"
+      ],
+      "resolution_point": "Graph maintenance transaction preflight",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "transaction",
+        "audit_receipt"
+      ],
+      "verified_surfaces": [
+        "transaction",
+        "audit_receipt"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Graph entities, edges, maintenance plans and receipts",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_code",
+        "trust_zone": "Brainbase PostgreSQL transaction",
+        "residue_policy": "lifecycle retirement plus immutable receipt retention",
+        "data_owner": "Brainbase organization",
+        "credential_scope": "organization and project scoped service Bearer"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "organization and project scoped service Bearer",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase organization"
+      ],
+      "residency": "tenant-partitioned Brainbase PostgreSQL",
+      "migration": "not applicable for this service-only fix",
+      "rollback": "same-tenant inverse restoration with affected-scope hash readback"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "organization",
+        "project",
+        "graph_entity",
+        "graph_edge",
+        "maintenance_plan",
+        "maintenance_receipt"
+      ],
+      "boundary_edges": [
+        "organization owns project",
+        "project scopes graph row",
+        "plan and receipt bind organization and projects"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": [
+          "transaction",
+          "audit_receipt"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "Graph maintenance project scope",
+              "tenant_key_source": "signed Bearer organization_id and projects.organization_id",
+              "trust_zone": "Brainbase PostgreSQL transaction",
+              "data_owner": "Brainbase organization"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "organization-owned project Graph rows",
+              "tenant_key_source": "organization_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "organization and project scoped service Bearer",
+              "connection_mode": "pooled PostgreSQL with transaction preflight",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Apply and Rollback accept validation issues already present in the immutable baseline only when no issue identity is introduced.",
+      "rationale": "Existing orphan edges must not block unrelated safe maintenance while new invalid state remains forbidden.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-001",
+            "text_snippet": "ApplyとRollbackは、immutable baselineに存在する同一identityのvalidation issueだけを許容し、新しいissueを拒否する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "findIntroducedGraphValidationIssues"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "applyPlan"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "keeps an existing orphan unchanged while Apply and Rollback complete"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test": [
+          "PostgreSQL roundtrip preserves the same orphan and restores the baseline hash"
+        ]
+      },
+      "first_seen_at": "2026-08-21T03:34:37.040Z",
+      "last_revised_at": "2026-08-21T04:07:50.951Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "Stored plan images are hash-verified and any newly introduced validation issue or inaccessible non-baseline endpoint is rejected before mutation.",
+      "rationale": "Baseline-relative tolerance must not weaken tenant or plan-integrity boundaries.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-002",
+            "text_snippet": "保存済みbefore/after snapshotのhashを再検証し、改変されたPlanをmutation前に拒否する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "applyPlan"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "rejects a stored plan snapshot whose content no longer matches its hash before mutation"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test": [
+          "stored plan hash mismatch is rejected before mutation"
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_contain": "stored plan snapshot hash mismatch"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-21T03:34:37.040Z",
+      "last_revised_at": "2026-08-21T04:07:50.951Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Baseline-relative readback rejects newly introduced orphan identities and missing or inaccessible planned rows.",
+      "rationale": "Known baseline defects must not become a general authorization or completeness bypass.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-003",
+            "text_snippet": "baselineで既知のorphan endpointだけをreadbackで許容し、別orphan、tenant/project越境、予定row欠落は拒否する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "loadSnapshotImage"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "rejects an introduced orphan that is absent from the immutable baseline"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "rejects a missing planned row during baseline-relative readback"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test": [
+          "introduced orphan and missing planned row rejection"
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_contain": "rejects a missing planned row during baseline-relative readback"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-21T04:06:05.288Z",
+      "last_revised_at": "2026-08-21T04:07:50.951Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "PostgreSQL Apply, validation readback, and Rollback preserve the existing orphan identity and restore the exact baseline rows and hash.",
+      "rationale": "The durable transaction path, not only the pure engine, must prove reversible maintenance.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004",
+            "text_snippet": "PostgreSQL隔離schemaで既存orphanを維持したApply、after hash読戻し、Validate、Rollback、base hashとrow完全復元を確認する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "rollbackPlan"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "keeps an existing orphan unchanged while Apply and Rollback complete"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test": [
+          "PostgreSQL roundtrip and exact hash restoration"
+        ]
+      },
+      "first_seen_at": "2026-08-21T04:06:05.288Z",
+      "last_revised_at": "2026-08-21T04:07:50.951Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "Snapshot replacement without an immutable baseline retains strict validation and rejects every orphan.",
+      "rationale": "The compatibility mode must be explicit and limited to Apply and Rollback internal calls.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-005",
+            "text_snippet": "baselineを指定しない既存のstrict validation契約は変えない"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "replaceSnapshot"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "keeps strict validation when no immutable baseline is supplied"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test": [
+          "strict default orphan rejection"
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_contain": "keeps strict validation when no immutable baseline is supplied"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-21T04:06:05.288Z",
+      "last_revised_at": "2026-08-21T04:07:50.951Z"
+    }
+  ],
+  "generated_at": "2026-08-21T03:34:37.039Z",
+  "previous_spec_id": "2026-08-21T03:34:37.039Z"
+}
