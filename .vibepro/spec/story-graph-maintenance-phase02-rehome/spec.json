@@ -207,7 +207,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "text_snippet": "AC-002 AC-003"
+          "text_snippet": "AC-002"
           }
         ],
         "code_refs": [
@@ -219,15 +219,60 @@
         "test_refs": [
           {
             "file": "tests/server/services/graph-maintenance-engine.test.js",
-            "case": "rehome_entityは旧membershipをretireし新membershipを作る"
+            "case": "rehomeは旧所属をretireし、新所属をactiveで作成し、無関係edgeを変更しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "rehomeは旧所属をretireし、新所属をactiveで作成し、無関係edgeを変更しない"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-21T11:12:45.372Z",
       "last_revised_at": "2026-08-21T11:12:45.372Z"
+  },
+  {
+    "id": "INV-004",
+    "type": "invariant",
+    "statement": "active belongs_to_projectはsource Entity、Edge、target Project entityのproject_code一致を要求し、既存baseline違反を増やさない。",
+    "rationale": "rehome以外のPlan経路からも所属scope矛盾を導入させない。",
+    "origin": {
+      "story_refs": [
+        {
+          "kind": "acceptance_criteria",
+          "text_snippet": "AC-003"
+        }
+      ],
+      "code_refs": [
+        {
+          "file": "server/services/graph-maintenance-engine.js",
+          "anchor": "validateGraphSnapshot"
+        }
+      ],
+      "test_refs": [
+        {
+          "file": "tests/server/services/graph-maintenance-engine.test.js",
+          "case": "active belongs_to_projectのsource・edge・target scope不一致を検出する"
+        }
+      ]
     },
-    {
+      "verifiable_by": {
+      "test_pattern": [
+        {
+          "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+          "must_cover": "active belongs_to_projectのsource・edge・target scope不一致を検出する"
+        }
+      ]
+      },
+    "confidence": 0.99,
+    "first_seen_at": "2026-08-21T11:12:45.372Z",
+    "last_revised_at": "2026-08-21T11:12:45.372Z"
+  },
+  {
       "id": "INV-002",
       "type": "invariant",
       "statement": "ApplyとRollbackはbefore/afterに含まれる全scopeをlockしてhashとrowsを完全にreadbackする。",
@@ -252,7 +297,15 @@
         "test_refs": [
           {
             "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
-            "case": "cross-scope rehomeをapply rollbackして全rowsを復元する"
+            "case": "複合scope rehomeをApplyしRollbackで全rowsを復元する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "must_cover": "複合scope rehomeをApplyしRollbackで全rowsを復元する"
           }
         ]
       },
@@ -281,7 +334,7 @@
         "test_refs": [
           {
             "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
-            "case": "cross-scope targetは全scope preflightを要求する"
+            "case": "cross-scope snapshotとrehome targetは全scopeのpreflightを要求する"
           }
         ]
       },
@@ -310,7 +363,15 @@
         "test_refs": [
           {
             "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
-            "case": "tenant mapping migrationは再実行して差分0"
+            "case": "承認済みtenant mappingだけを冪等に適用する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "must_cover": "承認済みtenant mappingだけを冪等に適用する"
           }
         ]
       },

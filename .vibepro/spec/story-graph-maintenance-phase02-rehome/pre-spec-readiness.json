@@ -1,10 +1,10 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-graph-maintenance-phase02-rehome",
-  "created_at": "2026-08-21T11:12:40.502Z",
+  "created_at": "2026-08-21T11:34:35.213Z",
   "status": "ready",
   "git": {
-    "head_sha": "4e3619527867745986e592e856ba20d3b65475be"
+    "head_sha": "6cadacb2897c852355eb74245140d9df9b082422"
   },
   "checks": [
     {
@@ -37,7 +37,7 @@
   },
   "engineering_judgment": null,
   "pr_prepare": {
-    "created_at": "2026-08-21T11:12:40.444Z",
+    "created_at": "2026-08-21T11:34:35.141Z",
     "artifact": ".vibepro/pr/story-graph-maintenance-phase02-rehome/pr-prepare.json"
   },
   "next_actions": []

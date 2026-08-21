@@ -96,7 +96,7 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         await dropScopedDatabase(database);
     });
 
-    it('executes Snapshot → Dry Run → Apply → re-fetch → Validate → Rollback and restores the original rows', async () => {
+    it('複合scope rehomeをApplyしRollbackで全rowsを復元する', async () => {
         const plan = await service.planMutations(access, {
             projectCode: 'brainbase',
             snapshotId: initialSnapshot.snapshot_id,
@@ -330,7 +330,7 @@ describeWithPostgres('Info SSOT schema migration compatibility', () => {
         await dropScopedDatabase(database);
     });
 
-    it('adds Phase 0 columns/tables and backfills only unambiguous organization ownership', async () => {
+    it('承認済みtenant mappingだけを冪等に適用する', async () => {
         const { rows: projects } = await database.pool.query(
             `SELECT code, organization_id FROM projects ORDER BY code`
         );
