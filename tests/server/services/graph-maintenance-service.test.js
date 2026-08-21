@@ -132,6 +132,36 @@ describe('GraphMaintenanceService authorization', () => {
         expect(client.query).not.toHaveBeenCalled();
     });
 
+    it('複合scope snapshotは全project accessとorganization一致を要求する', async () => {
+        const rowsByCode = {
+            brainbase: { id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' },
+            vibepro: { id: 'project_vibepro', code: 'vibepro', organization_id: 'org_1' }
+        };
+        const client = { query: vi.fn(async (sql, params) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: rowsByCode[params[0]] ? [rowsByCode[params[0]]] : [] };
+            }
+            if (sql.includes('SELECT ge.id, ge.entity_type')) return { rows: [
+                { id: 'decision_1', entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 },
+                { id: 'project_vibepro_entity', entity_type: 'project', project_code: 'vibepro', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }
+            ] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const multiScopeService = new GraphMaintenanceService({ infoSSOTService: {} });
+        const access = { organizationId: 'org_1', projectCodes: ['brainbase', 'vibepro'], role: 'gm' };
+        const { snapshot } = await multiScopeService.loadSnapshot(client, access, 'brainbase', {
+            includeProjectCodes: ['vibepro', 'vibepro']
+        });
+        expect(snapshot.entities.map((entity) => entity.project_code)).toEqual(['brainbase', 'vibepro']);
+        const entityQuery = client.query.mock.calls.find(([sql]) => sql.includes('SELECT ge.id, ge.entity_type'));
+        expect(entityQuery?.[1]).toEqual([['project_brainbase', 'project_vibepro']]);
+
+        await expect(multiScopeService.loadSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, 'brainbase', { includeProjectCodes: ['vibepro'] })).rejects.toThrow('Access denied for project: vibepro');
+    });
+
     it('Human Gate receiptは署名Bearerの人間principalからのみ供給できる', async () => {
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('SELECT id, code, organization_id FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
@@ -179,6 +209,7 @@ describe('GraphMaintenanceService authorization', () => {
                 return params[1] === 'apply' ? { rows: [{ receipt_id: 'apply_1' }] } : { rows: [] };
             }
             if (sql.includes('SELECT id, code FROM projects') && sql.includes('ANY($1::text[])')) return { rows: [{ id: 'project_brainbase', code: 'brainbase' }] };
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
             if (sql.includes('SELECT id FROM projects WHERE code=ANY')) return { rows: [{ id: 'project_brainbase' }] };
             if (sql.includes('SELECT ge.id, ge.entity_type')) return { rows: after.entities };
             if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: edgeExists ? after.edges : [] };

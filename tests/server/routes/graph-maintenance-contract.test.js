@@ -14,7 +14,7 @@ const authService = {
     verifyToken: vi.fn(() => ({
         sub: 'per_graph_owner',
         role: 'gm',
-        projectCodes: ['brainbase'],
+        projectCodes: ['brainbase', 'vibepro'],
         clearance: ['internal', 'restricted', 'finance', 'hr', 'contract'],
         organizationId: 'org_unson'
     })),
@@ -80,13 +80,13 @@ describe('Graph maintenance REST/MCP contract', () => {
 
         const exported = await request(app)
             .post('/api/info/graph/maintenance/snapshots')
-            .set(bearerHeaders())
-            .send({ project_code: 'brainbase' })
+            .set({ ...bearerHeaders(), 'x-brainbase-projects': 'brainbase,vibepro' })
+            .send({ project_code: 'brainbase', include_project_codes: ['vibepro'] })
             .expect(201);
         expect(exported.body).toEqual(responses.exportSnapshot);
         expect(spies.exportSnapshot).toHaveBeenCalledWith(
-            expect.objectContaining({ organizationId: 'org_unson', projectCodes: ['brainbase'], role: 'gm' }),
-            { projectCode: 'brainbase' }
+            expect.objectContaining({ organizationId: 'org_unson', projectCodes: ['brainbase', 'vibepro'], role: 'gm' }),
+            { projectCode: 'brainbase', includeProjectCodes: ['vibepro'] }
         );
 
         const planned = await request(app)
@@ -140,13 +140,13 @@ describe('Graph maintenance REST/MCP contract', () => {
 
         const validated = await request(app)
             .post('/api/info/graph/maintenance/validate')
-            .set(bearerHeaders())
-            .send({ project_code: 'brainbase' })
+            .set({ ...bearerHeaders(), 'x-brainbase-projects': 'brainbase,vibepro' })
+            .send({ project_code: 'brainbase', include_project_codes: ['vibepro'] })
             .expect(200);
         expect(validated.body).toEqual(responses.validate);
         expect(spies.validate).toHaveBeenCalledWith(
             expect.objectContaining({ organizationId: 'org_unson' }),
-            { projectCode: 'brainbase' }
+            { projectCode: 'brainbase', includeProjectCodes: ['vibepro'] }
         );
     });
 
@@ -217,7 +217,7 @@ describe('Graph maintenance REST/MCP contract', () => {
         expect(recordReceipt).toHaveBeenCalledWith(
             expect.objectContaining({
                 organizationId: 'org_unson',
-                projectCodes: ['brainbase'],
+                projectCodes: ['brainbase', 'vibepro'],
                 role: 'gm',
                 authSource: 'bearer'
             }),

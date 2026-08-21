@@ -163,7 +163,8 @@ export class InfoSSOTController {
     exportGraphSnapshot = async (req, res) => {
         try {
             res.status(201).json(await this.graphMaintenanceService.exportSnapshot(this.maintenanceAccess(req), {
-                projectCode: req.body?.project_code
+                projectCode: req.body?.project_code,
+                includeProjectCodes: req.body?.include_project_codes
             }));
         } catch (error) {
             logger.error('Failed to export Graph maintenance snapshot', { error });
@@ -222,7 +223,8 @@ export class InfoSSOTController {
     validateGraphMaintenance = async (req, res) => {
         try {
             res.json(await this.graphMaintenanceService.validate(this.maintenanceAccess(req), {
-                projectCode: req.body?.project_code
+                projectCode: req.body?.project_code,
+                includeProjectCodes: req.body?.include_project_codes
             }));
         } catch (error) {
             logger.error('Failed to validate maintained Graph', { error });

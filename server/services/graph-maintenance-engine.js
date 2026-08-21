@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 export const GRAPH_MAINTENANCE_OPERATIONS = Object.freeze([
-    'patch_entity', 'merge_entities', 'retire_entity', 'move_scope',
+    'patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'rehome_entity',
     'upsert_edge', 'retire_edge', 'normalize_alias'
 ]);
 export const GRAPH_MAINTENANCE_MAX_OPERATIONS = 100;
@@ -134,6 +134,44 @@ export function applyGraphOperations(snapshot, operations, { projectCode, humanG
                 edge.project_code = operation.target_project_code;
                 edge.version += 1;
             }
+        } else if (operation.operation === 'rehome_entity') {
+            const entity = findEntity(state, operation.entity_id);
+            requireVersion(entity, operation);
+            if (!String(operation.target_project_code || '').trim()) throw new Error('target_project_code is required');
+            if (!String(operation.target_project_entity_id || '').trim()) throw new Error('target_project_entity_id is required');
+            const targetProject = findEntity(state, operation.target_project_entity_id);
+            requireVersion(targetProject, { expected_version: operation.target_project_expected_version });
+            if (targetProject.entity_type !== 'project') throw new Error('target Project entity_type is required');
+            if (targetProject.lifecycle_status !== 'active') throw new Error('target Project must be active');
+            if (targetProject.project_code !== operation.target_project_code) throw new Error('target Project scope mismatch');
+
+            if (!String(operation.membership_edge_id || '').trim()) throw new Error('membership_edge_id is required');
+            const membership = findEdge(state, { edge_id: operation.membership_edge_id });
+            requireVersion(membership, { expected_version: operation.membership_expected_version });
+            if (membership.rel_type !== 'belongs_to_project'
+                || membership.from_id !== entity.id
+                || membership.lifecycle_status !== 'active') {
+                throw new Error('active belongs_to_project membership is required');
+            }
+            if (membership.project_code !== entity.project_code) throw new Error('membership source scope mismatch');
+
+            if (operation.new_membership_expected_version !== 0) throw new Error('expected_version conflict');
+            if (!String(operation.new_membership_edge_id || '').trim()) throw new Error('new_membership_edge_id is required');
+            if (state.edges.some((edge) => edge.id === operation.new_membership_edge_id)) throw new Error('edge id conflict');
+
+            membership.lifecycle_status = 'retired';
+            membership.version += 1;
+            entity.project_code = operation.target_project_code;
+            entity.version += 1;
+            state.edges.push({
+                ...structuredClone(membership),
+                id: operation.new_membership_edge_id,
+                from_id: entity.id,
+                to_id: targetProject.id,
+                project_code: operation.target_project_code,
+                lifecycle_status: 'active',
+                version: 1
+            });
         } else if (operation.operation === 'merge_entities') {
             const source = findEntity(state, operation.source_entity_id);
             const target = findEntity(state, operation.target_entity_id);
@@ -243,6 +281,7 @@ export function validateGraphSnapshot(snapshot) {
     if (!Array.isArray(snapshot.entities)) issues.push({ category: 'entities' });
     if (!Array.isArray(snapshot.edges)) issues.push({ category: 'edges' });
     const entityIds = new Set();
+    const entitiesById = new Map();
     for (const entity of Array.isArray(snapshot.entities) ? snapshot.entities : []) {
         if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
             issues.push({ category: 'entity' });
@@ -251,6 +290,7 @@ export function validateGraphSnapshot(snapshot) {
         if (!String(entity.id || '').trim()) issues.push({ category: 'entity_id', id: entity.id });
         if (entityIds.has(entity.id)) issues.push({ category: 'duplicate_entity', id: entity.id });
         entityIds.add(entity.id);
+        entitiesById.set(entity.id, entity);
         if (!Number.isInteger(entity.version) || entity.version < 1) issues.push({ category: 'version', id: entity.id });
         if (!String(entity.entity_type || '').trim()) issues.push({ category: 'entity_type', id: entity.id });
         if (!String(entity.project_code || '').trim()) issues.push({ category: 'project_scope', id: entity.id });
@@ -283,6 +323,15 @@ export function validateGraphSnapshot(snapshot) {
             issues.push({ category: 'sensitivity_role', id: edge.id });
         }
         if (!entityIds.has(edge.from_id) || !entityIds.has(edge.to_id)) issues.push({ category: 'orphan', id: edge.id });
+        if (edge.rel_type === 'belongs_to_project' && edge.lifecycle_status === 'active') {
+            const source = entitiesById.get(edge.from_id);
+            const target = entitiesById.get(edge.to_id);
+            if (source && target && (target.entity_type !== 'project'
+                || source.project_code !== edge.project_code
+                || target.project_code !== edge.project_code)) {
+                issues.push({ category: 'membership_scope', id: edge.id });
+            }
+        }
         const key = `${edge.from_id}\u0000${edge.to_id}\u0000${edge.rel_type}`;
         if (edgeKeys.has(key)) issues.push({ category: 'duplicate_edge', id: edge.id });
         edgeKeys.add(key);

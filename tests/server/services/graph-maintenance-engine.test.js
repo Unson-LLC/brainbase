@@ -164,4 +164,86 @@ describe('Graph maintenance Phase 0 contract', () => {
             source_expected_version: 1, target_expected_version: 1
         }], { projectCode: 'brainbase' })).toThrow('duplicate_edge');
     });
+    it('rehomeは旧所属をretireし、新所属をactiveで作成し、無関係edgeを変更しない', () => {
+        const rehomeSnapshot = {
+            project_code: 'brainbase',
+            entities: [
+                { id: 'decision_vibepro', entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 3 },
+                { id: 'project_brainbase', entity_type: 'project', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 2 },
+                { id: 'project_vibepro', entity_type: 'project', project_code: 'vibepro', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 4 },
+                { id: 'incident', entity_type: 'incident', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }
+            ],
+            edges: [
+                { id: 'belongs_old', from_id: 'decision_vibepro', to_id: 'project_brainbase', rel_type: 'belongs_to_project', project_code: 'brainbase', payload: { source: 'legacy' }, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 5 },
+                { id: 'incident_edge', from_id: 'decision_vibepro', to_id: 'incident', rel_type: 'triggered_by', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 7 }
+            ]
+        };
+
+        const after = applyGraphOperations(rehomeSnapshot, [{
+            operation: 'rehome_entity', entity_id: 'decision_vibepro', expected_version: 3,
+            target_project_code: 'vibepro', target_project_entity_id: 'project_vibepro', target_project_expected_version: 4,
+            membership_edge_id: 'belongs_old', membership_expected_version: 5,
+            new_membership_edge_id: 'belongs_new', new_membership_expected_version: 0
+        }], { projectCode: 'brainbase' });
+
+        expect(after.entities.find((entity) => entity.id === 'decision_vibepro')).toMatchObject({ project_code: 'vibepro', version: 4 });
+        expect(after.edges.find((edge) => edge.id === 'belongs_old')).toMatchObject({
+            to_id: 'project_brainbase', project_code: 'brainbase', lifecycle_status: 'retired', version: 6
+        });
+        expect(after.edges.find((edge) => edge.id === 'belongs_new')).toMatchObject({
+            from_id: 'decision_vibepro', to_id: 'project_vibepro', rel_type: 'belongs_to_project',
+            project_code: 'vibepro', lifecycle_status: 'active', version: 1
+        });
+        expect(after.edges.find((edge) => edge.id === 'incident_edge')).toEqual(rehomeSnapshot.edges[1]);
+        expect(validateGraphSnapshot(after)).toMatchObject({ valid: true });
+    });
+
+    it('rehomeはversion、target Project、旧所属、新edgeの事前条件をfail closedにする', () => {
+        const rehomeSnapshot = {
+            project_code: 'brainbase',
+            entities: [
+                { id: 'decision', entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 },
+                { id: 'project_old', entity_type: 'project', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 },
+                { id: 'project_new', entity_type: 'project', project_code: 'vibepro', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 2 }
+            ],
+            edges: [{ id: 'belongs_old', from_id: 'decision', to_id: 'project_old', rel_type: 'belongs_to_project', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 3 }]
+        };
+        const operation = {
+            operation: 'rehome_entity', entity_id: 'decision', expected_version: 1,
+            target_project_code: 'vibepro', target_project_entity_id: 'project_new', target_project_expected_version: 2,
+            membership_edge_id: 'belongs_old', membership_expected_version: 3,
+            new_membership_edge_id: 'belongs_new', new_membership_expected_version: 0
+        };
+
+        expect(() => applyGraphOperations(rehomeSnapshot, [{ ...operation, expected_version: 2 }], { projectCode: 'brainbase' })).toThrow('expected_version conflict');
+        expect(() => applyGraphOperations(rehomeSnapshot, [{ ...operation, target_project_entity_id: 'missing' }], { projectCode: 'brainbase' })).toThrow('Unknown entity: missing');
+        expect(() => applyGraphOperations(rehomeSnapshot, [{ ...operation, target_project_expected_version: 1 }], { projectCode: 'brainbase' })).toThrow('expected_version conflict');
+        expect(() => applyGraphOperations(rehomeSnapshot, [{ ...operation, membership_expected_version: 2 }], { projectCode: 'brainbase' })).toThrow('expected_version conflict');
+        expect(() => applyGraphOperations(rehomeSnapshot, [{ ...operation, new_membership_expected_version: 1 }], { projectCode: 'brainbase' })).toThrow('expected_version conflict');
+        expect(() => applyGraphOperations(rehomeSnapshot, [{ ...operation, target_project_code: 'other' }], { projectCode: 'brainbase' })).toThrow('target Project scope mismatch');
+
+        const inactiveTarget = structuredClone(rehomeSnapshot);
+        inactiveTarget.entities.find((entity) => entity.id === 'project_new').lifecycle_status = 'retired';
+        expect(() => applyGraphOperations(inactiveTarget, [operation], { projectCode: 'brainbase' })).toThrow('target Project must be active');
+    });
+
+    it('active belongs_to_projectのsource・edge・target scope不一致を検出する', () => {
+        const invalidMembership = {
+            project_code: 'brainbase',
+            entities: [
+                { id: 'decision', entity_type: 'decision', project_code: 'vibepro', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 },
+                { id: 'project_old', entity_type: 'project', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }
+            ],
+            edges: [{ id: 'belongs', from_id: 'decision', to_id: 'project_old', rel_type: 'belongs_to_project', project_code: 'vibepro', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }]
+        };
+
+        expect(validateGraphSnapshot(invalidMembership).issues).toContainEqual({ category: 'membership_scope', id: 'belongs' });
+        const validMembership = structuredClone(invalidMembership);
+        validMembership.entities[0].project_code = 'brainbase';
+        validMembership.edges[0].project_code = 'brainbase';
+        expect(() => buildGraphPlan(validMembership, {
+            project_code: 'brainbase', idempotency_key: 'invalid-membership', reason: 'reject introduced membership mismatch',
+            operations: [{ operation: 'move_scope', entity_id: 'decision', expected_version: 1, target_project_code: 'vibepro' }]
+        })).toThrow('Graph operations introduced invalid state: membership_scope');
+    });
 });
