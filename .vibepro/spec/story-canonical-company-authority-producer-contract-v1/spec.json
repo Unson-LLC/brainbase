@@ -136,7 +136,10 @@
           { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins a manifest digest without producer commit self-reference" },
           { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "accepts a signed success context only after detached JWS verification" },
           { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "fails closed when caller evaluation time is omitted" },
-          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "evaluates expiry against caller-supplied now rather than issued_at" }
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "evaluates expiry against caller-supplied now rather than issued_at" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "POS-DENY-COMPANY-WRITE" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "accepts the embedded tenant context for %s through the canonical consumer verifier" }
         ]
       },
       "verifiable_by": {
