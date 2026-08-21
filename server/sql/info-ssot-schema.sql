@@ -10,6 +10,35 @@ CREATE TABLE IF NOT EXISTS projects (
 
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS organization_id text;
 
+-- Phase 0.2 approved tenant mappings. Keep this list explicit: an unmapped
+-- project remains fail-closed instead of inheriting a default tenant.
+DO $$
+BEGIN
+  IF to_regclass('organizations') IS NOT NULL THEN
+    UPDATE organizations
+    SET projects = CASE
+      WHEN id = 'unson' AND NOT ('unson' = ANY(COALESCE(projects, ARRAY[]::text[])))
+        THEN array_append(COALESCE(projects, ARRAY[]::text[]), 'unson')
+      WHEN id = 'techknight' AND NOT ('aitle' = ANY(COALESCE(projects, ARRAY[]::text[])))
+        THEN array_append(COALESCE(projects, ARRAY[]::text[]), 'aitle')
+      ELSE projects
+    END
+    WHERE id IN ('unson', 'techknight');
+
+    UPDATE projects p
+    SET organization_id = CASE p.code
+      WHEN 'unson' THEN 'unson'
+      WHEN 'aitle' THEN 'techknight'
+    END
+    WHERE p.organization_id IS NULL
+      AND p.code IN ('unson', 'aitle')
+      AND EXISTS (
+        SELECT 1 FROM organizations o
+        WHERE o.id = CASE p.code WHEN 'unson' THEN 'unson' WHEN 'aitle' THEN 'techknight' END
+      );
+  END IF;
+END $$;
+
 -- Backfill only when the permission catalog gives one unambiguous tenant owner.
 -- Ambiguous/unmapped projects intentionally stay NULL and maintenance fails closed.
 DO $$

@@ -25,7 +25,7 @@ const access = {
     organizationId: 'org_phase0',
     personId: 'person_phase0',
     role: 'gm',
-    projectCodes: ['brainbase'],
+    projectCodes: ['brainbase', 'vibepro'],
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract']
 };
 
@@ -64,12 +64,21 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         await applyInfoSSOTSchema(database.pool);
         await database.pool.query(`
             INSERT INTO projects (id, code, name, organization_id)
-            VALUES ('project_phase0', 'brainbase', 'Brainbase', 'org_phase0');
+            VALUES
+                ('project_phase0', 'brainbase', 'Brainbase', 'org_phase0'),
+                ('project_vibepro', 'vibepro', 'VibePro', 'org_phase0');
             INSERT INTO graph_entities
                 (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
             VALUES
-                ('project_entity_a', 'project', 'project_phase0', '{"name":"Before"}', 'member', 'internal', 'active', 1),
-                ('project_entity_b', 'project', 'project_phase0', '{"name":"Target"}', 'member', 'internal', 'active', 1);
+                ('decision_rehome', 'decision', 'project_phase0', '{"title":"Move to VibePro","status":"draft"}', 'member', 'internal', 'active', 1),
+                ('project_entity_a', 'project', 'project_phase0', '{"name":"Brainbase"}', 'member', 'internal', 'active', 1),
+                ('project_entity_b', 'project', 'project_phase0', '{"name":"Brainbase secondary fixture"}', 'member', 'internal', 'active', 1),
+                ('project_vibepro_entity', 'project', 'project_vibepro', '{"name":"VibePro"}', 'member', 'internal', 'active', 1);
+            INSERT INTO graph_edges
+                (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+            VALUES
+                ('membership_brainbase', 'decision_rehome', 'project_entity_a', 'belongs_to_project',
+                 'project_phase0', '{}', 'member', 'internal', 'active', 1);
         `);
         // Pin this acceptance run to the repository's distributed trust anchor.
         // A runtime-injected signing key must not turn it into a false negative
@@ -78,14 +87,16 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         service = new GraphMaintenanceService({
             infoSSOTService: new InfoSSOTService({ pool: database.pool, ontologyRegistry })
         });
-        initialSnapshot = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+        initialSnapshot = await service.exportSnapshot(access, {
+            projectCode: 'brainbase', includeProjectCodes: ['vibepro']
+        });
     });
 
     afterAll(async () => {
         await dropScopedDatabase(database);
     });
 
-    it('executes Snapshot → Dry Run → Apply → re-fetch → Validate → Rollback and restores the original rows', async () => {
+    it('複合scope rehomeをApplyしRollbackで全rowsを復元する', async () => {
         const plan = await service.planMutations(access, {
             projectCode: 'brainbase',
             snapshotId: initialSnapshot.snapshot_id,
@@ -93,29 +104,39 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             reason: 'Phase 0 PostgreSQL acceptance roundtrip',
             operations: [
                 {
-                    operation: 'patch_entity',
-                    entity_id: 'project_entity_a',
+                    operation: 'rehome_entity',
+                    entity_id: 'decision_rehome',
                     expected_version: 1,
-                    patch: { name: 'After' }
-                },
-                {
-                    operation: 'upsert_edge',
-                    from_id: 'project_entity_a',
-                    to_id: 'project_entity_b',
-                    rel_type: 'relates_to_project',
-                    expected_version: 0,
-                    payload: { source: 'phase0-db-roundtrip' }
+                    target_project_code: 'vibepro',
+                    target_project_entity_id: 'project_vibepro_entity',
+                    target_project_expected_version: 1,
+                    membership_edge_id: 'membership_brainbase',
+                    membership_expected_version: 1,
+                    new_membership_expected_version: 0
                 }
             ]
         });
 
         expect(plan.dry_run).toBe(true);
         expect(plan.snapshot_hash).toBe(initialSnapshot.snapshot_hash);
-        expect(plan.after.entities.find((entity) => entity.id === 'project_entity_a')).toMatchObject({
-            version: 2,
-            payload: { name: 'After' }
+        expect(plan.after.entities.find((entity) => entity.id === 'decision_rehome')).toMatchObject({
+            project_code: 'vibepro',
+            version: 2
         });
-        expect(plan.after.edges).toHaveLength(1);
+        expect(plan.after.edges.find((edge) => edge.id === 'membership_brainbase')).toMatchObject({
+            project_code: 'brainbase',
+            lifecycle_status: 'retired',
+            version: 2
+        });
+        expect(plan.after.edges).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                from_id: 'decision_rehome',
+                to_id: 'project_vibepro_entity',
+                project_code: 'vibepro',
+                lifecycle_status: 'active',
+                version: 1
+            })
+        ]));
 
         const applyReceipt = await service.applyPlan(access, {
             projectCode: 'brainbase',
@@ -130,16 +151,18 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             after_hash: plan.after_snapshot_hash
         });
 
-        const appliedSnapshot = await service.exportSnapshot(access, { projectCode: 'brainbase' });
-        expect(appliedSnapshot.snapshot_hash).toBe(plan.after_snapshot_hash);
-        expect(appliedSnapshot.entities.find((entity) => entity.id === 'project_entity_a')).toMatchObject({
-            version: 2,
-            payload: { name: 'After' }
+        const appliedSnapshot = await service.exportSnapshot(access, {
+            projectCode: 'brainbase', includeProjectCodes: ['vibepro']
         });
-        expect(appliedSnapshot.edges).toHaveLength(1);
-        await expect(service.validate(access, { projectCode: 'brainbase' })).resolves.toMatchObject({
+        expect(appliedSnapshot.snapshot_hash).toBe(plan.after_snapshot_hash);
+        expect(appliedSnapshot.entities.find((entity) => entity.id === 'decision_rehome')).toMatchObject({
+            project_code: 'vibepro',
+            version: 2
+        });
+        expect(appliedSnapshot.edges).toHaveLength(2);
+        await expect(service.validate(access, { projectCode: 'brainbase', includeProjectCodes: ['vibepro'] })).resolves.toMatchObject({
             valid: true,
-            ontology: { valid: true, verification: 'verified', ontology_version: '1.0.0' }
+            ontology: { valid: true, verification: 'verified', ontology_version: '1.1.0' }
         });
 
         await expect(service.getPlanReceipt(access, {
@@ -163,13 +186,15 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             after_hash: initialSnapshot.snapshot_hash
         });
 
-        const restoredSnapshot = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+        const restoredSnapshot = await service.exportSnapshot(access, {
+            projectCode: 'brainbase', includeProjectCodes: ['vibepro']
+        });
         expect(restoredSnapshot.snapshot_hash).toBe(initialSnapshot.snapshot_hash);
         expect(restoredSnapshot.entities).toEqual(initialSnapshot.entities);
         expect(restoredSnapshot.edges).toEqual(initialSnapshot.edges);
         await expect(service.validate(access, { projectCode: 'brainbase' })).resolves.toMatchObject({
             valid: true,
-            ontology: { valid: true, verification: 'verified', ontology_version: '1.0.0' }
+            ontology: { valid: true, verification: 'verified', ontology_version: '1.1.0' }
         });
 
         const { rows: receiptRows } = await database.pool.query(
@@ -282,11 +307,16 @@ describeWithPostgres('Info SSOT schema migration compatibility', () => {
             VALUES
                 ('org_legacy', 'Legacy owner', ARRAY['legacy']),
                 ('org_ambiguous_a', 'Ambiguous A', ARRAY['ambiguous']),
-                ('org_ambiguous_b', 'Ambiguous B', ARRAY['ambiguous']);
+                ('org_ambiguous_b', 'Ambiguous B', ARRAY['ambiguous']),
+                ('unson', 'Unson', ARRAY[]::text[]),
+                ('techknight', 'Tech Knight', ARRAY[]::text[]);
             INSERT INTO projects (id, code, name)
             VALUES
                 ('legacy_project', 'legacy', 'Legacy project'),
-                ('ambiguous_project', 'ambiguous', 'Ambiguous project');
+                ('ambiguous_project', 'ambiguous', 'Ambiguous project'),
+                ('unson_project', 'unson', 'Unson project'),
+                ('aitle_project', 'aitle', 'Aitle project'),
+                ('unknown_project', 'unknown', 'Unknown project');
             INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity)
             VALUES ('legacy_entity', 'org', 'legacy_project', '{"name":"Legacy"}', 'member', 'internal');
         `);
@@ -300,13 +330,24 @@ describeWithPostgres('Info SSOT schema migration compatibility', () => {
         await dropScopedDatabase(database);
     });
 
-    it('adds Phase 0 columns/tables and backfills only unambiguous organization ownership', async () => {
+    it('承認済みtenant mappingだけを冪等に適用する', async () => {
         const { rows: projects } = await database.pool.query(
             `SELECT code, organization_id FROM projects ORDER BY code`
         );
         expect(projects).toEqual([
+            { code: 'aitle', organization_id: 'techknight' },
             { code: 'ambiguous', organization_id: null },
-            { code: 'legacy', organization_id: 'org_legacy' }
+            { code: 'legacy', organization_id: 'org_legacy' },
+            { code: 'unknown', organization_id: null },
+            { code: 'unson', organization_id: 'unson' }
+        ]);
+
+        const { rows: approvedMemberships } = await database.pool.query(
+            `SELECT id, projects FROM organizations WHERE id IN ('techknight', 'unson') ORDER BY id`
+        );
+        expect(approvedMemberships).toEqual([
+            { id: 'techknight', projects: ['aitle'] },
+            { id: 'unson', projects: ['unson'] }
         ]);
 
         const { rows: entityRows } = await database.pool.query(

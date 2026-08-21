@@ -22,6 +22,14 @@ function uniqueIds(records) {
     return [...new Set(records.map((record) => record.id))];
 }
 
+function snapshotProjectCodes(snapshot) {
+    return [...new Set([
+        snapshot.project_code,
+        ...snapshot.entities.map((item) => item.project_code),
+        ...snapshot.edges.map((item) => item.project_code)
+    ].filter(Boolean))];
+}
+
 function assertValidSnapshot(snapshot, prefix = 'Graph snapshot is invalid', baseline = null) {
     const validation = validateGraphSnapshot(snapshot);
     const issues = baseline
@@ -55,23 +63,27 @@ export class GraphMaintenanceService {
         return rows[0];
     }
 
-    async loadSnapshot(client, access, projectCode, { lock = false } = {}) {
-        const project = await this.resolveProject(client, access, projectCode, { lock });
+    async loadSnapshot(client, access, projectCode, { lock = false, includeProjectCodes = [] } = {}) {
+        const projectCodes = [...new Set([projectCode, ...includeProjectCodes].filter(Boolean))].sort();
+        const projects = [];
+        for (const code of projectCodes) projects.push(await this.resolveProject(client, access, code, { lock }));
+        const project = projects.find((item) => item.code === projectCode);
+        const projectIds = projects.map((item) => item.id);
         const suffix = lock ? ' FOR UPDATE' : '';
         const [entityResult, edgeResult] = await Promise.all([
             client.query(
                 `SELECT ge.id, ge.entity_type, p.code AS project_code, ge.payload, ge.role_min,
                         ge.sensitivity, ge.lifecycle_status, ge.version
                  FROM graph_entities ge JOIN projects p ON p.id = ge.project_id
-                 WHERE ge.project_id = $1 ORDER BY ge.id${suffix}`,
-                [project.id]
+                 WHERE ge.project_id=ANY($1::text[]) ORDER BY ge.id${suffix}`,
+                [projectIds]
             ),
             client.query(
                 `SELECT gx.id, gx.from_id, gx.to_id, gx.rel_type, p.code AS project_code, gx.payload,
                         gx.role_min, gx.sensitivity, gx.lifecycle_status, gx.version
                  FROM graph_edges gx JOIN projects p ON p.id = gx.project_id
-                 WHERE gx.project_id = $1 ORDER BY gx.id${suffix}`,
-                [project.id]
+                 WHERE gx.project_id=ANY($1::text[]) ORDER BY gx.id${suffix}`,
+                [projectIds]
             )
         ]);
         const snapshot = { project_code: projectCode, entities: entityResult.rows, edges: edgeResult.rows };
@@ -82,7 +94,7 @@ export class GraphMaintenanceService {
     async loadSnapshotImage(client, access, image, { lock = false, baseline = null } = {}) {
         assertValidSnapshot(image, 'Graph snapshot image is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
-        const codes = [...new Set([image.project_code, ...image.entities.map((item) => item.project_code), ...image.edges.map((item) => item.project_code)])];
+        const codes = snapshotProjectCodes(image);
         if (!codes.every((code) => access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
         const projectRows = await client.query(
             `SELECT id, code FROM projects WHERE code=ANY($1::text[]) AND organization_id=$2`, [codes, organizationId]
@@ -132,9 +144,9 @@ export class GraphMaintenanceService {
         return snapshot;
     }
 
-    async exportSnapshot(access, { projectCode }) {
+    async exportSnapshot(access, { projectCode, includeProjectCodes = [] }) {
         return this.infoSSOTService.withAccessContext(access, async (client) => {
-            const { project, snapshot } = await this.loadSnapshot(client, access, projectCode);
+            const { project, snapshot } = await this.loadSnapshot(client, access, projectCode, { includeProjectCodes });
             const snapshotId = `gms_${randomUUID()}`;
             await client.query(
                 `INSERT INTO graph_maintenance_snapshots
@@ -158,23 +170,34 @@ export class GraphMaintenanceService {
             );
             const stored = snapshotRows[0];
             if (!stored) throw new Error('Unknown snapshot');
-            const normalizedOperations = (input.operations || []).map((operation, index) => (
-                operation.operation === 'upsert_edge' && operation.expected_version === 0
-                    ? { ...operation, edge_id: plannedEdgeId(organizationId, input.projectCode, input.idempotencyKey, index) }
-                    : operation
-            ));
+            const normalizedOperations = (input.operations || []).map((operation, index) => {
+                const deterministicEdgeId = plannedEdgeId(organizationId, input.projectCode, input.idempotencyKey, index);
+                if (operation.operation === 'upsert_edge' && operation.expected_version === 0) {
+                    return { ...operation, edge_id: deterministicEdgeId };
+                }
+                if (operation.operation === 'rehome_entity' && operation.new_membership_expected_version === 0) {
+                    return { ...operation, new_membership_edge_id: deterministicEdgeId };
+                }
+                return operation;
+            });
             const targetProjectCodes = [...new Set(normalizedOperations
-                .filter((operation) => operation.operation === 'move_scope')
+                .filter((operation) => ['move_scope', 'rehome_entity'].includes(operation.operation))
                 .map((operation) => operation.target_project_code)
                 .filter(Boolean))];
             for (const targetProjectCode of targetProjectCodes) {
                 await this.resolveProject(client, access, targetProjectCode);
             }
             const newEdgeOperations = normalizedOperations.filter((operation) => operation.operation === 'upsert_edge' && operation.expected_version === 0);
-            if (newEdgeOperations.length) {
+            const plannedEdgeIds = [
+                ...newEdgeOperations.map((operation) => operation.edge_id),
+                ...normalizedOperations
+                    .filter((operation) => operation.operation === 'rehome_entity' && operation.new_membership_expected_version === 0)
+                    .map((operation) => operation.new_membership_edge_id)
+            ];
+            if (plannedEdgeIds.length) {
                 const collision = await client.query(
                     `SELECT id FROM graph_edges WHERE id=ANY($1::text[]) FOR UPDATE`,
-                    [newEdgeOperations.map((operation) => operation.edge_id)]
+                    [plannedEdgeIds]
                 );
                 if (collision.rows.length) throw new Error('planned edge id conflict');
             }
@@ -294,7 +317,7 @@ export class GraphMaintenanceService {
     async replaceSnapshot(client, access, snapshot, { baseline = null } = {}) {
         assertValidSnapshot(snapshot, 'Graph snapshot is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
-        const codes = [...new Set([snapshot.project_code, ...snapshot.entities.map((item) => item.project_code), ...snapshot.edges.map((item) => item.project_code)])];
+        const codes = snapshotProjectCodes(snapshot);
         const projects = await client.query(
             `SELECT id, code FROM projects WHERE code = ANY($1::text[]) AND organization_id = $2 FOR UPDATE`,
             [codes, organizationId]
@@ -376,10 +399,16 @@ export class GraphMaintenanceService {
                 throw new Error('stored plan snapshot hash mismatch');
             }
             assertValidSnapshot(plan.after_snapshot, 'Stored Graph plan introduced invalid state', plan.before_snapshot);
-            const { snapshot: current } = await this.loadSnapshot(client, access, projectCode, { lock: true });
+            const { snapshot: current } = await this.loadSnapshot(client, access, projectCode, {
+                lock: true,
+                includeProjectCodes: snapshotProjectCodes(plan.before_snapshot).filter((code) => code !== projectCode)
+            });
             if (current.hash !== plan.base_snapshot_hash) throw new Error('snapshot hash conflict');
             await this.replaceSnapshot(client, access, plan.after_snapshot, { baseline: plan.before_snapshot });
-            const readback = await this.loadSnapshotImage(client, access, plan.after_snapshot, { lock: true, baseline: plan.before_snapshot });
+            const { snapshot: readback } = await this.loadSnapshot(client, access, projectCode, {
+                lock: true,
+                includeProjectCodes: snapshotProjectCodes(plan.after_snapshot).filter((code) => code !== projectCode)
+            });
             if (readback.hash !== plan.after_snapshot_hash) throw new Error('Graph apply readback hash mismatch');
             const receipt = await this.createReceipt(client, access, plan, 'apply', plan.base_snapshot_hash, readback.hash);
             await client.query(`UPDATE graph_maintenance_plans SET status='applied', applied_at=NOW() WHERE id=$1`, [planId]);
@@ -440,7 +469,10 @@ export class GraphMaintenanceService {
                 || hashGraphSnapshot(plan.after_snapshot) !== plan.after_snapshot_hash) {
                 throw new Error('stored plan snapshot hash mismatch');
             }
-            const current = await this.loadSnapshotImage(client, access, plan.after_snapshot, { lock: true, baseline: plan.before_snapshot });
+            const { snapshot: current } = await this.loadSnapshot(client, access, projectCode, {
+                lock: true,
+                includeProjectCodes: snapshotProjectCodes(plan.after_snapshot).filter((code) => code !== projectCode)
+            });
             if (current.hash !== plan.after_snapshot_hash) throw new Error('rollback snapshot hash conflict');
             const beforeEdgeIds = new Set(plan.before_snapshot.edges.map((edge) => edge.id));
             const createdEdgeIds = [...new Set(plan.after_snapshot.edges.map((edge) => edge.id).filter((id) => !beforeEdgeIds.has(id)))];
@@ -463,7 +495,10 @@ export class GraphMaintenanceService {
                 if (remains.rows.length) throw new Error('Graph rollback created-edge cleanup failed');
             }
             await this.replaceSnapshot(client, access, plan.before_snapshot, { baseline: plan.before_snapshot });
-            const readback = await this.loadSnapshotImage(client, access, plan.before_snapshot, { lock: true, baseline: plan.before_snapshot });
+            const { snapshot: readback } = await this.loadSnapshot(client, access, projectCode, {
+                lock: true,
+                includeProjectCodes: snapshotProjectCodes(plan.before_snapshot).filter((code) => code !== projectCode)
+            });
             if (readback.hash !== plan.base_snapshot_hash) throw new Error('Graph rollback readback hash mismatch');
             const receipt = await this.createReceipt(client, access, plan, 'rollback', current.hash, readback.hash);
             await client.query(`UPDATE graph_maintenance_plans SET status='rolled_back', rolled_back_at=NOW() WHERE id=$1`, [planId]);
@@ -471,9 +506,9 @@ export class GraphMaintenanceService {
         });
     }
 
-    async validate(access, { projectCode }) {
+    async validate(access, { projectCode, includeProjectCodes = [] }) {
         return this.infoSSOTService.withAccessContext(access, async (client) => {
-            const { snapshot } = await this.loadSnapshot(client, access, projectCode);
+            const { snapshot } = await this.loadSnapshot(client, access, projectCode, { includeProjectCodes });
             const structural = validateGraphSnapshot(snapshot);
             const ontology = this.infoSSOTService.validateOntology({ snapshot: {
                 entities: snapshot.entities.map((item) => ({ id: item.id, type: item.entity_type, payload: item.payload })),

@@ -8,9 +8,9 @@ function jwt(payload: Record<string, unknown>): string {
   return `${encode({ alg: 'none' })}.${encode(payload)}.`;
 }
 
-const deps = (fetch: typeof globalThis.fetch) => ({
-  apiUrl: 'http://brainbase.test', configuredProjectCodes: ['brainbase'], fetch,
-  tokenManager: { getToken: async () => jwt({ sub: 'per_owner', projectCodes: ['brainbase'], organizationId: 'org_unson' }) },
+const deps = (fetch: typeof globalThis.fetch, projectCodes = ['brainbase']) => ({
+  apiUrl: 'http://brainbase.test', configuredProjectCodes: projectCodes, fetch,
+  tokenManager: { getToken: async () => jwt({ sub: 'per_owner', projectCodes, organizationId: 'org_unson' }) },
 });
 
 describe('Graph maintenance MCP tools', () => {
@@ -178,5 +178,38 @@ describe('Graph maintenance MCP tools', () => {
     assert.equal(fetched, false);
     assert.equal(result?.status, 'error');
     assert.equal(result?.error?.code, 'brainbase_project_not_accessible');
+  });
+
+  it('cross-scope snapshotとrehome targetは全scopeのpreflightを要求する', async () => {
+    let body;
+    const ok = await handleGraphMaintenanceToolCall('graph_export_snapshot', {
+      project_code: 'brainbase', include_project_codes: ['vibepro'],
+    }, deps(async (_url, init) => {
+      body = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ snapshot_id: 'gms_cross' }), { status: 201 });
+    }, ['brainbase', 'vibepro']));
+    assert.equal(ok?.status, 'ok');
+    assert.deepEqual(body, { project_code: 'brainbase', include_project_codes: ['vibepro'] });
+
+    let validateBody;
+    const validated = await handleGraphMaintenanceToolCall('graph_validate', {
+      project_code: 'brainbase', include_project_codes: ['vibepro'],
+    }, deps(async (_url, init) => {
+      validateBody = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ valid: true }));
+    }, ['brainbase', 'vibepro']));
+    assert.equal(validated?.status, 'ok');
+    assert.deepEqual(validateBody, { project_code: 'brainbase', include_project_codes: ['vibepro'] });
+
+    let fetched = false;
+    const denied = await handleGraphMaintenanceToolCall('graph_plan_mutations', {
+      project_code: 'brainbase', snapshot_id: 'gms_cross', idempotency_key: 'rehome-1', reason: 'rehome',
+      operations: [{ operation: 'rehome_entity', entity_id: 'dec_1', expected_version: 1,
+        target_project_code: 'aitle', target_project_entity_id: 'prj_aitle', target_project_expected_version: 1,
+        membership_edge_id: 'edg_old', membership_expected_version: 1, new_membership_expected_version: 0 }],
+    }, deps(async () => { fetched = true; return new Response('{}'); }));
+    assert.equal(fetched, false);
+    assert.equal(denied?.status, 'error');
+    assert.equal(denied?.error?.code, 'brainbase_project_not_accessible');
   });
 });

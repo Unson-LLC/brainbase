@@ -5,14 +5,14 @@ import {
 } from './authenticated-api-tool.js';
 
 const project = { project_code: { type: 'string', minLength: 1 } } as const;
-const operationNames = ['patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'upsert_edge', 'retire_edge', 'normalize_alias'] as const;
+const operationNames = ['patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'rehome_entity', 'upsert_edge', 'retire_edge', 'normalize_alias'] as const;
 const planId = { plan_id: { type: 'string', minLength: 1 } } as const;
 
 export const graphMaintenanceTools: Tool[] = [
   {
     name: 'graph_export_snapshot',
     description: 'Export and persist a tenant/project-scoped Graph Entity/Edge snapshot with versions and a deterministic hash.',
-    inputSchema: { type: 'object', properties: project, required: ['project_code'], additionalProperties: false },
+    inputSchema: { type: 'object', properties: { ...project, include_project_codes: { type: 'array', items: { type: 'string', minLength: 1 }, uniqueItems: true } }, required: ['project_code'], additionalProperties: false },
   },
   {
     name: 'graph_plan_mutations',
@@ -35,6 +35,9 @@ export const graphMaintenanceTools: Tool[] = [
               edge_id: { type: 'string' }, from_id: { type: 'string' }, to_id: { type: 'string' }, rel_type: { type: 'string' },
               expected_version: { type: 'integer', minimum: 0 }, source_expected_version: { type: 'integer', minimum: 1 },
               target_expected_version: { type: 'integer', minimum: 1 }, target_project_code: { type: 'string' },
+              target_project_entity_id: { type: 'string', minLength: 1 }, membership_edge_id: { type: 'string', minLength: 1 },
+              target_project_expected_version: { type: 'integer', minimum: 1 }, membership_expected_version: { type: 'integer', minimum: 1 },
+              new_membership_expected_version: { type: 'integer', minimum: 0, maximum: 0 },
               patch: { type: 'object' }, payload: { type: 'object' }, aliases: { type: 'array', items: { type: 'string' } },
               role_min: { type: 'string', enum: ['member', 'gm', 'ceo'] },
               sensitivity: { type: 'string', enum: ['internal', 'restricted', 'finance', 'hr', 'contract'] },
@@ -61,24 +64,35 @@ export const graphMaintenanceTools: Tool[] = [
   },
   {
     name: 'graph_validate', description: 'Validate ontology, referential integrity, duplicates, orphans, versions, and snapshot hash.',
-    inputSchema: { type: 'object', properties: project, required: ['project_code'], additionalProperties: false },
+    inputSchema: { type: 'object', properties: { ...project, include_project_codes: { type: 'array', items: { type: 'string', minLength: 1 }, uniqueItems: true } }, required: ['project_code'], additionalProperties: false },
   },
 ];
 
 function requestFor(name: string, args: Record<string, unknown>) {
   const id = encodeURIComponent(String(args.plan_id || ''));
-  if (name === 'graph_export_snapshot') return { path: '/api/info/graph/maintenance/snapshots', method: 'POST', body: { project_code: args.project_code } };
+  if (name === 'graph_export_snapshot') return { path: '/api/info/graph/maintenance/snapshots', method: 'POST', body: { project_code: args.project_code, ...(args.include_project_codes ? { include_project_codes: args.include_project_codes } : {}) } };
   if (name === 'graph_plan_mutations') return { path: '/api/info/graph/maintenance/plans', method: 'POST', body: args };
   if (name === 'graph_apply_plan') return { path: `/api/info/graph/maintenance/plans/${id}/apply`, method: 'POST', body: { project_code: args.project_code, snapshot_hash: args.snapshot_hash } };
   if (name === 'graph_get_plan_receipt') return { path: `/api/info/graph/maintenance/plans/${id}/receipt?project_code=${encodeURIComponent(String(args.project_code))}`, method: 'GET' };
   if (name === 'graph_rollback_plan') return { path: `/api/info/graph/maintenance/plans/${id}/rollback`, method: 'POST', body: { project_code: args.project_code, apply_receipt_id: args.apply_receipt_id } };
-  return { path: '/api/info/graph/maintenance/validate', method: 'POST', body: { project_code: args.project_code } };
+  return { path: '/api/info/graph/maintenance/validate', method: 'POST', body: { project_code: args.project_code, ...(args.include_project_codes ? { include_project_codes: args.include_project_codes } : {}) } };
 }
 
 export async function handleGraphMaintenanceToolCall(name: string, args: Record<string, unknown>, dependencies: Dependencies): Promise<ToolResult | null> {
   if (!graphMaintenanceTools.some((tool) => tool.name === name)) return null;
   const context = await authenticateProject(args, dependencies, { requireProject: true });
   if ('status' in context) return context;
+  const requestedScopes = (name === 'graph_export_snapshot' || name === 'graph_validate') && Array.isArray(args.include_project_codes)
+    ? [...new Set([String(args.project_code), ...args.include_project_codes.map(String)])]
+    : name === 'graph_plan_mutations' && Array.isArray(args.operations)
+      ? [...new Set([String(args.project_code), ...args.operations.flatMap((operation) => {
+          if (!operation || typeof operation !== 'object') return [];
+          const code = (operation as { target_project_code?: unknown }).target_project_code;
+          return typeof code === 'string' && code ? [code] : [];
+        })])]
+      : [String(args.project_code)];
+  const inaccessible = requestedScopes.find((code) => !context.scope.includes(code));
+  if (inaccessible) return toolError('error', 'brainbase_project_not_accessible', `Project is not accessible: ${inaccessible}`, context.scope);
   const fetched = await fetchAuthenticatedJson(dependencies, context, requestFor(name, args));
   if (!fetched.ok) return fetched.result;
   if (!fetched.response.ok) {
