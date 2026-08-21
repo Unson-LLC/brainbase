@@ -129,7 +129,7 @@
         ]
       },
       "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:39:08.942Z"
+      "last_revised_at": "2026-08-21T09:40:06.457Z"
     },
     {
       "id": "INV-001",
@@ -183,7 +183,7 @@
         ]
       },
       "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:39:08.942Z"
+      "last_revised_at": "2026-08-21T09:40:06.457Z"
     },
     {
       "id": "C-002",
@@ -237,7 +237,7 @@
         ]
       },
       "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:39:08.942Z"
+      "last_revised_at": "2026-08-21T09:40:06.457Z"
     },
     {
       "id": "INV-002",
@@ -266,7 +266,7 @@
         "test_refs": [
           {
             "file": "mcp/brainbase/tests/auth/token-manager.test.ts",
-            "case": "prefers the explicit Graph API environment token over a persisted user token"
+            "case": "should prefer the dedicated environment token over a persisted user token"
           }
         ]
       },
@@ -274,12 +274,12 @@
         "test_pattern": [
           {
             "file_glob": "mcp/brainbase/tests/auth/token-manager.test.ts",
-            "must_cover": "explicit Graph API environment token"
+            "must_cover": "dedicated environment token"
           }
         ]
       },
       "first_seen_at": "2026-08-21T09:39:00.000Z",
-      "last_revised_at": "2026-08-21T09:39:08.942Z"
+      "last_revised_at": "2026-08-21T09:40:06.457Z"
     }
   ],
   "open_questions": [
