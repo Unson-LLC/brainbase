@@ -2,6 +2,7 @@ import { ContractError } from '../services/multitenant/errors.js';
 import { MultitenantPostgresRepository } from '../services/multitenant/postgres-repository.js';
 import { SlackInstallationControlPlane } from '../services/multitenant/slack-installation-control-plane.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
+import { createRemoteCredentialStore } from '../services/multitenant/remote-credential-store.js';
 
 function unavailableControlPlane() {
     const fail = async () => {
@@ -99,59 +100,17 @@ function createSlackOAuthClient({ authService, fetchImpl = globalThis.fetch } = 
 }
 
 function createCredentialStore({ env, fetchImpl = globalThis.fetch } = {}) {
-    const rawUrl = required(env, 'BRAINBASE_SLACK_CREDENTIAL_STORE_URL');
-    const token = required(env, 'BRAINBASE_SLACK_CREDENTIAL_STORE_TOKEN');
-    if (!rawUrl || !token || typeof fetchImpl !== 'function') {
-        throw new Error('slack_credential_store_configuration_required');
-    }
-    let url;
     try {
-        url = new URL(rawUrl);
-    } catch {
-        throw new Error('slack_credential_store_configuration_invalid');
+        return createRemoteCredentialStore({ env, fetchImpl });
+    } catch (error) {
+        if (error?.message === 'tenant_credential_store_configuration_required') {
+            throw new Error('slack_credential_store_configuration_required');
+        }
+        if (error?.message === 'tenant_credential_store_configuration_invalid') {
+            throw new Error('slack_credential_store_configuration_invalid');
+        }
+        throw error;
     }
-    if (url.protocol !== 'https:' || url.username || url.password) {
-        throw new Error('slack_credential_store_configuration_invalid');
-    }
-
-    async function call(payload) {
-        let response;
-        try {
-            response = await fetchImpl(url, {
-                method: 'POST',
-                headers: {
-                    authorization: `Bearer ${token}`,
-                    'content-type': 'application/json',
-                    accept: 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-        } catch {
-            throw new Error('slack_credential_store_unavailable');
-        }
-        let body;
-        try {
-            body = parseJson(await response.text());
-        } catch {
-            throw new Error('slack_credential_store_invalid');
-        }
-        if (!response.ok || !body.result || typeof body.result !== 'object') {
-            throw new Error('slack_credential_store_rejected');
-        }
-        return body.result;
-    }
-
-    return {
-        store(input) {
-            return call({ operation: 'store', ...input });
-        },
-        verify(input) {
-            return call({ operation: 'verify', ...input });
-        },
-        revoke(input) {
-            return call({ operation: 'revoke', ...input });
-        }
-    };
 }
 
 /**

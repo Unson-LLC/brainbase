@@ -201,6 +201,7 @@ export class SlackInstallationControlPlane {
         // Do not include its result in errors, logs or the persistence payload.
         let exchanged;
         let connectionId;
+        let connectionRevision;
         let storedCredential;
         try {
             const upstream = await this.oauthClient.exchangeCode({
@@ -223,7 +224,7 @@ export class SlackInstallationControlPlane {
                 throw new ContractError('INSTALLATION_CLAIM_STALE', { status: 409, retryable: true });
             }
             connectionId = reservation.connection_id;
-            const connectionRevision = String(reservation.connection_revision);
+            connectionRevision = String(reservation.connection_revision);
             storedCredential = opaqueCredential(await this.credentialStore.store({
                 tenant_id: normalizedIntent.tenant_id,
                 idempotency_key: normalizedIntent.installation_intent_id,
@@ -256,6 +257,9 @@ export class SlackInstallationControlPlane {
             if (storedCredential?.credential_ref && typeof this.credentialStore.revoke === 'function') {
                 try { await this.credentialStore.revoke({
                     tenant_id: normalizedIntent.tenant_id,
+                    connection_id: connectionId,
+                    connection_revision: connectionRevision,
+                    provider: 'slack',
                     credential_ref: storedCredential.credential_ref,
                     reason: 'registration_failed'
                 }); } catch { /* preserve the registration error */ }

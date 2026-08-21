@@ -1,0 +1,10 @@
+{
+  "name": "@brainbase/cloudflare-tenant-credential-store",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --root ../.. tests/server/cloudflare/tenant-credential-store.test.js",
+    "build": "wrangler deploy --dry-run --config wrangler.jsonc",
+    "deploy": "wrangler deploy --config wrangler.jsonc"
+  }
+}
