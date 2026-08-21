@@ -75,6 +75,29 @@ function request(
   };
 }
 
+type JudgmentDAGRequestField = keyof JudgmentDAGRunRequest;
+
+function requestWithAccessors(
+  getters: Partial<Record<JudgmentDAGRequestField, () => unknown>> = {}
+): JudgmentDAGRunRequest {
+  const base = request();
+  const defaults: Record<JudgmentDAGRequestField, () => unknown> = {
+    run_id: () => base.run_id,
+    dag: () => base.dag,
+    input: () => base.input,
+    runners: () => base.runners
+  };
+  const result: Record<string, unknown> = {};
+  for (const field of Object.keys(defaults) as JudgmentDAGRequestField[]) {
+    Object.defineProperty(result, field, {
+      configurable: true,
+      enumerable: true,
+      get: getters[field] ?? defaults[field]
+    });
+  }
+  return result as JudgmentDAGRunRequest;
+}
+
 function expectDeeplyFrozen(value: unknown): void {
   if (value === null || typeof value !== 'object') {
     return;
@@ -303,6 +326,120 @@ describe('J0 local deterministic Judgment DAG runner', () => {
     }
     expect(record.nodes.every((entry) => (entry.output as { source: string }).source === 'original')).toBe(true);
   });
+
+  it.each(['run_id', 'dag', 'input', 'runners'] as const)(
+    'maps request.%s getter failures to invalid_request before any runner call',
+    async (field) => {
+      const run = vi.fn(({ node: currentNode }: JudgmentDAGRunnerInput) => ({
+        node_id: currentNode.id
+      }));
+      const accessorFailure = new Error(`request.${field} accessor failure`);
+      const malformedRequest = requestWithAccessors({
+        [field]: () => {
+          throw accessorFailure;
+        }
+      });
+
+      let failure: unknown;
+      try {
+        await executeJudgmentDAG(malformedRequest);
+      } catch (error) {
+        failure = error;
+      }
+
+      expect(failure, field).toBeInstanceOf(JudgmentDAGExecutionError);
+      expect(failure, field).toMatchObject<Partial<JudgmentDAGExecutionError>>({
+        code: 'invalid_request'
+      });
+      expect(failure).not.toBe(accessorFailure);
+      expect(run).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    {
+      field: 'run_id' as const,
+      first: 'run-j0-test',
+      second: ''
+    },
+    {
+      field: 'dag' as const,
+      first: dag(),
+      second: { ...dag(), nodes: [] }
+    },
+    {
+      field: 'input' as const,
+      first: { value: 41 },
+      second: undefined
+    },
+    {
+      field: 'runners' as const,
+      first: {
+        deterministic: {
+          version: 'runner-1.0.0',
+          run: ({ node: currentNode }: JudgmentDAGRunnerInput) => ({
+            node_id: currentNode.id,
+            source: 'original'
+          })
+        }
+      },
+      second: {}
+    }
+  ])(
+    'uses the first request.$field getter value for preflight, execution, and record',
+    async ({ field, first, second }) => {
+      let reads = 0;
+      const run = vi.fn(({ node: currentNode, input, run_id }: JudgmentDAGRunnerInput) => ({
+        node_id: currentNode.id,
+        input,
+        run_id
+      }));
+      const firstValue = field === 'runners'
+        ? {
+            deterministic: {
+              version: 'runner-1.0.0',
+              run
+            }
+          }
+        : first;
+      const accessors: Partial<Record<JudgmentDAGRequestField, () => unknown>> = {
+        [field]: () => {
+          reads += 1;
+          return reads === 1 ? firstValue : second;
+        }
+      };
+      if (field !== 'runners') {
+        accessors.runners = () => ({
+          deterministic: {
+            version: 'runner-1.0.0',
+            run
+          }
+        });
+      }
+      if (field === 'input') {
+        let dagReads = 0;
+        accessors.dag = () => {
+          dagReads += 1;
+          return dag();
+        };
+        accessors.input = () => {
+          reads += 1;
+          return dagReads === 1 && reads === 1 ? firstValue : second;
+        };
+      }
+      const changingRequest = requestWithAccessors(accessors);
+
+      const record = await executeJudgmentDAG(changingRequest);
+
+      expect(reads, field).toBe(1);
+      expect(record.run_id).toBe('run-j0-test');
+      expect(record.dag).toEqual(field === 'dag' ? firstValue : dag());
+      expect(record.input).toEqual(field === 'input' ? firstValue : { value: 1 });
+      expect(record.nodes).toHaveLength(4);
+      expect(run).toHaveBeenCalledTimes(4);
+      expect(record.nodes.every((entry) => (entry.output as { run_id: string }).run_id === 'run-j0-test')).toBe(true);
+    }
+  );
 
   it('rejects malformed public requests before any runner call', async () => {
     let calls = 0;

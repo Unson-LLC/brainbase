@@ -1,4 +1,5 @@
 import {
+  JudgmentDAGValidationError,
   validateJudgmentDAG,
   type JudgmentDAG,
   type JudgmentDAGMetadata,
@@ -183,15 +184,78 @@ function invalidRequest(message: string): JudgmentDAGExecutionError {
   return new JudgmentDAGExecutionError('invalid_request', message);
 }
 
-function assertValidRequest(value: unknown): asserts value is JudgmentDAGRunRequest {
-  if (!isPlainRecord(value)) {
-    throw invalidRequest('request must be a plain object');
+interface JudgmentDAGRunRequestSnapshot {
+  readonly run_id: string;
+  readonly dag: unknown;
+  readonly input: unknown;
+  readonly runners: unknown;
+}
+
+function snapshotRequest(value: unknown): JudgmentDAGRunRequestSnapshot {
+  let requestRecord: Record<string, unknown>;
+  try {
+    if (!isPlainRecord(value)) {
+      throw invalidRequest('request must be a plain object');
+    }
+    requestRecord = value;
+  } catch (error) {
+    if (error instanceof JudgmentDAGExecutionError) {
+      throw error;
+    }
+    throw invalidRequest('request must be a readable plain object');
   }
-  if (typeof value.run_id !== 'string' || value.run_id.trim().length === 0) {
+
+  let runId: unknown;
+  let dag: unknown;
+  let input: unknown;
+  let runners: unknown;
+  try {
+    // Read each public request field exactly once. The local values below are
+    // the only values used for validation, execution, and recording.
+    runId = requestRecord.run_id;
+    dag = requestRecord.dag;
+    input = requestRecord.input;
+    runners = requestRecord.runners;
+  } catch {
+    throw invalidRequest('request fields must be readable');
+  }
+
+  if (typeof runId !== 'string' || runId.trim().length === 0) {
     throw invalidRequest('request.run_id must be a non-empty string');
   }
-  if (!isPlainRecord(value.runners)) {
-    throw invalidRequest('request.runners must be a plain object');
+  try {
+    if (!isPlainRecord(runners)) {
+      throw invalidRequest('request.runners must be a plain object');
+    }
+  } catch (error) {
+    if (error instanceof JudgmentDAGExecutionError) {
+      throw error;
+    }
+    throw invalidRequest('request.runners must be a readable plain object');
+  }
+
+  return { run_id: runId, dag, input, runners };
+}
+
+function snapshotRequestJSON(value: unknown, path: string): JudgmentDAGJSONValue {
+  try {
+    return snapshotJSON(value, path);
+  } catch (error) {
+    if (error instanceof JudgmentDAGExecutionError) {
+      throw error;
+    }
+    throw invalidRequest(`${path} must be readable`);
+  }
+}
+
+function validateRequestDAG(value: unknown) {
+  try {
+    return validateJudgmentDAG(value);
+  } catch (error) {
+    if (error instanceof JudgmentDAGValidationError) {
+      throw error;
+    }
+    throw invalidRequest('request.dag must be readable');
   }
 }
 
@@ -284,16 +348,22 @@ function requiredRunnerEntries(
 export async function executeJudgmentDAG(
   request: JudgmentDAGRunRequest
 ): Promise<JudgmentDAGRunRecord> {
-  assertValidRequest(request);
-  const runIdSnapshot = request.run_id;
+  const requestSnapshot = snapshotRequest(request);
+  const runIdSnapshot = requestSnapshot.run_id;
 
-  // Keep the validator's machine-readable error and details intact. The
-  // runner must not replace an invalid DAG contract with a JSON-boundary
-  // error merely because snapshotting would reject the same input later.
-  const validation = validateJudgmentDAG(request.dag);
-  const dagSnapshot = snapshotJSON(request.dag, 'request.dag') as unknown as JudgmentDAG;
-  const inputSnapshot = snapshotJSON(request.input, 'request.input');
-  const runners = requiredRunnerEntries(dagSnapshot, validation.execution_order, request.runners);
+  // Keep the validator's machine-readable error and details intact. Validate
+  // the captured source before cloning, then validate the exact JSON snapshot
+  // that will be executed and recorded so no later mutation can change the
+  // execution order or node lookup basis.
+  validateRequestDAG(requestSnapshot.dag);
+  const dagSnapshot = snapshotRequestJSON(requestSnapshot.dag, 'request.dag') as unknown as JudgmentDAG;
+  const validation = validateRequestDAG(dagSnapshot);
+  const inputSnapshot = snapshotRequestJSON(requestSnapshot.input, 'request.input');
+  const runners = requiredRunnerEntries(
+    dagSnapshot,
+    validation.execution_order,
+    requestSnapshot.runners as JudgmentDAGRunRequest['runners']
+  );
   const nodeById = new Map(dagSnapshot.nodes.map((node) => [node.id, node]));
   const outputByNode = new Map<string, JudgmentDAGJSONValue>();
   const nodeRecords: JudgmentDAGNodeRunRecord[] = [];
