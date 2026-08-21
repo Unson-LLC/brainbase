@@ -78,6 +78,15 @@ describe('TokenManager', () => {
       assert.strictEqual(token, 'env-token');
     });
 
+    it('should prefer the dedicated environment token over a persisted user token', async () => {
+      process.env.BRAINBASE_GRAPH_API_TOKEN = 'service-env-token';
+
+      const tokenManager = new TokenManager('http://localhost:31013', testTokensPath);
+      const token = await tokenManager.getToken();
+
+      assert.strictEqual(token, 'service-env-token');
+    });
+
     it('should auto-refresh if token is expired', async () => {
       // Create expired token
       const nowSeconds = Math.floor(Date.now() / 1000);
