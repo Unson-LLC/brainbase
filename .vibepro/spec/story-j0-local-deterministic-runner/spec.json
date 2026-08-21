@@ -252,7 +252,7 @@
     {
       "id": "INV-003",
       "type": "invariant",
-      "statement": "既存J0 schema、fixture、digest、source-lock、package deep import、MCP/CLI起動面を変更せず、J0回帰、公開consumer、full test、build、typecheckを通す。",
+      "statement": "既存J0 schema・fixture・source-lockとその意味契約、package deep import、MCP/CLI起動面を変更せず、README.mdの公開runner説明変更に伴うcontracts/judgment-dag/digest.jsonのREADME hash・aggregate digestの派生再計算だけを許容し、他のcontracts/judgment-dag artifactを変更せず、J0回帰、公開consumer、full test、build、typecheck、差分検査を通す。",
       "origin": {
         "story_refs": [
           {

@@ -36,7 +36,11 @@ DAG、run input、runner input、runner output、run recordはJSON-compatible sn
 
 ### AC-006 回帰境界
 
-既存J0 schema、fixture、digest、source-lock、`./dist/*` deep import、package root、CLI、MCPを変更しない。対象test、既存J0回帰、公開consumer、full test、build、typecheck、差分検査を同一HEADで成功させる。
+既存J0 schema・fixture・source-lock、`./dist/*` deep import、package root、CLI、MCPは変更しない。README.mdの公開runner説明を変更する場合に限り、contracts/judgment-dag/digest.jsonのREADME hashとaggregate digestだけを派生再計算して更新し、他のdigest項目と契約artifactは変更しない。対象test、既存J0回帰、公開consumer、full test、build、typecheck、差分検査を同一HEADで成功させる。
+
+## 不変条件
+
+既存J0 schema・fixture・source-lockと、それらが表す受理集合・実行意味契約は変更しない。README.mdの公開runner説明変更に伴う`contracts/judgment-dag/digest.json`のREADME hashとaggregate digestの派生再計算だけを許容し、他の`contracts/judgment-dag` artifactは変更しない。
 
 ## エラー
 
