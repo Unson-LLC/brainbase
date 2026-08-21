@@ -8,6 +8,34 @@
   "planning_status": "needs_review",
   "dependency_state": "j0_merge_source_locked",
   "implementation_ready": false,
+  "scope_boundary_contract": {
+    "contract_type": "local_single_owner_non_hosted",
+    "owner_model": "single_local_owner",
+    "deployment_mode": "local_non_hosted",
+    "sharing_boundary": "none",
+    "multi_tenancy_applicability": "not_applicable",
+    "boundary_reason": "One caller-owned local root only; no hosted entrypoint, cross-owner partition, or shared resource is defined in this planning slice.",
+    "multi_tenancy_contract_created": false
+  },
+  "vibepro_classifier_observation": {
+    "tool": "vibepro",
+    "version": "0.2.0-beta.11",
+    "expected": {
+      "applicable": false,
+      "status": "not_applicable",
+      "reason": "local_single_owner_non_hosted"
+    },
+    "observed": {
+      "applicable": true,
+      "status": "invalid",
+      "activation_reasons": ["tenant_actor_and_boundary_surface"],
+      "finding_code": "contract_missing",
+      "path": "multi_tenancy"
+    },
+    "known_trigger_terms": ["artifact-store", "store", "runtime", "storage", "保存", "状態", "実行", "削除"],
+    "limitation": "The current detector treats generic artifact terminology and persistence terms as a tenant actor/boundary pair. The accepted spec is not generated yet, and explicit non-applicability cannot override detector reasons; a partial or fabricated multi_tenancy contract is intentionally not added.",
+    "required_follow_up": "Resolve detector applicability or accepted-spec lifecycle in a separate VibePro change before treating pr-prepare as ready."
+  },
   "j0_source_lock": {
     "repository": "Unson-LLC/brainbase",
     "pull_request": 481,
@@ -213,6 +241,28 @@
         "test_refs": []
       },
       "confidence": 0.9
+    },
+    {
+      "id": "E2E-001",
+      "type": "scenario",
+      "statement": "A planned positive restart/reopen E2E saves a synthetic J0 record with store/process A, closes A, reopens the same root with fresh process/store B, reloads artifact_id, asserts exact original-record equality plus envelope/payload/record binding and J0 source-lock/schema equality, asserts recursive deep-freeze and mutation isolation, and records J0 runner invocation count as zero; no runtime or test is created in this planning slice.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Positive E2E: process restart・reopen roundtrip"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 1
     },
     {
       "id": "INV-006",

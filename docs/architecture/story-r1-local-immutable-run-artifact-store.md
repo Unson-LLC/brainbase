@@ -4,6 +4,10 @@ story_id: story-r1-local-immutable-run-artifact-store
 status: proposed_needs_review
 planning_status: needs_review
 dependency_state: j0_merge_source_locked
+owner_model: single_local_owner
+deployment_mode: local_non_hosted
+sharing_boundary: none
+multi_tenancy_applicability: not_applicable
 related_milestone: docs/management/judgment-dag-milestones.md#M1--local-dag-kernel
 j0_source_lock:
   repository: Unson-LLC/brainbase
@@ -21,6 +25,14 @@ J0の完了済みJudgmentDAGRunRecordを、JCSで正規化した二層のartifac
 artifactは一度公開した保存用envelope bytesを変更しない。同じrun_idの同じ内容だけを再保存可能にし、envelope・payload・recordの3つのrun_idが一致しない入力、同じrun_idの異なる内容、既存digestの異なるbytes、検証不能なファイルはfail-closedで拒否する。reloadはexpected artifact identity、stored envelope bytes、payloadからのdigest再計算、J0 record shapeを再検証してからdeep-frozen snapshotを返す。
 
 このArchitectureはcontract_preparationのplanning boundaryであり、filesystem実装や公開runtimeを追加しない。
+
+## 所有者・配備境界（機械可読）
+
+- owner_model: `single_local_owner`
+- deployment_mode: `local_non_hosted`
+- sharing_boundary: `none`
+- multi_tenancy_applicability: `not_applicable`
+- boundary_reason: caller-ownedな1つのlocal rootだけを対象とし、hosted entrypoint、cross-owner partition、shared resourceはこのArchitectureで定義しない。
 
 ## 依存gateとsource lock
 
@@ -94,6 +106,16 @@ saveは入力の純粋なJCS検証・digest計算を終えた後、共有state�
 4. rename後にcreate-once bindingを確定する。binding作成が競合した場合はwinnerを検証し、loserの新規binding・overwrite・削除を行わない。
 
 reservation、binding、artifact rootは同じfilesystemであることを実装時に確認する。cross-filesystemのatomic claimやrenameを契約に含めず、deviceが異なる場合はsaveを開始せずfail-closedにする。
+
+## Positive E2E: process restart・reopen roundtrip
+
+後続の実装changeは、syntheticなJ0 `JudgmentDAGRunRecord`を使い、同一rootを跨ぐprocess restart/reopenをpositive E2Eとして検証する。store/process Aがrecordをsaveして正常終了した後、fresh process/store Bが同じrootをreopenし、`artifact_id`からreloadする。E2Eの必須assertionは次の通りである。
+
+1. reload recordがAでsaveした元recordと完全一致し、envelope・payload・recordのrun_idとartifact_id binding、J0 source lock、schemaが一致する。
+2. Bの返却値はenvelope、payload、recordを含めてdeep-frozenであり、callerがnested valueをmutationしても保存bytesと次回reloadは元recordから変わらない。
+3. Bのreopen/reloadではJ0 runnerを呼び出さず、runner invocation countは0である。これはartifactの読み戻しとhistorical replayを分離するためのpositive assertionである。
+
+この検証はplanned verificationであり、R1のplanning sliceではruntime、test、fixtureを作成しない。
 
 ## Canonical serialization
 

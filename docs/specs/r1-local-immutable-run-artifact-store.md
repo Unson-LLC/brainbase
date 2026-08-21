@@ -6,6 +6,10 @@ spec_maturity: draft
 planning_status: needs_review
 dependency_state: j0_merge_source_locked
 implementation_ready: false
+owner_model: single_local_owner
+deployment_mode: local_non_hosted
+sharing_boundary: none
+multi_tenancy_applicability: not_applicable
 architecture: docs/architecture/story-r1-local-immutable-run-artifact-store.md
 canonical_story: docs/management/stories/active/story-r1-local-immutable-run-artifact-store.md
 j0_source_lock:
@@ -20,6 +24,14 @@ j0_source_lock:
 ## 適用状態
 
 このSpecはcontract_preparationのplanning-only draftであり、accepted Spec、実装仕様、production-ready判定ではない。J0 PR #481、merge commit f8e7ac61349b326863feae5d7d3d8ae68e2b9d10、implementation head 3fd71a1da59a85cb7cdc8cce8b17f22e3b767bdeのJudgmentDAGRunRecordだけを入力の正本として参照する。
+
+### 所有者・配備境界（機械可読）
+
+- owner_model: `single_local_owner`
+- deployment_mode: `local_non_hosted`
+- sharing_boundary: `none`
+- multi_tenancy_applicability: `not_applicable`
+- boundary_reason: caller-ownedな1つのlocal rootだけを対象とし、hosted entrypoint、cross-owner partition、shared resourceはこのdraftで定義しない。
 
 ## Artifact envelope
 
@@ -150,6 +162,7 @@ J0 hard dependencyとこのdraftのreviewが成立した別changeで、synthetic
 - tamper、truncation、zero-byte、unknown version、extra fieldのreload rejection
 - traversal、symlink、non-regular file、root containmentのnegative matrix
 - reload objectのrecursive deep-freezeとcaller/storage mutation isolation
+- positive E2E: store/process Aでsynthetic J0 recordを同一rootへsaveして終了し、fresh process/store Bが同じrootをreopenして`artifact_id`をreloadする。元record完全一致、envelope・payload・record binding、J0 source lock・schema一致、deep-freeze、caller mutation後の再reload一致、J0 runner invocation count=0をassertする。
 
 focused tests、full test、build、typecheck、package smoke、独立review、Gateはこのplanning sliceでは実行・完了扱いにしない。
 

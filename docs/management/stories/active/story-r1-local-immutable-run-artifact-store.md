@@ -7,6 +7,10 @@ work_package_status: planned
 execution_lane: contract_preparation
 dependency_state: j0_merge_source_locked
 implementation_ready: false
+owner_model: single_local_owner
+deployment_mode: local_non_hosted
+sharing_boundary: none
+multi_tenancy_applicability: not_applicable
 source:
   type: milestone
   id: M1-local-dag-kernel
@@ -35,6 +39,14 @@ Brainbase OSSの利用者として、J0が完了した同じJudgmentDAGRunRecord
 ## このplanning sliceの目的
 
 J0の現行JudgmentDAGRunRecordを入力とするR1 artifact envelope、digest preimage payload、canonical serialization、content digest、save/reload、immutability、filesystem failure semanticsをStory→Architecture→Spec→Taskへ固定する。このsliceはplanning-onlyであり、source、package、contract fixture、schema、test、filesystem実装、CLI/API、DB、MCP、deployは作らない。VibeProの既存story登録を保持する`.vibepro/config.json`を含む正確な6ファイルだけを変更対象とする。
+
+## 所有者・配備境界（機械可読）
+
+- owner_model: `single_local_owner`
+- deployment_mode: `local_non_hosted`
+- sharing_boundary: `none`
+- multi_tenancy_applicability: `not_applicable`
+- boundary_reason: caller-ownedな1つのlocal rootだけを対象とし、hosted entrypoint、cross-owner partition、shared resourceはこのplanning sliceで定義しない。
 
 ## 依存状態とsource lock
 
@@ -89,6 +101,10 @@ J0の実装境界は、次の同一系譜へ固定する。
 - [ ] AC-010: planning-only path境界を守る
 
   このchangeはStory、Architecture、draft Spec、Task、story-scoped VibePro draft、既存story登録を維持する`.vibepro/config.json`の正確な6ファイルだけを変更する。`current_story_id`切替は未指定VibePro操作の既定対象をR1へ変えるだけで、明示的な`--story-id`を付けた他storyへ影響しない。source-lock、schema、fixture、validator、src、test、package、filesystem、DB/MCP/CLI/HTTP、customer data、secret、deployへ触れない。
+
+- [ ] AC-011: fresh process/store restart・reopen roundtripをpositive E2Eとして固定する
+
+  syntheticなJ0 recordを同一rootのstore/process Aでsaveし、Aを正常終了する。同じrootをfresh process/store Bでreopenし、`artifact_id`をreloadする。元recordとreload recordの完全一致、envelope・payload・recordのbinding、J0 source lock・schemaの一致を確認し、返却値がdeep-frozenであること、caller側のmutation後も次回reloadが元recordと一致することを確認する。reopen/reload中のJ0 runner呼出し回数は0である。このE2Eはplanned verificationであり、このplanning sliceではruntime・testを作成しない。
 
 ## 後続へ明示的に委譲する境界
 

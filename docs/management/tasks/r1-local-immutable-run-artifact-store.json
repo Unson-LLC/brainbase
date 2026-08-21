@@ -59,7 +59,24 @@
       "mana-runtime",
       "unrelated or dirty worktrees"
     ],
-    "production_action": false
+    "production_action": false,
+    "owner_model": "single_local_owner",
+    "deployment_mode": "local_non_hosted",
+    "sharing_boundary": "none",
+    "multi_tenancy_applicability": "not_applicable",
+    "boundary_reason": "One caller-owned local root only; no hosted entrypoint, cross-owner partition, or shared resource is defined in this planning slice.",
+    "classifier_observation": {
+      "tool": "vibepro",
+      "version": "0.2.0-beta.11",
+      "expected_applicability": "not_applicable",
+      "current_readback": {
+        "applicable": true,
+        "status": "invalid",
+        "activation_reason": "tenant_actor_and_boundary_surface",
+        "finding_code": "contract_missing"
+      },
+      "disposition": "known classifier false positive; do not fabricate a multi_tenancy contract in this planning-only slice"
+    }
   },
   "deliverables": {
     "story": "docs/management/stories/active/story-r1-local-immutable-run-artifact-store.md",
@@ -113,6 +130,10 @@
     {
       "id": "AC-010",
       "statement": "This planning change modifies exactly six files: the five R1 planning files plus the existing .vibepro/config.json story registration; it creates no source-lock, schema, fixture, test, runtime, database, Graph, secret, customer, or deployment artifact. current_story_id affects only unspecified VibePro defaults; an explicit --story-id remains other-story-scoped."
+    },
+    {
+      "id": "AC-011",
+      "statement": "A planned positive restart/reopen E2E saves a synthetic J0 record with store/process A, closes A, reopens the same root with fresh process/store B, reloads artifact_id, asserts exact original-record equality plus envelope/payload/record binding and J0 source-lock/schema equality, asserts recursive deep-freeze and mutation isolation, and records J0 runner invocation count as zero; no runtime or test is created in this planning task."
     }
   ],
   "negative_evidence_contract": {
@@ -176,7 +197,8 @@
       "tamper, truncation, zero-byte, unknown version, and extra-field rejection",
       "envelope/payload/record run_id equality and fail-closed mismatches",
       "path traversal, symlink, non-regular file, and root containment negatives",
-      "recursive deep-freeze and caller/storage mutation isolation"
+      "recursive deep-freeze and caller/storage mutation isolation",
+      "positive restart/reopen E2E: process A saves a synthetic J0 record, closes; fresh process B reopens the same root, reloads artifact_id, asserts exact record/binding/source-lock/schema equality, deep-freeze and mutation isolation, and observes zero J0 runner invocations"
     ],
     "historical_replay_or_evaluation_tests": "deferred_to_later_stories"
   },

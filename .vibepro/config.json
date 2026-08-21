@@ -56,7 +56,27 @@
         "period": null,
         "started_at": null,
         "due_at": null,
-        "contract_type": null
+        "contract_type": "local_single_owner_non_hosted",
+        "scope_boundary": {
+          "owner_model": "single_local_owner",
+          "deployment_mode": "local_non_hosted",
+          "sharing_boundary": "none",
+          "multi_tenancy_applicability": "not_applicable",
+          "boundary_reason": "One caller-owned local root only; no hosted entrypoint, cross-owner partition, or shared resource is defined in this planning slice.",
+          "multi_tenancy_contract_created": false
+        },
+        "classifier_observation": {
+          "tool": "vibepro",
+          "version": "0.2.0-beta.11",
+          "expected_applicability": "not_applicable",
+          "current_readback": {
+            "applicable": true,
+            "status": "invalid",
+            "activation_reason": "tenant_actor_and_boundary_surface",
+            "finding_code": "contract_missing"
+          },
+          "disposition": "known classifier false positive; resolve in a separate VibePro change rather than fabricating a tenant contract"
+        }
       }
     ],
     "current_story_id": "story-r1-local-immutable-run-artifact-store"
