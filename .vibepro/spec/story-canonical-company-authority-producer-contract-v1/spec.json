@@ -131,13 +131,21 @@
         "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Boundaries and non-goals" }],
         "test_refs": [
           { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins the contract-only trust boundary and non-authoritative reference validator" },
-          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins a manifest digest without producer commit self-reference" }
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins a manifest digest without producer commit self-reference" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "accepts a signed success context only after detached JWS verification" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "fails closed when caller evaluation time is omitted" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "evaluates expiry against caller-supplied now rather than issued_at" }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins the contract-only trust boundary and non-authoritative reference validator" },
-          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins a manifest digest without producer commit self-reference" }
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins a manifest digest without producer commit self-reference" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "accepts a signed success context only after detached JWS verification" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "fails closed when caller evaluation time is omitted" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "evaluates expiry against caller-supplied now rather than issued_at" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "POS-DENY-COMPANY-WRITE" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC" }
         ]
       },
       "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/source-lock.json", "docs/management/tasks/canonical-company-authority-producer-contract-v1.json"]
