@@ -41,6 +41,7 @@
         "category": { "type": "string", "minLength": 1 },
         "request": { "$ref": "../schema/observed-execution-request.schema.json" },
         "context": { "anyOf": [{ "$ref": "../schema/canonical-execution-context.schema.json" }, { "type": "null" }] },
+        "wire_response": { "$ref": "../schema/company-authority-resolution-response.schema.json" },
         "unsigned_context_canonical_json": { "type": "string", "minLength": 1 },
         "evaluation_time": { "type": "string", "format": "date-time" },
         "operation": { "type": "string", "minLength": 1 },

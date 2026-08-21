@@ -190,6 +190,25 @@ function validateTimeWindow(context, now) {
     }
 }
 
+function requireCallerEvaluationTime(now) {
+    if (now === undefined) {
+        fail(
+            'AUTHORITY_CONTEXT_INVALID_SIGNATURE',
+            'caller-supplied evaluation time is required',
+            { reason: 'caller_evaluation_time_required' }
+        );
+    }
+    const current = now instanceof Date ? now.getTime() : parseTimestamp(now);
+    if (!Number.isFinite(current)) {
+        fail(
+            'AUTHORITY_CONTEXT_INVALID_SIGNATURE',
+            'caller-supplied evaluation time is invalid',
+            { reason: 'caller_evaluation_time_invalid' }
+        );
+    }
+    return now;
+}
+
 function validateTenantContext(value) {
     requiredKeys(value, [
         'schema_version', 'protocol_id', 'protocol_version', 'issuer', 'audience', 'tenant',
@@ -476,7 +495,19 @@ export function verifyDetachedJws(context, publicJwk) {
         fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'protected header is not canonical');
     }
     const signature = decodeBase64Url(parts[2]);
-    if (signature.length !== 64 || !ed25519Verify(null, signingInput(context, parts[0]), createPublicKey({ key: publicJwk, format: 'jwk' }), signature)) {
+    let verified = false;
+    try {
+        verified = signature.length === 64
+            && ed25519Verify(
+                null,
+                signingInput(context, parts[0]),
+                createPublicKey({ key: publicJwk, format: 'jwk' }),
+                signature
+            );
+    } catch {
+        fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'Ed25519 public key is invalid');
+    }
+    if (!verified) {
         fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'Ed25519 signature verification failed');
     }
     return true;
@@ -497,7 +528,13 @@ export function applyFixtureMutations(value, mutations = []) {
     return result;
 }
 
-export function validateWireResponse(response) {
+/**
+ * Validate only the external envelope shape and embedded context structure.
+ * This function intentionally does not verify the detached JWS or evaluate
+ * freshness against a caller clock; use acceptCompanyAuthorityResponse for
+ * consumer acceptance.
+ */
+export function validateWireResponseStructure(response) {
     requiredKeys(response, ['schema_version', 'contract_id', 'correlation_id', 'context', 'error'], [], '$');
     if (response.schema_version !== SCHEMA_VERSION || response.contract_id !== CONTRACT_ID) {
         fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'wire response identity is invalid');
@@ -509,7 +546,7 @@ export function validateWireResponse(response) {
         fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'wire response must contain exactly one context or error');
     }
     if (hasContext) {
-        validateCanonicalExecutionContext(response.context);
+        validateCanonicalExecutionContext(response.context, { now: response.context.issued_at });
         if (response.context.tenant_context.correlation_id !== response.correlation_id) {
             fail('AUTHORITY_SCOPE_MISMATCH', 'wire response correlation_id does not bind context');
         }
@@ -521,5 +558,49 @@ export function validateWireResponse(response) {
         if (response.error.retryable !== true && response.error.retryable !== false) fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'retryable must be boolean');
         if (response.error.business_effect !== false) fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'error cannot claim business effect');
     }
+    return response;
+}
+
+export function acceptCompanyAuthorityResponse(response, {
+    expectedAudience = 'mana-runtime',
+    now,
+    publicJwk,
+    request,
+    expectedRevisions,
+    identityStatus,
+    crossOrg = false,
+    scopeMismatch = false,
+    membershipStatus,
+    authorityUnavailable = false,
+    approvalSubjectId,
+    personalTargetPersonId,
+    replayConflict = false
+} = {}) {
+    requireCallerEvaluationTime(now);
+    validateWireResponseStructure(response);
+    if (response.context === null) return response;
+    if (publicJwk === undefined) {
+        fail(
+            'AUTHORITY_CONTEXT_INVALID_SIGNATURE',
+            'consumer verification key is required for a signed context',
+            { reason: 'consumer_verification_key_required' }
+        );
+    }
+
+    verifyDetachedJws(response.context, publicJwk);
+    validateCanonicalExecutionContext(response.context, {
+        expectedAudience,
+        now,
+        request,
+        expectedRevisions,
+        identityStatus,
+        crossOrg,
+        scopeMismatch,
+        membershipStatus,
+        authorityUnavailable,
+        approvalSubjectId,
+        personalTargetPersonId,
+        replayConflict
+    });
     return response;
 }

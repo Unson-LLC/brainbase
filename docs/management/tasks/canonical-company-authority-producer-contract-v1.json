@@ -17,6 +17,7 @@
       "docs/management/tasks/canonical-company-authority-producer-contract-v1.json",
       "contracts/mana-brainbase-company-authority/v1/**",
       "tests/conformance/brainbase-company-authority-producer-contract.test.js",
+      "tests/conformance/brainbase-company-authority-consumer-boundary.test.js",
       ".vibepro/** story-scoped specification/review artifacts"
     ],
     "forbidden": [
@@ -51,19 +52,20 @@
     "Unknown/ambiguous/cross-org/stale/wrong approver/Personal/signature/expiry/replay negatives fail closed with canonical errors.",
     "Fixture digest is manifest versioned and excludes the manifest; producer self-reference is absent.",
     "Trusted kid-to-key resolution, key rotation, and key revocation are runtime non-goals; the reference validator is non-authoritative and production cutover is blocked pending separately verified runtime trust and consumer enforcement.",
+    "The consumer acceptance entrypoint requires caller-supplied evaluation time, verifies detached JWS before accepting signed context, and rejects tampered or expired context.",
     "No runtime or production action is performed."
   ],
   "tdd": {
     "historical_red": "not_collected",
-    "new_red": "not_collected",
-    "red": "Do not fabricate the initial implementation RED or a pre-fix RED for the added forbidden-authority-field and machine-outcome tests: neither was executed or recorded before the schema/reference implementation, so the status is not_collected.",
-    "green": "Observed separately after implementation: producer conformance 54 tests and shared consumer conformance 25 tests passed over the synthetic contract fixtures. GREEN is not evidence that RED was collected.",
-    "regression": ["npm run test:conformance:mana-brainbase -- tests/conformance/brainbase-company-authority-producer-contract.test.js", "node --check contracts/mana-brainbase-company-authority/v1/reference/wire.mjs", "git diff --check"]
+    "new_red": "collected",
+    "red": "Initial implementation RED remains not_collected. The A0 consumer boundary test was run before the acceptance entrypoint and wire envelopes were implemented and failed; no historical RED is inferred.",
+    "green": "Observed separately after implementation: producer conformance 54 tests and A0 consumer boundary 7 tests passed over the synthetic contract fixtures. The existing shared tenant-context conformance 25 tests are regression-only and are not A0 consumer evidence.",
+    "regression": ["npm run test:conformance:mana-brainbase -- tests/conformance/brainbase-company-authority-producer-contract.test.js tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "node --check contracts/mana-brainbase-company-authority/v1/reference/wire.mjs", "git diff --check"]
   },
   "evidence": {
     "contract_version": "1.0.0",
     "manifest_version": "1.0",
-    "fixture_set_sha256": "48169299b9156d1ea90f462f050266d39a423c154c20b4b472dd4e59fabbb479",
+    "fixture_set_sha256": "85ce8e5d818093a45eb2c57986c1099533168e43cf3c9c0b194664f494f1c1df",
     "synthetic_data_only": true,
     "customer_data": "not_used",
     "secrets": "not_used",

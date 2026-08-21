@@ -12,7 +12,7 @@
     "fixtures/fixture.schema.json",
     "fixtures/test-key.json"
   ],
-  "fixture_set_sha256": "48169299b9156d1ea90f462f050266d39a423c154c20b4b472dd4e59fabbb479",
+  "fixture_set_sha256": "85ce8e5d818093a45eb2c57986c1099533168e43cf3c9c0b194664f494f1c1df",
   "hash_algorithm": "sha256(relative_path + NUL + file_bytes)",
   "manifest_excluded_from_hash": true,
   "synthetic_data_only": true,

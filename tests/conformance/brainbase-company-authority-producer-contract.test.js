@@ -17,7 +17,7 @@ import {
     createDetachedJws,
     validateCanonicalExecutionContext,
     validateObservedExecutionRequest,
-    validateWireResponse,
+    validateWireResponseStructure,
     verifyDetachedJws
 } from '../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
 
@@ -344,15 +344,15 @@ describe('Brainbase company authority producer contract v1', () => {
         };
         expect(schemaValidators.response(success)).toBe(true);
         expect(schemaValidators.response(diagnosticError)).toBe(true);
-        expect(() => validateWireResponse(success)).not.toThrow();
-        expect(() => validateWireResponse(diagnosticError)).not.toThrow();
+        expect(() => validateWireResponseStructure(success)).not.toThrow();
+        expect(() => validateWireResponseStructure(diagnosticError)).not.toThrow();
 
         const neither = { ...success, context: null };
         const both = { ...diagnosticError, context: normal.context, error: diagnosticError.error };
         expect(schemaValidators.response(neither)).toBe(false);
         expect(schemaValidators.response(both)).toBe(false);
-        expect(() => validateWireResponse(neither)).toThrow(/exactly one/);
-        expect(() => validateWireResponse(both)).toThrow(/exactly one/);
+        expect(() => validateWireResponseStructure(neither)).toThrow(/exactly one/);
+        expect(() => validateWireResponseStructure(both)).toThrow(/exactly one/);
     });
 
     it('pins diagnostic allowlist, diagnostic outcome, and response context/error paths', () => {
@@ -382,7 +382,7 @@ describe('Brainbase company authority producer contract v1', () => {
             }
         };
         expect(schemaValidators.response(diagnosticError)).toBe(true);
-        expect(() => validateWireResponse(diagnosticError)).not.toThrow();
+        expect(() => validateWireResponseStructure(diagnosticError)).not.toThrow();
     });
 
     it('pins the contract-only trust boundary and non-authoritative reference validator', () => {

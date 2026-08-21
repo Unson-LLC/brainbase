@@ -836,6 +836,18 @@
         "fallback_allowed": false,
         "synthetic_data_only": true
       },
+      "wire_response": {
+        "schema_version": "1.0",
+        "contract_id": "mana-brainbase-company-authority/v1",
+        "correlation_id": "cor-tenant-b-person-sato-company-tenant-b-project-a-deny",
+        "context": null,
+        "error": {
+          "code": "COMPANY_AUTHORITY_DENIED",
+          "phase": "authority",
+          "retryable": false,
+          "business_effect": false
+        }
+      },
       "notes": "A signed deny has no business effect."
     },
     {
@@ -1336,6 +1348,18 @@
         "business_effect_before_validation": false,
         "fallback_allowed": false,
         "synthetic_data_only": true
+      },
+      "wire_response": {
+        "schema_version": "1.0",
+        "contract_id": "mana-brainbase-company-authority/v1",
+        "correlation_id": "cor-tenant-b-person-umeda-diagnostic",
+        "context": null,
+        "error": {
+          "code": "AUTHORITY_UNAVAILABLE",
+          "phase": "authority",
+          "retryable": true,
+          "business_effect": false
+        }
       },
       "notes": "Only allowlisted diagnostics may report authority unavailable."
     }
