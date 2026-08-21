@@ -8,8 +8,10 @@ import { registerSlackInstallationControlPlaneApiRoute } from '../../../server/b
 import { SLACK_INSTALLATION_SERVICE_CAPABILITY } from '../../../server/services/multitenant/slack-installation-auth.js';
 
 const secret = 'slack-installation-csrf-order-test-secret';
+const userSecret = 'slack-installation-human-user-csrf-test-secret';
 const deploymentId = 'dep_01ARZ3NDEKTSV4RRFFQ69FAZ';
 const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+const personId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
 const serviceToken = `bbsvc_${jwt.sign({
     typ: 'service',
     issuer: 'brainbase',
@@ -39,7 +41,8 @@ const body = {
 };
 
 const previousNodeEnv = process.env.NODE_ENV;
-const previousEnv = new Map(Object.keys(env).map((key) => [key, process.env[key]]));
+const previousEnv = new Map([...Object.keys(env), 'BRAINBASE_JWT_SECRET', 'INTERNAL_API_SECRET']
+    .map((key) => [key, process.env[key]]));
 
 afterEach(() => {
     if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
@@ -69,7 +72,101 @@ function createProductionOrderedApp() {
     return app;
 }
 
+function humanToken(overrides = {}, signOptions = { expiresIn: '10m' }) {
+    return jwt.sign({
+        sub: personId,
+        personId,
+        slackUserId: 'U0123456789',
+        slackWorkspaceId: 'T0123456789',
+        role: 'tenant_admin',
+        projectCodes: ['mana'],
+        clearance: ['internal'],
+        organizationId: tenantId,
+        ...overrides
+    }, userSecret, signOptions);
+}
+
+function createProductionAuthorizeApp() {
+    process.env.BRAINBASE_JWT_SECRET = userSecret;
+    const app = express();
+    app.use(express.json());
+    app.use(csrfMiddleware());
+    const controlPlane = {
+        authorize: async () => null,
+        authorizeBinding: async (intent) => ({ status: 'pending', ...intent }),
+        exchange_and_register: async () => null
+    };
+    registerSlackInstallationControlPlaneApiRoute(app, {
+        controlPlane,
+        appId: body.intent.app_id,
+        authService: {
+            verifyToken: (token) => jwt.verify(token, userSecret)
+        },
+        authEnv: env
+    });
+    app.post('/api/v1/other', (_req, res) => res.json({ ok: true }));
+    return app;
+}
+
 describe('Slack installation auth and global CSRF production ordering', () => {
+    it('allows only an exact Bearer-authenticated human authorize request through global CSRF', async () => {
+        process.env.NODE_ENV = 'production';
+        const response = await request(createProductionAuthorizeApp())
+            .post('/api/v1/slack-installations:authorize')
+            .set('Authorization', `Bearer ${humanToken()}`)
+            .send({ app_id: body.intent.app_id });
+
+        expect(response.status).toBe(200);
+        expect(response.body.result).toMatchObject({
+            status: 'pending',
+            tenant_id: tenantId,
+            initiated_by_person_id: personId,
+            app_id: body.intent.app_id
+        });
+    });
+
+    it.each([
+        ['cookie', (call, token) => call.set('Cookie', `brainbase_session=${token}`)],
+        ['invalid bearer', (call) => call.set('Authorization', 'Bearer invalid.jwt.value')],
+        ['expired bearer', (call) => call.set('Authorization', `Bearer ${humanToken({}, { expiresIn: -1 })}`)],
+        ['service bearer', (call) => call.set('Authorization', `Bearer ${serviceToken}`)],
+        ['internal key', (call) => call.set('x-internal-api-key', 'internal-authorize-test-key')],
+        ['insecure headers', (call) => call.set('x-brainbase-role', 'tenant_admin')]
+    ])('does not exempt %s authentication on authorize', async (_label, configure) => {
+        process.env.NODE_ENV = 'production';
+        process.env.INTERNAL_API_SECRET = 'internal-authorize-test-key';
+        let call = request(createProductionAuthorizeApp())
+            .post('/api/v1/slack-installations:authorize')
+            .send({ app_id: body.intent.app_id });
+        call = configure(call, humanToken());
+        const response = await call;
+
+        expect(response.status).toBe(403);
+        expect(response.body).toMatchObject({ error: 'Forbidden', message: 'CSRF token required' });
+    });
+
+    it('does not exempt a valid human Bearer token on a neighbouring path', async () => {
+        process.env.NODE_ENV = 'production';
+        const response = await request(createProductionAuthorizeApp())
+            .post('/api/v1/other')
+            .set('Authorization', `Bearer ${humanToken()}`)
+            .send({});
+
+        expect(response.status).toBe(403);
+        expect(response.body).toMatchObject({ error: 'Forbidden', message: 'CSRF token required' });
+    });
+
+    it('keeps canonical role authorization after the CSRF exemption', async () => {
+        process.env.NODE_ENV = 'production';
+        const response = await request(createProductionAuthorizeApp())
+            .post('/api/v1/slack-installations:authorize')
+            .set('Authorization', `Bearer ${humanToken({ role: 'member' })}`)
+            .send({ app_id: body.intent.app_id });
+
+        expect(response.status).toBe(403);
+        expect(response.body.error).toMatchObject({ code: 'INSTALLATION_AUTHORIZATION_REQUIRED' });
+    });
+
     it('allows only the fully verified dedicated exchange service JWT through global CSRF', async () => {
         process.env.NODE_ENV = 'production';
         const response = await request(createProductionOrderedApp())
