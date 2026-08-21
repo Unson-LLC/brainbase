@@ -37,6 +37,10 @@ export interface GraphEntity {
   payload: Record<string, unknown>;
   project_code?: string;
   updated_at?: string;
+  lifecycle_status?: string;
+  lifecycle_state?: string;
+  semantic_state?: string;
+  version?: number;
 }
 
 export const GRAPH_ALIAS_TYPES = ['org_alias', 'person_alias'] as const;
@@ -80,12 +84,23 @@ function graphMetadata(entity: GraphEntity): {
   source?: string;
   source_path?: string;
   legacy_source_path?: string;
+  lifecycle_status?: string;
+  lifecycle_state?: string;
+  semantic_state?: string;
+  version?: number;
 } {
+  const lifecycleStatus = entity.lifecycle_status || entity.lifecycle_state;
+  const semanticState = entity.semantic_state
+    || (typeof entity.payload.semantic_state === 'string' ? entity.payload.semantic_state : undefined);
   return {
     project_code: entity.project_code,
     source: entity.payload.source as string | undefined,
     source_path: entity.payload.source_path as string | undefined,
     legacy_source_path: entity.payload.legacy_source_path as string | undefined,
+    lifecycle_status: lifecycleStatus,
+    lifecycle_state: lifecycleStatus,
+    semantic_state: semanticState,
+    version: typeof entity.version === 'number' ? entity.version : undefined,
   };
 }
 
@@ -533,8 +548,8 @@ export class GraphAPISource implements EntitySource {
       status: typeof payload.status === 'string' ? payload.status : undefined,
       payload,
       content: this.contentFromPayload(payload),
-      project_code: entity.project_code,
       updated: entity.updated_at,
+      ...graphMetadata(entity),
     };
   }
 

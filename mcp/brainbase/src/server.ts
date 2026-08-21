@@ -277,6 +277,9 @@ function formatEntity(entity: unknown): string {
   lines.push(`- **ID**: ${e.id}`);
 
   if (e.status) lines.push(`- **Status**: ${e.status}`);
+  if (e.lifecycle_status || e.lifecycle_state) lines.push(`- **Lifecycle**: ${e.lifecycle_status || e.lifecycle_state}`);
+  if (e.semantic_state) lines.push(`- **Semantic State**: ${e.semantic_state}`);
+  if (typeof e.version === 'number') lines.push(`- **Version**: ${e.version}`);
   if (e.role) lines.push(`- **Role**: ${e.role}`);
   if (e.org) lines.push(`- **Organization**: ${e.org}`);
   if (e.scope) lines.push(`- **Scope**: ${e.scope}`);
@@ -1040,6 +1043,7 @@ const publishedTools = annotateToolCapabilities([
 
 export const __testing = {
   tools: publishedTools,
+  formatEntity,
   dispatchOnboardingToolCall,
   dispatchJudgmentResolutionBeforeModel,
   dispatchKnowledgeResolutionToolCall,

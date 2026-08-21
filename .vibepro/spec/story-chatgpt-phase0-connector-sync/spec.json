@@ -1,0 +1,293 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-chatgpt-phase0-connector-sync",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "architecture"
+  },
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organizationId",
+      "resolved_from": [
+        "verified bbsvc service token"
+      ],
+      "resolution_point": "Brainbase auth middleware before Graph or Task service",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "MCP token manager",
+        "Graph API",
+        "Canonical Task API"
+      ],
+      "verified_surfaces": [
+        "MCP token manager",
+        "Graph API",
+        "Canonical Task API"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Graph entity and Canonical Task",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organizationId",
+        "partition_key": "organizationId/projectCode",
+        "trust_zone": "Brainbase API and Graph RLS",
+        "residue_policy": "existing Brainbase retention policy",
+        "data_owner": "Brainbase production",
+        "credential_scope": "organization unson and explicit projectCodes"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organizationId",
+      "scope": "organization unson and explicit projectCodes",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase production"
+      ],
+      "residency": "Brainbase production PostgreSQL",
+      "migration": "no data migration in this Story",
+      "rollback": "restore previous MCP runtime and token projection without Graph mutation"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "unauthorized_apply"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "organization",
+        "project",
+        "graph entity"
+      ],
+      "boundary_edges": [
+        "service token to organization and project scope"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "targeted tests and production smoke"
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "MCP tools/listは6つのGraph Maintenance操作を公開する。",
+      "rationale": "ChatGPT Hostが保守操作を発見できる公開契約を固定するため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-chatgpt-phase0-connector-sync.md",
+            "section": "API境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/server.ts",
+            "anchor": "publishedTools"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "case": "6つの保守toolをproduction serverへ登録する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "must_cover": "6つの保守tool"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-21T09:20:11.422Z",
+      "last_revised_at": "2026-08-21T09:40:06.457Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "searchとget_entityは保守lifecycle、semantic state、versionを業務payload statusと分離して表示する。",
+      "rationale": "retired済みDecisionをdecidedのままと誤認しないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-chatgpt-phase0-connector-sync.md",
+            "section": "データ経路"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/sources/graphapi-source.ts",
+            "anchor": "graphMetadata"
+          },
+          {
+            "file": "mcp/brainbase/src/server.ts",
+            "anchor": "formatEntity"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/sources/graphapi-source.test.ts",
+            "case": "keeps maintenance lifecycle, semantic state, and version separate from payload status"
+          },
+          {
+            "file": "mcp/brainbase/tests/tools/server-core-ontology.test.ts",
+            "case": "shows maintenance lifecycle separately from the business payload status"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/sources/graphapi-source.test.ts",
+            "must_cover": "maintenance lifecycle"
+          },
+          {
+            "file_glob": "mcp/brainbase/tests/tools/server-core-ontology.test.ts",
+            "must_cover": "maintenance lifecycle"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-21T09:20:11.422Z",
+      "last_revised_at": "2026-08-21T09:40:06.457Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "Admin Graph読取りはidとqをAPIへ転送し、正規化結果に保守列を含める。",
+      "rationale": "API wrapperの旧query契約とProjection欠落を解消するため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-chatgpt-phase0-connector-sync.md",
+            "section": "API境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/admin-visualization-service.js",
+            "anchor": "normalizeGraphRecord"
+          },
+          {
+            "file": "mcp/brainbase/src/tools/control-plane-tools.ts",
+            "anchor": "graph_entities"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/admin-visualization-service.test.js",
+            "case": "projects Graph maintenance state without replacing the business payload status"
+          },
+          {
+            "file": "mcp/brainbase/tests/tools/control-plane-tools.test.ts",
+            "case": "forwards Graph entity id and q filters to the current admin API contract"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/admin-visualization-service.test.js",
+            "must_cover": "projects Graph maintenance state"
+          },
+          {
+            "file_glob": "mcp/brainbase/tests/tools/control-plane-tools.test.ts",
+            "must_cover": "id and q"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-21T09:20:11.422Z",
+      "last_revised_at": "2026-08-21T09:40:06.457Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "MCPは明示されたBRAINBASE_GRAPH_API_TOKENを保存済み個人tokenより優先し、環境tokenがない場合だけ既存fallbackを使う。",
+      "rationale": "Connector専用Graph tokenが個人tokenにshadowされる回帰を防ぐため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-chatgpt-phase0-connector-sync.md",
+            "section": "認証境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/auth/token-manager.ts",
+            "anchor": "getToken"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/token-manager.test.ts",
+            "case": "should prefer the dedicated environment token over a persisted user token"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/token-manager.test.ts",
+            "must_cover": "dedicated environment token"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-21T09:39:00.000Z",
+      "last_revised_at": "2026-08-21T09:40:06.457Z"
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "OQ-001",
+      "question": "ChatGPT Host schema cache refresh is controlled outside the Brainbase repository and is verified by story-chatgpt-phase0-connector-production-activation."
+    }
+  ],
+  "generated_at": "2026-08-21T09:20:11.421Z",
+  "previous_spec_id": "2026-08-21T09:20:11.421Z"
+}

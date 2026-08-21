@@ -57,6 +57,24 @@ function seedServerIndex() {
 }
 
 describe('Brainbase MCP server core ontology tools', () => {
+  it('shows maintenance lifecycle separately from the business payload status', () => {
+    const formatted = __testing.formatEntity({
+      id: 'dec_maintenance_projection',
+      type: 'decision',
+      name: 'VERIFY fixture',
+      status: 'decided',
+      lifecycle_status: 'retired',
+      lifecycle_state: 'retired',
+      semantic_state: 'superseded',
+      version: 2,
+    });
+
+    assert.match(formatted, /Status.*decided/);
+    assert.match(formatted, /Lifecycle.*retired/);
+    assert.match(formatted, /Semantic State.*superseded/);
+    assert.match(formatted, /Version.*2/);
+  });
+
   it('refreshes project and extension listings before returning the current Graph snapshot', async () => {
     __testing.setEntityIndex(createEmptyIndex());
     const source: EntitySource = {
