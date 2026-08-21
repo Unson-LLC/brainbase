@@ -194,22 +194,10 @@
       "boundary_edges": ["tenant and person resolve through Brainbase authority before context emission", "no cross-tenant or cross-person fallback"]
     },
     "verification": {
-      "scanner_coverage": "verified",
+      "scanner_coverage": "not_collected",
+      "scope": "Contract-only verification covers schema, deterministic fixtures, manifest/source-lock, and synthetic wire/consumer boundary. Live connection, sandbox isolation, runtime state partitioning, customer data, actual deployment topology, and production negative readback are not collected.",
       "evidence": {
         "propagation_surfaces": ["observed_request", "canonical_context", "wire_response", "fixture_manifest"],
-        "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
-        "scanner_results": {
-          "tenant_boundary": "pass",
-          "tenant_key_propagation": "pass",
-          "cross_tenant_authorization": "pass",
-          "state_partitioning": "pass",
-          "sandbox_isolation": "pass",
-          "connection_routing": "pass",
-          "secret_scope": "pass",
-          "canonical_data_owner": "pass",
-          "deployment_topology": "pass",
-          "cross_tenant_negative_evidence": "pass"
-        },
         "graph": {
           "tenant_key": "tenant_id",
           "sharing_modes": ["tenant_partitioned"],
@@ -249,8 +237,7 @@
             }
           ]
         },
-        "spec": { "tenant_key": "tenant_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"] },
-        "implementation": { "tenant_key": "tenant_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"] }
+        "spec": { "tenant_key": "tenant_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"] }
       }
     }
   },
