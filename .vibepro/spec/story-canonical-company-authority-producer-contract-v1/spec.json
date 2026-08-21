@@ -8,11 +8,11 @@
     "red_basis": "Initial implementation RED remains not_collected. The A0 consumer boundary test was run before the acceptance entrypoint and wire envelopes were implemented and failed; no historical RED is inferred.",
     "green": {
       "status": "observed",
-      "producer_conformance_tests": 63,
+      "producer_conformance_tests": 70,
       "consumer_conformance_tests": 21,
       "shared_consumer_conformance_tests": 25,
       "shared_consumer_conformance_scope": "regression_only; not A0 consumer evidence",
-      "total_tests": 84,
+      "total_tests": 91,
       "evidence_scope": "synthetic_contract_only"
     },
     "separation": "Observed GREEN does not imply historical RED was collected."

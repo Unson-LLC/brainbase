@@ -61,7 +61,7 @@
     "historical_red": "not_collected",
     "new_red": "collected",
     "red": "Initial implementation RED remains not_collected. The A0 consumer boundary test was run before the acceptance entrypoint and wire envelopes were implemented and failed; no historical RED is inferred.",
-    "green": "Observed separately after implementation: producer conformance 63 tests and A0 consumer boundary 21 tests passed over the synthetic contract fixtures, including nested TenantContext signature, same-caller-now freshness, audience/deployment, complete error correlation, and signed deny rejection. The existing shared tenant-context conformance 25 tests are regression-only and are not A0 consumer evidence.",
+    "green": "Observed separately after implementation: producer conformance 70 tests and A0 consumer boundary 21 tests passed over the synthetic contract fixtures, including nested TenantContext signature, same-caller-now freshness, audience/deployment, complete error correlation, and signed deny rejection. The existing shared tenant-context conformance 25 tests are regression-only and are not A0 consumer evidence.",
     "regression": ["npm run test:conformance:mana-brainbase -- tests/conformance/brainbase-company-authority-producer-contract.test.js tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "npm run test:conformance:mana-brainbase -- tests/conformance/mana-brainbase-tenant-context.adapter.test.js", "node --check contracts/mana-brainbase-company-authority/v1/reference/wire.mjs", "git diff --check"]
   },
   "verification": {
@@ -69,10 +69,10 @@
       "source_lock": "tests/conformance/mana-brainbase-tenant-context.source-lock.json",
       "command": "npm test -- --run --config vitest.conformance.config.js tests/conformance/brainbase-company-authority-producer-contract.test.js tests/conformance/brainbase-company-authority-consumer-boundary.test.js tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
       "expected_tests": {
-        "producer": 63,
+        "producer": 70,
         "consumer_boundary": 21,
         "shared_regression": 25,
-        "total": 109
+        "total": 116
       },
       "prerequisites": {
         "derive_commit": "At runtime, read LOCKED_COMMIT=$(jq -er '.commit' \"$SOURCE_LOCK\") from the task-relative source_lock; do not hardcode or override the value.",
@@ -91,7 +91,7 @@
             "export MANA_BRAINBASE_CONFORMANCE_KIT_COMMIT=\"$LOCKED_COMMIT\""
           ],
           "set_before_command": true,
-          "inheritance": "Export both variables in the parent environment that invokes the existing 109-test command so the adapter receives the exact checkout binding."
+          "inheritance": "Export both variables in the parent environment that invokes the existing 116-test command so the adapter receives the exact checkout binding."
         }
       }
     }
@@ -99,7 +99,7 @@
   "evidence": {
     "contract_version": "1.0.0",
     "manifest_version": "1.0",
-    "fixture_set_sha256": "226afa0187439696f40f1afecf25e2526764df13c1f87a9117580530e720add9",
+    "fixture_set_sha256": "1d7af5b850abeb10e07db281c17341636d80a74cb37679b2c2b6ab5ce9b0a6ea",
     "synthetic_data_only": true,
     "customer_data": "not_used",
     "secrets": "not_used",
