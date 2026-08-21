@@ -121,48 +121,21 @@ reservation、binding、artifact rootは同じfilesystemであることを実装
 
 後続実装のsave、reload、listは、OS例外やライブラリ固有の文字列をそのまま返さず、次の固定result envelopeへ正規化する。これはplanned contractであり、このsliceでruntimeを実装したことを意味しない。
 
-成功結果のshapeは次の通りである。
+成功結果はoperationごとにexact shapeを分け、余分なkeyを認めない。
 
-```json
-{
-  "ok": true,
-  "operation": "save|reload|list",
-  "status": "new|idempotent|loaded|empty|committed",
-  "artifact_id": "sha256:<64 lowercase hex>",
-  "run_id": "<J0 run_id>",
-  "record": "null for save/list; exact recursively deep-frozen J0 record for reload=loaded",
-  "binding": "created|recovered|existing|verified|none"
-}
-```
+- saveは`{ok, operation, status, artifact_id, run_id, record, binding}`だけを返す。`operation=save`、`status=new|idempotent`、`record=null`、`binding=created|recovered|existing`である。
+- reloadは同じ7 keyだけを返す。`operation=reload`、`status=loaded`、`record`は検証済みでrecursive deep-frozenなJ0 record、`binding=verified`である。
+- listは`{ok, operation, status, items, count}`だけを返し、`artifact_id`、`run_id`、`record`、`binding`をrootに持たない。`status=empty`は`items=[]`・`count=0`、`status=committed`はcaller-owned root配下の全committed artifactを`{artifact_id, run_id, binding=verified}`として返し、`count=items.length`とする。temporaryとpublished-unboundは含めない。
 
-saveのstatusは`new`または`idempotent`、reloadは`loaded`、listは`empty`または`committed`だけを返す。`record`はsave/listでは`null`、reloadの`loaded`だけが検証済みのJ0 recordを返す。失敗結果は次のshapeを必須とする。
+失敗結果もoperationごとにexact shapeを分ける。save/reloadは`{ok=false, operation, status=error, code, artifact_id, run_id, record=null, effects}`、listは`{ok=false, operation=list, status=error, code, items=null, count=null, effects}`だけを返す。いずれの`effects`も`success_record_returned=false`、artifact/binding bytes変更なし、repair/overwrite/deleteなし、`runner_invocations=0`を必須値とする。
 
-```json
-{
-  "ok": false,
-  "operation": "save|reload|list",
-  "status": "error",
-  "code": "<stable error code>",
-  "artifact_id": "<input or null>",
-  "run_id": "<input or null>",
-  "record": null,
-  "effects": {
-    "success_record_returned": false,
-    "artifact_bytes_changed": false,
-    "binding_changed": false,
-    "repair_attempted": false,
-    "overwrite_attempted": false,
-    "delete_attempted": false,
-    "runner_invocations": 0
-  }
-}
-```
+VibePro `0.2.0-beta.11`の`pr prepare`読戻しはAC-002・AC-011だけをmapped（2/11）、残り9件をunmappedとする。Taskの11/11 coverageとdraft clauseの13/13 `test_refs`はplanning contractであってPR-ready evidenceではない。別のimplementation/verification changeでaccepted Specと実test/evidenceを結合し`pr prepare`を再生成するまで、draftのaccepted化、証拠なしのfinal Spec、PR ready主張を禁止する。
 
 固定error codeは次の通りである。`invalid_artifact_id`はartifact_idの形式不正、`invalid_path`はabsolute/NUL/separator/dot/URLなどlocator入力不正、`path_escape`はroot外解決、`schema_invalid`はenvelope/payload/record/JCS/schema不正、`integrity_mismatch`はstored bytes・canonical envelope・digest・identity不一致、`binding_missing_or_mismatch`はbinding欠落または別artifact指示、`non_regular_file`はsymlinkを含むregular file以外、`cross_filesystem`はreservation/binding/artifact rootのdevice不一致、`conflict`は同じrun_idの異なるcanonical content、`not_found`はcommitted artifact不在を表す。raw OS errorは契約ではない。
 
 ## Fresh process/store negative E2Eとfixture単位のassertion
 
-後続の`tests/judgment-dag-artifact-store.test.ts`は、process/store Aが同一rootへfixtureをseedしてartifact bytes・binding bytesを記録して終了し、fresh process/store Bが同じrootをreopenして一操作だけ実行する二段階で検証する。Bは固定`code`とresult shapeを確認し、errorでは`record=null`、`runner_invocations=0`、`repair_attempted=false`、`overwrite_attempted=false`、`delete_attempted=false`を確認する。最後にAのartifact・binding bytesとcommitted identityを再読込し、既存状態がbyte-for-byte不変であることを確認する。修復、overwrite、unlink、削除、暗黙cleanupはどのnegative caseでも発生してはならない。
+後続の`tests/judgment-dag-artifact-store.test.ts`は、process/store Aが同一rootへfixtureをseedしてartifact bytes・binding bytesを記録して終了し、fresh process/store Bが同じrootをreopenして一操作だけ実行する二段階で検証する。Bは固定`code`とresult shapeを確認し、save/reload errorでは`record=null`、list errorでは`items=null`・`count=null`、全errorで`runner_invocations=0`、`repair_attempted=false`、`overwrite_attempted=false`、`delete_attempted=false`を確認する。最後にAのartifact・binding bytesとcommitted identityを再読込し、既存状態がbyte-for-byte不変であることを確認する。修復、overwrite、unlink、削除、暗黙cleanupはどのnegative caseでも発生してはならない。
 
 | Fixture/assertion unit | Operation | Expected result |
 | --- | --- | --- |

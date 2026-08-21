@@ -122,13 +122,15 @@ byte改変、追加field、field順差替え、digest差替え、三層run_id差
 
 save、reload、listは、後続実装で次のresult envelopeへ正規化する。これはplanning-onlyの契約であり、このSpecはruntimeやtestを作成しない。
 
-成功結果は`ok=true`、`operation=save|reload|list`、`status=new|idempotent|loaded|empty|committed`、`artifact_id`、`run_id`、`record`、`binding`を必須とする。saveのstatusは`new|idempotent`、reloadは`loaded`、listは`empty|committed`に限定する。save/listの`record`は`null`、reload loadedの`record`は検証済みでrecursive deep-frozenなJ0 record、bindingは`created|recovered|existing|verified|none`のいずれかとする。
+成功結果はoperationごとにexact shapeを分け、余分なkeyを認めない。saveは`{ok, operation, status, artifact_id, run_id, record, binding}`で`status=new|idempotent`、`record=null`、`binding=created|recovered|existing`。reloadは同じ7 keyで`status=loaded`、`record`は検証済みでrecursive deep-frozenなJ0 record、`binding=verified`。listは`{ok, operation, status, items, count}`だけを返し、単一artifact keyをrootに持たない。list `empty`は`items=[]`・`count=0`、`committed`はcaller-owned root配下の全committed artifactを`{artifact_id, run_id, binding=verified}`として返し、`count=items.length`とする。temporaryとpublished-unboundは含めない。
 
-失敗結果は`ok=false`、`operation`、`status=error`、`code`、`artifact_id`、`run_id`、`record=null`、`effects`を必須とする。`effects`は`success_record_returned=false`、`artifact_bytes_changed=false`、`binding_changed=false`、`repair_attempted=false`、`overwrite_attempted=false`、`delete_attempted=false`、`runner_invocations=0`を必須値とする。固定codeは`conflict`、`invalid_artifact_id`、`invalid_path`、`path_escape`、`schema_invalid`、`integrity_mismatch`、`binding_missing_or_mismatch`、`non_regular_file`、`cross_filesystem`、`not_found`であり、raw OS error文字列を契約値にしない。
+失敗結果もoperationごとにexact shapeを分ける。save/reloadは`{ok=false, operation, status=error, code, artifact_id, run_id, record=null, effects}`、listは`{ok=false, operation=list, status=error, code, items=null, count=null, effects}`だけを返す。全errorの`effects`は`success_record_returned=false`、`artifact_bytes_changed=false`、`binding_changed=false`、`repair_attempted=false`、`overwrite_attempted=false`、`delete_attempted=false`、`runner_invocations=0`を必須値とする。固定codeは`conflict`、`invalid_artifact_id`、`invalid_path`、`path_escape`、`schema_invalid`、`integrity_mismatch`、`binding_missing_or_mismatch`、`non_regular_file`、`cross_filesystem`、`not_found`であり、raw OS error文字列を契約値にしない。
+
+VibePro `0.2.0-beta.11`の`pr prepare`読戻しはAC-002・AC-011の2/11だけをmapped、残り9/11をunmappedとする。Taskの11/11 coverageとdraftの13/13 `test_refs`はplanning contractであり、PR-ready evidenceではない。別のimplementation/verification changeでaccepted Specと実test/evidenceを結合し`pr prepare`を再生成するまで、draftのaccepted化、証拠なしのfinal Spec、Task coverageからのPR ready主張を禁止する。
 
 ## Fresh process/store negative E2Eとassertion units
 
-後続テストはA/B fresh process protocolを使う。Aが同一rootへartifactまたはcrash fixtureをseedし、artifact・binding bytesを記録して終了する。fresh process/store Bが同じrootをreopenして一操作だけ行い、上記のexact result shape/code、error時の`record=null`、`runner_invocations=0`、修復・overwrite・deleteなしを確認する。Bの後にbytes、binding、committed identityを再読込し、既存状態が不変であることを確認する。
+後続テストはA/B fresh process protocolを使う。Aが同一rootへartifactまたはcrash fixtureをseedし、artifact・binding bytesを記録して終了する。fresh process/store Bが同じrootをreopenして一操作だけ行い、上記のexact result shape/code、save/reload errorの`record=null`、list errorの`items=null`・`count=null`、`runner_invocations=0`、修復・overwrite・deleteなしを確認する。Bの後にbytes、binding、committed identityを再読込し、既存状態が不変であることを確認する。
 
 fixture/assertionは次を個別に持つ。
 
@@ -140,7 +142,7 @@ fixture/assertionは次を個別に持つ。
 - symlink、directory、device、FIFO、socketは各々`non_regular_file`で、symlink followをしない。
 - temporaryとpublished-unboundはlistで`empty`、reloadでsuccess recordなしとし、通常処理がcleanupしない。
 
-すべてのnegative assertionは、失敗resultのrequired keys、`record=null`、runner count 0、no repair/overwrite/delete、artifact/binding bytes unchangedを同時に検証する。
+すべてのnegative assertionは、失敗resultのoperation別required keys、save/reloadでは`record=null`、listでは`items=null`・`count=null`、runner count 0、no repair/overwrite/delete、artifact/binding bytes unchangedを同時に検証する。
 
 ## Fail-closed matrix
 

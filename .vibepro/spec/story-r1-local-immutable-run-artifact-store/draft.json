@@ -45,32 +45,107 @@
   },
   "result_contract": {
     "version": "r1-artifact-store-result-v1",
-    "success_shape": {
-      "required_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
-      "ok": true,
-      "operation": ["save", "reload", "list"],
-      "status_by_operation": {
-        "save": ["new", "idempotent"],
-        "reload": ["loaded"],
-        "list": ["empty", "committed"]
-      },
-      "record": "null for save/list; exact recursively deep-frozen J0 record for reload loaded",
-      "binding": ["created", "recovered", "existing", "verified", "none"]
+    "discriminator": {
+      "field": "operation",
+      "success_values": ["save", "reload", "list"],
+      "error_values": ["save", "reload", "list"]
     },
-    "error_shape": {
-      "required_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
-      "ok": false,
-      "operation": ["save", "reload", "list"],
-      "status": "error",
-      "record": null,
-      "effects": {
-        "success_record_returned": false,
-        "artifact_bytes_changed": false,
-        "binding_changed": false,
-        "repair_attempted": false,
-        "overwrite_attempted": false,
-        "delete_attempted": false,
-        "runner_invocations": 0
+    "success_shapes": {
+      "save": {
+        "required_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
+        "allowed_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
+        "forbidden_keys": ["items", "count"],
+        "literals": {"ok": true, "operation": "save"},
+        "status": {"type": "string", "enum": ["new", "idempotent"]},
+        "fields": {
+          "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": false},
+          "run_id": {"type": "string", "min_length": 1, "nullable": false},
+          "record": {"type": "null", "nullable": false},
+          "binding": {"type": "string", "enum": ["created", "recovered", "existing"], "nullable": false}
+        },
+        "single_artifact": true,
+        "record_included": false
+      },
+      "reload": {
+        "required_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
+        "allowed_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
+        "forbidden_keys": ["items", "count"],
+        "literals": {"ok": true, "operation": "reload", "status": "loaded"},
+        "fields": {
+          "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": false},
+          "run_id": {"type": "string", "min_length": 1, "nullable": false},
+          "record": {"type": "J0 JudgmentDAGRunRecord", "nullable": false, "recursively_deep_frozen": true},
+          "binding": {"type": "string", "const": "verified", "nullable": false}
+        },
+        "single_artifact": true,
+        "record_included": true
+      },
+      "list": {
+        "required_keys": ["ok", "operation", "status", "items", "count"],
+        "allowed_keys": ["ok", "operation", "status", "items", "count"],
+        "forbidden_keys": ["artifact_id", "run_id", "record", "binding"],
+        "literals": {"ok": true, "operation": "list"},
+        "status": {"type": "string", "enum": ["empty", "committed"]},
+        "fields": {
+          "items": {"type": "array", "nullable": false},
+          "count": {"type": "integer", "minimum": 0, "nullable": false}
+        },
+        "shape_by_status": {
+          "empty": {"items": {"exact_length": 0}, "count": {"const": 0}},
+          "committed": {
+            "items": {
+              "min_items": 1,
+              "item": {
+                "required_keys": ["artifact_id", "run_id", "binding"],
+                "allowed_keys": ["artifact_id", "run_id", "binding"],
+                "forbidden_keys": ["record", "items", "count"],
+                "fields": {
+                  "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": false},
+                  "run_id": {"type": "string", "min_length": 1, "nullable": false},
+                  "binding": {"type": "string", "const": "verified", "nullable": false}
+                }
+              }
+            },
+            "count": {"minimum": 1, "equals_items_length": true}
+          }
+        },
+        "root_scope": "all committed artifacts under the caller-owned artifact root; temporary and published-unbound states are excluded",
+        "single_artifact": false,
+        "record_included": false
+      }
+    },
+    "error_shapes": {
+      "save": {
+        "required_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
+        "allowed_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
+        "literals": {"ok": false, "operation": "save", "status": "error"},
+        "fields": {
+          "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": true},
+          "run_id": {"type": "string", "min_length": 1, "nullable": true},
+          "record": {"type": "null", "nullable": false}
+        },
+        "effects": {"required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"], "all_values": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}
+      },
+      "reload": {
+        "required_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
+        "allowed_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
+        "literals": {"ok": false, "operation": "reload", "status": "error"},
+        "fields": {
+          "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": true},
+          "run_id": {"type": "string", "min_length": 1, "nullable": true},
+          "record": {"type": "null", "nullable": false}
+        },
+        "effects": {"required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"], "all_values": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}
+      },
+      "list": {
+        "required_keys": ["ok", "operation", "status", "code", "items", "count", "effects"],
+        "allowed_keys": ["ok", "operation", "status", "code", "items", "count", "effects"],
+        "literals": {"ok": false, "operation": "list", "status": "error"},
+        "fields": {
+          "items": {"type": "null", "nullable": false},
+          "count": {"type": "null", "nullable": false}
+        },
+        "effects": {"required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"], "all_values": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}
       }
     },
     "error_codes": {
@@ -97,8 +172,9 @@
     ],
     "cases": [
       {"id": "tamper", "fixture": "one envelope byte changed", "operation": "reload", "expected_code": "integrity_mismatch"},
-      {"id": "truncate", "fixture": "stored envelope truncated or zero-byte", "operation": "reload", "expected_code": "integrity_mismatch"},
-      {"id": "published-unbound-reload", "fixture": "canonical envelope after rename with no binding", "operation": "reload", "expected_code": "binding_missing_or_mismatch"},
+      {"id": "truncated-envelope", "fixture": "stored envelope ends before the complete canonical JSON bytes", "operation": "reload", "expected_code": "integrity_mismatch"},
+      {"id": "zero-byte-envelope", "fixture": "stored envelope has length zero", "operation": "reload", "expected_code": "integrity_mismatch"},
+      {"id": "published-unbound-reload", "fixture": "canonical envelope after rename with no binding", "operation": "reload", "expected_code": "binding_missing_or_mismatch", "assertion": "no cleanup, overwrite, or delete"},
       {"id": "published-unbound-exact-recovery", "fixture": "same-run exact envelope and missing binding", "operation": "save", "expected_status": "new", "expected_binding": "recovered"},
       {"id": "published-unbound-different-content", "fixture": "same run_id with different canonical envelope", "operation": "save", "expected_code": "conflict"},
       {"id": "invalid-artifact-id", "fixture": "artifact_id not sha256:<64 lowercase hex>", "operation": "reload", "expected_code": "invalid_artifact_id"},
@@ -118,17 +194,32 @@
       {"id": "device", "fixture": "device at locator", "operation": "reload", "expected_code": "non_regular_file"},
       {"id": "fifo", "fixture": "FIFO at locator", "operation": "reload", "expected_code": "non_regular_file"},
       {"id": "socket", "fixture": "socket at locator", "operation": "reload", "expected_code": "non_regular_file"},
-      {"id": "invisible-crash-state", "fixture": "temporary or published-unbound file in list", "operation": "list", "expected_status": "empty"},
-      {"id": "invisible-reload-state", "fixture": "temporary or published-unbound file in reload", "operation": "reload", "expected_code": "not_found"},
-      {"id": "cleanup-forbidden", "fixture": "temporary or published-unbound file after failed operation", "operation": "reload", "expected_code": "not_found", "assertion": "no cleanup, overwrite, or delete"}
+      {"id": "temporary-list-invisible", "fixture": "temporary file in the artifact root", "operation": "list", "expected_status": "empty"},
+      {"id": "published-unbound-list-invisible", "fixture": "published-unbound file in the artifact root", "operation": "list", "expected_status": "empty"},
+      {"id": "temporary-reload-invisible", "fixture": "temporary file at the requested locator", "operation": "reload", "expected_code": "not_found"},
+      {"id": "published-unbound-reload-cleanup-forbidden", "fixture": "published-unbound file after failed reload", "operation": "reload", "expected_code": "binding_missing_or_mismatch", "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "temporary-reload-cleanup-forbidden", "fixture": "temporary file after failed reload", "operation": "reload", "expected_code": "not_found", "assertion": "no cleanup, overwrite, or delete"}
     ],
     "common_assertions": [
-      "error result.record is null and success_record_returned is false",
+      "save/reload error result.record is null; list error result.items and result.count are null; success_record_returned is false for every error",
       "runner_invocations is exactly 0",
       "artifact bytes, binding bytes, and committed artifact identity are unchanged",
       "repair_attempted, overwrite_attempted, and delete_attempted are false",
-      "temporary and published-unbound states are absent from list and reload success values"
+      "temporary list/reload cases return empty or not_found; published-unbound list/reload cases return empty or binding_missing_or_mismatch; neither state is a reload success value"
     ]
+  },
+  "traceability_observation": {
+    "vibepro_version": "0.2.0-beta.11",
+    "pr_prepare_mapped_count": 2,
+    "pr_prepare_unmapped_count": 9,
+    "mapped_ac_ids": ["AC-002", "AC-011"],
+    "unmapped_ac_ids": ["AC-001", "AC-003", "AC-004", "AC-005", "AC-006", "AC-007", "AC-008", "AC-009", "AC-010"],
+    "task_acceptance_coverage_count": 11,
+    "draft_clause_test_ref_count": 13,
+    "classification": "planning_contract_not_pr_ready_evidence",
+    "cause": "accepted Spec and implementation/test evidence are absent; pr prepare does not consume draft coverage as accepted traceability",
+    "required_follow_up": "a separate implementation/verification change must bind an accepted Spec to real tests and evidence, then rerun pr prepare",
+    "forbidden_shortcuts": ["treat draft as accepted", "write final Spec without evidence", "claim PR ready from Task coverage"]
   },
   "clauses": [
     {
