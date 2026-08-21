@@ -1,0 +1,297 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-j0-local-deterministic-runner",
+  "generated_at": "2026-08-21T00:00:00.000Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "accepted_contract"
+  },
+  "previous_spec_id": "2026-08-21T00:00:00.000Z",
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "JudgmentDAGRunRequest、runner登録、runner入力、node実行記録、run記録をreadonlyな公開型として./judgment-dagから提供する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001",
+            "text_snippet": "readonlyな公開型"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "JudgmentDAGRunRequest"
+          },
+          {
+            "file": "src/judgment-dag.ts",
+            "anchor": "executeJudgmentDAG"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "exports the readonly runner contract from the side-effect-free public subpath"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "exports the readonly runner contract from the side-effect-free public subpath"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "DAG構造と全nodeに必要なrunner登録をrunner呼出し前に検証し、欠落または不正な登録をmachine-readable errorで拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002",
+            "text_snippet": "runnerを一度も呼ぶ前にfail-closed"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "JudgmentDAGExecutionError"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "fails closed for missing or invalid runners before any runner call"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "fails closed for missing or invalid runners before any runner call"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "validateJudgmentDAGが返す安定順序で各nodeを一度だけ直列実行し、runnerへID順で渡すdependency_outputsは宣言済みの直接依存だけに限定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003",
+            "text_snippet": "安定したtopological order"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "executeJudgmentDAG"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "executes in stable order and exposes only ID-sorted direct dependency outputs"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "executes in stable order and exposes only ID-sorted direct dependency outputs"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "DAG、run input、dependency outputs、runner outputsをJSON-compatible snapshotとして分離し、非JSON値、非plain object、非有限数、循環値をfail-closedで拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004",
+            "text_snippet": "JSON snapshot化"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "snapshotJSON"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "snapshots mutation boundaries and rejects non-JSON values, cycles, and non-plain objects"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "snapshots mutation boundaries and rejects non-JSON values, cycles, and non-plain objects"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "DAG validatorはrunner呼出し前に実行され、invalid DAGのmachine-readable error code/detailsをそのまま保持し、runner call count 0かつpartial success recordなしで拒否する。runnerの同期throwと非同期rejectはともにrunner_failedとして元errorをcauseに保持し、failure_kindで区別し、成功recordを返さない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002",
+            "text_snippet": "validator error code/detailsを保持しrunner呼出し前にfail-closed"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005",
+            "text_snippet": "失敗時は成功run recordを返さない"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "executeJudgmentDAG"
+          },
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "JudgmentDAGExecutionError"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "preserves invalid DAG validator errors before any runner call or partial record"
+          },
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "distinguishes synchronous throws and asynchronous rejects as runner failures without a success record"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "preserves invalid DAG validator errors before any runner call or partial record"
+          },
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "distinguishes synchronous throws and asynchronous rejects as runner failures without a success record"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-21T00:00:00.000Z",
+      "last_revised_at": "2026-08-21T00:00:00.000Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "成功runは実行開始前にsnapshotしたrun_id、DAG identityとsnapshot、run input、execution order、runner version、node contract refs、node outputを含むdeep-frozen recordを返し、同じ明示入力とrunnerに対して同値になる。runner callbackによるcaller requestのrun_id変更はnode間やfinal recordへ伝播しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005",
+            "text_snippet": "deep-frozenな記録"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "JudgmentDAGRunRecord"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "returns a deeply frozen deterministic record without reading clock or randomness"
+          },
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "snapshots run_id before a runner can mutate the caller request"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "returns a deeply frozen deterministic record without reading clock or randomness"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "既存J0 schema・fixture・source-lockとその意味契約、package deep import、MCP/CLI起動面を変更せず、README.mdの公開runner説明変更に伴うcontracts/judgment-dag/digest.jsonのREADME hash・aggregate digestの派生再計算だけを許容し、他のcontracts/judgment-dag artifactを変更せず、J0回帰、公開consumer、full test、build、typecheck、差分検査を通す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006",
+            "text_snippet": "既存J0契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag.ts",
+            "anchor": "Side-effect-free public entrypoint"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-public-contract.test.ts",
+            "case": "publishes a side-effect-free subpath and locked machine artifacts"
+          },
+          {
+            "file": "tests/npm-consumer-smoke.integration.test.ts",
+            "case": "runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-public-contract.test.ts",
+            "must_cover": "publishes a side-effect-free subpath and locked machine artifacts"
+          },
+          {
+            "file_glob": "tests/npm-consumer-smoke.integration.test.ts",
+            "must_cover": "runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-20T23:10:25.624Z",
+      "last_revised_at": "2026-08-20T23:11:06.078Z"
+    }
+  ]
+}

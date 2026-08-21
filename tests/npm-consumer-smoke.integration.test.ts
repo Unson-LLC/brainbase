@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 describe('npm tarball consumer smoke', () => {
-  it('runs the public CLI and MCP tools/list from a fresh installed consumer', async () => {
+  it('runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer', async () => {
     const root = process.cwd();
     const artifactRoot = await mkdtemp(path.join(tmpdir(), 'brainbase-consumer-artifact-'));
     temporaryRoots.push(artifactRoot);
@@ -88,6 +88,52 @@ describe('npm tarball consumer smoke', () => {
           'context.account', 'context.customer', 'judgment.fit', 'resource.scope',
           'execution.proposal', 'execution.outcome', 'evaluation.result'
         ],
+        runnerExecution: {
+          executionOrder: ['context.alpha', 'context.zeta', 'judgment.answer'],
+          runnerVersions: [
+            { runner_type: 'deterministic', version: 'consumer-deterministic-v1' }
+          ],
+          nodeRecords: [
+            {
+              node_id: 'context.alpha',
+              runner_type: 'deterministic',
+              runner_version: 'consumer-deterministic-v1',
+              input_contract: 'consumer.runner.input.v1',
+              output_contract: 'consumer.runner.output.v1',
+              input: { source: 'consumer' },
+              dependency_outputs: [],
+              output: { node_id: 'context.alpha', source: 'consumer' }
+            },
+            {
+              node_id: 'context.zeta',
+              runner_type: 'deterministic',
+              runner_version: 'consumer-deterministic-v1',
+              input_contract: 'consumer.runner.input.v1',
+              output_contract: 'consumer.runner.output.v1',
+              input: { source: 'consumer' },
+              dependency_outputs: [],
+              output: { node_id: 'context.zeta', source: 'consumer' }
+            },
+            {
+              node_id: 'judgment.answer',
+              runner_type: 'deterministic',
+              runner_version: 'consumer-deterministic-v1',
+              input_contract: 'consumer.runner.input.v1',
+              output_contract: 'consumer.runner.output.v1',
+              input: { source: 'consumer' },
+              dependency_outputs: [
+                { node_id: 'context.alpha', output: { node_id: 'context.alpha', source: 'consumer' } },
+                { node_id: 'context.zeta', output: { node_id: 'context.zeta', source: 'consumer' } }
+              ],
+              output: { node_id: 'judgment.answer', source: 'consumer' }
+            }
+          ],
+          directDependencyOutputs: [
+            { node_id: 'context.alpha', output: { node_id: 'context.alpha', source: 'consumer' } },
+            { node_id: 'context.zeta', output: { node_id: 'context.zeta', source: 'consumer' } }
+          ],
+          immutable: true
+        },
         negativeBoundaries: {
           missing_dependency: { status: 'passed', errorCode: 'missing_dependency' },
           cycle: { status: 'passed', errorCode: 'cycle' },

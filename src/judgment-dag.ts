@@ -17,6 +17,8 @@ export {
   validateJudgmentDAG
 } from './judgment-dag-core.js';
 
+export { executeJudgmentDAG, JudgmentDAGExecutionError } from './judgment-dag-runner.js';
+
 export type {
   JudgmentDAG,
   JudgmentDAGEdge,
@@ -32,3 +34,17 @@ export type {
   JudgmentDAGValidationDetails,
   JudgmentDAGValidationResult
 } from './judgment-dag-core.js';
+
+export type {
+  JudgmentDAGDependencyOutput,
+  JudgmentDAGExecutionCode,
+  JudgmentDAGExecutionErrorDetails,
+  JudgmentDAGJSONValue,
+  JudgmentDAGNodeRunRecord,
+  JudgmentDAGRunRecord,
+  JudgmentDAGRunRequest,
+  JudgmentDAGRunnerFailureKind,
+  JudgmentDAGRunnerInput,
+  JudgmentDAGRunnerRegistration,
+  JudgmentDAGRunnerVersion
+} from './judgment-dag-runner.js';
