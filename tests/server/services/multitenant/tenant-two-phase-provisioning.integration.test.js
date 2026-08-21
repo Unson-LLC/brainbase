@@ -96,7 +96,7 @@ describe.sequential('tenant two-phase provisioning DB readback', () => {
                 graphResolver,
                 credentialResolver: {
                     verifyOpaqueReference: async ({ tenant_key, allow_unregistered }) => ({
-                        tenant_key, valid: allow_unregistered === false
+                        tenant_key, valid: allow_unregistered === true
                     })
                 },
                 schemaSha256, now

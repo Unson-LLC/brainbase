@@ -998,7 +998,7 @@ export async function provisionTenant({
                 provider: normalizedManifest.workspace_connection.provider,
                 workspace_id: normalizedManifest.workspace_connection.workspace_id,
                 app_id: normalizedManifest.workspace_connection.app_id,
-                allow_unregistered: phase === 'all' && (existingConnection.rows ?? []).length === 0
+                allow_unregistered: (existingConnection.rows ?? []).length === 0
             };
             if ((existingConnection.rows ?? []).length === 0) {
                 // The first-install row is created immediately after this
