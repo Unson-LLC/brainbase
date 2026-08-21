@@ -37,6 +37,6 @@ describe('Ontology 1.1.0 person supersession release', () => {
     it('keeps 1.1.0 proposed and current at signed 1.0.0 before publication', () => {
         expect(ontologyIndex.current).toBe('1.0.0');
         expect(ontologyIndex.releases.find((release) => release.version === '1.1.0')).toMatchObject({ status: 'proposed' });
-        expect(release110.governance.decision_id).toBe('dec_ontology_1_1_0_person_supersession_20260821');
+        expect(release110.governance.decision_id).toBe('dec_01M0HJ3ATRZRK00X2AZNDFMMCG');
     });
 });
