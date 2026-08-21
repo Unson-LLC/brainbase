@@ -1,0 +1,78 @@
+{
+  "task_id": "t0-offline-negative-e2e-receipt",
+  "story_id": "story-t0-offline-negative-e2e-receipt",
+  "status": "contract_evidence_completed",
+  "t0_program_status": "partial",
+  "priority": "high",
+  "scope": {
+    "add": [
+      "scripts/run-t0-offline-negative-e2e.js",
+      "tests/integration/t0-offline-negative-e2e-receipt.test.js",
+      "docs/management/stories/active/story-t0-offline-negative-e2e-receipt.md",
+      "docs/architecture/story-t0-offline-negative-e2e-receipt.md",
+      "docs/specs/story-t0-offline-negative-e2e-receipt.md",
+      "docs/management/tasks/t0-offline-negative-e2e-receipt.json"
+    ],
+    "forbid": [
+      "existing runtime changes",
+      "deploy_allowed changes",
+      "runbook changes",
+      "package file changes",
+      "mana repo changes",
+      "database or migration changes",
+      "secrets and customer data",
+      "network, real DB, Cloudflare, Slack"
+    ]
+  },
+  "acceptance": [
+    "deterministic contract-fixture machine-readable Receipt with base fixed to e44843bd1bfc995c760dd6ec7e2916d62685a514, head bound to local git HEAD, and fixture hash",
+    "same-event pipeline redelivery and direct provider/delivery/accounting redelivery each keep counters at 1",
+    "cross-tenant rejection precedes resolver/provider/accounting",
+    "upstream unavailable requires resolution.available=false, keeps provider/delivery/accounting at 0, and is blocked/failure with external readback not_collected and unknown quantities null",
+    "all fixture operations route through the factory-identified fixture-only adapter layer; low-level direct layer construction also verifies factory identity for both external boundary and injected adapters, structurally forged or production-shaped injection is rejected before calls, any attempted external call or normal-path injection fails, and the normal external adapter call count is zero",
+    "same exact input produces the same fixture hash and case outcomes",
+    "CLI unknown options and omission of --json fail closed with exit code 1 and no Receipt on stdout",
+    "machine Spec declares tenant identity/propagation, fail-closed cross-tenant semantics, no credential lookup or raw secrets, and deployment verification not_applicable for this fixture-only slice"
+  ],
+  "verification": {
+    "red": "new CLI negative tests were added first; the existing parser already implemented both exit-1 guards, so no source defect remained to reproduce",
+    "green": "canonical npm run test:run integration target and direct fixture CLI pass",
+    "outcomes": {
+      "canonical_test": {
+        "command": "npm run test:run -- --root /private/tmp/brainbase-t0-offline-negative --config /Users/ksato/workspace/repos/brainbase/vitest.config.js tests/integration/t0-offline-negative-e2e-receipt.test.js",
+        "result": "1 file passed, 13 tests passed",
+        "discovery_include": "tests/integration/**/*.test.js",
+        "execution_note": "run from canonical repository /Users/ksato/workspace/repos/brainbase so npm resolves canonical node_modules; --root and --config target the isolated worktree and repo config; worktree-local node_modules are not assumed; CI uses the repository's existing vitest include and does not add a dedicated workflow for this fixture slice"
+      },
+      "direct_cli": {
+        "command": "current_head=$(git rev-parse HEAD) && node scripts/run-t0-offline-negative-e2e.js --json --base-sha e44843bd1bfc995c760dd6ec7e2916d62685a514 --head-sha \"$current_head\"",
+        "base_sha": "e44843bd1bfc995c760dd6ec7e2916d62685a514",
+        "head_sha": "runtime-bound: git rev-parse HEAD from the same worktree at execution",
+        "head_binding": "the post-commit verification artifact is authoritative; this Task record intentionally does not pin a future commit SHA",
+        "fixture_hash": "sha256:1bc286138fef2db9f7cf7543997cdd5dde8d3c593d3d34335ac7b6d9720dd4bc",
+        "fixture_harness_status": "success",
+        "production_executed": false,
+        "deploy_allowed": false,
+        "external_adapter_calls": 0
+      },
+      "cli_negative_paths": {
+        "unknown_option": "exit 1, stdout empty, stderr reports unknown option",
+        "missing_json": "exit 1, stdout empty, stderr reports --json is required"
+      },
+      "multi_tenancy_contract": {
+        "result": "machine Spec declares tenant_id identity, required propagation surfaces, deny/unavailable failure semantics, credential scope none with raw secrets and cross-tenant fallback forbidden, and deployment_verification=not_applicable",
+        "evidence_scope": "fixture-only contract; Graph, production deployment, secrets, and external readback are not collected",
+        "status": "partial; T0 production exit remains partial"
+      },
+      "vibepro_npx": {
+        "command": "npx --no-install /Users/ksato/.local/share/vibepro-runtime/current/node_modules/vibepro/bin/vibepro.js spec show /private/tmp/brainbase-t0-offline-negative --id story-t0-offline-negative-e2e-receipt --json",
+        "head_binding": "git rev-parse HEAD captured from the same worktree immediately before invocation; rerun after commit for final gate evidence",
+        "result": "success; spec JSON emitted and C-004 trace was readable",
+        "network": "not used; local VibePro runtime path with npx --no-install"
+      },
+      "json_parse": "task and .vibepro spec JSON parsed successfully",
+      "diff_check": "clean"
+    },
+    "out_of_scope": "T0 production exit remains partial"
+  }
+}
