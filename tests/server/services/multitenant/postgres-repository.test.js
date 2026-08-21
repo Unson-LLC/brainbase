@@ -369,7 +369,10 @@ describe('MultitenantPostgresRepository', () => {
                     audience: ['mana-runtime'], deployment_id: 'dep_a', profile: 'shared_cloud'
                 }
             });
-        expect(client.query.mock.calls.some(([sql]) => sql.includes('FOR SHARE'))).toBe(true);
+        const contractQuery = client.query.mock.calls.find(([sql]) => sql.includes('FROM tenant_contract_revisions'))?.[0];
+        expect(contractQuery).toBeDefined();
+        expect(contractQuery).toMatch(/SELECT\s+tenant_contract_revisions\.tenant_id,\s*tenant_contract_revisions\.contract_id,\s*tenant_contract_revisions\.contract_revision,/u);
+        expect(contractQuery).toContain('FOR SHARE');
     });
 
     it('D-006/D-007: canonical quota・usage・receipt payloadをtenant RLS transactionで保存する', async () => {

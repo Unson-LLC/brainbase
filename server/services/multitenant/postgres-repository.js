@@ -973,9 +973,16 @@ export class MultitenantPostgresRepository {
     async loadContractRevision({ tenant_id, contract_revision }) {
         return this.withTenant(tenant_id, async (client) => {
             const result = await client.query(
-                `SELECT tenant_id, contract_id, contract_revision, allowances,
-                        thresholds_basis_points, overage_policy, hard_stop_basis_points,
-                        rate_card_revision, fx_table_revision, sales_price_revision,
+                `SELECT tenant_contract_revisions.tenant_id,
+                        tenant_contract_revisions.contract_id,
+                        tenant_contract_revisions.contract_revision,
+                        tenant_contract_revisions.allowances,
+                        tenant_contract_revisions.thresholds_basis_points,
+                        tenant_contract_revisions.overage_policy,
+                        tenant_contract_revisions.hard_stop_basis_points,
+                        tenant_contract_revisions.rate_card_revision,
+                        tenant_contract_revisions.fx_table_revision,
+                        tenant_contract_revisions.sales_price_revision,
                         rb.capabilities AS runtime_capabilities,
                         rb.audience AS runtime_audience,
                         rb.deployment_id AS runtime_deployment_id,
