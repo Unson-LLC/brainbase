@@ -1,0 +1,1605 @@
+{
+  "schema_version": "1.0.0",
+  "version": "1.1.0",
+  "initial_status": "proposed",
+  "effective_at": "2026-08-21T00:00:00.000Z",
+  "previous_version": "1.0.0",
+  "compatibility": {
+    "classification": "backward_compatible",
+    "compatible_from": "1.0.0"
+  },
+  "migration": {
+    "required": false,
+    "plan": "docs/management/stories/active/story-graph-person-supersession-ontology.md"
+  },
+  "rollback": {
+    "strategy": "restore_previous_current",
+    "target_version": "1.0.0"
+  },
+  "governance": {
+    "decision_id": "dec_ontology_1_1_0_person_supersession_20260821",
+    "scope_entity_id": "prj_01KGCS8CAJKKDWACPNK1E5WX8H",
+    "proposer_entity_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "decider_entity_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "applier_entity_id": "per_01KGYC7NNS0VXADK7NP48W4VR5"
+  },
+  "impact_scope": {
+    "graph_scope": "project:brainbase",
+    "affected_apis": [
+      "/api/info/ontology/*",
+      "/api/info/graph/*"
+    ],
+    "affected_agents": [
+      "brainbase-graph-agent",
+      "brainbase-mcp"
+    ],
+    "migration_required": false,
+    "verification": "impacted_relation_zero_violations"
+  },
+  "changes": [
+    "add superseded_by as the canonical person-to-person identity supersession relation",
+    "preserve retired person identifiers and resolve their canonical successor through an explicit Graph edge"
+  ],
+  "entity_types": {
+    "org": {
+      "meaning": "法的または運営上の組織",
+      "description": "法的または運営上の組織",
+      "identity": "継続的な責任主体",
+      "usage": "所有・契約・RACIのscope",
+      "examples": [
+        "Unson LLC"
+      ],
+      "counter_examples": [
+        "期限付きproject"
+      ],
+      "owner": "ontology-steward",
+      "category": "core",
+      "default_search": true
+    },
+    "person": {
+      "meaning": "組織や判断に参加する人物",
+      "description": "組織や判断に参加する人物",
+      "identity": "一意な自然人",
+      "usage": "意思決定者・担当者・関係者",
+      "examples": [
+        "佐藤圭吾"
+      ],
+      "counter_examples": [
+        "service account"
+      ],
+      "owner": "ontology-steward",
+      "category": "core",
+      "default_search": true
+    },
+    "app": {
+      "meaning": "利用者が操作するソフトウェア",
+      "description": "利用者が操作するソフトウェア",
+      "identity": "独立したruntimeまたは操作面",
+      "usage": "deploy・運用・ownerを管理する単位",
+      "examples": [
+        "Brainbase UI"
+      ],
+      "counter_examples": [
+        "Brainbaseという顧客価値全体"
+      ],
+      "owner": "org",
+      "category": "core",
+      "default_search": true,
+      "required_relations": [
+        "owned_by"
+      ]
+    },
+    "product": {
+      "meaning": "顧客価値と収益責任を持つ提供物",
+      "description": "顧客価値と収益責任を持つ提供物",
+      "identity": "顧客課題と価値提案",
+      "usage": "価値・市場・収益を管理する単位",
+      "examples": [
+        "Brainbase"
+      ],
+      "counter_examples": [
+        "brainbase server process"
+      ],
+      "owner": "org",
+      "category": "extension",
+      "default_search": false
+    },
+    "brand": {
+      "meaning": "市場で識別される約束と表現体系",
+      "description": "市場で識別される約束と表現体系",
+      "identity": "固有の名称・約束・voice",
+      "usage": "positioningと表現資産を管理する単位",
+      "examples": [
+        "Unson"
+      ],
+      "counter_examples": [
+        "一時的な開発project"
+      ],
+      "owner": "org",
+      "category": "core",
+      "default_search": true
+    },
+    "project": {
+      "meaning": "期限と成果物を持つ実行単位",
+      "description": "期限と成果物を持つ実行単位",
+      "identity": "目的・scope・完了条件",
+      "usage": "期限付きexecutionを管理する単位",
+      "examples": [
+        "Ontology Kernel v1"
+      ],
+      "counter_examples": [
+        "恒常的なproduct"
+      ],
+      "owner": "person_or_org",
+      "category": "core",
+      "default_search": true
+    },
+    "customer": {
+      "meaning": "価値提供の対象となる顧客",
+      "description": "価値提供の対象となる顧客",
+      "identity": "契約または商談上の顧客主体",
+      "usage": "CRMと提供価値のscope",
+      "examples": [
+        "契約企業"
+      ],
+      "counter_examples": [
+        "一般のpartner"
+      ],
+      "owner": "sales-ops",
+      "category": "core",
+      "default_search": true
+    },
+    "partner": {
+      "meaning": "協業する人物または組織",
+      "description": "協業する人物または組織",
+      "identity": "協業関係を持つ外部主体",
+      "usage": "協業関係の記録",
+      "examples": [
+        "販売partner"
+      ],
+      "counter_examples": [
+        "契約customer"
+      ],
+      "owner": "business-ops",
+      "category": "core",
+      "default_search": true
+    },
+    "decision": {
+      "meaning": "適用期間と決定者を持つ判断",
+      "description": "適用期間と決定者を持つ判断",
+      "identity": "決定者・scope・effective dateを持つ判断",
+      "usage": "現在有効な方針の解決",
+      "examples": [
+        "Ontology 1.0.0を採用する"
+      ],
+      "counter_examples": [
+        "未決の提案"
+      ],
+      "owner": "decision-owner",
+      "category": "core",
+      "default_search": true
+    },
+    "raci": {
+      "meaning": "責任分担の公開型",
+      "description": "責任分担の公開型",
+      "identity": "scope・role・assigned partyの組",
+      "usage": "API上の責任割当",
+      "examples": [
+        "Ontology scopeのAccountable"
+      ],
+      "counter_examples": [
+        "役職名だけの記録"
+      ],
+      "owner": "org-ops",
+      "storage_type": "raci_assignment",
+      "category": "core",
+      "default_search": true
+    },
+    "raci_assignment": {
+      "meaning": "人物とscopeの責任割当",
+      "description": "人物とscopeの責任割当",
+      "identity": "scope・role・assigned partyの組",
+      "usage": "Graph保存上の責任割当",
+      "examples": [
+        "person A is Accountable"
+      ],
+      "counter_examples": [
+        "project membership"
+      ],
+      "owner": "org-ops",
+      "public_type": "raci",
+      "category": "internal",
+      "default_search": false
+    },
+    "glossary_term": {
+      "meaning": "組織で合意された用語",
+      "description": "組織で合意された用語",
+      "identity": "canonical termと定義",
+      "usage": "組織語彙の共有",
+      "examples": [
+        "Graph SSOT"
+      ],
+      "counter_examples": [
+        "個人メモ"
+      ],
+      "owner": "knowledge-ops",
+      "category": "core",
+      "default_search": true
+    },
+    "document": {
+      "meaning": "運用または知識の文書",
+      "description": "運用または知識の文書",
+      "identity": "正本URLまたはrepo相対path",
+      "usage": "Graphから正本contentを参照",
+      "examples": [
+        "ADR"
+      ],
+      "counter_examples": [
+        "Graph内の長文コピー"
+      ],
+      "owner": "knowledge-ops",
+      "category": "core",
+      "default_search": true
+    },
+    "contact": {
+      "meaning": "人物昇格前の連絡先",
+      "description": "人物昇格前の連絡先",
+      "identity": "連絡先識別子",
+      "usage": "person確定前のCRM記録",
+      "examples": [
+        "名刺由来contact"
+      ],
+      "counter_examples": [
+        "本人確認済みperson"
+      ],
+      "owner": "sales-ops",
+      "category": "extension",
+      "default_search": false
+    },
+    "frame": {
+      "meaning": "組織固有の思考枠組み",
+      "description": "組織固有の思考枠組み",
+      "identity": "名称と適用方法",
+      "usage": "判断支援",
+      "examples": [
+        "判断frame"
+      ],
+      "counter_examples": [
+        "単発decision"
+      ],
+      "owner": "knowledge-ops",
+      "category": "extension",
+      "default_search": false
+    },
+    "story": {
+      "meaning": "Story駆動開発の要求記録",
+      "description": "Story駆動開発の要求記録",
+      "identity": "story ID",
+      "usage": "要求と成果の追跡",
+      "examples": [
+        "story-brainbase-ontology-kernel"
+      ],
+      "counter_examples": [
+        "実装task"
+      ],
+      "owner": "product-ops",
+      "category": "extension",
+      "default_search": false
+    },
+    "infrastructure_environment": {
+      "meaning": "deployまたはruntime環境",
+      "description": "deployまたはruntime環境",
+      "identity": "provider・account・environment名",
+      "usage": "runtime境界の管理",
+      "examples": [
+        "production"
+      ],
+      "counter_examples": [
+        "appそのもの"
+      ],
+      "owner": "platform-ops",
+      "category": "extension",
+      "default_search": false
+    },
+    "speaking": {
+      "meaning": "登壇実績",
+      "description": "登壇実績",
+      "identity": "登壇者・event・日時",
+      "usage": "公開実績の記録",
+      "examples": [
+        "conference talk"
+      ],
+      "counter_examples": [
+        "社内meeting"
+      ],
+      "owner": "brand-ops",
+      "category": "extension",
+      "default_search": false
+    },
+    "media_appearance": {
+      "meaning": "メディア出演実績",
+      "description": "メディア出演実績",
+      "identity": "媒体・出演者・公開日",
+      "usage": "公開実績の記録",
+      "examples": [
+        "podcast出演"
+      ],
+      "counter_examples": [
+        "自社publication"
+      ],
+      "owner": "brand-ops",
+      "category": "extension",
+      "default_search": false
+    },
+    "role_assignment": {
+      "meaning": "プロフィールまたは組織上の役割",
+      "description": "プロフィールまたは組織上の役割",
+      "identity": "person・role・scope・期間",
+      "usage": "経歴と組織roleの記録",
+      "examples": [
+        "代表社員"
+      ],
+      "counter_examples": [
+        "RACI assignment"
+      ],
+      "owner": "org-ops",
+      "category": "extension",
+      "default_search": false
+    },
+    "publication": {
+      "meaning": "出版物または公開物",
+      "description": "出版物または公開物",
+      "identity": "title・publisher・公開識別子",
+      "usage": "公開物実績の記録",
+      "examples": [
+        "書籍"
+      ],
+      "counter_examples": [
+        "未公開draft"
+      ],
+      "owner": "brand-ops",
+      "category": "extension",
+      "default_search": false
+    },
+    "press_mention": {
+      "meaning": "報道掲載",
+      "description": "報道掲載",
+      "identity": "媒体・URL・掲載日",
+      "usage": "第三者報道の記録",
+      "examples": [
+        "ニュース記事"
+      ],
+      "counter_examples": [
+        "自社press release"
+      ],
+      "owner": "brand-ops",
+      "category": "extension",
+      "default_search": false
+    },
+    "kpi": {
+      "meaning": "成果を測る指標",
+      "description": "成果を測る指標",
+      "identity": "metric・scope・期間",
+      "usage": "成果測定",
+      "examples": [
+        "MRR"
+      ],
+      "counter_examples": [
+        "施策そのもの"
+      ],
+      "owner": "business-ops",
+      "category": "internal",
+      "default_search": false
+    },
+    "initiative": {
+      "meaning": "成果へ向けた施策",
+      "description": "成果へ向けた施策",
+      "identity": "目的・owner・期間",
+      "usage": "実行施策の追跡",
+      "examples": [
+        "onboarding改善"
+      ],
+      "counter_examples": [
+        "恒常的product"
+      ],
+      "owner": "business-ops",
+      "category": "internal",
+      "default_search": false
+    },
+    "ai_query": {
+      "meaning": "AIへの問合せ記録",
+      "description": "AIへの問合せ記録",
+      "identity": "request・requester・timestamp",
+      "usage": "AI利用の監査",
+      "examples": [
+        "Graph検索query"
+      ],
+      "counter_examples": [
+        "AIが採用したdecision"
+      ],
+      "owner": "ai-ops",
+      "category": "internal",
+      "default_search": false
+    },
+    "ai_decision": {
+      "meaning": "AI利用を伴う判断記録",
+      "description": "AI利用を伴う判断記録",
+      "identity": "decision・maker・evidence",
+      "usage": "AI支援判断の監査",
+      "examples": [
+        "候補分類の採用"
+      ],
+      "counter_examples": [
+        "単なるAI query"
+      ],
+      "owner": "ai-ops",
+      "category": "internal",
+      "default_search": false
+    },
+    "philosophy": {
+      "meaning": "判断の根底にある原則",
+      "description": "判断の根底にある原則",
+      "identity": "canonical statementとscope",
+      "usage": "判断根拠の参照",
+      "examples": [
+        "Graph SSOT first"
+      ],
+      "counter_examples": [
+        "期限付きdecision"
+      ],
+      "owner": "knowledge-ops",
+      "category": "internal",
+      "default_search": false
+    },
+    "capital": {
+      "meaning": "資本に関する記録",
+      "description": "既存Graphに保存された資本記録",
+      "identity": "資本種別・主体・基準時点",
+      "usage": "既存資本factの互換読取",
+      "examples": [
+        "資本金記録"
+      ],
+      "counter_examples": [
+        "finance account"
+      ],
+      "owner": "finance-ops",
+      "category": "internal",
+      "default_search": false,
+      "classification": "compatibility"
+    },
+    "contract": {
+      "meaning": "契約の記録",
+      "description": "当事者と条件を持つ契約記録",
+      "identity": "契約識別子・当事者・期間",
+      "usage": "既存契約factの互換読取",
+      "examples": [
+        "業務委託契約"
+      ],
+      "counter_examples": [
+        "未合意の提案"
+      ],
+      "owner": "business-ops",
+      "category": "extension",
+      "default_search": false,
+      "classification": "compatibility"
+    },
+    "database": {
+      "meaning": "データベースruntime",
+      "description": "appが利用するデータベース",
+      "identity": "provider・cluster・database名",
+      "usage": "runtime依存の互換読取",
+      "examples": [
+        "PostgreSQL database"
+      ],
+      "counter_examples": [
+        "dataset文書"
+      ],
+      "owner": "platform-ops",
+      "category": "internal",
+      "default_search": false,
+      "classification": "compatibility"
+    },
+    "database_cluster": {
+      "meaning": "データベースcluster",
+      "description": "databaseをhostするruntime cluster",
+      "identity": "provider・cluster識別子",
+      "usage": "database配置の互換読取",
+      "examples": [
+        "PostgreSQL cluster"
+      ],
+      "counter_examples": [
+        "単一database"
+      ],
+      "owner": "platform-ops",
+      "category": "internal",
+      "default_search": false,
+      "classification": "compatibility"
+    },
+    "diagnosis": {
+      "meaning": "課題に対する診断",
+      "description": "観察事実から導いた診断記録",
+      "identity": "対象・診断内容・基準時点",
+      "usage": "push caseの診断根拠",
+      "examples": [
+        "営業課題の診断"
+      ],
+      "counter_examples": [
+        "未検証の雑感"
+      ],
+      "owner": "business-ops",
+      "category": "extension",
+      "default_search": false,
+      "classification": "compatibility"
+    },
+    "finance": {
+      "meaning": "財務に関する記録",
+      "description": "既存Graphに保存された財務記録",
+      "identity": "財務種別・主体・基準時点",
+      "usage": "既存財務factの互換読取",
+      "examples": [
+        "月次財務記録"
+      ],
+      "counter_examples": [
+        "銀行口座そのもの"
+      ],
+      "owner": "finance-ops",
+      "category": "internal",
+      "default_search": false,
+      "classification": "compatibility"
+    },
+    "finance_account": {
+      "meaning": "財務口座の参照",
+      "description": "財務処理で使う口座の非secret識別記録",
+      "identity": "主体・provider・口座参照ID",
+      "usage": "口座関係の互換読取",
+      "examples": [
+        "決済口座参照"
+      ],
+      "counter_examples": [
+        "認証credential"
+      ],
+      "owner": "finance-ops",
+      "category": "internal",
+      "default_search": false,
+      "classification": "compatibility"
+    },
+    "org_alias": {
+      "meaning": "組織名の別名",
+      "description": "canonical orgへ解決する組織alias",
+      "identity": "alias文字列・canonical org",
+      "usage": "組織同定の互換読取",
+      "examples": [
+        "旧社名"
+      ],
+      "counter_examples": [
+        "別の組織"
+      ],
+      "owner": "org-ops",
+      "category": "internal",
+      "default_search": false,
+      "classification": "compatibility",
+      "canonical_type": "org"
+    },
+    "organization": {
+      "meaning": "orgのlegacy storage型",
+      "description": "canonical orgへ移行する既存組織型",
+      "identity": "継続的な責任主体",
+      "usage": "legacy組織factの互換読取",
+      "examples": [
+        "legacy organization record"
+      ],
+      "counter_examples": [
+        "project"
+      ],
+      "owner": "org-ops",
+      "category": "internal",
+      "default_search": false,
+      "classification": "compatibility",
+      "canonical_type": "org"
+    },
+    "person_alias": {
+      "meaning": "人物名の別名",
+      "description": "canonical personへ解決する人物alias",
+      "identity": "alias文字列・canonical person",
+      "usage": "人物同定の互換読取",
+      "examples": [
+        "表記揺れ"
+      ],
+      "counter_examples": [
+        "別人"
+      ],
+      "owner": "people-ops",
+      "category": "internal",
+      "default_search": false,
+      "classification": "compatibility",
+      "canonical_type": "person"
+    },
+    "push_case": {
+      "meaning": "顧客への働きかけ事例",
+      "description": "顧客課題・診断・接点を束ねる既存事例",
+      "identity": "customer・課題・期間",
+      "usage": "営業事例の互換読取",
+      "examples": [
+        "提案推進case"
+      ],
+      "counter_examples": [
+        "一般project"
+      ],
+      "owner": "sales-ops",
+      "category": "extension",
+      "default_search": false,
+      "classification": "compatibility"
+    }
+  },
+  "relation_types": {
+    "owns": {
+      "meaning": "所有・運営責任を持つ",
+      "from": [
+        "org"
+      ],
+      "to": [
+        "app",
+        "product",
+        "brand",
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "one_to_many",
+      "inverse": "owned_by",
+      "lifecycle": "effective_dated",
+      "provenance": "explicit"
+    },
+    "owned_by": {
+      "meaning": "責任主体",
+      "from": [
+        "app",
+        "product",
+        "brand",
+        "project",
+        "decision",
+        "initiative"
+      ],
+      "to": [
+        "org",
+        "person"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": "owns",
+      "lifecycle": "effective_dated",
+      "provenance": "explicit"
+    },
+    "belongs_to": {
+      "meaning": "包含先",
+      "from": [
+        "app",
+        "product",
+        "brand",
+        "project",
+        "decision",
+        "raci",
+        "raci_assignment",
+        "glossary_term",
+        "kpi",
+        "initiative",
+        "ai_query",
+        "ai_decision"
+      ],
+      "to": [
+        "org",
+        "product",
+        "brand",
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit"
+    },
+    "belongs_to_project": {
+      "meaning": "projectへの包含",
+      "from": [
+        "app",
+        "brand",
+        "capital",
+        "contact",
+        "contract",
+        "customer",
+        "decision",
+        "document",
+        "finance",
+        "frame",
+        "glossary_term",
+        "partner",
+        "person",
+        "raci",
+        "raci_assignment",
+        "story",
+        "kpi",
+        "initiative",
+        "ai_query",
+        "ai_decision"
+      ],
+      "to": [
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit"
+    },
+    "governs": {
+      "meaning": "規律対象",
+      "from": [
+        "decision",
+        "philosophy"
+      ],
+      "to": [
+        "app",
+        "product",
+        "brand",
+        "project",
+        "org",
+        "decision"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit"
+    },
+    "supersedes": {
+      "meaning": "旧判断の置換",
+      "from": [
+        "decision"
+      ],
+      "to": [
+        "decision"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit"
+    },
+    "derived_from": {
+      "meaning": "由来",
+      "from": [
+        "app",
+        "product",
+        "brand",
+        "project",
+        "decision",
+        "initiative",
+        "ai_decision"
+      ],
+      "to": [
+        "app",
+        "product",
+        "brand",
+        "project",
+        "decision",
+        "philosophy",
+        "ai_query"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit"
+    },
+    "accountable_for": {
+      "meaning": "最終説明責任",
+      "from": [
+        "person",
+        "org"
+      ],
+      "to": [
+        "app",
+        "product",
+        "brand",
+        "project",
+        "decision",
+        "initiative"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit"
+    },
+    "depends_on": {
+      "meaning": "稼働や成果の依存",
+      "from": [
+        "app",
+        "product",
+        "project",
+        "initiative"
+      ],
+      "to": [
+        "app",
+        "product",
+        "project",
+        "initiative"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit"
+    },
+    "member_of": {
+      "meaning": "所属",
+      "from": [
+        "person"
+      ],
+      "to": [
+        "org",
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit"
+    },
+    "assigned_to": {
+      "meaning": "責任割当先",
+      "from": [
+        "raci",
+        "raci_assignment"
+      ],
+      "to": [
+        "person",
+        "org"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit"
+    },
+    "requested_by": {
+      "meaning": "問合せ要求者",
+      "from": [
+        "ai_query"
+      ],
+      "to": [
+        "person"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit"
+    },
+    "made_by": {
+      "meaning": "判断者",
+      "from": [
+        "ai_decision",
+        "decision"
+      ],
+      "to": [
+        "person"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit"
+    },
+    "references": {
+      "meaning": "根拠参照",
+      "from": [
+        "decision",
+        "ai_decision",
+        "ai_query"
+      ],
+      "to": [
+        "decision",
+        "ai_query",
+        "philosophy",
+        "glossary_term"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit"
+    },
+    "alias_of": {
+      "meaning": "canonical entityへのalias解決",
+      "from": [
+        "org_alias",
+        "person_alias"
+      ],
+      "to": [
+        "org",
+        "person"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "applies_to": {
+      "meaning": "文書の適用対象",
+      "from": [
+        "document"
+      ],
+      "to": [
+        "org"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "brand_of": {
+      "meaning": "brandの対象",
+      "from": [
+        "brand"
+      ],
+      "to": [
+        "org",
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "covers_engagement": {
+      "meaning": "RACIが対象engagementを覆う",
+      "from": [
+        "raci"
+      ],
+      "to": [
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "describes": {
+      "meaning": "文書が対象を記述する",
+      "from": [
+        "document"
+      ],
+      "to": [
+        "org"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "describes_org": {
+      "meaning": "RACIが組織を記述する",
+      "from": [
+        "raci"
+      ],
+      "to": [
+        "org"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "evidenced_by": {
+      "meaning": "判断の根拠文書",
+      "from": [
+        "decision"
+      ],
+      "to": [
+        "document"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "governed_by": {
+      "meaning": "適用する原則",
+      "from": [
+        "push_case"
+      ],
+      "to": [
+        "philosophy"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "has_diagnosis": {
+      "meaning": "事例に診断を紐付ける",
+      "from": [
+        "push_case"
+      ],
+      "to": [
+        "diagnosis"
+      ],
+      "direction": "outbound",
+      "cardinality": "one_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "has_engagement": {
+      "meaning": "projectがengagement projectを含む",
+      "from": [
+        "project"
+      ],
+      "to": [
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "has_environment": {
+      "meaning": "projectが環境appを持つ",
+      "from": [
+        "project"
+      ],
+      "to": [
+        "app"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "has_initiative": {
+      "meaning": "projectがinitiative projectを含む",
+      "from": [
+        "project"
+      ],
+      "to": [
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "has_project": {
+      "meaning": "親projectが子projectを含む",
+      "from": [
+        "project"
+      ],
+      "to": [
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "has_push_case": {
+      "meaning": "customerがpush caseを持つ",
+      "from": [
+        "customer"
+      ],
+      "to": [
+        "push_case"
+      ],
+      "direction": "outbound",
+      "cardinality": "one_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "has_raci": {
+      "meaning": "scopeがRACIを持つ",
+      "from": [
+        "org",
+        "project"
+      ],
+      "to": [
+        "raci"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "hosted_on": {
+      "meaning": "databaseのhost cluster",
+      "from": [
+        "database"
+      ],
+      "to": [
+        "database_cluster"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "key_contact_for": {
+      "meaning": "brandの主要contact person",
+      "from": [
+        "person"
+      ],
+      "to": [
+        "brand"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "mentions": {
+      "meaning": "判断が対象を言及する",
+      "from": [
+        "decision"
+      ],
+      "to": [
+        "partner",
+        "product"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "operated_by": {
+      "meaning": "brandの運営組織",
+      "from": [
+        "brand"
+      ],
+      "to": [
+        "org"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "org_unit_of": {
+      "meaning": "org unitの上位customer",
+      "from": [
+        "org"
+      ],
+      "to": [
+        "customer"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "owns_app": {
+      "meaning": "projectがappを保有するlegacy relation",
+      "from": [
+        "project"
+      ],
+      "to": [
+        "app"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "primary_contact_for": {
+      "meaning": "caseの主要contact",
+      "from": [
+        "contact"
+      ],
+      "to": [
+        "push_case"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "relates_to_project": {
+      "meaning": "project間の関連",
+      "from": [
+        "project"
+      ],
+      "to": [
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "role_at": {
+      "meaning": "role assignmentの所属組織",
+      "from": [
+        "role_assignment"
+      ],
+      "to": [
+        "org"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "serves_customer": {
+      "meaning": "projectがcustomerへ価値提供する",
+      "from": [
+        "project"
+      ],
+      "to": [
+        "customer"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "should_use_secret_store": {
+      "meaning": "app間のsecret store推奨依存",
+      "from": [
+        "app"
+      ],
+      "to": [
+        "app"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "sub_brand_of": {
+      "meaning": "上位brand",
+      "from": [
+        "brand"
+      ],
+      "to": [
+        "brand"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "supports_project": {
+      "meaning": "partnerがproject運営orgを支援する",
+      "from": [
+        "partner"
+      ],
+      "to": [
+        "org"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "uses_app": {
+      "meaning": "projectがappを利用する",
+      "from": [
+        "project"
+      ],
+      "to": [
+        "app"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "uses_database": {
+      "meaning": "appがdatabaseを利用する",
+      "from": [
+        "app"
+      ],
+      "to": [
+        "database"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "uses_secret_store": {
+      "meaning": "appがsecret store appを利用する",
+      "from": [
+        "app"
+      ],
+      "to": [
+        "app"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "appeared_in": {
+      "meaning": "人物のmedia出演実績",
+      "from": [
+        "person"
+      ],
+      "to": [
+        "media_appearance"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "authored": {
+      "meaning": "人物がpublicationを著した",
+      "from": [
+        "person"
+      ],
+      "to": [
+        "publication"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "created": {
+      "meaning": "人物がproductを創出した",
+      "from": [
+        "person"
+      ],
+      "to": [
+        "product"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "holds_role": {
+      "meaning": "人物がrole assignmentを保持する",
+      "from": [
+        "person"
+      ],
+      "to": [
+        "role_assignment"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "informs": {
+      "meaning": "文書がproject運営の判断材料になる",
+      "from": [
+        "document"
+      ],
+      "to": [
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "mentioned_in": {
+      "meaning": "人物がpress mentionに掲載された",
+      "from": [
+        "person"
+      ],
+      "to": [
+        "press_mention"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "operates": {
+      "meaning": "組織がprojectを運営する",
+      "from": [
+        "org"
+      ],
+      "to": [
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "related_to": {
+      "meaning": "組織がprojectの関係主体である",
+      "from": [
+        "org"
+      ],
+      "to": [
+        "project"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "effective_dated",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "spoke_at": {
+      "meaning": "人物が登壇実績を持つ",
+      "from": [
+        "person"
+      ],
+      "to": [
+        "speaking"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_many",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit",
+      "classification": "compatibility"
+    },
+    "superseded_by": {
+      "meaning": "旧人物IDのcanonical人物への統合",
+      "from": [
+        "person"
+      ],
+      "to": [
+        "person"
+      ],
+      "direction": "outbound",
+      "cardinality": "many_to_one",
+      "inverse": null,
+      "lifecycle": "persistent",
+      "provenance": "explicit"
+    }
+  },
+  "constraints": [
+    {
+      "id": "CON-APP-OWNER-001",
+      "target": "app",
+      "kind": "required_relation",
+      "related_types": [
+        "org"
+      ],
+      "alternatives": [
+        {
+          "relation": "owned_by",
+          "direction": "outgoing"
+        },
+        {
+          "relation": "owns",
+          "direction": "incoming"
+        }
+      ]
+    },
+    {
+      "id": "CON-DECISION-DECIDER-001",
+      "target": "decision",
+      "kind": "required_relation_when",
+      "when": {
+        "status": [
+          "active",
+          "decided"
+        ]
+      },
+      "relation": "owned_by",
+      "related_types": [
+        "person"
+      ],
+      "message": "effective decision requires a decider person edge"
+    },
+    {
+      "id": "CON-DECISION-SCOPE-001",
+      "target": "decision",
+      "kind": "required_relation_when",
+      "when": {
+        "status": [
+          "active",
+          "decided"
+        ]
+      },
+      "relation": "belongs_to_project",
+      "related_types": [
+        "project"
+      ],
+      "message": "effective decision requires a project scope edge"
+    }
+  ],
+  "inference_rules": [
+    {
+      "id": "INF-DECISION-SUPERSESSION-001",
+      "relation": "supersedes",
+      "effective_statuses": [
+        "active",
+        "decided"
+      ],
+      "effect": "target_inactive_at_source_effective_at"
+    }
+  ],
+  "evolution_rules": {
+    "breaking": "major",
+    "additive": "minor",
+    "editorial": "patch",
+    "history_required_for": [
+      "rename",
+      "merge",
+      "split"
+    ]
+  }
+}

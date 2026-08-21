@@ -26,6 +26,27 @@
         "migration_required": true,
         "verification": "production_shadow_audited_zero_residuals"
       }
+    },
+    {
+      "version": "1.1.0",
+      "status": "proposed",
+      "effective_at": "2026-08-21T00:00:00.000Z",
+      "path": "releases/1.1.0.json",
+      "content_digest_algorithm": "sha256",
+      "content_digest": "3615a7792faa7dc18657ea878d766aefd88dbf12d8993d8579db97c5f4c74f88",
+      "impact_scope": {
+        "graph_scope": "project:brainbase",
+        "affected_apis": [
+          "/api/info/ontology/*",
+          "/api/info/graph/*"
+        ],
+        "affected_agents": [
+          "brainbase-graph-agent",
+          "brainbase-mcp"
+        ],
+        "migration_required": false,
+        "verification": "impacted_relation_zero_violations"
+      }
     }
   ]
 }
