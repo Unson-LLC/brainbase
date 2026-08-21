@@ -93,6 +93,41 @@ describe('npm tarball consumer smoke', () => {
           runnerVersions: [
             { runner_type: 'deterministic', version: 'consumer-deterministic-v1' }
           ],
+          nodeRecords: [
+            {
+              node_id: 'context.alpha',
+              runner_type: 'deterministic',
+              runner_version: 'consumer-deterministic-v1',
+              input_contract: 'consumer.runner.input.v1',
+              output_contract: 'consumer.runner.output.v1',
+              input: { source: 'consumer' },
+              dependency_outputs: [],
+              output: { node_id: 'context.alpha', source: 'consumer' }
+            },
+            {
+              node_id: 'context.zeta',
+              runner_type: 'deterministic',
+              runner_version: 'consumer-deterministic-v1',
+              input_contract: 'consumer.runner.input.v1',
+              output_contract: 'consumer.runner.output.v1',
+              input: { source: 'consumer' },
+              dependency_outputs: [],
+              output: { node_id: 'context.zeta', source: 'consumer' }
+            },
+            {
+              node_id: 'judgment.answer',
+              runner_type: 'deterministic',
+              runner_version: 'consumer-deterministic-v1',
+              input_contract: 'consumer.runner.input.v1',
+              output_contract: 'consumer.runner.output.v1',
+              input: { source: 'consumer' },
+              dependency_outputs: [
+                { node_id: 'context.alpha', output: { node_id: 'context.alpha', source: 'consumer' } },
+                { node_id: 'context.zeta', output: { node_id: 'context.zeta', source: 'consumer' } }
+              ],
+              output: { node_id: 'judgment.answer', source: 'consumer' }
+            }
+          ],
           directDependencyOutputs: [
             { node_id: 'context.alpha', output: { node_id: 'context.alpha', source: 'consumer' } },
             { node_id: 'context.zeta', output: { node_id: 'context.zeta', source: 'consumer' } }

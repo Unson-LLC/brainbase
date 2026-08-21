@@ -119,6 +119,53 @@ describe('J0 local deterministic Judgment DAG runner', () => {
     expect(record.dag.version).toBe('2026-08-21.1');
     expect(record.execution_order).toEqual(['__proto__', 'alpha', 'judgment', 'result']);
     expect(record.input).toEqual({ value: 1 });
+    expect(record.nodes).toEqual([
+      {
+        node_id: '__proto__',
+        runner_type: 'deterministic',
+        runner_version: 'runner-1.0.0',
+        input_contract: 'j0.runner.input.v1',
+        output_contract: 'j0.runner.output.v1',
+        input: { value: 1 },
+        dependency_outputs: [],
+        output: { node_id: '__proto__', ok: true }
+      },
+      {
+        node_id: 'alpha',
+        runner_type: 'deterministic',
+        runner_version: 'runner-1.0.0',
+        input_contract: 'j0.runner.input.v1',
+        output_contract: 'j0.runner.output.v1',
+        input: { value: 1 },
+        dependency_outputs: [],
+        output: { node_id: 'alpha', ok: true }
+      },
+      {
+        node_id: 'judgment',
+        runner_type: 'deterministic',
+        runner_version: 'runner-1.0.0',
+        input_contract: 'j0.runner.input.v1',
+        output_contract: 'j0.runner.output.v1',
+        input: { value: 1 },
+        dependency_outputs: [
+          { node_id: '__proto__', output: { node_id: '__proto__', ok: true } },
+          { node_id: 'alpha', output: { node_id: 'alpha', ok: true } }
+        ],
+        output: { node_id: 'judgment', ok: true }
+      },
+      {
+        node_id: 'result',
+        runner_type: 'deterministic',
+        runner_version: 'runner-1.0.0',
+        input_contract: 'j0.runner.input.v1',
+        output_contract: 'j0.runner.output.v1',
+        input: { value: 1 },
+        dependency_outputs: [
+          { node_id: 'judgment', output: { node_id: 'judgment', ok: true } }
+        ],
+        output: { node_id: 'result', ok: true }
+      }
+    ]);
   });
 
   it('fails closed for missing or invalid runners before any runner call', async () => {
@@ -719,6 +766,82 @@ describe('J0 local deterministic Judgment DAG runner', () => {
     await expect(executeJudgmentDAG(request({ value: 1 }, () => undefined))).rejects.toMatchObject<
       Partial<JudgmentDAGExecutionError>
     >({ code: 'invalid_json' });
+  });
+
+  it('deep-freezes every runner input and isolates caller and recorded mutation boundaries', async () => {
+    const sourceDag = dag();
+    const sourceInput = { nested: { value: 1 }, marker: 'caller' };
+    const originalDag = structuredClone(sourceDag);
+    const originalInput = structuredClone(sourceInput);
+    const mutationResults: Array<{ nodeId: string; path: string; accepted: boolean }> = [];
+
+    const record = await executeJudgmentDAG({
+      run_id: 'run-j0-mutation-boundary',
+      dag: sourceDag,
+      input: sourceInput,
+      runners: {
+        deterministic: {
+          version: 'runner-1.0.0',
+          run: ({ dag: currentDag, node: currentNode, input, dependency_outputs }) => {
+            expectDeeplyFrozen(currentDag);
+            expectDeeplyFrozen(currentNode);
+            expectDeeplyFrozen(input);
+            expectDeeplyFrozen(dependency_outputs);
+
+            const inputRecord = input as Record<string, unknown>;
+            const nestedInput = inputRecord.nested as Record<string, unknown>;
+            const mutationTargets: Array<[string, object, PropertyKey, unknown]> = [
+              ['dag.id', currentDag, 'id', 'mutated-dag'],
+              ['input.nested.value', nestedInput, 'value', 99],
+              ['node.description', currentNode, 'description', 'mutated-node']
+            ];
+            if (dependency_outputs.length > 0) {
+              mutationTargets.push(
+                [
+                  'dependency_outputs[0].node_id',
+                  dependency_outputs[0],
+                  'node_id',
+                  'mutated-dependency'
+                ],
+                [
+                  'dependency_outputs[0].output',
+                  dependency_outputs[0],
+                  'output',
+                  { node_id: 'mutated-dependency' }
+                ],
+                [
+                  'dependency_outputs[0]',
+                  dependency_outputs,
+                  0,
+                  { node_id: 'mutated-dependency', output: { node_id: 'mutated-dependency' } }
+                ]
+              );
+            }
+            for (const [path, target, key, value] of mutationTargets) {
+              mutationResults.push({ nodeId: currentNode.id, path, accepted: Reflect.set(target, key, value) });
+            }
+
+            return { node_id: currentNode.id };
+          }
+        }
+      }
+    });
+
+    expect(mutationResults).not.toHaveLength(0);
+    expect(mutationResults.every(({ accepted }) => accepted === false)).toBe(true);
+    expect(sourceDag).toEqual(originalDag);
+    expect(sourceInput).toEqual(originalInput);
+    expect(record.input).toEqual(originalInput);
+    expect(record.nodes.map((entry) => entry.input)).toEqual(
+      record.nodes.map(() => originalInput)
+    );
+    expect(record.nodes.find((entry) => entry.node_id === 'judgment')?.dependency_outputs).toEqual([
+      { node_id: '__proto__', output: { node_id: '__proto__' } },
+      { node_id: 'alpha', output: { node_id: 'alpha' } }
+    ]);
+    expect(record.nodes.find((entry) => entry.node_id === 'result')?.dependency_outputs).toEqual([
+      { node_id: 'judgment', output: { node_id: 'judgment' } }
+    ]);
   });
 
   it.each([

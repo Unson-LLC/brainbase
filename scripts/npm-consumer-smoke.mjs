@@ -248,6 +248,41 @@ if (JSON.stringify(runnerRecord.runner_versions) !== JSON.stringify([
 if (JSON.stringify(runnerAnswer?.dependency_outputs) !== JSON.stringify(expectedRunnerDependencyOutputs)) {
   throw new Error('executeJudgmentDAG did not expose stable direct dependency outputs');
 }
+const expectedRunnerNodeRecords = [
+  {
+    node_id: 'context.alpha',
+    runner_type: 'deterministic',
+    runner_version: 'consumer-deterministic-v1',
+    input_contract: 'consumer.runner.input.v1',
+    output_contract: 'consumer.runner.output.v1',
+    input: { source: 'consumer' },
+    dependency_outputs: [],
+    output: { node_id: 'context.alpha', source: 'consumer' }
+  },
+  {
+    node_id: 'context.zeta',
+    runner_type: 'deterministic',
+    runner_version: 'consumer-deterministic-v1',
+    input_contract: 'consumer.runner.input.v1',
+    output_contract: 'consumer.runner.output.v1',
+    input: { source: 'consumer' },
+    dependency_outputs: [],
+    output: { node_id: 'context.zeta', source: 'consumer' }
+  },
+  {
+    node_id: 'judgment.answer',
+    runner_type: 'deterministic',
+    runner_version: 'consumer-deterministic-v1',
+    input_contract: 'consumer.runner.input.v1',
+    output_contract: 'consumer.runner.output.v1',
+    input: { source: 'consumer' },
+    dependency_outputs: expectedRunnerDependencyOutputs,
+    output: { node_id: 'judgment.answer', source: 'consumer' }
+  }
+];
+if (JSON.stringify(runnerRecord.nodes) !== JSON.stringify(expectedRunnerNodeRecords)) {
+  throw new Error('executeJudgmentDAG did not preserve exact node record contracts and inputs');
+}
 
 const [serverEntrypoint, dataDir] = process.argv.slice(2);
 for (const forbiddenName of ['NODE_OPTIONS', 'NODE_PATH', 'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY']) {
@@ -305,6 +340,7 @@ try {
       runnerExecution: {
         executionOrder: runnerRecord.execution_order,
         runnerVersions: runnerRecord.runner_versions,
+        nodeRecords: runnerRecord.nodes,
         directDependencyOutputs: runnerAnswer?.dependency_outputs ?? [],
         immutable: isDeeplyFrozen(runnerRecord)
       }
