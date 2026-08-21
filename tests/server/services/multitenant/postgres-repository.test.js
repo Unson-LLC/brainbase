@@ -38,6 +38,119 @@ function claimPool(ledger) {
     });
 }
 
+const QUOTA_INPUT = Object.freeze({
+    tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+    contract_revision: '11',
+    metric: 'model_tokens',
+    requested_quantity: 10,
+    idempotency_key: 'ik1_01ARZ3NDEKTSV4RRFFQ69G5FAV'
+});
+
+function quotaContract({ allowance = 100 } = {}) {
+    return {
+        tenant_id: QUOTA_INPUT.tenant_id,
+        contract_id: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAY',
+        contract_revision: QUOTA_INPUT.contract_revision,
+        allowances: { model_tokens: allowance },
+        quota_window_policy: { kind: 'calendar_month', timezone: 'UTC' },
+        thresholds_basis_points: [8000, 10000],
+        overage_policy: 'deny',
+        hard_stop_basis_points: 10000,
+        rate_card_revision: 8,
+        fx_table_revision: 5,
+        sales_price_revision: 3,
+        runtime_capabilities: ['signed_tenant_context'],
+        runtime_audience: ['mana-runtime'],
+        runtime_deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ',
+        runtime_profile: 'shared_cloud'
+    };
+}
+
+function quotaPool({ now = '2026-08-22T01:00:00.000Z', allowance = 100, legacyCount = 0, aggregateUsedValue } = {}) {
+    const state = {
+        contract: quotaContract({ allowance }),
+        stored: new Map(),
+        used: 0,
+        legacyCount,
+        inserted: []
+    };
+    let lockHeld = false;
+    const lockWaiters = [];
+    const releaseLock = () => {
+        const next = lockWaiters.shift();
+        if (next) {
+            lockHeld = true;
+            next();
+        } else {
+            lockHeld = false;
+        }
+    };
+    const query = vi.fn(async (sql, values = []) => {
+        const text = String(sql);
+        if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK'
+            || text.startsWith("SELECT set_config('brainbase.tenant_id'")) {
+            if (text === 'COMMIT' || text === 'ROLLBACK') releaseLock();
+            return { rows: [] };
+        }
+        if (text.includes('pg_advisory_xact_lock')) {
+            if (!lockHeld) {
+                lockHeld = true;
+                return { rows: [] };
+            }
+            await new Promise((resolve) => lockWaiters.push(resolve));
+            return { rows: [] };
+        }
+        if (text.includes('SELECT contract_revision, quota_revision, metric, decision,')) {
+            const existing = state.stored.get(values[1]);
+            return { rows: existing ? [existing] : [] };
+        }
+        if (text.includes('FROM tenant_contract_revisions AS tcr')) {
+            return { rows: [state.contract] };
+        }
+        if (text.includes('COALESCE(SUM(requested_value)')) {
+            return {
+                rows: [{
+                    used_value: aggregateUsedValue === undefined ? state.used : aggregateUsedValue,
+                    legacy_count: state.legacyCount
+                }]
+            };
+        }
+        if (text.includes('INSERT INTO tenant_quota_decisions')) {
+            if (state.stored.has(values[3])) return { rows: [] };
+            const payload = JSON.parse(values[16]);
+            const row = {
+                contract_revision: values[1],
+                quota_revision: values[2],
+                metric: values[4],
+                decision: values[5],
+                limit_value: values[6],
+                used_value: values[7],
+                remaining_value: values[8],
+                decision_payload: payload,
+                requested_value: values[9],
+                unit: values[10],
+                window_started_at: values[11],
+                window_ends_at: values[12],
+                decided_at: values[13],
+                failure_code: values[14],
+                request_fingerprint: values[15]
+            };
+            state.stored.set(values[3], row);
+            state.inserted.push(row);
+            if (['allowed', 'warning'].includes(payload.decision)) state.used += Number(values[9]);
+            return { rows: [row] };
+        }
+        return { rows: [] };
+    });
+    const client = { query, release: vi.fn() };
+    return {
+        state,
+        client,
+        pool: { connect: vi.fn(async () => client) },
+        now: () => new Date(now)
+    };
+}
+
 describe('MultitenantPostgresRepository', () => {
     it('keeps the original request digest across failed retries and rejects a changed OAuth request', async () => {
         const claimToken = 'claim-token-same-request';
@@ -348,6 +461,177 @@ describe('MultitenantPostgresRepository', () => {
         );
     });
 
+    it('quota authorityはtenant lockからreplay・contract/window・SUM・insertの順で同一transactionに実行する', async () => {
+        const quota = quotaPool();
+        const repository = new MultitenantPostgresRepository({ pool: quota.pool, now: quota.now });
+
+        await expect(repository.decideQuota(QUOTA_INPUT)).resolves.toMatchObject({
+            decision: 'allowed',
+            used: 0,
+            remaining: 90,
+            window_started_at: '2026-08-01T00:00:00.000Z',
+            window_ends_at: '2026-09-01T00:00:00.000Z'
+        });
+
+        const statements = quota.client.query.mock.calls.map(([sql]) => String(sql));
+        const lock = statements.findIndex((sql) => sql.includes('pg_advisory_xact_lock'));
+        const replay = statements.findIndex((sql) => sql.includes('SELECT contract_revision, quota_revision, metric, decision,'));
+        const contract = statements.findIndex((sql) => sql.includes('FROM tenant_contract_revisions AS tcr'));
+        const aggregate = statements.findIndex((sql) => sql.includes('COALESCE(SUM(requested_value)'));
+        const insert = statements.findIndex((sql) => sql.includes('INSERT INTO tenant_quota_decisions'));
+        expect(lock).toBeGreaterThan(-1);
+        expect(replay).toBeGreaterThan(lock);
+        expect(contract).toBeGreaterThan(replay);
+        expect(aggregate).toBeGreaterThan(contract);
+        expect(insert).toBeGreaterThan(aggregate);
+        expect(statements[lock]).toContain('hashtextextended');
+        expect(statements[insert]).toContain('ON CONFLICT (tenant_id, idempotency_key) DO NOTHING');
+    });
+
+    it('同一idempotencyは同じfingerprintならdecisionをreplayし、異なるrequestは409で停止する', async () => {
+        const quota = quotaPool();
+        const repository = new MultitenantPostgresRepository({ pool: quota.pool, now: quota.now });
+        const first = await repository.decideQuota(QUOTA_INPUT);
+        const replay = await repository.decideQuota(QUOTA_INPUT);
+
+        expect(replay).toEqual(first);
+        expect(quota.state.inserted).toHaveLength(1);
+        expect(quota.client.query.mock.calls.filter(([sql]) => String(sql).includes('FROM tenant_contract_revisions AS tcr')))
+            .toHaveLength(1);
+        expect(quota.client.query.mock.calls.filter(([sql]) => String(sql).includes('COALESCE(SUM(requested_value)')))
+            .toHaveLength(1);
+
+        await expectContractErrorAsync(
+            () => repository.decideQuota({ ...QUOTA_INPUT, requested_quantity: 11 }),
+            { code: 'IDEMPOTENCY_CONFLICT', status: 409 }
+        );
+        expect(quota.state.inserted).toHaveLength(1);
+    });
+
+    it.each([
+        ['requested_value', -1],
+        ['metric', 'other_metric'],
+        ['decision', 'warning'],
+        ['limit_value', 999],
+        ['request_fingerprint', 'not-a-sha256-digest']
+    ])('保存済みquota列 %s がrequest/payloadと不整合なら503でfail closedする', async (field, value) => {
+        const quota = quotaPool();
+        const repository = new MultitenantPostgresRepository({ pool: quota.pool, now: quota.now });
+        await repository.decideQuota(QUOTA_INPUT);
+        quota.state.stored.get(QUOTA_INPUT.idempotency_key)[field] = value;
+
+        await expectContractErrorAsync(
+            () => repository.decideQuota(QUOTA_INPUT),
+            { code: 'UPSTREAM_UNAVAILABLE', status: 503 }
+        );
+        expect(quota.state.inserted).toHaveLength(1);
+    });
+
+    it('legacy requested_value NULLを0として扱わず503でfail closedし、insertしない', async () => {
+        const quota = quotaPool({ legacyCount: 1 });
+        const repository = new MultitenantPostgresRepository({ pool: quota.pool, now: quota.now });
+
+        await expectContractErrorAsync(
+            () => repository.decideQuota(QUOTA_INPUT),
+            { code: 'UPSTREAM_UNAVAILABLE', status: 503 }
+        );
+        expect(quota.state.inserted).toHaveLength(0);
+        expect(quota.client.query.mock.calls.map(([sql]) => String(sql))).not.toContain('COMMIT');
+    });
+
+    it('aggregate usageがNULL/unknownなら0へ丸めず503で停止する', async () => {
+        const quota = quotaPool({ aggregateUsedValue: null });
+        const repository = new MultitenantPostgresRepository({ pool: quota.pool, now: quota.now });
+
+        await expectContractErrorAsync(
+            () => repository.decideQuota(QUOTA_INPUT),
+            { code: 'UPSTREAM_UNAVAILABLE', status: 503 }
+        );
+        expect(quota.state.inserted).toHaveLength(0);
+    });
+
+    it('allowance missingは0へ丸めず503で停止する', async () => {
+        const quota = quotaPool({ allowance: null });
+        quota.state.contract.allowances = {};
+        const repository = new MultitenantPostgresRepository({ pool: quota.pool, now: quota.now });
+
+        await expectContractErrorAsync(
+            () => repository.decideQuota(QUOTA_INPUT),
+            { code: 'UPSTREAM_UNAVAILABLE', status: 503 }
+        );
+        expect(quota.state.inserted).toHaveLength(0);
+    });
+
+    it('hard_stoppedは同windowのallowed/warning集計へ予約量を加算しない', async () => {
+        const quota = quotaPool({ allowance: 100 });
+        const repository = new MultitenantPostgresRepository({ pool: quota.pool, now: quota.now });
+        const stopped = await repository.decideQuota({ ...QUOTA_INPUT, requested_quantity: 101 });
+        const next = await repository.decideQuota({
+            ...QUOTA_INPUT,
+            idempotency_key: 'ik1_01ARZ3NDEKTSV4RRFFQ69G5FB2',
+            requested_quantity: 1
+        });
+
+        expect(stopped.decision).toBe('hard_stopped');
+        expect(next).toMatchObject({ decision: 'allowed', used: 0, remaining: 99 });
+        expect(quota.state.used).toBe(1);
+        expect(quota.state.inserted).toHaveLength(2);
+    });
+
+    it('calendar_month UTCはserver nowから月境界を導出しcaller windowを受け付けない', async () => {
+        const quota = quotaPool({ now: '2026-09-01T00:00:00.000Z' });
+        const repository = new MultitenantPostgresRepository({ pool: quota.pool, now: quota.now });
+
+        await expect(repository.decideQuota(QUOTA_INPUT)).resolves.toMatchObject({
+            window_started_at: '2026-09-01T00:00:00.000Z',
+            window_ends_at: '2026-10-01T00:00:00.000Z'
+        });
+        const aggregateCall = quota.client.query.mock.calls.find(([sql]) => String(sql).includes('COALESCE(SUM(requested_value)'));
+        expect(aggregateCall[1].slice(-2)).toEqual([
+            '2026-09-01T00:00:00.000Z',
+            '2026-10-01T00:00:00.000Z'
+        ]);
+
+        await expectContractErrorAsync(
+            () => repository.decideQuota({ ...QUOTA_INPUT, window_started_at: '2026-09-01T00:00:00Z' }),
+            { code: 'QUOTA_INPUT_INVALID', status: 400 }
+        );
+    });
+
+    it('advisory lock下の並行2要求は累計usedを進め、二重allowedを返さない', async () => {
+        const quota = quotaPool({ allowance: 10 });
+        const repository = new MultitenantPostgresRepository({ pool: quota.pool, now: quota.now });
+        const [first, second] = await Promise.all([
+            repository.decideQuota({ ...QUOTA_INPUT, requested_quantity: 6 }),
+            repository.decideQuota({
+                ...QUOTA_INPUT,
+                idempotency_key: 'ik1_01ARZ3NDEKTSV4RRFFQ69G5FB2',
+                requested_quantity: 6
+            })
+        ]);
+
+        expect(first.decision).toBe('allowed');
+        expect(second.decision).toBe('hard_stopped');
+        expect(second.used).toBe(6);
+        expect(quota.state.used).toBe(6);
+        expect(quota.state.inserted).toHaveLength(2);
+    });
+
+    it.each([
+        ['observed_quantity', 0],
+        ['used_quantity', 0],
+        ['window_started_at', '2026-08-01T00:00:00Z']
+    ])('repositoryはcaller supplied %sをQUOTA_INPUT_INVALIDで拒否する', async (field, value) => {
+        const quota = quotaPool();
+        const repository = new MultitenantPostgresRepository({ pool: quota.pool, now: quota.now });
+
+        await expectContractErrorAsync(
+            () => repository.decideQuota({ ...QUOTA_INPUT, [field]: value }),
+            { code: 'QUOTA_INPUT_INVALID', status: 400 }
+        );
+        expect(quota.pool.connect).not.toHaveBeenCalled();
+    });
+
     it('D-006: contract revisionをauthoritativeに読みcanonical stringへ正規化する', async () => {
         const { pool, client } = poolWithRows({
             'FROM tenant_contract_revisions': [{
@@ -371,12 +655,12 @@ describe('MultitenantPostgresRepository', () => {
             });
         const contractQuery = client.query.mock.calls.find(([sql]) => sql.includes('FROM tenant_contract_revisions'))?.[0];
         expect(contractQuery).toBeDefined();
-        expect(contractQuery).toMatch(/SELECT\s+tenant_contract_revisions\.tenant_id,\s*tenant_contract_revisions\.contract_id,\s*tenant_contract_revisions\.contract_revision,/u);
-        expect(contractQuery).toContain('FOR SHARE');
+        expect(contractQuery).toMatch(/SELECT\s+tcr\.tenant_id,\s*tcr\.contract_id,\s*tcr\.contract_revision,/u);
+        expect(contractQuery).toContain('FROM tenant_contract_revisions AS tcr');
+        expect(contractQuery).toContain('FOR SHARE OF tcr, rb');
     });
 
-    it('D-006/D-007: canonical quota・usage・receipt payloadをtenant RLS transactionで保存する', async () => {
-        const quota = { message_type: 'quota_decision', tenant_id: 'ten_a', contract_revision: '11', quota_revision: '19' };
+    it('D-006/D-007: canonical usage・receipt payloadをtenant RLS transactionで保存する', async () => {
         const usage = {
             message_type: 'usage_event', usage_event_id: 'usage_a', protocol_version: '1.0', tenant_id: 'ten_a',
             connection_id: 'wsc_a', connection_revision: '7', contract_revision: '11', deployment_id: 'dep_a',
@@ -393,16 +677,13 @@ describe('MultitenantPostgresRepository', () => {
             reply: { state: 'failed', reply_count: 0, legacy_reply_count: 0 }, completed_at: '2026-08-16T00:00:01Z'
         };
         const { pool, client } = poolWithRows({
-            'INSERT INTO tenant_quota_decisions': [{ decision_payload: quota }],
             'INSERT INTO tenant_usage_events': [{ event_payload: usage }],
             'INSERT INTO tenant_operation_receipts': [{ receipt_payload: receipt }]
         });
         const repository = new MultitenantPostgresRepository({ pool });
 
-        await expect(repository.recordQuotaDecision(quota, { idempotency_key: 'ik1_a', metric: 'model_tokens' })).resolves.toEqual(quota);
         await expect(repository.recordUsage(usage)).resolves.toEqual(usage);
         await expect(repository.finalizeReceipt(receipt)).resolves.toEqual(receipt);
-        expect(client.query.mock.calls.some(([sql]) => sql.includes('decision_payload'))).toBe(true);
         expect(client.query.mock.calls.some(([sql]) => sql.includes('event_payload'))).toBe(true);
         const usageInsert = client.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO tenant_usage_events'))?.[0];
         expect(usageInsert).toContain('ON CONFLICT (usage_event_id)');

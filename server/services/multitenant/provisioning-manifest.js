@@ -28,6 +28,7 @@ const ALLOWED_ACTOR_KEYS = new Set(['actor_id', 'canonical_project_id', 'capabil
 const CREDENTIAL_MODES = new Set(['cloud_standard', 'customer_oauth', 'customer_api']);
 const CONTRACT_STATUSES = new Set(['active']);
 const OVERAGE_POLICIES = new Set(['deny', 'allow_and_bill', 'allow_with_approval']);
+const QUOTA_WINDOW_KINDS = new Set(['fixed', 'calendar_month']);
 const DEPLOYMENT_PROFILES = new Set(['shared_cloud', 'dedicated_cloud', 'customer_managed_oss']);
 const ALLOWED_CAPABILITIES = new Set([
     'send_message', 'create_task', 'list_tasks', 'update_task', 'transition_task',
@@ -38,6 +39,7 @@ const ALLOWED_CONTRACT_KEYS = new Set([
     'contract_id', 'revision', 'status', 'effective_from', 'effective_until', 'plan_code',
     'allowances', 'thresholds_basis_points', 'overage_policy', 'hard_stop_basis_points',
     'rate_card_revision', 'fx_table_revision', 'sales_price_revision',
+    'quota_window_policy',
     'capabilities', 'audience', 'deployment_id', 'profile'
 ]);
 
@@ -118,6 +120,28 @@ function timestamp(value, field, { nullable = false } = {}) {
     return value;
 }
 
+function normalizeQuotaWindowPolicy(value) {
+    if (value === undefined || value === null) return null;
+    assertRecord(value, 'contract_revision.quota_window_policy');
+    if (!QUOTA_WINDOW_KINDS.has(value.kind)) {
+        fail('MANIFEST_INVALID', 'contract_revision.quota_window_policy.kind is invalid');
+    }
+    if (value.kind === 'calendar_month') {
+        assertKnownKeys(value, new Set(['kind', 'timezone']), 'contract_revision.quota_window_policy');
+        if (value.timezone !== 'UTC') {
+            fail('MANIFEST_INVALID', 'contract_revision.quota_window_policy.timezone must be UTC');
+        }
+        return { kind: 'calendar_month', timezone: 'UTC' };
+    }
+    assertKnownKeys(value, new Set(['kind', 'window_started_at', 'window_ends_at']), 'contract_revision.quota_window_policy');
+    const windowStartedAt = timestamp(value.window_started_at, 'contract_revision.quota_window_policy.window_started_at');
+    const windowEndsAt = timestamp(value.window_ends_at, 'contract_revision.quota_window_policy.window_ends_at');
+    if (Date.parse(windowEndsAt) <= Date.parse(windowStartedAt)) {
+        fail('MANIFEST_INVALID', 'contract_revision.quota_window_policy window must end after it starts');
+    }
+    return { kind: 'fixed', window_started_at: windowStartedAt, window_ends_at: windowEndsAt };
+}
+
 function normalizeContract(value) {
     assertRecord(value, 'contract_revision');
     assertKnownKeys(value, ALLOWED_CONTRACT_KEYS, 'contract_revision');
@@ -154,6 +178,7 @@ function normalizeContract(value) {
         rate_card_revision: integer(value.rate_card_revision, 'contract_revision.rate_card_revision', { min: 1 }),
         fx_table_revision: integer(value.fx_table_revision, 'contract_revision.fx_table_revision', { min: 1 }),
         sales_price_revision: integer(value.sales_price_revision, 'contract_revision.sales_price_revision', { min: 1 }),
+        quota_window_policy: normalizeQuotaWindowPolicy(value.quota_window_policy),
         capabilities,
         audience,
         deployment_id: requiredString(value.deployment_id, 'contract_revision.deployment_id', DEPLOYMENT_ID),

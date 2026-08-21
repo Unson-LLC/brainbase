@@ -54,6 +54,13 @@ describe('multitenant persistence schema', () => {
         expect(sql).toContain("claim_state IN ('pending', 'claimed', 'succeeded', 'failed_terminal')");
         expect(sql).toContain("retain_until >= claimed_at + INTERVAL '30 days'");
         expect(sql).toContain('decision_payload JSONB NOT NULL');
+        expect(sql).toContain('quota_window_policy JSONB');
+        expect(sql).toContain('requested_value NUMERIC');
+        expect(sql).toContain('request_fingerprint TEXT');
+        expect(sql).toContain('tenant_quota_decisions_requested_value_check');
+        expect(sql).toContain('CHECK (requested_value IS NULL OR requested_value > 0)');
+        expect(sql).toContain('tenant_quota_decisions_request_fingerprint_check');
+        expect(sql).toContain("CHECK (request_fingerprint IS NULL OR request_fingerprint ~ '^sha256:[a-f0-9]{64}$')");
         expect(sql).toContain('event_payload JSONB NOT NULL');
         expect(sql).toContain('receipt_payload JSONB NOT NULL');
         expect(sql).toContain('pricing_payload JSONB NOT NULL');

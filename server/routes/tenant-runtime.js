@@ -94,10 +94,14 @@ function wireInput(req, fields, bindings) {
 
 function quotaInput(req) {
     const context = req.tenantContext;
-    return wireInput(req, [
-        'quota_revision', 'metric', 'observed_quantity', 'requested_quantity', 'unit',
-        'window_started_at', 'window_ends_at'
-    ], {
+    const suppliedFields = Object.keys(req.body ?? {});
+    const forbiddenAuthorityFields = suppliedFields.filter((field) =>
+        field === 'observed_quantity' || field === 'used_quantity' || field === 'quota_revision'
+        || field === 'unit' || field.startsWith('window_'));
+    if (forbiddenAuthorityFields.length > 0) {
+        throw new ContractError('QUOTA_INPUT_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
+    return wireInput(req, ['metric', 'requested_quantity'], {
         tenant_id: context.tenant.tenant_id,
         contract_revision: context.contract_revision,
         idempotency_key: context.idempotency_key
