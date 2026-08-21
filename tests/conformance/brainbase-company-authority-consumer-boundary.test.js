@@ -52,6 +52,7 @@ const schemaValidators = (() => {
         response: ajv.getSchema(responseSchema.$id)
     };
 })();
+const positiveTenantContextFixtures = fixtures.positive.filter(({ context }) => context);
 
 function signedResponse(fixture) {
     return {
@@ -75,7 +76,7 @@ describe('Brainbase company authority A0 consumer boundary', () => {
         expect(schemaValidators.fixture(fixtures), JSON.stringify(schemaValidators.fixture.errors)).toBe(true);
     });
 
-    it.each(fixtures.positive.filter(({ context }) => context))(
+    it.each(positiveTenantContextFixtures)(
         'accepts every embedded tenant context through the canonical consumer verifier',
         (fixture) => {
             const tenantContext = fixture.context.tenant_context;
