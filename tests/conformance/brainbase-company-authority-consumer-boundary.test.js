@@ -13,6 +13,7 @@ import {
     acceptCompanyAuthorityResponse,
     validateWireResponseStructure
 } from '../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
+import { verifyTenantContext } from '../../server/services/multitenant/tenant-context.js';
 
 const contractRoot = resolve('contracts/mana-brainbase-company-authority/v1');
 
@@ -73,6 +74,23 @@ describe('Brainbase company authority A0 consumer boundary', () => {
             .toBe('schema/company-authority-resolution-response.schema.json');
         expect(schemaValidators.fixture(fixtures), JSON.stringify(schemaValidators.fixture.errors)).toBe(true);
     });
+
+    it.each(fixtures.positive.filter(({ context }) => context))(
+        'accepts the embedded tenant context for %s through the canonical consumer verifier',
+        (fixture) => {
+            const tenantContext = fixture.context.tenant_context;
+            expect(() => verifyTenantContext(tenantContext, {
+                keys: [{
+                    key_id: testKey.key_id,
+                    status: 'current',
+                    public_key: testKey.public_jwk
+                }],
+                audience: 'mana-runtime',
+                deployment_id: fixture.context.scope.placement_id,
+                now: new Date(fixture.evaluation_time)
+            })).not.toThrow();
+        }
+    );
 
     it.each([
         'POS-DENY-COMPANY-WRITE',

@@ -12,7 +12,7 @@
     "fixtures/fixture.schema.json",
     "fixtures/test-key.json"
   ],
-  "fixture_set_sha256": "85ce8e5d818093a45eb2c57986c1099533168e43cf3c9c0b194664f494f1c1df",
+  "fixture_set_sha256": "2a88c4413c089e7ab1a1ab0b89bb0b9a115ee3a30b1152ad7b907922f3f14f87",
   "hash_algorithm": "sha256(relative_path + NUL + file_bytes)",
   "manifest_excluded_from_hash": true,
   "synthetic_data_only": true,
@@ -37,10 +37,10 @@
     "two_tenant_two_person"
   ],
   "tenant_person_matrix": [
-    { "tenant_id": "tenant-a", "person_id": "person-sato", "positive_case_id": "POS-AUTO-COMPANY-READ" },
-    { "tenant_id": "tenant-a", "person_id": "person-umeda", "positive_case_id": "POS-AUTO-COMPANY-READ-UMEDA" },
-    { "tenant_id": "tenant-b", "person_id": "person-sato", "positive_case_id": "POS-DENY-COMPANY-WRITE" },
-    { "tenant_id": "tenant-b", "person_id": "person-umeda", "positive_case_id": "POS-HUMAN-ACTION-COMPANY-WRITE" }
+    { "tenant_id": "tenant-a", "canonical_tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV", "person_id": "person-sato", "positive_case_id": "POS-AUTO-COMPANY-READ" },
+    { "tenant_id": "tenant-a", "canonical_tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV", "person_id": "person-umeda", "positive_case_id": "POS-AUTO-COMPANY-READ-UMEDA" },
+    { "tenant_id": "tenant-b", "canonical_tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAW", "person_id": "person-sato", "positive_case_id": "POS-DENY-COMPANY-WRITE" },
+    { "tenant_id": "tenant-b", "canonical_tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAW", "person_id": "person-umeda", "positive_case_id": "POS-HUMAN-ACTION-COMPANY-WRITE" }
   ],
   "positive_case_ids": [
     "POS-AUTO-COMPANY-READ",

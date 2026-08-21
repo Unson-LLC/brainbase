@@ -53,7 +53,7 @@ desired effect/capability欠落、unknown/ambiguous person、cross-org、project
 
 - [x] AC-007: 合成契約限定のTDD conformanceを実行できる（Graph実データ・live runtime・deploymentは未検証）
 
-producer conformance testがwire path、capability path、schema metadata、signature profile、manifest digest、全decision mode、全negative error code、detached signature tamperを検証し、`tests/conformance/brainbase-company-authority-consumer-boundary.test.js`がsource-lock、manifest、schema、wireを読むA0 consumer boundaryとして完全なdeny/diagnostic envelope、caller-supplied now、detached JWS受入れを検証する。初期実装以前のhistorical REDは`not_collected`であり、存在しない証跡を補わない。今回のA0 consumer boundaryの実装前REDは実行・記録済みである。観測済みのGREENはproducer conformance 54件とA0 consumer boundary 7件であり、既存shared tenant-context conformance 25件はregression-onlyでA0 consumer evidenceではない。検証は合成契約の適合確認に限定され、Graph実データ、live runtime、deploymentは未検証である。trusted `kid`からのkey解決、key rotation、key revocationはruntime非目標であり、reference validator単独をauthorityとは扱わない。
+producer conformance testがwire path、capability path、schema metadata、signature profile、manifest digest、全decision mode、全negative error code、detached signature tamperを検証し、`tests/conformance/brainbase-company-authority-consumer-boundary.test.js`がsource-lock、manifest、schema、wireを読むA0 consumer boundaryとして完全なdeny/diagnostic envelope、caller-supplied now、detached JWS受入れ、埋込みcanonical tenant contextのruntime verifier受入れを検証する。初期実装以前のhistorical REDは`not_collected`であり、存在しない証跡を補わない。今回のA0 consumer boundaryの実装前REDは実行・記録済みである。観測済みのGREENはproducer conformance 54件とA0 consumer boundary 15件であり、既存shared tenant-context conformance 25件はregression-onlyでA0 consumer evidenceではない。検証は合成契約の適合確認に限定され、Graph実データ、live runtime、deploymentは未検証である。trusted `kid`からのkey解決、key rotation、key revocationはruntime非目標であり、reference validator単独をauthorityとは扱わない。
 
 ## Out of scope
 

@@ -205,7 +205,7 @@ describe('Brainbase company authority producer contract v1', () => {
             expect(entry.positive_case_id).toEqual(expect.any(String));
             const fixture = positiveById.get(entry.positive_case_id);
             expect(fixture?.context).toBeTruthy();
-            expect(fixture.context.tenant_context.tenant.tenant_id).toBe(entry.tenant_id);
+            expect(fixture.context.tenant_context.tenant.tenant_id).toBe(entry.canonical_tenant_id);
             expect(fixture.context.actor.canonical_person_id).toBe(entry.person_id);
             expect(fixture.request.provider_identity.authenticated_subject_id).toBe(entry.person_id);
         }

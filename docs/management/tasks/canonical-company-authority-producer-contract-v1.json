@@ -59,13 +59,13 @@
     "historical_red": "not_collected",
     "new_red": "collected",
     "red": "Initial implementation RED remains not_collected. The A0 consumer boundary test was run before the acceptance entrypoint and wire envelopes were implemented and failed; no historical RED is inferred.",
-    "green": "Observed separately after implementation: producer conformance 54 tests and A0 consumer boundary 7 tests passed over the synthetic contract fixtures. The existing shared tenant-context conformance 25 tests are regression-only and are not A0 consumer evidence.",
+    "green": "Observed separately after implementation: producer conformance 54 tests and A0 consumer boundary 15 tests passed over the synthetic contract fixtures, including direct canonical tenant-context verifier acceptance for every embedded positive context. The existing shared tenant-context conformance 25 tests are regression-only and are not A0 consumer evidence.",
     "regression": ["npm run test:conformance:mana-brainbase -- tests/conformance/brainbase-company-authority-producer-contract.test.js tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "node --check contracts/mana-brainbase-company-authority/v1/reference/wire.mjs", "git diff --check"]
   },
   "evidence": {
     "contract_version": "1.0.0",
     "manifest_version": "1.0",
-    "fixture_set_sha256": "85ce8e5d818093a45eb2c57986c1099533168e43cf3c9c0b194664f494f1c1df",
+    "fixture_set_sha256": "2a88c4413c089e7ab1a1ab0b89bb0b9a115ee3a30b1152ad7b907922f3f14f87",
     "synthetic_data_only": true,
     "customer_data": "not_used",
     "secrets": "not_used",

@@ -19,9 +19,10 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["tenant_id", "person_id", "positive_case_id"],
+        "required": ["tenant_id", "canonical_tenant_id", "person_id", "positive_case_id"],
         "properties": {
           "tenant_id": { "enum": ["tenant-a", "tenant-b"] },
+          "canonical_tenant_id": { "type": "string", "pattern": "^ten_[0-9A-HJKMNP-TV-Z]{26}$" },
           "person_id": { "enum": ["person-sato", "person-umeda"] },
           "positive_case_id": { "type": "string", "pattern": "^POS-[A-Z0-9-]+$" }
         }
