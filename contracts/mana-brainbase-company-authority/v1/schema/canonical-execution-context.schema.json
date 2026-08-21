@@ -3,6 +3,44 @@
   "$id": "https://github.com/Unson-LLC/brainbase-unson/contracts/mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json",
   "title": "CanonicalExecutionContextV1",
   "description": "Brainbase-resolved and signed authority context. Runtime identity and requested action are never copied into authority claims without resolution.",
+  "x-cross-layer-bindings": [
+    {
+      "request": "$.provider_identity.authenticated_subject_id",
+      "outer": "$.actor.external_subject_id",
+      "relation": "equals",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    },
+    {
+      "outer": "$.actor.external_subject_id",
+      "nested": "$.tenant_context.actor.authenticated_subject_id",
+      "relation": "equals",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    },
+    {
+      "outer": "$.actor.canonical_person_id",
+      "nested": "$.tenant_context.actor.principal_id",
+      "relation": "equals",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    },
+    {
+      "outer": "$.scope.organization_id",
+      "nested": "$.tenant_context.authorization.organization_ids",
+      "relation": "contains",
+      "error_code": "AUTHORITY_CROSS_ORG"
+    },
+    {
+      "outer": "$.scope.project_id",
+      "nested": "$.tenant_context.authorization.project_ids",
+      "relation": "contains",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    },
+    {
+      "outer": "$.scope.placement_id",
+      "nested": "$.tenant_context.placement.deployment_id",
+      "relation": "equals",
+      "error_code": "AUTHORITY_SCOPE_MISMATCH"
+    }
+  ],
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "tenant_context", "actor", "scope", "authority", "evidence", "issued_at", "expires_at", "integrity"],

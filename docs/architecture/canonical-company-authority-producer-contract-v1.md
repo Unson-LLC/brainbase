@@ -15,7 +15,7 @@ This document fixes the A0 preparation boundary. It does not implement the resol
 
 ## Request and response wire
 
-The request body is validated by `contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json`. It contains provider identity, requested action, optional delivery metadata, and `correlation_id`. `desired_effect` is required and is never inferred from a capability name. `project_hint` is a routing hint, not an authority claim. Resolved person, organization, project, owner, RACI, approver, decision, policy, and credential fields are explicitly forbidden and rejected by both the schema and reference validator.
+The request body is validated by `contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json`. v1 accepts only the Slack provider because the nested `TenantContextEnvelopeV1` is Slack-backed; `codex`, `claude_code`, and `service` require a later provider-specific nested-envelope contract. It contains provider identity, requested action, optional delivery metadata, and `correlation_id`. `desired_effect` is required and is never inferred from a capability name. `project_hint` is a routing hint, not an authority claim. Resolved person, organization, project, owner, RACI, approver, decision, policy, and credential fields are explicitly forbidden and rejected by both the schema and reference validator.
 
 The response is validated by `schema/company-authority-resolution-response.schema.json`:
 
@@ -44,7 +44,7 @@ evidence: identity_resolution_receipt_id, authority_resolution_receipt_id
 issued_at, expires_at, integrity
 ```
 
-`authority.decision` is one of `auto`, `approval`, `human_action`, or `deny`. `authority.capability_id` is `company_authority_v1`. The context is bound to the request by the same correlation ID, capability ID, requested effect, and resource reference. Unknown, ambiguous, inactive, cross-organization, out-of-scope, or stale claims never become a default claim.
+`authority.decision` is one of `auto`, `approval`, `human_action`, or `deny`. `authority.capability_id` is `company_authority_v1`. The context is bound to the request by the same correlation ID, capability ID, requested effect, and resource reference. Cross-layer bindings are also mandatory: the request authenticated subject equals the outer actor subject; the outer subject and canonical person equal the nested actor subject and principal; the outer organization and project are contained in nested authorization; and the outer placement equals nested `placement.deployment_id`. Unknown, ambiguous, inactive, cross-organization, out-of-scope, or stale claims never become a default claim.
 
 ## Canonical JSON and signature
 
@@ -86,7 +86,7 @@ AUTHORITY_CONTEXT_EXPIRED, AUTHORITY_REPLAY_CONFLICT
 
 ## Conformance payload and lock
 
-`fixtures/cases.json` contains deterministic synthetic payloads: four tenant/person combinations, nine positive cases, and 39 negative mutations. The negative cases cover missing desired effect/capability, 11 forbidden authority-field injections, unknown/ambiguous identity, four cross-org combinations, project and Personal scope, inactive membership, tenant/connection/membership/resource/RACI/policy revisions, wrong approver, authority unavailable, invalid signature, expiry, and replay conflict. Every negative expected result has business/model/credential/external effect false.
+`fixtures/cases.json` contains deterministic synthetic payloads: four tenant/person combinations, nine positive cases, and 46 negative mutations. The negative cases cover missing desired effect/capability, 11 forbidden authority-field injections, cross-layer actor/scope mismatches, non-Slack provider, unknown/ambiguous identity, four cross-org combinations, project and Personal scope, inactive membership, tenant/connection/membership/resource/RACI/policy revisions, wrong approver, authority unavailable, invalid signature, expiry, and replay conflict. Every negative expected result has business/model/credential/external effect false.
 
 `fixtures/manifest.json` identifies the payload set. Its digest is calculated over the listed files using `sha256(relative_path + NUL + file_bytes)`; the manifest itself is excluded. `source-lock.json` records only the contract version, manifest version, fixture files, and fixture-set digest. It deliberately has no producer commit, branch head, or merge SHA. The downstream consumer records the merged SHA after the producer is merged.
 

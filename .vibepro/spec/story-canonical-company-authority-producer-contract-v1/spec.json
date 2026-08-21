@@ -8,11 +8,11 @@
     "red_basis": "Initial implementation RED remains not_collected. The A0 consumer boundary test was run before the acceptance entrypoint and wire envelopes were implemented and failed; no historical RED is inferred.",
     "green": {
       "status": "observed",
-      "producer_conformance_tests": 54,
+      "producer_conformance_tests": 62,
       "consumer_conformance_tests": 15,
       "shared_consumer_conformance_tests": 25,
       "shared_consumer_conformance_scope": "regression_only; not A0 consumer evidence",
-      "total_tests": 69,
+      "total_tests": 77,
       "evidence_scope": "synthetic_contract_only"
     },
     "separation": "Observed GREEN does not imply historical RED was collected."
@@ -21,7 +21,7 @@
     {
       "id": "C-001",
       "type": "contract",
-      "statement": "ObservedExecutionRequestV1 accepts only observed provider identity, requested action, delivery metadata, and correlation; desired_effect is explicit and resolved authority fields are forbidden.",
+      "statement": "ObservedExecutionRequestV1 accepts only Slack provider identity in v1, requested action, delivery metadata, and correlation; desired_effect is explicit and resolved authority fields are forbidden.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 0, "ac_id": "AC-001", "text_snippet": "ObservedExecutionRequestV1 requires an explicit desired_effect and carries no resolved authority claims." }],
         "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Request and response wire" }],
@@ -35,7 +35,7 @@
     {
       "id": "C-002",
       "type": "contract",
-      "statement": "CanonicalExecutionContextV1 is wired at the response JSONPath $.context and includes company_authority_v1 at $.context.tenant_context.authorization.capability_ids.",
+      "statement": "CanonicalExecutionContextV1 is wired at the response JSONPath $.context, includes company_authority_v1 at $.context.tenant_context.authorization.capability_ids, and binds request/outer/nested actors plus outer/nested organization, project, and placement.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-002", "text_snippet": "The successful response context and company authority capability path are fixed." }],
         "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Request and response wire" }],
@@ -85,7 +85,7 @@
     {
       "id": "C-005",
       "type": "contract",
-      "statement": "Canonical errors and the fail-closed negative matrix reject missing, unresolved, cross-org, stale, Personal, signature, expiry, replay, and forbidden authority-field claims.",
+      "statement": "Canonical errors and the fail-closed negative matrix reject missing, unresolved, cross-org, stale, Personal, cross-layer actor/scope mismatch, non-Slack provider, signature, expiry, replay, and forbidden authority-field claims.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 4, "ac_id": "AC-005", "text_snippet": "Canonical errors and the fail-closed negative matrix are fixed." }],
         "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Decision and error contract" }],
@@ -105,7 +105,7 @@
     {
       "id": "C-006",
       "type": "contract",
-      "statement": "The deterministic two-tenant by two-person fixture set is schema-valid, manifest-complete, and bound to a digest without producer commit self-reference.",
+      "statement": "The deterministic two-tenant by two-person fixture set is schema-valid, manifest-complete, covers cross-layer actor/scope and non-Slack provider negatives, and is bound to a digest without producer commit self-reference.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "ac_id": "AC-006", "text_snippet": "The deterministic two-tenant by two-person fixture set and manifest digest are fixed." }],
         "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Conformance payload and lock" }],

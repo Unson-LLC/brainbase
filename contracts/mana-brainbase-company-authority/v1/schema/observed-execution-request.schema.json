@@ -2,7 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Unson-LLC/brainbase-unson/contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json",
   "title": "ObservedExecutionRequestV1",
-  "description": "The only authority input Brainbase accepts from an external runtime: observed identity, requested action, delivery metadata, and correlation.",
+  "description": "The only authority input Brainbase accepts from an external runtime: observed Slack identity, requested action, delivery metadata, and correlation. v1 is Slack-only because the nested TenantContextEnvelopeV1 is Slack-backed.",
+  "x-supported-providers": ["slack"],
   "type": "object",
   "additionalProperties": false,
   "required": ["provider_identity", "requested_action", "correlation_id"],
@@ -12,7 +13,7 @@
       "additionalProperties": false,
       "required": ["provider", "authenticated_subject_id"],
       "properties": {
-        "provider": { "enum": ["slack", "codex", "claude_code", "service"] },
+        "provider": { "const": "slack" },
         "authenticated_subject_id": { "type": "string", "minLength": 1 },
         "app_id": { "type": "string", "minLength": 1 },
         "workspace_id": { "type": "string", "minLength": 1 },

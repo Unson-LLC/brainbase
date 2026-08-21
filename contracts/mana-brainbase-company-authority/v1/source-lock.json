@@ -4,7 +4,7 @@
   "contract_role": "brainbase_authority_producer",
   "lock_status": "producer_contract_ready",
   "manifest_version": "1.0",
-  "fixture_set_sha256": "2a88c4413c089e7ab1a1ab0b89bb0b9a115ee3a30b1152ad7b907922f3f14f87",
+  "fixture_set_sha256": "60f97105af730e17260e348592d313f9d02d141044b22fa0a141ea8ea577718a",
   "producer": {
     "repository": "Unson-LLC/brainbase-unson",
     "authority_architecture_ref": "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
@@ -12,7 +12,7 @@
     "authority_story_ref": "docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
     "contract_version": "1.0.0",
     "manifest_version": "1.0",
-    "fixture_set_sha256": "2a88c4413c089e7ab1a1ab0b89bb0b9a115ee3a30b1152ad7b907922f3f14f87",
+    "fixture_set_sha256": "60f97105af730e17260e348592d313f9d02d141044b22fa0a141ea8ea577718a",
     "fixture_files": [
       "fixtures/cases.json",
       "fixtures/fixture.schema.json",

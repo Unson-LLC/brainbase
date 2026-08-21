@@ -27,6 +27,11 @@
     "context_schema_version": "1.0"
   },
   "observed_request_boundary": {
+    "provider_scope": {
+      "allowed": ["slack"],
+      "nested_tenant_context_provider": "slack",
+      "non_slack_behavior": "reject_until_a_provider_specific_nested_envelope_is_contractual"
+    },
     "accepted_fields": [
       "provider_identity.provider",
       "provider_identity.authenticated_subject_id",
@@ -78,6 +83,14 @@
       "authority.capability_id == request.requested_action.capability_id",
       "request.requested_action.desired_effect in authority.allowed_effects",
       "scope.resource_ref == request.requested_action.resource_ref"
+    ],
+    "cross_layer_bindings": [
+      "request.provider_identity.authenticated_subject_id == actor.external_subject_id",
+      "actor.external_subject_id == tenant_context.actor.authenticated_subject_id",
+      "actor.canonical_person_id == tenant_context.actor.principal_id",
+      "scope.organization_id in tenant_context.authorization.organization_ids",
+      "scope.project_id in tenant_context.authorization.project_ids",
+      "scope.placement_id == tenant_context.placement.deployment_id"
     ]
   },
   "canonical_json": {
@@ -141,7 +154,7 @@
   },
   "fixture_coverage": {
     "positive_case_count": 9,
-    "negative_case_count": 39,
+    "negative_case_count": 46,
     "decision_modes": ["auto", "approval", "human_action", "deny"],
     "tenant_person_matrix": "2 tenants x 2 persons; each row links positive_case_id to a signed context",
     "diagnostic_allowlist": ["health", "protocol_negotiation", "provisioning", "connection_diagnostic", "tenant_isolation_test"],

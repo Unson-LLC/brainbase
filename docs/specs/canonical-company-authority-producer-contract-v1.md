@@ -22,7 +22,7 @@ The machine source of truth is `contracts/mana-brainbase-company-authority/v1/pr
 
 ## Request schema and wire rules
 
-`ObservedExecutionRequestV1` accepts only observed provider identity, requested action, optional delivery metadata, and correlation. `requested_action.desired_effect` is required and has no implicit default. Its allowed values are `read`, `write`, and `external_side_effect`. Missing desired effect returns `DESIRED_EFFECT_REQUIRED`; missing company capability returns `COMPANY_AUTHORITY_REQUIRED`.
+`ObservedExecutionRequestV1` accepts only observed Slack provider identity, requested action, optional delivery metadata, and correlation. v1 provider scope is `slack` because the nested `TenantContextEnvelopeV1` is Slack-backed; `codex`, `claude_code`, and `service` are rejected until a provider-specific nested envelope is contractual. `requested_action.desired_effect` is required and has no implicit default. Its allowed values are `read`, `write`, and `external_side_effect`. Missing desired effect returns `DESIRED_EFFECT_REQUIRED`; missing company capability returns `COMPANY_AUTHORITY_REQUIRED`.
 
 The request must not carry resolved authority fields such as canonical person, organization, project, owner, responsible/accountable/approver person, RACI, decision, policy revision, or credential. Each forbidden field is rejected by the request schema and reference validator. A project hint is advisory only.
 
@@ -34,6 +34,10 @@ The request must not carry resolved authority fields such as canonical person, o
 - requested capability equals `authority.capability_id`, which is `company_authority_v1`;
 - requested effect is a member of `authority.allowed_effects`;
 - requested resource equals `scope.resource_ref`;
+- request authenticated subject equals `actor.external_subject_id`;
+- outer actor subject and canonical person equal nested actor subject and principal;
+- outer organization and project are contained in nested authorization lists;
+- outer `scope.placement_id` equals nested `placement.deployment_id`;
 - tenant, workspace connection, membership, resource, RACI, and policy revisions are current;
 - audience includes `mana-runtime`, TTL is at most 300 seconds, and signature is valid;
 - Personal scope has a non-null `scope.owner_person_id` equal to the resolved target person.
@@ -63,7 +67,7 @@ When authority is unavailable, only health, protocol negotiation, provisioning, 
 
 ## Required conformance matrix
 
-The deterministic manifest has nine positive fixtures and 39 negative mutations over two tenants and two synthetic people (`tenant-a`/`tenant-b` × `person-sato`/`person-umeda`). The matrix must include:
+The deterministic manifest has nine positive fixtures and 46 negative mutations over two tenants and two synthetic people (`tenant-a`/`tenant-b` × `person-sato`/`person-umeda`). The matrix must include:
 
 - missing desired effect and missing `company_authority_v1`;
 - all four decision modes and a Personal owner success;
@@ -72,6 +76,8 @@ The deterministic manifest has nine positive fixtures and 39 negative mutations 
 - wrong approver, authority unavailable, and diagnostic allowlist;
 - Personal owner missing, cross-person access, and no fallback;
 - one independent request-injection negative for each forbidden authority field: canonical person, organization, project, owner, responsible/accountable/approver person, decision, policy revision, RACI revision, and credential;
+- request subject↔outer actor↔nested actor, outer organization/project↔nested authorization, and outer placement↔nested placement mismatch negatives;
+- a non-Slack provider negative proving the v1 provider boundary;
 - invalid signature, expired context, replay conflict, and queue redelivery idempotency.
 
 Every negative case asserts the exact canonical code and:

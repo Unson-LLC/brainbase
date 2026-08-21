@@ -43,13 +43,14 @@
     "reference_validator": "contracts/mana-brainbase-company-authority/v1/reference/wire.mjs"
   },
   "acceptance": [
-    "ObservedExecutionRequestV1 has an explicit desired_effect and no runtime authority claims.",
+    "ObservedExecutionRequestV1 is Slack-only in v1, has an explicit desired_effect, and carries no runtime authority claims.",
     "CanonicalExecutionContextV1 is signed and wired at the response JSONPath $.context.",
+    "Request subject, outer actor, nested actor, outer organization/project, nested authorization, and outer/nested placement bindings are explicit and fail closed on mismatch.",
     "tenant_context.authorization.capability_ids contains company_authority_v1 at the exact path.",
     "RFC8785 JCS, UTF-8, detached Ed25519 JWS, TTL, audience, and protected header are fixed.",
     "auto, approval, human_action, and deny each have deterministic positive coverage.",
     "ObservedExecutionRequestV1 rejects each resolved person/org/project/owner/RACI/approver/decision/policy/credential field in both schema and reference validation; human_action remains pending until completion and deny effect counters remain zero.",
-    "Unknown/ambiguous/cross-org/stale/wrong approver/Personal/signature/expiry/replay negatives fail closed with canonical errors.",
+    "Unknown/ambiguous/cross-org/stale/wrong approver/Personal/signature/expiry/replay, cross-layer actor/scope mismatch, and non-Slack provider negatives fail closed with canonical errors.",
     "Fixture digest is manifest versioned and excludes the manifest; producer self-reference is absent.",
     "Trusted kid-to-key resolution, key rotation, and key revocation are runtime non-goals; the reference validator is non-authoritative and production cutover is blocked pending separately verified runtime trust and consumer enforcement.",
     "The consumer acceptance entrypoint requires caller-supplied evaluation time, verifies detached JWS before accepting signed context, and rejects tampered or expired context.",
@@ -59,13 +60,13 @@
     "historical_red": "not_collected",
     "new_red": "collected",
     "red": "Initial implementation RED remains not_collected. The A0 consumer boundary test was run before the acceptance entrypoint and wire envelopes were implemented and failed; no historical RED is inferred.",
-    "green": "Observed separately after implementation: producer conformance 54 tests and A0 consumer boundary 15 tests passed over the synthetic contract fixtures, including direct canonical tenant-context verifier acceptance for every embedded positive context. The existing shared tenant-context conformance 25 tests are regression-only and are not A0 consumer evidence.",
+    "green": "Observed separately after implementation: producer conformance 62 tests and A0 consumer boundary 15 tests passed over the synthetic contract fixtures, including direct canonical tenant-context verifier acceptance for every embedded positive context. The existing shared tenant-context conformance 25 tests are regression-only and are not A0 consumer evidence.",
     "regression": ["npm run test:conformance:mana-brainbase -- tests/conformance/brainbase-company-authority-producer-contract.test.js tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "node --check contracts/mana-brainbase-company-authority/v1/reference/wire.mjs", "git diff --check"]
   },
   "evidence": {
     "contract_version": "1.0.0",
     "manifest_version": "1.0",
-    "fixture_set_sha256": "2a88c4413c089e7ab1a1ab0b89bb0b9a115ee3a30b1152ad7b907922f3f14f87",
+    "fixture_set_sha256": "60f97105af730e17260e348592d313f9d02d141044b22fa0a141ea8ea577718a",
     "synthetic_data_only": true,
     "customer_data": "not_used",
     "secrets": "not_used",

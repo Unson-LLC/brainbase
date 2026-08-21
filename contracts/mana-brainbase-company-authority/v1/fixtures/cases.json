@@ -21,6 +21,8 @@
     "queue_redelivery_idempotency",
     "context_integrity",
     "request_authority_field_forbidden",
+    "cross_layer_binding",
+    "provider_scope_v1",
     "two_tenant_two_person"
   ],
   "tenant_person_matrix": [
@@ -1369,6 +1371,209 @@
     }
   ],
   "negative": [
+    {
+      "id": "NEG-REQUEST-NON-SLACK-PROVIDER",
+      "kind": "negative",
+      "category": "provider_scope_v1",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/provider_identity/provider",
+          "value": "codex"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-SUBJECT-ACTOR-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/provider_identity/authenticated_subject_id",
+          "value": "person-umeda"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CONTEXT-ACTOR-SUBJECT-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/tenant_context/actor/authenticated_subject_id",
+          "value": "person-umeda"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CONTEXT-ACTOR-PRINCIPAL-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/tenant_context/actor/principal_id",
+          "value": "person-umeda"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CONTEXT-ORG-AUTHORIZATION-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/tenant_context/authorization/organization_ids",
+          "value": ["organization-tenant-b"]
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CROSS_ORG",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CONTEXT-PROJECT-AUTHORIZATION-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/tenant_context/authorization/project_ids",
+          "value": ["project-b"]
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CONTEXT-PLACEMENT-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/tenant_context/placement/deployment_id",
+          "value": "dep_01ARZ3NDEKTSV4RRFFQ69G5FB0"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
     {
       "id": "NEG-REQUEST-FORBIDDEN-CANONICAL-PERSON",
       "kind": "negative",

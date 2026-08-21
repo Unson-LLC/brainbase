@@ -29,11 +29,11 @@ Mana側がauthorityを自己生成せず、Brainbaseが解決して署名した`
 
 - [x] AC-001: 観測要求の入力境界を機械検証できる
 
-`ObservedExecutionRequestV1`はprovider identity、requested action、delivery、correlationだけを受け付ける。`desired_effect`は`read`、`write`、`external_side_effect`のいずれかを必須とし、capability名から推測しない。canonical person、organization、project、owner、RACI、approver、decision、policy、credentialは入力に含めず、各禁止fieldの注入をschemaとreference validatorの両方で拒否する。
+`ObservedExecutionRequestV1`はSlackのprovider identity、requested action、delivery、correlationだけを受け付ける。v1の`TenantContextEnvelopeV1`がSlack-backedであるためproviderは`slack`に限定し、`codex`、`claude_code`、`service`はprovider固有のnested envelopeを別契約で固定するまで拒否する。`desired_effect`は`read`、`write`、`external_side_effect`のいずれかを必須とし、capability名から推測しない。canonical person、organization、project、owner、RACI、approver、decision、policy、credentialは入力に含めず、各禁止fieldの注入をschemaとreference validatorの両方で拒否する。
 
 - [x] AC-002: CanonicalExecutionContextV1のschemaとwireを固定する
 
-成功responseのcontextはJSONPathルート`$`の`$.context`に置き、`$.context.tenant_context.authorization.capability_ids`に`company_authority_v1`を必須とする。actor、scope、authority、evidence、revision、TTL、audience、deployment、integrityを一つのcontextとして検証し、requestのcorrelation、capability、effect、resourceをcontextへ束縛する。
+成功responseのcontextはJSONPathルート`$`の`$.context`に置き、`$.context.tenant_context.authorization.capability_ids`に`company_authority_v1`を必須とする。actor、scope、authority、evidence、revision、TTL、audience、deployment、integrityを一つのcontextとして検証し、requestのcorrelation、capability、effect、resourceをcontextへ束縛する。さらにrequest subjectとouter actor、outer actorとnested actor、outer organization/projectとnested authorization、outer placementとnested placementを明示的に束縛し、不一致をfail closedする。
 
 - [x] AC-003: canonical JSONと署名 profileを固定する
 
@@ -45,15 +45,15 @@ RFC 8785 JCSとUTF-8をcanonical payloadに使い、`integrity`を除いたunsig
 
 - [x] AC-005: canonical errorとfail-closed negative matrixを固定する
 
-desired effect/capability欠落、unknown/ambiguous person、cross-org、project scope、inactive membership、tenant/connection/RACI/policy/resource stale、wrong approver、authority unavailable、Personal owner欠落・cross-person、invalid signature、expired、replay conflictに加え、authority field注入を、17 canonical error codeとbusiness effect falseで固定する。default person/tenant/owner/credentialへのfallbackは許可しない。
+desired effect/capability欠落、unknown/ambiguous person、cross-org、project scope、inactive membership、tenant/connection/RACI/policy/resource stale、wrong approver、authority unavailable、Personal owner欠落・cross-person、cross-layer actor/scope mismatch、非Slack provider、invalid signature、expired、replay conflictに加え、authority field注入を、17 canonical error codeとbusiness effect falseで固定する。default person/tenant/owner/credentialへのfallbackは許可しない。
 
 - [x] AC-006: synthetic fixtureとmanifest digestを固定する
 
-2 tenant × 2 person、9 positive、39 negativeを決定論的fixtureとして保存する。禁止される11 authority field（person/org/project/owner/RACI/approver/decision/policy/credential）の各注入も独立negative fixtureで示す。fixture setはmanifest自身を除外した相対path + NUL + bytesのSHA-256で識別し、source lockにはcontract/manifest versionとdigestだけを含める。producerのcommit、branch head、merge SHAは自己参照せず、merged SHAはdownstream lockで後から固定する。
+2 tenant × 2 person、9 positive、46 negativeを決定論的fixtureとして保存する。禁止される11 authority field（person/org/project/owner/RACI/approver/decision/policy/credential）の各注入に加え、request subject↔outer actor↔nested actor、outer scope↔nested authorization/placementの不一致と非Slack providerを独立negative fixtureで示す。fixture setはmanifest自身を除外した相対path + NUL + bytesのSHA-256で識別し、source lockにはcontract/manifest versionとdigestだけを含める。producerのcommit、branch head、merge SHAは自己参照せず、merged SHAはdownstream lockで後から固定する。
 
 - [x] AC-007: 合成契約限定のTDD conformanceを実行できる（Graph実データ・live runtime・deploymentは未検証）
 
-producer conformance testがwire path、capability path、schema metadata、signature profile、manifest digest、全decision mode、全negative error code、detached signature tamperを検証し、`tests/conformance/brainbase-company-authority-consumer-boundary.test.js`がsource-lock、manifest、schema、wireを読むA0 consumer boundaryとして完全なdeny/diagnostic envelope、caller-supplied now、detached JWS受入れ、埋込みcanonical tenant contextのruntime verifier受入れを検証する。初期実装以前のhistorical REDは`not_collected`であり、存在しない証跡を補わない。今回のA0 consumer boundaryの実装前REDは実行・記録済みである。観測済みのGREENはproducer conformance 54件とA0 consumer boundary 15件であり、既存shared tenant-context conformance 25件はregression-onlyでA0 consumer evidenceではない。検証は合成契約の適合確認に限定され、Graph実データ、live runtime、deploymentは未検証である。trusted `kid`からのkey解決、key rotation、key revocationはruntime非目標であり、reference validator単独をauthorityとは扱わない。
+producer conformance testがwire path、capability path、schema metadata、provider scope、cross-layer binding、signature profile、manifest digest、全decision mode、全negative error code、detached signature tamperを検証し、`tests/conformance/brainbase-company-authority-consumer-boundary.test.js`がsource-lock、manifest、schema、wireを読むA0 consumer boundaryとして完全なdeny/diagnostic envelope、caller-supplied now、detached JWS受入れ、埋込みcanonical tenant contextのruntime verifier受入れを検証する。初期実装以前のhistorical REDは`not_collected`であり、存在しない証跡を補わない。今回のA0 consumer boundaryの実装前REDは実行・記録済みである。観測済みのGREENはproducer conformance 62件とA0 consumer boundary 15件であり、既存shared tenant-context conformance 25件はregression-onlyでA0 consumer evidenceではない。検証は合成契約の適合確認に限定され、Graph実データ、live runtime、deploymentは未検証である。trusted `kid`からのkey解決、key rotation、key revocationはruntime非目標であり、reference validator単独をauthorityとは扱わない。
 
 ## Out of scope
 

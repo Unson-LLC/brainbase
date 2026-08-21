@@ -46,7 +46,10 @@ const FORBIDDEN_AUTHORITY_FIELDS = new Set([
     'credential'
 ]);
 const EFFECTS = new Set(['read', 'write', 'external_side_effect']);
-const PROVIDERS = new Set(['slack', 'codex', 'claude_code', 'service']);
+// v1 emits the existing Slack-backed TenantContextEnvelope only. Other
+// provider identities require a later contract with an explicit nested
+// envelope mapping; accepting them here would create an unbound identity.
+const PROVIDERS = new Set(['slack']);
 const REVISION = /^(0|[1-9][0-9]*)$/;
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 const TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/;
@@ -286,6 +289,48 @@ function validateAuthority(value) {
     if (value.decision === 'human_action' && value.responsible_person_id === null) fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'human_action requires a responsible person');
 }
 
+function validateCrossLayerBindings(context, request) {
+    const nestedActor = context.tenant_context.actor;
+    const authorization = context.tenant_context.authorization;
+
+    if (nestedActor.authenticated_subject_id !== context.actor.external_subject_id) {
+        fail('AUTHORITY_SCOPE_MISMATCH', 'nested authenticated subject does not bind to the outer actor', {
+            outer_path: '$.actor.external_subject_id',
+            nested_path: '$.tenant_context.actor.authenticated_subject_id'
+        });
+    }
+    if (nestedActor.principal_id !== context.actor.canonical_person_id) {
+        fail('AUTHORITY_SCOPE_MISMATCH', 'nested principal does not bind to the outer canonical person', {
+            outer_path: '$.actor.canonical_person_id',
+            nested_path: '$.tenant_context.actor.principal_id'
+        });
+    }
+    if (!authorization.organization_ids.includes(context.scope.organization_id)) {
+        fail('AUTHORITY_CROSS_ORG', 'outer organization is not present in nested authorization', {
+            outer_path: '$.scope.organization_id',
+            nested_path: '$.tenant_context.authorization.organization_ids'
+        });
+    }
+    if (!authorization.project_ids.includes(context.scope.project_id)) {
+        fail('AUTHORITY_SCOPE_MISMATCH', 'outer project is not present in nested authorization', {
+            outer_path: '$.scope.project_id',
+            nested_path: '$.tenant_context.authorization.project_ids'
+        });
+    }
+    if (context.tenant_context.placement.deployment_id !== context.scope.placement_id) {
+        fail('AUTHORITY_SCOPE_MISMATCH', 'nested placement does not bind to the outer scope', {
+            outer_path: '$.scope.placement_id',
+            nested_path: '$.tenant_context.placement.deployment_id'
+        });
+    }
+    if (request && request.provider_identity.authenticated_subject_id !== context.actor.external_subject_id) {
+        fail('AUTHORITY_SCOPE_MISMATCH', 'request subject does not bind to the outer actor', {
+            request_path: '$.provider_identity.authenticated_subject_id',
+            outer_path: '$.actor.external_subject_id'
+        });
+    }
+}
+
 export function validateObservedExecutionRequest(request) {
     const forbidden = findForbiddenAuthorityField(request);
     if (forbidden) {
@@ -353,6 +398,9 @@ export function validateCanonicalExecutionContext(context, {
     validateTimeWindow(context, now ?? context.issued_at);
     validateIntegrity(context.integrity, '$.integrity');
 
+    if (request) validateObservedExecutionRequest(request);
+    validateCrossLayerBindings(context, request);
+
     if (!audienceContains(context.tenant_context.audience, expectedAudience)) {
         fail('AUTHORITY_CONTEXT_INVALID_SIGNATURE', 'context audience is not accepted');
     }
@@ -361,7 +409,6 @@ export function validateCanonicalExecutionContext(context, {
         fail('COMPANY_AUTHORITY_REQUIRED', 'company_authority_v1 is required at the fixed capability path');
     }
     if (request) {
-        validateObservedExecutionRequest(request);
         if (request.correlation_id !== context.tenant_context.correlation_id) {
             fail('AUTHORITY_SCOPE_MISMATCH', 'correlation_id does not bind request and context');
         }

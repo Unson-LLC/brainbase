@@ -84,6 +84,21 @@ describe('Brainbase company authority producer contract v1', () => {
         expect(contract.canonical_json.profile).toBe('RFC8785_JCS');
         expect(contract.signature.profile).toBe('detached-jws-ed25519');
         expect(contract.canonical_error_codes).toEqual(CANONICAL_ERROR_CODES);
+        expect(contract.observed_request_boundary.provider_scope).toEqual({
+            allowed: ['slack'],
+            nested_tenant_context_provider: 'slack',
+            non_slack_behavior: 'reject_until_a_provider_specific_nested_envelope_is_contractual'
+        });
+        expect(observedRequestSchema['x-supported-providers']).toEqual(['slack']);
+        expect(contract.canonical_context.cross_layer_bindings).toEqual([
+            'request.provider_identity.authenticated_subject_id == actor.external_subject_id',
+            'actor.external_subject_id == tenant_context.actor.authenticated_subject_id',
+            'actor.canonical_person_id == tenant_context.actor.principal_id',
+            'scope.organization_id in tenant_context.authorization.organization_ids',
+            'scope.project_id in tenant_context.authorization.project_ids',
+            'scope.placement_id == tenant_context.placement.deployment_id'
+        ]);
+        expect(canonicalContextSchema['x-cross-layer-bindings']).toHaveLength(6);
     });
 
     it('pins a manifest digest without producer commit self-reference', async () => {
@@ -113,7 +128,7 @@ describe('Brainbase company authority producer contract v1', () => {
         expect(manifest.positive_case_ids).toEqual(positiveIds);
         expect(manifest.negative_case_ids).toEqual(negativeIds);
         expect(fixtures.positive).toHaveLength(9);
-        expect(fixtures.negative).toHaveLength(39);
+        expect(fixtures.negative).toHaveLength(46);
     });
 
     it('rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries', () => {
@@ -177,6 +192,63 @@ describe('Brainbase company authority producer contract v1', () => {
             }
         }
         expect([...decisions].sort()).toEqual(['approval', 'auto', 'deny', 'human_action']);
+    });
+
+    it('rejects cross-layer identity and scope mismatches and non-Slack providers', () => {
+        const base = fixtures.positive.find(({ id }) => id === 'POS-AUTO-COMPANY-READ');
+        assert.ok(base?.context);
+        const mismatches = [
+            {
+                name: 'request subject to outer actor',
+                mutate: ({ request }) => { request.provider_identity.authenticated_subject_id = 'person-umeda'; },
+                expected: 'AUTHORITY_SCOPE_MISMATCH'
+            },
+            {
+                name: 'outer subject to nested authenticated actor',
+                mutate: ({ context }) => { context.tenant_context.actor.authenticated_subject_id = 'person-umeda'; },
+                expected: 'AUTHORITY_SCOPE_MISMATCH'
+            },
+            {
+                name: 'outer person to nested principal actor',
+                mutate: ({ context }) => { context.tenant_context.actor.principal_id = 'person-umeda'; },
+                expected: 'AUTHORITY_SCOPE_MISMATCH'
+            },
+            {
+                name: 'outer organization to nested authorization',
+                mutate: ({ context }) => { context.tenant_context.authorization.organization_ids = ['organization-tenant-b']; },
+                expected: 'AUTHORITY_CROSS_ORG'
+            },
+            {
+                name: 'outer project to nested authorization',
+                mutate: ({ context }) => { context.tenant_context.authorization.project_ids = ['project-b']; },
+                expected: 'AUTHORITY_SCOPE_MISMATCH'
+            },
+            {
+                name: 'outer placement to nested placement',
+                mutate: ({ context }) => { context.tenant_context.placement.deployment_id = 'deployment-tenant-b'; },
+                expected: 'AUTHORITY_SCOPE_MISMATCH'
+            }
+        ];
+        for (const mismatch of mismatches) {
+            const candidate = { request: structuredClone(base.request), context: structuredClone(base.context) };
+            mismatch.mutate(candidate);
+            let thrown;
+            try {
+                validateCanonicalExecutionContext(candidate.context, {
+                    expectedAudience: contract.signature.audience,
+                    now: base.evaluation_time,
+                    request: candidate.request
+                });
+            } catch (error) {
+                thrown = error;
+            }
+            expect(thrown?.code, mismatch.name).toBe(mismatch.expected);
+        }
+
+        const nonSlack = structuredClone(base.request);
+        nonSlack.provider_identity.provider = 'codex';
+        expect(schemaValidators.observed(nonSlack)).toBe(false);
+        expect(() => validateObservedExecutionRequest(nonSlack)).toThrow('invalid value');
     });
 
     it('fixes human_action as pending completion and deny as zero-effect machine outcomes', () => {
@@ -406,6 +478,10 @@ describe('Brainbase company authority producer contract v1', () => {
             'wrong_approver',
             'personal_no_fallback',
             'context_integrity'
+        ]));
+        expect(fixtures.required_case_categories).toEqual(expect.arrayContaining([
+            'cross_layer_binding',
+            'provider_scope_v1'
         ]));
         for (const fixture of fixtures.negative) {
             expect(CANONICAL_ERROR_CODES).toContain(fixture.expected.code);
