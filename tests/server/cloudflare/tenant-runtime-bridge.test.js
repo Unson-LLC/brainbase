@@ -80,6 +80,7 @@ describe('Cloudflare tenant runtime private bridge', () => {
 
     it.each([
         '/api/v1/runtime/tenant-context:resolve',
+        '/api/v1/runtime/workspace-connections:validate-revision',
         '/api/v1/runtime/credential-leases',
         '/api/v1/runtime/quota:decide',
         '/api/v1/runtime/usage-events',
