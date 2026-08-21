@@ -2,6 +2,19 @@
   "schema_version": "0.1.0",
   "story_id": "story-canonical-company-authority-producer-contract-v1",
   "generated_by": { "caller": "codex", "stage": "static_fallback" },
+  "tdd_evidence": {
+    "historical_red": "not_collected",
+    "new_red": "not_collected",
+    "red_basis": "No pre-implementation execution or record exists; RED is not inferred.",
+    "green": {
+      "status": "observed",
+      "producer_conformance_tests": 54,
+      "shared_consumer_conformance_tests": 25,
+      "total_tests": 79,
+      "evidence_scope": "synthetic_contract_only"
+    },
+    "separation": "Observed GREEN does not imply RED was collected."
+  },
   "clauses": [
     {
       "id": "C-001",

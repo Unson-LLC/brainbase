@@ -55,8 +55,9 @@
   ],
   "tdd": {
     "historical_red": "not_collected",
-    "red": "Do not fabricate the initial implementation RED: it was not collected. For this change, run the added forbidden-authority-field and machine-outcome tests before the schema/reference implementation and record their actual RED.",
-    "green": "Run the targeted conformance test and deterministic Node validator across all 9 positive and 39 negative fixtures.",
+    "new_red": "not_collected",
+    "red": "Do not fabricate the initial implementation RED or a pre-fix RED for the added forbidden-authority-field and machine-outcome tests: neither was executed or recorded before the schema/reference implementation, so the status is not_collected.",
+    "green": "Observed separately after implementation: producer conformance 54 tests and shared consumer conformance 25 tests passed over the synthetic contract fixtures. GREEN is not evidence that RED was collected.",
     "regression": ["npm run test:conformance:mana-brainbase -- tests/conformance/brainbase-company-authority-producer-contract.test.js", "node --check contracts/mana-brainbase-company-authority/v1/reference/wire.mjs", "git diff --check"]
   },
   "evidence": {
