@@ -174,7 +174,7 @@
   },
   "fixture_coverage": {
     "positive_case_count": 9,
-    "negative_case_count": 46,
+    "negative_case_count": 52,
     "operation_capability_examples": ["company_read", "company_write", "company_external_side_effect", "personal_read"],
     "decision_modes": ["auto", "approval", "human_action", "deny"],
     "tenant_person_matrix": "2 tenants x 2 persons; each row links positive_case_id to a signed context",

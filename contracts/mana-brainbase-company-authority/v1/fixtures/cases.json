@@ -20,6 +20,7 @@
     "diagnostic_allowlist",
     "queue_redelivery_idempotency",
     "context_integrity",
+    "operation_capability_separation",
     "request_authority_field_forbidden",
     "cross_layer_binding",
     "provider_scope_v1",
@@ -1570,6 +1571,180 @@
           "operation": "set",
           "path": "/context/tenant_context/placement/deployment_id",
           "value": "dep_01ARZ3NDEKTSV4RRFFQ69G5FB0"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-WORKSPACE-ID-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/provider_identity/workspace_id",
+          "value": "workspace-tenant-b"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-APP-ID-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/provider_identity/app_id",
+          "value": "synthetic-app-other"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-ENTERPRISE-ID-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/provider_identity/enterprise_id",
+          "value": "synthetic-enterprise-other"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-CHANNEL-ID-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/delivery/channel_id",
+          "value": "channel-tenant-b"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-THREAD-TS-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/delivery/thread_ts",
+          "value": "thread-tenant-b"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-EVENT-ID-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/delivery/event_id",
+          "value": "evt-tenant-b-person-umeda"
         }
       ],
       "expected": {

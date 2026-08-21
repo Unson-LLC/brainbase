@@ -49,7 +49,7 @@ desired effect/operation capability欠落、unknown/ambiguous person、cross-org
 
 - [x] AC-006: synthetic fixtureとmanifest digestを固定する
 
-2 tenant × 2 person、9 positive、46 negativeを決定論的fixtureとして保存する。禁止される11 authority field（person/org/project/owner/RACI/approver/decision/policy/credential）の各注入に加え、request subject↔outer actor↔nested actor、outer scope↔nested authorization/placementの不一致と非Slack providerを独立negative fixtureで示す。fixture setはmanifest自身を除外した相対path + NUL + bytesのSHA-256で識別し、source lockにはcontract/manifest versionとdigestだけを含める。producerのcommit、branch head、merge SHAは自己参照せず、merged SHAはdownstream lockで後から固定する。
+2 tenant × 2 person、9 positive、52 negativeを決定論的fixtureとして保存する。禁止される11 authority field（person/org/project/owner/RACI/approver/decision/policy/credential）の各注入に加え、request subject↔outer actor↔nested actor、outer scope↔nested authorization/placement、Slack request-to-nested workspace/app/enterpriseおよびdelivery channel/thread/eventの不一致と非Slack providerを独立negative fixtureで示す。fixture setはmanifest自身を除外した相対path + NUL + bytesのSHA-256で識別し、source lockにはcontract/manifest versionとdigestだけを含める。producerのcommit、branch head、merge SHAは自己参照せず、merged SHAはdownstream lockで後から固定する。
 
 - [x] AC-007: 合成契約限定のTDD conformanceを実行できる（Graph実データ・live runtime・deploymentは未検証）
 

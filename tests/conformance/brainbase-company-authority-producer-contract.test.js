@@ -149,8 +149,9 @@ describe('Brainbase company authority producer contract v1', () => {
         expect(new Set(manifest.negative_case_ids).size).toBe(manifest.negative_case_ids.length);
         expect(manifest.positive_case_ids).toEqual(positiveIds);
         expect(manifest.negative_case_ids).toEqual(negativeIds);
+        expect(manifest.required_case_categories).toEqual(fixtures.required_case_categories);
         expect(fixtures.positive).toHaveLength(9);
-        expect(fixtures.negative).toHaveLength(46);
+        expect(fixtures.negative).toHaveLength(52);
     });
 
     it('rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries', () => {
@@ -300,6 +301,34 @@ describe('Brainbase company authority producer contract v1', () => {
         nonSlack.provider_identity.provider = 'codex';
         expect(schemaValidators.observed(nonSlack)).toBe(false);
         expect(() => validateObservedExecutionRequest(nonSlack)).toThrow('invalid value');
+    });
+
+    it('locks Slack request-to-nested binding negatives to exact fixture paths and category', () => {
+        const expectedBindings = [
+            ['NEG-REQUEST-WORKSPACE-ID-NESTED-MISMATCH', '/request/provider_identity/workspace_id'],
+            ['NEG-REQUEST-APP-ID-NESTED-MISMATCH', '/request/provider_identity/app_id'],
+            ['NEG-REQUEST-ENTERPRISE-ID-NESTED-MISMATCH', '/request/provider_identity/enterprise_id'],
+            ['NEG-REQUEST-CHANNEL-ID-NESTED-MISMATCH', '/request/delivery/channel_id'],
+            ['NEG-REQUEST-THREAD-TS-NESTED-MISMATCH', '/request/delivery/thread_ts'],
+            ['NEG-REQUEST-EVENT-ID-NESTED-MISMATCH', '/request/delivery/event_id']
+        ];
+        const fixtureById = new Map(fixtures.negative.map((fixture) => [fixture.id, fixture]));
+        for (const [id, requestPath] of expectedBindings) {
+            const fixture = fixtureById.get(id);
+            expect(fixture, `missing Slack binding fixture ${id}`).toBeDefined();
+            expect(fixture.category).toBe('cross_layer_binding');
+            expect(fixture.target).toBe('binding');
+            expect(fixture.mutations).toHaveLength(1);
+            expect(fixture.mutations[0].operation).toBe('set');
+            expect(fixture.mutations[0].path).toBe(requestPath);
+            expect(fixture.expected.code).toBe('AUTHORITY_SCOPE_MISMATCH');
+            expect(fixture.expected.business_effects).toEqual({
+                business_api_called: false,
+                llm_called: false,
+                credential_lease_issued: false,
+                external_side_effect: false
+            });
+        }
     });
 
     it('fixes human_action as pending completion and deny as zero-effect machine outcomes', () => {

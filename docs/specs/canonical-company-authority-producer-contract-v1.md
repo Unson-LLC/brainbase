@@ -74,7 +74,7 @@ When authority is unavailable, only health, protocol negotiation, provisioning, 
 
 ## Required conformance matrix
 
-The deterministic manifest has nine positive fixtures and 46 negative mutations over two tenants and two synthetic people (`tenant-a`/`tenant-b` × `person-sato`/`person-umeda`). The matrix must include:
+The deterministic manifest has nine positive fixtures and 52 negative mutations over two tenants and two synthetic people (`tenant-a`/`tenant-b` × `person-sato`/`person-umeda`). The matrix must include:
 
 - missing desired effect, missing `company_authority_v1` protocol marker, and operation capability/marker separation;
 - all four decision modes and a Personal owner success;
