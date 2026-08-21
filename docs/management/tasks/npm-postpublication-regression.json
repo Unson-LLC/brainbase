@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-npm-postpublication-regression",
+  "status": "verified",
+  "tasks": [
+    {
+      "id": "NPM-POST-T1",
+      "title": "通常回帰と公開前専用検査を分離する",
+      "status": "completed",
+      "evidence": [
+        "package.json",
+        "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts"
+      ]
+    }
+  ]
+}
