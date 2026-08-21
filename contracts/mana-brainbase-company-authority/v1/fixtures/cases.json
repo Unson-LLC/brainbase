@@ -1,0 +1,2816 @@
+{
+  "schema_version": "1.0",
+  "contract_id": "mana-brainbase-company-authority/v1",
+  "synthetic_data_only": true,
+  "manifest_version": "1.0",
+  "required_case_categories": [
+    "desired_effect_explicit",
+    "company_authority_required",
+    "decision_modes",
+    "revision_revalidation",
+    "personal_no_fallback",
+    "unknown_person",
+    "cross_org",
+    "stale_revision",
+    "tenant_connection_revision",
+    "project_scope",
+    "membership_status",
+    "wrong_approver",
+    "authority_unavailable",
+    "diagnostic_allowlist",
+    "queue_redelivery_idempotency",
+    "context_integrity",
+    "operation_capability_separation",
+    "request_authority_field_forbidden",
+    "cross_layer_binding",
+    "provider_scope_v1",
+    "two_tenant_two_person"
+  ],
+  "tenant_person_matrix": [
+    {
+      "tenant_id": "tenant-a",
+      "person_id": "person-sato",
+      "positive_case_id": "POS-AUTO-COMPANY-READ",
+      "canonical_tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "tenant_id": "tenant-a",
+      "person_id": "person-umeda",
+      "positive_case_id": "POS-AUTO-COMPANY-READ-UMEDA",
+      "canonical_tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "tenant_id": "tenant-b",
+      "person_id": "person-sato",
+      "positive_case_id": "POS-DENY-COMPANY-WRITE",
+      "canonical_tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAW"
+    },
+    {
+      "tenant_id": "tenant-b",
+      "person_id": "person-umeda",
+      "positive_case_id": "POS-HUMAN-ACTION-COMPANY-WRITE",
+      "canonical_tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAW"
+    }
+  ],
+  "positive": [
+    {
+      "id": "POS-AUTO-COMPANY-READ",
+      "kind": "positive",
+      "category": "decision_modes",
+      "request": {
+        "provider_identity": {
+          "provider": "slack",
+          "authenticated_subject_id": "person-sato",
+          "app_id": "synthetic-app",
+          "workspace_id": "workspace-tenant-a",
+          "enterprise_id": "synthetic-enterprise"
+        },
+        "requested_action": {
+          "capability_id": "company_read",
+          "resource_ref": "company://tenant-a/project-a/read",
+          "project_hint": "project-a",
+          "desired_effect": "read"
+        },
+        "delivery": {
+          "channel_id": "channel-tenant-a",
+          "thread_ts": "thread-tenant-a",
+          "event_id": "evt-tenant-a-person-sato"
+        },
+        "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB1"
+      },
+      "context": {
+        "schema_version": "1.0",
+        "tenant_context": {
+          "schema_version": "1.0",
+          "protocol_id": "mana-brainbase-tenant-context",
+          "protocol_version": "1.0",
+          "issuer": "brainbase",
+          "audience": [
+            "mana-runtime"
+          ],
+          "tenant": {
+            "tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "tenant_revision": "1"
+          },
+          "workspace_connection": {
+            "connection_id": "wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+            "connection_revision": "1",
+            "status": "active",
+            "provider": "slack",
+            "installation_id": "installation-tenant-a",
+            "workspace_id": "workspace-tenant-a",
+            "app_id": "synthetic-app"
+          },
+          "actor": {
+            "principal_id": "person-sato",
+            "principal_type": "person",
+            "authenticated_subject_id": "person-sato"
+          },
+          "authorization": {
+            "organization_ids": [
+              "organization-tenant-a"
+            ],
+            "project_ids": [
+              "project-a"
+            ],
+            "data_scopes": [
+              "company"
+            ],
+            "capability_ids": [
+              "signed_tenant_context",
+              "tenant_scoped_authorization",
+              "company_authority_v1"
+            ]
+          },
+          "placement": {
+            "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+            "profile": "shared_cloud"
+          },
+          "slack": {
+            "event_id": "evt-tenant-a-person-sato",
+            "channel_id": "channel-tenant-a",
+            "thread_ts": "thread-tenant-a",
+            "requester_id": "person-sato",
+            "enterprise_id": "synthetic-enterprise"
+          },
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB1",
+          "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC1",
+          "idempotency_key": "ik1_S2a00iCEOobAfDUv0vWyG4bh6rKcJ4tL_1mI03dOHpQ",
+          "contract_revision": "1",
+          "credential": {
+            "mode": "cloud_standard",
+            "credential_ref": "credential-tenant-a",
+            "billing_principal_id": "billing-tenant-a"
+          },
+          "issued_at": "2026-08-21T00:00:00Z",
+          "expires_at": "2026-08-21T00:05:00Z",
+          "integrity": {
+            "method": "jws_detached",
+            "algorithm": "EdDSA",
+            "key_id": "synthetic-a0-20260821",
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..E-RkHRmHBdtfBoSUg5CRrY2eOlwPkvSTygYKC49qzZqZy-lWoNeMxawXXt7U9GWGfzB7wtwIHIwPe3Z-2iaOCw"
+          }
+        },
+        "actor": {
+          "external_subject_id": "person-sato",
+          "canonical_person_id": "person-sato",
+          "membership_id": "membership-tenant-a-person-sato",
+          "membership_revision": "1"
+        },
+        "scope": {
+          "organization_id": "organization-tenant-a",
+          "project_id": "project-a",
+          "resource_ref": "company://tenant-a/project-a/read",
+          "owner_person_id": null,
+          "placement_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+        },
+        "authority": {
+          "decision": "auto",
+          "capability_id": "company_read",
+          "responsible_person_id": null,
+          "accountable_person_id": "person-sato",
+          "approver_person_id": null,
+          "delegated_by_person_id": null,
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "resource_revision": "1",
+          "allowed_effects": [
+            "read"
+          ],
+          "stop_conditions": [
+            "revision_mismatch",
+            "signature_invalid",
+            "context_expired"
+          ]
+        },
+        "evidence": {
+          "identity_resolution_receipt_id": "identity-receipt-tenant-a-person-sato",
+          "authority_resolution_receipt_id": "authority-receipt-tenant-a-person-sato-auto"
+        },
+        "issued_at": "2026-08-21T00:00:00Z",
+        "expires_at": "2026-08-21T00:05:00Z",
+        "integrity": {
+          "method": "jws_detached",
+          "algorithm": "EdDSA",
+          "key_id": "synthetic-a0-20260821",
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..VUyiDnH1wTq0d_BDlpBAR0xzCALUUevR6ScR4rhv9QELFyJw_8dZQY0qd8rkeOW0KV6dqyST-0y5uqXFMHoiBA"
+        }
+      },
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"company_read\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/read\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB1\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_S2a00iCEOobAfDUv0vWyG4bh6rKcJ4tL_1mI03dOHpQ\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..E-RkHRmHBdtfBoSUg5CRrY2eOlwPkvSTygYKC49qzZqZy-lWoNeMxawXXt7U9GWGfzB7wtwIHIwPe3Z-2iaOCw\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC1\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "evaluation_time": "2026-08-21T00:01:00Z",
+      "operation": "company",
+      "expected": {
+        "outcome": "accepted",
+        "code": null
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      },
+      "notes": "Only the signed read scope is executable."
+    },
+    {
+      "id": "POS-AUTO-COMPANY-READ-UMEDA",
+      "kind": "positive",
+      "category": "decision_modes",
+      "request": {
+        "provider_identity": {
+          "provider": "slack",
+          "authenticated_subject_id": "person-umeda",
+          "app_id": "synthetic-app",
+          "workspace_id": "workspace-tenant-a",
+          "enterprise_id": "synthetic-enterprise"
+        },
+        "requested_action": {
+          "capability_id": "company_read",
+          "resource_ref": "company://tenant-a/project-a/read-umeda",
+          "project_hint": "project-a",
+          "desired_effect": "read"
+        },
+        "delivery": {
+          "channel_id": "channel-tenant-a",
+          "thread_ts": "thread-tenant-a",
+          "event_id": "evt-tenant-a-person-umeda"
+        },
+        "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB2"
+      },
+      "context": {
+        "schema_version": "1.0",
+        "tenant_context": {
+          "schema_version": "1.0",
+          "protocol_id": "mana-brainbase-tenant-context",
+          "protocol_version": "1.0",
+          "issuer": "brainbase",
+          "audience": [
+            "mana-runtime"
+          ],
+          "tenant": {
+            "tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "tenant_revision": "1"
+          },
+          "workspace_connection": {
+            "connection_id": "wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+            "connection_revision": "1",
+            "status": "active",
+            "provider": "slack",
+            "installation_id": "installation-tenant-a",
+            "workspace_id": "workspace-tenant-a",
+            "app_id": "synthetic-app"
+          },
+          "actor": {
+            "principal_id": "person-umeda",
+            "principal_type": "person",
+            "authenticated_subject_id": "person-umeda"
+          },
+          "authorization": {
+            "organization_ids": [
+              "organization-tenant-a"
+            ],
+            "project_ids": [
+              "project-a"
+            ],
+            "data_scopes": [
+              "company"
+            ],
+            "capability_ids": [
+              "signed_tenant_context",
+              "tenant_scoped_authorization",
+              "company_authority_v1"
+            ]
+          },
+          "placement": {
+            "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+            "profile": "shared_cloud"
+          },
+          "slack": {
+            "event_id": "evt-tenant-a-person-umeda",
+            "channel_id": "channel-tenant-a",
+            "thread_ts": "thread-tenant-a",
+            "requester_id": "person-umeda",
+            "enterprise_id": "synthetic-enterprise"
+          },
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB2",
+          "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC2",
+          "idempotency_key": "ik1_Vg94ekqOsfxdCHvbHEyy4EuhJZmG0CZnoGy08HXPJjg",
+          "contract_revision": "1",
+          "credential": {
+            "mode": "cloud_standard",
+            "credential_ref": "credential-tenant-a",
+            "billing_principal_id": "billing-tenant-a"
+          },
+          "issued_at": "2026-08-21T00:00:00Z",
+          "expires_at": "2026-08-21T00:05:00Z",
+          "integrity": {
+            "method": "jws_detached",
+            "algorithm": "EdDSA",
+            "key_id": "synthetic-a0-20260821",
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..B9WCk8i3w2gxV4DLMPVodqUtar-L8wOrZvr81O6P2XDinzKQaEFV25Ila6RcYFg7JD5hOgRD6qpGLMVvHvYyCA"
+          }
+        },
+        "actor": {
+          "external_subject_id": "person-umeda",
+          "canonical_person_id": "person-umeda",
+          "membership_id": "membership-tenant-a-person-umeda",
+          "membership_revision": "1"
+        },
+        "scope": {
+          "organization_id": "organization-tenant-a",
+          "project_id": "project-a",
+          "resource_ref": "company://tenant-a/project-a/read-umeda",
+          "owner_person_id": null,
+          "placement_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+        },
+        "authority": {
+          "decision": "auto",
+          "capability_id": "company_read",
+          "responsible_person_id": null,
+          "accountable_person_id": "person-umeda",
+          "approver_person_id": null,
+          "delegated_by_person_id": null,
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "resource_revision": "1",
+          "allowed_effects": [
+            "read"
+          ],
+          "stop_conditions": [
+            "revision_mismatch",
+            "signature_invalid",
+            "context_expired"
+          ]
+        },
+        "evidence": {
+          "identity_resolution_receipt_id": "identity-receipt-tenant-a-person-umeda",
+          "authority_resolution_receipt_id": "authority-receipt-tenant-a-person-umeda-auto"
+        },
+        "issued_at": "2026-08-21T00:00:00Z",
+        "expires_at": "2026-08-21T00:05:00Z",
+        "integrity": {
+          "method": "jws_detached",
+          "algorithm": "EdDSA",
+          "key_id": "synthetic-a0-20260821",
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..58BvgBL7hYVuRUh6wUPvqiLgClWaiMxQdupRAZ-9S3u8P11d9GX5yNYDkkwfv9SWuabu2HNdFkA4_2enu6brAQ"
+        }
+      },
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-umeda\",\"external_subject_id\":\"person-umeda\",\"membership_id\":\"membership-tenant-a-person-umeda\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-umeda\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"company_read\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-umeda-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-umeda\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/read-umeda\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-umeda\",\"principal_id\":\"person-umeda\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB2\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_Vg94ekqOsfxdCHvbHEyy4EuhJZmG0CZnoGy08HXPJjg\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..B9WCk8i3w2gxV4DLMPVodqUtar-L8wOrZvr81O6P2XDinzKQaEFV25Ila6RcYFg7JD5hOgRD6qpGLMVvHvYyCA\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC2\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-umeda\",\"requester_id\":\"person-umeda\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "evaluation_time": "2026-08-21T00:01:00Z",
+      "operation": "company",
+      "expected": {
+        "outcome": "accepted",
+        "code": null
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      },
+      "notes": "The second canonical person in tenant-a has an independent signed scope."
+    },
+    {
+      "id": "POS-APPROVAL-EXTERNAL-SIDE-EFFECT",
+      "kind": "positive",
+      "category": "decision_modes",
+      "request": {
+        "provider_identity": {
+          "provider": "slack",
+          "authenticated_subject_id": "person-sato",
+          "app_id": "synthetic-app",
+          "workspace_id": "workspace-tenant-a",
+          "enterprise_id": "synthetic-enterprise"
+        },
+        "requested_action": {
+          "capability_id": "company_external_side_effect",
+          "resource_ref": "company://tenant-a/project-a/external",
+          "project_hint": "project-a",
+          "desired_effect": "external_side_effect"
+        },
+        "delivery": {
+          "channel_id": "channel-tenant-a",
+          "thread_ts": "thread-tenant-a",
+          "event_id": "evt-tenant-a-person-sato"
+        },
+        "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB3"
+      },
+      "context": {
+        "schema_version": "1.0",
+        "tenant_context": {
+          "schema_version": "1.0",
+          "protocol_id": "mana-brainbase-tenant-context",
+          "protocol_version": "1.0",
+          "issuer": "brainbase",
+          "audience": [
+            "mana-runtime"
+          ],
+          "tenant": {
+            "tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "tenant_revision": "1"
+          },
+          "workspace_connection": {
+            "connection_id": "wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+            "connection_revision": "1",
+            "status": "active",
+            "provider": "slack",
+            "installation_id": "installation-tenant-a",
+            "workspace_id": "workspace-tenant-a",
+            "app_id": "synthetic-app"
+          },
+          "actor": {
+            "principal_id": "person-sato",
+            "principal_type": "person",
+            "authenticated_subject_id": "person-sato"
+          },
+          "authorization": {
+            "organization_ids": [
+              "organization-tenant-a"
+            ],
+            "project_ids": [
+              "project-a"
+            ],
+            "data_scopes": [
+              "company"
+            ],
+            "capability_ids": [
+              "signed_tenant_context",
+              "tenant_scoped_authorization",
+              "company_authority_v1"
+            ]
+          },
+          "placement": {
+            "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+            "profile": "shared_cloud"
+          },
+          "slack": {
+            "event_id": "evt-tenant-a-person-sato",
+            "channel_id": "channel-tenant-a",
+            "thread_ts": "thread-tenant-a",
+            "requester_id": "person-sato",
+            "enterprise_id": "synthetic-enterprise"
+          },
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB3",
+          "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC3",
+          "idempotency_key": "ik1_R90qwGHALkj6yR__Vuq3JiWitHghiDc5QZCiFqKmySc",
+          "contract_revision": "1",
+          "credential": {
+            "mode": "cloud_standard",
+            "credential_ref": "credential-tenant-a",
+            "billing_principal_id": "billing-tenant-a"
+          },
+          "issued_at": "2026-08-21T00:00:00Z",
+          "expires_at": "2026-08-21T00:05:00Z",
+          "integrity": {
+            "method": "jws_detached",
+            "algorithm": "EdDSA",
+            "key_id": "synthetic-a0-20260821",
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..H0YD3UN1X_0ZKf4T57sXMlSVJ-BMsRKGN_mQfxm64nclN1cPtG_YzpIjomqStveecDtUz0hv5frmxP4gqjHxBg"
+          }
+        },
+        "actor": {
+          "external_subject_id": "person-sato",
+          "canonical_person_id": "person-sato",
+          "membership_id": "membership-tenant-a-person-sato",
+          "membership_revision": "1"
+        },
+        "scope": {
+          "organization_id": "organization-tenant-a",
+          "project_id": "project-a",
+          "resource_ref": "company://tenant-a/project-a/external",
+          "owner_person_id": null,
+          "placement_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+        },
+        "authority": {
+          "decision": "approval",
+          "capability_id": "company_external_side_effect",
+          "responsible_person_id": null,
+          "accountable_person_id": "person-sato",
+          "approver_person_id": "person-umeda",
+          "delegated_by_person_id": null,
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "resource_revision": "1",
+          "allowed_effects": [
+            "external_side_effect"
+          ],
+          "stop_conditions": [
+            "revision_mismatch",
+            "signature_invalid",
+            "context_expired"
+          ]
+        },
+        "evidence": {
+          "identity_resolution_receipt_id": "identity-receipt-tenant-a-person-sato",
+          "authority_resolution_receipt_id": "authority-receipt-tenant-a-person-sato-approval"
+        },
+        "issued_at": "2026-08-21T00:00:00Z",
+        "expires_at": "2026-08-21T00:05:00Z",
+        "integrity": {
+          "method": "jws_detached",
+          "algorithm": "EdDSA",
+          "key_id": "synthetic-a0-20260821",
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..pSoXUJkFLndeJRIHCWzdnutdMjrCwhnt-w68ql-Rspip4ZCUFnhk1zlAAyWboh9x7cqueazQTzL5oz7SV7PPAA"
+        }
+      },
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"external_side_effect\"],\"approver_person_id\":\"person-umeda\",\"capability_id\":\"company_external_side_effect\",\"decision\":\"approval\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-approval\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/external\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB3\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_R90qwGHALkj6yR__Vuq3JiWitHghiDc5QZCiFqKmySc\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..H0YD3UN1X_0ZKf4T57sXMlSVJ-BMsRKGN_mQfxm64nclN1cPtG_YzpIjomqStveecDtUz0hv5frmxP4gqjHxBg\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC3\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "evaluation_time": "2026-08-21T00:01:00Z",
+      "operation": "company",
+      "expected": {
+        "outcome": "approval_packet",
+        "code": null
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      },
+      "notes": "No external effect occurs before the named approver accepts."
+    },
+    {
+      "id": "POS-HUMAN-ACTION-COMPANY-WRITE",
+      "kind": "positive",
+      "category": "decision_modes",
+      "request": {
+        "provider_identity": {
+          "provider": "slack",
+          "authenticated_subject_id": "person-umeda",
+          "app_id": "synthetic-app",
+          "workspace_id": "workspace-tenant-b",
+          "enterprise_id": "synthetic-enterprise"
+        },
+        "requested_action": {
+          "capability_id": "company_write",
+          "resource_ref": "company://tenant-b/project-b/write",
+          "project_hint": "project-b",
+          "desired_effect": "write"
+        },
+        "delivery": {
+          "channel_id": "channel-tenant-b",
+          "thread_ts": "thread-tenant-b",
+          "event_id": "evt-tenant-b-person-umeda"
+        },
+        "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB4"
+      },
+      "context": {
+        "schema_version": "1.0",
+        "tenant_context": {
+          "schema_version": "1.0",
+          "protocol_id": "mana-brainbase-tenant-context",
+          "protocol_version": "1.0",
+          "issuer": "brainbase",
+          "audience": [
+            "mana-runtime"
+          ],
+          "tenant": {
+            "tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+            "tenant_revision": "1"
+          },
+          "workspace_connection": {
+            "connection_id": "wsc_01ARZ3NDEKTSV4RRFFQ69G5FAY",
+            "connection_revision": "1",
+            "status": "active",
+            "provider": "slack",
+            "installation_id": "installation-tenant-b",
+            "workspace_id": "workspace-tenant-b",
+            "app_id": "synthetic-app"
+          },
+          "actor": {
+            "principal_id": "person-umeda",
+            "principal_type": "person",
+            "authenticated_subject_id": "person-umeda"
+          },
+          "authorization": {
+            "organization_ids": [
+              "organization-tenant-b"
+            ],
+            "project_ids": [
+              "project-b"
+            ],
+            "data_scopes": [
+              "company"
+            ],
+            "capability_ids": [
+              "signed_tenant_context",
+              "tenant_scoped_authorization",
+              "company_authority_v1"
+            ]
+          },
+          "placement": {
+            "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FB0",
+            "profile": "shared_cloud"
+          },
+          "slack": {
+            "event_id": "evt-tenant-b-person-umeda",
+            "channel_id": "channel-tenant-b",
+            "thread_ts": "thread-tenant-b",
+            "requester_id": "person-umeda",
+            "enterprise_id": "synthetic-enterprise"
+          },
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB4",
+          "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC4",
+          "idempotency_key": "ik1_Z7U_vmfZVct9wHEWoLGaGLpJd9iUTyZZDeQKOu-n0pU",
+          "contract_revision": "1",
+          "credential": {
+            "mode": "cloud_standard",
+            "credential_ref": "credential-tenant-b",
+            "billing_principal_id": "billing-tenant-b"
+          },
+          "issued_at": "2026-08-21T00:00:00Z",
+          "expires_at": "2026-08-21T00:05:00Z",
+          "integrity": {
+            "method": "jws_detached",
+            "algorithm": "EdDSA",
+            "key_id": "synthetic-a0-20260821",
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..gt___2qON8EE6yiyftxeohdMrSc4S4uLhmbMNnM7uF4WjymFyN8DnbRblZFYLD-M364EYaiertoD_dvAtMuaBA"
+          }
+        },
+        "actor": {
+          "external_subject_id": "person-umeda",
+          "canonical_person_id": "person-umeda",
+          "membership_id": "membership-tenant-b-person-umeda",
+          "membership_revision": "1"
+        },
+        "scope": {
+          "organization_id": "organization-tenant-b",
+          "project_id": "project-b",
+          "resource_ref": "company://tenant-b/project-b/write",
+          "owner_person_id": null,
+          "placement_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FB0"
+        },
+        "authority": {
+          "decision": "human_action",
+          "capability_id": "company_write",
+          "responsible_person_id": "person-umeda",
+          "accountable_person_id": "person-umeda",
+          "approver_person_id": null,
+          "delegated_by_person_id": null,
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "resource_revision": "1",
+          "allowed_effects": [
+            "write"
+          ],
+          "stop_conditions": [
+            "revision_mismatch",
+            "signature_invalid",
+            "context_expired"
+          ]
+        },
+        "evidence": {
+          "identity_resolution_receipt_id": "identity-receipt-tenant-b-person-umeda",
+          "authority_resolution_receipt_id": "authority-receipt-tenant-b-person-umeda-human_action"
+        },
+        "issued_at": "2026-08-21T00:00:00Z",
+        "expires_at": "2026-08-21T00:05:00Z",
+        "integrity": {
+          "method": "jws_detached",
+          "algorithm": "EdDSA",
+          "key_id": "synthetic-a0-20260821",
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..6NXaijEhSlhSOjA2PiYt6zF09Udr5jI-7Hck5OHKszWeO8WtIUkDDGM2isFC0jGEhQLMt8qXeUc19E8kxLHCAg"
+        }
+      },
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-umeda\",\"external_subject_id\":\"person-umeda\",\"membership_id\":\"membership-tenant-b-person-umeda\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-umeda\",\"allowed_effects\":[\"write\"],\"approver_person_id\":null,\"capability_id\":\"company_write\",\"decision\":\"human_action\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":\"person-umeda\",\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-b-person-umeda-human_action\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-b-person-umeda\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-b\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"project_id\":\"project-b\",\"resource_ref\":\"company://tenant-b/project-b/write\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-umeda\",\"principal_id\":\"person-umeda\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-b\"],\"project_ids\":[\"project-b\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB4\",\"credential\":{\"billing_principal_id\":\"billing-tenant-b\",\"credential_ref\":\"credential-tenant-b\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_Z7U_vmfZVct9wHEWoLGaGLpJd9iUTyZZDeQKOu-n0pU\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..gt___2qON8EE6yiyftxeohdMrSc4S4uLhmbMNnM7uF4WjymFyN8DnbRblZFYLD-M364EYaiertoD_dvAtMuaBA\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC4\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-b\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-b-person-umeda\",\"requester_id\":\"person-umeda\",\"thread_ts\":\"thread-tenant-b\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAW\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAY\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-b\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-b\"}}}",
+      "evaluation_time": "2026-08-21T00:01:00Z",
+      "operation": "company",
+      "expected": {
+        "outcome": "accepted",
+        "code": null,
+        "machine_action": {
+          "kind": "human_action",
+          "notification_required": true,
+          "completion_required": true,
+          "completion_status": "pending_human_action"
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      },
+      "notes": "Notification is not completion."
+    },
+    {
+      "id": "POS-DENY-COMPANY-WRITE",
+      "kind": "positive",
+      "category": "decision_modes",
+      "request": {
+        "provider_identity": {
+          "provider": "slack",
+          "authenticated_subject_id": "person-sato",
+          "app_id": "synthetic-app",
+          "workspace_id": "workspace-tenant-b",
+          "enterprise_id": "synthetic-enterprise"
+        },
+        "requested_action": {
+          "capability_id": "company_write",
+          "resource_ref": "company://tenant-b/project-a/deny",
+          "project_hint": "project-a",
+          "desired_effect": "write"
+        },
+        "delivery": {
+          "channel_id": "channel-tenant-b",
+          "thread_ts": "thread-tenant-b",
+          "event_id": "evt-tenant-b-person-sato"
+        },
+        "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB5"
+      },
+      "context": {
+        "schema_version": "1.0",
+        "tenant_context": {
+          "schema_version": "1.0",
+          "protocol_id": "mana-brainbase-tenant-context",
+          "protocol_version": "1.0",
+          "issuer": "brainbase",
+          "audience": [
+            "mana-runtime"
+          ],
+          "tenant": {
+            "tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+            "tenant_revision": "1"
+          },
+          "workspace_connection": {
+            "connection_id": "wsc_01ARZ3NDEKTSV4RRFFQ69G5FAY",
+            "connection_revision": "1",
+            "status": "active",
+            "provider": "slack",
+            "installation_id": "installation-tenant-b",
+            "workspace_id": "workspace-tenant-b",
+            "app_id": "synthetic-app"
+          },
+          "actor": {
+            "principal_id": "person-sato",
+            "principal_type": "person",
+            "authenticated_subject_id": "person-sato"
+          },
+          "authorization": {
+            "organization_ids": [
+              "organization-tenant-b"
+            ],
+            "project_ids": [
+              "project-a"
+            ],
+            "data_scopes": [
+              "company"
+            ],
+            "capability_ids": [
+              "signed_tenant_context",
+              "tenant_scoped_authorization",
+              "company_authority_v1"
+            ]
+          },
+          "placement": {
+            "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FB0",
+            "profile": "shared_cloud"
+          },
+          "slack": {
+            "event_id": "evt-tenant-b-person-sato",
+            "channel_id": "channel-tenant-b",
+            "thread_ts": "thread-tenant-b",
+            "requester_id": "person-sato",
+            "enterprise_id": "synthetic-enterprise"
+          },
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB5",
+          "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC5",
+          "idempotency_key": "ik1_pe1xICd2-93mtS1FvNPpnY10BJrXSR0OzoLRRJHVDsM",
+          "contract_revision": "1",
+          "credential": {
+            "mode": "cloud_standard",
+            "credential_ref": "credential-tenant-b",
+            "billing_principal_id": "billing-tenant-b"
+          },
+          "issued_at": "2026-08-21T00:00:00Z",
+          "expires_at": "2026-08-21T00:05:00Z",
+          "integrity": {
+            "method": "jws_detached",
+            "algorithm": "EdDSA",
+            "key_id": "synthetic-a0-20260821",
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..jk7OAT1xhR3F0uoOCtqzg7rt5eZo_yefCnnCtWw8B8AoMoDtpKqJEhcD_bLxEu33JIkEPIGOogCiKeBNyjUdAw"
+          }
+        },
+        "actor": {
+          "external_subject_id": "person-sato",
+          "canonical_person_id": "person-sato",
+          "membership_id": "membership-tenant-b-person-sato",
+          "membership_revision": "1"
+        },
+        "scope": {
+          "organization_id": "organization-tenant-b",
+          "project_id": "project-a",
+          "resource_ref": "company://tenant-b/project-a/deny",
+          "owner_person_id": null,
+          "placement_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FB0"
+        },
+        "authority": {
+          "decision": "deny",
+          "capability_id": "company_write",
+          "responsible_person_id": null,
+          "accountable_person_id": "person-sato",
+          "approver_person_id": null,
+          "delegated_by_person_id": null,
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "resource_revision": "1",
+          "allowed_effects": [
+            "write"
+          ],
+          "stop_conditions": [
+            "revision_mismatch",
+            "signature_invalid",
+            "context_expired"
+          ]
+        },
+        "evidence": {
+          "identity_resolution_receipt_id": "identity-receipt-tenant-b-person-sato",
+          "authority_resolution_receipt_id": "authority-receipt-tenant-b-person-sato-deny"
+        },
+        "issued_at": "2026-08-21T00:00:00Z",
+        "expires_at": "2026-08-21T00:05:00Z",
+        "integrity": {
+          "method": "jws_detached",
+          "algorithm": "EdDSA",
+          "key_id": "synthetic-a0-20260821",
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9.._PRkFYat7Wm0FUW5gLlXPCYKuKqvzaPrCMaLxuW7YnLKJcGynrQtDtv5BLvqMLMSECrsQS9or253wrWXA8C8AQ"
+        }
+      },
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-b-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"write\"],\"approver_person_id\":null,\"capability_id\":\"company_write\",\"decision\":\"deny\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-b-person-sato-deny\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-b-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-b\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-b/project-a/deny\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-b\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB5\",\"credential\":{\"billing_principal_id\":\"billing-tenant-b\",\"credential_ref\":\"credential-tenant-b\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_pe1xICd2-93mtS1FvNPpnY10BJrXSR0OzoLRRJHVDsM\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..jk7OAT1xhR3F0uoOCtqzg7rt5eZo_yefCnnCtWw8B8AoMoDtpKqJEhcD_bLxEu33JIkEPIGOogCiKeBNyjUdAw\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC5\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FB0\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-b\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-b-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-b\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAW\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAY\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-b\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-b\"}}}",
+      "evaluation_time": "2026-08-21T00:01:00Z",
+      "operation": "company",
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "COMPANY_AUTHORITY_DENIED",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      },
+      "wire_response": {
+        "schema_version": "1.0",
+        "contract_id": "mana-brainbase-company-authority/v1",
+        "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB5",
+        "context": null,
+        "error": {
+          "code": "COMPANY_AUTHORITY_DENIED",
+          "phase": "authority",
+          "retryable": false,
+          "business_effect": false,
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB5"
+        }
+      },
+      "notes": "A signed deny has no business effect."
+    },
+    {
+      "id": "POS-PERSONAL-AUTO-OWNER",
+      "kind": "positive",
+      "category": "personal_no_fallback",
+      "request": {
+        "provider_identity": {
+          "provider": "slack",
+          "authenticated_subject_id": "person-sato",
+          "app_id": "synthetic-app",
+          "workspace_id": "workspace-tenant-a",
+          "enterprise_id": "synthetic-enterprise"
+        },
+        "requested_action": {
+          "capability_id": "personal_read",
+          "resource_ref": "personal://person-sato/notes",
+          "project_hint": "project-a",
+          "desired_effect": "read"
+        },
+        "delivery": {
+          "channel_id": "channel-tenant-a",
+          "thread_ts": "thread-tenant-a",
+          "event_id": "evt-tenant-a-person-sato"
+        },
+        "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB6"
+      },
+      "context": {
+        "schema_version": "1.0",
+        "tenant_context": {
+          "schema_version": "1.0",
+          "protocol_id": "mana-brainbase-tenant-context",
+          "protocol_version": "1.0",
+          "issuer": "brainbase",
+          "audience": [
+            "mana-runtime"
+          ],
+          "tenant": {
+            "tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "tenant_revision": "1"
+          },
+          "workspace_connection": {
+            "connection_id": "wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+            "connection_revision": "1",
+            "status": "active",
+            "provider": "slack",
+            "installation_id": "installation-tenant-a",
+            "workspace_id": "workspace-tenant-a",
+            "app_id": "synthetic-app"
+          },
+          "actor": {
+            "principal_id": "person-sato",
+            "principal_type": "person",
+            "authenticated_subject_id": "person-sato"
+          },
+          "authorization": {
+            "organization_ids": [
+              "organization-tenant-a"
+            ],
+            "project_ids": [
+              "project-a"
+            ],
+            "data_scopes": [
+              "personal"
+            ],
+            "capability_ids": [
+              "signed_tenant_context",
+              "tenant_scoped_authorization",
+              "company_authority_v1"
+            ]
+          },
+          "placement": {
+            "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+            "profile": "shared_cloud"
+          },
+          "slack": {
+            "event_id": "evt-tenant-a-person-sato",
+            "channel_id": "channel-tenant-a",
+            "thread_ts": "thread-tenant-a",
+            "requester_id": "person-sato",
+            "enterprise_id": "synthetic-enterprise"
+          },
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB6",
+          "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC6",
+          "idempotency_key": "ik1_Z8v0bxnN4QBksp-XtDkABCF81fkx3e5zZMJ1zoxvPsc",
+          "contract_revision": "1",
+          "credential": {
+            "mode": "cloud_standard",
+            "credential_ref": "credential-tenant-a",
+            "billing_principal_id": "billing-tenant-a"
+          },
+          "issued_at": "2026-08-21T00:00:00Z",
+          "expires_at": "2026-08-21T00:05:00Z",
+          "integrity": {
+            "method": "jws_detached",
+            "algorithm": "EdDSA",
+            "key_id": "synthetic-a0-20260821",
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..o9u5WBMoMoNbMvCsHzfS395q4U7W1frkRBi9HQchLpNEqBQJvWXI4UPt9TebI4uzH-KXlo8FX9kOJUfXyigNBg"
+          }
+        },
+        "actor": {
+          "external_subject_id": "person-sato",
+          "canonical_person_id": "person-sato",
+          "membership_id": "membership-tenant-a-person-sato",
+          "membership_revision": "1"
+        },
+        "scope": {
+          "organization_id": "organization-tenant-a",
+          "project_id": "project-a",
+          "resource_ref": "personal://person-sato/notes",
+          "owner_person_id": "person-sato",
+          "placement_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+        },
+        "authority": {
+          "decision": "auto",
+          "capability_id": "personal_read",
+          "responsible_person_id": null,
+          "accountable_person_id": "person-sato",
+          "approver_person_id": null,
+          "delegated_by_person_id": null,
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "resource_revision": "1",
+          "allowed_effects": [
+            "read"
+          ],
+          "stop_conditions": [
+            "revision_mismatch",
+            "signature_invalid",
+            "context_expired"
+          ]
+        },
+        "evidence": {
+          "identity_resolution_receipt_id": "identity-receipt-tenant-a-person-sato",
+          "authority_resolution_receipt_id": "authority-receipt-tenant-a-person-sato-auto"
+        },
+        "issued_at": "2026-08-21T00:00:00Z",
+        "expires_at": "2026-08-21T00:05:00Z",
+        "integrity": {
+          "method": "jws_detached",
+          "algorithm": "EdDSA",
+          "key_id": "synthetic-a0-20260821",
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..-_Y67J8Y8iJitgKE3Us-vTcs5PRJj_Mp7VKMMKuKOEcw9Ia0vM6KQ0om_9AKHqJ5UVRPennHSLbc9ndz_RtEAg"
+        }
+      },
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"personal_read\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":\"person-sato\",\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"personal://person-sato/notes\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"personal\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB6\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_Z8v0bxnN4QBksp-XtDkABCF81fkx3e5zZMJ1zoxvPsc\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..o9u5WBMoMoNbMvCsHzfS395q4U7W1frkRBi9HQchLpNEqBQJvWXI4UPt9TebI4uzH-KXlo8FX9kOJUfXyigNBg\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC6\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "evaluation_time": "2026-08-21T00:01:00Z",
+      "operation": "personal",
+      "expected": {
+        "outcome": "accepted",
+        "code": null
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      },
+      "notes": "Only the canonical owner is in scope."
+    },
+    {
+      "id": "POS-PERSONAL-AUTO-OWNER-UMEDA",
+      "kind": "positive",
+      "category": "personal_no_fallback",
+      "request": {
+        "provider_identity": {
+          "provider": "slack",
+          "authenticated_subject_id": "person-umeda",
+          "app_id": "synthetic-app",
+          "workspace_id": "workspace-tenant-a",
+          "enterprise_id": "synthetic-enterprise"
+        },
+        "requested_action": {
+          "capability_id": "personal_read",
+          "resource_ref": "personal://person-umeda/notes",
+          "project_hint": "project-a",
+          "desired_effect": "read"
+        },
+        "delivery": {
+          "channel_id": "channel-tenant-a",
+          "thread_ts": "thread-tenant-a",
+          "event_id": "evt-tenant-a-person-umeda"
+        },
+        "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB7"
+      },
+      "context": {
+        "schema_version": "1.0",
+        "tenant_context": {
+          "schema_version": "1.0",
+          "protocol_id": "mana-brainbase-tenant-context",
+          "protocol_version": "1.0",
+          "issuer": "brainbase",
+          "audience": [
+            "mana-runtime"
+          ],
+          "tenant": {
+            "tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "tenant_revision": "1"
+          },
+          "workspace_connection": {
+            "connection_id": "wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+            "connection_revision": "1",
+            "status": "active",
+            "provider": "slack",
+            "installation_id": "installation-tenant-a",
+            "workspace_id": "workspace-tenant-a",
+            "app_id": "synthetic-app"
+          },
+          "actor": {
+            "principal_id": "person-umeda",
+            "principal_type": "person",
+            "authenticated_subject_id": "person-umeda"
+          },
+          "authorization": {
+            "organization_ids": [
+              "organization-tenant-a"
+            ],
+            "project_ids": [
+              "project-a"
+            ],
+            "data_scopes": [
+              "personal"
+            ],
+            "capability_ids": [
+              "signed_tenant_context",
+              "tenant_scoped_authorization",
+              "company_authority_v1"
+            ]
+          },
+          "placement": {
+            "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+            "profile": "shared_cloud"
+          },
+          "slack": {
+            "event_id": "evt-tenant-a-person-umeda",
+            "channel_id": "channel-tenant-a",
+            "thread_ts": "thread-tenant-a",
+            "requester_id": "person-umeda",
+            "enterprise_id": "synthetic-enterprise"
+          },
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB7",
+          "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC7",
+          "idempotency_key": "ik1_71Qu1g5uBCX-SN7OZ2Yk1HbWwkBF15ZOeE_pXy40hYw",
+          "contract_revision": "1",
+          "credential": {
+            "mode": "cloud_standard",
+            "credential_ref": "credential-tenant-a",
+            "billing_principal_id": "billing-tenant-a"
+          },
+          "issued_at": "2026-08-21T00:00:00Z",
+          "expires_at": "2026-08-21T00:05:00Z",
+          "integrity": {
+            "method": "jws_detached",
+            "algorithm": "EdDSA",
+            "key_id": "synthetic-a0-20260821",
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..HpMnVnaqG-MCyRvjnyFZTbCYE0z9f6stQnfxakodH9XnaU0EuDJPV71t_i78P_K3yJt63ugOzDSQqEpOfkFfBQ"
+          }
+        },
+        "actor": {
+          "external_subject_id": "person-umeda",
+          "canonical_person_id": "person-umeda",
+          "membership_id": "membership-tenant-a-person-umeda",
+          "membership_revision": "1"
+        },
+        "scope": {
+          "organization_id": "organization-tenant-a",
+          "project_id": "project-a",
+          "resource_ref": "personal://person-umeda/notes",
+          "owner_person_id": "person-umeda",
+          "placement_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+        },
+        "authority": {
+          "decision": "auto",
+          "capability_id": "personal_read",
+          "responsible_person_id": null,
+          "accountable_person_id": "person-umeda",
+          "approver_person_id": null,
+          "delegated_by_person_id": null,
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "resource_revision": "1",
+          "allowed_effects": [
+            "read"
+          ],
+          "stop_conditions": [
+            "revision_mismatch",
+            "signature_invalid",
+            "context_expired"
+          ]
+        },
+        "evidence": {
+          "identity_resolution_receipt_id": "identity-receipt-tenant-a-person-umeda",
+          "authority_resolution_receipt_id": "authority-receipt-tenant-a-person-umeda-auto"
+        },
+        "issued_at": "2026-08-21T00:00:00Z",
+        "expires_at": "2026-08-21T00:05:00Z",
+        "integrity": {
+          "method": "jws_detached",
+          "algorithm": "EdDSA",
+          "key_id": "synthetic-a0-20260821",
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..E2nyGyaOoU1oXJtnnDjaoqK9zKBfQ7weXOyPN8fWIwWnihUhzM__C4C6CB4sYNBwvjFYMM4kZ4IEXa8tfeFPDw"
+        }
+      },
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-umeda\",\"external_subject_id\":\"person-umeda\",\"membership_id\":\"membership-tenant-a-person-umeda\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-umeda\",\"allowed_effects\":[\"read\"],\"approver_person_id\":null,\"capability_id\":\"personal_read\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-umeda-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-umeda\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":\"person-umeda\",\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"personal://person-umeda/notes\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-umeda\",\"principal_id\":\"person-umeda\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"personal\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB7\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_71Qu1g5uBCX-SN7OZ2Yk1HbWwkBF15ZOeE_pXy40hYw\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..HpMnVnaqG-MCyRvjnyFZTbCYE0z9f6stQnfxakodH9XnaU0EuDJPV71t_i78P_K3yJt63ugOzDSQqEpOfkFfBQ\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC7\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-umeda\",\"requester_id\":\"person-umeda\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "evaluation_time": "2026-08-21T00:01:00Z",
+      "operation": "personal",
+      "expected": {
+        "outcome": "accepted",
+        "code": null
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      },
+      "notes": "The second canonical person has an independent personal owner scope."
+    },
+    {
+      "id": "POS-QUEUE-REDELIVERY-IDEMPOTENT",
+      "kind": "positive",
+      "category": "decision_modes",
+      "request": {
+        "provider_identity": {
+          "provider": "slack",
+          "authenticated_subject_id": "person-sato",
+          "app_id": "synthetic-app",
+          "workspace_id": "workspace-tenant-a",
+          "enterprise_id": "synthetic-enterprise"
+        },
+        "requested_action": {
+          "capability_id": "company_external_side_effect",
+          "resource_ref": "company://tenant-a/project-a/external-redelivery",
+          "project_hint": "project-a",
+          "desired_effect": "external_side_effect"
+        },
+        "delivery": {
+          "channel_id": "channel-tenant-a",
+          "thread_ts": "thread-tenant-a",
+          "event_id": "evt-tenant-a-person-sato"
+        },
+        "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB8"
+      },
+      "context": {
+        "schema_version": "1.0",
+        "tenant_context": {
+          "schema_version": "1.0",
+          "protocol_id": "mana-brainbase-tenant-context",
+          "protocol_version": "1.0",
+          "issuer": "brainbase",
+          "audience": [
+            "mana-runtime"
+          ],
+          "tenant": {
+            "tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "tenant_revision": "1"
+          },
+          "workspace_connection": {
+            "connection_id": "wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+            "connection_revision": "1",
+            "status": "active",
+            "provider": "slack",
+            "installation_id": "installation-tenant-a",
+            "workspace_id": "workspace-tenant-a",
+            "app_id": "synthetic-app"
+          },
+          "actor": {
+            "principal_id": "person-sato",
+            "principal_type": "person",
+            "authenticated_subject_id": "person-sato"
+          },
+          "authorization": {
+            "organization_ids": [
+              "organization-tenant-a"
+            ],
+            "project_ids": [
+              "project-a"
+            ],
+            "data_scopes": [
+              "company"
+            ],
+            "capability_ids": [
+              "signed_tenant_context",
+              "tenant_scoped_authorization",
+              "company_authority_v1"
+            ]
+          },
+          "placement": {
+            "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+            "profile": "shared_cloud"
+          },
+          "slack": {
+            "event_id": "evt-tenant-a-person-sato",
+            "channel_id": "channel-tenant-a",
+            "thread_ts": "thread-tenant-a",
+            "requester_id": "person-sato",
+            "enterprise_id": "synthetic-enterprise"
+          },
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FB8",
+          "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FC1",
+          "idempotency_key": "ik1_S2a00iCEOobAfDUv0vWyG4bh6rKcJ4tL_1mI03dOHpQ",
+          "contract_revision": "1",
+          "credential": {
+            "mode": "cloud_standard",
+            "credential_ref": "credential-tenant-a",
+            "billing_principal_id": "billing-tenant-a"
+          },
+          "issued_at": "2026-08-21T00:00:00Z",
+          "expires_at": "2026-08-21T00:05:00Z",
+          "integrity": {
+            "method": "jws_detached",
+            "algorithm": "EdDSA",
+            "key_id": "synthetic-a0-20260821",
+            "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..HZR6DXIPOyk2FN0Hn9qK0PsZQSMepwpynE_HZeVI1IP4EN-1EPbqpB4-KC5CE_hatRObDUfk3o3tfhdfDkp6CQ"
+          }
+        },
+        "actor": {
+          "external_subject_id": "person-sato",
+          "canonical_person_id": "person-sato",
+          "membership_id": "membership-tenant-a-person-sato",
+          "membership_revision": "1"
+        },
+        "scope": {
+          "organization_id": "organization-tenant-a",
+          "project_id": "project-a",
+          "resource_ref": "company://tenant-a/project-a/external-redelivery",
+          "owner_person_id": null,
+          "placement_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+        },
+        "authority": {
+          "decision": "auto",
+          "capability_id": "company_external_side_effect",
+          "responsible_person_id": null,
+          "accountable_person_id": "person-sato",
+          "approver_person_id": null,
+          "delegated_by_person_id": null,
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "resource_revision": "1",
+          "allowed_effects": [
+            "external_side_effect"
+          ],
+          "stop_conditions": [
+            "revision_mismatch",
+            "signature_invalid",
+            "context_expired"
+          ]
+        },
+        "evidence": {
+          "identity_resolution_receipt_id": "identity-receipt-tenant-a-person-sato",
+          "authority_resolution_receipt_id": "authority-receipt-tenant-a-person-sato-auto"
+        },
+        "issued_at": "2026-08-21T00:00:00Z",
+        "expires_at": "2026-08-21T00:05:00Z",
+        "integrity": {
+          "method": "jws_detached",
+          "algorithm": "EdDSA",
+          "key_id": "synthetic-a0-20260821",
+          "value": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLWNvbXBhbnktYXV0aG9yaXR5K2p3cyJ9..5SHYR36gUJjNrARex3WyUYg4M6LNbUALCK_3FGNjvKz6lgLWzB3zARwDW73Bzf5rrNG5N9F_M7ktO_IYnTuaDA"
+        }
+      },
+      "unsigned_context_canonical_json": "{\"actor\":{\"canonical_person_id\":\"person-sato\",\"external_subject_id\":\"person-sato\",\"membership_id\":\"membership-tenant-a-person-sato\",\"membership_revision\":\"1\"},\"authority\":{\"accountable_person_id\":\"person-sato\",\"allowed_effects\":[\"external_side_effect\"],\"approver_person_id\":null,\"capability_id\":\"company_external_side_effect\",\"decision\":\"auto\",\"delegated_by_person_id\":null,\"policy_revision\":\"1\",\"raci_revision\":\"1\",\"resource_revision\":\"1\",\"responsible_person_id\":null,\"stop_conditions\":[\"revision_mismatch\",\"signature_invalid\",\"context_expired\"]},\"evidence\":{\"authority_resolution_receipt_id\":\"authority-receipt-tenant-a-person-sato-auto\",\"identity_resolution_receipt_id\":\"identity-receipt-tenant-a-person-sato\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"issued_at\":\"2026-08-21T00:00:00Z\",\"schema_version\":\"1.0\",\"scope\":{\"organization_id\":\"organization-tenant-a\",\"owner_person_id\":null,\"placement_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"project_id\":\"project-a\",\"resource_ref\":\"company://tenant-a/project-a/external-redelivery\"},\"tenant_context\":{\"actor\":{\"authenticated_subject_id\":\"person-sato\",\"principal_id\":\"person-sato\",\"principal_type\":\"person\"},\"audience\":[\"mana-runtime\"],\"authorization\":{\"capability_ids\":[\"signed_tenant_context\",\"tenant_scoped_authorization\",\"company_authority_v1\"],\"data_scopes\":[\"company\"],\"organization_ids\":[\"organization-tenant-a\"],\"project_ids\":[\"project-a\"]},\"contract_revision\":\"1\",\"correlation_id\":\"cor_01ARZ3NDEKTSV4RRFFQ69G5FB8\",\"credential\":{\"billing_principal_id\":\"billing-tenant-a\",\"credential_ref\":\"credential-tenant-a\",\"mode\":\"cloud_standard\"},\"expires_at\":\"2026-08-21T00:05:00Z\",\"idempotency_key\":\"ik1_S2a00iCEOobAfDUv0vWyG4bh6rKcJ4tL_1mI03dOHpQ\",\"integrity\":{\"algorithm\":\"EdDSA\",\"key_id\":\"synthetic-a0-20260821\",\"method\":\"jws_detached\",\"value\":\"eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il0sImtpZCI6InN5bnRoZXRpYy1hMC0yMDI2MDgyMSIsInR5cCI6ImFwcGxpY2F0aW9uL21hbmEtYnJhaW5iYXNlLXRlbmFudC1jb250ZXh0K2p3cyJ9..HZR6DXIPOyk2FN0Hn9qK0PsZQSMepwpynE_HZeVI1IP4EN-1EPbqpB4-KC5CE_hatRObDUfk3o3tfhdfDkp6CQ\"},\"issued_at\":\"2026-08-21T00:00:00Z\",\"issuer\":\"brainbase\",\"operation_id\":\"op_01ARZ3NDEKTSV4RRFFQ69G5FC1\",\"placement\":{\"deployment_id\":\"dep_01ARZ3NDEKTSV4RRFFQ69G5FAZ\",\"profile\":\"shared_cloud\"},\"protocol_id\":\"mana-brainbase-tenant-context\",\"protocol_version\":\"1.0\",\"schema_version\":\"1.0\",\"slack\":{\"channel_id\":\"channel-tenant-a\",\"enterprise_id\":\"synthetic-enterprise\",\"event_id\":\"evt-tenant-a-person-sato\",\"requester_id\":\"person-sato\",\"thread_ts\":\"thread-tenant-a\"},\"tenant\":{\"tenant_id\":\"ten_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"tenant_revision\":\"1\"},\"workspace_connection\":{\"app_id\":\"synthetic-app\",\"connection_id\":\"wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX\",\"connection_revision\":\"1\",\"installation_id\":\"installation-tenant-a\",\"provider\":\"slack\",\"status\":\"active\",\"workspace_id\":\"workspace-tenant-a\"}}}",
+      "evaluation_time": "2026-08-21T00:01:00Z",
+      "operation": "company",
+      "expected": {
+        "outcome": "accepted",
+        "code": null
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      },
+      "notes": "Same context and idempotency key produce one effect."
+    },
+    {
+      "id": "POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC",
+      "kind": "positive",
+      "category": "diagnostic_allowlist",
+      "request": {
+        "provider_identity": {
+          "provider": "slack",
+          "authenticated_subject_id": "person-umeda",
+          "app_id": "synthetic-app",
+          "workspace_id": "workspace-tenant-b",
+          "enterprise_id": "synthetic-enterprise"
+        },
+        "requested_action": {
+          "capability_id": "connection_diagnostic",
+          "resource_ref": "diagnostic://tenant-b/connection",
+          "desired_effect": "read"
+        },
+        "correlation_id": "cor-tenant-b-person-umeda-diagnostic"
+      },
+      "context": null,
+      "evaluation_time": "2026-08-21T00:01:00Z",
+      "operation": "connection_diagnostic",
+      "expected": {
+        "outcome": "diagnostic_allowed",
+        "code": null
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      },
+      "wire_response": {
+        "schema_version": "1.0",
+        "contract_id": "mana-brainbase-company-authority/v1",
+        "correlation_id": "cor-tenant-b-person-umeda-diagnostic",
+        "context": null,
+        "error": {
+          "code": "AUTHORITY_UNAVAILABLE",
+          "phase": "authority",
+          "retryable": true,
+          "business_effect": false,
+          "correlation_id": "cor-tenant-b-person-umeda-diagnostic"
+        }
+      },
+      "notes": "Only allowlisted diagnostics may report authority unavailable."
+    }
+  ],
+  "negative": [
+    {
+      "id": "NEG-REQUEST-NON-SLACK-PROVIDER",
+      "kind": "negative",
+      "category": "provider_scope_v1",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/provider_identity/provider",
+          "value": "codex"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-SUBJECT-ACTOR-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/provider_identity/authenticated_subject_id",
+          "value": "person-umeda"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CONTEXT-ACTOR-SUBJECT-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/tenant_context/actor/authenticated_subject_id",
+          "value": "person-umeda"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CONTEXT-ACTOR-PRINCIPAL-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/tenant_context/actor/principal_id",
+          "value": "person-umeda"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CONTEXT-ORG-AUTHORIZATION-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/tenant_context/authorization/organization_ids",
+          "value": [
+            "organization-tenant-b"
+          ]
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CROSS_ORG",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CONTEXT-PROJECT-AUTHORIZATION-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/tenant_context/authorization/project_ids",
+          "value": [
+            "project-b"
+          ]
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CONTEXT-PLACEMENT-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/tenant_context/placement/deployment_id",
+          "value": "dep_01ARZ3NDEKTSV4RRFFQ69G5FB0"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-WORKSPACE-ID-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/provider_identity/workspace_id",
+          "value": "workspace-tenant-b"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-APP-ID-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/provider_identity/app_id",
+          "value": "synthetic-app-other"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-ENTERPRISE-ID-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/provider_identity/enterprise_id",
+          "value": "synthetic-enterprise-other"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-CHANNEL-ID-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/delivery/channel_id",
+          "value": "channel-tenant-b"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-THREAD-TS-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/delivery/thread_ts",
+          "value": "thread-tenant-b"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-EVENT-ID-NESTED-MISMATCH",
+      "kind": "negative",
+      "category": "cross_layer_binding",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/delivery/event_id",
+          "value": "evt-tenant-b-person-umeda"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-CANONICAL-PERSON",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "canonical_person_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/canonical_person_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-ORGANIZATION",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "organization_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/organization_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-PROJECT",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "project_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/project_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-OWNER",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "owner_person_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/owner_person_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-RESPONSIBLE-PERSON",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "responsible_person_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/responsible_person_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-ACCOUNTABLE-PERSON",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "accountable_person_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/accountable_person_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-APPROVER",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "approver_person_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/approver_person_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-DECISION",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "decision",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/decision",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-POLICY",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "policy_revision",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/policy_revision",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-RACI",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "raci_revision",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/raci_revision",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-CREDENTIAL",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "credential",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/credential",
+          "value": {
+            "ref": "synthetic-forbidden"
+          }
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-MISSING-DESIRED-EFFECT",
+      "kind": "negative",
+      "category": "desired_effect_explicit",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "mutations": [
+        {
+          "operation": "delete",
+          "path": "/request/requested_action/desired_effect"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "DESIRED_EFFECT_REQUIRED",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-MISSING-COMPANY-AUTHORITY",
+      "kind": "negative",
+      "category": "company_authority_required",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "remove_capability",
+          "path": "/context/tenant_context/authorization/capability_ids"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "COMPANY_AUTHORITY_REQUIRED",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-EFFECT-MISMATCH",
+      "kind": "negative",
+      "category": "desired_effect_explicit",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/requested_action/desired_effect",
+          "value": "write"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "COMPANY_AUTHORITY_EFFECT_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-UNKNOWN-PERSON",
+      "kind": "negative",
+      "category": "unknown_person",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [],
+      "identity_status": "unknown",
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "PERSON_UNKNOWN",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-AMBIGUOUS-PERSON",
+      "kind": "negative",
+      "category": "unknown_person",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [],
+      "identity_status": "ambiguous",
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "PERSON_AMBIGUOUS",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CROSS-ORG-TENANT-A-PERSON-SATO",
+      "kind": "negative",
+      "category": "cross_org",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [],
+      "cross_org": true,
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CROSS_ORG",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CROSS-ORG-TENANT-A-PERSON-UMEDA",
+      "kind": "negative",
+      "category": "cross_org",
+      "base_fixture": "POS-APPROVAL-EXTERNAL-SIDE-EFFECT",
+      "target": "binding",
+      "mutations": [],
+      "cross_org": true,
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CROSS_ORG",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CROSS-ORG-TENANT-B-PERSON-SATO",
+      "kind": "negative",
+      "category": "cross_org",
+      "base_fixture": "POS-DENY-COMPANY-WRITE",
+      "target": "binding",
+      "mutations": [],
+      "cross_org": true,
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CROSS_ORG",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-CROSS-ORG-TENANT-B-PERSON-UMEDA",
+      "kind": "negative",
+      "category": "cross_org",
+      "base_fixture": "POS-HUMAN-ACTION-COMPANY-WRITE",
+      "target": "binding",
+      "mutations": [],
+      "cross_org": true,
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CROSS_ORG",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-STALE-RACI-BEFORE-QUEUE",
+      "kind": "negative",
+      "category": "stale_revision",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [],
+      "expected_revisions": {
+        "raci": "2"
+      },
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_STALE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-STALE-POLICY-BEFORE-WORKER",
+      "kind": "negative",
+      "category": "stale_revision",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [],
+      "expected_revisions": {
+        "policy": "2"
+      },
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_STALE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-STALE-MEMBERSHIP-BEFORE-DO",
+      "kind": "negative",
+      "category": "stale_revision",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [],
+      "expected_revisions": {
+        "membership": "2"
+      },
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_STALE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-STALE-RESOURCE-BEFORE-DELIVERY",
+      "kind": "negative",
+      "category": "stale_revision",
+      "base_fixture": "POS-APPROVAL-EXTERNAL-SIDE-EFFECT",
+      "target": "binding",
+      "mutations": [],
+      "expected_revisions": {
+        "resource": "2"
+      },
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_STALE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-STALE-TENANT-BEFORE-QUEUE",
+      "kind": "negative",
+      "category": "tenant_connection_revision",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [],
+      "expected_revisions": {
+        "tenant": "2"
+      },
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_STALE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-STALE-CONNECTION-BEFORE-BRAINBASE-PROXY",
+      "kind": "negative",
+      "category": "tenant_connection_revision",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [],
+      "expected_revisions": {
+        "connection": "2"
+      },
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_STALE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-STALE-RESOURCE-BEFORE-CONTAINER",
+      "kind": "negative",
+      "category": "stale_revision",
+      "base_fixture": "POS-DENY-COMPANY-WRITE",
+      "target": "binding",
+      "mutations": [],
+      "expected_revisions": {
+        "resource": "2"
+      },
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_STALE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-STALE-RACI-BEFORE-MCP",
+      "kind": "negative",
+      "category": "stale_revision",
+      "base_fixture": "POS-PERSONAL-AUTO-OWNER",
+      "target": "binding",
+      "mutations": [],
+      "expected_revisions": {
+        "raci": "2"
+      },
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_STALE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-OUT-OF-SCOPE-PROJECT",
+      "kind": "negative",
+      "category": "project_scope",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [],
+      "scope_mismatch": true,
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-INACTIVE-MEMBERSHIP",
+      "kind": "negative",
+      "category": "membership_status",
+      "base_fixture": "POS-HUMAN-ACTION-COMPANY-WRITE",
+      "target": "binding",
+      "mutations": [],
+      "membership_status": "inactive",
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "MEMBERSHIP_INACTIVE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-WRONG-APPROVER",
+      "kind": "negative",
+      "category": "wrong_approver",
+      "base_fixture": "POS-APPROVAL-EXTERNAL-SIDE-EFFECT",
+      "target": "binding",
+      "mutations": [],
+      "approval_subject_id": "person-sato",
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "APPROVER_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-UNAVAILABLE",
+      "kind": "negative",
+      "category": "authority_unavailable",
+      "base_fixture": "POS-HUMAN-ACTION-COMPANY-WRITE",
+      "target": "binding",
+      "mutations": [],
+      "authority_unavailable": true,
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_UNAVAILABLE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-PERSONAL-OWNER-MISSING",
+      "kind": "negative",
+      "category": "personal_no_fallback",
+      "base_fixture": "POS-PERSONAL-AUTO-OWNER",
+      "target": "binding",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/scope/owner_person_id",
+          "value": null
+        }
+      ],
+      "personal_target_person_id": "person-sato",
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "PERSONAL_OWNER_REQUIRED",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-PERSONAL-CROSS-PERSON-SATO-TO-UMEDA",
+      "kind": "negative",
+      "category": "personal_no_fallback",
+      "base_fixture": "POS-PERSONAL-AUTO-OWNER",
+      "target": "binding",
+      "mutations": [],
+      "personal_target_person_id": "person-umeda",
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "PERSONAL_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-PERSONAL-CROSS-PERSON-UMEDA-TO-SATO",
+      "kind": "negative",
+      "category": "personal_no_fallback",
+      "base_fixture": "POS-PERSONAL-AUTO-OWNER-UMEDA",
+      "target": "binding",
+      "mutations": [],
+      "personal_target_person_id": "person-sato",
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "PERSONAL_SCOPE_MISMATCH",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-NO-FALLBACK-DEFAULT-PERSON",
+      "kind": "negative",
+      "category": "personal_no_fallback",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "binding",
+      "mutations": [],
+      "identity_status": "unknown",
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "PERSON_UNKNOWN",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-INVALID-SIGNATURE",
+      "kind": "negative",
+      "category": "context_integrity",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "context",
+      "mutations": [
+        {
+          "operation": "append",
+          "path": "/context/integrity.value",
+          "value": "tampered"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-EXPIRED-CONTEXT",
+      "kind": "negative",
+      "category": "context_integrity",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "context",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/context/expires_at",
+          "value": "2026-08-21T00:00:10Z"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_EXPIRED",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REPLAY-CONTEXT-CONFLICT",
+      "kind": "negative",
+      "category": "context_integrity",
+      "base_fixture": "POS-QUEUE-REDELIVERY-IDEMPOTENT",
+      "target": "binding",
+      "mutations": [],
+      "replay_conflict": true,
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_REPLAY_CONFLICT",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    }
+  ]
+}

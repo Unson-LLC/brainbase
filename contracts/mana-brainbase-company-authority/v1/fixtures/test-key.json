@@ -1,0 +1,15 @@
+{
+  "purpose": "synthetic conformance only; never a deployment secret",
+  "key_id": "synthetic-a0-20260821",
+  "private_jwk": {
+    "crv": "Ed25519",
+    "d": "dJwlPW1NOlJ7E_u4yI4TQZ1Ez8iH66bnnO9B_ZTpDAo",
+    "x": "XQRbkA9Dy21-n75vJ2ww_qTTkIXujCbsCnf-DDAgN78",
+    "kty": "OKP"
+  },
+  "public_jwk": {
+    "crv": "Ed25519",
+    "x": "XQRbkA9Dy21-n75vJ2ww_qTTkIXujCbsCnf-DDAgN78",
+    "kty": "OKP"
+  }
+}

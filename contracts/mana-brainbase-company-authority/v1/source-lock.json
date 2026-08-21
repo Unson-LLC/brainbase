@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "contract_id": "mana-brainbase-company-authority/v1",
+  "contract_role": "brainbase_authority_producer",
+  "lock_status": "producer_contract_ready",
+  "manifest_version": "1.0",
+  "fixture_set_sha256": "1d7af5b850abeb10e07db281c17341636d80a74cb37679b2c2b6ab5ce9b0a6ea",
+  "producer": {
+    "repository": "Unson-LLC/brainbase-unson",
+    "authority_architecture_ref": "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
+    "authority_milestone_ref": "docs/management/milestones/M0-company-authority-and-personal-boundary.md",
+    "authority_story_ref": "docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
+    "contract_version": "1.0.0",
+    "manifest_version": "1.0",
+    "fixture_set_sha256": "1d7af5b850abeb10e07db281c17341636d80a74cb37679b2c2b6ab5ce9b0a6ea",
+    "fixture_files": [
+      "fixtures/cases.json",
+      "fixtures/fixture.schema.json",
+      "fixtures/test-key.json"
+    ],
+    "canonical_context_schema": "schema/canonical-execution-context.schema.json",
+    "observed_request_schema": "schema/observed-execution-request.schema.json",
+    "wire_response_schema": "schema/company-authority-resolution-response.schema.json",
+    "canonical_context_wire_location": "$.context",
+    "requested_operation_capability_path": "$.context.authority.capability_id",
+    "company_authority_capability_path": "$.context.tenant_context.authorization.capability_ids",
+    "company_authority_capability_role": "protocol_marker",
+    "error_correlation_path": "$.error.correlation_id",
+    "downstream_merged_sha_policy": "The consumer records the merged producer SHA after merge; it is intentionally absent from this producer lock."
+  },
+  "canonical_json": {
+    "profile": "RFC8785_JCS",
+    "hash_algorithm": "sha256(relative_path + NUL + file_bytes)",
+    "manifest_excluded_from_fixture_hash": true
+  },
+  "signature": {
+    "profile": "detached-jws-ed25519",
+    "algorithm": "EdDSA",
+    "typ": "application/mana-brainbase-company-authority+jws",
+    "protected_header": ["alg", "b64", "crit", "kid", "typ"],
+    "signing_input": "ASCII(protected64 + '.') || UTF-8(JCS(unsigned payload without integrity))"
+  },
+  "execution_boundary": {
+    "production_action": "not_performed",
+    "customer_data": "not_used",
+    "deployment": "not_allowed",
+    "secrets": "not_used",
+    "runtime_changes": "none",
+    "trusted_kid_key_resolution": "runtime_non_goal; kid-to-key trust, rotation, and revocation are not implemented in this producer contract",
+    "reference_validator_authority": "non_authoritative_conformance_only",
+    "production_cutover": "blocked_until_runtime_trust_store_rotation_revocation_and_consumer_verification_are_separately_implemented"
+  },
+  "lock_rules": [
+    "The manifest version and fixture digest identify the producer contract payload set.",
+    "A semantic change requires a new contract version and a new fixture digest.",
+    "The producer must not self-reference a commit, branch head, or merge SHA in this lock.",
+    "The merged SHA is a downstream consumer lock concern after the producer contract is merged."
+  ]
+}

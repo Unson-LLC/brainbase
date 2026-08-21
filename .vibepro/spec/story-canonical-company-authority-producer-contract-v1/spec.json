@@ -1,0 +1,266 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-canonical-company-authority-producer-contract-v1",
+  "generated_by": { "caller": "codex", "stage": "static_fallback" },
+  "tdd_evidence": {
+    "historical_red": "not_collected",
+    "new_red": "collected",
+    "red_basis": "Initial implementation RED remains not_collected. The A0 consumer boundary test was run before the acceptance entrypoint and wire envelopes were implemented and failed; no historical RED is inferred.",
+    "green": {
+      "status": "observed",
+      "producer_conformance_tests": 70,
+      "consumer_conformance_tests": 21,
+      "shared_consumer_conformance_tests": 25,
+      "shared_consumer_conformance_scope": "regression_only; not A0 consumer evidence",
+      "total_tests": 91,
+      "evidence_scope": "synthetic_contract_only"
+    },
+    "separation": "Observed GREEN does not imply historical RED was collected."
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "ObservedExecutionRequestV1 accepts only Slack provider identity in v1, requested action, delivery metadata, and correlation; desired_effect is explicit and resolved authority fields are forbidden.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 0, "ac_id": "AC-001", "text_snippet": "ObservedExecutionRequestV1 requires an explicit desired_effect and carries no resolved authority claims." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Request and response wire" }],
+        "test_refs": [{ "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries" }]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json"]
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "CanonicalExecutionContextV1 is wired at the response JSONPath $.context; authority.capability_id is the requested operation capability, company_authority_v1 at $.context.tenant_context.authorization.capability_ids is the protocol marker, and request/outer/nested actor, organization, project, placement, Slack identity, and delivery bindings are explicit.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-002", "text_snippet": "The successful response context and company authority capability path are fixed." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Request and response wire" }],
+        "test_refs": [
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "fixes the request/context wire path and company_authority_v1 capability path" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "separates the requested operation capability from the protocol marker" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "fixes the request/context wire path and company_authority_v1 capability path" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "separates the requested operation capability from the protocol marker" }
+        ]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json", "contracts/mana-brainbase-company-authority/v1/schema/company-authority-resolution-response.schema.json"]
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "RFC8785 JCS, UTC Z-only timestamps, outer and nested detached Ed25519 JWS, same-caller-now freshness, audience/deployment, and invalid signature, expiry, and replay fail closed before business effect.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 2, "ac_id": "AC-003", "text_snippet": "RFC 8785 JCS, detached Ed25519 JWS, and integrity failures are fixed." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Canonical JSON and signature" }],
+        "test_refs": [{ "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "keeps canonical JSON stable for signature input and rejects tampering" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "keeps canonical JSON stable for signature input and rejects tampering" }]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/producer.contract.json", "contracts/mana-brainbase-company-authority/v1/reference/wire.mjs"]
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "The four decision modes are fixed by deterministic synthetic positive fixtures, including pending human_action and zero-effect deny machine outcomes.",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004", "text_snippet": "The four decision modes are fixed by deterministic synthetic fixtures." }
+        ],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Conformance payload and lock" }],
+        "test_refs": [
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "validates deterministic synthetic positive payloads and all four decisions" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "fixes human_action as pending completion and deny as zero-effect machine outcomes" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "validates deterministic synthetic positive payloads and all four decisions" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "fixes human_action as pending completion and deny as zero-effect machine outcomes" }
+        ]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json", "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json"]
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "Canonical errors and the fail-closed negative matrix reject missing, unresolved, cross-org, stale, Personal, cross-layer actor/scope and Slack identity/delivery mismatch, non-Slack provider, signature, expiry, replay, error-correlation mismatch, and forbidden authority-field claims.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 4, "ac_id": "AC-005", "text_snippet": "Canonical errors and the fail-closed negative matrix are fixed." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Decision and error contract" }],
+        "test_refs": [
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "records the expected negative matrix categories and exact error vocabulary" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "binds request Slack identity and delivery fields to the nested tenant context" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "records the expected negative matrix categories and exact error vocabulary" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "binds request Slack identity and delivery fields to the nested tenant context" }
+        ]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/fixtures/cases.json", "contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json", "contracts/mana-brainbase-company-authority/v1/reference/wire.mjs"]
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "The deterministic two-tenant by two-person fixture set is schema-valid, manifest-complete, covers cross-layer actor/scope and non-Slack provider negatives, and is bound to a digest without producer commit self-reference.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "ac_id": "AC-006", "text_snippet": "The deterministic two-tenant by two-person fixture set and manifest digest are fixed." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Conformance payload and lock" }],
+        "test_refs": [
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "validates cases through the manifest-referenced fixture schema and exact manifest coverage" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "binds all four tenant/person matrix entries to concrete positive fixtures" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins a manifest digest without producer commit self-reference" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "validates cases through the manifest-referenced fixture schema and exact manifest coverage" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "binds all four tenant/person matrix entries to concrete positive fixtures" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins a manifest digest without producer commit self-reference" }
+        ]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json", "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json", "contracts/mana-brainbase-company-authority/v1/source-lock.json"]
+    },
+    {
+      "id": "C-007",
+      "type": "contract",
+      "statement": "Conformance is contract-only: runtime changes and production action are absent, trusted kid resolution/rotation/revocation remain runtime non-goals, and the reference validator is non-authoritative.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 6, "ac_id": "AC-007", "text_snippet": "Conformance proves contract readiness only; runtime and production action remain outside the boundary." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Boundaries and non-goals" }],
+        "test_refs": [
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins the contract-only trust boundary and non-authoritative reference validator" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins a manifest digest without producer commit self-reference" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "accepts a signed success context only after detached JWS verification" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "fails closed when caller evaluation time is omitted" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "evaluates expiry against caller-supplied now rather than issued_at" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "accepts complete error envelopes for deny and unavailable cases" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "accepts every embedded tenant context through the canonical consumer verifier" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins the contract-only trust boundary and non-authoritative reference validator" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins a manifest digest without producer commit self-reference" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "accepts a signed success context only after detached JWS verification" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "fails closed when caller evaluation time is omitted" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "evaluates expiry against caller-supplied now rather than issued_at" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "accepts complete error envelopes for deny and unavailable cases" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "accepts every embedded tenant context through the canonical consumer verifier" }
+        ]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/source-lock.json", "docs/management/tasks/canonical-company-authority-producer-contract-v1.json"]
+    }
+  ],
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "hybrid",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": ["signed TenantContextEnvelopeV1", "Brainbase canonical tenant/person authority"],
+      "resolution_point": "Brainbase authority producer before CanonicalExecutionContextV1 emission",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": ["observed_request", "canonical_context", "wire_response", "fixture_manifest"],
+      "verified_surfaces": ["observed_request", "canonical_context", "wire_response", "fixture_manifest"]
+    },
+    "resources": [{
+      "name": "company authority execution context",
+      "sharing": "tenant_partitioned",
+      "tenant_key": "tenant_id",
+      "partition_key": "tenant_id/person_id/resource_ref",
+      "trust_zone": "Brainbase authority producer contract",
+      "residue_policy": "synthetic fixture only; no customer data",
+      "data_owner": "Brainbase Tenant Authority",
+      "credential_scope": "tenant-bound opaque authority context (fixture only)"
+    }],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "tenant-bound opaque authority context (fixture only)",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": ["Brainbase Tenant Authority"],
+      "residency": "contract-only synthetic payloads; no runtime or customer data",
+      "migration": "No data migration is part of A0 contract preparation",
+      "rollback": "Discard contract artifacts; no runtime state is changed"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"],
+    "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+    "graph_metadata": {
+      "tenant_entities": ["tenant", "person", "membership", "workspace_connection", "authority_context"],
+      "boundary_edges": ["tenant and person resolve through Brainbase authority before context emission", "no cross-tenant or cross-person fallback"]
+    },
+    "verification": {
+      "scanner_coverage": "not_collected",
+      "scope": "Contract-only verification covers schema, deterministic fixtures, manifest/source-lock, and synthetic wire/consumer boundary. Live connection, sandbox isolation, runtime state partitioning, customer data, actual deployment topology, and production negative readback are not collected.",
+      "evidence": {
+        "propagation_surfaces": ["observed_request", "canonical_context", "wire_response", "fixture_manifest"],
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"],
+          "tenant_entities": [
+            {
+              "tenant_scope": "synthetic A0 company-authority contract fixtures only",
+              "tenant_key_source": "signed TenantContextEnvelopeV1 tenant_id",
+              "trust_zone": "contract schema, reference validator, and deterministic fixtures; no runtime trust claim",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "synthetic tenant/person authority context",
+              "tenant_key_source": "tenant_context.tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound opaque authority context; fixture only",
+              "connection_mode": "contract-declared connection revision binding; no live connection",
+              "deployment_mode": "managed_shared"
+            },
+            {
+              "tenant_scope": "synthetic tenant/person authority context",
+              "tenant_key_source": "tenant_context.tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound opaque authority context; fixture only",
+              "connection_mode": "contract-declared connection revision binding; no live connection",
+              "deployment_mode": "customer_managed"
+            },
+            {
+              "tenant_scope": "synthetic tenant/person authority context",
+              "tenant_key_source": "tenant_context.tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound opaque authority context; fixture only",
+              "connection_mode": "contract-declared connection revision binding; no live connection",
+              "deployment_mode": "self_hosted"
+            }
+          ]
+        },
+        "spec": { "tenant_key": "tenant_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"] }
+      }
+    }
+  },
+  "open_questions": [],
+  "generated_at": "2026-08-21T00:00:00.000Z"
+}

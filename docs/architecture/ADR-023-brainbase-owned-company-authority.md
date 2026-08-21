@@ -57,7 +57,7 @@ interface ObservedExecutionRequestV1 {
     enterprise_id?: string;
   };
   requested_action: {
-    capability_id: string;
+    capability_id: string; // requested operation capability, not the protocol marker
     resource_ref: string;
     project_hint?: string;
     desired_effect: "read" | "write" | "external_side_effect";
@@ -99,7 +99,7 @@ interface CanonicalExecutionContextV1 {
 
   authority: {
     decision: "auto" | "approval" | "human_action" | "deny";
-    capability_id: string;
+    capability_id: string; // equals requested_action.capability_id
     responsible_person_id: string | null;
     accountable_person_id: string | null;
     approver_person_id: string | null;
@@ -222,7 +222,9 @@ Personal KG本文、私的メモ、価値観の原文、raw transcriptをGraph�
 
 ### 8. 既存tenant protocolとの移行境界
 
-既存`mana-brainbase-tenant-context` v1はtenant安全境界として維持する。ただし、会社データを読む・書く・外部副作用を起こすoperationには、`company_authority_v1`を必須capabilityとして追加する。
+既存`mana-brainbase-tenant-context` v1はtenant安全境界として維持する。会社authority contract v1では、要求したoperationの`requested_action.capability_id`と、tenant contextの`authorization.capability_ids`に含める`company_authority_v1` protocol markerを別の値・責務として扱う。解決後の`authority.capability_id`は要求したoperation capabilityと一致させ、`company_authority_v1`は会社authority wireを解釈できることを示すmarkerとしてだけ要求する。
+
+同じrequestのSlack `workspace_id`、`app_id`、`enterprise_id`、deliveryの`channel_id`、`thread_ts`、`event_id`は、埋込みTenantContextのworkspace connection／Slack値へ束縛する。不一致はfail closedとする。consumerはouter company-authority JWSだけでなく、trusted keyを明示してnested TenantContext JWSも同じcaller evaluation time、`mana-runtime` audience、期待deploymentで検証する。timestampはshared verifierと同じUTC `Z`形式に限定し、error envelopeの`error.correlation_id`はwire rootの`correlation_id`と一致させる。署名済みcontextであっても`authority.decision=deny`は成功contextとして受け付けず、`COMPANY_AUTHORITY_DENIED` errorとして扱う。
 
 `company_authority_v1`がない間に許可できるのは次だけである。
 

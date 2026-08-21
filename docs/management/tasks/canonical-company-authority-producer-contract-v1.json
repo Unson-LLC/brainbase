@@ -1,0 +1,111 @@
+{
+  "task_id": "canonical-company-authority-producer-contract-v1",
+  "story_id": "story-canonical-company-authority-producer-contract-v1",
+  "status": "contract_ready",
+  "priority": "high",
+  "milestone": "M0-company-authority-and-personal-boundary",
+  "architecture": [
+    "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
+    "docs/architecture/canonical-company-authority-producer-contract-v1.md"
+  ],
+  "spec": "docs/specs/canonical-company-authority-producer-contract-v1.md",
+  "scope": {
+    "allowed": [
+      "docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
+      "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
+      "docs/architecture/canonical-company-authority-producer-contract-v1.md",
+      "docs/specs/canonical-company-authority-producer-contract-v1.md",
+      "docs/management/tasks/canonical-company-authority-producer-contract-v1.json",
+      "contracts/mana-brainbase-company-authority/v1/**",
+      "tests/conformance/brainbase-company-authority-producer-contract.test.js",
+      "tests/conformance/brainbase-company-authority-consumer-boundary.test.js",
+      ".vibepro/** story-scoped specification/review artifacts"
+    ],
+    "forbidden": [
+      "server/**",
+      "routes/**",
+      "DB/migrations",
+      "deployment",
+      "secrets",
+      "customer data",
+      "mana-runtime worktree",
+      "package files"
+    ],
+    "production_action": false
+  },
+  "deliverables": {
+    "observed_request_schema": "contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json",
+    "canonical_context_schema": "contracts/mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json",
+    "wire_response_schema": "contracts/mana-brainbase-company-authority/v1/schema/company-authority-resolution-response.schema.json",
+    "producer_contract": "contracts/mana-brainbase-company-authority/v1/producer.contract.json",
+    "source_lock": "contracts/mana-brainbase-company-authority/v1/source-lock.json",
+    "fixture_manifest": "contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json",
+    "fixture_payload": "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json",
+    "reference_validator": "contracts/mana-brainbase-company-authority/v1/reference/wire.mjs"
+  },
+  "acceptance": [
+    "ObservedExecutionRequestV1 is Slack-only in v1, has an explicit desired_effect, and carries no runtime authority claims.",
+    "CanonicalExecutionContextV1 is signed and wired at the response JSONPath $.context; authority.capability_id is the requested operation capability and is separate from the company_authority_v1 protocol marker.",
+    "Request subject, outer actor, nested actor, outer organization/project, nested authorization, outer/nested placement, and request Slack workspace/app/enterprise plus delivery channel/thread/event bindings are explicit and fail closed on mismatch.",
+    "tenant_context.authorization.capability_ids contains company_authority_v1 as the protocol marker at the exact path, while requested_action.capability_id binds to authority.capability_id.",
+    "RFC8785 JCS, UTF-8, detached outer and nested Ed25519 JWS, Z-only timestamps, TTL, same-caller-now freshness, audience, expected deployment, and protected headers are fixed.",
+    "auto, approval, human_action, and deny each have deterministic positive coverage.",
+    "ObservedExecutionRequestV1 rejects each resolved person/org/project/owner/RACI/approver/decision/policy/credential field in both schema and reference validation; human_action remains pending until completion and deny effect counters remain zero.",
+    "Unknown/ambiguous/cross-org/stale/wrong approver/Personal/signature/expiry/replay, cross-layer actor/scope mismatch, Slack identity/delivery mismatch, error correlation mismatch, and non-Slack provider negatives fail closed with canonical errors; signed deny is not accepted as success.",
+    "Fixture digest is manifest versioned and excludes the manifest; producer self-reference is absent.",
+    "Trusted kid-to-key resolution, key rotation, and key revocation are runtime non-goals; the reference validator is non-authoritative and production cutover is blocked pending separately verified runtime trust and consumer enforcement.",
+    "The consumer acceptance entrypoint requires caller-supplied evaluation time, verifies detached JWS before accepting signed context, and rejects tampered or expired context.",
+    "No runtime or production action is performed."
+  ],
+  "tdd": {
+    "historical_red": "not_collected",
+    "new_red": "collected",
+    "red": "Initial implementation RED remains not_collected. The A0 consumer boundary test was run before the acceptance entrypoint and wire envelopes were implemented and failed; no historical RED is inferred.",
+    "green": "Observed separately after implementation: producer conformance 70 tests and A0 consumer boundary 21 tests passed over the synthetic contract fixtures, including nested TenantContext signature, same-caller-now freshness, audience/deployment, complete error correlation, and signed deny rejection. The existing shared tenant-context conformance 25 tests are regression-only and are not A0 consumer evidence.",
+    "regression": ["npm run test:conformance:mana-brainbase -- tests/conformance/brainbase-company-authority-producer-contract.test.js tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "npm run test:conformance:mana-brainbase -- tests/conformance/mana-brainbase-tenant-context.adapter.test.js", "node --check contracts/mana-brainbase-company-authority/v1/reference/wire.mjs", "git diff --check"]
+  },
+  "verification": {
+    "shared_conformance": {
+      "source_lock": "tests/conformance/mana-brainbase-tenant-context.source-lock.json",
+      "command": "npm test -- --run --config vitest.conformance.config.js tests/conformance/brainbase-company-authority-producer-contract.test.js tests/conformance/brainbase-company-authority-consumer-boundary.test.js tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+      "expected_tests": {
+        "producer": 70,
+        "consumer_boundary": 21,
+        "shared_regression": 25,
+        "total": 116
+      },
+      "prerequisites": {
+        "derive_commit": "At runtime, read LOCKED_COMMIT=$(jq -er '.commit' \"$SOURCE_LOCK\") from the task-relative source_lock; do not hardcode or override the value.",
+        "materialize_checkout": "Create a runner-owned external detached checkout of the source_lock.repository at LOCKED_COMMIT. The checkout must be outside this repository/worktree, must not be committed, and must not reuse a mutable checkout.",
+        "derive_root": "Read CONTRACT_ROOT=$(jq -er '.contract_root' \"$SOURCE_LOCK\") and set KIT_ROOT to the path join of the external checkout and CONTRACT_ROOT.",
+        "verify_exact_checkout": {
+          "head": "test \"$(git -C \"$CHECKOUT\" rev-parse HEAD)\" = \"$LOCKED_COMMIT\"",
+          "clean": "test -z \"$(git -C \"$CHECKOUT\" status --porcelain --untracked-files=all)\"",
+          "tree": "test \"$(git -C \"$CHECKOUT\" rev-parse --verify \"$LOCKED_COMMIT:$CONTRACT_ROOT\")\" = \"$(git -C \"$CHECKOUT\" rev-parse --verify \"HEAD:$CONTRACT_ROOT\")\""
+        },
+        "parent_environment": {
+          "MANA_BRAINBASE_CONFORMANCE_KIT_ROOT": "KIT_ROOT derived from the external checkout and source_lock.contract_root",
+          "MANA_BRAINBASE_CONFORMANCE_KIT_COMMIT": "LOCKED_COMMIT derived from source_lock.commit",
+          "exports": [
+            "export MANA_BRAINBASE_CONFORMANCE_KIT_ROOT=\"$KIT_ROOT\"",
+            "export MANA_BRAINBASE_CONFORMANCE_KIT_COMMIT=\"$LOCKED_COMMIT\""
+          ],
+          "set_before_command": true,
+          "inheritance": "Export both variables in the parent environment that invokes the existing 116-test command so the adapter receives the exact checkout binding."
+        }
+      }
+    }
+  },
+  "evidence": {
+    "contract_version": "1.0.0",
+    "manifest_version": "1.0",
+    "fixture_set_sha256": "1d7af5b850abeb10e07db281c17341636d80a74cb37679b2c2b6ab5ce9b0a6ea",
+    "synthetic_data_only": true,
+    "customer_data": "not_used",
+    "secrets": "not_used",
+    "runtime_changes": "none",
+    "contract_only_verified_surfaces": ["observed_request", "canonical_context", "wire_response", "fixture_manifest"],
+    "unverified_live_runtime_deployment_boundaries": ["live connection", "sandbox isolation", "runtime state partitioning", "customer data", "actual deployment topology", "production negative readback"],
+    "downstream_merge_sha": "not_recorded_in_producer_lock"
+  }
+}
