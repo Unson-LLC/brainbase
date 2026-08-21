@@ -252,4 +252,4 @@ hosted database、Graph、MCP、CLI、HTTP、authorization、customer data、sec
 - .vibepro/spec/story-r1-local-immutable-run-artifact-store/draft.json
 - .vibepro/config.json
 
-`current_story_id`をR1へ切り替える運用影響は、VibeProの未指定コマンドがR1を既定対象にすることだけであり、明示的な`--story-id`を付けた既存storyのレビュー・artifact・判定には影響しない。src、tests、contracts、package、database、migration、Graph、MCP、CLI、HTTP、customer data、secret、deployment、mana-runtime、他worktreeはforbiddenである。
+`current_story_id`をR1へ切り替える運用影響は、VibeProの未指定コマンドがR1を既定対象にすることだけであり、明示的な`--story-id`を付けた既存storyのレビュー・artifact・判定には影響しない。この境界は後続のdisposable fixtureで、R1をcurrentに保ったまま代表的なJ0明示指定コマンドを実行し、選択storyと生成先がJ0だけであること、R1のreview/artifact bytesとGit状態が不変であることをreadbackして証明する。証跡は`.vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-010-explicit-j0-story-isolation.json`へ分離し、不一致・R1 mutation・暗黙fallbackのいずれかがあればreleaseをblockする。src、tests、contracts、package、database、migration、Graph、MCP、CLI、HTTP、customer data、secret、deployment、mana-runtime、他worktreeはforbiddenである。

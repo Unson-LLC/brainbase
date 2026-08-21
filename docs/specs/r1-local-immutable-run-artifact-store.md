@@ -213,7 +213,7 @@ focused tests、full test、build、typecheck、package smoke、独立review、G
 5. `.vibepro/spec/story-r1-local-immutable-run-artifact-store/draft.json`
 6. `.vibepro/config.json`
 
-`.vibepro/config.json`の既存story登録と`current_story_id`切替はこのplanning storyをVibeProの未指定操作の既定対象へするためだけの設定である。明示的な`--story-id`を指定した他storyのレビュー、artifact、判定には影響しない。source、schema、fixture、validator、test、runtime、package、DB/Graph/MCP/CLI/HTTP、customer data、secret、credential、deployment、他worktreeはforbiddenである。
+`.vibepro/config.json`の既存story登録と`current_story_id`切替はこのplanning storyをVibeProの未指定操作の既定対象へするためだけの設定である。明示的な`--story-id`を指定した他storyのレビュー、artifact、判定には影響しない。後続verificationはdisposable fixtureを使い、R1がcurrentの状態で代表的なJ0明示指定コマンドを実行して、selected story idと生成先がJ0だけであること、R1のreview/artifact bytesとGit状態がbefore/afterで完全一致することを専用の`AC-010-explicit-j0-story-isolation.json`へ記録する。J0以外の選択、R1 mutation、暗黙fallback、readback不足のいずれかでreleaseをblockする。source、schema、fixture、validator、test、runtime、package、DB/Graph/MCP/CLI/HTTP、customer data、secret、credential、deployment、他worktreeはforbiddenである。
 
 ## 明示的な非目標
 

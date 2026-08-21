@@ -466,10 +466,11 @@
       "ac_id": "AC-010",
       "assertion_id": "r1-ac010-six-path-boundary",
       "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
-      "pre_fix_red_assertion": "fail if implementation, test, schema, fixture, runtime, package, external state, or an unrelated path is changed in this planning slice",
-      "expected_result": "exactly the six declared planning paths are allowed; production effects and J0 source bytes remain unchanged",
+      "pre_fix_red_assertion": "fail if implementation, test, schema, fixture, runtime, package, external state, or an unrelated path is changed in this planning slice; also fail if current_story_id=R1 causes an explicit J0 story command to select or write R1",
+      "expected_result": "exactly the six declared planning paths are allowed; production effects and J0 source bytes remain unchanged; a disposable explicit-J0 fixture selects and writes only J0 while R1 review/artifact bytes and Git state remain unchanged",
       "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-010.json",
-      "release_block_condition": "block on any forbidden path, production effect, fabricated tenant contract, or J0 lock drift"
+      "regression_evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-010-explicit-j0-story-isolation.json",
+      "release_block_condition": "block on any forbidden path, production effect, fabricated tenant contract, J0 lock drift, non-J0 selection/output, R1 review/artifact mutation, implicit fallback, or incomplete explicit-story readback"
     },
     {
       "ac_id": "AC-011",
@@ -495,7 +496,8 @@
       "recursive deep-freeze and caller/storage mutation isolation",
       "positive restart/reopen E2E: process A saves a synthetic J0 record, closes; fresh process B reopens the same root, reloads artifact_id, asserts exact record/binding/source-lock/schema equality, deep-freeze and mutation isolation, and observes zero J0 runner invocations",
       "machine-readable result envelope and stable error-code contract for every save/reload/list assertion",
-      "fresh-process negative E2E for tamper/truncate, published-unbound exact recovery and different-content denial, path escape, path syntax, cross-filesystem, non-regular file, committed-list success contract, unsafe-root list error, and separate temporary/published-unbound list/reload invisibility"
+      "fresh-process negative E2E for tamper/truncate, published-unbound exact recovery and different-content denial, path escape, path syntax, cross-filesystem, non-regular file, committed-list success contract, unsafe-root list error, and separate temporary/published-unbound list/reload invisibility",
+      "disposable VibePro regression fixture with current_story_id=R1 that runs a representative explicit J0 story command and reads back selected story id, J0-only output destination, unchanged R1 review/artifact bytes, and unchanged Git state"
     ],
     "required_assertion_units": [
       "save/reload negative fixtures assert exact result code/status and record=null; list error fixtures assert exact code/status, items=null, and count=null",
@@ -505,7 +507,8 @@
       "committed list success asserts exact items/count/root-scope/binding shape and artifact_id ascending UTF-8 bytewise lexicographic order",
       "nested committed-looking, temporary, and published-unbound entries assert non-recursive direct-child list scope with no directory or symlink following",
       "temporary list=empty and reload=not_found; published-unbound list=empty and reload=binding_missing_or_mismatch; each fixture asserts no cleanup",
-      "list invalid_path error asserts items=null, count=null, and all effects zero"
+      "list invalid_path error asserts items=null, count=null, and all effects zero",
+      "explicit J0 story isolation asserts no implicit fallback, no R1 output or mutation, exact before/after R1 review/artifact byte equality, unchanged Git state, and records AC-010-explicit-j0-story-isolation.json"
     ],
     "historical_replay_or_evaluation_tests": "deferred_to_later_stories"
   },

@@ -483,7 +483,7 @@
     {
       "id": "INV-007",
       "type": "invariant",
-      "statement": "This planning change modifies exactly six files: the Story, Architecture, draft Spec, Task, story-scoped VibePro draft, and existing .vibepro/config.json story registration; it creates no source-lock, schema, fixture, validator, source, test, runtime, database, Graph, customer, secret, or deployment artifact. current_story_id changes only unspecified VibePro defaults; an explicit --story-id has no effect on other stories.",
+      "statement": "This planning change modifies exactly six files: the Story, Architecture, draft Spec, Task, story-scoped VibePro draft, and existing .vibepro/config.json story registration; it creates no source-lock, schema, fixture, validator, source, test, runtime, database, Graph, customer, secret, or deployment artifact. current_story_id changes only unspecified VibePro defaults; a later disposable fixture must prove that an explicit J0 --story-id selects and writes only J0 while R1 review/artifact bytes and Git state remain unchanged.",
       "origin": {
         "story_refs": [
           {
@@ -498,7 +498,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "planning-only-six-path-boundary"}]
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "planning-only-six-path-and-explicit-j0-story-isolation"}]
       },
       "confidence": 1
     },
@@ -556,7 +556,8 @@
       ".vibepro/spec/story-r1-local-immutable-run-artifact-store/draft.json",
       ".vibepro/config.json"
     ],
-    "current_story_id_effect": "only unspecified VibePro operations default to R1; explicit --story-id keeps other stories isolated"
+    "current_story_id_effect": "only unspecified VibePro operations default to R1; a later disposable fixture must read back explicit J0 selection, J0-only output, unchanged R1 review/artifact bytes, and unchanged Git state",
+    "explicit_story_regression_evidence": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-010-explicit-j0-story-isolation.json"
   },
   "non_goals": [
     "historical replay",
