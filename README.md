@@ -21,7 +21,10 @@ Judgment DAGの型と副作用のない事前検証は、公開`./judgment-dag` 
 
 ```ts
 import { readFileSync } from 'node:fs';
-import { validateJudgmentDAG } from '@unson/brainbase-mcp/judgment-dag';
+import {
+  executeJudgmentDAG,
+  validateJudgmentDAG
+} from '@unson/brainbase-mcp/judgment-dag';
 
 const fixtureUrl = import.meta.resolve(
   '@unson/brainbase-mcp/contracts/judgment-dag/fixture.json'
@@ -29,13 +32,31 @@ const fixtureUrl = import.meta.resolve(
 const dag = JSON.parse(readFileSync(new URL(fixtureUrl), 'utf8'));
 const checked = validateJudgmentDAG(dag);
 console.log(checked.execution_order); // deterministic node-ID ascending tie-break
+
+const record = await executeJudgmentDAG({
+  run_id: 'example-run',
+  dag,
+  input: { source: 'fixture' },
+  runners: {
+    deterministic: {
+      version: 'example-runner-1.0.0',
+      run: ({ node, dependency_outputs }) => ({
+        node_id: node.id,
+        dependency_ids: dependency_outputs.map(({ node_id }) => node_id)
+      })
+    }
+  }
+});
+console.log(record.execution_order, record.nodes.length);
 ```
 
 `node.depends_on`と`relation: "depends_on"` edgeは完全なmirrorであり、missing・cycle・reverse-layer・scope不一致は実行前に拒否されます。
 
+`executeJudgmentDAG`はexecution orderに現れる全runner typeの登録、非空version、callableな`run`を最初の呼び出し前に検証します。欠落・不正登録や不正DAGはmachine-readable errorでfail-closedに拒否され、runner call countは0です。各runnerへ渡す`dependency_outputs`は直接依存だけをnode ID順に含み、成功時はDAG、入力、node出力をJSON-compatible snapshotとして分離したdeep-frozen run recordを返します。
+
 配布済みconsumerは、installed package rootから`source-lock.sources`と`digest.files`の各package-relative pathをSHA-256で再計算し、`digest.files`をpath順に`path + NUL + sha256 + LF`で連結したaggregate digestまでreadbackします。`source-lock`はimmutableな`repository`と`accepted_base_commit`を示し、`src/`のような非同梱ファイルはhash対象にしません。
 
-この契約はrunner、artifact、execution log、replay/evaluation、Execution/Evaluation mutation protectionを含まないJ0-2非目標のcore sliceです。
+上記4ファイルはJudgment DAGのcore contract（型、fixture、source-lock、digest）の境界を示すもので、runner実行契約そのものではありません。runner実行は公開`./judgment-dag` subpathのローカルCLI相当・非共有・非永続な契約です。永続化、database/network/secrets、auth/approval、replay、evaluation、外部副作用、MCP/CLI command追加は非目標であり、package root、CLI、MCPはrunnerを自動起動しません。
 
 ## マニュアル
 
