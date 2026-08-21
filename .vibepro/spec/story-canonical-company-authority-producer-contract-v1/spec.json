@@ -131,10 +131,61 @@
       "boundary_edges": ["tenant and person resolve through Brainbase authority before context emission", "no cross-tenant or cross-person fallback"]
     },
     "verification": {
-      "scanner_coverage": "unverified",
+      "scanner_coverage": "verified",
       "evidence": {
         "propagation_surfaces": ["observed_request", "canonical_context", "wire_response", "fixture_manifest"],
         "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"],
+          "tenant_entities": [
+            {
+              "tenant_scope": "synthetic A0 company-authority contract fixtures only",
+              "tenant_key_source": "signed TenantContextEnvelopeV1 tenant_id",
+              "trust_zone": "contract schema, reference validator, and deterministic fixtures; no runtime trust claim",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "synthetic tenant/person authority context",
+              "tenant_key_source": "tenant_context.tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound opaque authority context; fixture only",
+              "connection_mode": "contract-declared connection revision binding; no live connection",
+              "deployment_mode": "managed_shared"
+            },
+            {
+              "tenant_scope": "synthetic tenant/person authority context",
+              "tenant_key_source": "tenant_context.tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound opaque authority context; fixture only",
+              "connection_mode": "contract-declared connection revision binding; no live connection",
+              "deployment_mode": "customer_managed"
+            },
+            {
+              "tenant_scope": "synthetic tenant/person authority context",
+              "tenant_key_source": "tenant_context.tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound opaque authority context; fixture only",
+              "connection_mode": "contract-declared connection revision binding; no live connection",
+              "deployment_mode": "self_hosted"
+            }
+          ]
+        },
         "spec": { "tenant_key": "tenant_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"] },
         "implementation": { "tenant_key": "tenant_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"] }
       }
