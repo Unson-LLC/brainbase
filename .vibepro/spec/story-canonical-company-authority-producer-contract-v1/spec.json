@@ -50,7 +50,11 @@
       "type": "contract",
       "statement": "The deterministic synthetic manifest covers four decision modes, two tenants by two people, and all required canonical negative errors.",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "ac_id": "AC-006", "text_snippet": "The deterministic two-tenant by two-person fixture set and manifest digest are fixed." }],
+        "story_refs": [
+          { "kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004", "text_snippet": "The four decision modes are fixed by deterministic synthetic fixtures." },
+          { "kind": "acceptance_criteria", "index": 4, "ac_id": "AC-005", "text_snippet": "Canonical errors and the fail-closed negative matrix are fixed." },
+          { "kind": "acceptance_criteria", "index": 5, "ac_id": "AC-006", "text_snippet": "The deterministic two-tenant by two-person fixture set and manifest digest are fixed." }
+        ],
         "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Conformance payload and lock" }],
         "test_refs": [
           { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "validates cases through the manifest-referenced fixture schema and exact manifest coverage" },
