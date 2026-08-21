@@ -250,6 +250,17 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Ontology publication authorization is called by the non-cookie release
+        // publisher. The exact route still verifies the bearer principal, Graph
+        // Decision/RACI bindings, and the signing authority before issuing a receipt.
+        if (
+            requestPath === '/api/info/ontology/publications/authorize'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
         const tokenHeader = req.headers?.['x-csrf-token'];
         const sessionHeader = req.headers?.['x-session-id'];
         const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
