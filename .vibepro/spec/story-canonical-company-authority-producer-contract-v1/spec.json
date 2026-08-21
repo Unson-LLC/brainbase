@@ -9,8 +9,10 @@
     "green": {
       "status": "observed",
       "producer_conformance_tests": 54,
-      "consumer_conformance_tests": 7,
-      "total_tests": 61,
+      "consumer_conformance_tests": 15,
+      "shared_consumer_conformance_tests": 25,
+      "shared_consumer_conformance_scope": "regression_only; not A0 consumer evidence",
+      "total_tests": 69,
       "evidence_scope": "synthetic_contract_only"
     },
     "separation": "Observed GREEN does not imply historical RED was collected."
@@ -145,7 +147,8 @@
           { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "fails closed when caller evaluation time is omitted" },
           { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "evaluates expiry against caller-supplied now rather than issued_at" },
           { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "POS-DENY-COMPANY-WRITE" },
-          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC" }
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "accepts the embedded tenant context for %s through the canonical consumer verifier" }
         ]
       },
       "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/source-lock.json", "docs/management/tasks/canonical-company-authority-producer-contract-v1.json"]
