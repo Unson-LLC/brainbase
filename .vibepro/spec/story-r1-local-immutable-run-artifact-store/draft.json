@@ -1,0 +1,592 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-r1-local-immutable-run-artifact-store",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "planning_contract_preparation"
+  },
+  "planning_status": "needs_review",
+  "dependency_state": "j0_merge_source_locked",
+  "implementation_ready": false,
+  "scope_boundary_contract": {
+    "contract_type": "local_single_owner_non_hosted",
+    "owner_model": "single_local_owner",
+    "deployment_mode": "local_non_hosted",
+    "sharing_boundary": "none",
+    "multi_tenancy_applicability": "not_applicable",
+    "boundary_reason": "One caller-owned local root only; no hosted entrypoint, cross-owner partition, or shared resource is defined in this planning slice.",
+    "multi_tenancy_contract_created": false
+  },
+  "vibepro_classifier_observation": {
+    "tool": "vibepro",
+    "version": "0.2.0-beta.11",
+    "expected": {
+      "applicable": false,
+      "status": "not_applicable",
+      "reason": "local_single_owner_non_hosted"
+    },
+    "observed": {
+      "applicable": true,
+      "status": "invalid",
+      "activation_reasons": ["tenant_actor_and_boundary_surface"],
+      "finding_code": "contract_missing",
+      "path": "multi_tenancy"
+    },
+    "known_trigger_terms": ["artifact-store", "store", "runtime", "storage", "保存", "状態", "実行", "削除"],
+    "limitation": "The current detector treats generic artifact terminology and persistence terms as a tenant actor/boundary pair. The accepted spec is not generated yet, and explicit non-applicability cannot override detector reasons; a partial or fabricated multi_tenancy contract is intentionally not added.",
+    "required_follow_up": "Resolve detector applicability or accepted-spec lifecycle in a separate VibePro change before treating pr-prepare as ready."
+  },
+  "j0_source_lock": {
+    "repository": "Unson-LLC/brainbase",
+    "pull_request": 481,
+    "merge_commit": "f8e7ac61349b326863feae5d7d3d8ae68e2b9d10",
+    "implementation_head": "3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde",
+    "input_type": "JudgmentDAGRunRecord"
+  },
+  "result_contract": {
+    "version": "r1-artifact-store-result-v1",
+    "discriminator": {
+      "field": "operation",
+      "success_values": ["save", "reload", "list"],
+      "error_values": ["save", "reload", "list"]
+    },
+    "success_shapes": {
+      "save": {
+        "required_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
+        "allowed_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
+        "forbidden_keys": ["items", "count"],
+        "literals": {"ok": true, "operation": "save"},
+        "status": {"type": "string", "enum": ["new", "idempotent"]},
+        "fields": {
+          "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": false},
+          "run_id": {"type": "string", "min_length": 1, "nullable": false},
+          "record": {"type": "null", "const": null},
+          "binding": {"type": "string", "enum": ["created", "recovered", "existing"], "nullable": false}
+        },
+        "allowed_status_binding_pairs": [
+          {"status": "new", "binding": "created"},
+          {"status": "new", "binding": "recovered"},
+          {"status": "idempotent", "binding": "existing"}
+        ],
+        "single_artifact": true,
+        "record_included": false
+      },
+      "reload": {
+        "required_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
+        "allowed_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
+        "forbidden_keys": ["items", "count"],
+        "literals": {"ok": true, "operation": "reload", "status": "loaded"},
+        "fields": {
+          "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": false},
+          "run_id": {"type": "string", "min_length": 1, "nullable": false},
+          "record": {"type": "J0 JudgmentDAGRunRecord", "nullable": false, "recursively_deep_frozen": true},
+          "binding": {"type": "string", "const": "verified", "nullable": false}
+        },
+        "single_artifact": true,
+        "record_included": true
+      },
+      "list": {
+        "required_keys": ["ok", "operation", "status", "items", "count"],
+        "allowed_keys": ["ok", "operation", "status", "items", "count"],
+        "forbidden_keys": ["artifact_id", "run_id", "record", "binding"],
+        "literals": {"ok": true, "operation": "list"},
+        "status": {"type": "string", "enum": ["empty", "committed"]},
+        "fields": {
+          "items": {"type": "array", "nullable": false},
+          "count": {"type": "integer", "minimum": 0, "nullable": false}
+        },
+        "shape_by_status": {
+          "empty": {"items": {"exact_length": 0}, "count": {"const": 0}},
+          "committed": {
+            "items": {
+              "min_items": 1,
+              "item": {
+                "required_keys": ["artifact_id", "run_id", "binding"],
+                "allowed_keys": ["artifact_id", "run_id", "binding"],
+                "forbidden_keys": ["record", "items", "count"],
+                "fields": {
+                  "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": false},
+                  "run_id": {"type": "string", "min_length": 1, "nullable": false},
+                  "binding": {"type": "string", "const": "verified", "nullable": false}
+                }
+              }
+            },
+            "count": {"minimum": 1, "equals_items_length": true}
+          }
+        },
+        "ordering": {
+          "field": "artifact_id",
+          "direction": "ascending",
+          "comparator": "UTF-8 bytewise lexicographic",
+          "unique": true
+        },
+        "root_scope": "direct children of the caller-owned artifact root only; the flat layout is non-recursive, directories and symlinks are not followed, and temporary, published-unbound, and nested entries are excluded",
+        "single_artifact": false,
+        "record_included": false
+      }
+    },
+    "error_shapes": {
+      "save": {
+        "required_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "failure_phase", "effects"],
+        "allowed_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "failure_phase", "effects"],
+        "literals": {"ok": false, "operation": "save", "status": "error"},
+        "fields": {
+          "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": true},
+          "run_id": {"type": "string", "min_length": 1, "nullable": true},
+          "record": {"type": "null", "const": null},
+          "failure_phase": {"type": "string", "enum": ["reservation", "temporary_write", "artifact_publish", "binding_publish", "commit_verify"], "nullable": true}
+        },
+        "effects": {
+          "required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"],
+          "value_contract": {
+            "success_record_returned": false,
+            "artifact_bytes_changed": "actual boolean for operation-created temporary or published-unbound artifact-root bytes; false for pre-publication validation and reservation failures",
+            "binding_changed": "actual boolean for binding bytes published by this operation",
+            "repair_attempted": false,
+            "overwrite_attempted": false,
+            "delete_attempted": "actual boolean; true only when owner cleanup of operation-created temporary bytes was attempted",
+            "runner_invocations": 0
+          }
+        }
+      },
+      "reload": {
+        "required_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
+        "allowed_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
+        "literals": {"ok": false, "operation": "reload", "status": "error"},
+        "fields": {
+          "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": true},
+          "run_id": {"type": "string", "min_length": 1, "nullable": true},
+          "record": {"type": "null", "const": null}
+        },
+        "effects": {"required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"], "all_values": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}
+      },
+      "list": {
+        "required_keys": ["ok", "operation", "status", "code", "items", "count", "effects"],
+        "allowed_keys": ["ok", "operation", "status", "code", "items", "count", "effects"],
+        "literals": {"ok": false, "operation": "list", "status": "error"},
+        "fields": {
+          "items": {"type": "null", "const": null},
+          "count": {"type": "null", "const": null}
+        },
+        "effects": {"required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"], "all_values": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}
+      }
+    },
+    "error_codes": {
+      "conflict": "same run_id or published-unbound request has different canonical content, digest, schema, source lock, or binding",
+      "invalid_artifact_id": "artifact_id is not sha256:<64 lowercase hexadecimal characters>",
+      "invalid_path": "absolute path, separator, NUL, dot segment, or URL scheme is supplied",
+      "path_escape": "resolved locator would leave the caller-owned artifact root",
+      "schema_invalid": "envelope, payload, record, JCS value, or schema version is invalid",
+      "integrity_mismatch": "stored bytes, canonical envelope, digest, or expected identity differs",
+      "binding_missing_or_mismatch": "binding is absent or does not point to requested artifact_id",
+      "non_regular_file": "locator resolves to a directory, device, FIFO, socket, or symlink",
+      "cross_filesystem": "reservation, binding, and artifact root have different devices",
+      "storage_io_error": "reservation/lock, temporary open/write/fsync, rename/artifact fsync, binding create/fsync, or commit readback/verify failed",
+      "not_found": "no committed artifact is visible at the safe locator"
+    },
+    "raw_os_errors_are_not_contract": true
+  },
+  "negative_e2e": {
+    "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+    "fresh_process_protocol": [
+      "process/store A seeds the artifact or crash fixture, records artifact bytes and binding bytes, then closes",
+      "fresh process/store B reopens the same root and performs exactly one save/reload/list operation",
+      "B asserts the exact code and result shape, save failure_phase, case-specific effects, record is absent on error, runner_invocations=0, and no repair/overwrite occurred",
+      "B reads pre-existing committed artifact and binding bytes again and asserts they are unchanged; storage fault cases separately read back operation-created temporary, published-unbound, and binding bytes"
+    ],
+    "cases": [
+      {"id": "tamper", "fixture": "one envelope byte changed", "operation": "reload", "expected_code": "integrity_mismatch"},
+      {"id": "truncated-envelope", "fixture": "stored envelope ends before the complete canonical JSON bytes", "operation": "reload", "expected_code": "integrity_mismatch"},
+      {"id": "zero-byte-envelope", "fixture": "stored envelope has length zero", "operation": "reload", "expected_code": "integrity_mismatch"},
+      {"id": "published-unbound-reload", "fixture": "canonical envelope after rename with no binding", "operation": "reload", "expected_code": "binding_missing_or_mismatch", "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "published-unbound-exact-recovery", "fixture": "same-run exact envelope and missing binding", "operation": "save", "expected_status": "new", "expected_binding": "recovered"},
+      {"id": "published-unbound-different-content", "fixture": "same run_id with different canonical envelope", "operation": "save", "expected_code": "conflict"},
+      {"id": "invalid-artifact-id", "fixture": "artifact_id not sha256:<64 lowercase hex>", "operation": "reload", "expected_code": "invalid_artifact_id"},
+      {"id": "schema-invalid", "fixture": "unknown schema version or extra envelope field", "operation": "reload", "expected_code": "schema_invalid"},
+      {"id": "binding-mismatch", "fixture": "binding points to a different artifact_id", "operation": "reload", "expected_code": "binding_missing_or_mismatch"},
+      {"id": "not-found", "fixture": "no committed artifact at safe locator", "operation": "reload", "expected_code": "not_found"},
+      {"id": "path-escape", "fixture": "root-relative locator resolves outside root", "operation": "reload", "expected_code": "path_escape"},
+      {"id": "absolute-path", "fixture": "absolute locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "nul-path", "fixture": "NUL-containing locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "slash-separator", "fixture": "slash separator in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "backslash-separator", "fixture": "backslash separator in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "dot-segment", "fixture": "dot or dot-dot segment in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "url-scheme", "fixture": "URL scheme in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "cross-filesystem", "fixture": "reservation and artifact root on different device", "operation": "save", "expected_code": "cross_filesystem"},
+      {"id": "reservation-io-failure", "fixture": "fault injected while acquiring the per-run reservation or lock", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "reservation", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}},
+      {"id": "temporary-open-io-failure", "fixture": "fault injected before the temporary file is created", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "temporary_write", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}},
+      {"id": "temporary-write-io-failure", "fixture": "fault injected after partial temporary bytes are written", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "temporary_write", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": true, "runner_invocations": 0}, "readback": "owner cleanup attempted; no committed visibility"},
+      {"id": "temporary-fsync-io-failure", "fixture": "fault injected while fsyncing complete temporary bytes", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "temporary_write", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": true, "runner_invocations": 0}, "readback": "owner cleanup attempted; no committed visibility"},
+      {"id": "temporary-cleanup-io-failure", "fixture": "temporary write fails and the owner cleanup unlink also fails", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "temporary_write", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": true, "runner_invocations": 0}, "readback": "hidden temporary bytes remain and are not listable or reloadable"},
+      {"id": "atomic-rename-io-failure", "fixture": "fault injected while renaming the complete temporary envelope", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "artifact_publish", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": true, "runner_invocations": 0}, "readback": "owner temporary cleanup attempted; no committed visibility"},
+      {"id": "artifact-fsync-io-failure", "fixture": "rename succeeds and artifact fsync fails", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "artifact_publish", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}, "readback": "published-unbound bytes remain invisible and are not cleaned up"},
+      {"id": "binding-create-io-failure", "fixture": "artifact publication succeeds and create-once binding creation fails", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "binding_publish", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}, "readback": "published-unbound bytes remain invisible and are recoverable only by an exact next save"},
+      {"id": "binding-fsync-io-failure", "fixture": "binding publication succeeds and binding fsync fails", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "binding_publish", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": true, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}, "readback": "artifact and binding bytes are read back truthfully; no success is returned"},
+      {"id": "commit-verify-io-failure", "fixture": "artifact and binding publication succeed and final commit readback or verification fails", "operation": "save", "expected_code": "storage_io_error", "expected_failure_phase": "commit_verify", "expected_effects": {"success_record_returned": false, "artifact_bytes_changed": true, "binding_changed": true, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}, "readback": "next exact save must converge through idempotent or recovery verification"},
+      {"id": "symlink", "fixture": "symlink at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "directory", "fixture": "directory at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "device", "fixture": "device at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "fifo", "fixture": "FIFO at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "socket", "fixture": "socket at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "committed-list-success-contract", "fixture": "two committed artifacts plus temporary and published-unbound files as direct children of the caller-owned root", "operation": "list", "expected_status": "committed", "expected_shape": {"required_root_keys": ["ok", "operation", "status", "items", "count"], "allowed_root_keys": ["ok", "operation", "status", "items", "count"], "item_required_keys": ["artifact_id", "run_id", "binding"], "item_allowed_keys": ["artifact_id", "run_id", "binding"], "item_forbidden_keys": ["record", "items", "count"], "item_binding": "verified", "count": "items.length", "root_scope": "direct children of the caller-owned artifact root only; non-recursive", "order": {"field": "artifact_id", "direction": "ascending", "comparator": "UTF-8 bytewise lexicographic", "unique": true}}, "assertion": "temporary and published-unbound excluded; no cleanup, overwrite, or delete"},
+      {"id": "list-invalid-root", "fixture": "unsafe absolute artifact root or locator", "operation": "list", "expected_code": "invalid_path", "expected_shape": {"required_root_keys": ["ok", "operation", "status", "code", "items", "count", "effects"], "items": {"const": null}, "count": {"const": null}, "effects": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}, "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "temporary-list-invisible", "fixture": "temporary file in the artifact root", "operation": "list", "expected_status": "empty", "expected_shape": {"items": [], "count": 0}, "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "published-unbound-list-invisible", "fixture": "published-unbound file in the artifact root", "operation": "list", "expected_status": "empty", "expected_shape": {"items": [], "count": 0}, "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "temporary-reload-invisible", "fixture": "temporary file at the requested locator", "operation": "reload", "expected_code": "not_found", "expected_shape": {"record": {"const": null}, "effects": "all_values_zero"}, "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "published-unbound-reload-cleanup-forbidden", "fixture": "published-unbound file after failed reload", "operation": "reload", "expected_code": "binding_missing_or_mismatch", "expected_shape": {"record": {"const": null}, "effects": "all_values_zero"}, "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "nested-entries-not-listable", "fixture": "otherwise valid-looking committed envelope, temporary file, and published-unbound file inside a nested directory", "operation": "list", "expected_status": "empty", "expected_shape": {"items": [], "count": 0, "root_scope": "direct children only", "recursive": false, "follow_directories": false, "follow_symlinks": false}, "assertion": "all nested entries excluded; no cleanup, overwrite, or delete"},
+      {"id": "temporary-reload-cleanup-forbidden", "fixture": "temporary file after failed reload", "operation": "reload", "expected_code": "not_found", "assertion": "no cleanup, overwrite, or delete"}
+    ],
+    "common_assertions": [
+      "save/reload error result.record is exactly null; list error result.items and result.count are exactly null; success_record_returned is false for every error",
+      "runner_invocations is exactly 0",
+      "pre-existing committed artifact bytes, binding bytes, and committed artifact identity are unchanged",
+      "repair_attempted and overwrite_attempted are false; ordinary validation/conflict/path errors have all effects zero, while storage fault effects and failure_phase match the actual operation-created bytes and owner cleanup attempt",
+      "committed list success returns only artifact_id/run_id/binding=verified items under the caller-owned root, count=items.length, and artifact_id ascending UTF-8 bytewise lexicographic order",
+      "list scans direct children of the caller-owned root only, never recurses or follows directories/symlinks, and excludes all nested entries",
+      "temporary list success is empty and temporary reload is not_found; published-unbound list success is empty and published-unbound reload is binding_missing_or_mismatch; each preserves bytes/binding and performs no cleanup"
+    ]
+  },
+  "traceability_observation": {
+    "vibepro_version": "0.2.0-beta.11",
+    "pr_prepare_mapped_count": 2,
+    "pr_prepare_unmapped_count": 9,
+    "mapped_ac_ids": ["AC-002", "AC-011"],
+    "unmapped_ac_ids": ["AC-001", "AC-003", "AC-004", "AC-005", "AC-006", "AC-007", "AC-008", "AC-009", "AC-010"],
+    "task_acceptance_coverage_count": 11,
+    "draft_clause_test_ref_count": 13,
+    "classification": "planning_contract_not_pr_ready_evidence",
+    "cause": "accepted Spec and implementation/test evidence are absent; pr prepare does not consume draft coverage as accepted traceability",
+    "required_follow_up": "a separate implementation/verification change must bind an accepted Spec to real tests and evidence, then rerun pr prepare",
+    "forbidden_shortcuts": ["treat draft as accepted", "write final Spec without evidence", "claim PR ready from Task coverage"]
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "R1 is a planning-only contract preparation slice and is bound to the exact J0 source lock: Unson-LLC/brainbase PR #481, merge commit f8e7ac61349b326863feae5d7d3d8ae68e2b9d10, implementation head 3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "依存gateとsource lock"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "source-lock-conformance"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "The artifact identity is artifact_id=sha256:<64 lowercase hexadecimal SHA-256 of UTF-8(JCS(payload))>, where payload contains artifact schema version, exact J0 source lock, payload.run_id, and the complete JudgmentDAGRunRecord; the stored envelope separately contains artifact_id, envelope.run_id, and payload, and artifact_id, path, temporary name, time, and environment are excluded from the digest preimage.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Artifact identityとbinding"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "artifact-identity-and-envelope-digest"}]
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "Canonical serialization is RFC 8785 JSON Canonicalization Scheme (JCS): it applies JCS property ordering, number serialization, Unicode/string escaping, UTF-8, and no whitespace; it preserves the semantic order of J0 arrays and rejects non-JSON values, cycles, sparse arrays, lone surrogates, unknown fields, wrong types, and incomplete values. JCS-nonconformant J0 records are rejected at save.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Canonical serialization"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "jcs-canonical-fixtures"}]
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "After pure JCS validation and digest calculation, save first acquires a per-run exclusive reservation; inside it, existing binding is checked, a conflicting loser is denied before temp creation, then a stored JCS(envelope) is written/fsynced to temp, atomically renamed and artifact-fsynced on the same filesystem, bound by create-once and binding-fsynced, then read back for commit verification. Reservation, temporary, artifact publish, binding publish, and commit verify I/O faults return storage_io_error with exact failure_phase and truthful effects; pre-existing committed bytes stay unchanged and incomplete states are never completed artifacts.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Save state machine"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "reservation-before-publication"}]
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "Given a first create-once run_id binding, when a save supplies different canonical content, artifact digest, source lock, schema version, or any mismatch among envelope.run_id, payload.run_id, and record.run_id, the store returns a run_id conflict and leaves the binding and existing artifact unchanged.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Artifact identityとbinding"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "same-run-id-conflict"}]
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "Given an artifact locator, when stored envelope bytes are tampered, truncated, zero-length, partially written, reordered, extended, bound to a different digest, or have envelope/payload/record run_id mismatch, reload recomputes the payload digest and envelope JCS bytes and rejects without returning a success record or repairing storage.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Reloadとintegrity verification"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "reload-integrity-negative-e2e"}]
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "INV-005",
+      "type": "invariant",
+      "statement": "A successful reload returns a recursively deep-frozen snapshot detached from parser, storage, and caller references; mutation of the returned value cannot change saved bytes, identity, or a later reload.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Reloadとintegrity verification"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "deep-freeze-and-mutation-isolation"}]
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "Given an artifact_id, run_id, or locator containing traversal, absolute path, NUL, separator, dot segment, symlink, or non-regular file, or a cross-filesystem atomic claim, save and reload fail closed without root escape or symlink following. Fault injection at reservation/lock, temporary open/write/fsync and cleanup, rename/artifact fsync, binding create/fsync, and commit verify fixes storage_io_error, failure_phase, effects, and fresh-process readback; temporary and published-unbound states remain invisible until exact binding recovery or future maintenance cleanup.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Filesystem安全境界"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "filesystem-boundary-negative-matrix"}]
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "Concurrent writers first serialize under a per-run exclusive reservation. Identical canonical content converges to one immutable artifact and is idempotent; different content for one run_id is denied before artifact publication for the loser and never uses last-write-wins.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Save state machine"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "concurrent-writer-create-once"}]
+      },
+      "confidence": 0.9
+    },
+    {
+      "id": "E2E-001",
+      "type": "scenario",
+      "statement": "A planned positive restart/reopen E2E saves a synthetic J0 record with store/process A, closes A, reopens the same root with fresh process/store B, reloads artifact_id, asserts exact original-record equality plus envelope/payload/record binding and J0 source-lock/schema equality, asserts recursive deep-freeze and mutation isolation, and records J0 runner invocation count as zero; no runtime or test is created in this planning slice.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Positive E2E: process restart・reopen roundtrip"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "fresh-process-store-reopen-roundtrip"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-006",
+      "type": "invariant",
+      "statement": "Future RED tests must fail on pre-fix two-layer identity errors, RFC 8785 JCS key-order/number/Unicode/lone-surrogate fixture errors, envelope/payload/record run_id replacement, reservation-order violations, overwrite, tamper or truncation acceptance, symlink or traversal following, partial or published-unbound artifact visibility, concurrent last-write-wins, ambiguous cleanup, storage I/O failure collapsed to success/raw text/wrong phase or effects, and reload mutation.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-009"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "RED negative contract"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "pre-fix-red-contract"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-007",
+      "type": "invariant",
+      "statement": "This planning change modifies exactly six files: the Story, Architecture, draft Spec, Task, story-scoped VibePro draft, and existing .vibepro/config.json story registration; it creates no source-lock, schema, fixture, validator, source, test, runtime, database, Graph, customer, secret, or deployment artifact. current_story_id changes only unspecified VibePro defaults; a later disposable fixture must prove that an explicit J0 --story-id selects and writes only J0 while R1 review/artifact bytes and Git state remain unchanged.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-010"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Path boundary"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "planning-only-six-path-and-explicit-j0-story-isolation"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Historical replay, runner version resolution, outcome attachment, evaluation event-set protection, baseline-candidate comparison, scoring, and calibration are deferred to later stories and are not implied by artifact save or reload.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "non_goal",
+            "text": "後続へ明示的に委譲する境界"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "後続へ委譲するもの"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "deferred-replay-scope"}]
+      },
+      "confidence": 1
+    }
+  ],
+  "canonicalization_standard": "RFC 8785 JSON Canonicalization Scheme (JCS)",
+  "identity_layers": {
+    "digest_preimage": "UTF-8(JCS(payload)) where payload has artifact_schema_version, j0_source_lock, run_id, and record; artifact_id is excluded",
+    "stored_envelope": "UTF-8(JCS({artifact_id, run_id, payload}))",
+    "reload_checks": [
+      "recompute artifact_id from payload and compare with stored and expected ids",
+      "compare stored envelope bytes with UTF-8(JCS(envelope)) byte-for-byte",
+      "require envelope.run_id == payload.run_id == payload.record.run_id"
+    ]
+  },
+  "canonical_fixtures": [
+    "{\"b\":1,\"a\":2} -> {\"a\":2,\"b\":1}",
+    "{\"n\":-0} -> {\"n\":0}",
+    "{\"n\":1e-7} -> {\"n\":1e-7}",
+    "{\"s\":\"é\"} -> UTF-8 JCS bytes without unnecessary non-ASCII escaping",
+    "lone surrogate (\\uD800) -> reject"
+  ],
+  "crash_state_policy": {
+    "temporary": "invisible to list/reload/binding; owner cleanup or future maintenance only",
+    "published_unbound": "invisible completed artifact; exact same-run recovery may create binding; different request is denied; cleanup is future maintenance only",
+    "cross_filesystem": "not claimed; reject before save"
+  },
+  "path_boundary": {
+    "allowed": [
+      "docs/management/stories/active/story-r1-local-immutable-run-artifact-store.md",
+      "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+      "docs/specs/r1-local-immutable-run-artifact-store.md",
+      "docs/management/tasks/r1-local-immutable-run-artifact-store.json",
+      ".vibepro/spec/story-r1-local-immutable-run-artifact-store/draft.json",
+      ".vibepro/config.json"
+    ],
+    "current_story_id_effect": "only unspecified VibePro operations default to R1; a later disposable fixture must read back explicit J0 selection, J0-only output, unchanged R1 review/artifact bytes, and unchanged Git state",
+    "explicit_story_regression_evidence": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-010-explicit-j0-story-isolation.json"
+  },
+  "non_goals": [
+    "historical replay",
+    "runner version resolution",
+    "outcome and evaluation attachment",
+    "baseline-candidate scoring and calibration",
+    "production-ready or done claim"
+  ]
+}
