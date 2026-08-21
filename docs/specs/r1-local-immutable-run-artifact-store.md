@@ -122,7 +122,7 @@ byte改変、追加field、field順差替え、digest差替え、三層run_id差
 
 save、reload、listは、後続実装で次のresult envelopeへ正規化する。これはplanning-onlyの契約であり、このSpecはruntimeやtestを作成しない。
 
-成功結果はoperationごとにexact shapeを分け、余分なkeyを認めない。saveは`{ok, operation, status, artifact_id, run_id, record, binding}`で`record=null`、許可pairは`status=new`かつ`binding=created|recovered`、または`status=idempotent`かつ`binding=existing`の3通りだけである。reloadは同じ7 keyで`status=loaded`、`record`は検証済みでrecursive deep-frozenなJ0 record、`binding=verified`。listは`{ok, operation, status, items, count}`だけを返し、単一artifact keyをrootに持たない。list `empty`は`items=[]`・`count=0`、`committed`はcaller-owned root配下の全committed artifactを`{artifact_id, run_id, binding=verified}`として返し、`artifact_id`のUTF-8 bytewise lexicographic昇順で一意に並べ、`count=items.length`とする。temporaryとpublished-unboundは含めない。temporaryはlist=`empty`・reload=`not_found`、published-unboundはlist=`empty`・reload=`binding_missing_or_mismatch`であり、いずれもcleanupしない。
+成功結果はoperationごとにexact shapeを分け、余分なkeyを認めない。saveは`{ok, operation, status, artifact_id, run_id, record, binding}`で`record=null`、許可pairは`status=new`かつ`binding=created|recovered`、または`status=idempotent`かつ`binding=existing`の3通りだけである。reloadは同じ7 keyで`status=loaded`、`record`は検証済みでrecursive deep-frozenなJ0 record、`binding=verified`。artifact storeはseparatorを含まないartifact_id由来locatorを使うflat layoutであり、listはcaller-owned root直下だけを走査してdirectoryへ再帰せず、symlinkをfollowしない。listは`{ok, operation, status, items, count}`だけを返し、単一artifact keyをrootに持たない。list `empty`は`items=[]`・`count=0`、`committed`はroot直下の全committed artifactを`{artifact_id, run_id, binding=verified}`として返し、`artifact_id`のUTF-8 bytewise lexicographic昇順で一意に並べ、`count=items.length`とする。temporary、published-unbound、nested entryは含めない。temporaryはlist=`empty`・reload=`not_found`、published-unboundはlist=`empty`・reload=`binding_missing_or_mismatch`であり、いずれもcleanupしない。
 
 失敗結果もoperationごとにexact shapeを分ける。save/reloadは`{ok=false, operation, status=error, code, artifact_id, run_id, record=null, effects}`、listは`{ok=false, operation=list, status=error, code, items=null, count=null, effects}`だけを返す。全errorの`effects`は`success_record_returned=false`、`artifact_bytes_changed=false`、`binding_changed=false`、`repair_attempted=false`、`overwrite_attempted=false`、`delete_attempted=false`、`runner_invocations=0`を必須値とする。固定codeは`conflict`、`invalid_artifact_id`、`invalid_path`、`path_escape`、`schema_invalid`、`integrity_mismatch`、`binding_missing_or_mismatch`、`non_regular_file`、`cross_filesystem`、`not_found`であり、raw OS error文字列を契約値にしない。
 
@@ -150,6 +150,7 @@ committed list successは、`items`がcaller-owned root直下のcommitted artifa
 | temporary file reloaded | reload | `not_found`、success recordなし、cleanupなし |
 | published-unbound file listed | list | `status=empty`、`items=[]`・`count=0`、cleanupなし |
 | published-unbound file reloaded | reload | `binding_missing_or_mismatch`、success recordなし、cleanupなし |
+| nested directory内のvalid-looking committed envelope、temporary、published-unbound | list | non-recursive、directory/symlinkをfollowせず全nested entryを除外、`status=empty`、cleanupなし |
 
 すべてのnegative assertionは、失敗resultのoperation別required keys、save/reloadでは`record=null`、listでは`items=null`・`count=null`、runner count 0、no repair/overwrite/delete、artifact/binding bytes unchangedを同時に検証する。
 

@@ -120,7 +120,7 @@
           "comparator": "UTF-8 bytewise lexicographic",
           "unique": true
         },
-        "root_scope": "all committed artifacts under the caller-owned artifact root; temporary and published-unbound states are excluded",
+        "root_scope": "direct children of the caller-owned artifact root only; the flat layout is non-recursive, directories and symlinks are not followed, and temporary, published-unbound, and nested entries are excluded",
         "single_artifact": false,
         "record_included": false
       }
@@ -205,12 +205,13 @@
       {"id": "device", "fixture": "device at locator", "operation": "reload", "expected_code": "non_regular_file"},
       {"id": "fifo", "fixture": "FIFO at locator", "operation": "reload", "expected_code": "non_regular_file"},
       {"id": "socket", "fixture": "socket at locator", "operation": "reload", "expected_code": "non_regular_file"},
-      {"id": "committed-list-success-contract", "fixture": "two committed artifacts plus temporary and published-unbound files under the caller-owned root", "operation": "list", "expected_status": "committed", "expected_shape": {"required_root_keys": ["ok", "operation", "status", "items", "count"], "allowed_root_keys": ["ok", "operation", "status", "items", "count"], "item_required_keys": ["artifact_id", "run_id", "binding"], "item_allowed_keys": ["artifact_id", "run_id", "binding"], "item_forbidden_keys": ["record", "items", "count"], "item_binding": "verified", "count": "items.length", "root_scope": "caller-owned artifact root only", "order": {"field": "artifact_id", "direction": "ascending", "comparator": "UTF-8 bytewise lexicographic", "unique": true}}, "assertion": "temporary and published-unbound excluded; no cleanup, overwrite, or delete"},
+      {"id": "committed-list-success-contract", "fixture": "two committed artifacts plus temporary and published-unbound files as direct children of the caller-owned root", "operation": "list", "expected_status": "committed", "expected_shape": {"required_root_keys": ["ok", "operation", "status", "items", "count"], "allowed_root_keys": ["ok", "operation", "status", "items", "count"], "item_required_keys": ["artifact_id", "run_id", "binding"], "item_allowed_keys": ["artifact_id", "run_id", "binding"], "item_forbidden_keys": ["record", "items", "count"], "item_binding": "verified", "count": "items.length", "root_scope": "direct children of the caller-owned artifact root only; non-recursive", "order": {"field": "artifact_id", "direction": "ascending", "comparator": "UTF-8 bytewise lexicographic", "unique": true}}, "assertion": "temporary and published-unbound excluded; no cleanup, overwrite, or delete"},
       {"id": "list-invalid-root", "fixture": "unsafe absolute artifact root or locator", "operation": "list", "expected_code": "invalid_path", "expected_shape": {"required_root_keys": ["ok", "operation", "status", "code", "items", "count", "effects"], "items": {"const": null}, "count": {"const": null}, "effects": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}, "assertion": "no cleanup, overwrite, or delete"},
       {"id": "temporary-list-invisible", "fixture": "temporary file in the artifact root", "operation": "list", "expected_status": "empty", "expected_shape": {"items": [], "count": 0}, "assertion": "no cleanup, overwrite, or delete"},
       {"id": "published-unbound-list-invisible", "fixture": "published-unbound file in the artifact root", "operation": "list", "expected_status": "empty", "expected_shape": {"items": [], "count": 0}, "assertion": "no cleanup, overwrite, or delete"},
       {"id": "temporary-reload-invisible", "fixture": "temporary file at the requested locator", "operation": "reload", "expected_code": "not_found", "expected_shape": {"record": {"const": null}, "effects": "all_values_zero"}, "assertion": "no cleanup, overwrite, or delete"},
       {"id": "published-unbound-reload-cleanup-forbidden", "fixture": "published-unbound file after failed reload", "operation": "reload", "expected_code": "binding_missing_or_mismatch", "expected_shape": {"record": {"const": null}, "effects": "all_values_zero"}, "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "nested-entries-not-listable", "fixture": "otherwise valid-looking committed envelope, temporary file, and published-unbound file inside a nested directory", "operation": "list", "expected_status": "empty", "expected_shape": {"items": [], "count": 0, "root_scope": "direct children only", "recursive": false, "follow_directories": false, "follow_symlinks": false}, "assertion": "all nested entries excluded; no cleanup, overwrite, or delete"},
       {"id": "temporary-reload-cleanup-forbidden", "fixture": "temporary file after failed reload", "operation": "reload", "expected_code": "not_found", "assertion": "no cleanup, overwrite, or delete"}
     ],
     "common_assertions": [
@@ -219,6 +220,7 @@
       "artifact bytes, binding bytes, and committed artifact identity are unchanged",
       "repair_attempted, overwrite_attempted, and delete_attempted are false",
       "committed list success returns only artifact_id/run_id/binding=verified items under the caller-owned root, count=items.length, and artifact_id ascending UTF-8 bytewise lexicographic order",
+      "list scans direct children of the caller-owned root only, never recurses or follows directories/symlinks, and excludes all nested entries",
       "temporary list success is empty and temporary reload is not_found; published-unbound list success is empty and published-unbound reload is binding_missing_or_mismatch; each preserves bytes/binding and performs no cleanup"
     ]
   },
