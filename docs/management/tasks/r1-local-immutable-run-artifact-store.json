@@ -203,9 +203,14 @@
         "fields": {
           "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": false},
           "run_id": {"type": "string", "min_length": 1, "nullable": false},
-          "record": {"type": "null", "nullable": false},
+          "record": {"type": "null", "const": null},
           "binding": {"type": "string", "enum": ["created", "recovered", "existing"], "nullable": false}
         },
+        "allowed_status_binding_pairs": [
+          {"status": "new", "binding": "created"},
+          {"status": "new", "binding": "recovered"},
+          {"status": "idempotent", "binding": "existing"}
+        ],
         "single_artifact": true,
         "record_included": false
       },
@@ -252,6 +257,12 @@
             "count": {"minimum": 1, "equals_items_length": true}
           }
         },
+        "ordering": {
+          "field": "artifact_id",
+          "direction": "ascending",
+          "comparator": "UTF-8 bytewise lexicographic",
+          "unique": true
+        },
         "root_scope": "all committed artifacts under the caller-owned artifact root; temporary and published-unbound states are excluded",
         "single_artifact": false,
         "record_included": false
@@ -265,7 +276,7 @@
         "fields": {
           "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": true},
           "run_id": {"type": "string", "min_length": 1, "nullable": true},
-          "record": {"type": "null", "nullable": false}
+          "record": {"type": "null", "const": null}
         },
         "effects": {"required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"], "all_values": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}
       },
@@ -276,7 +287,7 @@
         "fields": {
           "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "nullable": true},
           "run_id": {"type": "string", "min_length": 1, "nullable": true},
-          "record": {"type": "null", "nullable": false}
+          "record": {"type": "null", "const": null}
         },
         "effects": {"required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"], "all_values": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}
       },
@@ -285,8 +296,8 @@
         "allowed_keys": ["ok", "operation", "status", "code", "items", "count", "effects"],
         "literals": {"ok": false, "operation": "list", "status": "error"},
         "fields": {
-          "items": {"type": "null", "nullable": false},
-          "count": {"type": "null", "nullable": false}
+          "items": {"type": "null", "const": null},
+          "count": {"type": "null", "const": null}
         },
         "effects": {"required_keys": ["success_record_returned", "artifact_bytes_changed", "binding_changed", "repair_attempted", "overwrite_attempted", "delete_attempted", "runner_invocations"], "all_values": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}
       }
@@ -337,18 +348,21 @@
       {"id": "device", "fixture": "device at locator", "operation": "reload", "expected_code": "non_regular_file"},
       {"id": "fifo", "fixture": "FIFO at locator", "operation": "reload", "expected_code": "non_regular_file"},
       {"id": "socket", "fixture": "socket at locator", "operation": "reload", "expected_code": "non_regular_file"},
-      {"id": "temporary-list-invisible", "fixture": "temporary file in the artifact root", "operation": "list", "expected_status": "empty"},
-      {"id": "published-unbound-list-invisible", "fixture": "published-unbound file in the artifact root", "operation": "list", "expected_status": "empty"},
-      {"id": "temporary-reload-invisible", "fixture": "temporary file at the requested locator", "operation": "reload", "expected_code": "not_found"},
-      {"id": "published-unbound-reload-cleanup-forbidden", "fixture": "published-unbound file after failed reload", "operation": "reload", "expected_code": "binding_missing_or_mismatch", "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "committed-list-success-contract", "fixture": "two committed artifacts plus temporary and published-unbound files under the caller-owned root", "operation": "list", "expected_status": "committed", "expected_shape": {"required_root_keys": ["ok", "operation", "status", "items", "count"], "allowed_root_keys": ["ok", "operation", "status", "items", "count"], "item_required_keys": ["artifact_id", "run_id", "binding"], "item_allowed_keys": ["artifact_id", "run_id", "binding"], "item_forbidden_keys": ["record", "items", "count"], "item_binding": "verified", "count": "items.length", "root_scope": "caller-owned artifact root only", "order": {"field": "artifact_id", "direction": "ascending", "comparator": "UTF-8 bytewise lexicographic", "unique": true}}, "assertion": "temporary and published-unbound excluded; no cleanup, overwrite, or delete"},
+      {"id": "list-invalid-root", "fixture": "unsafe absolute artifact root or locator", "operation": "list", "expected_code": "invalid_path", "expected_shape": {"required_root_keys": ["ok", "operation", "status", "code", "items", "count", "effects"], "items": {"const": null}, "count": {"const": null}, "effects": {"success_record_returned": false, "artifact_bytes_changed": false, "binding_changed": false, "repair_attempted": false, "overwrite_attempted": false, "delete_attempted": false, "runner_invocations": 0}}, "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "temporary-list-invisible", "fixture": "temporary file in the artifact root", "operation": "list", "expected_status": "empty", "expected_shape": {"items": [], "count": 0}, "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "published-unbound-list-invisible", "fixture": "published-unbound file in the artifact root", "operation": "list", "expected_status": "empty", "expected_shape": {"items": [], "count": 0}, "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "temporary-reload-invisible", "fixture": "temporary file at the requested locator", "operation": "reload", "expected_code": "not_found", "expected_shape": {"record": {"const": null}, "effects": "all_values_zero"}, "assertion": "no cleanup, overwrite, or delete"},
+      {"id": "published-unbound-reload-cleanup-forbidden", "fixture": "published-unbound file after failed reload", "operation": "reload", "expected_code": "binding_missing_or_mismatch", "expected_shape": {"record": {"const": null}, "effects": "all_values_zero"}, "assertion": "no cleanup, overwrite, or delete"},
       {"id": "temporary-reload-cleanup-forbidden", "fixture": "temporary file after failed reload", "operation": "reload", "expected_code": "not_found", "assertion": "no cleanup, overwrite, or delete"}
     ],
     "common_assertions": [
-      "save/reload error result.record is null; list error result.items and result.count are null; success_record_returned is false for every error",
+      "save/reload error result.record is exactly null; list error result.items and result.count are exactly null; success_record_returned is false for every error",
       "runner_invocations is exactly 0",
       "artifact bytes, binding bytes, and committed artifact identity are unchanged",
       "repair_attempted, overwrite_attempted, and delete_attempted are false",
-      "temporary list/reload cases return empty or not_found; published-unbound list/reload cases return empty or binding_missing_or_mismatch; neither state is a reload success value"
+      "committed list success returns only artifact_id/run_id/binding=verified items under the caller-owned root, count=items.length, and artifact_id ascending UTF-8 bytewise lexicographic order",
+      "temporary list success is empty and temporary reload is not_found; published-unbound list success is empty and published-unbound reload is binding_missing_or_mismatch; each preserves bytes/binding and performs no cleanup"
     ]
   },
   "traceability_observation": {
@@ -397,7 +411,7 @@
       "assertion_id": "r1-ac004-atomic-save",
       "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
       "pre_fix_red_assertion": "fail when a conflicting writer creates temp/final bytes before reservation and binding check, or when cross-filesystem claim is attempted",
-      "expected_result": "new/idempotent save follows reservation->binding check->temp->rename->create-once and exposes no partial state",
+      "expected_result": "new/idempotent save follows reservation->binding check->temp->rename->create-once and exposes no partial state; allowed success pairs are new+created, new+recovered, and idempotent+existing only",
       "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-004.json",
       "release_block_condition": "block if ordering, atomicity, same-device check, or crash-state visibility is unproven"
     },
@@ -415,7 +429,7 @@
       "assertion_id": "r1-ac006-reload-integrity",
       "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
       "pre_fix_red_assertion": "fail when tamper, truncate, zero-byte, extra field, digest replacement, three-layer run_id mismatch, unknown version, or bindingless bytes reload successfully",
-      "expected_result": "fresh-process negative E2E returns integrity_mismatch, schema_invalid, or binding_missing_or_mismatch exactly; no success record or repair",
+      "expected_result": "fresh-process negative E2E returns operation-specific exact shapes: save/reload errors have record=null, list errors have items=null and count=null; integrity_mismatch, schema_invalid, binding_missing_or_mismatch, or invalid_path is returned exactly with no success record or repair",
       "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-006.json",
       "release_block_condition": "block if any negative case returns a success record or an unstable raw OS error"
     },
@@ -433,9 +447,9 @@
       "assertion_id": "r1-ac008-filesystem-and-concurrency",
       "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
       "pre_fix_red_assertion": "fail when traversal, absolute path, NUL, separator, dot, URL, symlink, non-regular file, cross-device claim, partial state, or concurrent last-write-wins is possible",
-      "expected_result": "path_escape, invalid_path, non_regular_file, cross_filesystem, or conflict exact code; list/reload cannot see uncommitted states",
+      "expected_result": "path_escape, invalid_path, non_regular_file, cross_filesystem, or conflict exact code; committed list returns only caller-owned committed items with verified bindings, count=items.length, and artifact_id ascending UTF-8 bytewise lexicographic order; temporary list/reload are empty/not_found and published-unbound list/reload are empty/binding_missing_or_mismatch",
       "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-008.json",
-      "release_block_condition": "block if any fixture lacks root containment, no-cleanup, invisibility, or create-once evidence"
+      "release_block_condition": "block if any fixture lacks root containment, no-cleanup, invisibility, create-once, committed-list order, or list-error-shape evidence"
     },
     {
       "ac_id": "AC-009",
@@ -479,14 +493,16 @@
       "recursive deep-freeze and caller/storage mutation isolation",
       "positive restart/reopen E2E: process A saves a synthetic J0 record, closes; fresh process B reopens the same root, reloads artifact_id, asserts exact record/binding/source-lock/schema equality, deep-freeze and mutation isolation, and observes zero J0 runner invocations",
       "machine-readable result envelope and stable error-code contract for every save/reload/list assertion",
-      "fresh-process negative E2E for tamper/truncate, published-unbound exact recovery and different-content denial, path escape, path syntax, cross-filesystem, non-regular file, and list/reload invisibility"
+      "fresh-process negative E2E for tamper/truncate, published-unbound exact recovery and different-content denial, path escape, path syntax, cross-filesystem, non-regular file, committed-list success contract, unsafe-root list error, and separate temporary/published-unbound list/reload invisibility"
     ],
     "required_assertion_units": [
-      "every negative fixture asserts exact result code/status and record=null on error",
+      "save/reload negative fixtures assert exact result code/status and record=null; list error fixtures assert exact code/status, items=null, and count=null",
       "every negative fixture asserts runner_invocations=0, no repair/overwrite/delete, and unchanged artifact/binding bytes",
       "cross-filesystem, absolute path, NUL, slash/backslash separator, dot segment, URL scheme, symlink, and non-regular file are separate fixture assertions",
       "published-unbound exact same-run recovery is distinct from different-content conflict; both assert no implicit cleanup",
-      "temporary and published-unbound artifacts are invisible to list and reload success values"
+      "committed list success asserts exact items/count/root-scope/binding shape and artifact_id ascending UTF-8 bytewise lexicographic order",
+      "temporary list=empty and reload=not_found; published-unbound list=empty and reload=binding_missing_or_mismatch; each fixture asserts no cleanup",
+      "list invalid_path error asserts items=null, count=null, and all effects zero"
     ],
     "historical_replay_or_evaluation_tests": "deferred_to_later_stories"
   },

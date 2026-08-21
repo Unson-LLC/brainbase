@@ -123,9 +123,9 @@ reservation、binding、artifact rootは同じfilesystemであることを実装
 
 成功結果はoperationごとにexact shapeを分け、余分なkeyを認めない。
 
-- saveは`{ok, operation, status, artifact_id, run_id, record, binding}`だけを返す。`operation=save`、`status=new|idempotent`、`record=null`、`binding=created|recovered|existing`である。
+- saveは`{ok, operation, status, artifact_id, run_id, record, binding}`だけを返す。`operation=save`、`record=null`であり、許可pairは`status=new`かつ`binding=created|recovered`、または`status=idempotent`かつ`binding=existing`の3通りだけである。
 - reloadは同じ7 keyだけを返す。`operation=reload`、`status=loaded`、`record`は検証済みでrecursive deep-frozenなJ0 record、`binding=verified`である。
-- listは`{ok, operation, status, items, count}`だけを返し、`artifact_id`、`run_id`、`record`、`binding`をrootに持たない。`status=empty`は`items=[]`・`count=0`、`status=committed`はcaller-owned root配下の全committed artifactを`{artifact_id, run_id, binding=verified}`として返し、`count=items.length`とする。temporaryとpublished-unboundは含めない。
+- listは`{ok, operation, status, items, count}`だけを返し、`artifact_id`、`run_id`、`record`、`binding`をrootに持たない。`status=empty`は`items=[]`・`count=0`、`status=committed`はcaller-owned root配下の全committed artifactを`{artifact_id, run_id, binding=verified}`として返し、`artifact_id`のUTF-8 bytewise lexicographic昇順で一意に並べ、`count=items.length`とする。temporaryとpublished-unboundは含めない。temporaryはlist=`empty`・reload=`not_found`、published-unboundはlist=`empty`・reload=`binding_missing_or_mismatch`であり、いずれもcleanupしない。
 
 失敗結果もoperationごとにexact shapeを分ける。save/reloadは`{ok=false, operation, status=error, code, artifact_id, run_id, record=null, effects}`、listは`{ok=false, operation=list, status=error, code, items=null, count=null, effects}`だけを返す。いずれの`effects`も`success_record_returned=false`、artifact/binding bytes変更なし、repair/overwrite/deleteなし、`runner_invocations=0`を必須値とする。
 
@@ -162,8 +162,12 @@ VibePro `0.2.0-beta.11`の`pr prepare`読戻しはAC-002・AC-011だけをmapped
 | device at locator | reload | `non_regular_file` |
 | FIFO at locator | reload | `non_regular_file` |
 | socket at locator | reload | `non_regular_file` |
-| temporary file or published-unbound listed | list | `status=empty`、completed artifactとして不可視 |
-| temporary file or published-unbound reloaded | reload | success recordなし、暗黙cleanupなし |
+| committed artifacts plus temporary/published-unbound files under caller-owned root | list | `status=committed`、items/count/binding/root scope exact、artifact_id UTF-8 bytewise lexicographic昇順、temporary/published-unbound除外、cleanupなし |
+| unsafe absolute artifact root or locator | list | `invalid_path`、`items=null`・`count=null`、effects all zero、cleanupなし |
+| temporary file listed | list | `status=empty`、`items=[]`・`count=0`、completed artifactとして不可視、cleanupなし |
+| temporary file reloaded | reload | `not_found`、success recordなし、cleanupなし |
+| published-unbound file listed | list | `status=empty`、`items=[]`・`count=0`、completed artifactとして不可視、cleanupなし |
+| published-unbound file reloaded | reload | `binding_missing_or_mismatch`、success recordなし、cleanupなし |
 
 各fixtureは個別のassertion idとmachine-readable evidence artifactを持ち、failure時のraw filesystem errorをsuccessや別codeへ丸めない。
 
