@@ -65,7 +65,7 @@ Tunnel作成、Access applicationの本番変更、Secret投入、Worker deploy�
 
 - `BBING-S-001`: 正しいService Binding経路からcanonical runtimeの許可routeを受けると、pathを変更せず固定HTTPS originへ1回だけ中継される。
 - `BBING-S-002`: 攻撃者がinbound `Authorization`、`CF-Access-*`、Cookieを差し替えても、upstreamにはWorker Secret由来の値だけが届く。
-- `BBING-S-003`: query、別method、未知route、内部boundary route、不正receipt ID、HTTP origin、hostname mismatchはNodeへ到達しない。
+- `BBING-S-003`: query、別method、未知route、内部boundary route、不正receipt ID、HTTP origin、hostname mismatchはNodeへ到達しない。`GET /api/v1/runtime/verification-keys`だけはEnvelope検証用の公開鍵取得として許可する。
 - `BBING-S-004`: 256 KiBを超えるbody、数値でない`Content-Length`、実stream超過は`413`になり、upstream fetchは0回である。
 - `BBING-S-005`: Nodeが`application/problem+json`の409やredirect statusを返しても、Workerはbodyとstatusを改変せずredirectを追従しない。
 - `BBING-S-006`: Tunnel／Access／Node到達不能時は`502`となり、公開URLや別originへ再試行しない。
@@ -80,6 +80,6 @@ Tunnel作成、Access applicationの本番変更、Secret投入、Worker deploy�
 ## Out of Scope
 
 - Cloudflare account、Tunnel、Access policy、Worker Secretの本番変更
-- allowlistに含まれないcanonical runtime route（negotiate、verification keys、tenant boundary、migrationなど）の公開
+- allowlistに含まれないcanonical runtime route（negotiate、tenant boundary、migrationなど）の公開
 - Brainbase Node runtimeのtenant境界・認証・credential brokerの再実装
 - ManaのQueue、Durable Object、Slack配送、重複抑止の変更

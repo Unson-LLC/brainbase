@@ -38,6 +38,7 @@ WorkerはCloudflareの公開URL、arbitrary proxy、別origin、Nodeの別port�
 
 | method | path | query | result |
 | --- | --- | --- | --- |
+| `GET` | `/api/v1/runtime/verification-keys` | なし | fixed originへ中継 |
 | `POST` | `/api/v1/runtime/tenant-context:resolve` | なし | fixed originへ中継 |
 | `POST` | `/api/v1/runtime/credential-leases` | なし | fixed originへ中継 |
 | `POST` | `/api/v1/runtime/provider-requests:forward` | なし | fixed originへ中継 |
@@ -47,7 +48,7 @@ WorkerはCloudflareの公開URL、arbitrary proxy、別origin、Nodeの別port�
 | `POST` | `/api/v1/runtime/operation-receipts:finalize-with-pricing` | なし | fixed originへ中継 |
 | `POST` | `/api/v1/runtime/operation-receipts/{receipt_id}/history:read`（canonical receipt ID） | なし | fixed originへ中継 |
 
-別method、別path、query付き、canonical形式でないreceipt IDの要求は`404 application/problem+json`で拒否する。Workerは`negotiate`、verification keys、tenant boundary、migrationなどallowlist外のrouteを公開しない。routeの業務判断、tenant境界、credential、quota、usage、Receiptの正本はNode canonical runtimeが行う。
+別method、別path、query付き、canonical形式でないreceipt IDの要求は`404 application/problem+json`で拒否する。Workerは`negotiate`、tenant boundary、migrationなどallowlist外のrouteを公開しない。verification keysは署名済みTenantContextEnvelopeを検証するconsumerに必要な公開鍵だけを返し、private keyやsecretを公開しない。routeの業務判断、tenant境界、credential、quota、usage、Receiptの正本はNode canonical runtimeが行う。
 
 Workerがupstreamへ渡す通常ヘッダーは`Accept`、`Content-Type`、`Brainbase-Protocol-Version`、`Brainbase-Deployment-Id`だけとする。Manaから受けた`Authorization`、`CF-Access-*`、Cookie、forwarding header、任意headerは破棄する。
 
