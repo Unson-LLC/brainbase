@@ -45,8 +45,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-r1-local-immutable-run-artifact-store",
+        "title": "R1 ローカル不変run artifact store契約",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-j0-local-deterministic-runner"
+    "current_story_id": "story-r1-local-immutable-run-artifact-store"
   }
 }
