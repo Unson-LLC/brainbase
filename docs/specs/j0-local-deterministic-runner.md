@@ -20,7 +20,7 @@ date: 2026-08-21
 
 ### AC-002 実行前preflight
 
-runtimeはDAGを`validateJudgmentDAG`で検証し、execution orderに現れる全runner typeの登録、非空version、callable `run`を確認してから最初のrunnerを呼ぶ。一件でも欠落・不正があればcall count 0のまま、安定したerror codeで拒否する。
+runtimeはDAGを`validateJudgmentDAG`で検証し、validatorのerror code/detailsを改変せずに保持する。execution orderに現れる全runner typeの登録、非空version、callable `run`を確認してから最初のrunnerを呼ぶ。一件でもDAG不正・欠落runner・不正runnerがあればcall count 0のまま拒否する。
 
 ### AC-003 安定順序と直接依存だけの入力
 
@@ -32,7 +32,7 @@ DAG、run input、runner input、runner output、run recordはJSON-compatible sn
 
 ### AC-005 不変で決定的なrun記録
 
-成功記録はcaller指定`run_id`、DAG ID/versionとsnapshot、run input、execution order、各nodeのrunner version、input/output contract参照、outputを含み、再帰的にfreezeされる。runtime自身は時刻、乱数、環境変数、filesystem、networkを読まず、同じ明示入力とrunner実装から同値の記録を返す。
+成功記録は実行開始前にsnapshotしたcaller指定`run_id`、DAG ID/versionとsnapshot、run input、execution order、各nodeのrunner version、input/output contract参照、outputを含み、再帰的にfreezeされる。runner closureがcaller requestの`run_id`を変更しても、全node入力と最終recordはoriginal valueを保持する。runtime自身は時刻、乱数、環境変数、filesystem、networkを読まず、同じ明示入力とrunner実装から同値の記録を返す。
 
 ### AC-006 回帰境界
 
@@ -40,7 +40,7 @@ DAG、run input、runner input、runner output、run recordはJSON-compatible sn
 
 ## エラー
 
-`JudgmentDAGExecutionError`は少なくとも不正request、runner登録不備、不正JSON snapshot、runner失敗を区別する。DAG validatorのmachine-readableな失敗は改変しない。runner失敗は元errorを`cause`として保持し、partial recordを成功値として返さない。
+`JudgmentDAGExecutionError`は少なくとも不正request、runner登録不備、不正JSON snapshot、runner失敗を区別する。DAG validatorはrunner呼出し前に実行し、`JudgmentDAGValidationError`のcode/message/detailsをそのまま返す。runner失敗は`code: 'runner_failed'`とし、同期throwは`failure_kind: 'sync_throw'`、非同期rejectは`failure_kind: 'async_reject'`として区別し、元errorを`cause`として保持する。どちらもpartial recordを成功値として返さない。
 
 ## 非目標
 

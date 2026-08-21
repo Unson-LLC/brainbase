@@ -43,6 +43,7 @@ export type {
   JudgmentDAGNodeRunRecord,
   JudgmentDAGRunRecord,
   JudgmentDAGRunRequest,
+  JudgmentDAGRunnerFailureKind,
   JudgmentDAGRunnerInput,
   JudgmentDAGRunnerRegistration,
   JudgmentDAGRunnerVersion

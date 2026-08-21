@@ -19,11 +19,11 @@ Brainbase OSSの利用者として、検証済みJudgment DAGを明示的なrunn
 ## 受け入れ基準
 
 - [x] AC-001: `JudgmentDAGRunRequest`、runner登録、runner入力、node実行記録、run記録をreadonlyな公開型として`./judgment-dag`から提供する。
-- [x] AC-002: DAG構造と全nodeに必要なrunner登録を、runnerを一度も呼ぶ前にfail-closedで検証する。欠落runnerはmachine-readable errorになる。
+- [x] AC-002: DAG構造と全nodeに必要なrunner登録を、runnerを一度も呼ぶ前にfail-closedで検証する。欠落runnerはmachine-readable errorになり、invalid DAGのvalidator error code/detailsは無改変で保持する。
 - [x] AC-003: `validateJudgmentDAG`が返す安定したtopological orderで各nodeを一度だけ実行し、runnerへ渡すdependency outputsはそのnodeが宣言した直接依存だけに限定する。
 - [x] AC-004: DAG、run input、dependency outputs、runner outputsを実行境界でJSON snapshot化し、callerまたはrunnerによる後続mutationが返却済みrun記録を変更しない。非JSON値と循環値は実行前またはnode境界で拒否する。
-- [x] AC-005: 成功runはcaller指定`run_id`、DAG ID/version、runner version、execution order、nodeごとのinput/output contractと出力を含むdeep-frozenな記録を返し、同じDAG・入力・runnerに対して同値になる。
-- [ ] AC-006: 既存J0契約、package deep import互換、MCP/CLI起動面を壊さず、対象unit・公開consumer smoke・full test・build・typecheckが通る。
+- [x] AC-005: 成功runは実行開始前にsnapshotしたcaller指定`run_id`、DAG ID/version、runner version、execution order、nodeごとのinput/output contractと出力を含むdeep-frozenな記録を返し、同じDAG・入力・runnerに対して同値になる。
+- [ ] AC-006: 既存J0契約、package deep import互換、MCP/CLI起動面を壊さず、対象unit・公開consumer smoke・full test・build・typecheckが通る（回帰証拠は揃っているが、VibePro独立review 21 role未完のためGate完了・Story完了にはしていない）。
 
 ## 境界
 
@@ -35,4 +35,4 @@ Brainbase OSSの利用者として、検証済みJudgment DAGを明示的なrunn
 
 ## 完了証拠
 
-Red→Greenの対象unit、公開subpath consumer、既存J0回帰、full test、build、typecheck、VibePro検証・独立reviewを同一HEADへ結び付ける。PR作成とmergeはGateがcurrent HEADで成立した後に別判断する。
+Red→Greenの対象unit、公開subpath consumer、既存J0回帰、full test、build、typecheckを同一HEADへ結び付ける。現時点のregression evidenceは揃っているが、VibePro独立review 21 roleが未記録のためGateはpendingとし、Storyを完了扱いにしない。PR作成とmergeはGateがcurrent HEADで成立した後に別判断する。

@@ -9,8 +9,8 @@
   "previous_spec_id": "2026-08-21T00:00:00.000Z",
   "multi_tenancy": {
     "schema_version": "0.1.0",
-    "applicability": "applicable",
-    "tenancy_model": "self_hosted",
+    "applicability": "caller_scope_validation_only",
+    "tenancy_model": "caller_scoped_in_memory",
     "tenant_identity": {
       "canonical_key": "scope",
       "resolved_from": [
@@ -18,8 +18,8 @@
         "JudgmentDAGNode.scope.id"
       ],
       "resolution_point": "validateJudgmentDAG preflight before runner registration checks",
-      "missing_behavior": "deny",
-      "ambiguity_behavior": "deny"
+      "missing_behavior": "reject_invalid_contract",
+      "ambiguity_behavior": "reject_invalid_contract"
     },
     "propagation": {
       "required_surfaces": [
@@ -36,7 +36,7 @@
     "resources": [
       {
         "name": "Judgment DAG local run record",
-        "sharing": "tenant_partitioned",
+        "sharing": "caller_scoped",
         "tenant_key": "scope",
         "partition_key": "scope.type/scope.id",
         "trust_zone": "caller-owned local execution input",
@@ -60,21 +60,21 @@
       "rollback": "not applicable in J0"
     },
     "failure_semantics": {
-      "unknown_tenant": "deny",
-      "ambiguous_tenant": "deny",
-      "unavailable_connection": "unavailable",
-      "no_data": "empty",
-      "cross_tenant_candidate": "deny_and_audit"
+      "invalid_scope": "deny_before_runner",
+      "scope_mismatch": "deny_before_runner",
+      "hosted_authorization": "not_applicable",
+      "connection_lookup": "not_applicable",
+      "data_retrieval": "not_applicable"
     },
     "deployment_modes": [
-      "self_hosted"
+      "local_library"
     ],
     "negative_scenarios": [
-      "unknown_tenant",
-      "ambiguous_tenant",
-      "unavailable_connection",
-      "no_data",
-      "cross_tenant_candidate"
+      "invalid_scope",
+      "scope_mismatch",
+      "hosted_authorization_not_applicable",
+      "connection_lookup_not_applicable",
+      "data_retrieval_not_applicable"
     ],
     "graph_metadata": {
       "tenant_entities": [
@@ -89,22 +89,22 @@
         {
           "tenant_scope": "scope.type/scope.id",
           "tenant_key_source": "both dependency endpoints",
-          "sharing_mode": "tenant_partitioned",
+          "sharing_mode": "caller_scoped",
           "credential_scope": "none",
           "connection_mode": "not_applicable_pure_runner",
-          "deployment_mode": "self_hosted"
+          "deployment_mode": "local_library"
         }
       ]
     },
     "boundary": {
       "scope_equality": "validateJudgmentDAG requires exact scope.type and scope.id equality for dependencies before runner calls",
-      "cross_scope_authorization": "non_goal",
-      "runner_authorization": "non_goal"
+      "cross_scope_authorization": "not_applicable",
+      "runner_authorization": "not_applicable"
     },
     "verification": {
-      "scanner_coverage": "verified",
+      "scanner_coverage": "caller_scope_only",
       "evidence": {
-        "scope_note": "J0 propagates caller-owned exact node scope into an in-memory run only. Scanner pass means no cross-scope fallback or persistence is introduced; it does not assert hosted authorization, secret, database, or deployment capability.",
+        "scope_note": "J0 performs pure caller-scope validation and propagates caller-owned scope into an in-memory run only. It makes no hosted authorization, audit, secret, database, connection, sandbox, or deployment claim; those boundaries are not applicable to this local runner.",
         "propagation_surfaces": [
           "runner_input.node.scope",
           "runner_input.dependency_outputs",
@@ -125,75 +125,75 @@
               "id": "dependency_scope_equality",
               "tenant_scope": "scope.type/scope.id",
               "tenant_key_source": "both dependency endpoints",
-              "sharing_mode": "tenant_partitioned",
+              "sharing_mode": "caller_scoped",
               "credential_scope": "none",
               "connection_mode": "not_applicable_pure_runner",
-              "deployment_mode": "self_hosted"
+              "deployment_mode": "local_library"
             }
           ],
           "tenant_key": "scope",
           "sharing_modes": [
-            "tenant_partitioned"
+            "caller_scoped"
           ],
           "deployment_modes": [
-            "self_hosted"
+            "local_library"
           ]
         },
         "spec": {
           "tenant_key": "scope",
           "sharing_modes": [
-            "tenant_partitioned"
+            "caller_scoped"
           ],
           "deployment_modes": [
-            "self_hosted"
+            "local_library"
           ]
         },
         "implementation": {
           "tenant_key": "scope",
           "sharing_modes": [
-            "tenant_partitioned"
+            "caller_scoped"
           ],
           "deployment_modes": [
-            "self_hosted"
+            "local_library"
           ]
         },
         "negative_scenarios": [
-          "unknown_tenant",
-          "ambiguous_tenant",
-          "unavailable_connection",
-          "no_data",
-          "cross_tenant_candidate"
+          "invalid_scope",
+          "scope_mismatch",
+          "hosted_authorization_not_applicable",
+          "connection_lookup_not_applicable",
+          "data_retrieval_not_applicable"
         ],
         "scanner_results": {
           "tenant_boundary": "pass",
           "tenant_key_propagation": "pass",
-          "cross_tenant_authorization": "pass",
-          "state_partitioning": "pass",
-          "sandbox_isolation": "pass",
-          "connection_routing": "pass",
-          "secret_scope": "pass",
+          "cross_tenant_authorization": "not_applicable",
+          "state_partitioning": "not_applicable",
+          "sandbox_isolation": "not_applicable",
+          "connection_routing": "not_applicable",
+          "secret_scope": "not_applicable",
           "canonical_data_owner": "pass",
-          "deployment_topology": "pass",
-          "cross_tenant_negative_evidence": "pass"
+          "deployment_topology": "not_applicable",
+          "cross_tenant_negative_evidence": "not_applicable"
         },
         "scanner_evidence": {
-          "tenant_boundary": "tests/judgment-dag-core.test.ts rejects exact scope type and id mismatches before execution",
+          "tenant_boundary": "tests/judgment-dag-core.test.ts rejects exact scope type and id mismatches before runner calls",
           "tenant_key_propagation": "tests/judgment-dag-runner.test.ts snapshots node scope and direct dependency outputs",
-          "cross_tenant_authorization": "docs/specs/j0-local-deterministic-runner.md declares authorization outside J0 and forbids fallback",
-          "state_partitioning": "src/judgment-dag-runner.ts returns an in-memory caller-owned run record and persists nothing",
-          "sandbox_isolation": "docs/specs/j0-local-deterministic-runner.md excludes hosted sandbox and external side effects",
-          "connection_routing": "src/judgment-dag-runner.ts performs no connection lookup or fallback",
-          "secret_scope": "docs/management/tasks/j0-local-deterministic-runner.json forbids secrets",
+          "cross_tenant_authorization": "not applicable: this pure local runner does not authorize hosted or cross-tenant access",
+          "state_partitioning": "not applicable: J0 has no persisted state or storage boundary",
+          "sandbox_isolation": "not applicable: J0 has no hosted sandbox boundary",
+          "connection_routing": "not applicable: src/judgment-dag-runner.ts performs no connection lookup",
+          "secret_scope": "not applicable: J0 accepts no credentials or secrets",
           "canonical_data_owner": "docs/specs/j0-local-deterministic-runner.md fixes caller inputs and outputs as the only runtime data",
-          "deployment_topology": "src/judgment-dag.ts is a side-effect-free library surface with no deployment route",
-          "cross_tenant_negative_evidence": "tests/judgment-dag-core.test.ts rejects dependencies crossing exact scope boundaries"
+          "deployment_topology": "not applicable: src/judgment-dag.ts is a side-effect-free library surface with no deployment route",
+          "cross_tenant_negative_evidence": "not applicable: no hosted cross-tenant candidate or authorization path exists in J0"
         },
         "negative_scenario_evidence": {
-          "unknown_tenant": "existing J0 schema and runtime require non-empty scope.type and scope.id",
-          "ambiguous_tenant": "one node has exactly one strict scope object and unknown keys are rejected",
-          "unavailable_connection": "not applicable: J0 local runner performs no connection lookup and cannot fall back",
-          "no_data": "not applicable: J0 local runner performs no retrieval",
-          "cross_tenant_candidate": "existing J0 validator rejects both scope type and scope ID mismatches before runner calls"
+          "invalid_scope": "existing J0 schema and runtime require non-empty scope.type and scope.id before runner calls",
+          "scope_mismatch": "existing J0 validator rejects both scope type and scope ID mismatches before runner calls",
+          "hosted_authorization_not_applicable": "not applicable: pure local caller-scope validation does not grant hosted authorization",
+          "connection_lookup_not_applicable": "not applicable: J0 local runner performs no connection lookup or fallback",
+          "data_retrieval_not_applicable": "not applicable: J0 local runner performs no retrieval"
         }
       }
     }
@@ -348,9 +348,62 @@
       "last_revised_at": "2026-08-20T23:11:06.078Z"
     },
     {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "DAG validatorはrunner呼出し前に実行され、invalid DAGのmachine-readable error code/detailsをそのまま保持し、runner call count 0かつpartial success recordなしで拒否する。runnerの同期throwと非同期rejectはともにrunner_failedとして元errorをcauseに保持し、failure_kindで区別し、成功recordを返さない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002",
+            "text_snippet": "validator error code/detailsを保持しrunner呼出し前にfail-closed"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005",
+            "text_snippet": "失敗時は成功run recordを返さない"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "executeJudgmentDAG"
+          },
+          {
+            "file": "src/judgment-dag-runner.ts",
+            "anchor": "JudgmentDAGExecutionError"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "preserves invalid DAG validator errors before any runner call or partial record"
+          },
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "distinguishes synchronous throws and asynchronous rejects as runner failures without a success record"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "preserves invalid DAG validator errors before any runner call or partial record"
+          },
+          {
+            "file_glob": "tests/judgment-dag-runner.test.ts",
+            "must_cover": "distinguishes synchronous throws and asynchronous rejects as runner failures without a success record"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-21T00:00:00.000Z",
+      "last_revised_at": "2026-08-21T00:00:00.000Z"
+    },
+    {
       "id": "INV-002",
       "type": "invariant",
-      "statement": "成功runはrun_id、DAG identityとsnapshot、run input、execution order、runner version、node contract refs、node outputを含むdeep-frozen recordを返し、同じ明示入力とrunnerに対して同値になる。",
+      "statement": "成功runは実行開始前にsnapshotしたrun_id、DAG identityとsnapshot、run input、execution order、runner version、node contract refs、node outputを含むdeep-frozen recordを返し、同じ明示入力とrunnerに対して同値になる。runner callbackによるcaller requestのrun_id変更はnode間やfinal recordへ伝播しない。",
       "origin": {
         "story_refs": [
           {
@@ -369,6 +422,10 @@
           {
             "file": "tests/judgment-dag-runner.test.ts",
             "case": "returns a deeply frozen deterministic record without reading clock or randomness"
+          },
+          {
+            "file": "tests/judgment-dag-runner.test.ts",
+            "case": "snapshots run_id before a runner can mutate the caller request"
           }
         ]
       },
@@ -408,7 +465,7 @@
           },
           {
             "file": "tests/npm-consumer-smoke.integration.test.ts",
-            "case": "runs the public CLI and MCP tools/list from a fresh installed consumer"
+            "case": "runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer"
           }
         ]
       },
@@ -420,7 +477,7 @@
           },
           {
             "file_glob": "tests/npm-consumer-smoke.integration.test.ts",
-            "must_cover": "runs the public CLI and MCP tools/list from a fresh installed consumer"
+            "must_cover": "runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer"
           }
         ]
       },

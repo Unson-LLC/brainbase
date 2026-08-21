@@ -68,9 +68,12 @@ export type JudgmentDAGExecutionCode =
   | 'invalid_json'
   | 'runner_failed';
 
+export type JudgmentDAGRunnerFailureKind = 'sync_throw' | 'async_reject';
+
 export interface JudgmentDAGExecutionErrorDetails {
   readonly node_id?: string;
   readonly runner_type?: JudgmentDAGRunnerType;
+  readonly failure_kind?: JudgmentDAGRunnerFailureKind;
   readonly cause?: unknown;
 }
 
@@ -78,6 +81,7 @@ export class JudgmentDAGExecutionError extends Error {
   readonly code: JudgmentDAGExecutionCode;
   readonly node_id?: string;
   readonly runner_type?: JudgmentDAGRunnerType;
+  readonly failure_kind?: JudgmentDAGRunnerFailureKind;
   readonly cause?: unknown;
 
   constructor(
@@ -90,6 +94,7 @@ export class JudgmentDAGExecutionError extends Error {
     this.code = code;
     this.node_id = details.node_id;
     this.runner_type = details.runner_type;
+    this.failure_kind = details.failure_kind;
     this.cause = details.cause;
   }
 }
@@ -249,10 +254,14 @@ export async function executeJudgmentDAG(
   request: JudgmentDAGRunRequest
 ): Promise<JudgmentDAGRunRecord> {
   assertValidRequest(request);
+  const runIdSnapshot = request.run_id;
 
+  // Keep the validator's machine-readable error and details intact. The
+  // runner must not replace an invalid DAG contract with a JSON-boundary
+  // error merely because snapshotting would reject the same input later.
+  const validation = validateJudgmentDAG(request.dag);
   const dagSnapshot = snapshotJSON(request.dag, 'request.dag') as unknown as JudgmentDAG;
   const inputSnapshot = snapshotJSON(request.input, 'request.input');
-  const validation = validateJudgmentDAG(dagSnapshot);
   const runners = requiredRunnerEntries(dagSnapshot, validation.execution_order, request.runners);
   const nodeById = new Map(dagSnapshot.nodes.map((node) => [node.id, node]));
   const outputByNode = new Map<string, JudgmentDAGJSONValue>();
@@ -287,7 +296,7 @@ export async function executeJudgmentDAG(
       });
 
     const runnerInput = deepFreeze({
-      run_id: request.run_id,
+      run_id: runIdSnapshot,
       dag: dagSnapshot,
       node,
       input: inputSnapshot,
@@ -295,13 +304,33 @@ export async function executeJudgmentDAG(
     });
 
     let rawOutput: unknown;
+    let runnerResult: JudgmentDAGJSONValue | Promise<JudgmentDAGJSONValue>;
     try {
-      rawOutput = await registration.run(runnerInput);
+      runnerResult = registration.run(runnerInput);
     } catch (error) {
       throw new JudgmentDAGExecutionError(
         'runner_failed',
         `Runner ${node.runner_type} failed for node ${node.id}`,
-        { node_id: node.id, runner_type: node.runner_type, cause: error }
+        {
+          node_id: node.id,
+          runner_type: node.runner_type,
+          failure_kind: 'sync_throw',
+          cause: error
+        }
+      );
+    }
+    try {
+      rawOutput = await runnerResult;
+    } catch (error) {
+      throw new JudgmentDAGExecutionError(
+        'runner_failed',
+        `Runner ${node.runner_type} failed for node ${node.id}`,
+        {
+          node_id: node.id,
+          runner_type: node.runner_type,
+          failure_kind: 'async_reject',
+          cause: error
+        }
       );
     }
 
@@ -324,7 +353,7 @@ export async function executeJudgmentDAG(
     .map(([runner_type, registration]) => ({ runner_type, version: registration.version }));
 
   return deepFreeze({
-    run_id: request.run_id,
+    run_id: runIdSnapshot,
     dag: dagSnapshot,
     input: inputSnapshot,
     execution_order: validation.execution_order.slice(),

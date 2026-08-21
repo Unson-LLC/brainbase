@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 describe('npm tarball consumer smoke', () => {
-  it('runs the public CLI and MCP tools/list from a fresh installed consumer', async () => {
+  it('runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer', async () => {
     const root = process.cwd();
     const artifactRoot = await mkdtemp(path.join(tmpdir(), 'brainbase-consumer-artifact-'));
     temporaryRoots.push(artifactRoot);
