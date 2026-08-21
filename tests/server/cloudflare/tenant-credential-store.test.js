@@ -14,6 +14,12 @@ const binding = {
     connection_revision: '1',
     provider: 'slack'
 };
+const installationBinding = {
+    ...binding,
+    tenant_key: 'unson-business',
+    workspace_id: 'T0123456789',
+    app_id: 'A0123456789'
+};
 
 function request(path, body, { token = SERVICE_TOKEN, method = 'POST' } = {}) {
     return new Request(`https://brainbase-tenant-credential-store.example.workers.dev${path}`, {
@@ -75,7 +81,7 @@ describe('tenant credential store worker', () => {
         const fixture = envFixture();
         const response = await handleTenantCredentialStoreRequest(
             request('/api/v1/credentials/store', {
-                ...binding,
+                ...installationBinding,
                 credential_material: 'secret-that-must-not-escape'
             }, { token: 'wrong-token' }),
             fixture.env
@@ -90,7 +96,7 @@ describe('tenant credential store worker', () => {
         const fixture = envFixture();
         const storeResponse = await handleTenantCredentialStoreRequest(
             request('/api/v1/credentials/store', {
-                ...binding,
+                ...installationBinding,
                 idempotency_key: 'slack-installation-1',
                 credential_material: 'xoxb-secret-token',
                 credential_refresh_material: 'xoxe-refresh-secret',
@@ -110,7 +116,7 @@ describe('tenant credential store worker', () => {
 
         const verifyResponse = await handleTenantCredentialStoreRequest(
             request('/api/v1/credentials/verify', {
-                ...binding,
+                ...installationBinding,
                 credential_ref: stored.result.credential_ref
             }),
             fixture.env
@@ -119,7 +125,7 @@ describe('tenant credential store worker', () => {
         const verified = await json(verifyResponse);
         expect(verified.result).toMatchObject({
             valid: true,
-            ...binding,
+            ...installationBinding,
             credential_ref: stored.result.credential_ref,
             credential_mode: 'customer_oauth'
         });
@@ -139,6 +145,34 @@ describe('tenant credential store worker', () => {
                 credential_refresh_material: 'xoxe-refresh-secret'
             }
         });
+    });
+
+    it('rejects mismatched installation identity during verification', async () => {
+        const fixture = envFixture();
+        const stored = await handleTenantCredentialStoreRequest(
+            request('/api/v1/credentials/store', {
+                ...installationBinding,
+                credential_material: 'xoxb-secret-token'
+            }),
+            fixture.env
+        ).then(json);
+        const mismatches = [
+            { tenant_key: 'other-tenant' },
+            { workspace_id: 'T9999999999' },
+            { app_id: 'A9999999999' }
+        ];
+        for (const mismatch of mismatches) {
+            const response = await handleTenantCredentialStoreRequest(
+                request('/api/v1/credentials/verify', {
+                    ...installationBinding,
+                    ...mismatch,
+                    credential_ref: stored.result.credential_ref
+                }),
+                fixture.env
+            );
+            expect(response.status).toBe(403);
+            expect(await json(response)).toMatchObject({ code: 'CREDENTIAL_BINDING_MISMATCH' });
+        }
     });
 
     it('rejects cross-tenant, connection, revision, and provider binding before materialization', async () => {
