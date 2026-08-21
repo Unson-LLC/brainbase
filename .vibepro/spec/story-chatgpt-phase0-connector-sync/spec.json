@@ -129,7 +129,7 @@
         ]
       },
       "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:26:16.966Z"
+      "last_revised_at": "2026-08-21T09:36:40.687Z"
     },
     {
       "id": "INV-001",
@@ -183,7 +183,7 @@
         ]
       },
       "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:26:16.966Z"
+      "last_revised_at": "2026-08-21T09:36:40.687Z"
     },
     {
       "id": "C-002",
@@ -237,103 +237,13 @@
         ]
       },
       "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:26:16.966Z"
-    },
-    {
-      "id": "INV-002",
-      "type": "invariant",
-      "statement": "MCP runtimeはorganizationと19 project scopeへ束縛したbbsvc tokenが無ければ起動せず、Canonical Task preflight HTTP 200を要求する。",
-      "rationale": "ChatGPT Connectorの401とmana固定scopeを再発させないため。",
-      "origin": {
-        "story_refs": [
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-004"
-          }
-        ],
-        "architecture_refs": [
-          {
-            "file": "docs/architecture/story-chatgpt-phase0-connector-sync.md",
-            "section": "認証境界"
-          }
-        ],
-        "code_refs": [
-          {
-            "file": "scripts/run-brainbase-mcp.sh",
-            "anchor": "CHECK_SCRIPT"
-          }
-        ],
-        "test_refs": [
-          {
-            "file": "tests/integration/judgment-launcher-process.test.js",
-            "case": "--check成功時はbindingとlauncher可用性を報告するがMCPを開始しない"
-          }
-        ]
-      },
-      "verifiable_by": {
-        "code_pattern": [
-          {
-            "file_glob": "scripts/run-brainbase-mcp.sh",
-            "must_contain": "BRAINBASE_TASK_API_TOKEN must use the bbsvc_ service-token format"
-          }
-        ],
-        "test_pattern": [
-          {
-            "file_glob": "tests/integration/judgment-launcher-process.test.js",
-            "must_cover": "--check成功時"
-          }
-        ]
-      },
-      "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:26:16.966Z"
-    },
-    {
-      "id": "C-003",
-      "type": "contract",
-      "statement": "本番smokeは対象Decisionのretired/version 2、変更なしdry-run Receipt、権限なしApplyの構造化拒否を確認し、Graphを変更しない。",
-      "rationale": "デプロイ成功ではなく利用者が読む実経路の結果を確定するため。",
-      "origin": {
-        "story_refs": [
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-005"
-          }
-        ],
-        "architecture_refs": [
-          {
-            "file": "docs/architecture/story-chatgpt-phase0-connector-sync.md",
-            "section": "リリース確認"
-          }
-        ],
-        "code_refs": [
-          {
-            "file": "mcp/brainbase/src/tools/graph-maintenance-tools.ts",
-            "anchor": "handleGraphMaintenanceToolCall"
-          }
-        ],
-        "test_refs": [
-          {
-            "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
-            "case": "RESTの非2xx応答をstatus/error/http_statusへ変換する"
-          }
-        ]
-      },
-      "verifiable_by": {
-        "test_pattern": [
-          {
-            "file_glob": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
-            "must_cover": "非2xx応答"
-          }
-        ]
-      },
-      "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:26:16.966Z"
+      "last_revised_at": "2026-08-21T09:36:40.687Z"
     }
   ],
   "open_questions": [
     {
       "id": "OQ-001",
-      "question": "ChatGPT Host schema cache refresh is controlled outside the Brainbase repository and must be read back separately."
+      "question": "ChatGPT Host schema cache refresh is controlled outside the Brainbase repository and is verified by story-chatgpt-phase0-connector-production-activation."
     }
   ],
   "generated_at": "2026-08-21T09:20:11.421Z",

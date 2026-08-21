@@ -16,4 +16,4 @@ ChatGPT Connector専用の`bbsvc_`サービスIDをorganization `unson`と許可
 
 ## リリース確認
 
-同一commitのAPI/MCPを再起動後、tools/list、Canonical Task、対象Decisionの保守列、変更なしdry-run、権限なしApplyの構造化拒否を本番でreadbackする。ChatGPT Hostのschema cache更新はMCP再起動とは別の運用境界として扱う。
+PR前は実装・投影・認証選択のローカル契約を検証する。マージ後は別Story `story-chatgpt-phase0-connector-production-activation`で、同一commitのAPI/MCPを再起動し、tools/list、Canonical Task、対象Decisionの保守列、変更なしdry-run、権限なしApplyの構造化拒否を本番でreadbackする。ChatGPT Hostのschema cache更新はMCP再起動とは別の運用境界として扱い、本番readbackが揃うまで有効化完了にしない。
