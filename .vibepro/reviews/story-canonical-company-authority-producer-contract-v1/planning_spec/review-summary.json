@@ -2,24 +2,24 @@
   "schema_version": "0.1.0",
   "story_id": "story-canonical-company-authority-producer-contract-v1",
   "stage": "planning_spec",
-  "status": "pass",
+  "status": "needs_review",
   "roles": [
     {
       "role": "product_requirement",
       "status": "pass",
-      "effective_status": "pass",
-      "stale": false,
-      "stale_reason": "content-bound evidence surface is current for 14 file(s)",
-      "binding_status": "current",
+      "effective_status": "stale",
+      "stale": true,
+      "stale_reason": "content-bound evidence surface changed: contracts/mana-brainbase-company-authority/v1/fixtures/cases.json, contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json, contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json, contracts/mana-brainbase-company-authority/v1/reference/wire.mjs, contracts/mana-brainbase-company-authority/v1/source-lock.json, docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
+      "binding_status": "stale",
       "merge_delta_reuse": null,
       "content_binding": {
         "model": "vibepro-content-scoped-evidence-freshness-v1",
         "mode": "content_surface",
         "status": "recorded",
         "recorded_head_sha": "d5e052d47366a0c2df85c8ca192a4fd3df0f4288",
-        "current_head_sha": "d5e052d47366a0c2df85c8ca192a4fd3df0f4288",
+        "current_head_sha": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
         "recorded_surface_hash": "7f6ff0c5fce3a72e4a558ebaf2bdf27be27bb93cd81917d47c5c8088056e9b61",
-        "current_surface_hash": "7f6ff0c5fce3a72e4a558ebaf2bdf27be27bb93cd81917d47c5c8088056e9b61",
+        "current_surface_hash": "777a4db782129b79d0da80734cc7e83a362c4bc37b8634e87953ee1da525a38b",
         "surface_files": [
           "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json",
           "contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json",
@@ -37,7 +37,17 @@
           "tests/conformance/brainbase-company-authority-producer-contract.test.js"
         ],
         "missing_files": [],
-        "changed_files": []
+        "changed_files": [
+          "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json",
+          "contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json",
+          "contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json",
+          "contracts/mana-brainbase-company-authority/v1/reference/wire.mjs",
+          "contracts/mana-brainbase-company-authority/v1/source-lock.json",
+          "docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
+          "docs/management/tasks/canonical-company-authority-producer-contract-v1.json",
+          "docs/specs/canonical-company-authority-producer-contract-v1.md",
+          "tests/conformance/brainbase-company-authority-producer-contract.test.js"
+        ]
       },
       "freshness_policy": {
         "schema_version": "0.1.0",
@@ -142,26 +152,25 @@
       "source_git_context": null,
       "artifact": ".vibepro/reviews/story-canonical-company-authority-producer-contract-v1/planning_spec/review-result-product_requirement.json",
       "history_artifacts": [
-        ".vibepro/reviews/story-canonical-company-authority-producer-contract-v1/planning_spec/history/review-result-product_requirement-2026-08-21T04-17-52.827Z.json",
         ".vibepro/reviews/story-canonical-company-authority-producer-contract-v1/planning_spec/history/review-result-product_requirement-2026-08-21T04-18-18.533Z.json"
       ]
     },
     {
       "role": "architecture_boundary",
       "status": "pass",
-      "effective_status": "pass",
-      "stale": false,
-      "stale_reason": "content-bound evidence surface is current for 17 file(s)",
-      "binding_status": "current",
+      "effective_status": "stale",
+      "stale": true,
+      "stale_reason": "content-bound evidence surface changed: contracts/mana-brainbase-company-authority/v1/fixtures/cases.json, contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json, contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json, contracts/mana-brainbase-company-authority/v1/reference/wire.mjs, contracts/mana-brainbase-company-authority/v1/source-lock.json, docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
+      "binding_status": "stale",
       "merge_delta_reuse": null,
       "content_binding": {
         "model": "vibepro-content-scoped-evidence-freshness-v1",
         "mode": "content_surface",
         "status": "recorded",
         "recorded_head_sha": "d5e052d47366a0c2df85c8ca192a4fd3df0f4288",
-        "current_head_sha": "d5e052d47366a0c2df85c8ca192a4fd3df0f4288",
+        "current_head_sha": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
         "recorded_surface_hash": "629f570443e365efcb2aec0100748bc903390baddb366633216940f12ffbfd6a",
-        "current_surface_hash": "629f570443e365efcb2aec0100748bc903390baddb366633216940f12ffbfd6a",
+        "current_surface_hash": "a8d00a1257e4611066ef90863b475ceab71ba5c2f0eec78077c638b3ac650c63",
         "surface_files": [
           ".vibepro/config.json",
           "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json",
@@ -182,7 +191,17 @@
           "tests/conformance/mana-brainbase-tenant-context.adapter.test.js"
         ],
         "missing_files": [],
-        "changed_files": []
+        "changed_files": [
+          "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json",
+          "contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json",
+          "contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json",
+          "contracts/mana-brainbase-company-authority/v1/reference/wire.mjs",
+          "contracts/mana-brainbase-company-authority/v1/source-lock.json",
+          "docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
+          "docs/management/tasks/canonical-company-authority-producer-contract-v1.json",
+          "docs/specs/canonical-company-authority-producer-contract-v1.md",
+          "tests/conformance/brainbase-company-authority-producer-contract.test.js"
+        ]
       },
       "freshness_policy": {
         "schema_version": "0.1.0",
@@ -278,26 +297,25 @@
       "source_git_context": null,
       "artifact": ".vibepro/reviews/story-canonical-company-authority-producer-contract-v1/planning_spec/review-result-architecture_boundary.json",
       "history_artifacts": [
-        ".vibepro/reviews/story-canonical-company-authority-producer-contract-v1/planning_spec/history/review-result-architecture_boundary-2026-08-21T04-17-53.526Z.json",
         ".vibepro/reviews/story-canonical-company-authority-producer-contract-v1/planning_spec/history/review-result-architecture_boundary-2026-08-21T04-18-19.237Z.json"
       ]
     },
     {
       "role": "spec_consistency",
       "status": "pass",
-      "effective_status": "pass",
-      "stale": false,
-      "stale_reason": "content-bound evidence surface is current for 17 file(s)",
-      "binding_status": "current",
+      "effective_status": "stale",
+      "stale": true,
+      "stale_reason": "content-bound evidence surface changed: contracts/mana-brainbase-company-authority/v1/fixtures/cases.json, contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json, contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json, contracts/mana-brainbase-company-authority/v1/reference/wire.mjs, contracts/mana-brainbase-company-authority/v1/source-lock.json, docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
+      "binding_status": "stale",
       "merge_delta_reuse": null,
       "content_binding": {
         "model": "vibepro-content-scoped-evidence-freshness-v1",
         "mode": "content_surface",
         "status": "recorded",
         "recorded_head_sha": "d5e052d47366a0c2df85c8ca192a4fd3df0f4288",
-        "current_head_sha": "d5e052d47366a0c2df85c8ca192a4fd3df0f4288",
+        "current_head_sha": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
         "recorded_surface_hash": "84f97c32dad025229add8a9207bb521cee62e4b560f4aaf8d3fb0c7f7761c68c",
-        "current_surface_hash": "84f97c32dad025229add8a9207bb521cee62e4b560f4aaf8d3fb0c7f7761c68c",
+        "current_surface_hash": "511647b89b21e6372bba9bae2a6a1e8def59757148a3c99775aecc63b8c0cc07",
         "surface_files": [
           ".vibepro/config.json",
           "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json",
@@ -318,7 +336,17 @@
           "tests/conformance/mana-brainbase-tenant-context.adapter.test.js"
         ],
         "missing_files": [],
-        "changed_files": []
+        "changed_files": [
+          "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json",
+          "contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json",
+          "contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json",
+          "contracts/mana-brainbase-company-authority/v1/reference/wire.mjs",
+          "contracts/mana-brainbase-company-authority/v1/source-lock.json",
+          "docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
+          "docs/management/tasks/canonical-company-authority-producer-contract-v1.json",
+          "docs/specs/canonical-company-authority-producer-contract-v1.md",
+          "tests/conformance/brainbase-company-authority-producer-contract.test.js"
+        ]
       },
       "freshness_policy": {
         "schema_version": "0.1.0",
@@ -423,21 +451,24 @@
       "source_git_context": null,
       "artifact": ".vibepro/reviews/story-canonical-company-authority-producer-contract-v1/planning_spec/review-result-spec_consistency.json",
       "history_artifacts": [
-        ".vibepro/reviews/story-canonical-company-authority-producer-contract-v1/planning_spec/history/review-result-spec_consistency-2026-08-21T04-17-54.237Z.json",
         ".vibepro/reviews/story-canonical-company-authority-producer-contract-v1/planning_spec/history/review-result-spec_consistency-2026-08-21T04-18-19.951Z.json"
       ]
     }
   ],
-  "pass_count": 3,
-  "stale_count": 0,
+  "pass_count": 0,
+  "stale_count": 3,
   "missing_count": 0,
   "unverified_agent_count": 0,
   "block_count": 0,
   "needs_changes_count": 0,
-  "next_actions": [],
-  "updated_at": "2026-08-21T04:18:19.966Z",
+  "next_actions": [
+    "Replace stale planning_spec:product_requirement review (content-bound evidence surface changed: contracts/mana-brainbase-company-authority/v1/fixtures/cases.json, contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json, contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json, contracts/mana-brainbase-company-authority/v1/reference/wire.mjs, contracts/mana-brainbase-company-authority/v1/source-lock.json, docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md): `vibepro review record . --id story-canonical-company-authority-producer-contract-v1 --stage planning_spec --role product_requirement --status \"<pass|needs_changes|block>\" --summary \"<summary>\" --inspection-summary \"<inspection-summary>\" --inspection-evidence \"<inspection-evidence>\" --inspection-input \"<ref>\" --judgment-delta \"<initial judgment -> final judgment because evidence>\" --agent-system \"<codex|claude_code>\" --execution-mode parallel_subagent --agent-id \"<replacement-agent-id>\" --agent-thread-id \"<replacement-agent-thread-id>\" --agent-session-id \"<replacement-agent-session-id>\" --implementation-session-id \"<implementation-session-id>\" --reviewer-identity separate_session --agent-model \"<model>\" --agent-reasoning-effort \"<reasoning-effort>\" --agent-cost-tier \"<cost-tier>\" --agent-transcript \"<replacement-agent-transcript>\" --agent-closed --agent-close-evidence \"<replacement-agent-close-evidence>\"`",
+    "Replace stale planning_spec:architecture_boundary review (content-bound evidence surface changed: contracts/mana-brainbase-company-authority/v1/fixtures/cases.json, contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json, contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json, contracts/mana-brainbase-company-authority/v1/reference/wire.mjs, contracts/mana-brainbase-company-authority/v1/source-lock.json, docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md): `vibepro review record . --id story-canonical-company-authority-producer-contract-v1 --stage planning_spec --role architecture_boundary --status \"<pass|needs_changes|block>\" --summary \"<summary>\" --inspection-summary \"<inspection-summary>\" --inspection-evidence \"<inspection-evidence>\" --inspection-input \"<ref>\" --judgment-delta \"<initial judgment -> final judgment because evidence>\" --agent-system \"<codex|claude_code>\" --execution-mode parallel_subagent --agent-id \"<replacement-agent-id>\" --agent-thread-id \"<replacement-agent-thread-id>\" --agent-session-id \"<replacement-agent-session-id>\" --implementation-session-id \"<implementation-session-id>\" --reviewer-identity separate_session --agent-model \"<model>\" --agent-reasoning-effort \"<reasoning-effort>\" --agent-cost-tier \"<cost-tier>\" --agent-transcript \"<replacement-agent-transcript>\" --agent-closed --agent-close-evidence \"<replacement-agent-close-evidence>\"`",
+    "Replace stale planning_spec:spec_consistency review (content-bound evidence surface changed: contracts/mana-brainbase-company-authority/v1/fixtures/cases.json, contracts/mana-brainbase-company-authority/v1/fixtures/fixture.schema.json, contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json, contracts/mana-brainbase-company-authority/v1/reference/wire.mjs, contracts/mana-brainbase-company-authority/v1/source-lock.json, docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md): `vibepro review record . --id story-canonical-company-authority-producer-contract-v1 --stage planning_spec --role spec_consistency --status \"<pass|needs_changes|block>\" --summary \"<summary>\" --inspection-summary \"<inspection-summary>\" --inspection-evidence \"<inspection-evidence>\" --inspection-input \"<ref>\" --judgment-delta \"<initial judgment -> final judgment because evidence>\" --agent-system \"<codex|claude_code>\" --execution-mode parallel_subagent --agent-id \"<replacement-agent-id>\" --agent-thread-id \"<replacement-agent-thread-id>\" --agent-session-id \"<replacement-agent-session-id>\" --implementation-session-id \"<implementation-session-id>\" --reviewer-identity separate_session --agent-model \"<model>\" --agent-reasoning-effort \"<reasoning-effort>\" --agent-cost-tier \"<cost-tier>\" --agent-transcript \"<replacement-agent-transcript>\" --agent-closed --agent-close-evidence \"<replacement-agent-close-evidence>\"`"
+  ],
+  "updated_at": "2026-08-21T07:13:29.742Z",
   "current_git_context": {
-    "head_sha": "d5e052d47366a0c2df85c8ca192a4fd3df0f4288",
+    "head_sha": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
     "current_branch": "codex/a0/company-authority-producer-contract-v1",
     "dirty": false,
     "raw_dirty": false,
@@ -449,13 +480,13 @@
         ".worktrees/vibepro/"
       ]
     },
-    "recorded_at": "2026-08-21T04:18:19.932Z"
+    "recorded_at": "2026-08-21T07:13:29.646Z"
   },
   "parallel_dispatch": {
     "mode": "policy_aware_parallel_reviews",
     "prepared": true,
     "artifact": ".vibepro/reviews/story-canonical-company-authority-producer-contract-v1/planning_spec/parallel-dispatch.md",
-    "artifact_updated_at": "2026-08-21T03:40:45.915Z",
+    "artifact_updated_at": "2026-08-21T07:13:29.663Z",
     "prepare_command": "vibepro review prepare . --id story-canonical-company-authority-producer-contract-v1 --stage planning_spec --role product_requirement --role architecture_boundary --role spec_consistency"
   }
 }

@@ -1,0 +1,10 @@
+
+ RUN  v4.0.16 /private/tmp/brainbase-a0-producer-contract
+
+······················································
+
+ Test Files  1 passed (1)
+      Tests  54 passed (54)
+   Start at  16:10:54
+   Duration  799ms (transform 193ms, setup 0ms, import 420ms, tests 56ms, environment 0ms)
+

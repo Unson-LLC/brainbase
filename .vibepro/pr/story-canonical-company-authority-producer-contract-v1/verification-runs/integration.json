@@ -1,0 +1,178 @@
+{
+  "schema_version": "0.1.0",
+  "status": "pass",
+  "exit_code": 0,
+  "evidence_source": "runner_direct",
+  "producer": "vibepro verify run",
+  "kind": "integration",
+  "story_id": "story-canonical-company-authority-producer-contract-v1",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-08-21T07:11:29.392Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.10",
+      "exact_version": "0.2.0-beta.10",
+      "root": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.10/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.10/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/Users/ksato/.local/share/vibepro-runtime/current/node_modules/vibepro/bin/vibepro.js",
+      "runtime_module": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.10/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.10",
+          "package_json_sha256": "12514f6d7d96aafde4a75c9886cb4f8046762c7d0d2b063c381d887269beab7d",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "e5f5c80086d0e2af4b13877aa96b9f1b50655f2849392cbce16c7839d46f38c7",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "evidence_generation",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "head_sha": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
+  "observed": {
+    "status": "pass",
+    "evidence_source": "runner_direct",
+    "run_artifact": ".vibepro/pr/story-canonical-company-authority-producer-contract-v1/verification-runs/integration.json",
+    "run_log": ".vibepro/pr/story-canonical-company-authority-producer-contract-v1/verification-runs/integration.log",
+    "exit_code": "0",
+    "duration_ms": "1864",
+    "started_at": "2026-08-21T07:11:29.570Z",
+    "finished_at": "2026-08-21T07:11:31.434Z",
+    "head_sha_before": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
+    "head_sha_after": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
+    "head_sha": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
+    "worktree_sampled": "true",
+    "worktree_sampling_complete": "true",
+    "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+    "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+    "stdout_sha256": "d22ec6e771476b2706c887723882baef98a2f92ae94a7eb90906c0097627989b",
+    "output_sha256": "d22ec6e771476b2706c887723882baef98a2f92ae94a7eb90906c0097627989b",
+    "output_bytes": "242",
+    "log_truncated": "false",
+    "output_metrics": "none",
+    "timed_out": "false",
+    "output_limit_exceeded": "false",
+    "external_kill_signal": "none",
+    "timeout_ms": "7200000",
+    "max_output_bytes": "67108864",
+    "harness_env_removed": "none",
+    "runner_node_version": "v26.3.1",
+    "tree_mutated_during_run": "false",
+    "head_moved_during_run": "false",
+    "worktree_changed_during_run": "false",
+    "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "run": {
+    "argv": [
+      "npx",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.conformance.config.js",
+      "tests/conformance/brainbase-company-authority-consumer-boundary.test.js",
+      "--test-name-pattern",
+      "A0 consumer boundary|integration",
+      "--reporter=dot"
+    ],
+    "command": "npx vitest run --config vitest.conformance.config.js tests/conformance/brainbase-company-authority-consumer-boundary.test.js --test-name-pattern \"A0 consumer boundary|integration\" --reporter=dot",
+    "cwd": ".",
+    "started_at": "2026-08-21T07:11:29.570Z",
+    "finished_at": "2026-08-21T07:11:31.434Z",
+    "duration_ms": 1864,
+    "exit_code": 0,
+    "signal": null,
+    "timed_out": false,
+    "output_limit_exceeded": false,
+    "external_kill_signal": null,
+    "timeout_ms": 7200000,
+    "max_output_bytes": 67108864,
+    "head_sha_before": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
+    "head_sha_after": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
+    "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+    "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+    "tree_mutated_during_run": false,
+    "head_moved_during_run": false,
+    "worktree_changed_during_run": false,
+    "worktree_sampled": true,
+    "worktree_sampling_complete": true,
+    "output_metrics": "none",
+    "counts": null,
+    "node_version": "v26.3.1",
+    "harness_env_removed": [],
+    "log": ".vibepro/pr/story-canonical-company-authority-producer-contract-v1/verification-runs/integration.log",
+    "log_truncated": false
+  },
+  "discarded_agent_observations": [
+    {
+      "key": "tests",
+      "agent_value": "7",
+      "computed_value": null,
+      "reason": "key is computed by the runner and was not observed in this run; the agent value is not recorded"
+    }
+  ],
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "verify run",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-a0-producer-contract",
+      "actual_root": "/private/tmp/brainbase-a0-producer-contract",
+      "expected_root": null,
+      "expected_head_sha": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
+      "current_head_sha": "8cd67b5a4a351113c94a50a42a79472973f3e4cd",
+      "managed_worktree": null
+    },
+    {
+      "id": "verification_observation_overridden",
+      "command_name": "verify run",
+      "reason": "agent-supplied --observed values were discarded for computed keys: tests"
+    },
+    {
+      "id": "verification_run_counts_not_parsed",
+      "command_name": "verify run",
+      "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+    }
+  ]
+}
