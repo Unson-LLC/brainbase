@@ -73,6 +73,7 @@ export type JudgmentDAGRunnerFailureKind = 'sync_throw' | 'async_reject';
 
 export interface JudgmentDAGExecutionErrorDetails {
   readonly node_id?: string;
+  readonly node_type?: JudgmentDAGNode['node_type'];
   readonly runner_type?: JudgmentDAGRunnerType;
   readonly failure_kind?: JudgmentDAGRunnerFailureKind;
   readonly cause?: unknown;
@@ -81,6 +82,7 @@ export interface JudgmentDAGExecutionErrorDetails {
 export class JudgmentDAGExecutionError extends Error {
   readonly code: JudgmentDAGExecutionCode;
   readonly node_id?: string;
+  readonly node_type?: JudgmentDAGNode['node_type'];
   readonly runner_type?: JudgmentDAGRunnerType;
   readonly failure_kind?: JudgmentDAGRunnerFailureKind;
   readonly cause?: unknown;
@@ -94,6 +96,7 @@ export class JudgmentDAGExecutionError extends Error {
     this.name = 'JudgmentDAGExecutionError';
     this.code = code;
     this.node_id = details.node_id;
+    this.node_type = details.node_type;
     this.runner_type = details.runner_type;
     this.failure_kind = details.failure_kind;
     this.cause = details.cause;
@@ -245,6 +248,25 @@ function snapshotRequestJSON(value: unknown, path: string): JudgmentDAGJSONValue
       throw error;
     }
     throw invalidRequest(`${path} must be readable`);
+  }
+}
+
+function snapshotRunnerOutput(value: unknown, node: JudgmentDAGNode): JudgmentDAGJSONValue {
+  try {
+    return snapshotJSON(value, `node ${node.id} output`);
+  } catch {
+    // Runner output is an untrusted boundary. Do not expose an arbitrary
+    // getter/proxy exception or preserve it as cause; retain only stable node
+    // context in the public machine-readable error.
+    throw new JudgmentDAGExecutionError(
+      'invalid_json',
+      `node ${node.id} output must be a JSON value`,
+      {
+        node_id: node.id,
+        node_type: node.node_type,
+        runner_type: node.runner_type
+      }
+    );
   }
 }
 
@@ -435,7 +457,7 @@ export async function executeJudgmentDAG(
       );
     }
 
-    const output = snapshotJSON(rawOutput, `node ${node.id} output`);
+    const output = snapshotRunnerOutput(rawOutput, node);
     outputByNode.set(node.id, output);
     nodeRecords.push({
       node_id: node.id,

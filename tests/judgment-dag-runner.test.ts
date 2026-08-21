@@ -721,6 +721,65 @@ describe('J0 local deterministic Judgment DAG runner', () => {
     >({ code: 'invalid_json' });
   });
 
+  it.each([
+    {
+      label: 'an enumerable getter',
+      createOutput: () => {
+        const output: Record<string, unknown> = {};
+        Object.defineProperty(output, 'secret', {
+          enumerable: true,
+          get() {
+            throw new Error('sensitive enumerable getter failure');
+          }
+        });
+        return output;
+      }
+    },
+    {
+      label: 'a proxy ownKeys trap',
+      createOutput: () => new Proxy({}, {
+        ownKeys() {
+          throw new Error('sensitive proxy ownKeys failure');
+        }
+      })
+    },
+    {
+      label: 'a proxy prototype read',
+      createOutput: () => new Proxy({}, {
+        getPrototypeOf() {
+          throw new Error('sensitive proxy prototype failure');
+        }
+      })
+    }
+  ])(
+    'normalizes $label failures while snapshotting runner output without a success record',
+    async ({ createOutput }) => {
+      let calls = 0;
+      let record: unknown;
+      let failure: unknown;
+      try {
+        record = await executeJudgmentDAG(request({ value: 1 }, () => {
+          calls += 1;
+          return createOutput();
+        }));
+      } catch (error) {
+        failure = error;
+      }
+
+      expect(record).toBeUndefined();
+      expect(failure).toBeInstanceOf(JudgmentDAGExecutionError);
+      expect(failure).toMatchObject<Partial<JudgmentDAGExecutionError>>({
+        code: 'invalid_json',
+        node_id: '__proto__',
+        node_type: 'observation',
+        runner_type: 'deterministic'
+      });
+      expect((failure as JudgmentDAGExecutionError).cause).toBeUndefined();
+      expect((failure as Error).message).not.toContain('sensitive');
+      expect(calls).toBe(1);
+    }
+  );
+
   it('returns a deeply frozen deterministic record without reading clock or randomness', async () => {
     const dateNow = vi.spyOn(Date, 'now');
     const random = vi.spyOn(Math, 'random');
