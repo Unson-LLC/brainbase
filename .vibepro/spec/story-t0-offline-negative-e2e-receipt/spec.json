@@ -1,0 +1,185 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-t0-offline-negative-e2e-receipt",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "final",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": [
+        "fixture event tenant_id",
+        "fixture expected tenant_id"
+      ],
+      "resolution_point": "fixture boundary before resolver",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "fixture event",
+        "resolver",
+        "provider",
+        "delivery",
+        "accounting",
+        "fixture adapter boundary"
+      ],
+      "verified_surfaces": [
+        "fixture event",
+        "resolver",
+        "provider",
+        "delivery",
+        "accounting",
+        "fixture adapter boundary"
+      ]
+    },
+    "resources": [
+      {
+        "name": "fixture counters and adapter ledger",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_id",
+        "partition_key": "tenant_id/resource_id",
+        "trust_zone": "in-memory fixture-only harness",
+        "residue_policy": "destroy after run",
+        "data_owner": "fixture-only harness",
+        "credential_scope": "none; fixture-only no credentials"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "none; fixture-only no credentials",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "fixture-only harness"
+      ],
+      "residency": "in-memory fixture only; no external persistence",
+      "migration": "not_applicable; fixture has no migration",
+      "rollback": "discard in-memory fixture state; no external mutation"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "deployment_verification": "not_applicable; fixture-only run never deploys",
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "fixture tenant_id"
+      ],
+      "boundary_edges": [
+        "fixture event to resolver",
+        "fixture pipeline to adapter boundary"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "not_collected",
+      "scope": "fixture-only contract; Graph, production deployment, secrets, and external readback are not collected"
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "fixture-only dry runは固定T0 baseと実行worktreeのgit HEADに厳密に束縛されたbase/head、fixture hash、3ケース、ケース別counter、fixture_harness_status=success、production_executed=false、deploy_allowed=falseを含む1つの機械可読Receiptを返す。fixture_harness_statusはケースのstatusとは別に、fixture harness自身の完了だけを表す。",
+      "rationale": "オフライン検証の範囲と本番未実行の境界を、成功や0件へ丸めず後から監査できるようにするため。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-t0-offline-negative-e2e-receipt.md", "section": "Receipt境界" }],
+        "code_refs": [{ "file": "scripts/run-t0-offline-negative-e2e.js", "anchor": "runT0OfflineNegativeE2E" }],
+        "test_refs": [{ "file": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "case": "keeps the fixture-only boundary and records the three negative cases" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "must_cover": "prints one machine-readable Receipt in fixture-only CLI mode" }] }
+    },
+    {
+      "id": "C-002",
+      "type": "invariant",
+      "statement": "同一eventのredeliveryはprovider、delivery、accountingの効果counterを1件にする。",
+      "rationale": "再配信を複数の業務効果として適用しないidempotency境界をfixtureで固定するため。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-t0-offline-negative-e2e-receipt.md", "section": "ケース境界" }],
+        "code_refs": [{ "file": "scripts/run-t0-offline-negative-e2e.js", "anchor": "createFixtureOnlyAdapterLayer" }],
+        "test_refs": [{ "file": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "case": "guards provider, delivery, and accounting on direct redelivery" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "must_cover": "guards provider, delivery, and accounting on direct redelivery" }] }
+    },
+    {
+      "id": "C-003",
+      "type": "invariant",
+      "statement": "cross-tenant eventはresolverより前に拒否し、upstream unavailableはresolution.available=falseを確認してblocked、provider/delivery/accounting 0、external readback not_collected、未知数量nullで返す。",
+      "rationale": "テナント越境と上流停止を副作用なしで閉じ、未収集を成功や0へ変換しないため。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }, { "kind": "acceptance_criteria", "ac_id": "AC-004" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-t0-offline-negative-e2e-receipt.md", "section": "ケース境界" }],
+        "code_refs": [{ "file": "scripts/run-t0-offline-negative-e2e.js", "anchor": "crossTenantCase" }, { "file": "scripts/run-t0-offline-negative-e2e.js", "anchor": "upstreamCase" }],
+        "test_refs": [
+          { "file": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "case": "keeps the fixture-only boundary and records the three negative cases" },
+          { "file": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "case": "fails closed if upstream fixture reports available=true" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "must_cover": "keeps the fixture-only boundary and records the three negative cases" }] }
+    },
+    {
+      "id": "C-004",
+      "type": "invariant",
+      "statement": "fixture-only runの各操作はfactory発行のモジュール内identityを持つ禁止外部adapter境界と注入adapterを検査するfixture-only adapter layerを経由し、低層layerの直接構築でも両identityを生成前に検証する。構造を偽装したadapterは呼び出し前に拒否し、外部adapter呼び出し時に例外、production形状の注入時に拒否、正常実行時の呼び出し件数0とする。",
+      "rationale": "offline sliceが本番実行や外部readbackへ誤って拡張されないことをテストで固定するため。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-005" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-t0-offline-negative-e2e-receipt.md", "section": "境界" }],
+        "code_refs": [
+          { "file": "scripts/run-t0-offline-negative-e2e.js", "anchor": "createForbiddenExternalAdapters" },
+          { "file": "scripts/run-t0-offline-negative-e2e.js", "anchor": "requireFixtureOnlyAdapterInjection" },
+          { "file": "scripts/run-t0-offline-negative-e2e.js", "anchor": "createFixtureOnlyAdapterLayer" }
+        ],
+        "test_refs": [
+          { "file": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "case": "rejects a structurally forged fixture-only adapter before injection calls" },
+          { "file": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "case": "rejects a forged low-level external boundary before provider calls" },
+          { "file": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "case": "rejects a forged low-level injection before provider calls" },
+          { "file": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "case": "fails closed when a forbidden adapter is injected into normal fixture processing" },
+          { "file": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "case": "fails closed if a fixture attempts any external adapter call" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "must_cover": "rejects a forged low-level external boundary before provider calls" }] }
+    },
+    {
+      "id": "C-006",
+      "type": "invariant",
+      "statement": "同じ固定fixtureと同じ厳密Git bindingで実行したReceiptは、fixture hashとケース結果を一致させる。",
+      "rationale": "contract fixtureの判定を実行時刻や外部状態から独立させ、同じ入力の証跡を再現可能にするため。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-t0-offline-negative-e2e-receipt.md", "section": "Receipt境界" }],
+        "code_refs": [{ "file": "scripts/run-t0-offline-negative-e2e.js", "anchor": "canonicalJson" }, { "file": "scripts/run-t0-offline-negative-e2e.js", "anchor": "sha256" }],
+        "test_refs": [{ "file": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "case": "keeps fixture results deterministic for the exact git binding" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/integration/t0-offline-negative-e2e-receipt.test.js", "must_cover": "keeps fixture results deterministic for the exact git binding" }] }
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "OQ-001",
+      "question": "production PostgreSQL/runtime cross-tenant E2E and external readback remain outside this fixture slice"
+    }
+  ]
+}
