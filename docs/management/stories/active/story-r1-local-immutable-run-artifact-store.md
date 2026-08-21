@@ -106,6 +106,12 @@ J0の実装境界は、次の同一系譜へ固定する。
 
   syntheticなJ0 recordを同一rootのstore/process Aでsaveし、Aを正常終了する。同じrootをfresh process/store Bでreopenし、`artifact_id`をreloadする。元recordとreload recordの完全一致、envelope・payload・recordのbinding、J0 source lock・schemaの一致を確認し、返却値がdeep-frozenであること、caller側のmutation後も次回reloadが元recordと一致することを確認する。reopen/reload中のJ0 runner呼出し回数は0である。このE2Eはplanned verificationであり、このplanning sliceではruntime・testを作成しない。
 
+## Test contractとmachine-readable AC coverage
+
+AC-001〜AC-011の機械可読なcoverageは、Taskの`acceptance_coverage`配列を正本とする。各entryは`ac_id`、`assertion_id`、future test path、pre-fix RED assertion、expected result、evidence artifact、release-block conditionを必須とし、11件すべてを1対1で保持する。Taskの`result_contract`はsave/reload/listの成功statusとerror envelopeを固定し、`conflict`、`invalid_artifact_id`、`invalid_path`、`path_escape`、`schema_invalid`、`integrity_mismatch`、`binding_missing_or_mismatch`、`non_regular_file`、`cross_filesystem`、`not_found`を安定codeとして列挙する。
+
+後続の`tests/judgment-dag-artifact-store.test.ts`は、process/store Aがfixtureとartifact・binding bytesを記録して終了し、fresh process/store Bが同一rootをreopenして一操作だけ検証する。tamper、truncated、zero-byte、malformed artifact_id、unknown schema/extra field、binding mismatch、not found、published-unbound reload、同一内容のpublished-unbound recovery、異なる内容のconflict、root escape、absolute path、NUL、slash、backslash、dot、URL、cross-filesystem、symlink、directory、device、FIFO、socket、temporary/published-unboundのlist/reload invisibilityを各fixture/assertion unitとして持つ。各negative resultはexact code/shape、`record=null`、runner invocation 0、repair/overwrite/deleteなし、artifact/binding bytes unchanged、cleanupなしを確認する。これはplanned-onlyであり、production/runtime/testの実証やJ0 runnerの実行をこのStoryで主張しない。
+
 ## 後続へ明示的に委譲する境界
 
 - historical replayとrecordを別のDAG versionやcontextへ再実行する契約

@@ -117,6 +117,83 @@ reservation、binding、artifact rootは同じfilesystemであることを実装
 
 この検証はplanned verificationであり、R1のplanning sliceではruntime、test、fixtureを作成しない。
 
+## Save・reload・listの結果契約（machine-readable）
+
+後続実装のsave、reload、listは、OS例外やライブラリ固有の文字列をそのまま返さず、次の固定result envelopeへ正規化する。これはplanned contractであり、このsliceでruntimeを実装したことを意味しない。
+
+成功結果のshapeは次の通りである。
+
+```json
+{
+  "ok": true,
+  "operation": "save|reload|list",
+  "status": "new|idempotent|loaded|empty|committed",
+  "artifact_id": "sha256:<64 lowercase hex>",
+  "run_id": "<J0 run_id>",
+  "record": "null for save/list; exact recursively deep-frozen J0 record for reload=loaded",
+  "binding": "created|recovered|existing|verified|none"
+}
+```
+
+saveのstatusは`new`または`idempotent`、reloadは`loaded`、listは`empty`または`committed`だけを返す。`record`はsave/listでは`null`、reloadの`loaded`だけが検証済みのJ0 recordを返す。失敗結果は次のshapeを必須とする。
+
+```json
+{
+  "ok": false,
+  "operation": "save|reload|list",
+  "status": "error",
+  "code": "<stable error code>",
+  "artifact_id": "<input or null>",
+  "run_id": "<input or null>",
+  "record": null,
+  "effects": {
+    "success_record_returned": false,
+    "artifact_bytes_changed": false,
+    "binding_changed": false,
+    "repair_attempted": false,
+    "overwrite_attempted": false,
+    "delete_attempted": false,
+    "runner_invocations": 0
+  }
+}
+```
+
+固定error codeは次の通りである。`invalid_artifact_id`はartifact_idの形式不正、`invalid_path`はabsolute/NUL/separator/dot/URLなどlocator入力不正、`path_escape`はroot外解決、`schema_invalid`はenvelope/payload/record/JCS/schema不正、`integrity_mismatch`はstored bytes・canonical envelope・digest・identity不一致、`binding_missing_or_mismatch`はbinding欠落または別artifact指示、`non_regular_file`はsymlinkを含むregular file以外、`cross_filesystem`はreservation/binding/artifact rootのdevice不一致、`conflict`は同じrun_idの異なるcanonical content、`not_found`はcommitted artifact不在を表す。raw OS errorは契約ではない。
+
+## Fresh process/store negative E2Eとfixture単位のassertion
+
+後続の`tests/judgment-dag-artifact-store.test.ts`は、process/store Aが同一rootへfixtureをseedしてartifact bytes・binding bytesを記録して終了し、fresh process/store Bが同じrootをreopenして一操作だけ実行する二段階で検証する。Bは固定`code`とresult shapeを確認し、errorでは`record=null`、`runner_invocations=0`、`repair_attempted=false`、`overwrite_attempted=false`、`delete_attempted=false`を確認する。最後にAのartifact・binding bytesとcommitted identityを再読込し、既存状態がbyte-for-byte不変であることを確認する。修復、overwrite、unlink、削除、暗黙cleanupはどのnegative caseでも発生してはならない。
+
+| Fixture/assertion unit | Operation | Expected result |
+| --- | --- | --- |
+| one envelope byte tampered | reload | `integrity_mismatch`、success recordなし |
+| envelope truncated | reload | `integrity_mismatch`、既存bytes不変 |
+| envelope zero-byte | reload | `integrity_mismatch`、既存bytes不変 |
+| canonical envelope renamed without binding（published-unbound） | reload | `binding_missing_or_mismatch`、list/reload成功値から不可視 |
+| same-run exact published-unbound envelope | save | `status=new`、`binding=recovered`、cleanupなし |
+| same-run different-content published-unbound envelope | save | `conflict`、新規公開・overwrite・deleteなし |
+| malformed artifact_id | reload | `invalid_artifact_id` |
+| unknown schema version or extra envelope field | reload | `schema_invalid`、success recordなし |
+| binding points to a different artifact_id | reload | `binding_missing_or_mismatch` |
+| no committed artifact at safe locator | reload | `not_found`、success recordなし |
+| root-relative locator escapes root | reload | `path_escape` |
+| absolute locator | reload | `invalid_path` |
+| NUL-containing locator | reload | `invalid_path` |
+| slash separator locator | reload | `invalid_path` |
+| backslash separator locator | reload | `invalid_path` |
+| dot segment locator | reload | `invalid_path` |
+| URL-scheme locator | reload | `invalid_path` |
+| reservation/artifact root on different device | save | `cross_filesystem`、atomic claimなし |
+| symlink at locator | reload | `non_regular_file`、symlink followなし |
+| directory at locator | reload | `non_regular_file` |
+| device at locator | reload | `non_regular_file` |
+| FIFO at locator | reload | `non_regular_file` |
+| socket at locator | reload | `non_regular_file` |
+| temporary file or published-unbound listed | list | `status=empty`、completed artifactとして不可視 |
+| temporary file or published-unbound reloaded | reload | success recordなし、暗黙cleanupなし |
+
+各fixtureは個別のassertion idとmachine-readable evidence artifactを持ち、failure時のraw filesystem errorをsuccessや別codeへ丸めない。
+
 ## Canonical serialization
 
 canonicalizationは独自規則を作らず、RFC 8785 JSON Canonicalization Scheme (JCS)を固定する。JCSのproperty sorting、ECMAScript互換のnumber serialization、string escaping、UTF-8、whitespaceなしの規則をそのまま適用する。J0 recordがJCS入力として不正、またはR1の許可schema外ならsaveを拒否する。

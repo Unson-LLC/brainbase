@@ -118,6 +118,30 @@ reloadはcallerが指定したartifact_idから安全なroot-relative locatorだ
 
 byte改変、追加field、field順差替え、digest差替え、三層run_id差替え、truncated JSON、zero-byte、partial write、unknown version、bindingなしartifactは成功値を返さない。自動repair、overwrite、削除、再公開をreloadの副作用にしない。
 
+## Machine-readable result contract
+
+save、reload、listは、後続実装で次のresult envelopeへ正規化する。これはplanning-onlyの契約であり、このSpecはruntimeやtestを作成しない。
+
+成功結果は`ok=true`、`operation=save|reload|list`、`status=new|idempotent|loaded|empty|committed`、`artifact_id`、`run_id`、`record`、`binding`を必須とする。saveのstatusは`new|idempotent`、reloadは`loaded`、listは`empty|committed`に限定する。save/listの`record`は`null`、reload loadedの`record`は検証済みでrecursive deep-frozenなJ0 record、bindingは`created|recovered|existing|verified|none`のいずれかとする。
+
+失敗結果は`ok=false`、`operation`、`status=error`、`code`、`artifact_id`、`run_id`、`record=null`、`effects`を必須とする。`effects`は`success_record_returned=false`、`artifact_bytes_changed=false`、`binding_changed=false`、`repair_attempted=false`、`overwrite_attempted=false`、`delete_attempted=false`、`runner_invocations=0`を必須値とする。固定codeは`conflict`、`invalid_artifact_id`、`invalid_path`、`path_escape`、`schema_invalid`、`integrity_mismatch`、`binding_missing_or_mismatch`、`non_regular_file`、`cross_filesystem`、`not_found`であり、raw OS error文字列を契約値にしない。
+
+## Fresh process/store negative E2Eとassertion units
+
+後続テストはA/B fresh process protocolを使う。Aが同一rootへartifactまたはcrash fixtureをseedし、artifact・binding bytesを記録して終了する。fresh process/store Bが同じrootをreopenして一操作だけ行い、上記のexact result shape/code、error時の`record=null`、`runner_invocations=0`、修復・overwrite・deleteなしを確認する。Bの後にbytes、binding、committed identityを再読込し、既存状態が不変であることを確認する。
+
+fixture/assertionは次を個別に持つ。
+
+- tamper、truncated envelope、zero-byte envelopeのreloadはそれぞれ`integrity_mismatch`。
+- bindingなしpublished-unboundのreloadは`binding_missing_or_mismatch`で成功値から不可視。完全一致の同一run recoveryはsave `new` + `binding=recovered`、異なるcanonical contentはsave `conflict`とし、どちらも暗黙cleanup・overwrite・deleteをしない。
+- malformed artifact_idは`invalid_artifact_id`、unknown schema/extra fieldは`schema_invalid`、別artifactを指すbindingは`binding_missing_or_mismatch`、committed artifact不在は`not_found`とする。
+- root escapeは`path_escape`。absolute path、NUL、slash separator、backslash separator、dot segment、URL schemeは各々`invalid_path`。
+- reservation/binding/artifact rootのcross-filesystem claimは`cross_filesystem`で、atomic claimを試さない。
+- symlink、directory、device、FIFO、socketは各々`non_regular_file`で、symlink followをしない。
+- temporaryとpublished-unboundはlistで`empty`、reloadでsuccess recordなしとし、通常処理がcleanupしない。
+
+すべてのnegative assertionは、失敗resultのrequired keys、`record=null`、runner count 0、no repair/overwrite/delete、artifact/binding bytes unchangedを同時に検証する。
+
 ## Fail-closed matrix
 
 | Category | Negative cases | Required result |

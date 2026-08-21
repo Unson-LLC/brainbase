@@ -186,6 +186,194 @@
       "deployments"
     ]
   },
+  "result_contract": {
+    "version": "r1-artifact-store-result-v1",
+    "success_shape": {
+      "required_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
+      "ok": true,
+      "operation": ["save", "reload", "list"],
+      "status_by_operation": {
+        "save": ["new", "idempotent"],
+        "reload": ["loaded"],
+        "list": ["empty", "committed"]
+      },
+      "record": "null for save/list; exact recursively deep-frozen J0 record for reload loaded",
+      "binding": ["created", "recovered", "existing", "verified", "none"]
+    },
+    "error_shape": {
+      "required_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
+      "ok": false,
+      "operation": ["save", "reload", "list"],
+      "status": "error",
+      "record": null,
+      "effects": {
+        "success_record_returned": false,
+        "artifact_bytes_changed": false,
+        "binding_changed": false,
+        "repair_attempted": false,
+        "overwrite_attempted": false,
+        "delete_attempted": false,
+        "runner_invocations": 0
+      }
+    },
+    "error_codes": {
+      "conflict": "same run_id or published-unbound request has different canonical content, digest, schema, source lock, or binding",
+      "invalid_artifact_id": "artifact_id is not sha256:<64 lowercase hexadecimal characters>",
+      "invalid_path": "absolute path, separator, NUL, dot segment, or URL scheme is supplied",
+      "path_escape": "resolved locator would leave the caller-owned artifact root",
+      "schema_invalid": "envelope, payload, record, JCS value, or schema version is invalid",
+      "integrity_mismatch": "stored bytes, canonical envelope, digest, or expected identity differs",
+      "binding_missing_or_mismatch": "binding is absent or does not point to requested artifact_id",
+      "non_regular_file": "locator resolves to a directory, device, FIFO, socket, or symlink",
+      "cross_filesystem": "reservation, binding, and artifact root have different devices",
+      "not_found": "no committed artifact is visible at the safe locator"
+    },
+    "raw_os_errors_are_not_contract": true
+  },
+  "negative_e2e": {
+    "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+    "fresh_process_protocol": [
+      "process/store A seeds the artifact or crash fixture, records artifact bytes and binding bytes, then closes",
+      "fresh process/store B reopens the same root and performs exactly one save/reload/list operation",
+      "B asserts the exact code and result shape, record is absent on error, runner_invocations=0, and no repair/overwrite/delete occurred",
+      "B reads artifact and binding bytes again and asserts existing bytes and binding are unchanged"
+    ],
+    "cases": [
+      {"id": "tamper", "fixture": "one envelope byte changed", "operation": "reload", "expected_code": "integrity_mismatch"},
+      {"id": "truncate", "fixture": "stored envelope truncated or zero-byte", "operation": "reload", "expected_code": "integrity_mismatch"},
+      {"id": "published-unbound-reload", "fixture": "canonical envelope after rename with no binding", "operation": "reload", "expected_code": "binding_missing_or_mismatch"},
+      {"id": "published-unbound-exact-recovery", "fixture": "same-run exact envelope and missing binding", "operation": "save", "expected_status": "new", "expected_binding": "recovered"},
+      {"id": "published-unbound-different-content", "fixture": "same run_id with different canonical envelope", "operation": "save", "expected_code": "conflict"},
+      {"id": "invalid-artifact-id", "fixture": "artifact_id not sha256:<64 lowercase hex>", "operation": "reload", "expected_code": "invalid_artifact_id"},
+      {"id": "schema-invalid", "fixture": "unknown schema version or extra envelope field", "operation": "reload", "expected_code": "schema_invalid"},
+      {"id": "binding-mismatch", "fixture": "binding points to a different artifact_id", "operation": "reload", "expected_code": "binding_missing_or_mismatch"},
+      {"id": "not-found", "fixture": "no committed artifact at safe locator", "operation": "reload", "expected_code": "not_found"},
+      {"id": "path-escape", "fixture": "root-relative locator resolves outside root", "operation": "reload", "expected_code": "path_escape"},
+      {"id": "absolute-path", "fixture": "absolute locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "nul-path", "fixture": "NUL-containing locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "slash-separator", "fixture": "slash separator in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "backslash-separator", "fixture": "backslash separator in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "dot-segment", "fixture": "dot or dot-dot segment in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "url-scheme", "fixture": "URL scheme in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "cross-filesystem", "fixture": "reservation and artifact root on different device", "operation": "save", "expected_code": "cross_filesystem"},
+      {"id": "symlink", "fixture": "symlink at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "directory", "fixture": "directory at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "device", "fixture": "device at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "fifo", "fixture": "FIFO at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "socket", "fixture": "socket at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "invisible-crash-state", "fixture": "temporary or published-unbound file in list", "operation": "list", "expected_status": "empty"},
+      {"id": "invisible-reload-state", "fixture": "temporary or published-unbound file in reload", "operation": "reload", "expected_code": "not_found"},
+      {"id": "cleanup-forbidden", "fixture": "temporary or published-unbound file after failed operation", "operation": "reload", "expected_code": "not_found", "assertion": "no cleanup, overwrite, or delete"}
+    ],
+    "common_assertions": [
+      "error result.record is null and success_record_returned is false",
+      "runner_invocations is exactly 0",
+      "artifact bytes, binding bytes, and committed artifact identity are unchanged",
+      "repair_attempted, overwrite_attempted, and delete_attempted are false",
+      "temporary and published-unbound states are absent from list and reload success values"
+    ]
+  },
+  "acceptance_coverage": [
+    {
+      "ac_id": "AC-001",
+      "assertion_id": "r1-ac001-source-lock",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "fail when PR, merge commit, implementation head, or input type differs from the locked J0 values",
+      "expected_result": "exact source-lock object and J0-not-done marker pass",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-001.json",
+      "release_block_condition": "block if the exact lock or J0 completion boundary is absent"
+    },
+    {
+      "ac_id": "AC-002",
+      "assertion_id": "r1-ac002-two-layer-identity",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "fail when artifact_id is included in the digest preimage or stored envelope is treated as the preimage",
+      "expected_result": "JCS(payload) digest and JCS(envelope) bytes produce the declared artifact_id and binding",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-002.json",
+      "release_block_condition": "block if digest, payload, envelope, or binding readback is not exact"
+    },
+    {
+      "ac_id": "AC-003",
+      "assertion_id": "r1-ac003-jcs-schema",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "fail when key order, -0, exponent, Unicode, lone surrogate, unknown field, wrong type, cycle, sparse array, or non-finite value is accepted or silently corrected",
+      "expected_result": "valid JCS fixtures canonicalize; invalid values return schema_invalid with no publication",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-003.json",
+      "release_block_condition": "block if any fixture lacks the expected bytes or exact schema_invalid result"
+    },
+    {
+      "ac_id": "AC-004",
+      "assertion_id": "r1-ac004-atomic-save",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "fail when a conflicting writer creates temp/final bytes before reservation and binding check, or when cross-filesystem claim is attempted",
+      "expected_result": "new/idempotent save follows reservation->binding check->temp->rename->create-once and exposes no partial state",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-004.json",
+      "release_block_condition": "block if ordering, atomicity, same-device check, or crash-state visibility is unproven"
+    },
+    {
+      "ac_id": "AC-005",
+      "assertion_id": "r1-ac005-run-conflict",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "fail when same run_id with different content, digest, schema, source lock, or three-layer run_id can overwrite or create a second binding",
+      "expected_result": "error code conflict, record null, runner count 0, and existing artifact/binding bytes unchanged",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-005.json",
+      "release_block_condition": "block on any last-write-wins, overwrite, or missing conflict readback"
+    },
+    {
+      "ac_id": "AC-006",
+      "assertion_id": "r1-ac006-reload-integrity",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "fail when tamper, truncate, zero-byte, extra field, digest replacement, three-layer run_id mismatch, unknown version, or bindingless bytes reload successfully",
+      "expected_result": "fresh-process negative E2E returns integrity_mismatch, schema_invalid, or binding_missing_or_mismatch exactly; no success record or repair",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-006.json",
+      "release_block_condition": "block if any negative case returns a success record or an unstable raw OS error"
+    },
+    {
+      "ac_id": "AC-007",
+      "assertion_id": "r1-ac007-snapshot-isolation",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "fail when caller or parser nested mutation changes saved bytes, identity, or a later reload",
+      "expected_result": "reload status loaded returns recursively deep-frozen detached values and byte-identical later reload",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-007.json",
+      "release_block_condition": "block if nested freeze, mutation isolation, or later reload equality is missing"
+    },
+    {
+      "ac_id": "AC-008",
+      "assertion_id": "r1-ac008-filesystem-and-concurrency",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "fail when traversal, absolute path, NUL, separator, dot, URL, symlink, non-regular file, cross-device claim, partial state, or concurrent last-write-wins is possible",
+      "expected_result": "path_escape, invalid_path, non_regular_file, cross_filesystem, or conflict exact code; list/reload cannot see uncommitted states",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-008.json",
+      "release_block_condition": "block if any fixture lacks root containment, no-cleanup, invisibility, or create-once evidence"
+    },
+    {
+      "ac_id": "AC-009",
+      "assertion_id": "r1-ac009-red-contract",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "each listed pre-fix defect must fail before GREEN implementation; a pre-fix pass is a RED evidence failure",
+      "expected_result": "RED receipt contains each assertion id and its observed pre-fix failure, then GREEN receipt is separate",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-009.json",
+      "release_block_condition": "block if RED is absent, mixed with GREEN, or a known unsafe behavior passes"
+    },
+    {
+      "ac_id": "AC-010",
+      "assertion_id": "r1-ac010-six-path-boundary",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "fail if implementation, test, schema, fixture, runtime, package, external state, or an unrelated path is changed in this planning slice",
+      "expected_result": "exactly the six declared planning paths are allowed; production effects and J0 source bytes remain unchanged",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-010.json",
+      "release_block_condition": "block on any forbidden path, production effect, fabricated tenant contract, or J0 lock drift"
+    },
+    {
+      "ac_id": "AC-011",
+      "assertion_id": "r1-ac011-restart-reopen",
+      "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+      "pre_fix_red_assertion": "fail when fresh process/store B cannot reopen A's root, returns a non-identical record/binding, permits mutation, or invokes J0 runner",
+      "expected_result": "process B status loaded, exact record/source-lock/schema/binding equality, deep-freeze, and runner_invocations=0",
+      "evidence_artifact": ".vibepro/evidence/story-r1-local-immutable-run-artifact-store/coverage/AC-011.json",
+      "release_block_condition": "block until fresh process/store evidence proves the complete roundtrip at the combined implementation HEAD"
+    }
+  ],
   "planned_tests": {
     "status": "not_created_planning_only",
     "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
@@ -198,7 +386,16 @@
       "envelope/payload/record run_id equality and fail-closed mismatches",
       "path traversal, symlink, non-regular file, and root containment negatives",
       "recursive deep-freeze and caller/storage mutation isolation",
-      "positive restart/reopen E2E: process A saves a synthetic J0 record, closes; fresh process B reopens the same root, reloads artifact_id, asserts exact record/binding/source-lock/schema equality, deep-freeze and mutation isolation, and observes zero J0 runner invocations"
+      "positive restart/reopen E2E: process A saves a synthetic J0 record, closes; fresh process B reopens the same root, reloads artifact_id, asserts exact record/binding/source-lock/schema equality, deep-freeze and mutation isolation, and observes zero J0 runner invocations",
+      "machine-readable result envelope and stable error-code contract for every save/reload/list assertion",
+      "fresh-process negative E2E for tamper/truncate, published-unbound exact recovery and different-content denial, path escape, path syntax, cross-filesystem, non-regular file, and list/reload invisibility"
+    ],
+    "required_assertion_units": [
+      "every negative fixture asserts exact result code/status and record=null on error",
+      "every negative fixture asserts runner_invocations=0, no repair/overwrite/delete, and unchanged artifact/binding bytes",
+      "cross-filesystem, absolute path, NUL, slash/backslash separator, dot segment, URL scheme, symlink, and non-regular file are separate fixture assertions",
+      "published-unbound exact same-run recovery is distinct from different-content conflict; both assert no implicit cleanup",
+      "temporary and published-unbound artifacts are invisible to list and reload success values"
     ],
     "historical_replay_or_evaluation_tests": "deferred_to_later_stories"
   },

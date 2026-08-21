@@ -43,6 +43,93 @@
     "implementation_head": "3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde",
     "input_type": "JudgmentDAGRunRecord"
   },
+  "result_contract": {
+    "version": "r1-artifact-store-result-v1",
+    "success_shape": {
+      "required_keys": ["ok", "operation", "status", "artifact_id", "run_id", "record", "binding"],
+      "ok": true,
+      "operation": ["save", "reload", "list"],
+      "status_by_operation": {
+        "save": ["new", "idempotent"],
+        "reload": ["loaded"],
+        "list": ["empty", "committed"]
+      },
+      "record": "null for save/list; exact recursively deep-frozen J0 record for reload loaded",
+      "binding": ["created", "recovered", "existing", "verified", "none"]
+    },
+    "error_shape": {
+      "required_keys": ["ok", "operation", "status", "code", "artifact_id", "run_id", "record", "effects"],
+      "ok": false,
+      "operation": ["save", "reload", "list"],
+      "status": "error",
+      "record": null,
+      "effects": {
+        "success_record_returned": false,
+        "artifact_bytes_changed": false,
+        "binding_changed": false,
+        "repair_attempted": false,
+        "overwrite_attempted": false,
+        "delete_attempted": false,
+        "runner_invocations": 0
+      }
+    },
+    "error_codes": {
+      "conflict": "same run_id or published-unbound request has different canonical content, digest, schema, source lock, or binding",
+      "invalid_artifact_id": "artifact_id is not sha256:<64 lowercase hexadecimal characters>",
+      "invalid_path": "absolute path, separator, NUL, dot segment, or URL scheme is supplied",
+      "path_escape": "resolved locator would leave the caller-owned artifact root",
+      "schema_invalid": "envelope, payload, record, JCS value, or schema version is invalid",
+      "integrity_mismatch": "stored bytes, canonical envelope, digest, or expected identity differs",
+      "binding_missing_or_mismatch": "binding is absent or does not point to requested artifact_id",
+      "non_regular_file": "locator resolves to a directory, device, FIFO, socket, or symlink",
+      "cross_filesystem": "reservation, binding, and artifact root have different devices",
+      "not_found": "no committed artifact is visible at the safe locator"
+    },
+    "raw_os_errors_are_not_contract": true
+  },
+  "negative_e2e": {
+    "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+    "fresh_process_protocol": [
+      "process/store A seeds the artifact or crash fixture, records artifact bytes and binding bytes, then closes",
+      "fresh process/store B reopens the same root and performs exactly one save/reload/list operation",
+      "B asserts the exact code and result shape, record is absent on error, runner_invocations=0, and no repair/overwrite/delete occurred",
+      "B reads artifact and binding bytes again and asserts existing bytes and binding are unchanged"
+    ],
+    "cases": [
+      {"id": "tamper", "fixture": "one envelope byte changed", "operation": "reload", "expected_code": "integrity_mismatch"},
+      {"id": "truncate", "fixture": "stored envelope truncated or zero-byte", "operation": "reload", "expected_code": "integrity_mismatch"},
+      {"id": "published-unbound-reload", "fixture": "canonical envelope after rename with no binding", "operation": "reload", "expected_code": "binding_missing_or_mismatch"},
+      {"id": "published-unbound-exact-recovery", "fixture": "same-run exact envelope and missing binding", "operation": "save", "expected_status": "new", "expected_binding": "recovered"},
+      {"id": "published-unbound-different-content", "fixture": "same run_id with different canonical envelope", "operation": "save", "expected_code": "conflict"},
+      {"id": "invalid-artifact-id", "fixture": "artifact_id not sha256:<64 lowercase hex>", "operation": "reload", "expected_code": "invalid_artifact_id"},
+      {"id": "schema-invalid", "fixture": "unknown schema version or extra envelope field", "operation": "reload", "expected_code": "schema_invalid"},
+      {"id": "binding-mismatch", "fixture": "binding points to a different artifact_id", "operation": "reload", "expected_code": "binding_missing_or_mismatch"},
+      {"id": "not-found", "fixture": "no committed artifact at safe locator", "operation": "reload", "expected_code": "not_found"},
+      {"id": "path-escape", "fixture": "root-relative locator resolves outside root", "operation": "reload", "expected_code": "path_escape"},
+      {"id": "absolute-path", "fixture": "absolute locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "nul-path", "fixture": "NUL-containing locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "slash-separator", "fixture": "slash separator in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "backslash-separator", "fixture": "backslash separator in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "dot-segment", "fixture": "dot or dot-dot segment in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "url-scheme", "fixture": "URL scheme in locator", "operation": "reload", "expected_code": "invalid_path"},
+      {"id": "cross-filesystem", "fixture": "reservation and artifact root on different device", "operation": "save", "expected_code": "cross_filesystem"},
+      {"id": "symlink", "fixture": "symlink at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "directory", "fixture": "directory at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "device", "fixture": "device at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "fifo", "fixture": "FIFO at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "socket", "fixture": "socket at locator", "operation": "reload", "expected_code": "non_regular_file"},
+      {"id": "invisible-crash-state", "fixture": "temporary or published-unbound file in list", "operation": "list", "expected_status": "empty"},
+      {"id": "invisible-reload-state", "fixture": "temporary or published-unbound file in reload", "operation": "reload", "expected_code": "not_found"},
+      {"id": "cleanup-forbidden", "fixture": "temporary or published-unbound file after failed operation", "operation": "reload", "expected_code": "not_found", "assertion": "no cleanup, overwrite, or delete"}
+    ],
+    "common_assertions": [
+      "error result.record is null and success_record_returned is false",
+      "runner_invocations is exactly 0",
+      "artifact bytes, binding bytes, and committed artifact identity are unchanged",
+      "repair_attempted, overwrite_attempted, and delete_attempted are false",
+      "temporary and published-unbound states are absent from list and reload success values"
+    ]
+  },
   "clauses": [
     {
       "id": "INV-001",
@@ -62,7 +149,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "source-lock-conformance"}]
       },
       "confidence": 1
     },
@@ -84,7 +171,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "artifact-identity-and-envelope-digest"}]
       },
       "confidence": 0.95
     },
@@ -106,7 +193,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "jcs-canonical-fixtures"}]
       },
       "confidence": 0.95
     },
@@ -128,7 +215,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "reservation-before-publication"}]
       },
       "confidence": 0.95
     },
@@ -150,7 +237,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "same-run-id-conflict"}]
       },
       "confidence": 0.95
     },
@@ -172,7 +259,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "reload-integrity-negative-e2e"}]
       },
       "confidence": 0.95
     },
@@ -194,7 +281,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "deep-freeze-and-mutation-isolation"}]
       },
       "confidence": 0.95
     },
@@ -216,7 +303,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "filesystem-boundary-negative-matrix"}]
       },
       "confidence": 0.95
     },
@@ -238,7 +325,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "concurrent-writer-create-once"}]
       },
       "confidence": 0.9
     },
@@ -260,7 +347,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "fresh-process-store-reopen-roundtrip"}]
       },
       "confidence": 1
     },
@@ -282,7 +369,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "pre-fix-red-contract"}]
       },
       "confidence": 1
     },
@@ -304,7 +391,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "planning-only-six-path-boundary"}]
       },
       "confidence": 1
     },
@@ -326,7 +413,7 @@
           }
         ],
         "code_refs": [],
-        "test_refs": []
+        "test_refs": [{"file": "tests/judgment-dag-artifact-store.test.ts", "case": "deferred-replay-scope"}]
       },
       "confidence": 1
     }
