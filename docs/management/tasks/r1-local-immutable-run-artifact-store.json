@@ -105,7 +105,7 @@
     },
     {
       "id": "AC-004",
-      "statement": "After pure JCS validation/digesting, save acquires a per-run exclusive reservation first; inside it, existing binding is checked, conflicting content is denied before temp creation, then temp envelope bytes are atomically renamed on the same filesystem and a create-once binding is made. Temporary and published-unbound/crash bytes are never completed artifacts and cross-filesystem atomic claim is not promised."
+      "statement": "After pure JCS validation/digesting, save acquires a per-run exclusive reservation first; inside it, existing binding is checked, conflicting content is denied before temp creation, then new content follows temporary open/write/fsync, same-filesystem atomic rename, artifact fsync, create-once binding, binding fsync, and commit readback/verify. Temporary and published-unbound/crash bytes are never completed artifacts and cross-filesystem atomic claim is not promised. Each storage I/O failure returns storage_io_error with the exact failure_phase and truthful effects/readback for operation-created bytes, binding publication, and owner cleanup attempts while preserving pre-existing committed bytes."
     },
     {
       "id": "AC-005",
@@ -121,11 +121,11 @@
     },
     {
       "id": "AC-008",
-      "statement": "Traversal, absolute path, NUL, dot segment, symlink, non-regular file, root escape, partial write, published-unbound crash state, cross-filesystem claim, and concurrent writer cases fail closed."
+      "statement": "Traversal, absolute path, NUL, dot segment, symlink, non-regular file, root escape, partial write, published-unbound crash state, cross-filesystem claim, and concurrent writer cases fail closed. Fault injection separately covers reservation, temporary open/write/fsync and cleanup, rename, artifact fsync, binding create/fsync, and commit verify; every case returns stable storage_io_error plus failure_phase and effects/readback that match actual noncommitted bytes, cleanup attempts, and binding publication while pre-existing committed bytes remain unchanged."
     },
     {
       "id": "AC-009",
-      "statement": "Future RED tests fail on the known pre-fix two-layer identity, JCS fixture, three-layer run_id, reservation ordering, crash visibility/cleanup, overwrite, integrity, filesystem, concurrency, and mutation behaviors before GREEN implementation."
+      "statement": "Future RED tests fail on the known pre-fix two-layer identity, JCS fixture, three-layer run_id, reservation ordering, crash visibility/cleanup, overwrite, integrity, filesystem, concurrency, and mutation behaviors before GREEN implementation, including storage I/O failures incorrectly reported as success, raw OS errors, the wrong failure_phase, or effects/readback that do not match actual bytes, binding state, and cleanup attempts."
     },
     {
       "id": "AC-010",
