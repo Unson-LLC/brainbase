@@ -14,7 +14,7 @@ updated_at: 2026-08-21
 
 ## Intent
 
-Brainbase OSSの利用者として、検証済みJudgment DAGを明示的なrunner登録だけで安定した順序に実行し、DAG version、入力、依存出力、node出力、実行順を一つの不変run記録として読み戻したい。これにより、隠れた状態や組織固有runtimeへ依存せず、後続の永続化・replay・評価を構築できる。
+Brainbase OSSの利用者として、検証済みJudgment DAGを明示的なrunner登録だけで安定した順序に実行し、DAG version、入力、依存出力、node出力、実行順を一つの不変run記録として読み戻したい。これにより、隠れた状態や製品外runtimeへ依存せず、後続の永続化・replay・評価を構築できる。
 
 ## 受け入れ基準
 
@@ -27,11 +27,11 @@ Brainbase OSSの利用者として、検証済みJudgment DAGを明示的なrunn
 
 ## 境界
 
-- runner callbackは外部副作用を行わないlocal deterministic実装を対象とする。権限付与や副作用安全性の証拠にはしない。
+- このStoryの境界はローカルCLI相当の非共有・非永続実行境界とする。runner callbackは外部副作用を行わないlocal deterministic実装を対象とし、権限付与や副作用安全性の証拠にはしない。
 - human / agent / committee / external runnerの待機、承認、再試行、取消、idempotencyはG0側の後続Storyとする。
-- filesystem/database artifact store、historical replay、version比較、outcome attachment、evaluation scoring、評価event-set immutabilityはR1側の後続Storyとする。
+- filesystem/database artifact persistence、historical replay、version比較、outcome attachment、evaluation scoring、評価event-set immutabilityはR1側の後続Storyとする。
 - `input_contract` / `output_contract`は既存の契約参照文字列として記録する。このStoryで任意schema registryやpayload schema validationを新設しない。
-- MCP tool、CLI command、HTTP route、database、tenant、secret、production deploy、customer dataを変更しない。
+- MCP tool、CLI command、HTTP route、database、secret、production deploy、実データ、isolation modelを変更しない。
 
 ## 完了証拠
 

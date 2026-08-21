@@ -127,6 +127,57 @@ describe('J0 local deterministic Judgment DAG runner', () => {
     expect(calls).toBe(0);
   });
 
+  it('fails closed for mixed runner types before invoking an earlier valid runner', async () => {
+    const calls = { deterministic: 0, human: 0, agent: 0 };
+    const deterministicRun = ({ node: currentNode }: JudgmentDAGRunnerInput) => {
+      calls.deterministic += 1;
+      return { node_id: currentNode.id };
+    };
+    const humanRun = ({ node: currentNode }: JudgmentDAGRunnerInput) => {
+      calls.human += 1;
+      return { node_id: currentNode.id };
+    };
+    const agentRun = ({ node: currentNode }: JudgmentDAGRunnerInput) => {
+      calls.agent += 1;
+      return { node_id: currentNode.id };
+    };
+    const mixedDag = (runnerType: 'human' | 'agent'): JudgmentDAG => ({
+      ...dag(),
+      nodes: dag().nodes.map((currentNode) => currentNode.id === 'alpha'
+        ? { ...currentNode, runner_type: runnerType }
+        : currentNode)
+    });
+
+    await expect(executeJudgmentDAG({
+      ...request(),
+      dag: mixedDag('human'),
+      runners: {
+        deterministic: { version: 'runner-1.0.0', run: deterministicRun },
+        agent: { version: 'agent-1.0.0', run: agentRun }
+      }
+    })).rejects.toMatchObject<Partial<JudgmentDAGExecutionError>>({
+      code: 'missing_runner',
+      node_id: 'alpha',
+      runner_type: 'human'
+    });
+    expect(calls).toEqual({ deterministic: 0, human: 0, agent: 0 });
+
+    await expect(executeJudgmentDAG({
+      ...request(),
+      dag: mixedDag('agent'),
+      runners: {
+        deterministic: { version: 'runner-1.0.0', run: deterministicRun },
+        human: { version: 'human-1.0.0', run: humanRun },
+        agent: { version: '', run: agentRun }
+      }
+    })).rejects.toMatchObject<Partial<JudgmentDAGExecutionError>>({
+      code: 'invalid_runner',
+      node_id: 'alpha',
+      runner_type: 'agent'
+    });
+    expect(calls).toEqual({ deterministic: 0, human: 0, agent: 0 });
+  });
+
   it('preserves invalid DAG validator errors before any runner call or partial record', async () => {
     let calls = 0;
     let result: unknown;
