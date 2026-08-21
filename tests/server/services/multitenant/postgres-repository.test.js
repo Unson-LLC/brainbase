@@ -174,7 +174,8 @@ describe('MultitenantPostgresRepository', () => {
         await expect(repository.resolveRuntimeContext({
             tenant_id: 'ten_a', expected_tenant_revision: '4', connection_id: 'wsc_a',
             expected_connection_revision: '3', workspace_id: 'w', app_id: 'a',
-            authorization: { capability_ids: ['chat:write'] }
+            authorization: { capability_ids: ['runtime.execute'] },
+            required_connection_scopes: ['chat:write']
         })).resolves.toMatchObject({ contract_revision: '5' });
         expect(pool.connect).toHaveBeenCalledTimes(1);
         expect(client.query.mock.calls.filter(([sql]) => sql === 'BEGIN')).toHaveLength(1);

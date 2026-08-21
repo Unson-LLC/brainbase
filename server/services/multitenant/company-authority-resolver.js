@@ -28,6 +28,14 @@ function optionalString(value, field) {
     return nonEmptyString(value, field);
 }
 
+function optionalStringArray(value, field) {
+    if (value === undefined || value === null) return [];
+    if (!Array.isArray(value)) {
+        fail('COMPANY_AUTHORITY_REQUEST_INVALID', { status: 400, details: { field } });
+    }
+    return [...new Set(value.map((entry, index) => nonEmptyString(entry, `${field}[${index}]`)))];
+}
+
 export function normalizeObservedExecutionRequest(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
         fail('COMPANY_AUTHORITY_REQUEST_INVALID', { status: 400 });
@@ -64,6 +72,10 @@ export function normalizeObservedExecutionRequest(input) {
         expected_connection_revision: nonEmptyString(input.expected_connection_revision, 'expected_connection_revision'),
         workspace_id: nonEmptyString(input.workspace_id, 'workspace_id'),
         app_id: nonEmptyString(input.app_id, 'app_id'),
+        required_connection_scopes: optionalStringArray(
+            input.required_connection_scopes,
+            'required_connection_scopes'
+        ),
         provider_identity: {
             provider,
             authenticated_subject_id: nonEmptyString(

@@ -791,7 +791,7 @@ export class MultitenantPostgresRepository {
 
     async resolveRuntimeContext({
         tenant_id, expected_tenant_revision, connection_id, expected_connection_revision,
-        workspace_id, app_id, authorization = {}
+        workspace_id, app_id, required_connection_scopes = []
     }) {
         return this.withTenant(tenant_id, async (client) => {
             const workspaceConnection = await readConnectionRevision(client, {
@@ -800,7 +800,7 @@ export class MultitenantPostgresRepository {
                 expected_connection_revision,
                 workspace_id,
                 app_id,
-                required_scopes: authorization.capability_ids ?? []
+                required_scopes: required_connection_scopes
             });
             const tenantResult = await client.query(
                 `SELECT tenant_id, tenant_revision, status

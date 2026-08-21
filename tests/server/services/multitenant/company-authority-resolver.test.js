@@ -99,6 +99,14 @@ function canonicalRuntime() {
 }
 
 describe('CompanyAuthorityResolver', () => {
+    it('rejects malformed provider connection scopes before authority resolution', () => {
+        expect(() => normalizeObservedExecutionRequest(observed({
+            required_connection_scopes: ['chat:write', '']
+        }))).toThrowError(expect.objectContaining({
+            code: 'COMPANY_AUTHORITY_REQUEST_INVALID'
+        }));
+    });
+
     it('rejects runtime self-asserted actor and authorization in the canonical request shape', () => {
         expect(() => normalizeObservedExecutionRequest(observed({
             actor: { principal_id: 'attacker' },
@@ -199,5 +207,42 @@ describe('TenantContextProducer company authority cutover', () => {
         expect(envelope.authorization.organization_ids).not.toContain('attacker-organization');
         expect(envelope.authorization.data_scopes).not.toContain('admin');
         expect(envelope.credential.billing_principal_id).toBe('person-umeda');
+    });
+
+    it('keeps provider scopes separate from the requested business capability', async () => {
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+        const resolveCanonicalContext = vi.fn(async () => canonicalRuntime());
+        const repository = canonicalRepository();
+        repository.resolveCanonicalAuthority.mockResolvedValue({
+            ...(await repository.resolveCanonicalAuthority()),
+            capability_id: 'runtime.execute'
+        });
+        const producer = new TenantContextProducer({
+            resolveCanonicalContext,
+            companyAuthorityResolver: new CompanyAuthorityResolver({ repository }),
+            signingKey: {
+                key_id: 'company-authority-test-key',
+                private_key: privateKey,
+                public_key: publicKey
+            },
+            audience: 'mana-runtime',
+            deploymentId,
+            deploymentProfile: 'shared_cloud',
+            now: () => now
+        });
+
+        await producer.resolveContext({
+            ...observed(),
+            requested_action: {
+                ...observed().requested_action,
+                capability_id: 'runtime.execute'
+            },
+            required_connection_scopes: ['app_mentions:read', 'chat:write']
+        });
+
+        expect(resolveCanonicalContext).toHaveBeenCalledWith(expect.objectContaining({
+            authorization: { capability_ids: ['runtime.execute'] },
+            required_connection_scopes: ['app_mentions:read', 'chat:write']
+        }));
     });
 });
