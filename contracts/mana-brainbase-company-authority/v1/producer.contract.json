@@ -128,7 +128,7 @@
   "decision_modes": {
     "auto": "The requested effect may proceed only within the signed scope after revision checks.",
     "approval": "Create an approval packet for authority.approver_person_id; no protected effect before that exact person approves.",
-    "human_action": "Request authority.responsible_person_id; notification is not completion.",
+    "human_action": "Request authority.responsible_person_id; notification is not completion. The machine outcome remains pending_human_action until completion is recorded.",
     "deny": "Return COMPANY_AUTHORITY_DENIED and perform no business, model, credential, Personal, Graph, or external effect."
   },
   "fail_closed_matrix": {
@@ -141,7 +141,7 @@
   },
   "fixture_coverage": {
     "positive_case_count": 9,
-    "negative_case_count": 28,
+    "negative_case_count": 39,
     "decision_modes": ["auto", "approval", "human_action", "deny"],
     "tenant_person_matrix": "2 tenants x 2 persons; each row links positive_case_id to a signed context",
     "diagnostic_allowlist": ["health", "protocol_negotiation", "provisioning", "connection_diagnostic", "tenant_isolation_test"],

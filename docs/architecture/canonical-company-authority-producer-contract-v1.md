@@ -15,7 +15,7 @@ This document fixes the A0 preparation boundary. It does not implement the resol
 
 ## Request and response wire
 
-The request body is validated by `contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json`. It contains provider identity, requested action, optional delivery metadata, and `correlation_id`. `desired_effect` is required and is never inferred from a capability name. `project_hint` is a routing hint, not an authority claim.
+The request body is validated by `contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json`. It contains provider identity, requested action, optional delivery metadata, and `correlation_id`. `desired_effect` is required and is never inferred from a capability name. `project_hint` is a routing hint, not an authority claim. Resolved person, organization, project, owner, RACI, approver, decision, policy, and credential fields are explicitly forbidden and rejected by both the schema and reference validator.
 
 The response is validated by `schema/company-authority-resolution-response.schema.json`:
 
@@ -69,8 +69,8 @@ The four decisions are not inferred by the consumer:
 |---|---|---|
 | `auto` | signed requested effect is allowed | only after boundary revision revalidation |
 | `approval` | named approver must decide | no protected effect before the exact approver |
-| `human_action` | named responsible person must act | notification is not completion |
-| `deny` | authority rejected the request | no business, model, credential, Personal, Graph, or external effect |
+| `human_action` | named responsible person must act | notification is not completion; machine outcome is `pending_human_action` |
+| `deny` | authority rejected the request | no business, model, credential, Personal, Graph, or external effect; all effect counters remain false |
 
 The canonical error set is declared in `producer.contract.json` and is fixed at 17 codes:
 
@@ -86,7 +86,7 @@ AUTHORITY_CONTEXT_EXPIRED, AUTHORITY_REPLAY_CONFLICT
 
 ## Conformance payload and lock
 
-`fixtures/cases.json` contains deterministic synthetic payloads: four tenant/person combinations, nine positive cases, and 28 negative mutations. The negative cases cover missing desired effect/capability, unknown/ambiguous identity, four cross-org combinations, project and Personal scope, inactive membership, tenant/connection/membership/resource/RACI/policy revisions, wrong approver, authority unavailable, invalid signature, expiry, and replay conflict. Every negative expected result has business/model/credential/external effect false.
+`fixtures/cases.json` contains deterministic synthetic payloads: four tenant/person combinations, nine positive cases, and 39 negative mutations. The negative cases cover missing desired effect/capability, 11 forbidden authority-field injections, unknown/ambiguous identity, four cross-org combinations, project and Personal scope, inactive membership, tenant/connection/membership/resource/RACI/policy revisions, wrong approver, authority unavailable, invalid signature, expiry, and replay conflict. Every negative expected result has business/model/credential/external effect false.
 
 `fixtures/manifest.json` identifies the payload set. Its digest is calculated over the listed files using `sha256(relative_path + NUL + file_bytes)`; the manifest itself is excluded. `source-lock.json` records only the contract version, manifest version, fixture files, and fixture-set digest. It deliberately has no producer commit, branch head, or merge SHA. The downstream consumer records the merged SHA after the producer is merged.
 

@@ -47,20 +47,22 @@
     "tenant_context.authorization.capability_ids contains company_authority_v1 at the exact path.",
     "RFC8785 JCS, UTF-8, detached Ed25519 JWS, TTL, audience, and protected header are fixed.",
     "auto, approval, human_action, and deny each have deterministic positive coverage.",
+    "ObservedExecutionRequestV1 rejects each resolved person/org/project/owner/RACI/approver/decision/policy/credential field in both schema and reference validation; human_action remains pending until completion and deny effect counters remain zero.",
     "Unknown/ambiguous/cross-org/stale/wrong approver/Personal/signature/expiry/replay negatives fail closed with canonical errors.",
     "Fixture digest is manifest versioned and excludes the manifest; producer self-reference is absent.",
     "Trusted kid-to-key resolution, key rotation, and key revocation are runtime non-goals; the reference validator is non-authoritative and production cutover is blocked pending separately verified runtime trust and consumer enforcement.",
     "No runtime or production action is performed."
   ],
   "tdd": {
-    "red": "Run the targeted conformance test before producer artifacts exist and record the expected missing-contract failure.",
-    "green": "Run the targeted conformance test and deterministic Node validator across all 9 positive and 28 negative fixtures.",
+    "historical_red": "not_collected",
+    "red": "Do not fabricate the initial implementation RED: it was not collected. For this change, run the added forbidden-authority-field and machine-outcome tests before the schema/reference implementation and record their actual RED.",
+    "green": "Run the targeted conformance test and deterministic Node validator across all 9 positive and 39 negative fixtures.",
     "regression": ["npm run test:conformance:mana-brainbase -- tests/conformance/brainbase-company-authority-producer-contract.test.js", "node --check contracts/mana-brainbase-company-authority/v1/reference/wire.mjs", "git diff --check"]
   },
   "evidence": {
     "contract_version": "1.0.0",
     "manifest_version": "1.0",
-    "fixture_set_sha256": "55d7e6ace96faa4c62da801ec97e7d639841741ca8760433b6690720c54d64f7",
+    "fixture_set_sha256": "48169299b9156d1ea90f462f050266d39a423c154c20b4b472dd4e59fabbb479",
     "synthetic_data_only": true,
     "customer_data": "not_used",
     "secrets": "not_used",

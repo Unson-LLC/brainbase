@@ -40,5 +40,24 @@
       }
     },
     "correlation_id": { "type": "string", "minLength": 1 }
-  }
+  },
+  "allOf": [
+    {
+      "not": {
+        "anyOf": [
+          { "required": ["canonical_person_id"] },
+          { "required": ["organization_id"] },
+          { "required": ["project_id"] },
+          { "required": ["owner_person_id"] },
+          { "required": ["responsible_person_id"] },
+          { "required": ["accountable_person_id"] },
+          { "required": ["approver_person_id"] },
+          { "required": ["decision"] },
+          { "required": ["policy_revision"] },
+          { "required": ["raci_revision"] },
+          { "required": ["credential"] }
+        ]
+      }
+    }
+  ]
 }

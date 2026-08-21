@@ -20,6 +20,7 @@
     "diagnostic_allowlist",
     "queue_redelivery_idempotency",
     "context_integrity",
+    "request_authority_field_forbidden",
     "two_tenant_two_person"
   ],
   "tenant_person_matrix": [
@@ -660,7 +661,13 @@
       "operation": "company",
       "expected": {
         "outcome": "accepted",
-        "code": null
+        "code": null,
+        "machine_action": {
+          "kind": "human_action",
+          "notification_required": true,
+          "completion_required": true,
+          "completion_status": "pending_human_action"
+        }
       },
       "guards": {
         "business_effect_before_validation": false,
@@ -816,7 +823,13 @@
       "operation": "company",
       "expected": {
         "outcome": "deny_without_effect",
-        "code": "COMPANY_AUTHORITY_DENIED"
+        "code": "COMPANY_AUTHORITY_DENIED",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
       },
       "guards": {
         "business_effect_before_validation": false,
@@ -1328,6 +1341,338 @@
     }
   ],
   "negative": [
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-CANONICAL-PERSON",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "canonical_person_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/canonical_person_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-ORGANIZATION",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "organization_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/organization_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-PROJECT",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "project_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/project_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-OWNER",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "owner_person_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/owner_person_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-RESPONSIBLE-PERSON",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "responsible_person_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/responsible_person_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-ACCOUNTABLE-PERSON",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "accountable_person_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/accountable_person_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-APPROVER",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "approver_person_id",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/approver_person_id",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-DECISION",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "decision",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/decision",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-POLICY",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "policy_revision",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/policy_revision",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-RACI",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "raci_revision",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/raci_revision",
+          "value": "synthetic-forbidden"
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
+    {
+      "id": "NEG-REQUEST-FORBIDDEN-CREDENTIAL",
+      "kind": "negative",
+      "category": "request_authority_field_forbidden",
+      "base_fixture": "POS-AUTO-COMPANY-READ",
+      "target": "request",
+      "forbidden_field": "credential",
+      "mutations": [
+        {
+          "operation": "set",
+          "path": "/request/credential",
+          "value": {
+            "ref": "synthetic-forbidden"
+          }
+        }
+      ],
+      "expected": {
+        "outcome": "deny_without_effect",
+        "code": "AUTHORITY_CONTEXT_INVALID_SIGNATURE",
+        "business_effects": {
+          "business_api_called": false,
+          "llm_called": false,
+          "credential_lease_issued": false,
+          "external_side_effect": false
+        }
+      },
+      "guards": {
+        "business_effect_before_validation": false,
+        "fallback_allowed": false,
+        "synthetic_data_only": true
+      }
+    },
     {
       "id": "NEG-MISSING-DESIRED-EFFECT",
       "kind": "negative",

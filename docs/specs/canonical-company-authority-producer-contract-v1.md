@@ -24,7 +24,7 @@ The machine source of truth is `contracts/mana-brainbase-company-authority/v1/pr
 
 `ObservedExecutionRequestV1` accepts only observed provider identity, requested action, optional delivery metadata, and correlation. `requested_action.desired_effect` is required and has no implicit default. Its allowed values are `read`, `write`, and `external_side_effect`. Missing desired effect returns `DESIRED_EFFECT_REQUIRED`; missing company capability returns `COMPANY_AUTHORITY_REQUIRED`.
 
-The request must not carry resolved authority fields such as canonical person, organization, owner, RACI, approver, decision, policy revision, or credential. A project hint is advisory only.
+The request must not carry resolved authority fields such as canonical person, organization, project, owner, responsible/accountable/approver person, RACI, decision, policy revision, or credential. Each forbidden field is rejected by the request schema and reference validator. A project hint is advisory only.
 
 ## Context schema and bindings
 
@@ -56,14 +56,14 @@ Trusted `kid`-to-key resolution, key rotation, and key revocation are runtime no
 
 - `auto`: permit only the requested effect in the signed resource scope after revalidation.
 - `approval`: expose a packet for exactly `authority.approver_person_id`; a different approver returns `APPROVER_MISMATCH` and has no effect.
-- `human_action`: request `authority.responsible_person_id`; notification is not completion.
-- `deny`: return `COMPANY_AUTHORITY_DENIED` and keep all business/model/credential/Personal/Graph/external effect counters at zero.
+- `human_action`: request `authority.responsible_person_id`; the machine outcome is `{ "kind": "human_action", "notification_required": true, "completion_required": true, "completion_status": "pending_human_action" }`, so notification is not completion.
+- `deny`: return `COMPANY_AUTHORITY_DENIED` and keep business/model/credential/Personal/Graph/external effect counters at zero.
 
 When authority is unavailable, only health, protocol negotiation, provisioning, connection diagnosis, and tenant-isolation tests may report that condition. No default tenant, person, placement, owner, project, connection, or credential is selected.
 
 ## Required conformance matrix
 
-The deterministic manifest has nine positive fixtures and 28 negative mutations over two tenants and two synthetic people (`tenant-a`/`tenant-b` × `person-sato`/`person-umeda`). The matrix must include:
+The deterministic manifest has nine positive fixtures and 39 negative mutations over two tenants and two synthetic people (`tenant-a`/`tenant-b` × `person-sato`/`person-umeda`). The matrix must include:
 
 - missing desired effect and missing `company_authority_v1`;
 - all four decision modes and a Personal owner success;
@@ -71,6 +71,7 @@ The deterministic manifest has nine positive fixtures and 28 negative mutations 
 - stale membership/resource/RACI/policy/tenant/connection revisions and out-of-scope project;
 - wrong approver, authority unavailable, and diagnostic allowlist;
 - Personal owner missing, cross-person access, and no fallback;
+- one independent request-injection negative for each forbidden authority field: canonical person, organization, project, owner, responsible/accountable/approver person, decision, policy revision, RACI revision, and credential;
 - invalid signature, expired context, replay conflict, and queue redelivery idempotency.
 
 Every negative case asserts the exact canonical code and:
@@ -90,4 +91,4 @@ The fixture digest is `sha256(relative_path + NUL + file_bytes)` over the manife
 
 The source lock also records the A0 trust boundary: trusted `kid`-to-key resolution, key rotation, and key revocation are runtime non-goals; the reference validator cannot act as the authority. Production cutover is blocked pending separately verified runtime trust-store and consumer enforcement.
 
-Targeted test: `tests/conformance/brainbase-company-authority-producer-contract.test.js`. Initial TDD RED is the test-first invocation before the producer artifacts existed; GREEN is the same contract test after materializing the schema, reference validator, signed fixtures, and manifest. A successful targeted test proves contract conformance only, not production deployment or real authority resolution. VibeProのテナント境界scannerにおける`pass`も、この決定論的なスキーマ・reference validator・synthetic fixtureの受け入れ集合だけを対象とし、Graph SSOTの実データ、live connection、runtime trust store、いずれのdeployment modeの稼働も検証済みとは扱わない。
+Targeted test: `tests/conformance/brainbase-company-authority-producer-contract.test.js`. Initial implementation以前のhistorical REDは`not_collected`であり、存在しない証跡を補わない。今回追加した禁止field・machine outcome testsはschema/reference実装前にRED、実装後にGREENとして記録する。GREENは同じcontract test after materializing the schema, reference validator, signed fixtures, and manifest. A successful targeted test proves contract conformance only, not production deployment or real authority resolution. VibeProのテナント境界scannerにおける`pass`も、この決定論的なスキーマ・reference validator・synthetic fixtureの受け入れ集合だけを対象とし、Graph SSOTの実データ、live connection、runtime trust store、いずれのdeployment modeの稼働も検証済みとは扱わない。

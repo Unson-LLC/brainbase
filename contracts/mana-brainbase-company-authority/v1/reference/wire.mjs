@@ -32,6 +32,19 @@ export const CANONICAL_ERROR_CODES = Object.freeze([
 ]);
 
 const DECISIONS = new Set(['auto', 'approval', 'human_action', 'deny']);
+const FORBIDDEN_AUTHORITY_FIELDS = new Set([
+    'canonical_person_id',
+    'organization_id',
+    'project_id',
+    'owner_person_id',
+    'responsible_person_id',
+    'accountable_person_id',
+    'approver_person_id',
+    'decision',
+    'policy_revision',
+    'raci_revision',
+    'credential'
+]);
 const EFFECTS = new Set(['read', 'write', 'external_side_effect']);
 const PROVIDERS = new Set(['slack', 'codex', 'claude_code', 'service']);
 const REVISION = /^(0|[1-9][0-9]*)$/;
@@ -53,6 +66,17 @@ function fail(code, message = code, details = {}) {
 
 function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function findForbiddenAuthorityField(value, path = '$') {
+    if (!isObject(value)) return null;
+    for (const [key, child] of Object.entries(value)) {
+        const childPath = `${path}.${key}`;
+        if (FORBIDDEN_AUTHORITY_FIELDS.has(key)) return { field: key, path: childPath };
+        const nested = findForbiddenAuthorityField(child, childPath);
+        if (nested) return nested;
+    }
+    return null;
 }
 
 function exactKeys(value, required, path) {
@@ -244,6 +268,14 @@ function validateAuthority(value) {
 }
 
 export function validateObservedExecutionRequest(request) {
+    const forbidden = findForbiddenAuthorityField(request);
+    if (forbidden) {
+        fail(
+            'AUTHORITY_CONTEXT_INVALID_SIGNATURE',
+            `${forbidden.path} is a forbidden authority field`,
+            { field: forbidden.field, path: forbidden.path, reason: 'forbidden_authority_field' }
+        );
+    }
     requiredKeys(request, ['provider_identity', 'requested_action', 'correlation_id'], ['delivery'], '$');
     requiredKeys(request.provider_identity, ['provider', 'authenticated_subject_id'], ['app_id', 'workspace_id', 'enterprise_id'], '$.provider_identity');
     enumValue(request.provider_identity.provider, PROVIDERS, '$.provider_identity.provider');

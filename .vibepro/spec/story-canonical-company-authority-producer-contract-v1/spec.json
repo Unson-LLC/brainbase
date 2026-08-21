@@ -6,14 +6,14 @@
     {
       "id": "C-001",
       "type": "contract",
-      "statement": "ObservedExecutionRequestV1 accepts only observed provider identity, requested action, delivery metadata, and correlation; desired_effect is explicit.",
+      "statement": "ObservedExecutionRequestV1 accepts only observed provider identity, requested action, delivery metadata, and correlation; desired_effect is explicit and resolved authority fields are forbidden.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 0, "ac_id": "AC-001", "text_snippet": "ObservedExecutionRequestV1 requires an explicit desired_effect and carries no resolved authority claims." }],
         "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Request and response wire" }],
-        "test_refs": [{ "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "validates deterministic synthetic positive payloads and all four decisions" }]
+        "test_refs": [{ "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries" }]
       },
       "verifiable_by": {
-        "test_pattern": [{ "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "validates deterministic synthetic positive payloads and all four decisions" }]
+        "test_pattern": [{ "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries" }]
       },
       "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json"]
     },
@@ -48,23 +48,21 @@
     {
       "id": "C-004",
       "type": "contract",
-      "statement": "The deterministic synthetic manifest covers four decision modes, two tenants by two people, and all required canonical negative errors.",
+      "statement": "The four decision modes are fixed by deterministic synthetic positive fixtures, including pending human_action and zero-effect deny machine outcomes.",
       "origin": {
         "story_refs": [
-          { "kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004", "text_snippet": "The four decision modes are fixed by deterministic synthetic fixtures." },
-          { "kind": "acceptance_criteria", "index": 4, "ac_id": "AC-005", "text_snippet": "Canonical errors and the fail-closed negative matrix are fixed." },
-          { "kind": "acceptance_criteria", "index": 5, "ac_id": "AC-006", "text_snippet": "The deterministic two-tenant by two-person fixture set and manifest digest are fixed." }
+          { "kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004", "text_snippet": "The four decision modes are fixed by deterministic synthetic fixtures." }
         ],
         "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Conformance payload and lock" }],
         "test_refs": [
-          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "validates cases through the manifest-referenced fixture schema and exact manifest coverage" },
-          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "binds all four tenant/person matrix entries to concrete positive fixtures" }
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "validates deterministic synthetic positive payloads and all four decisions" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "fixes human_action as pending completion and deny as zero-effect machine outcomes" }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
-          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "validates cases through the manifest-referenced fixture schema and exact manifest coverage" },
-          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "binds all four tenant/person matrix entries to concrete positive fixtures" }
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "validates deterministic synthetic positive payloads and all four decisions" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "fixes human_action as pending completion and deny as zero-effect machine outcomes" }
         ]
       },
       "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json", "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json"]
@@ -72,14 +70,62 @@
     {
       "id": "C-005",
       "type": "contract",
-      "statement": "The producer lock records manifest version and fixture digest without producer commit/head/merge SHA; runtime and production actions remain untouched.",
+      "statement": "Canonical errors and the fail-closed negative matrix reject missing, unresolved, cross-org, stale, Personal, signature, expiry, replay, and forbidden authority-field claims.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 4, "ac_id": "AC-005", "text_snippet": "Canonical errors and the fail-closed negative matrix are fixed." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Decision and error contract" }],
+        "test_refs": [
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "records the expected negative matrix categories and exact error vocabulary" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "records the expected negative matrix categories and exact error vocabulary" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries" }
+        ]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/fixtures/cases.json", "contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json", "contracts/mana-brainbase-company-authority/v1/reference/wire.mjs"]
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "The deterministic two-tenant by two-person fixture set is schema-valid, manifest-complete, and bound to a digest without producer commit self-reference.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "ac_id": "AC-006", "text_snippet": "The deterministic two-tenant by two-person fixture set and manifest digest are fixed." }],
+        "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Conformance payload and lock" }],
+        "test_refs": [
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "validates cases through the manifest-referenced fixture schema and exact manifest coverage" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "binds all four tenant/person matrix entries to concrete positive fixtures" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins a manifest digest without producer commit self-reference" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "validates cases through the manifest-referenced fixture schema and exact manifest coverage" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "binds all four tenant/person matrix entries to concrete positive fixtures" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins a manifest digest without producer commit self-reference" }
+        ]
+      },
+      "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/fixtures/manifest.json", "contracts/mana-brainbase-company-authority/v1/fixtures/cases.json", "contracts/mana-brainbase-company-authority/v1/source-lock.json"]
+    },
+    {
+      "id": "C-007",
+      "type": "contract",
+      "statement": "Conformance is contract-only: runtime changes and production action are absent, trusted kid resolution/rotation/revocation remain runtime non-goals, and the reference validator is non-authoritative.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 6, "ac_id": "AC-007", "text_snippet": "Conformance proves contract readiness only; runtime and production action remain outside the boundary." }],
         "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Boundaries and non-goals" }],
-        "test_refs": [{ "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins a manifest digest without producer commit self-reference" }]
+        "test_refs": [
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins the contract-only trust boundary and non-authoritative reference validator" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "pins a manifest digest without producer commit self-reference" }
+        ]
       },
       "verifiable_by": {
-        "test_pattern": [{ "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins a manifest digest without producer commit self-reference" }]
+        "test_pattern": [
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins the contract-only trust boundary and non-authoritative reference validator" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "pins a manifest digest without producer commit self-reference" }
+        ]
       },
       "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/source-lock.json", "docs/management/tasks/canonical-company-authority-producer-contract-v1.json"]
     }

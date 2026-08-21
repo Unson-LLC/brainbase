@@ -12,7 +12,7 @@
     "fixtures/fixture.schema.json",
     "fixtures/test-key.json"
   ],
-  "fixture_set_sha256": "55d7e6ace96faa4c62da801ec97e7d639841741ca8760433b6690720c54d64f7",
+  "fixture_set_sha256": "48169299b9156d1ea90f462f050266d39a423c154c20b4b472dd4e59fabbb479",
   "hash_algorithm": "sha256(relative_path + NUL + file_bytes)",
   "manifest_excluded_from_hash": true,
   "synthetic_data_only": true,
@@ -33,6 +33,7 @@
     "diagnostic_allowlist",
     "queue_redelivery_idempotency",
     "context_integrity",
+    "request_authority_field_forbidden",
     "two_tenant_two_person"
   ],
   "tenant_person_matrix": [
@@ -53,8 +54,19 @@
     "POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC"
   ],
   "positive_case_count": 9,
-  "negative_case_count": 28,
+  "negative_case_count": 39,
   "negative_case_ids": [
+    "NEG-REQUEST-FORBIDDEN-CANONICAL-PERSON",
+    "NEG-REQUEST-FORBIDDEN-ORGANIZATION",
+    "NEG-REQUEST-FORBIDDEN-PROJECT",
+    "NEG-REQUEST-FORBIDDEN-OWNER",
+    "NEG-REQUEST-FORBIDDEN-RESPONSIBLE-PERSON",
+    "NEG-REQUEST-FORBIDDEN-ACCOUNTABLE-PERSON",
+    "NEG-REQUEST-FORBIDDEN-APPROVER",
+    "NEG-REQUEST-FORBIDDEN-DECISION",
+    "NEG-REQUEST-FORBIDDEN-POLICY",
+    "NEG-REQUEST-FORBIDDEN-RACI",
+    "NEG-REQUEST-FORBIDDEN-CREDENTIAL",
     "NEG-MISSING-DESIRED-EFFECT",
     "NEG-MISSING-COMPANY-AUTHORITY",
     "NEG-AUTHORITY-EFFECT-MISMATCH",

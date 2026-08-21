@@ -69,6 +69,7 @@
         "approval_subject_id": { "type": "string", "minLength": 1 },
         "personal_target_person_id": { "type": "string", "minLength": 1 },
         "replay_conflict": { "const": true },
+        "forbidden_field": { "type": "string", "minLength": 1 },
         "expected_revisions": {
           "type": "object",
           "additionalProperties": false,
@@ -109,7 +110,8 @@
       "properties": {
         "outcome": { "type": "string", "minLength": 1 },
         "code": { "anyOf": [{ "type": "null" }, { "enum": ["DESIRED_EFFECT_REQUIRED", "COMPANY_AUTHORITY_REQUIRED", "COMPANY_AUTHORITY_EFFECT_MISMATCH", "COMPANY_AUTHORITY_DENIED", "PERSON_UNKNOWN", "PERSON_AMBIGUOUS", "AUTHORITY_CROSS_ORG", "AUTHORITY_SCOPE_MISMATCH", "AUTHORITY_CONTEXT_STALE", "APPROVER_MISMATCH", "AUTHORITY_UNAVAILABLE", "MEMBERSHIP_INACTIVE", "PERSONAL_OWNER_REQUIRED", "PERSONAL_SCOPE_MISMATCH", "AUTHORITY_CONTEXT_INVALID_SIGNATURE", "AUTHORITY_CONTEXT_EXPIRED", "AUTHORITY_REPLAY_CONFLICT"] }] },
-        "business_effects": { "$ref": "#/$defs/business_effects" }
+        "business_effects": { "$ref": "#/$defs/business_effects" },
+        "machine_action": { "$ref": "#/$defs/machine_action" }
       }
     },
     "business_effects": {
@@ -121,6 +123,17 @@
         "llm_called": { "const": false },
         "credential_lease_issued": { "const": false },
         "external_side_effect": { "const": false }
+      }
+    },
+    "machine_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "notification_required", "completion_required", "completion_status"],
+      "properties": {
+        "kind": { "const": "human_action" },
+        "notification_required": { "const": true },
+        "completion_required": { "const": true },
+        "completion_status": { "const": "pending_human_action" }
       }
     },
     "guards": {

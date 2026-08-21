@@ -59,6 +59,7 @@ const schemaValidators = (() => {
     ajv.addSchema(responseSchema, responseSchema.$id);
     ajv.addSchema(fixtureSchema, fixtureSchema.$id);
     return {
+        observed: ajv.getSchema(observedRequestSchema.$id),
         fixture: ajv.getSchema(fixtureSchema.$id),
         response: ajv.getSchema(responseSchema.$id)
     };
@@ -112,7 +113,37 @@ describe('Brainbase company authority producer contract v1', () => {
         expect(manifest.positive_case_ids).toEqual(positiveIds);
         expect(manifest.negative_case_ids).toEqual(negativeIds);
         expect(fixtures.positive).toHaveLength(9);
-        expect(fixtures.negative).toHaveLength(28);
+        expect(fixtures.negative).toHaveLength(39);
+    });
+
+    it('rejects every resolved authority field injected into ObservedExecutionRequestV1 at both boundaries', () => {
+        const forbidden = fixtures.negative.filter(({ category }) => category === 'request_authority_field_forbidden');
+        expect(forbidden.map(({ forbidden_field: field }) => field))
+            .toEqual(contract.observed_request_boundary.authority_fields_forbidden);
+        for (const fixture of forbidden) {
+            const base = fixtures.positive.find(({ id }) => id === fixture.base_fixture);
+            assert.ok(base, `base fixture not found: ${fixture.base_fixture}`);
+            const mutated = applyFixtureMutations({ request: base.request, context: base.context }, fixture.mutations);
+            expect(schemaValidators.observed(mutated.request)).toBe(false);
+            expect(schemaValidators.observed.errors?.some(({ keyword }) => keyword === 'not')).toBe(true);
+            let thrown;
+            try {
+                validateObservedExecutionRequest(mutated.request);
+            } catch (error) {
+                thrown = error;
+            }
+            expect(thrown?.code).toBe('AUTHORITY_CONTEXT_INVALID_SIGNATURE');
+            expect(thrown?.details).toMatchObject({
+                field: fixture.forbidden_field,
+                reason: 'forbidden_authority_field'
+            });
+            expect(fixture.expected.business_effects).toEqual({
+                business_api_called: false,
+                llm_called: false,
+                credential_lease_issued: false,
+                external_side_effect: false
+            });
+        }
     });
 
     it('validates deterministic synthetic positive payloads and all four decisions', () => {
@@ -146,6 +177,25 @@ describe('Brainbase company authority producer contract v1', () => {
             }
         }
         expect([...decisions].sort()).toEqual(['approval', 'auto', 'deny', 'human_action']);
+    });
+
+    it('fixes human_action as pending completion and deny as zero-effect machine outcomes', () => {
+        const humanAction = fixtures.positive.find(({ id }) => id === 'POS-HUMAN-ACTION-COMPANY-WRITE');
+        expect(humanAction?.expected.machine_action).toEqual({
+            kind: 'human_action',
+            notification_required: true,
+            completion_required: true,
+            completion_status: 'pending_human_action'
+        });
+        expect(humanAction?.expected.machine_action.completion_status).not.toBe('completed');
+
+        const deny = fixtures.positive.find(({ id }) => id === 'POS-DENY-COMPANY-WRITE');
+        expect(deny?.expected.business_effects).toEqual({
+            business_api_called: false,
+            llm_called: false,
+            credential_lease_issued: false,
+            external_side_effect: false
+        });
     });
 
     it('binds all four tenant/person matrix entries to concrete positive fixtures', () => {
@@ -333,6 +383,16 @@ describe('Brainbase company authority producer contract v1', () => {
         };
         expect(schemaValidators.response(diagnosticError)).toBe(true);
         expect(() => validateWireResponse(diagnosticError)).not.toThrow();
+    });
+
+    it('pins the contract-only trust boundary and non-authoritative reference validator', () => {
+        expect(contract.execution_boundary.runtime_changes).toBe('none');
+        expect(contract.execution_boundary.production_action).toBe('not_performed');
+        expect(contract.execution_boundary.trusted_kid_key_resolution).toMatch(/runtime_non_goal/);
+        expect(contract.execution_boundary.reference_validator_authority).toBe('non_authoritative_conformance_only');
+        expect(contract.execution_boundary.production_cutover).toMatch(/blocked_until_runtime_trust_store/);
+        expect(sourceLock.execution_boundary.reference_validator_authority).toBe('non_authoritative_conformance_only');
+        expect(sourceLock.execution_boundary.production_cutover).toMatch(/blocked_until_runtime_trust_store/);
     });
 
     it('records the expected negative matrix categories and exact error vocabulary', () => {

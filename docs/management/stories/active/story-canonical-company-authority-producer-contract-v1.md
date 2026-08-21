@@ -29,7 +29,7 @@ Mana側がauthorityを自己生成せず、Brainbaseが解決して署名した`
 
 - [x] AC-001: 観測要求の入力境界を機械検証できる
 
-`ObservedExecutionRequestV1`はprovider identity、requested action、delivery、correlationだけを受け付ける。`desired_effect`は`read`、`write`、`external_side_effect`のいずれかを必須とし、capability名から推測しない。canonical person、organization、project、owner、RACI、approver、decision、policy、credentialは入力に含めない。
+`ObservedExecutionRequestV1`はprovider identity、requested action、delivery、correlationだけを受け付ける。`desired_effect`は`read`、`write`、`external_side_effect`のいずれかを必須とし、capability名から推測しない。canonical person、organization、project、owner、RACI、approver、decision、policy、credentialは入力に含めず、各禁止fieldの注入をschemaとreference validatorの両方で拒否する。
 
 - [x] AC-002: CanonicalExecutionContextV1のschemaとwireを固定する
 
@@ -41,19 +41,19 @@ RFC 8785 JCSとUTF-8をcanonical payloadに使い、`integrity`を除いたunsig
 
 - [x] AC-004: decision modeを固定する
 
-`auto`、`approval`、`human_action`、`deny`をそれぞれsynthetic positive fixtureで示す。approvalは指定approver以外を認めず、human_actionは通知を完了とみなさず、denyはbusiness/model/credential/external effectを発生させない。
+`auto`、`approval`、`human_action`、`deny`をそれぞれsynthetic positive fixtureで示す。approvalは指定approver以外を認めず、human_actionは通知だけでは完了せずmachine outcomeを`pending_human_action`とし、denyはbusiness/model/credential/external effectの各counterをすべて0にする。
 
 - [x] AC-005: canonical errorとfail-closed negative matrixを固定する
 
-desired effect/capability欠落、unknown/ambiguous person、cross-org、project scope、inactive membership、tenant/connection/RACI/policy/resource stale、wrong approver、authority unavailable、Personal owner欠落・cross-person、invalid signature、expired、replay conflictを、17 canonical error codeとbusiness effect falseで固定する。default person/tenant/owner/credentialへのfallbackは許可しない。
+desired effect/capability欠落、unknown/ambiguous person、cross-org、project scope、inactive membership、tenant/connection/RACI/policy/resource stale、wrong approver、authority unavailable、Personal owner欠落・cross-person、invalid signature、expired、replay conflictに加え、authority field注入を、17 canonical error codeとbusiness effect falseで固定する。default person/tenant/owner/credentialへのfallbackは許可しない。
 
 - [x] AC-006: synthetic fixtureとmanifest digestを固定する
 
-2 tenant × 2 person、9 positive、28 negativeを決定論的fixtureとして保存する。fixture setはmanifest自身を除外した相対path + NUL + bytesのSHA-256で識別し、source lockにはcontract/manifest versionとdigestだけを含める。producerのcommit、branch head、merge SHAは自己参照せず、merged SHAはdownstream lockで後から固定する。
+2 tenant × 2 person、9 positive、39 negativeを決定論的fixtureとして保存する。禁止される11 authority field（person/org/project/owner/RACI/approver/decision/policy/credential）の各注入も独立negative fixtureで示す。fixture setはmanifest自身を除外した相対path + NUL + bytesのSHA-256で識別し、source lockにはcontract/manifest versionとdigestだけを含める。producerのcommit、branch head、merge SHAは自己参照せず、merged SHAはdownstream lockで後から固定する。
 
 - [x] AC-007: 合成契約限定のTDD conformanceを実行できる（Graph実データ・live runtime・deploymentは未検証）
 
-targeted conformance testがwire path、capability path、schema metadata、signature profile、manifest digest、全decision mode、全negative error code、detached signature tamperを検証する。検証は合成契約の適合確認に限定され、Graph実データ、live runtime、deploymentは未検証である。trusted `kid`からのkey解決、key rotation、key revocationはruntime非目標であり、reference validator単独をauthorityとは扱わない。
+targeted conformance testがwire path、capability path、schema metadata、signature profile、manifest digest、全decision mode、全negative error code、detached signature tamperを検証する。初期実装以前のhistorical REDは`not_collected`であり、存在しない証跡を補わない。今回追加した禁止field・machine outcomeテストは実装前RED、実装後GREENとして別に記録する。検証は合成契約の適合確認に限定され、Graph実データ、live runtime、deploymentは未検証である。trusted `kid`からのkey解決、key rotation、key revocationはruntime非目標であり、reference validator単独をauthorityとは扱わない。
 
 ## Out of scope
 
