@@ -63,6 +63,38 @@
     "green": "Observed separately after implementation: producer conformance 63 tests and A0 consumer boundary 21 tests passed over the synthetic contract fixtures, including nested TenantContext signature, same-caller-now freshness, audience/deployment, complete error correlation, and signed deny rejection. The existing shared tenant-context conformance 25 tests are regression-only and are not A0 consumer evidence.",
     "regression": ["npm run test:conformance:mana-brainbase -- tests/conformance/brainbase-company-authority-producer-contract.test.js tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "npm run test:conformance:mana-brainbase -- tests/conformance/mana-brainbase-tenant-context.adapter.test.js", "node --check contracts/mana-brainbase-company-authority/v1/reference/wire.mjs", "git diff --check"]
   },
+  "verification": {
+    "shared_conformance": {
+      "source_lock": "tests/conformance/mana-brainbase-tenant-context.source-lock.json",
+      "command": "npm test -- --run --config vitest.conformance.config.js tests/conformance/brainbase-company-authority-producer-contract.test.js tests/conformance/brainbase-company-authority-consumer-boundary.test.js tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+      "expected_tests": {
+        "producer": 63,
+        "consumer_boundary": 21,
+        "shared_regression": 25,
+        "total": 109
+      },
+      "prerequisites": {
+        "derive_commit": "At runtime, read LOCKED_COMMIT=$(jq -er '.commit' \"$SOURCE_LOCK\") from the task-relative source_lock; do not hardcode or override the value.",
+        "materialize_checkout": "Create a runner-owned external detached checkout of the source_lock.repository at LOCKED_COMMIT. The checkout must be outside this repository/worktree, must not be committed, and must not reuse a mutable checkout.",
+        "derive_root": "Read CONTRACT_ROOT=$(jq -er '.contract_root' \"$SOURCE_LOCK\") and set KIT_ROOT to the path join of the external checkout and CONTRACT_ROOT.",
+        "verify_exact_checkout": {
+          "head": "test \"$(git -C \"$CHECKOUT\" rev-parse HEAD)\" = \"$LOCKED_COMMIT\"",
+          "clean": "test -z \"$(git -C \"$CHECKOUT\" status --porcelain --untracked-files=all)\"",
+          "tree": "test \"$(git -C \"$CHECKOUT\" rev-parse --verify \"$LOCKED_COMMIT:$CONTRACT_ROOT\")\" = \"$(git -C \"$CHECKOUT\" rev-parse --verify \"HEAD:$CONTRACT_ROOT\")\""
+        },
+        "parent_environment": {
+          "MANA_BRAINBASE_CONFORMANCE_KIT_ROOT": "KIT_ROOT derived from the external checkout and source_lock.contract_root",
+          "MANA_BRAINBASE_CONFORMANCE_KIT_COMMIT": "LOCKED_COMMIT derived from source_lock.commit",
+          "exports": [
+            "export MANA_BRAINBASE_CONFORMANCE_KIT_ROOT=\"$KIT_ROOT\"",
+            "export MANA_BRAINBASE_CONFORMANCE_KIT_COMMIT=\"$LOCKED_COMMIT\""
+          ],
+          "set_before_command": true,
+          "inheritance": "Export both variables in the parent environment that invokes the existing 109-test command so the adapter receives the exact checkout binding."
+        }
+      }
+    }
+  },
   "evidence": {
     "contract_version": "1.0.0",
     "manifest_version": "1.0",
