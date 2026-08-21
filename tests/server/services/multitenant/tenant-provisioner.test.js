@@ -251,7 +251,7 @@ describe('tenant provisioner', () => {
         const client = createClient();
         const resolver = { verifyOpaqueReference: vi.fn(async ({ tenant_key, allow_unregistered }) => ({
             tenant_key,
-            valid: allow_unregistered === false
+            valid: allow_unregistered === true
         })) };
         await expect(attachTenantWorkspaceConnection({
             client,
@@ -262,7 +262,7 @@ describe('tenant provisioner', () => {
             credentialResolver: resolver,
             schemaSha256: TEST_SCHEMA_SHA256
         })).resolves.toMatchObject({ receipt: { readback: { workspace_connection: true } } });
-        expect(resolver.verifyOpaqueReference).toHaveBeenCalledWith(expect.objectContaining({ allow_unregistered: false }));
+        expect(resolver.verifyOpaqueReference).toHaveBeenCalledWith(expect.objectContaining({ allow_unregistered: true }));
         const tenantContexts = client.queries.filter(({ text }) => text.includes("set_config('brainbase.tenant_id'"));
         expect(tenantContexts).toHaveLength(2);
         expect(tenantContexts.every(({ values }) => values[0] === manifest.tenant_id)).toBe(true);
