@@ -1,0 +1,300 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-runtime-capability-scope-integration",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": [
+        "authenticated workspace connection",
+        "Brainbase company authority"
+      ],
+      "resolution_point": "TenantContextProducer.resolveContext",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "tenant context request",
+        "canonical authority resolution",
+        "workspace connection validation"
+      ],
+      "verified_surfaces": [
+        "tenant context request",
+        "canonical authority resolution",
+        "workspace connection validation"
+      ]
+    },
+    "resources": [
+      {
+        "name": "workspace connection authority",
+        "sharing": "tenant_partitioned",
+        "partition_key": "tenant_id/connection_id",
+        "tenant_key": "tenant_id",
+        "trust_zone": "Brainbase PostgreSQL tenant transaction",
+        "residue_policy": "no cross-tenant fallback",
+        "data_owner": "Brainbase Company Authority",
+        "credential_scope": "tenant workspace connection"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "tenant workspace connection",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Company Authority"
+      ],
+      "residency": "existing Brainbase PostgreSQL deployment",
+      "migration": "none",
+      "rollback": "deploy previous runtime SHA"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "brainbase_tenant",
+        "workspace_connection",
+        "company_authority"
+      ],
+      "boundary_edges": [
+        "tenant_id",
+        "connection_id",
+        "organization_id"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": [
+          "tenant context request",
+          "canonical authority resolution",
+          "workspace connection validation"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "tenant",
+              "tenant_key_source": "authenticated workspace connection",
+              "trust_zone": "Brainbase PostgreSQL tenant transaction",
+              "data_owner": "Brainbase Company Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "tenant",
+              "tenant_key_source": "tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant workspace connection",
+              "connection_mode": "pooled RLS transaction",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "tenant context要求はrequired_capabilitiesとrequired_connection_scopesを別フィールドで伝播する。",
+      "rationale": "事業権限と外部接続スコープを混同しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-001"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/company-authority-tenant-context-producer.js",
+            "anchor": "resolveContext"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/company-authority-resolver.test.js",
+            "case": "keeps provider scopes separate from the requested business capability"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-21T12:19:02.565Z",
+      "last_revised_at": "2026-08-21T12:19:02.565Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "Company Authority capabilityはcanonical authorityで、接続スコープはworkspace connectionで独立検証する。",
+      "rationale": "runtime.executeをSlack OAuth scopeとして誤検証しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-002"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/company-authority-resolver.js",
+            "anchor": "resolve"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/company-authority-resolver.test.js",
+            "case": "keeps provider scopes separate from the requested business capability"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/company-authority-resolver.test.js",
+            "must_cover": "keeps provider scopes separate"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-21T12:19:02.565Z",
+      "last_revised_at": "2026-08-21T12:19:02.565Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "不正または不足した接続スコープはfail closedで拒否し、正常なcanonical capabilityは保持する。",
+      "rationale": "権限境界を弱めず既存利用者経路を回帰させない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/postgres-repository.js",
+            "anchor": "resolveRuntimeContext"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/postgres-repository.test.js",
+            "case": "D-003: runtime contextのtenant・connection・contract revisionを単一transactionで固定する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/*.test.js",
+            "must_cover": "required_connection_scopes"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-21T12:19:02.565Z",
+      "last_revised_at": "2026-08-21T12:19:02.565Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "本番先行修正はdevelop最新へ統合し、Phase 0.2の履歴を保持する。",
+      "rationale": "本番回帰を起こさず通常のmergeからdeployの順序へ戻す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/company-authority-resolver.js",
+            "anchor": "resolve"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/company-authority-resolver.test.js",
+            "case": "keeps provider scopes separate from the requested business capability"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-21T12:19:02.565Z",
+      "last_revised_at": "2026-08-21T12:19:02.565Z"
+    }
+  ],
+  "generated_at": "2026-08-21T12:19:02.564Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": null
+}
