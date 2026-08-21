@@ -9,6 +9,7 @@ ChatGPTから、Brainbase本番のPhase 0保守状態を旧payloadと混同せ�
 - [ ] AC-001: MCPのtool discoveryに6つのGraph Maintenance操作が存在する。
 - [ ] AC-002: Graph APIから取得した`lifecycle_status`、`semantic_state`、`version`を、業務payloadの`status`と分離して`search`と`get_entity`へ表示する。
 - [ ] AC-003: Admin Graph読取りは`id`と`q`を現在のAPIへそのまま転送し、保守列を返す。
+- [ ] AC-004: MCPは明示された`BRAINBASE_GRAPH_API_TOKEN`を保存済み個人tokenより優先し、環境tokenがない場合だけ既存fallbackを使う。
 
 ## 境界
 

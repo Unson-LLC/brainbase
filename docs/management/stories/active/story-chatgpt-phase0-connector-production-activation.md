@@ -11,7 +11,7 @@
 
 ## 受け入れ条件
 
-- [ ] AC-001: 本番API/MCPのruntime SHAがマージcommitと一致し、DB migration versionを診断できる。
+- [ ] AC-001: deploy前の本番runtime SHAをrollback先として記録する。deploy後はAPI/MCPのruntime SHAがマージcommitと一致し、DB migration versionを診断できる。
 - [ ] AC-002: Connector専用サービス認証がorganization `unson`と19 project scopeへ束縛され、Canonical Task操作がHTTP 200になる。
 - [ ] AC-003: 本番MCPの`tools/list`に6つのGraph Maintenance操作が存在し、ChatGPT Hostのschema cache更新後にも同じ6操作を発見できる。
 - [ ] AC-004: `dec_01KQ8T8SXZ0YA7GQTE1CYEGJGK`を`retired` / version 2としてreadbackできる。
@@ -22,4 +22,4 @@
 - Batch 2のApplyは行わない。
 - dry-runおよび権限拒否確認以外のGraph変更は行わない。
 - secret値はGit、VibePro artifact、標準出力へ保存しない。
-- いずれかのreadbackが失敗した場合は本番完了にせず、旧SHAへrollbackするかConnector有効化を停止する。
+- いずれかのreadbackが失敗した場合は本番完了にせず、記録済みの旧SHAへrollbackしてruntime SHA・health・tools/listを再確認するか、Connector有効化を停止する。

@@ -129,7 +129,7 @@
         ]
       },
       "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:36:40.687Z"
+      "last_revised_at": "2026-08-21T09:39:08.942Z"
     },
     {
       "id": "INV-001",
@@ -183,7 +183,7 @@
         ]
       },
       "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:36:40.687Z"
+      "last_revised_at": "2026-08-21T09:39:08.942Z"
     },
     {
       "id": "C-002",
@@ -237,7 +237,49 @@
         ]
       },
       "first_seen_at": "2026-08-21T09:20:11.422Z",
-      "last_revised_at": "2026-08-21T09:36:40.687Z"
+      "last_revised_at": "2026-08-21T09:39:08.942Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "MCPは明示されたBRAINBASE_GRAPH_API_TOKENを保存済み個人tokenより優先し、環境tokenがない場合だけ既存fallbackを使う。",
+      "rationale": "Connector専用Graph tokenが個人tokenにshadowされる回帰を防ぐため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-chatgpt-phase0-connector-sync.md",
+            "section": "認証境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/auth/token-manager.ts",
+            "anchor": "getToken"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/token-manager.test.ts",
+            "case": "prefers the explicit Graph API environment token over a persisted user token"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/token-manager.test.ts",
+            "must_cover": "explicit Graph API environment token"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-21T09:39:00.000Z",
+      "last_revised_at": "2026-08-21T09:39:08.942Z"
     }
   ],
   "open_questions": [
