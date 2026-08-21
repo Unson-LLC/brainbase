@@ -616,7 +616,7 @@ describe('ontology release Git history verification', () => {
     it('verifies an active current release through the repository trust store without an environment key', () => {
         expect(verifyOntologyRelease({ rootDir: projectRoot })).toMatchObject({
             current: '1.0.0',
-            release_count: 1
+            release_count: 2
         });
     });
 
