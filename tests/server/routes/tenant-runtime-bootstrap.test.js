@@ -51,9 +51,15 @@ function createRuntime({
         thresholds_basis_points: [8000],
         overage_policy: 'deny',
         hard_stop_basis_points: 10000,
+        quota_window_policy: { kind: 'calendar_month', timezone: 'UTC' },
         rate_card_revision: 1,
         fx_table_revision: 1
     });
+    // The route contract carries only requested_quantity.  This in-memory
+    // fixture supplies the authoritative prior use explicitly, matching the
+    // production repository boundary without allowing it from the caller.
+    const decideQuotaWithAuthority = usageLedger.decideQuota.bind(usageLedger);
+    usageLedger.decideQuota = (input) => decideQuotaWithAuthority({ ...input, used_quantity: 0 });
     const services = createTenantRuntimeServices({
         serviceToken,
         serviceAuth,
@@ -450,13 +456,8 @@ describe('tenant runtime production wiring', () => {
 
         const quota = await request(app).post('/api/v1/runtime/quota:decide').set(headers).send({
             tenant_context,
-            quota_revision: '19',
             metric: 'model_tokens',
-            observed_quantity: 10,
-            requested_quantity: 5,
-            unit: 'tokens',
-            window_started_at: '2026-08-01T00:00:00Z',
-            window_ends_at: '2026-09-01T00:00:00Z'
+            requested_quantity: 5
         });
         expect(quota.status).toBe(200);
         expect(quota.body).toMatchObject({ message_type: 'quota_decision', decision: 'allowed' });

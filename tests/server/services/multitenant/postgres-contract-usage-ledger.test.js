@@ -24,6 +24,7 @@ const idempotencyKey = computeBusinessIdempotencyKey({
 
 function createRepository() {
     return {
+        decideQuota: vi.fn(async (input) => ({ ...input, authority: 'postgres' })),
         loadContractRevision: vi.fn(async () => ({
             tenant_id: ids.tenant_id,
             contract_id: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FB1',
@@ -36,7 +37,6 @@ function createRepository() {
             fx_table_revision: 5,
             sales_price_revision: 3
         })),
-        recordQuotaDecision: vi.fn(async (decision) => decision),
         recordUsage: vi.fn(async (event) => event),
         finalizeReceipt: vi.fn(async (receipt) => receipt),
         finalizeReceiptWithPricing: vi.fn(async (input) => input),
@@ -46,44 +46,21 @@ function createRepository() {
 }
 
 describe('PostgresContractUsageLedger', () => {
-    it('D-006: authoritative contractからcanonical QuotaDecisionを作り永続化する', async () => {
+    it('D-006: quota decision authorityをPostgreSQL repositoryへ委譲する', async () => {
         const repository = createRepository();
         const ledger = new PostgresContractUsageLedger({ repository, now: () => now });
         const input = {
             tenant_id: ids.tenant_id,
             contract_revision: ids.contract_revision,
-            quota_revision: '19',
             metric: 'model_tokens',
-            observed_quantity: 1200,
-            requested_quantity: 0,
-            unit: 'model_tokens',
-            window_started_at: '2026-08-01T00:00:00Z',
-            window_ends_at: '2026-09-01T00:00:00Z',
+            requested_quantity: 1,
             idempotency_key: idempotencyKey
         };
 
         const decision = await ledger.decideQuota(input);
 
-        expect(decision).toEqual({
-            message_type: 'quota_decision',
-            tenant_id: ids.tenant_id,
-            contract_revision: '11',
-            quota_revision: '19',
-            limit: 1000000,
-            used: 1200,
-            remaining: 998800,
-            unit: 'model_tokens',
-            window_started_at: '2026-08-01T00:00:00Z',
-            window_ends_at: '2026-09-01T00:00:00Z',
-            decision: 'allowed',
-            decided_at: '2026-08-16T13:00:31.000Z',
-            failure_code: null
-        });
-        expect(repository.loadContractRevision).toHaveBeenCalledWith({ tenant_id: ids.tenant_id, contract_revision: '11' });
-        expect(repository.recordQuotaDecision).toHaveBeenCalledWith(decision, {
-            idempotency_key: idempotencyKey,
-            metric: 'model_tokens'
-        });
+        expect(decision).toEqual({ ...input, authority: 'postgres' });
+        expect(repository.decideQuota).toHaveBeenCalledWith(input);
     });
 
     it('D-006/D-007: canonical UsageEventとOperationReceiptを状態混同なしで保存する', async () => {

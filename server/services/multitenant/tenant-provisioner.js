@@ -98,7 +98,8 @@ function contractCore(contract) {
         hard_stop_basis_points: Number(contract.hard_stop_basis_points),
         rate_card_revision: Number(contract.rate_card_revision),
         fx_table_revision: Number(contract.fx_table_revision),
-        sales_price_revision: Number(contract.sales_price_revision)
+        sales_price_revision: Number(contract.sales_price_revision),
+        quota_window_policy: contract.quota_window_policy ?? null
     };
 }
 
@@ -147,7 +148,8 @@ async function ensureContractRevision(client, tenant, contract, now) {
         `SELECT tenant_id, contract_id, contract_revision, tenant_revision_at_write,
                 status, effective_from, effective_until, plan_code, allowances,
                 thresholds_basis_points, overage_policy, hard_stop_basis_points,
-                rate_card_revision, fx_table_revision, sales_price_revision
+                rate_card_revision, fx_table_revision, sales_price_revision,
+                quota_window_policy
            FROM tenant_contract_revisions
           WHERE tenant_id = $1 AND contract_revision = $2
           FOR UPDATE`,
@@ -167,13 +169,15 @@ async function ensureContractRevision(client, tenant, contract, now) {
                     contract_id, contract_revision, tenant_id, tenant_revision_at_write,
                     status, effective_from, effective_until, plan_code, allowances,
                     thresholds_basis_points, overage_policy, hard_stop_basis_points,
-                    rate_card_revision, fx_table_revision, sales_price_revision
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15)`,
+                    rate_card_revision, fx_table_revision, sales_price_revision,
+                    quota_window_policy
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16::jsonb)`,
                 [contract.contract_id, revision, tenant.tenant_id, tenant.tenant_revision,
                     contract.status, contract.effective_from, contract.effective_until,
                     contract.plan_code, JSON.stringify(contract.allowances), contract.thresholds_basis_points,
                     contract.overage_policy, contract.hard_stop_basis_points, contract.rate_card_revision,
-                    contract.fx_table_revision, contract.sales_price_revision]
+                    contract.fx_table_revision, contract.sales_price_revision,
+                    JSON.stringify(contract.quota_window_policy)]
             );
         } catch (error) {
             if (error?.code === '23505') {
@@ -663,6 +667,7 @@ async function readback(client, tenant, project, connection, actor, contract, re
                 cr.effective_from, cr.effective_until, cr.plan_code, cr.allowances,
                 cr.thresholds_basis_points, cr.overage_policy, cr.hard_stop_basis_points,
                 cr.rate_card_revision, cr.fx_table_revision, cr.sales_price_revision,
+                cr.quota_window_policy,
                 rb.capabilities AS runtime_capabilities,
                 rb.audience AS runtime_audience,
                 rb.deployment_id AS runtime_deployment_id,
@@ -718,6 +723,7 @@ async function readback(client, tenant, project, connection, actor, contract, re
         rate_card_revision: Number(row.rate_card_revision),
         fx_table_revision: Number(row.fx_table_revision),
         sales_price_revision: Number(row.sales_price_revision),
+        quota_window_policy: row.quota_window_policy ?? null,
         capabilities: [...(row.runtime_capabilities ?? [])],
         audience: [...(row.runtime_audience ?? [])],
         deployment_id: row.runtime_deployment_id,
@@ -749,6 +755,7 @@ async function readbackCore(client, manifest, project, registry = null) {
                 cr.effective_from, cr.effective_until, cr.plan_code, cr.allowances,
                 cr.thresholds_basis_points, cr.overage_policy, cr.hard_stop_basis_points,
                 cr.rate_card_revision, cr.fx_table_revision, cr.sales_price_revision,
+                cr.quota_window_policy,
                 rb.capabilities AS runtime_capabilities, rb.audience AS runtime_audience,
                 rb.deployment_id AS runtime_deployment_id, rb.profile AS runtime_profile,
                 ARRAY(SELECT capability_id FROM brainbase_service_actor_capabilities
@@ -787,6 +794,7 @@ async function readbackCore(client, manifest, project, registry = null) {
         thresholds_basis_points: (row.thresholds_basis_points ?? []).map(Number), overage_policy: row.overage_policy,
         hard_stop_basis_points: Number(row.hard_stop_basis_points), rate_card_revision: Number(row.rate_card_revision),
         fx_table_revision: Number(row.fx_table_revision), sales_price_revision: Number(row.sales_price_revision),
+        quota_window_policy: row.quota_window_policy ?? null,
         capabilities: [...(row.runtime_capabilities ?? [])], audience: [...(row.runtime_audience ?? [])],
         deployment_id: row.runtime_deployment_id, profile: row.runtime_profile
     };
