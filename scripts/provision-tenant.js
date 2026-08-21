@@ -6,10 +6,16 @@ import { Pool } from 'pg';
 
 import { createCredentialStore } from '../server/bootstrap/slack-installation-control-plane.js';
 import {
+    normalizeTenantCoreProvisioningManifest,
     normalizeProvisioningManifest,
     redactedManifestSummary
 } from '../server/services/multitenant/provisioning-manifest.js';
-import { provisionTenant, TenantProvisioningError } from '../server/services/multitenant/tenant-provisioner.js';
+import {
+    attachTenantWorkspaceConnection,
+    provisionTenant,
+    provisionTenantCore,
+    TenantProvisioningError
+} from '../server/services/multitenant/tenant-provisioner.js';
 import {
     createPostgresCredentialResolver,
     createPostgresGraphProjectResolver
@@ -25,11 +31,20 @@ export function parseProvisionTenantArgs(argv = [], env = process.env) {
     const idempotencyIndex = argv.indexOf('--idempotency-key');
     const idempotencyKey = idempotencyIndex >= 0 ? argv[idempotencyIndex + 1] : null;
     if (!idempotencyKey || idempotencyKey.startsWith('--')) throw new TenantProvisioningError('IDEMPOTENCY_KEY_REQUIRED', '--idempotency-key is required');
+    const phaseIndex = argv.indexOf('--phase');
+    const phase = phaseIndex >= 0 ? argv[phaseIndex + 1] : 'all';
+    if (!['all', 'core', 'connection'].includes(phase)) {
+        throw new TenantProvisioningError('ARGUMENT_INVALID', '--phase must be all, core, or connection');
+    }
     const allowed = new Set([`--${modes[0]}`, '--manifest', manifestPath, '--idempotency-key', idempotencyKey]);
+    if (phaseIndex >= 0) {
+        allowed.add('--phase');
+        allowed.add(phase);
+    }
     if (modes[0] === 'apply') allowed.add('--approve-apply');
     if (argv.some((argument, index) => {
-        if (argument === '--manifest' || argument === '--idempotency-key') return false;
-        if (index > 0 && (argv[index - 1] === '--manifest' || argv[index - 1] === '--idempotency-key')) return false;
+        if (argument === '--manifest' || argument === '--idempotency-key' || argument === '--phase') return false;
+        if (index > 0 && ['--manifest', '--idempotency-key', '--phase'].includes(argv[index - 1])) return false;
         return !allowed.has(argument);
     })) throw new TenantProvisioningError('ARGUMENT_INVALID', 'Unsupported tenant provisioning argument');
     const approved = argv.includes('--approve-apply');
@@ -37,7 +52,7 @@ export function parseProvisionTenantArgs(argv = [], env = process.env) {
     if (modes[0] === 'apply' && !String(env.BRAINBASE_PROVISIONING_ACTOR ?? '').trim()) {
         throw new TenantProvisioningError('ACTOR_REQUIRED', 'BRAINBASE_PROVISIONING_ACTOR is required for apply');
     }
-    return { mode: modes[0], manifestPath, idempotencyKey, approved };
+    return { mode: modes[0], phase, manifestPath, idempotencyKey, approved };
 }
 
 export async function runProvisionTenant({
@@ -56,9 +71,20 @@ export async function runProvisionTenant({
     } catch {
         throw new TenantProvisioningError('MANIFEST_READ_FAILED', 'Provisioning manifest could not be read');
     }
-    const manifest = normalizeProvisioningManifest(raw);
+    const manifest = args.phase === 'core'
+        ? normalizeTenantCoreProvisioningManifest(raw)
+        : normalizeProvisioningManifest(raw);
     if (args.mode === 'check') {
-        return { ok: true, mode: args.mode, manifest: redactedManifestSummary(manifest), persisted: false };
+        const summary = args.phase === 'core' ? {
+            tenant_key: manifest.tenant_key,
+            tenant_id: manifest.tenant_id,
+            project_code: manifest.project_code,
+            actor_id: manifest.service_actor.actor_id,
+            capability_count: manifest.service_actor.capabilities.length,
+            contract_id: manifest.contract_revision.contract_id,
+            contract_revision: manifest.contract_revision.revision
+        } : redactedManifestSummary(manifest);
+        return { ok: true, mode: args.mode, phase: args.phase, manifest: summary, persisted: false };
     }
     const databaseUrl = env.INFO_SSOT_DATABASE_URL || env.INFO_SSOT_DB_URL;
     const activePool = pool ?? (databaseUrl ? new Pool({ connectionString: databaseUrl }) : null);
@@ -71,7 +97,7 @@ export async function runProvisionTenant({
         // under the provisioner's transaction or advisory lock.  Supplying a
         // custom adapter remains an explicit DI seam for controlled tests.
         const activeGraphResolver = graphResolver ?? createPostgresGraphProjectResolver({ pool: activePool });
-        const activeCredentialBoundary = credentialBoundary ?? (() => {
+        const activeCredentialBoundary = args.phase === 'core' ? null : credentialBoundary ?? (() => {
             try {
                 return createCredentialStore({ env });
             } catch {
@@ -81,13 +107,16 @@ export async function runProvisionTenant({
                 return null;
             }
         })();
-        const activeCredentialResolver = credentialResolver ?? createPostgresCredentialResolver({
+        const activeCredentialResolver = args.phase === 'core' ? null : credentialResolver ?? createPostgresCredentialResolver({
             pool: activePool,
             credentialBoundary: activeCredentialBoundary
         });
         const schemaSql = await readFile(new URL('../server/sql/tenant-production-provisioning-schema.sql', import.meta.url), 'utf8');
         const schemaSha256 = createHash('sha256').update(schemaSql).digest('hex');
-        const result = await provisionTenant({
+        const provision = args.phase === 'core'
+            ? provisionTenantCore
+            : args.phase === 'connection' ? attachTenantWorkspaceConnection : provisionTenant;
+        const result = await provision({
             client,
             manifest,
             idempotencyKey: args.idempotencyKey,
@@ -97,7 +126,7 @@ export async function runProvisionTenant({
             schemaSha256,
             commit: args.mode === 'apply'
         });
-        return { ok: true, mode: args.mode, persisted: args.mode === 'apply' && result.persisted !== false, ...result };
+        return { ok: true, mode: args.mode, phase: args.phase, persisted: args.mode === 'apply' && result.persisted !== false, ...result };
     } catch (error) {
         if (error instanceof TenantProvisioningError) throw error;
         throw new TenantProvisioningError('UPSTREAM_UNAVAILABLE', 'Tenant provisioning failed; inspect control-plane logs');

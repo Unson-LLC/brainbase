@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     canonicalProvisioningFingerprint,
-    normalizeProvisioningManifest
+    normalizeProvisioningManifest,
+    normalizeTenantCoreProvisioningManifest
 } from '../../../../server/services/multitenant/provisioning-manifest.js';
 
 const validManifest = {
@@ -55,6 +56,13 @@ const validManifest = {
 };
 
 describe('provisioning manifest', () => {
+    it('accepts a credential-free core manifest and rejects connection data in that phase', () => {
+        const core = structuredClone(validManifest);
+        delete core.workspace_connection;
+        expect(normalizeTenantCoreProvisioningManifest(core)).not.toHaveProperty('workspace_connection');
+        expect(() => normalizeTenantCoreProvisioningManifest(validManifest)).toThrow(/workspace_connection/u);
+    });
+
     it('normalizes the tenant boundary and creates a key-order-independent fingerprint', () => {
         const first = normalizeProvisioningManifest(validManifest);
         const second = normalizeProvisioningManifest({

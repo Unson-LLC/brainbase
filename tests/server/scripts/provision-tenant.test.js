@@ -20,4 +20,19 @@ describe('provision tenant CLI', () => {
             {}
         )).toThrow(/BRAINBASE_PROVISIONING_ACTOR/u);
     });
+
+    it('selects explicit two-stage bootstrap phases and preserves all-at-once by default', () => {
+        expect(parseProvisionTenantArgs([
+            '--manifest', 'tenant-core.json', '--idempotency-key', 'ik_core', '--check', '--phase', 'core'
+        ])).toMatchObject({ phase: 'core' });
+        expect(parseProvisionTenantArgs([
+            '--manifest', 'tenant-connection.json', '--idempotency-key', 'ik_connection', '--check', '--phase', 'connection'
+        ])).toMatchObject({ phase: 'connection' });
+        expect(parseProvisionTenantArgs([
+            '--manifest', 'tenant.json', '--idempotency-key', 'ik_all', '--check'
+        ])).toMatchObject({ phase: 'all' });
+        expect(() => parseProvisionTenantArgs([
+            '--manifest', 'tenant.json', '--idempotency-key', 'ik_bad', '--check', '--phase', 'unsafe'
+        ])).toThrow(/phase/u);
+    });
 });

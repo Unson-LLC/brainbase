@@ -1,7 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { canonicalJson } from './canonical-json.js';
-import { canonicalProvisioningFingerprint, normalizeProvisioningManifest } from './provisioning-manifest.js';
+import {
+    canonicalProvisioningFingerprint,
+    canonicalTenantCoreProvisioningFingerprint,
+    normalizeProvisioningManifest,
+    normalizeTenantCoreProvisioningManifest
+} from './provisioning-manifest.js';
 
 const TERMINAL_STATUSES = new Set(['applied', 'conflict']);
 const CLAIM_STALE_MS = 120_000;
@@ -686,7 +691,7 @@ async function readback(client, tenant, project, connection, actor, contract, re
     const row = result.rows[0];
     if (!row) throw new TenantProvisioningError('READBACK_FAILED', 'Provisioning state was not found during readback');
     if (row.tenant_key !== tenant.tenant_key
-        || row.tenant_revision !== tenant.tenant_revision
+        || Number(row.tenant_revision) !== Number(tenant.tenant_revision)
         || row.project_id !== project.project_id
         || row.project_code !== project.project_code
         || row.connection_id !== connection.connection_id
@@ -736,6 +741,77 @@ async function readback(client, tenant, project, connection, actor, contract, re
     };
 }
 
+async function readbackCore(client, manifest, project, registry = null) {
+    const result = await client.query(
+        `SELECT t.tenant_id, t.tenant_key, t.tenant_revision, t.status AS tenant_status,
+                tp.project_id, tp.project_code, sa.actor_id, sa.canonical_project_id,
+                cr.contract_id, cr.contract_revision, cr.status AS contract_status,
+                cr.effective_from, cr.effective_until, cr.plan_code, cr.allowances,
+                cr.thresholds_basis_points, cr.overage_policy, cr.hard_stop_basis_points,
+                cr.rate_card_revision, cr.fx_table_revision, cr.sales_price_revision,
+                rb.capabilities AS runtime_capabilities, rb.audience AS runtime_audience,
+                rb.deployment_id AS runtime_deployment_id, rb.profile AS runtime_profile,
+                ARRAY(SELECT capability_id FROM brainbase_service_actor_capabilities
+                       WHERE actor_id = sa.actor_id AND tenant_key = t.tenant_key AND status = 'active'
+                       ORDER BY capability_id) AS actor_capabilities,
+                ARRAY(SELECT public_jwk FROM brainbase_service_actor_keys
+                       WHERE actor_id = sa.actor_id AND status = 'active'
+                       ORDER BY kid) AS actor_public_keys
+           FROM brainbase_tenants t
+           JOIN tenant_projects tp ON tp.tenant_id = t.tenant_id AND tp.project_id = $3
+           JOIN brainbase_service_actors sa ON sa.tenant_key = t.tenant_key AND sa.actor_id = $4
+           JOIN tenant_contract_revisions cr ON cr.tenant_id = t.tenant_id
+                AND cr.contract_id = $5 AND cr.contract_revision = $6
+           JOIN tenant_contract_revision_runtime_bindings rb ON rb.tenant_id = cr.tenant_id
+                AND rb.contract_id = cr.contract_id AND rb.contract_revision = cr.contract_revision
+          WHERE t.tenant_id = $1 AND t.tenant_key = $2 AND t.status = 'active'
+          FOR SHARE OF t, tp, sa, cr, rb`,
+        [manifest.tenant_id, manifest.tenant_key, project.project_id, manifest.service_actor.actor_id,
+            manifest.contract_revision.contract_id, Number(manifest.contract_revision.revision)]
+    );
+    const row = result.rows[0];
+    if (!row || row.tenant_id !== manifest.tenant_id || row.tenant_key !== manifest.tenant_key
+        || row.project_id !== project.project_id || row.project_code !== manifest.project_code
+        || row.actor_id !== manifest.service_actor.actor_id
+        || row.canonical_project_id !== manifest.service_actor.canonical_project_id
+        || canonicalJson([...(row.actor_capabilities ?? [])].sort())
+            !== canonicalJson([...manifest.service_actor.capabilities].sort())
+        || canonicalJson(row.actor_public_keys ?? [])
+            !== canonicalJson([...(manifest.service_actor.public_keys ?? [])].sort((left, right) => left.kid.localeCompare(right.kid)))) {
+        throw new TenantProvisioningError('CORE_READBACK_FAILED', 'Tenant core state was not found or crossed a tenant boundary');
+    }
+    const storedContract = {
+        contract_id: row.contract_id, revision: String(row.contract_revision), status: row.contract_status,
+        effective_from: timestampForComparison(row.effective_from), effective_until: timestampForComparison(row.effective_until),
+        plan_code: row.plan_code, allowances: row.allowances,
+        thresholds_basis_points: (row.thresholds_basis_points ?? []).map(Number), overage_policy: row.overage_policy,
+        hard_stop_basis_points: Number(row.hard_stop_basis_points), rate_card_revision: Number(row.rate_card_revision),
+        fx_table_revision: Number(row.fx_table_revision), sales_price_revision: Number(row.sales_price_revision),
+        capabilities: [...(row.runtime_capabilities ?? [])], audience: [...(row.runtime_audience ?? [])],
+        deployment_id: row.runtime_deployment_id, profile: row.runtime_profile
+    };
+    if (canonicalJson(contractReceipt(storedContract)) !== canonicalJson(contractReceipt(manifest.contract_revision))) {
+        throw new TenantProvisioningError('CORE_READBACK_FAILED', 'Tenant contract readback did not match the bootstrap manifest');
+    }
+    if (registry && canonicalJson([...registry.capabilities].sort()) !== canonicalJson([...manifest.service_actor.capabilities].sort())) {
+        throw new TenantProvisioningError('CORE_READBACK_FAILED', 'Service actor readback did not match the bootstrap manifest');
+    }
+    return {
+        tenant: { tenant_id: row.tenant_id, tenant_key: row.tenant_key, tenant_revision: Number(row.tenant_revision) },
+        project: { project_id: row.project_id, project_code: row.project_code },
+        registry: {
+            capabilities: row.actor_capabilities,
+            public_keys: (row.actor_public_keys ?? []).map(({ kid }) => ({ kid }))
+        },
+        readback: {
+            tenant: true, tenant_project: true, service_actor: true,
+            service_actor_capabilities: row.actor_capabilities,
+            service_actor_public_keys: (row.actor_public_keys ?? []).map(({ kid }) => kid),
+            contract_revision: contractReceipt(storedContract)
+        }
+    };
+}
+
 export async function exportServiceActorJwks({ client, tenantKey, actorId } = {}) {
     if (!client || typeof client.query !== 'function') {
         throw new TenantProvisioningError('DATABASE_REQUIRED', 'A PostgreSQL client is required');
@@ -774,7 +850,8 @@ export async function provisionTenant({
     now = new Date().toISOString(),
     operationIdFactory = operationId,
     commit = true,
-    schemaSha256 = null
+    schemaSha256 = null,
+    phase = 'all'
 } = {}) {
     if (!client || typeof client.query !== 'function') throw new TenantProvisioningError('DATABASE_REQUIRED', 'A PostgreSQL client is required');
     if (typeof idempotencyKey !== 'string' || !/^\S{3,255}$/u.test(idempotencyKey)) {
@@ -784,11 +861,18 @@ export async function provisionTenant({
     if (!graphResolver || typeof graphResolver.resolveCanonicalProject !== 'function') {
         throw new TenantProvisioningError('GRAPH_RESOLVER_REQUIRED', 'A read-only canonical project resolver is required');
     }
-    if (!credentialResolver || typeof credentialResolver.verifyOpaqueReference !== 'function') {
+    if (phase !== 'core' && (!credentialResolver || typeof credentialResolver.verifyOpaqueReference !== 'function')) {
         throw new TenantProvisioningError('CREDENTIAL_RESOLVER_REQUIRED', 'A credential reference resolver is required');
     }
-    const normalizedManifest = normalizeProvisioningManifest(manifest);
-    const desiredStateSha256 = fingerprint ?? canonicalProvisioningFingerprint(normalizedManifest);
+    if (!['all', 'core', 'connection'].includes(phase)) {
+        throw new TenantProvisioningError('PROVISIONING_PHASE_INVALID', 'Provisioning phase is invalid');
+    }
+    const normalizedManifest = phase === 'core'
+        ? normalizeTenantCoreProvisioningManifest(manifest)
+        : normalizeProvisioningManifest(manifest);
+    const desiredStateSha256 = fingerprint ?? (phase === 'core'
+        ? canonicalTenantCoreProvisioningFingerprint(normalizedManifest)
+        : canonicalProvisioningFingerprint(normalizedManifest));
     let transactionStarted = false;
     let claimed = null;
     let claimTokenHash = null;
@@ -864,7 +948,9 @@ export async function provisionTenant({
         // connection exists for this tenant/provider/workspace/app.  Existing
         // connections (including reinstalls) must pass exact canonical
         // credential metadata verification in the resolver.
-        const existingConnection = await client.query(
+        let coreState = null;
+        if (phase === 'connection') coreState = await readbackCore(client, normalizedManifest, project);
+        const existingConnection = phase === 'core' ? { rows: [] } : await client.query(
             `SELECT connection_id, connection_revision
                FROM workspace_connections
               WHERE tenant_id = $1
@@ -876,14 +962,14 @@ export async function provisionTenant({
             [normalizedManifest.tenant_id, normalizedManifest.workspace_connection.provider,
                 normalizedManifest.workspace_connection.workspace_id, normalizedManifest.workspace_connection.app_id]
         );
-        assertCredentialResult(await credentialResolver.verifyOpaqueReference({
+        if (phase !== 'core') assertCredentialResult(await credentialResolver.verifyOpaqueReference({
             tenant_id: normalizedManifest.tenant_id,
             tenant_key: normalizedManifest.tenant_key,
             credential_ref: normalizedManifest.workspace_connection.credential_ref,
             provider: normalizedManifest.workspace_connection.provider,
             workspace_id: normalizedManifest.workspace_connection.workspace_id,
             app_id: normalizedManifest.workspace_connection.app_id,
-            allow_unregistered: (existingConnection.rows ?? []).length === 0
+            allow_unregistered: phase === 'all' && (existingConnection.rows ?? []).length === 0
         }), normalizedManifest.tenant_key);
 
         await client.query('BEGIN');
@@ -891,24 +977,31 @@ export async function provisionTenant({
         await client.query("SET LOCAL lock_timeout = '5s'");
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [normalizedManifest.tenant_key]);
         if (commit) await assertClaimedOperation(client, claimed.operation_id, claimTokenHash);
-        const tenant = await ensureTenant(client, normalizedManifest, now);
-        const contract = await ensureContractRevision(client, tenant, normalizedManifest.contract_revision, now);
-        const tenantProject = await ensureTenantProject(client, tenant, project, normalizedManifest, now);
-        const connection = await ensureWorkspaceConnection(client, normalizedManifest, tenant, now);
-        const registry = await ensureServiceRegistry(client, normalizedManifest.service_actor, normalizedManifest.tenant_key, now);
-        await activateTenant(client, tenant, now);
-        const readbackResult = await readback(
-            client, tenant, tenantProject, connection, normalizedManifest.service_actor,
-            normalizedManifest.contract_revision, registry
-        );
+        if (phase === 'connection') coreState = await readbackCore(client, normalizedManifest, project);
+        const tenant = phase === 'connection' ? coreState.tenant : await ensureTenant(client, normalizedManifest, now);
+        const contract = phase === 'connection'
+            ? contractReceipt(normalizedManifest.contract_revision)
+            : await ensureContractRevision(client, tenant, normalizedManifest.contract_revision, now);
+        const tenantProject = phase === 'connection'
+            ? coreState.project
+            : await ensureTenantProject(client, tenant, project, normalizedManifest, now);
+        const registry = phase === 'connection'
+            ? coreState.registry
+            : await ensureServiceRegistry(client, normalizedManifest.service_actor, normalizedManifest.tenant_key, now);
+        if (phase !== 'connection') await activateTenant(client, tenant, now);
+        const connection = phase === 'core' ? null : await ensureWorkspaceConnection(client, normalizedManifest, tenant, now);
+        const readbackResult = phase === 'core'
+            ? (await readbackCore(client, normalizedManifest, project, registry)).readback
+            : await readback(client, tenant, tenantProject, connection, normalizedManifest.service_actor,
+                normalizedManifest.contract_revision, registry);
         const receipt = redactedReceipt({
             operation_id: claimed.operation_id,
             tenant_key: tenant.tenant_key,
             tenant_id: tenant.tenant_id,
             tenant_revision: tenant.tenant_revision,
             project_id: project.project_id,
-            connection_id: connection.connection_id,
-            connection_revision: connection.connection_revision,
+            connection_id: connection?.connection_id ?? null,
+            connection_revision: connection?.connection_revision ?? null,
             actor_id: normalizedManifest.service_actor.actor_id,
             capabilities: normalizedManifest.service_actor.capabilities,
             contract_revision: contract,
@@ -943,4 +1036,12 @@ export async function provisionTenant({
         }
         throw safeError;
     }
+}
+
+export function provisionTenantCore(options = {}) {
+    return provisionTenant({ ...options, phase: 'core' });
+}
+
+export function attachTenantWorkspaceConnection(options = {}) {
+    return provisionTenant({ ...options, phase: 'connection' });
 }
