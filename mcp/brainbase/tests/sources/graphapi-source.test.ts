@@ -10,6 +10,41 @@ import { TokenManager } from '../../src/auth/token-manager.js';
 import { getGraphFetchTypes } from '../../src/indexer/ontology.js';
 
 describe('GraphAPISource', () => {
+  it('keeps maintenance lifecycle, semantic state, and version separate from payload status', async () => {
+    const mockTokenManager = {
+      getToken: mock.fn(async () => 'mock-token'),
+      refresh: mock.fn(async () => {}),
+    } as unknown as TokenManager;
+    global.fetch = mock.fn(async (url: string) => {
+      const type = new URL(url).searchParams.get('type');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          entities: type === 'decision' ? [{
+            entity_id: 'dec_maintenance',
+            entity_type: 'decision',
+            project_code: 'brainbase',
+            lifecycle_status: 'retired',
+            semantic_state: 'superseded',
+            version: 2,
+            payload: { title: '旧判断', status: 'decided' },
+          }] : [],
+        }),
+      };
+    }) as any;
+
+    const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+    await source.initialize();
+    const [decision] = await source.getDecisions();
+
+    assert.strictEqual(decision.status, 'decided');
+    assert.strictEqual(decision.lifecycle_status, 'retired');
+    assert.strictEqual(decision.lifecycle_state, 'retired');
+    assert.strictEqual(decision.semantic_state, 'superseded');
+    assert.strictEqual(decision.version, 2);
+  });
+
   it('projects extension status and canonical summary from Graph payloads', async () => {
     const mockTokenManager = {
       getToken: mock.fn(async () => 'mock-token'),

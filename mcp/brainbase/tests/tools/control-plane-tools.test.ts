@@ -219,6 +219,26 @@ describe('Brainbase MCP control-plane tools', () => {
     assert.equal(rejected?.error?.code, 'brainbase_project_not_accessible');
   });
 
+  it('forwards Graph entity id and q filters to the current admin API contract', async () => {
+    const calls: string[] = [];
+    const result = await handleControlPlaneToolCall('brainbase_admin_read', {
+      view: 'graph_entities',
+      project: 'brainbase',
+      id: 'dec_01KQ8T8SXZ0YA7GQTE1CYEGJGK',
+      q: 'VERIFY',
+    }, dependencies({
+      fetch: async (url: string | URL | Request) => {
+        calls.push(String(url));
+        return new Response(JSON.stringify({ source_class: 'graph_ssot', status: 'available', records: [] }), { status: 200 });
+      },
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(calls, [
+      'http://brainbase.test/api/admin/graph/entities?project=brainbase&id=dec_01KQ8T8SXZ0YA7GQTE1CYEGJGK&q=VERIFY',
+    ]);
+  });
+
   it('TSK-WEBRET-007 AC-5: context preview remains a scoped read even though its REST transport is POST', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const result = await handleControlPlaneToolCall('brainbase_admin_read', {

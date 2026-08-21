@@ -57,6 +57,25 @@ describe('AdminVisualizationService', () => {
         expect(candidates.records.some((record) => record.id === 'project_brainbase')).toBe(false);
     });
 
+    it('projects Graph maintenance state without replacing the business payload status', async () => {
+        const service = new AdminVisualizationService({
+            infoSSOTService: {
+                async listGraphEntities() {
+                    return [{ id: 'decision_retired', entity_type: 'decision', project_code: 'brainbase', lifecycle_status: 'retired', version: 2, payload: { title: '旧判断', status: 'decided', semantic_state: 'superseded' } }];
+                }
+            }
+        });
+        const result = await service.listGraphEntities(access, { id: 'decision_retired' });
+
+        expect(result.records[0]).toMatchObject({
+            lifecycle_status: 'retired',
+            lifecycle_state: 'retired',
+            semantic_state: 'superseded',
+            version: 2
+        });
+        expect(result.records[0].payload_preview).toContain('decided');
+    });
+
     it('INV-7 AP-2: candidate-store list applies ACL before previewing body text', async () => {
         const calls = [];
         const repository = {
