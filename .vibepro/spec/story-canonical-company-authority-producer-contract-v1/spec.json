@@ -137,9 +137,8 @@
           { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "accepts a signed success context only after detached JWS verification" },
           { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "fails closed when caller evaluation time is omitted" },
           { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "evaluates expiry against caller-supplied now rather than issued_at" },
-          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "POS-DENY-COMPANY-WRITE" },
-          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC" },
-          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "accepts the embedded tenant context for %s through the canonical consumer verifier" }
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "accepts complete external wire envelopes for deny and unavailable cases" },
+          { "file": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "case": "accepts every embedded tenant context through the canonical consumer verifier" }
         ]
       },
       "verifiable_by": {
@@ -149,9 +148,8 @@
           { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "accepts a signed success context only after detached JWS verification" },
           { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "fails closed when caller evaluation time is omitted" },
           { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "evaluates expiry against caller-supplied now rather than issued_at" },
-          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "POS-DENY-COMPANY-WRITE" },
-          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC" },
-          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "accepts the embedded tenant context for %s through the canonical consumer verifier" }
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "accepts complete external wire envelopes for deny and unavailable cases" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-consumer-boundary.test.js", "must_cover": "accepts every embedded tenant context through the canonical consumer verifier" }
         ]
       },
       "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/source-lock.json", "docs/management/tasks/canonical-company-authority-producer-contract-v1.json"]

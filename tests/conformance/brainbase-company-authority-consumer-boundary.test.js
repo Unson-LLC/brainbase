@@ -76,7 +76,7 @@ describe('Brainbase company authority A0 consumer boundary', () => {
     });
 
     it.each(fixtures.positive.filter(({ context }) => context))(
-        'accepts the embedded tenant context for %s through the canonical consumer verifier',
+        'accepts every embedded tenant context through the canonical consumer verifier',
         (fixture) => {
             const tenantContext = fixture.context.tenant_context;
             expect(() => verifyTenantContext(tenantContext, {
@@ -95,7 +95,7 @@ describe('Brainbase company authority A0 consumer boundary', () => {
     it.each([
         'POS-DENY-COMPANY-WRITE',
         'POS-AUTHORITY-UNAVAILABLE-CONNECTION-DIAGNOSTIC'
-    ])('accepts the complete external wire envelope for %s case-by-case', (caseId) => {
+    ])('accepts complete external wire envelopes for deny and unavailable cases', (caseId) => {
         const fixture = fixtures.positive.find(({ id }) => id === caseId);
         assert.ok(fixture, `positive fixture not found: ${caseId}`);
         expect(fixture.wire_response).toBeDefined();
