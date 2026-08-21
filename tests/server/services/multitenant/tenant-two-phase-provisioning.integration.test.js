@@ -64,6 +64,10 @@ describe.sequential('tenant two-phase provisioning DB readback', () => {
              ON CONFLICT (migration_id) DO UPDATE SET schema_sha256 = EXCLUDED.schema_sha256`,
             [schemaSha256, now]
         );
+        await pool.query('CREATE ROLE brainbase_tenant_provisioner_test_app NOLOGIN');
+        await pool.query('GRANT USAGE ON SCHEMA public TO brainbase_tenant_provisioner_test_app');
+        await pool.query('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO brainbase_tenant_provisioner_test_app');
+        await pool.query('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO brainbase_tenant_provisioner_test_app');
     }, 120_000);
 
     afterAll(async () => {
@@ -74,14 +78,18 @@ describe.sequential('tenant two-phase provisioning DB readback', () => {
     it('persists exact core readback before registering the OAuth connection', async () => {
         const client = await pool.connect();
         try {
+            await client.query('SET ROLE brainbase_tenant_provisioner_test_app');
             const graphResolver = { resolveCanonicalProject: async () => ({ project_id: 'project_mana', matches: 1 }) };
             const core = await provisionTenantCore({
                 client, manifest: coreManifest, idempotencyKey: 'integration-core', actorId: 'integration-test',
                 graphResolver, schemaSha256, now
             });
             expect(core.receipt.readback).toMatchObject({ tenant: true, tenant_project: true, service_actor: true });
+            await client.query('BEGIN');
+            await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [coreManifest.tenant_id]);
             expect((await client.query('SELECT count(*)::int AS count FROM workspace_connections')).rows[0].count).toBe(0);
             expect((await client.query('SELECT count(*)::int AS count FROM credential_broker_refs')).rows[0].count).toBe(0);
+            await client.query('COMMIT');
 
             const connection = await attachTenantWorkspaceConnection({
                 client, manifest: fullManifest, idempotencyKey: 'integration-connection', actorId: 'integration-test',
@@ -94,6 +102,8 @@ describe.sequential('tenant two-phase provisioning DB readback', () => {
                 schemaSha256, now
             });
             expect(connection.receipt.readback.workspace_connection).toBe(true);
+            await client.query('BEGIN');
+            await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [coreManifest.tenant_id]);
             const readback = await client.query(
                 `SELECT t.tenant_key, tp.project_code, sa.actor_id, wc.workspace_id, cbr.credential_ref
                    FROM brainbase_tenants t
@@ -108,7 +118,10 @@ describe.sequential('tenant two-phase provisioning DB readback', () => {
                 tenant_key: 'unson-business', project_code: 'mana', actor_id: 'svc_mana_runtime',
                 workspace_id: 'T0123456789', credential_ref: 'credref://unson-business/slack/primary'
             }]);
+            await client.query('COMMIT');
         } finally {
+            await client.query('ROLLBACK');
+            await client.query('RESET ROLE');
             client.release();
         }
     }, 120_000);

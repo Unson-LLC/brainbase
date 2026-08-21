@@ -238,6 +238,13 @@ describe('tenant provisioner', () => {
         });
         expect(client.queries.some(({ text }) => text.includes('INSERT INTO workspace_connections'))).toBe(false);
         expect(client.queries.some(({ text }) => text.includes('credential_broker_refs'))).toBe(false);
+        const queries = client.queries.map(({ text }) => text);
+        const tenantContexts = client.queries.filter(({ text }) => text.includes("set_config('brainbase.tenant_id'"));
+        expect(tenantContexts).toEqual([{ text: expect.any(String), values: [manifest.tenant_id] }]);
+        expect(queries.indexOf(tenantContexts[0].text)).toBeGreaterThan(queries.indexOf('COMMIT'));
+        expect(queries.indexOf(tenantContexts[0].text)).toBeLessThan(
+            queries.findIndex((text) => text.includes('FROM tenant_contract_revisions'))
+        );
     });
 
     it('attaches an OAuth connection only to an existing exact tenant core', async () => {
@@ -256,6 +263,11 @@ describe('tenant provisioner', () => {
             schemaSha256: TEST_SCHEMA_SHA256
         })).resolves.toMatchObject({ receipt: { readback: { workspace_connection: true } } });
         expect(resolver.verifyOpaqueReference).toHaveBeenCalledWith(expect.objectContaining({ allow_unregistered: false }));
+        const tenantContexts = client.queries.filter(({ text }) => text.includes("set_config('brainbase.tenant_id'"));
+        expect(tenantContexts).toHaveLength(2);
+        expect(tenantContexts.every(({ values }) => values[0] === manifest.tenant_id)).toBe(true);
+        const firstCoreRead = client.queries.findIndex(({ text }) => text.includes('FROM brainbase_tenants t'));
+        expect(client.queries.indexOf(tenantContexts[0])).toBeLessThan(firstCoreRead);
     });
 
     it('fails closed before credential verification when tenant core readback is absent', async () => {
@@ -272,6 +284,31 @@ describe('tenant provisioner', () => {
         })).rejects.toMatchObject({ code: 'CORE_READBACK_FAILED' });
         expect(resolver.verifyOpaqueReference).not.toHaveBeenCalled();
         expect(client.queries.some(({ text }) => text.includes('INSERT INTO workspace_connections'))).toBe(false);
+    });
+
+    it('fails closed before tenant-scoped reads or writes when the RLS context cannot be set', async () => {
+        const client = createClient();
+        const query = client.query;
+        client.query = vi.fn(async (text, values = []) => {
+            if (String(text).includes("set_config('brainbase.tenant_id'")) {
+                throw new Error('simulated tenant context failure');
+            }
+            return query(text, values);
+        });
+        const resolver = { verifyOpaqueReference: vi.fn() };
+
+        await expect(provision({
+            client,
+            manifest,
+            idempotencyKey: 'ik_rls_context_failure',
+            actorId: 'operator@example.test',
+            graphResolver,
+            credentialResolver: resolver
+        })).rejects.toMatchObject({ code: 'PROVISIONING_FAILED' });
+
+        expect(resolver.verifyOpaqueReference).not.toHaveBeenCalled();
+        expect(client.queries.some(({ text }) => text.includes('FROM workspace_connections'))).toBe(false);
+        expect(client.queries.some(({ text }) => text.includes('tenant_contract_revisions'))).toBe(false);
     });
 
     it('exports only the tenant-scoped standard JWKS view', async () => {
@@ -475,6 +512,9 @@ describe('tenant provisioner', () => {
         expect(result.receipt).not.toHaveProperty('credential_value');
         expect(client.queries.map(({ text }) => text)).toContain('BEGIN');
         expect(client.queries.map(({ text }) => text)).toContain('COMMIT');
+        const tenantContexts = client.queries.filter(({ text }) => text.includes("set_config('brainbase.tenant_id'"));
+        expect(tenantContexts).toHaveLength(2);
+        expect(tenantContexts.every(({ values }) => values[0] === manifest.tenant_id)).toBe(true);
         expect(JSON.stringify(result)).not.toContain('operator@example.test');
     });
 
