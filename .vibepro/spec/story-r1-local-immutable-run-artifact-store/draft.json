@@ -1,0 +1,291 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-r1-local-immutable-run-artifact-store",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "planning_contract_preparation"
+  },
+  "planning_status": "needs_review",
+  "dependency_state": "j0_merge_source_locked",
+  "implementation_ready": false,
+  "j0_source_lock": {
+    "repository": "Unson-LLC/brainbase",
+    "pull_request": 481,
+    "merge_commit": "f8e7ac61349b326863feae5d7d3d8ae68e2b9d10",
+    "implementation_head": "3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde",
+    "input_type": "JudgmentDAGRunRecord"
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "R1 is a planning-only contract preparation slice and is bound to the exact J0 source lock: Unson-LLC/brainbase PR #481, merge commit f8e7ac61349b326863feae5d7d3d8ae68e2b9d10, implementation head 3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "依存gateとsource lock"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "The artifact identity is a sha256: plus 64 lowercase hexadecimal SHA-256 content address over canonical payload bytes containing artifact schema version, exact J0 source lock, run_id, and the complete JudgmentDAGRunRecord; the digest, path, temporary name, time, and environment are excluded from the digest.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Artifact identityとbinding"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "Canonical serialization recursively orders object keys, preserves the semantic order of J0 arrays, emits one UTF-8 compact JSON byte sequence, and rejects non-JSON values, cycles, sparse arrays, unknown fields, and incomplete values.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Canonical serialization"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "Save publishes canonical bytes atomically and never overwrites an existing artifact; exact repeated content is idempotent, while temporary and partial bytes are not completed artifacts.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Save state machine"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "Given a first create-once run_id binding, when a save supplies different canonical content, artifact digest, source lock, or schema version, the store returns a run_id conflict and leaves the binding and existing artifact unchanged.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Artifact identityとbinding"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "Given an artifact locator, when bytes are tampered, truncated, zero-length, partially written, reordered, extended, or bound to a different digest or run_id, reload rejects without returning a success record or repairing storage.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Reloadとintegrity verification"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "INV-005",
+      "type": "invariant",
+      "statement": "A successful reload returns a recursively deep-frozen snapshot detached from parser, storage, and caller references; mutation of the returned value cannot change saved bytes, identity, or a later reload.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Reloadとintegrity verification"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "Given an artifact_id, run_id, or locator containing traversal, absolute path, NUL, separator, dot segment, symlink, or non-regular file, save and reload fail closed without root escape or symlink following.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Filesystem安全境界"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "Concurrent writers with identical canonical content converge to one immutable artifact and are idempotent; concurrent writers with different content for one run_id produce a conflict for the loser and never use last-write-wins.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Save state machine"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 0.9
+    },
+    {
+      "id": "INV-006",
+      "type": "invariant",
+      "statement": "Future RED tests must fail on pre-fix run_id content replacement, non-canonical key-order digest, overwrite, tamper or truncation acceptance, symlink or traversal following, partial artifact visibility, concurrent last-write-wins, and reload mutation.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-009"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "RED negative contract"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-007",
+      "type": "invariant",
+      "statement": "This planning change modifies only the Story, Architecture, draft Spec, Task, and story-scoped VibePro draft; it creates no source-lock, schema, fixture, validator, source, test, runtime, database, Graph, customer, secret, or deployment artifact.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-010"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "Path boundary"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 1
+    },
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Historical replay, runner version resolution, outcome attachment, evaluation event-set protection, baseline-candidate comparison, scoring, and calibration are deferred to later stories and are not implied by artifact save or reload.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "non_goal",
+            "text": "後続へ明示的に委譲する境界"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+            "section": "後続へ委譲するもの"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": []
+      },
+      "confidence": 1
+    }
+  ],
+  "non_goals": [
+    "historical replay",
+    "runner version resolution",
+    "outcome and evaluation attachment",
+    "baseline-candidate scoring and calibration",
+    "production-ready or done claim"
+  ]
+}

@@ -1,0 +1,167 @@
+{
+  "task_id": "r1-local-immutable-run-artifact-store",
+  "story_id": "story-r1-local-immutable-run-artifact-store",
+  "status": "planned",
+  "planning_status": "needs_review",
+  "work_package_status": "planned",
+  "execution_lane": "contract_preparation",
+  "implementation_ready": false,
+  "priority": "high",
+  "milestone": "M1-local-dag-kernel",
+  "later_consumer_milestone": "M3-replay-and-evaluation",
+  "source_lock": {
+    "repository": "Unson-LLC/brainbase",
+    "pull_request": 481,
+    "merge_commit": "f8e7ac61349b326863feae5d7d3d8ae68e2b9d10",
+    "implementation_head": "3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde",
+    "input_type": "JudgmentDAGRunRecord"
+  },
+  "dependency": {
+    "work_package": "J0",
+    "status": "j0_merge_source_locked",
+    "hard_dependency_done_required_for_implementation": true,
+    "source_lock_required": true,
+    "resolution_conditions": [
+      "Use the exact J0 PR #481 merge commit and implementation head recorded in source_lock.",
+      "Review the R1 Story, Architecture, draft Spec, Task, and VibePro draft as one planning change.",
+      "Create R1 schema, fixture, source-lock, runtime, and tests only in a separate focused implementation change.",
+      "Regenerate implementation evidence at the exact combined HEAD before any completion or release decision."
+    ],
+    "unresolved_fields_are_omitted": true
+  },
+  "architecture": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+  "spec": {
+    "path": "docs/specs/r1-local-immutable-run-artifact-store.md",
+    "maturity": "draft",
+    "review_status": "needs_review",
+    "accepted": false
+  },
+  "scope": {
+    "allowed": [
+      "docs/management/stories/active/story-r1-local-immutable-run-artifact-store.md",
+      "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+      "docs/specs/r1-local-immutable-run-artifact-store.md",
+      "docs/management/tasks/r1-local-immutable-run-artifact-store.json",
+      ".vibepro/spec/story-r1-local-immutable-run-artifact-store/draft.json"
+    ],
+    "forbidden": [
+      "src/**",
+      "tests/**",
+      "contracts/**",
+      "package.json",
+      "package-lock.json",
+      "filesystem runtime implementation",
+      "database, migrations, Graph, MCP, CLI, and HTTP",
+      "customer data, Personal body, secrets, credentials, and external sends",
+      "deployment, release, and production configuration",
+      "mana-runtime",
+      "unrelated or dirty worktrees"
+    ],
+    "production_action": false
+  },
+  "deliverables": {
+    "story": "docs/management/stories/active/story-r1-local-immutable-run-artifact-store.md",
+    "architecture": "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+    "draft_spec": "docs/specs/r1-local-immutable-run-artifact-store.md",
+    "task": "docs/management/tasks/r1-local-immutable-run-artifact-store.json",
+    "vibepro_draft": ".vibepro/spec/story-r1-local-immutable-run-artifact-store/draft.json",
+    "source_lock_created": false,
+    "contract_schema_created": false,
+    "fixture_created": false,
+    "code_created": false,
+    "test_created": false
+  },
+  "acceptance": [
+    {
+      "id": "AC-001",
+      "statement": "J0 PR #481, merge commit f8e7ac61349b326863feae5d7d3d8ae68e2b9d10, and implementation head 3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde are recorded exactly; this task does not mark J0 done."
+    },
+    {
+      "id": "AC-002",
+      "statement": "Artifact identity is a SHA-256 content address over an artifact-schema-versioned canonical payload containing the J0 source lock, run_id, and complete JudgmentDAGRunRecord."
+    },
+    {
+      "id": "AC-003",
+      "statement": "Canonical serialization is deterministic, UTF-8, compact, recursively key-ordered, preserves semantic array order, and rejects non-JSON values, cycles, unknown fields, and truncation."
+    },
+    {
+      "id": "AC-004",
+      "statement": "Save publishes canonical bytes atomically and idempotently without overwriting, and temporary or partial bytes are never readable as completed artifacts."
+    },
+    {
+      "id": "AC-005",
+      "statement": "A first run_id binding is create-once; same run_id with different content or digest is a conflict with no existing artifact or binding mutation."
+    },
+    {
+      "id": "AC-006",
+      "statement": "Reload verifies locator safety, schema, exact source lock, embedded and expected digest, canonical bytes, binding, and J0 record shape before returning a value."
+    },
+    {
+      "id": "AC-007",
+      "statement": "Reload returns a recursively deep-frozen snapshot isolated from caller, parser, and storage mutation."
+    },
+    {
+      "id": "AC-008",
+      "statement": "Traversal, absolute path, NUL, dot segment, symlink, non-regular file, root escape, partial write, and concurrent writer cases fail closed."
+    },
+    {
+      "id": "AC-009",
+      "statement": "Future RED tests fail on the known pre-fix identity, canonicalization, overwrite, integrity, filesystem, concurrency, and mutation behaviors before GREEN implementation."
+    },
+    {
+      "id": "AC-010",
+      "statement": "This planning change modifies exactly five planning files and creates no source-lock, schema, fixture, test, runtime, database, Graph, secret, customer, or deployment artifact."
+    }
+  ],
+  "negative_evidence_contract": {
+    "save_must_not_overwrite": true,
+    "same_run_id_different_content_must_conflict": true,
+    "reload_must_reject": [
+      "tampered bytes",
+      "truncated bytes",
+      "zero-byte file",
+      "partial write",
+      "unknown schema version",
+      "extra fields",
+      "digest mismatch",
+      "path traversal",
+      "symlink",
+      "non-regular file"
+    ],
+    "concurrent_writer_policy": "same canonical content is idempotent; different content for one run_id is conflict; last-write-wins is forbidden",
+    "snapshot_policy": "returned envelope and record are recursively deep-frozen and storage-independent",
+    "production_effects_required_zero": [
+      "database_mutations",
+      "graph_writes",
+      "mcp_calls",
+      "cli_or_http_writes",
+      "customer_data_access",
+      "credential_or_secret_access",
+      "external_sends",
+      "deployments"
+    ]
+  },
+  "planned_tests": {
+    "status": "not_created_planning_only",
+    "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
+    "required_suites": [
+      "artifact envelope and J0 source-lock conformance",
+      "canonical digest and key-order invariance",
+      "same-content idempotency and same-run_id conflict",
+      "atomic publish, partial write, and concurrent writer behavior",
+      "tamper, truncation, zero-byte, unknown version, and extra-field rejection",
+      "path traversal, symlink, non-regular file, and root containment negatives",
+      "recursive deep-freeze and caller/storage mutation isolation"
+    ],
+    "historical_replay_or_evaluation_tests": "deferred_to_later_stories"
+  },
+  "non_goals": [
+    "historical replay or historical context reconstruction",
+    "runner version resolution, registry, migration, or compatibility decisions",
+    "outcome attachment and evaluation event-set protection",
+    "baseline-candidate version comparison, scoring, or calibration",
+    "execution log, hosted runtime, DB, Graph, MCP, CLI, HTTP, authorization, or deployment implementation",
+    "real customer data, Personal body, secrets, credentials, and external communication",
+    "production proof or completion claim"
+  ]
+}
