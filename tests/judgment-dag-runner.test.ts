@@ -144,6 +144,166 @@ describe('J0 local deterministic Judgment DAG runner', () => {
     }
   });
 
+  it('fails closed with invalid_runner when runner registration accessors throw', async () => {
+    const run = vi.fn(({ node: currentNode }: JudgmentDAGRunnerInput) => ({
+      node_id: currentNode.id
+    }));
+    const accessorFailure = new Error('registration accessor failure');
+    const cases = [
+      {
+        label: 'runner map entry',
+        runners: (() => {
+          const runners: Record<string, unknown> = {};
+          Object.defineProperty(runners, 'deterministic', {
+            enumerable: true,
+            get() {
+              throw accessorFailure;
+            }
+          });
+          return runners;
+        })(),
+        expectedRawError: accessorFailure
+      },
+      {
+        label: 'version',
+        runners: (() => {
+          const registration = { run };
+          Object.defineProperty(registration, 'version', {
+            enumerable: true,
+            get() {
+              throw accessorFailure;
+            }
+          });
+          return { deterministic: registration };
+        })(),
+        expectedRawError: accessorFailure
+      },
+      {
+        label: 'run',
+        runners: (() => {
+          const registration = { version: 'runner-1.0.0' };
+          Object.defineProperty(registration, 'run', {
+            enumerable: true,
+            get() {
+              throw accessorFailure;
+            }
+          });
+          return { deterministic: registration };
+        })(),
+        expectedRawError: accessorFailure
+      }
+    ];
+
+    for (const currentCase of cases) {
+      let failure: unknown;
+      try {
+        await executeJudgmentDAG({
+          ...request(),
+          runners: currentCase.runners as JudgmentDAGRunRequest['runners']
+        });
+      } catch (error) {
+        failure = error;
+      }
+
+      expect(failure, currentCase.label).toBeInstanceOf(JudgmentDAGExecutionError);
+      expect(failure, currentCase.label).toMatchObject<Partial<JudgmentDAGExecutionError>>({
+        code: 'invalid_runner',
+        node_id: '__proto__',
+        runner_type: 'deterministic'
+      });
+      expect(failure).not.toBe(currentCase.expectedRawError);
+      expect((failure as JudgmentDAGExecutionError).cause).toBeUndefined();
+      expect(run).not.toHaveBeenCalled();
+    }
+  });
+
+  it('snapshots a valid runner version getter once before it can become invalid', async () => {
+    const run = vi.fn(({ node: currentNode }: JudgmentDAGRunnerInput) => ({
+      node_id: currentNode.id,
+      source: 'original'
+    }));
+    let mapReads = 0;
+    let versionReads = 0;
+    const registration = { run };
+    Object.defineProperty(registration, 'version', {
+      enumerable: true,
+      get() {
+        versionReads += 1;
+        return versionReads === 1 ? 'runner-1.0.0' : '';
+      }
+    });
+    const runners: Record<string, unknown> = {};
+    Object.defineProperty(runners, 'deterministic', {
+      enumerable: true,
+      get() {
+        mapReads += 1;
+        return registration;
+      }
+    });
+
+    const record = await executeJudgmentDAG({
+      ...request(),
+      runners: runners as JudgmentDAGRunRequest['runners']
+    });
+
+    expect(mapReads).toBe(1);
+    expect(versionReads).toBe(1);
+    expect(run).toHaveBeenCalledTimes(4);
+    expect(record.nodes.every((entry) => entry.runner_version === 'runner-1.0.0')).toBe(true);
+    expect(record.runner_versions).toEqual([
+      { runner_type: 'deterministic', version: 'runner-1.0.0' }
+    ]);
+  });
+
+  it.each([
+    {
+      label: 'non-callable',
+      nextRun: null,
+      expectedReplacementCalls: 0
+    },
+    {
+      label: 'callable replacement',
+      nextRun: vi.fn(() => ({ source: 'replacement' })),
+      expectedReplacementCalls: 0
+    }
+  ])('snapshots a valid run getter once before it becomes $label', async ({ nextRun, expectedReplacementCalls }) => {
+    const originalRun = vi.fn(({ node: currentNode }: JudgmentDAGRunnerInput) => ({
+      node_id: currentNode.id,
+      source: 'original'
+    }));
+    let mapReads = 0;
+    let runReads = 0;
+    const registration = { version: 'runner-1.0.0' };
+    Object.defineProperty(registration, 'run', {
+      enumerable: true,
+      get() {
+        runReads += 1;
+        return runReads === 1 ? originalRun : nextRun;
+      }
+    });
+    const runners: Record<string, unknown> = {};
+    Object.defineProperty(runners, 'deterministic', {
+      enumerable: true,
+      get() {
+        mapReads += 1;
+        return registration;
+      }
+    });
+
+    const record = await executeJudgmentDAG({
+      ...request(),
+      runners: runners as JudgmentDAGRunRequest['runners']
+    });
+
+    expect(mapReads).toBe(1);
+    expect(runReads).toBe(1);
+    expect(originalRun).toHaveBeenCalledTimes(4);
+    if (typeof nextRun === 'function') {
+      expect(nextRun).toHaveBeenCalledTimes(expectedReplacementCalls);
+    }
+    expect(record.nodes.every((entry) => (entry.output as { source: string }).source === 'original')).toBe(true);
+  });
+
   it('rejects malformed public requests before any runner call', async () => {
     let calls = 0;
     const run = ({ node: currentNode }: JudgmentDAGRunnerInput) => {

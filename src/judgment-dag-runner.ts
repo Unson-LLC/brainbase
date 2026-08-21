@@ -209,22 +209,53 @@ function requiredRunnerEntries(
       throw invalidRequest(`validated execution order references unknown node ${nodeId}`);
     }
     const runnerType = node.runner_type;
-    if (!Object.prototype.hasOwnProperty.call(runners, runnerType) || runners[runnerType] === undefined) {
+    if (required.has(runnerType)) {
+      continue;
+    }
+
+    let hasRegistration: boolean;
+    let registration: unknown;
+    try {
+      hasRegistration = Object.prototype.hasOwnProperty.call(runners, runnerType);
+      registration = hasRegistration ? runners[runnerType] : undefined;
+    } catch {
+      throw new JudgmentDAGExecutionError(
+        'invalid_runner',
+        `Runner registration for ${runnerType} is invalid`,
+        { node_id: node.id, runner_type: runnerType }
+      );
+    }
+
+    if (!hasRegistration || registration === undefined) {
       throw new JudgmentDAGExecutionError(
         'missing_runner',
         `DAG node ${node.id} requires a ${runnerType} runner registration`,
         { node_id: node.id, runner_type: runnerType }
       );
     }
-    if (required.has(runnerType)) {
-      continue;
+
+    let registrationRecord: Record<string, unknown> | undefined;
+    let version: unknown = undefined;
+    let run: unknown = undefined;
+    try {
+      registrationRecord = isPlainRecord(registration) ? registration : undefined;
+      if (registrationRecord !== undefined) {
+        version = registrationRecord.version;
+        run = registrationRecord.run;
+      }
+    } catch {
+      throw new JudgmentDAGExecutionError(
+        'invalid_runner',
+        `Runner registration for ${runnerType} is invalid`,
+        { node_id: node.id, runner_type: runnerType }
+      );
     }
-    const registration = runners[runnerType];
+
     if (
-      !isPlainRecord(registration) ||
-      typeof registration.version !== 'string' ||
-      registration.version.trim().length === 0 ||
-      typeof registration.run !== 'function'
+      registrationRecord === undefined ||
+      typeof version !== 'string' ||
+      version.trim().length === 0 ||
+      typeof run !== 'function'
     ) {
       throw new JudgmentDAGExecutionError(
         'invalid_runner',
@@ -237,8 +268,8 @@ function requiredRunnerEntries(
     // object, so retaining that object here would let it rewrite the version
     // recorded for nodes that execute later in the same run.
     required.set(runnerType, {
-      version: registration.version,
-      run: registration.run
+      version,
+      run: run as JudgmentDAGRunnerRegistration['run']
     });
   }
 
