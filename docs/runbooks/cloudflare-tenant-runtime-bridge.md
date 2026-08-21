@@ -16,6 +16,7 @@ mana-runtime Worker
 
 bridgeが受理するのは、次の`POST` routeとqueryなし要求だけである。
 
+- `GET /api/v1/runtime/verification-keys`
 - `/api/v1/runtime/tenant-context:resolve`
 - `/api/v1/runtime/credential-leases`
 - `/api/v1/runtime/provider-requests:forward`

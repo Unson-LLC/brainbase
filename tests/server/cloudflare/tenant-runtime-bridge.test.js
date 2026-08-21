@@ -104,10 +104,33 @@ describe('Cloudflare tenant runtime private bridge', () => {
         expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 
+    it('forwards verification keys as an authenticated GET without a request body', async () => {
+        const fetchImpl = vi.fn(async (input) => {
+            const forwarded = new Request(input);
+            expect(forwarded.url).toBe('https://tenant-runtime.internal.example.test/api/v1/runtime/verification-keys');
+            expect(forwarded.method).toBe('GET');
+            expect(forwarded.body).toBeNull();
+            expect(forwarded.headers.get('authorization')).toBe(`Bearer ${ENV.BRAINBASE_SERVICE_JWT}`);
+            expect(forwarded.headers.get('cf-access-client-id')).toBe(ENV.CF_ACCESS_CLIENT_ID);
+            expect(forwarded.headers.get('cf-access-client-secret')).toBe(ENV.CF_ACCESS_CLIENT_SECRET);
+            return Response.json({ keys: [] }, { status: 200 });
+        });
+
+        const response = await handleTenantRuntimeBridgeRequest(new Request(
+            'http://127.0.0.1:31016/api/v1/runtime/verification-keys',
+            { method: 'GET', headers: { accept: 'application/json' } }
+        ), ENV, { fetchImpl });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({ keys: [] });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
         ['unknown route', request('/api/v1/runtime/tenant-boundaries/admin-api:authorize')],
         ['malformed receipt history route', request('/api/v1/runtime/operation-receipts/not-a-receipt/history:read')],
         ['wrong method', request('/api/v1/runtime/provider-requests:forward', { method: 'PUT' })],
+        ['wrong verification keys method', request('/api/v1/runtime/verification-keys')],
         ['query string', request('/api/v1/runtime/provider-requests:forward?fallback=1')]
     ])('rejects %s without reaching the private origin', async (_label, inbound) => {
         const fetchImpl = vi.fn();
