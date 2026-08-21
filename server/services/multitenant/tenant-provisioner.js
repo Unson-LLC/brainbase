@@ -990,15 +990,28 @@ export async function provisionTenant({
             coreState = preflight.coreState;
             existingConnection = preflight.existingConnection;
         }
-        if (phase !== 'core') assertCredentialResult(await credentialResolver.verifyOpaqueReference({
-            tenant_id: normalizedManifest.tenant_id,
-            tenant_key: normalizedManifest.tenant_key,
-            credential_ref: normalizedManifest.workspace_connection.credential_ref,
-            provider: normalizedManifest.workspace_connection.provider,
-            workspace_id: normalizedManifest.workspace_connection.workspace_id,
-            app_id: normalizedManifest.workspace_connection.app_id,
-            allow_unregistered: phase === 'all' && (existingConnection.rows ?? []).length === 0
-        }), normalizedManifest.tenant_key);
+        if (phase !== 'core') {
+            const credentialVerificationInput = {
+                tenant_id: normalizedManifest.tenant_id,
+                tenant_key: normalizedManifest.tenant_key,
+                credential_ref: normalizedManifest.workspace_connection.credential_ref,
+                provider: normalizedManifest.workspace_connection.provider,
+                workspace_id: normalizedManifest.workspace_connection.workspace_id,
+                app_id: normalizedManifest.workspace_connection.app_id,
+                allow_unregistered: phase === 'all' && (existingConnection.rows ?? []).length === 0
+            };
+            if ((existingConnection.rows ?? []).length === 0) {
+                // The first-install row is created immediately after this
+                // verification.  Its canonical revision starts at 1, so the
+                // remote credential store must prove the same strict binding.
+                credentialVerificationInput.connection_id = normalizedManifest.workspace_connection.connection_id;
+                credentialVerificationInput.connection_revision = '1';
+            }
+            assertCredentialResult(
+                await credentialResolver.verifyOpaqueReference(credentialVerificationInput),
+                normalizedManifest.tenant_key
+            );
+        }
 
         await client.query('BEGIN');
         transactionStarted = true;

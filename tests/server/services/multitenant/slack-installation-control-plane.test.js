@@ -194,11 +194,15 @@ describe('Slack installation control plane', () => {
             redirect_uri: 'https://mana.example.test/slack/oauth/callback',
             intent: binding
         })).rejects.toThrow('database unavailable');
-        expect(credentialStore.revoke).toHaveBeenCalledWith({
+        expect(credentialStore.revoke).toHaveBeenCalledWith(expect.objectContaining({
             tenant_id: IDS.tenant,
+            connection_revision: '1',
+            provider: 'slack',
             credential_ref: 'opaque-ref:tenant-a:connection-1',
             reason: 'registration_failed'
-        });
+        }));
+        expect(credentialStore.revoke.mock.calls[0][0].connection_id)
+            .toBe(credentialStore.store.mock.calls[0][0].connection_id);
         expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
             failure_code: 'INSTALLATION_EXCHANGE_FAILED'
         }));

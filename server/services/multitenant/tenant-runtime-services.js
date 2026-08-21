@@ -15,6 +15,10 @@ import {
     createTrustedProviderForwardersFromEnv
 } from './trusted-provider-forwarder.js';
 import {
+    createRemoteCredentialMaterializer,
+    isRemoteCredentialStoreConfigured
+} from './remote-credential-store.js';
+import {
     createJwtServiceTokenVerifier,
     createServiceAuthMiddleware
 } from './service-auth.js';
@@ -142,7 +146,9 @@ export function createTenantRuntimeServicesFromEnv({
         repository: new PostgresCompanyAuthorityRepository({ pool, now })
     });
     const resolvedCredentialMaterializer = credentialMaterializer
-        ?? createEnvCredentialMaterializer({ env });
+        ?? (isRemoteCredentialStoreConfigured(env)
+            ? createRemoteCredentialMaterializer({ env })
+            : createEnvCredentialMaterializer({ env }));
     const resolvedProviderForwarders = Object.keys(providerForwarders).length > 0
         ? providerForwarders
         : createTrustedProviderForwardersFromEnv({ env });

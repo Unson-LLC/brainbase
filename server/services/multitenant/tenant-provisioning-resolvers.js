@@ -119,11 +119,21 @@ export function createPostgresCredentialResolver({
             provider,
             workspace_id: workspaceId,
             app_id: appId,
+            connection_id: connectionId,
+            connection_revision: connectionRevision,
             allow_unregistered: allowUnregistered = false
         } = {}) {
             if (![tenantId, tenantKey, credentialRef, provider, workspaceId, appId].every((value) => typeof value === 'string' && /^\S+$/u.test(value))) {
                 throw new TenantProvisioningError('CREDENTIAL_TENANT_MISMATCH', 'A complete credential boundary is required');
             }
+            const hasConnectionBinding = connectionId !== undefined || connectionRevision !== undefined;
+            if (hasConnectionBinding
+                && (typeof connectionId !== 'string' || !/^\S+$/u.test(connectionId)
+                    || !((typeof connectionRevision === 'string' && /^[1-9][0-9]*$/u.test(connectionRevision))
+                        || (Number.isSafeInteger(connectionRevision) && connectionRevision > 0)))) {
+                throw new TenantProvisioningError('CREDENTIAL_BINDING_INVALID', 'A complete connection binding is required');
+            }
+            const normalizedConnectionRevision = hasConnectionBinding ? String(connectionRevision) : null;
             const databaseResult = await withBoundedClient(configuredPool, timeout, async (client) => {
                 const result = await client.query(
                     `SELECT t.tenant_id, t.tenant_key, cbr.credential_ref, cbr.connection_id,
@@ -191,14 +201,19 @@ export function createPostgresCredentialResolver({
 
             let boundaryResult;
             try {
-                boundaryResult = await withBoundedExternal(timeout, () => verifyBoundary({
+                const boundaryInput = {
                     tenant_id: tenantId,
                     tenant_key: tenantKey,
                     credential_ref: credentialRef,
                     provider,
                     workspace_id: workspaceId,
                     app_id: appId
-                }));
+                };
+                if (hasConnectionBinding) {
+                    boundaryInput.connection_id = connectionId;
+                    boundaryInput.connection_revision = normalizedConnectionRevision;
+                }
+                boundaryResult = await withBoundedExternal(timeout, () => verifyBoundary(boundaryInput));
             } catch (error) {
                 if (error instanceof TenantProvisioningError) throw error;
                 throw new TenantProvisioningError(
@@ -218,19 +233,38 @@ export function createPostgresCredentialResolver({
             }
             const bindingMatches = [
                 ['tenant_id', tenantId],
-                ['tenant_key', tenantKey],
                 ['credential_ref', credentialRef],
                 ['provider', provider],
-                ['workspace_id', workspaceId],
-                ['app_id', appId]
-            ].every(([field, expected]) => boundaryResult[field] === expected);
-            if (!bindingMatches) {
+                ...(hasConnectionBinding
+                    ? [
+                        ['connection_id', connectionId],
+                        ['connection_revision', normalizedConnectionRevision]
+                    ]
+                    : [
+                        ['tenant_key', tenantKey],
+                        ['workspace_id', workspaceId],
+                        ['app_id', appId]
+                    ])
+            ].every(([field, expected]) => field === 'connection_revision'
+                ? String(boundaryResult[field]) === expected
+                : boundaryResult[field] === expected);
+            const optionalContextMatches = ['tenant_key', 'workspace_id', 'app_id']
+                .every((field) => boundaryResult[field] === undefined || boundaryResult[field] === {
+                    tenant_key: tenantKey,
+                    workspace_id: workspaceId,
+                    app_id: appId
+                }[field]);
+            if (!bindingMatches || !optionalContextMatches) {
                 return { valid: false, tenant_key: tenantKey };
             }
             return {
                 valid: true,
                 tenant_key: tenantKey,
-                first_install: true
+                first_install: true,
+                ...(hasConnectionBinding ? {
+                    connection_id: connectionId,
+                    connection_revision: Number(normalizedConnectionRevision)
+                } : {})
             };
         }
     };
