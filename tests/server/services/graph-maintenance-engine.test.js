@@ -88,7 +88,34 @@ describe('Graph maintenance Phase 0 contract', () => {
         expect(validation.issues.map((issue) => issue.category)).toEqual(expect.arrayContaining(['edge_version', 'duplicate_edge_id', 'duplicate_edge']));
         expect(() => buildGraphPlan(invalid, {
             project_code: 'brainbase', idempotency_key: 'invalid-edge', reason: 'reject invalid edge state', operations: []
-        })).toThrow('Graph snapshot is invalid');
+        })).not.toThrow();
+    });
+
+    it('既存のorphanを増やさない保守planを許可し、新しい違反は拒否する', () => {
+        const existingOrphan = {
+            project_code: 'brainbase',
+            entities: [
+                { id: 'person_bad', entity_type: 'person', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 },
+                { id: 'person_good', entity_type: 'person', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }
+            ],
+            edges: [
+                { id: 'edge_orphan', from_id: 'missing', to_id: 'person_good', rel_type: 'knows', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }
+            ]
+        };
+        const plan = buildGraphPlan(existingOrphan, {
+            project_code: 'brainbase', idempotency_key: 'cleanup-existing-invalid', reason: 'quarantine malformed person',
+            operations: [
+                { operation: 'retire_entity', entity_id: 'person_bad', expected_version: 1 },
+                { operation: 'upsert_edge', edge_id: 'edge_superseded', from_id: 'person_bad', to_id: 'person_good', rel_type: 'superseded_by', expected_version: 0 }
+            ]
+        });
+        expect(plan.validation).toMatchObject({ valid: false, counts: { orphans: 1 } });
+        expect(plan.after.edges).toHaveLength(2);
+
+        expect(() => applyGraphOperations(existingOrphan, [{
+            operation: 'upsert_edge', edge_id: 'edge_new_orphan', from_id: 'person_bad', to_id: 'missing',
+            rel_type: 'knows', expected_version: 0
+        }], { projectCode: 'brainbase' })).toThrow('Unknown entity: missing');
     });
 
     it('cross-scope edge IDを再利用せず、endpoint scopeと既存edge IDの取り違えを拒否する', () => {

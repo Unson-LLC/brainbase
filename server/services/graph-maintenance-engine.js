@@ -62,6 +62,25 @@ function validationError(validation, prefix = 'Graph snapshot is invalid') {
     return new Error(`${prefix}: ${validation.issues.map((item) => item.category).join(',')}`);
 }
 
+function validationIssueKey(issue) {
+    return JSON.stringify(canonicalize(issue));
+}
+
+function introducedValidationIssues(before, after) {
+    const remaining = new Map();
+    for (const issue of before.issues) {
+        const key = validationIssueKey(issue);
+        remaining.set(key, (remaining.get(key) || 0) + 1);
+    }
+    return after.issues.filter((issue) => {
+        const key = validationIssueKey(issue);
+        const count = remaining.get(key) || 0;
+        if (count === 0) return true;
+        remaining.set(key, count - 1);
+        return false;
+    });
+}
+
 function findEntity(state, id) {
     const entity = state.entities.find((item) => item.id === id);
     if (!entity) throw new Error(`Unknown entity: ${id}`);
@@ -78,7 +97,6 @@ function findEdge(state, operation) {
 
 export function applyGraphOperations(snapshot, operations, { projectCode, humanGateReceipt } = {}) {
     const initialValidation = validateGraphSnapshot(snapshot);
-    if (!initialValidation.valid) throw validationError(initialValidation);
     const state = withoutHash(snapshot);
     if (state.project_code !== projectCode) throw new Error('project scope mismatch');
     for (const operation of operations) {
@@ -177,7 +195,10 @@ export function applyGraphOperations(snapshot, operations, { projectCode, humanG
         }
     }
     const finalValidation = validateGraphSnapshot(state);
-    if (!finalValidation.valid) throw validationError(finalValidation, 'Graph state after operations is invalid');
+    const introducedIssues = introducedValidationIssues(initialValidation, finalValidation);
+    if (introducedIssues.length) {
+        throw validationError({ issues: introducedIssues }, 'Graph operations introduced invalid state');
+    }
     state.hash = hashGraphSnapshot(state);
     return state;
 }
@@ -186,8 +207,6 @@ export function buildGraphPlan(snapshot, input = {}) {
     if (!String(input.reason || '').trim()) throw new Error('reason is required');
     if (!String(input.idempotency_key || '').trim()) throw new Error('idempotency_key is required');
     if (snapshot.project_code !== input.project_code) throw new Error('project scope mismatch');
-    const initialValidation = validateGraphSnapshot(snapshot);
-    if (!initialValidation.valid) throw validationError(initialValidation);
     if (snapshot.hash && snapshot.hash !== hashGraphSnapshot(snapshot)) throw new Error('snapshot hash mismatch');
     const operations = Array.isArray(input.operations) ? input.operations : [];
     const max = Math.min(Number(input.max_operations) || GRAPH_MAINTENANCE_MAX_OPERATIONS, GRAPH_MAINTENANCE_MAX_OPERATIONS);
@@ -196,7 +215,6 @@ export function buildGraphPlan(snapshot, input = {}) {
     before.hash = hashGraphSnapshot(before);
     const after = applyGraphOperations(before, operations, { projectCode: input.project_code, humanGateReceipt: input.human_gate_receipt });
     const validation = validateGraphSnapshot(after);
-    if (!validation.valid) throw new Error(`planned Graph state is invalid: ${validation.issues.map((item) => item.category).join(',')}`);
     return {
         dry_run: true,
         project_code: input.project_code,
