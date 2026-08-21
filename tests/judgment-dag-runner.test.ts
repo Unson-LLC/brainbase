@@ -125,6 +125,48 @@ describe('J0 local deterministic Judgment DAG runner', () => {
       code: 'invalid_runner'
     });
     expect(calls).toBe(0);
+
+    const invalidRegistrations: unknown[] = [
+      null,
+      { version: 'runner-1.0.0', run: null },
+      { version: 'runner-1.0.0', run: 'not-callable' }
+    ];
+    for (const registration of invalidRegistrations) {
+      await expect(executeJudgmentDAG({
+        ...request(),
+        runners: { deterministic: registration }
+      } as unknown as JudgmentDAGRunRequest)).rejects.toMatchObject<Partial<JudgmentDAGExecutionError>>({
+        code: 'invalid_runner',
+        node_id: '__proto__',
+        runner_type: 'deterministic'
+      });
+      expect(calls).toBe(0);
+    }
+  });
+
+  it('rejects malformed public requests before any runner call', async () => {
+    let calls = 0;
+    const run = ({ node: currentNode }: JudgmentDAGRunnerInput) => {
+      calls += 1;
+      return { node_id: currentNode.id };
+    };
+    const validRequest = request({ value: 1 }, run);
+    const malformedRequests: unknown[] = [
+      null,
+      [],
+      { ...validRequest, run_id: null },
+      { ...validRequest, run_id: '   ' },
+      { ...validRequest, runners: [] }
+    ];
+
+    for (const malformedRequest of malformedRequests) {
+      await expect(executeJudgmentDAG(
+        malformedRequest as JudgmentDAGRunRequest
+      )).rejects.toMatchObject<Partial<JudgmentDAGExecutionError>>({
+        code: 'invalid_request'
+      });
+      expect(calls).toBe(0);
+    }
   });
 
   it('fails closed for mixed runner types before invoking an earlier valid runner', async () => {
