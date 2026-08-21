@@ -12,6 +12,7 @@
   "scope": {
     "allowed": [
       "docs/management/stories/active/story-canonical-company-authority-producer-contract-v1.md",
+      "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
       "docs/architecture/canonical-company-authority-producer-contract-v1.md",
       "docs/specs/canonical-company-authority-producer-contract-v1.md",
       "docs/management/tasks/canonical-company-authority-producer-contract-v1.json",

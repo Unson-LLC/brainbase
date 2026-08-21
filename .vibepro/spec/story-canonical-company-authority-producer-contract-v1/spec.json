@@ -39,10 +39,16 @@
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-002", "text_snippet": "The successful response context and company authority capability path are fixed." }],
         "architecture_refs": [{ "file": "docs/architecture/canonical-company-authority-producer-contract-v1.md", "section": "Request and response wire" }],
-        "test_refs": [{ "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "fixes the request/context wire path and separates operation capability from the company_authority_v1 protocol marker" }]
+        "test_refs": [
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "fixes the request/context wire path and company_authority_v1 capability path" },
+          { "file": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "case": "separates the requested operation capability from the protocol marker" }
+        ]
       },
       "verifiable_by": {
-        "test_pattern": [{ "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "fixes the request/context wire path and separates operation capability from the company_authority_v1 protocol marker" }]
+        "test_pattern": [
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "fixes the request/context wire path and company_authority_v1 capability path" },
+          { "file_glob": "tests/conformance/brainbase-company-authority-producer-contract.test.js", "must_cover": "separates the requested operation capability from the protocol marker" }
+        ]
       },
       "evidence_refs": ["contracts/mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json", "contracts/mana-brainbase-company-authority/v1/schema/company-authority-resolution-response.schema.json"]
     },
