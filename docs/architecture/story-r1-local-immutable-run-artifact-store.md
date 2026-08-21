@@ -16,9 +16,9 @@ j0_source_lock:
 
 ## 判断
 
-J0の完了済みJudgmentDAGRunRecordを、J0 source lockとartifact schema versionを含むcanonical envelopeへ包み、envelopeのcontent digestをartifact identityとして扱う。保存先のファイル名、時刻、temporary name、環境値はidentityへ含めない。
+J0の完了済みJudgmentDAGRunRecordを、JCSで正規化した二層のartifactへ固定する。第一層はartifact_idのdigest preimageである`payload`、第二層は`artifact_id`と`run_id`を含む保存用`envelope`である。`artifact_id`は`sha256:<hex>` + `SHA-256(JCS(payload)のUTF-8 bytes)`であり、payloadにartifact_id自身を入れない。保存されるbytesはJCS(envelope)であり、preimage bytesとは別物である。
 
-artifactは一度公開したcanonical bytesを変更しない。同じrun_idの同じ内容だけを再保存可能にし、同じrun_idの異なる内容、既存digestの異なるbytes、検証不能なファイルはfail-closedで拒否する。reloadはexpected artifact identity、embedded digest、canonical serialization、J0 record shapeを再検証してからdeep-frozen snapshotを返す。
+artifactは一度公開した保存用envelope bytesを変更しない。同じrun_idの同じ内容だけを再保存可能にし、envelope・payload・recordの3つのrun_idが一致しない入力、同じrun_idの異なる内容、既存digestの異なるbytes、検証不能なファイルはfail-closedで拒否する。reloadはexpected artifact identity、stored envelope bytes、payloadからのdigest再計算、J0 record shapeを再検証してからdeep-frozen snapshotを返す。
 
 このArchitectureはcontract_preparationのplanning boundaryであり、filesystem実装や公開runtimeを追加しない。
 
@@ -39,18 +39,20 @@ R1はJ0 PR #481のexact系譜を入力契約とする。
 ## 契約境界
 
 J0 JudgmentDAGRunRecord
-  -> canonical artifact payload
+  -> payload (digest preimage; JCS canonical bytes)
      - artifact schema version
      - J0 source lock
      - run_id
-     - immutable run record
-  -> SHA-256 content address
-     - immutable artifact bytes
-     - create-once run_id binding
+     - immutable run record (record.run_id is identical)
+  -> artifact_id = sha256:SHA-256(JCS(payload) UTF-8 bytes)
+  -> stored envelope (JCS canonical bytes)
+     - artifact_id (not in preimage)
+     - run_id (must equal payload.run_id and record.run_id)
+     - payload
   -> verified reload
-     - locator safety
-     - bytes and digest
-     - canonical re-serialization
+     - locator and binding safety
+     - stored envelope bytes and envelope digest
+     - payload digest preimage recomputation
      - J0 shape/source lock
      - deep-frozen snapshot
 
@@ -68,7 +70,12 @@ runnerの実装、closure、時刻、乱数、環境値、filesystem handleはre
 
 ## Artifact identityとbinding
 
-artifact schema version、J0 source lock、run_id、recordを含むpayloadをcanonical bytesへ変換し、SHA-256をartifact_idとして固定する。digest計算対象へdigest自身を入れないため、自己参照や二重表現を作らない。
+digest preimageと保存用envelopeを混同しない。
+
+1. `payload`は`artifact_schema_version`、exact `j0_source_lock`、`run_id`、`record`だけを含む許可されたobjectである。`payload.run_id`と`payload.record.run_id`は常に完全一致する。
+2. `preimage_bytes = UTF-8(JCS(payload))`とし、`artifact_id = sha256:<lowercase hex SHA-256(preimage_bytes)>`とする。artifact_id、保存path、filename、temporary name、mtime、permission、process id、環境値はpreimageに含めない。
+3. 保存するenvelopeは、許可された`artifact_id`、`run_id`、`payload`だけを含む。`envelope.run_id === envelope.payload.run_id === envelope.payload.record.run_id`をschema、save、reloadの全段階で検証する。
+4. `stored_bytes = UTF-8(JCS(envelope))`をartifact fileへ保存する。reload時にはenvelopeからpayloadを取り出してartifact_idを再計算し、stored envelopeのcanonical bytesが`stored_bytes`とbyte-for-byte一致することも検証する。artifact_id自身をpreimageへ戻すことはない。
 
 storeの論理状態は次の二つを持つ。
 
@@ -77,26 +84,41 @@ storeの論理状態は次の二つを持つ。
 
 bindingはlatest pointerではない。既存bindingと異なるartifact_idを受けた場合はrun_id conflictとして拒否し、既存artifactのoverwrite、削除、supersede、別digestの追加公開を行わない。bindingの具体的なindex形式は実装Storyで決めるが、同じatomic・no-overwrite・integrity境界に従う。
 
+### run_id reservationの順序
+
+saveは入力の純粋なJCS検証・digest計算を終えた後、共有stateへ触れる最初の操作として、payload.run_idに対応するper-run exclusive reservation/lockを取得する。lock保持中の順序は固定する。
+
+1. existing run_id bindingを読み、同一artifact_id・同一envelopeならcompare-onlyのidempotent候補、異なる場合は`run_id conflict`として即時denyする。
+2. bindingがなく、同一run_idのcrash recovery対象（後述のpublished-unbound）がある場合は、requested envelopeと完全一致する時だけbinding作成へ進み、異なる時はartifact公開前にdenyする。
+3. 新規の場合だけtemporary envelopeを作成し、JCS(envelope) bytesを書き、同一filesystem内でatomic renameする。
+4. rename後にcreate-once bindingを確定する。binding作成が競合した場合はwinnerを検証し、loserの新規binding・overwrite・削除を行わない。
+
+reservation、binding、artifact rootは同じfilesystemであることを実装時に確認する。cross-filesystemのatomic claimやrenameを契約に含めず、deviceが異なる場合はsaveを開始せずfail-closedにする。
+
 ## Canonical serialization
 
-- JSON-compatible plain valueだけを許可し、undefined、function、symbol、bigint、NaN、Infinity、-Infinity、cycle、非plain object、sparse arrayを拒否する。
-- envelopeのunknown fieldと必須field欠落は拒否する。J0 recordもsource-locked shapeと型へ再検証する。
-- object keyはrecursiveに辞書順で並べる。
-- arrayはJ0の意味上の順序を保持する。execution_order、runner_versions、nodes、dependency_outputsをsortしてはならない。
-- UTF-8、whitespaceなし、安定したJSON文字列表現をcanonical bytesとする。Unicode、number、escapeの規則はschemaで明記し、同じ意味でも別bytesになる実装を許可しない。
-- digestはcanonical payload bytesのSHA-256であり、root path、filename、temporary file、mtime、permission、process idを含めない。
+canonicalizationは独自規則を作らず、RFC 8785 JSON Canonicalization Scheme (JCS)を固定する。JCSのproperty sorting、ECMAScript互換のnumber serialization、string escaping、UTF-8、whitespaceなしの規則をそのまま適用する。J0 recordがJCS入力として不正、またはR1の許可schema外ならsaveを拒否する。
+
+- JSON-compatible plain valueだけを許可し、undefined、function、symbol、bigint、NaN、Infinity、cycle、非plain object、sparse array、lone surrogateを拒否する。
+- envelope・payload・recordのrequired field、unknown field、wrong type、三層run_id不一致、artifact schema version不一致を拒否する。
+- object keyはJCSのUTF-16 code unit順で再帰的に並べる。J0 recordのarrayは意味上の順序を保持し、execution_order、runner_versions、nodes、dependency_outputsをsortしない。
+- fixturesは少なくとも次を固定する（bytesはUTF-8）。`{"b":1,"a":2}` -> `{"a":2,"b":1}`、`{"n":-0}` -> `{"n":0}`、`{"n":1e-7}` -> `{"n":1e-7}`、`{"s":"é"}` -> 非ASCIIを不要にescapeしないJCS bytes、lone surrogate (`"\\uD800"`) -> reject。数値のNaN/Infinityもrejectする。
+- `preimage_bytes`はJCS(payload)、保存bytesはJCS(envelope)であり、両者を同一bytesとして扱わない。digestはpreimageだけから計算する。
 
 ## Save state machine
 
-unseen -> canonicalized -> digest_computed -> temp_written -> atomically_published -> binding_created -> committed
+`validated -> digest_computed -> run_reserved -> binding_checked -> temp_written -> atomically_renamed -> binding_created -> committed`
 
-any pre-commit failure -> no readable final artifact
-existing exact bytes   -> idempotent success
-existing different bytes or binding -> conflict / integrity error
+`run_reserved`より前は入力の純粋な検証・JCS計算だけで、artifact/bindingを公開しない。reservation取得後に既存bindingとcrash recovery対象を確認し、異内容の競合loserは`temp_written`より前にdenyする。
 
-canonical bytesは同一filesystem上のtemporary locationへ書き、完成後にatomic publishする。final targetが先に存在する場合はcompare-onlyで扱い、既存bytesを上書きしない。異常終了でtemporary fileが残っても、それをartifactとして列挙・reload・bindingすることはない。
+- `temp_written`: temp bytesは同一filesystem上にあるが、列挙・reload・bindingの対象外。
+- `atomically_renamed`: canonical envelope fileが存在するが、binding作成までは`published-unbound`であり、通常のlist/reload/APIから不可視。
+- `binding_created`: create-once bindingが同じartifact_idを指した時だけcompleted artifactとして可視。
+- `committed`: bindingとenvelopeのintegrityを再確認した成功状態。
+- lock中の失敗はbindingを作成せず、tempをownerがcleanupする。crash後に残るtempは不可視で、将来の明示的maintenance storyだけが同じreservation境界でcleanupする。
+- crash後に残る`published-unbound`はcompleted artifactではなく、save/reloadの暗黙cleanup対象でもない。次回同じrun_idのlock保持者は、要求envelopeと完全一致する時だけcreate-once bindingで回復し、異なる要求なら新しいartifactを公開せずdenyする。unbound fileを削除・再利用するcleanupはこのStoryの外側でのみ行う。
 
-同時writerは、同じrun_idかつ同じcanonical digestなら同じimmutable artifactへ収束する。同じrun_idで内容が異なる場合はfirst create-once bindingを守り、後続writerはconflictとなる。last-write-wins、部分bytesの勝利、競合時の削除を認めない。
+同じrun_idの同時writerはper-run lockで直列化する。同じcanonical payloadなら既存bindingを検証してidempotentに返し、異なるpayloadなら最初のbindingを守り後続をconflictにする。last-write-wins、部分bytesの勝利、競合時の削除を認めない。
 
 ## Reloadとintegrity verification
 
@@ -104,13 +126,13 @@ reloadはcallerのartifact_idから固定されたrelative locatorだけを導�
 
 1. locatorがartifact_idの許可された形式と一致し、root内のregular fileである。
 2. bytesが空でなく、完全なUTF-8 JSONとしてparseできる。
-3. envelope schema、artifact schema version、J0 source lock、run_idを検証する。
-4. embedded digest、callerのexpected artifact_id、canonical re-serializationのdigestが一致する。
-5. canonical bytesと保存bytesがbyte-for-byte一致する。追加whitespaceやfield順変更も別artifactとして拒否する。
-6. run_id bindingが同じartifact_idを指し、J0 recordの現行shapeが有効である。
-7. parse objectをstorage bufferから分離し、envelopeとrecordを再帰的にdeep-freezeして返す。
+3. envelope schema、artifact schema version、`envelope.run_id`、`payload.run_id`、`payload.record.run_id`を検証し、三つが完全一致することを確認する。
+4. payloadをJCSで再シリアライズしてartifact_idを再計算し、stored artifact_idとcallerのexpected artifact_idが一致することを確認する。
+5. envelope全体をJCSで再シリアライズし、stored envelope bytesとbyte-for-byte一致することを確認する。追加whitespace、field順変更、outer run_id差替え、payload/record run_id差替えは拒否する。
+6. run_id bindingが同じartifact_idを指し、J0 recordの現行shape・source lockが有効であることを確認する。bindingのないpublished-unbound fileは成功値として返さない。
+7. parse objectをstorage bufferから分離し、envelope・payload・recordを再帰的にdeep-freezeして返す。
 
-tamper、truncation、zero-byte、JSON追加field、digest差替え、別run_id差替え、未知version、partial writeを成功値へ変換しない。失敗は識別可能なmachine-readable errorであり、修復のために既存artifactを自動変更しない。
+tamper、truncation、zero-byte、JSON追加field、digest差替え、三層のrun_id差替え、未知version、partial write、bindingなしartifactを成功値へ変換しない。失敗は識別可能なmachine-readable errorであり、修復のために既存artifactを自動変更しない。
 
 ## Filesystem安全境界
 
@@ -118,7 +140,8 @@ tamper、truncation、zero-byte、JSON追加field、digest差替え、別run_id�
 - run_idはraw path segmentにせず、bindingのlocatorへ安全に符号化する。符号化前後のroot containmentを検証する。
 - root以下のlocatorにsymlink、非regular file、外部mountへの意図しない追従、parent traversalがある場合は拒否する。
 - final targetはcreate-onlyまたはcompare-onlyで扱い、rename後のoverwriteを行わない。
-- temporary artifactは完成artifactと別の明示的な状態であり、列挙・reload対象外とする。
+- temporary artifactとpublished-unbound artifactはcompleted artifactと別の明示的な状態であり、通常の列挙・reload対象外とする。cleanupはそれぞれownerまたは将来のmaintenance storyだけがlock境界内で行う。
+- reservation、binding、artifact rootのdeviceが異なる場合はcross-filesystem atomic claimを試さずrejectする。
 
 ## RED negative contract
 
@@ -143,12 +166,13 @@ hosted database、Graph、MCP、CLI、HTTP、authorization、customer data、sec
 
 ## Path boundary
 
-このplanning sliceのallowed pathsは次の5つだけである。
+このplanning sliceのallowed pathsは次の6つだけである。`.vibepro/config.json`は既存のVibePro story登録・current story切替を保持するための正規化された設定変更であり、他storyの内容を変更しない。
 
 - docs/management/stories/active/story-r1-local-immutable-run-artifact-store.md
 - docs/architecture/story-r1-local-immutable-run-artifact-store.md
 - docs/specs/r1-local-immutable-run-artifact-store.md
 - docs/management/tasks/r1-local-immutable-run-artifact-store.json
 - .vibepro/spec/story-r1-local-immutable-run-artifact-store/draft.json
+- .vibepro/config.json
 
-src、tests、contracts、package、database、migration、Graph、MCP、CLI、HTTP、customer data、secret、deployment、mana-runtime、他worktreeはforbiddenである。
+`current_story_id`をR1へ切り替える運用影響は、VibeProの未指定コマンドがR1を既定対象にすることだけであり、明示的な`--story-id`を付けた既存storyのレビュー・artifact・判定には影響しない。src、tests、contracts、package、database、migration、Graph、MCP、CLI、HTTP、customer data、secret、deployment、mana-runtime、他worktreeはforbiddenである。

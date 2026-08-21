@@ -41,7 +41,7 @@
     {
       "id": "INV-002",
       "type": "invariant",
-      "statement": "The artifact identity is a sha256: plus 64 lowercase hexadecimal SHA-256 content address over canonical payload bytes containing artifact schema version, exact J0 source lock, run_id, and the complete JudgmentDAGRunRecord; the digest, path, temporary name, time, and environment are excluded from the digest.",
+      "statement": "The artifact identity is artifact_id=sha256:<64 lowercase hexadecimal SHA-256 of UTF-8(JCS(payload))>, where payload contains artifact schema version, exact J0 source lock, payload.run_id, and the complete JudgmentDAGRunRecord; the stored envelope separately contains artifact_id, envelope.run_id, and payload, and artifact_id, path, temporary name, time, and environment are excluded from the digest preimage.",
       "origin": {
         "story_refs": [
           {
@@ -63,7 +63,7 @@
     {
       "id": "INV-003",
       "type": "invariant",
-      "statement": "Canonical serialization recursively orders object keys, preserves the semantic order of J0 arrays, emits one UTF-8 compact JSON byte sequence, and rejects non-JSON values, cycles, sparse arrays, unknown fields, and incomplete values.",
+      "statement": "Canonical serialization is RFC 8785 JSON Canonicalization Scheme (JCS): it applies JCS property ordering, number serialization, Unicode/string escaping, UTF-8, and no whitespace; it preserves the semantic order of J0 arrays and rejects non-JSON values, cycles, sparse arrays, lone surrogates, unknown fields, wrong types, and incomplete values. JCS-nonconformant J0 records are rejected at save.",
       "origin": {
         "story_refs": [
           {
@@ -85,7 +85,7 @@
     {
       "id": "INV-004",
       "type": "invariant",
-      "statement": "Save publishes canonical bytes atomically and never overwrites an existing artifact; exact repeated content is idempotent, while temporary and partial bytes are not completed artifacts.",
+      "statement": "After pure JCS validation and digest calculation, save first acquires a per-run exclusive reservation; inside it, existing binding is checked, a conflicting loser is denied before temp creation, then a stored JCS(envelope) is written to temp, atomically renamed on the same filesystem, and bound by create-once. Temporary and published-unbound/crash bytes are never completed artifacts; cross-filesystem atomic claim is not promised.",
       "origin": {
         "story_refs": [
           {
@@ -107,7 +107,7 @@
     {
       "id": "S-001",
       "type": "scenario",
-      "statement": "Given a first create-once run_id binding, when a save supplies different canonical content, artifact digest, source lock, or schema version, the store returns a run_id conflict and leaves the binding and existing artifact unchanged.",
+      "statement": "Given a first create-once run_id binding, when a save supplies different canonical content, artifact digest, source lock, schema version, or any mismatch among envelope.run_id, payload.run_id, and record.run_id, the store returns a run_id conflict and leaves the binding and existing artifact unchanged.",
       "origin": {
         "story_refs": [
           {
@@ -129,7 +129,7 @@
     {
       "id": "S-002",
       "type": "scenario",
-      "statement": "Given an artifact locator, when bytes are tampered, truncated, zero-length, partially written, reordered, extended, or bound to a different digest or run_id, reload rejects without returning a success record or repairing storage.",
+      "statement": "Given an artifact locator, when stored envelope bytes are tampered, truncated, zero-length, partially written, reordered, extended, bound to a different digest, or have envelope/payload/record run_id mismatch, reload recomputes the payload digest and envelope JCS bytes and rejects without returning a success record or repairing storage.",
       "origin": {
         "story_refs": [
           {
@@ -173,7 +173,7 @@
     {
       "id": "S-003",
       "type": "scenario",
-      "statement": "Given an artifact_id, run_id, or locator containing traversal, absolute path, NUL, separator, dot segment, symlink, or non-regular file, save and reload fail closed without root escape or symlink following.",
+      "statement": "Given an artifact_id, run_id, or locator containing traversal, absolute path, NUL, separator, dot segment, symlink, or non-regular file, or a cross-filesystem atomic claim, save and reload fail closed without root escape or symlink following; temporary and published-unbound crash states remain invisible until exact binding recovery or future maintenance cleanup.",
       "origin": {
         "story_refs": [
           {
@@ -195,7 +195,7 @@
     {
       "id": "S-004",
       "type": "scenario",
-      "statement": "Concurrent writers with identical canonical content converge to one immutable artifact and are idempotent; concurrent writers with different content for one run_id produce a conflict for the loser and never use last-write-wins.",
+      "statement": "Concurrent writers first serialize under a per-run exclusive reservation. Identical canonical content converges to one immutable artifact and is idempotent; different content for one run_id is denied before artifact publication for the loser and never uses last-write-wins.",
       "origin": {
         "story_refs": [
           {
@@ -217,7 +217,7 @@
     {
       "id": "INV-006",
       "type": "invariant",
-      "statement": "Future RED tests must fail on pre-fix run_id content replacement, non-canonical key-order digest, overwrite, tamper or truncation acceptance, symlink or traversal following, partial artifact visibility, concurrent last-write-wins, and reload mutation.",
+      "statement": "Future RED tests must fail on pre-fix two-layer identity errors, RFC 8785 JCS key-order/number/Unicode/lone-surrogate fixture errors, envelope/payload/record run_id replacement, reservation-order violations, overwrite, tamper or truncation acceptance, symlink or traversal following, partial or published-unbound artifact visibility, concurrent last-write-wins, ambiguous cleanup, and reload mutation.",
       "origin": {
         "story_refs": [
           {
@@ -239,7 +239,7 @@
     {
       "id": "INV-007",
       "type": "invariant",
-      "statement": "This planning change modifies only the Story, Architecture, draft Spec, Task, and story-scoped VibePro draft; it creates no source-lock, schema, fixture, validator, source, test, runtime, database, Graph, customer, secret, or deployment artifact.",
+      "statement": "This planning change modifies exactly six files: the Story, Architecture, draft Spec, Task, story-scoped VibePro draft, and existing .vibepro/config.json story registration; it creates no source-lock, schema, fixture, validator, source, test, runtime, database, Graph, customer, secret, or deployment artifact. current_story_id changes only unspecified VibePro defaults; an explicit --story-id has no effect on other stories.",
       "origin": {
         "story_refs": [
           {
@@ -281,6 +281,39 @@
       "confidence": 1
     }
   ],
+  "canonicalization_standard": "RFC 8785 JSON Canonicalization Scheme (JCS)",
+  "identity_layers": {
+    "digest_preimage": "UTF-8(JCS(payload)) where payload has artifact_schema_version, j0_source_lock, run_id, and record; artifact_id is excluded",
+    "stored_envelope": "UTF-8(JCS({artifact_id, run_id, payload}))",
+    "reload_checks": [
+      "recompute artifact_id from payload and compare with stored and expected ids",
+      "compare stored envelope bytes with UTF-8(JCS(envelope)) byte-for-byte",
+      "require envelope.run_id == payload.run_id == payload.record.run_id"
+    ]
+  },
+  "canonical_fixtures": [
+    "{\"b\":1,\"a\":2} -> {\"a\":2,\"b\":1}",
+    "{\"n\":-0} -> {\"n\":0}",
+    "{\"n\":1e-7} -> {\"n\":1e-7}",
+    "{\"s\":\"é\"} -> UTF-8 JCS bytes without unnecessary non-ASCII escaping",
+    "lone surrogate (\\uD800) -> reject"
+  ],
+  "crash_state_policy": {
+    "temporary": "invisible to list/reload/binding; owner cleanup or future maintenance only",
+    "published_unbound": "invisible completed artifact; exact same-run recovery may create binding; different request is denied; cleanup is future maintenance only",
+    "cross_filesystem": "not claimed; reject before save"
+  },
+  "path_boundary": {
+    "allowed": [
+      "docs/management/stories/active/story-r1-local-immutable-run-artifact-store.md",
+      "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
+      "docs/specs/r1-local-immutable-run-artifact-store.md",
+      "docs/management/tasks/r1-local-immutable-run-artifact-store.json",
+      ".vibepro/spec/story-r1-local-immutable-run-artifact-store/draft.json",
+      ".vibepro/config.json"
+    ],
+    "current_story_id_effect": "only unspecified VibePro operations default to R1; explicit --story-id keeps other stories isolated"
+  },
   "non_goals": [
     "historical replay",
     "runner version resolution",

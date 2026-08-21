@@ -34,7 +34,7 @@ Brainbase OSSの利用者として、J0が完了した同じJudgmentDAGRunRecord
 
 ## このplanning sliceの目的
 
-J0の現行JudgmentDAGRunRecordを入力とするR1 artifact envelope、canonical serialization、content digest、save/reload、immutability、filesystem failure semanticsをStory→Architecture→Spec→Taskへ固定する。このsliceはplanning-onlyであり、source、package、contract fixture、schema、test、filesystem実装、CLI/API、DB、MCP、deployは作らない。
+J0の現行JudgmentDAGRunRecordを入力とするR1 artifact envelope、digest preimage payload、canonical serialization、content digest、save/reload、immutability、filesystem failure semanticsをStory→Architecture→Spec→Taskへ固定する。このsliceはplanning-onlyであり、source、package、contract fixture、schema、test、filesystem実装、CLI/API、DB、MCP、deployは作らない。VibeProの既存story登録を保持する`.vibepro/config.json`を含む正確な6ファイルだけを変更対象とする。
 
 ## 依存状態とsource lock
 
@@ -56,23 +56,23 @@ J0の実装境界は、次の同一系譜へ固定する。
 
 - [ ] AC-002: artifact identityをcontent addressとして固定する
 
-  artifact envelopeはartifact schema version、J0 source lock、run_id、JudgmentDAGRunRecordを含む。artifact_idは、digest自身、filesystem path、temporary name、保存時刻、環境値を含めないcanonical payloadのSHA-256で一意に決まる。run_idだけをartifact identityにしない。
+  digest preimageとなる`payload`はartifact schema version、J0 source lock、run_id、JudgmentDAGRunRecordを含む。`artifact_id`は`sha256:<lowercase hex>` + `SHA-256(UTF-8(JCS(payload)))`であり、digest自身、filesystem path、temporary name、保存時刻、環境値をpreimageへ含めない。保存用envelopeは`artifact_id`、`run_id`、`payload`を含み、保存bytesはJCS(envelope)とする。artifact_idをpayloadへ戻さず、preimage bytesとstored envelope bytesを二層として扱う。
 
 - [ ] AC-003: schemaとcanonical serializationをfail-closedにする
 
-  envelopeとrun recordの許可field、required field、型、配列順を固定する。recursive object keyは辞書順、配列順はJ0 recordの意味順を保持し、UTF-8・compact JSONのcanonical bytesからdigestを計算する。undefined、関数、symbol、bigint、非有限数、循環値、非plain object、unknown field、truncated JSONは保存・読み戻しとも拒否する。
+  RFC 8785 JSON Canonicalization Scheme (JCS)を固定し、envelope・payload・recordの許可field、required field、型、配列順を固定する。object keyはJCSの順序、配列順はJ0 recordの意味順を保持し、JCSのnumber/Unicode/string escaping規則に従う。`-0`、指数表記、Unicode文字、lone surrogate、key orderのfixturesを明示し、JCS非準拠のJ0 recordはsaveを拒否する。undefined、関数、symbol、bigint、非有限数、循環値、非plain object、unknown field、truncated JSONは保存・読み戻しとも拒否する。
 
 - [ ] AC-004: saveをatomicかつidempotentにする
 
-  canonical bytesを一時ファイルへ書いてから同一filesystem内のatomic publishを行い、完成前のtargetをreadable artifactとして見せない。同じartifact_idと同じcanonical bytesの再保存は同じ結果を返すが、既存artifactを上書き、削除、差し替えしない。
+  入力のJCS検証・digest計算後、共有stateへ触れる最初の操作としてper-run exclusive reservation/lockを取得する。lock中にexisting bindingを確認し、異内容ならtemporary fileを作る前にdenyする。新規だけがtemporary envelope→同一filesystem内のatomic rename→create-once bindingの順に進む。完成前のtargetをreadable artifactとして見せず、cross-filesystem atomic claimはしない。同じartifact_idと同じcanonical envelopeの再保存は同じ結果を返すが、既存artifactを上書き、削除、差し替えしない。rename後・binding前のcrashはpublished-unboundとして不可視にし、暗黙cleanupせず、同じrun_idの完全一致回復または将来maintenance storyのlock内cleanupだけを許可する。
 
 - [ ] AC-005: 同じrun_idの異なる内容を拒否する
 
-  storeはrun_idとartifact_idの最初のbindingをcreate-onceで固定する。同じrun_id・同じdigest・同じbytesだけをidempotentに受理し、同じrun_idでdigestまたはcanonical contentが異なるsaveはconflictとして拒否する。競合時に別artifactを追加してlatestへ差し替えたり、既存bindingを上書きしたりしない。
+  storeはrun_idとartifact_idの最初のbindingをcreate-onceで固定する。envelope.run_id、payload.run_id、record.run_idが完全一致し、同じrun_id・同じdigest・同じstored envelope bytesだけをidempotentに受理する。同じrun_idでdigest、canonical content、source lock、schema version、または三層run_idが異なるsaveはconflict/integrity errorとして拒否する。競合時に別artifactを公開してlatestへ差し替えたり、既存bindingを上書きしたりしない。
 
 - [ ] AC-006: reload時にintegrityを再検証する
 
-  artifact_idから導出した許可されたlocatorだけを読み、embedded digest、expected digest、canonical re-serialization、J0 source lock、record schemaを照合する。byte改変、JSONの追加field、digest改変、別run_idへの差し替え、zero-byte、途中書込み、truncation、未知schema versionは成功値を返さずrejectする。
+  artifact_idから導出した許可されたlocatorだけを読み、stored envelope bytesのJCS一致、payloadからのdigest再計算、embedded/expected digest、J0 source lock、record schemaを照合する。envelope.run_id、payload.run_id、record.run_idが完全一致しない場合を含め、byte改変、JSONの追加field、digest改変、別run_idへの差し替え、zero-byte、途中書込み、truncation、未知schema version、bindingなしartifactは成功値を返さずrejectする。
 
 - [ ] AC-007: reload結果をdeep-frozen snapshotにする
 
@@ -80,15 +80,15 @@ J0の実装境界は、次の同一系譜へ固定する。
 
 - [ ] AC-008: filesystem境界とwriter競合をfail-closedにする
 
-  artifact_id、run_id、root-relative locatorに対するpath traversal、absolute path、NUL、separator、dot segment、symlink、non-regular file、root外書込みを拒否する。同一内容の同時writerは一つのimmutable artifactへ収束し、異なる内容の同一run_id同時writerは一方を勝者として他方をconflictにし、partial targetを完成扱いにしない。
+  artifact_id、run_id、root-relative locatorに対するpath traversal、absolute path、NUL、separator、dot segment、symlink、non-regular file、root外書込みを拒否する。同一内容の同時writerはper-run exclusive lockで一つのimmutable artifactへ収束し、異なる内容の同一run_id同時writerはartifact公開前に一方をdenyし、partial targetやpublished-unboundをcompleted扱いにしない。reservation・binding・artifact rootが別filesystemならatomic claimを試さず拒否する。
 
 - [ ] AC-009: RED negative evidenceを先に固定する
 
-  実装後のTDDでは、既知のpre-fix挙動として、run_id変更で別内容が保存できる、canonical key順を変えるとdigestが変わる、既存targetをoverwriteできる、tamper/truncateをreloadできる、symlink/path traversalをfollowできる、同時writerがlast-write-winsになる、reload objectをmutationできる、をREDで検出してからGREENへ進める。
+  実装後のTDDでは、既知のpre-fix挙動として、envelope/payload/recordのrun_id不一致を保存できる、JCS fixture（key order、number、Unicode、lone surrogate）を誤って受理・変換する、run_id reservation前に競合artifactを公開する、既存targetをoverwriteできる、tamper/truncateをreloadできる、symlink/path traversalをfollowできる、同時writerがlast-write-winsになる、published-unbound/temporary fileをcompleted扱いする、reload objectをmutationできる、をREDで検出してからGREENへ進める。
 
 - [ ] AC-010: planning-only path境界を守る
 
-  このchangeはStory、Architecture、draft Spec、Task、story-scoped VibePro draftの5ファイルだけを変更する。source-lock、schema、fixture、validator、src、test、package、filesystem、DB/MCP/CLI/HTTP、customer data、secret、deployへ触れない。
+  このchangeはStory、Architecture、draft Spec、Task、story-scoped VibePro draft、既存story登録を維持する`.vibepro/config.json`の正確な6ファイルだけを変更する。`current_story_id`切替は未指定VibePro操作の既定対象をR1へ変えるだけで、明示的な`--story-id`を付けた他storyへ影響しない。source-lock、schema、fixture、validator、src、test、package、filesystem、DB/MCP/CLI/HTTP、customer data、secret、deployへ触れない。
 
 ## 後続へ明示的に委譲する境界
 

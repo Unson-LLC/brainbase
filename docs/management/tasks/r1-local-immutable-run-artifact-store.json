@@ -25,7 +25,8 @@
       "Use the exact J0 PR #481 merge commit and implementation head recorded in source_lock.",
       "Review the R1 Story, Architecture, draft Spec, Task, and VibePro draft as one planning change.",
       "Create R1 schema, fixture, source-lock, runtime, and tests only in a separate focused implementation change.",
-      "Regenerate implementation evidence at the exact combined HEAD before any completion or release decision."
+      "Regenerate implementation evidence at the exact combined HEAD before any completion or release decision.",
+      "Keep the existing .vibepro/config.json story registration in the six-file planning boundary; explicit --story-id remains isolated from current_story_id."
     ],
     "unresolved_fields_are_omitted": true
   },
@@ -42,7 +43,8 @@
       "docs/architecture/story-r1-local-immutable-run-artifact-store.md",
       "docs/specs/r1-local-immutable-run-artifact-store.md",
       "docs/management/tasks/r1-local-immutable-run-artifact-store.json",
-      ".vibepro/spec/story-r1-local-immutable-run-artifact-store/draft.json"
+      ".vibepro/spec/story-r1-local-immutable-run-artifact-store/draft.json",
+      ".vibepro/config.json"
     ],
     "forbidden": [
       "src/**",
@@ -78,23 +80,23 @@
     },
     {
       "id": "AC-002",
-      "statement": "Artifact identity is a SHA-256 content address over an artifact-schema-versioned canonical payload containing the J0 source lock, run_id, and complete JudgmentDAGRunRecord."
+      "statement": "Artifact identity is artifact_id=sha256:<lowercase hex SHA-256(UTF-8(JCS(payload)))>, where payload contains the artifact schema version, exact J0 source lock, payload.run_id, and complete JudgmentDAGRunRecord; the stored envelope separately contains artifact_id, envelope.run_id, and payload, and artifact_id is never in the digest preimage."
     },
     {
       "id": "AC-003",
-      "statement": "Canonical serialization is deterministic, UTF-8, compact, recursively key-ordered, preserves semantic array order, and rejects non-JSON values, cycles, unknown fields, and truncation."
+      "statement": "Canonical serialization is RFC 8785 JCS with UTF-8 and no whitespace, preserves semantic J0 array order, fixes number and Unicode/string escaping behavior, rejects lone surrogates and other non-JSON values, and rejects cycles, unknown fields, wrong types, and truncation."
     },
     {
       "id": "AC-004",
-      "statement": "Save publishes canonical bytes atomically and idempotently without overwriting, and temporary or partial bytes are never readable as completed artifacts."
+      "statement": "After pure JCS validation/digesting, save acquires a per-run exclusive reservation first; inside it, existing binding is checked, conflicting content is denied before temp creation, then temp envelope bytes are atomically renamed on the same filesystem and a create-once binding is made. Temporary and published-unbound/crash bytes are never completed artifacts and cross-filesystem atomic claim is not promised."
     },
     {
       "id": "AC-005",
-      "statement": "A first run_id binding is create-once; same run_id with different content or digest is a conflict with no existing artifact or binding mutation."
+      "statement": "A first run_id binding is create-once; envelope.run_id, payload.run_id, and record.run_id must match exactly; same run_id with different content, digest, schema, source lock, or any run_id layer is a conflict with no existing artifact or binding mutation."
     },
     {
       "id": "AC-006",
-      "statement": "Reload verifies locator safety, schema, exact source lock, embedded and expected digest, canonical bytes, binding, and J0 record shape before returning a value."
+      "statement": "Reload verifies locator safety, exact stored envelope JCS bytes, payload-derived artifact_id, embedded and expected digest, exact source lock, equality of envelope/payload/record run_id, binding, and J0 record shape before returning a value; bindingless artifacts are rejected."
     },
     {
       "id": "AC-007",
@@ -102,15 +104,15 @@
     },
     {
       "id": "AC-008",
-      "statement": "Traversal, absolute path, NUL, dot segment, symlink, non-regular file, root escape, partial write, and concurrent writer cases fail closed."
+      "statement": "Traversal, absolute path, NUL, dot segment, symlink, non-regular file, root escape, partial write, published-unbound crash state, cross-filesystem claim, and concurrent writer cases fail closed."
     },
     {
       "id": "AC-009",
-      "statement": "Future RED tests fail on the known pre-fix identity, canonicalization, overwrite, integrity, filesystem, concurrency, and mutation behaviors before GREEN implementation."
+      "statement": "Future RED tests fail on the known pre-fix two-layer identity, JCS fixture, three-layer run_id, reservation ordering, crash visibility/cleanup, overwrite, integrity, filesystem, concurrency, and mutation behaviors before GREEN implementation."
     },
     {
       "id": "AC-010",
-      "statement": "This planning change modifies exactly five planning files and creates no source-lock, schema, fixture, test, runtime, database, Graph, secret, customer, or deployment artifact."
+      "statement": "This planning change modifies exactly six files: the five R1 planning files plus the existing .vibepro/config.json story registration; it creates no source-lock, schema, fixture, test, runtime, database, Graph, secret, customer, or deployment artifact. current_story_id affects only unspecified VibePro defaults; an explicit --story-id remains other-story-scoped."
     }
   ],
   "negative_evidence_contract": {
@@ -128,7 +130,29 @@
       "symlink",
       "non-regular file"
     ],
-    "concurrent_writer_policy": "same canonical content is idempotent; different content for one run_id is conflict; last-write-wins is forbidden",
+    "concurrent_writer_policy": "pure JCS validation then per-run exclusive reservation; binding check before temp; same canonical content is idempotent; different content for one run_id is denied before artifact publication; last-write-wins is forbidden",
+    "identity_layers": {
+      "digest_preimage": "UTF-8(JCS(payload)) where payload has artifact_schema_version, j0_source_lock, run_id, and record; artifact_id is excluded",
+      "stored_envelope": "UTF-8(JCS({artifact_id, run_id, payload}))",
+      "reload_checks": [
+        "recompute artifact_id from payload and compare with stored and expected ids",
+        "compare stored envelope bytes with UTF-8(JCS(envelope)) byte-for-byte",
+        "require envelope.run_id == payload.run_id == payload.record.run_id"
+      ]
+    },
+    "canonicalization_standard": "RFC 8785 JSON Canonicalization Scheme (JCS)",
+    "canonical_fixtures": [
+      "{\\\"b\\\":1,\\\"a\\\":2} -> {\\\"a\\\":2,\\\"b\\\":1}",
+      "{\\\"n\\\":-0} -> {\\\"n\\\":0}",
+      "{\\\"n\\\":1e-7} -> {\\\"n\\\":1e-7}",
+      "{\\\"s\\\":\\\"é\\\"} -> UTF-8 JCS bytes without unnecessary non-ASCII escaping",
+      "lone surrogate (\\\\uD800) -> reject"
+    ],
+    "crash_state_policy": {
+      "temporary": "invisible to list/reload/binding; owner cleanup or future maintenance only",
+      "published_unbound": "invisible completed artifact; same-run exact recovery may create binding; different request is denied; cleanup is future maintenance only",
+      "cross_filesystem": "not claimed; reject before save"
+    },
     "snapshot_policy": "returned envelope and record are recursively deep-frozen and storage-independent",
     "production_effects_required_zero": [
       "database_mutations",
@@ -146,10 +170,11 @@
     "future_test_path": "tests/judgment-dag-artifact-store.test.ts",
     "required_suites": [
       "artifact envelope and J0 source-lock conformance",
-      "canonical digest and key-order invariance",
+      "canonical digest and RFC 8785 JCS key-order/number/Unicode/lone-surrogate fixtures",
       "same-content idempotency and same-run_id conflict",
-      "atomic publish, partial write, and concurrent writer behavior",
+      "per-run reservation ordering, atomic publish, partial write, crash states, and concurrent writer behavior",
       "tamper, truncation, zero-byte, unknown version, and extra-field rejection",
+      "envelope/payload/record run_id equality and fail-closed mismatches",
       "path traversal, symlink, non-regular file, and root containment negatives",
       "recursive deep-freeze and caller/storage mutation isolation"
     ],
