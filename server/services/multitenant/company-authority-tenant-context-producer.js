@@ -61,6 +61,9 @@ function observedRequest(input) {
         ),
         workspace_id: input.workspace_id,
         app_id: input.app_id,
+        required_connection_scopes: Array.isArray(input.required_connection_scopes)
+            ? [...input.required_connection_scopes]
+            : [],
         provider_identity: {
             provider: 'slack',
             authenticated_subject_id: requiredString(input.slack.requester_id, 'slack.requester_id'),
@@ -170,7 +173,8 @@ export class TenantContextProducer {
             ...request,
             authorization: {
                 capability_ids: [request.requested_action.capability_id]
-            }
+            },
+            required_connection_scopes: request.required_connection_scopes
         };
         if (this.resolveCanonicalContext) return this.resolveCanonicalContext(lookup);
         const tenant = this.tenantAuthority.resolveTenant({ tenant_id: request.tenant_id });
@@ -184,7 +188,7 @@ export class TenantContextProducer {
             expected_connection_revision: request.expected_connection_revision,
             workspace_id: request.workspace_id,
             app_id: request.app_id,
-            required_scopes: [request.requested_action.capability_id]
+            required_scopes: request.required_connection_scopes
         });
         const contract_revision = await this.resolveContractRevision({
             tenant_id: request.tenant_id,
