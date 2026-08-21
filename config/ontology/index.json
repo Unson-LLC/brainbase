@@ -33,7 +33,7 @@
       "effective_at": "2026-08-21T00:00:00.000Z",
       "path": "releases/1.1.0.json",
       "content_digest_algorithm": "sha256",
-      "content_digest": "3615a7792faa7dc18657ea878d766aefd88dbf12d8993d8579db97c5f4c74f88",
+      "content_digest": "b727ddb1e4aeaa659d220dd2c213799272e9b5020ba758734ef9db7a0e294a42",
       "impact_scope": {
         "graph_scope": "project:brainbase",
         "affected_apis": [
