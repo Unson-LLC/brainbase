@@ -6,12 +6,178 @@ import {
     validateGraphSnapshot
 } from './graph-maintenance-engine.js';
 
+function canonicalJson(value) {
+    if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+    if (value && typeof value === 'object') {
+        return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+    }
+    return JSON.stringify(value);
+}
+
 function fingerprint(value) {
-    return `sha256:${createHash('sha256').update(JSON.stringify(value)).digest('hex')}`;
+    return `sha256:${createHash('sha256').update(canonicalJson(value)).digest('hex')}`;
 }
 
 function plannedEdgeId(organizationId, projectCode, idempotencyKey, index) {
     return `edg_maint_${createHash('sha256').update(`${organizationId}\u0000${projectCode}\u0000${idempotencyKey}\u0000${index}`).digest('hex').slice(0, 32)}`;
+}
+
+function humanGateOperationScope(operation) {
+    if (operation.operation === 'retire_entity') {
+        return {
+            operation: operation.operation,
+            decision_id: operation.entity_id,
+            decision_expected_version: operation.expected_version
+        };
+    }
+    return {
+        operation: operation.operation,
+        decision_id: operation.decision_id,
+        decision_expected_version: operation.decision_expected_version,
+        subject_entity_id: operation.subject_entity_id,
+        subject_expected_version: operation.subject_expected_version,
+        target_project_code: operation.target_project_code,
+        expected_version: operation.expected_version
+    };
+}
+
+const HUMAN_GATE_EVIDENCE_KEYS = new Set(['operation_scope', 'source', 'review_ref', 'reason']);
+const HUMAN_GATE_LINK_SCOPE_KEYS = new Set([
+    'operation', 'decision_id', 'decision_expected_version', 'subject_entity_id',
+    'subject_expected_version', 'target_project_code', 'expected_version'
+]);
+const HUMAN_GATE_RETIRE_SCOPE_KEYS = new Set(['operation', 'decision_id', 'decision_expected_version']);
+const HUMAN_GATE_APPLY_SCOPE_KEYS = new Set([
+    'operation', 'decision_id', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash',
+    'operations_fingerprint', 'diff_fingerprint'
+]);
+const HUMAN_GATE_SCOPE_KEYS = new Set([
+    ...HUMAN_GATE_LINK_SCOPE_KEYS, ...HUMAN_GATE_RETIRE_SCOPE_KEYS, ...HUMAN_GATE_APPLY_SCOPE_KEYS
+]);
+const SECRET_KEY_PATTERN = /(?:authorization|bearer|cookie|credential|password|secret|token|api[_-]?key)/i;
+const SECRET_VALUE_PATTERN = /(?:\bBearer\s+[A-Za-z0-9._~+\/-]+=*|-----BEGIN [A-Z ]*PRIVATE KEY-----|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})/;
+
+function validateNoSecrets(value, path = 'evidence') {
+    if (Array.isArray(value)) {
+        value.forEach((item, index) => validateNoSecrets(item, `${path}[${index}]`));
+        return;
+    }
+    if (value && typeof value === 'object') {
+        for (const [key, nested] of Object.entries(value)) {
+            if (SECRET_KEY_PATTERN.test(key)) {
+                const error = new Error(`Human Gate evidence contains a forbidden secret field: ${path}.${key}`);
+                error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_SECRET';
+                error.status = 400;
+                throw error;
+            }
+            validateNoSecrets(nested, `${path}.${key}`);
+        }
+        return;
+    }
+    if (typeof value === 'string' && SECRET_VALUE_PATTERN.test(value)) {
+        const error = new Error(`Human Gate evidence contains secret-like content: ${path}`);
+        error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_SECRET';
+        error.status = 400;
+        throw error;
+    }
+}
+
+function validateHumanGateEvidence(evidence) {
+    if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
+        const error = new Error('evidence must be an object');
+        error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID';
+        error.status = 400;
+        throw error;
+    }
+    validateNoSecrets(evidence);
+    const unknownKeys = Object.keys(evidence).filter((key) => !HUMAN_GATE_EVIDENCE_KEYS.has(key));
+    if (unknownKeys.length) {
+        const error = new Error(`Unsupported Human Gate evidence field: ${unknownKeys[0]}`);
+        error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID';
+        error.status = 400;
+        throw error;
+    }
+    if (!evidence.operation_scope || typeof evidence.operation_scope !== 'object' || Array.isArray(evidence.operation_scope)) {
+        const error = new Error('evidence.operation_scope is required and must be an object');
+        error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID';
+        error.status = 400;
+        throw error;
+    }
+    {
+        const unknownScopeKeys = Object.keys(evidence.operation_scope).filter((key) => !HUMAN_GATE_SCOPE_KEYS.has(key));
+        if (unknownScopeKeys.length) {
+            const error = new Error(`Unsupported Human Gate operation_scope field: ${unknownScopeKeys[0]}`);
+            error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID';
+            error.status = 400;
+            throw error;
+        }
+        const scope = evidence.operation_scope;
+        const linkShape = scope.operation === 'link_decision_subject'
+            && ['decision_id', 'subject_entity_id', 'target_project_code'].every((key) => typeof scope[key] === 'string' && scope[key].length > 0)
+            && ['decision_expected_version', 'subject_expected_version', 'expected_version']
+                .every((key) => Number.isInteger(scope[key]) && scope[key] >= (key === 'expected_version' ? 0 : 1))
+            && Object.keys(scope).length === HUMAN_GATE_LINK_SCOPE_KEYS.size;
+        const retireShape = scope.operation === 'retire_entity'
+            && typeof scope.decision_id === 'string' && scope.decision_id.length > 0
+            && Number.isInteger(scope.decision_expected_version) && scope.decision_expected_version >= 1
+            && Object.keys(scope).length === HUMAN_GATE_RETIRE_SCOPE_KEYS.size;
+        const hashPattern = /^sha256:[a-f0-9]{64}$/;
+        const applyShape = scope.operation === 'apply_plan'
+            && ['decision_id', 'plan_id'].every((key) => typeof scope[key] === 'string' && scope[key].length > 0)
+            && ['base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint']
+                .every((key) => typeof scope[key] === 'string' && hashPattern.test(scope[key]))
+            && Object.keys(scope).length === HUMAN_GATE_APPLY_SCOPE_KEYS.size;
+        if (!linkShape && !retireShape && !applyShape) {
+            const error = new Error('Human Gate operation_scope does not match the supported Decision subject contract');
+            error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID';
+            error.status = 400;
+            throw error;
+        }
+    }
+    for (const [key, maxLength] of [['source', 200], ['review_ref', 500], ['reason', 1000]]) {
+        if (evidence[key] !== undefined && (typeof evidence[key] !== 'string' || evidence[key].length > maxLength)) {
+            const error = new Error(`Human Gate evidence.${key} must be a string of at most ${maxLength} characters`);
+            error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID';
+            error.status = 400;
+            throw error;
+        }
+    }
+    if (Buffer.byteLength(JSON.stringify(evidence), 'utf8') > 8192) {
+        const error = new Error('Human Gate evidence exceeds 8192 bytes');
+        error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_TOO_LARGE';
+        error.status = 413;
+        throw error;
+    }
+}
+
+function applyHumanGateScope(plan, decisionId) {
+    return {
+        operation: 'apply_plan',
+        decision_id: decisionId,
+        plan_id: plan.id,
+        base_snapshot_hash: plan.base_snapshot_hash,
+        after_snapshot_hash: plan.after_snapshot_hash,
+        operations_fingerprint: fingerprint(plan.operations),
+        diff_fingerprint: fingerprint(planDiffSummary(plan.before_snapshot, plan.after_snapshot))
+    };
+}
+
+function planDecisionIds(plan) {
+    const decisionEntityIds = new Set([
+        ...(plan.before_snapshot?.entities || []),
+        ...(plan.after_snapshot?.entities || [])
+    ].filter((entity) => entity.entity_type === 'decision').map((entity) => entity.id));
+    return [...new Set((plan.operations || []).flatMap((operation) => [
+        operation.decision_id,
+        decisionEntityIds.has(operation.entity_id) ? operation.entity_id : null
+    ]).filter(Boolean))];
+}
+
+function signedHumanPrincipalError(message) {
+    const error = new Error(message);
+    error.code = 'GRAPH_HUMAN_PRINCIPAL_REQUIRED';
+    error.status = 403;
+    return error;
 }
 
 function actor(access) {
@@ -30,6 +196,10 @@ function snapshotProjectCodes(snapshot) {
     ].filter(Boolean))];
 }
 
+function externalEntityIds(snapshot) {
+    return uniqueIds(snapshot.external_entities || []);
+}
+
 function assertValidSnapshot(snapshot, prefix = 'Graph snapshot is invalid', baseline = null) {
     const validation = validateGraphSnapshot(snapshot);
     const issues = baseline
@@ -38,6 +208,43 @@ function assertValidSnapshot(snapshot, prefix = 'Graph snapshot is invalid', bas
     if (issues.length) {
         throw new Error(`${prefix}: ${issues.map((item) => item.category).join(',')}`);
     }
+}
+
+function changedRecords(before = [], after = [], limit = 100) {
+    const beforeById = new Map(before.map((record) => [record.id, record]));
+    const afterById = new Map(after.map((record) => [record.id, record]));
+    const added = after.filter((record) => !beforeById.has(record.id));
+    const removed = before.filter((record) => !afterById.has(record.id));
+    const modified = after.filter((record) => beforeById.has(record.id)
+        && JSON.stringify(beforeById.get(record.id)) !== JSON.stringify(record));
+    const describe = (record) => ({ id: record.id, ...(record.from_id ? {
+        from_id: record.from_id, to_id: record.to_id, rel_type: record.rel_type,
+        project_code: record.project_code
+    } : {}) });
+    return {
+        added_count: added.length, removed_count: removed.length, modified_count: modified.length,
+        added: added.slice(0, limit).map(describe), removed: removed.slice(0, limit).map(describe),
+        modified: modified.slice(0, limit).map(describe),
+        truncated: added.length > limit || removed.length > limit || modified.length > limit
+    };
+}
+
+function planDiffSummary(before, after) {
+    const beforeValidation = validateGraphSnapshot(before);
+    const afterValidation = validateGraphSnapshot(after);
+    const count = (validation, category) => validation.issues.filter((issue) => issue.category === category).length;
+    return {
+        entities: changedRecords(before.entities, after.entities),
+        edges: changedRecords(before.edges, after.edges),
+        validation: {
+            before_valid: beforeValidation.valid, after_valid: afterValidation.valid,
+            issue_count_before: beforeValidation.issues.length, issue_count_after: afterValidation.issues.length,
+            issue_count_delta: afterValidation.issues.length - beforeValidation.issues.length,
+            orphan_count_before: count(beforeValidation, 'orphan_entity'),
+            orphan_count_after: count(afterValidation, 'orphan_entity'),
+            orphan_count_delta: count(afterValidation, 'orphan_entity') - count(beforeValidation, 'orphan_entity')
+        }
+    };
 }
 
 export class GraphMaintenanceService {
@@ -63,6 +270,61 @@ export class GraphMaintenanceService {
         return rows[0];
     }
 
+    async loadExternalEntities(client, access, operations, { lock = false } = {}) {
+        const links = operations.filter((operation) => operation.operation === 'link_decision_subject');
+        if (!links.length) return [];
+        if (access.role !== 'ceo') throw new Error('Cross-tenant Decision subject link requires ceo role');
+        const requestedCodes = [...new Set(links.map((operation) => operation.target_project_code))];
+        if (requestedCodes.some((code) => !access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
+        const ids = [...new Set(links.map((operation) => operation.subject_entity_id))];
+        const suffix = lock ? ' FOR UPDATE' : '';
+        const { rows } = await client.query(
+            `SELECT ge.id, ge.entity_type, p.code AS project_code, p.organization_id,
+                    ge.role_min,
+                    ge.sensitivity, ge.lifecycle_status, ge.version
+             FROM graph_entities ge JOIN projects p ON p.id=ge.project_id
+             WHERE ge.id=ANY($1::text[]) AND p.code=ANY($2::text[])
+               AND p.organization_id IS NOT NULL
+             ORDER BY ge.id${suffix}`,
+            [ids, requestedCodes]
+        );
+        if (rows.length !== ids.length) throw new Error('Decision subject target is missing or inaccessible');
+        for (const link of links) {
+            const target = rows.find((row) => row.id === link.subject_entity_id);
+            if (!target || target.project_code !== link.target_project_code) throw new Error('Product target scope mismatch');
+        }
+        const sourceOrganizationId = access.organizationId || access.tenantId;
+        if (rows.some((row) => row.organization_id === sourceOrganizationId)) {
+            throw new Error('Decision subject target must belong to a different tenant organization');
+        }
+        return rows;
+    }
+
+    async loadExternalEntitiesFromImage(client, access, image, { lock = false } = {}) {
+        const expected = image.external_entities || [];
+        if (!expected.length) return [];
+        if (access.role !== 'ceo') throw new Error('Cross-tenant Decision subject link requires ceo role');
+        const codes = [...new Set(expected.map((entity) => entity.project_code))];
+        if (codes.some((code) => !access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
+        const suffix = lock ? ' FOR UPDATE' : '';
+        const { rows } = await client.query(
+            `SELECT ge.id, ge.entity_type, p.code AS project_code, p.organization_id,
+                    ge.role_min,
+                    ge.sensitivity, ge.lifecycle_status, ge.version
+             FROM graph_entities ge JOIN projects p ON p.id=ge.project_id
+             WHERE ge.id=ANY($1::text[]) AND p.code=ANY($2::text[])
+               AND p.organization_id IS NOT NULL
+             ORDER BY ge.id${suffix}`,
+            [externalEntityIds(image), codes]
+        );
+        if (rows.length !== expected.length) throw new Error('Decision subject target is missing or inaccessible');
+        const sourceOrganizationId = access.organizationId || access.tenantId;
+        if (rows.some((row) => row.organization_id === sourceOrganizationId)) {
+            throw new Error('Decision subject target must belong to a different tenant organization');
+        }
+        return rows;
+    }
+
     async loadSnapshot(client, access, projectCode, { lock = false, includeProjectCodes = [] } = {}) {
         const projectCodes = [...new Set([projectCode, ...includeProjectCodes].filter(Boolean))].sort();
         const projects = [];
@@ -82,11 +344,45 @@ export class GraphMaintenanceService {
                 `SELECT gx.id, gx.from_id, gx.to_id, gx.rel_type, p.code AS project_code, gx.payload,
                         gx.role_min, gx.sensitivity, gx.lifecycle_status, gx.version
                  FROM graph_edges gx JOIN projects p ON p.id = gx.project_id
-                 WHERE gx.project_id=ANY($1::text[]) ORDER BY gx.id${suffix}`,
-                [projectIds]
+                 WHERE gx.project_id=ANY($1::text[])
+                   AND (
+                     NOT (gx.payload ? 'target_project_code' OR gx.payload ? 'cross_tenant')
+                     OR (
+                       $2::text='ceo'
+                       AND gx.rel_type='governs'
+                       AND gx.payload->>'cross_tenant'='true'
+                       AND gx.role_min='ceo'
+                       AND gx.sensitivity='restricted'
+                       AND gx.payload->>'target_project_code'=ANY($3::text[])
+                     )
+                   )
+                 ORDER BY gx.id${suffix}`,
+                [projectIds, access.role, access.projectCodes]
             )
         ]);
-        const snapshot = { project_code: projectCode, entities: entityResult.rows, edges: edgeResult.rows };
+        const endpointIds = [...new Set(edgeResult.rows.flatMap((edge) => [edge.from_id, edge.to_id]))];
+        const endpointResult = endpointIds.length ? await client.query(
+            `SELECT ge.id FROM graph_entities ge WHERE ge.id=ANY($1::text[])`,
+            [endpointIds]
+        ) : { rows: [] };
+        const visibleEndpointIds = new Set(endpointResult.rows.map((row) => row.id));
+        // Legacy rows with an unresolved or inaccessible endpoint stay in the
+        // database for forensic repair, but must never disclose that endpoint
+        // through a maintenance snapshot. Canonical rows require both endpoints.
+        const visibleEdges = edgeResult.rows.filter((edge) => (
+            visibleEndpointIds.has(edge.from_id) && visibleEndpointIds.has(edge.to_id)
+        ));
+        const snapshot = { project_code: projectCode, entities: entityResult.rows, edges: visibleEdges };
+        const crossTenantLinks = visibleEdges
+            .filter((edge) => edge.rel_type === 'governs' && edge.payload?.cross_tenant === true)
+            .map((edge) => ({
+                operation: 'link_decision_subject',
+                subject_entity_id: edge.to_id,
+                target_project_code: edge.payload.target_project_code
+            }));
+        if (crossTenantLinks.length) {
+            snapshot.external_entities = await this.loadExternalEntities(client, access, crossTenantLinks, { lock });
+        }
         snapshot.hash = hashGraphSnapshot(snapshot);
         return { project, snapshot };
     }
@@ -145,7 +441,7 @@ export class GraphMaintenanceService {
     }
 
     async exportSnapshot(access, { projectCode, includeProjectCodes = [] }) {
-        return this.infoSSOTService.withAccessContext(access, async (client) => {
+        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
             const { project, snapshot } = await this.loadSnapshot(client, access, projectCode, { includeProjectCodes });
             const snapshotId = `gms_${randomUUID()}`;
             await client.query(
@@ -160,7 +456,7 @@ export class GraphMaintenanceService {
 
     async planMutations(access, input) {
         this.assertMaintenanceAccess(access, input.projectCode);
-        return this.infoSSOTService.withAccessContext(access, async (client) => {
+        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
             const organizationId = access.organizationId || access.tenantId;
             const { rows: snapshotRows } = await client.query(
                 `SELECT s.*, p.code AS project_code FROM graph_maintenance_snapshots s
@@ -172,7 +468,7 @@ export class GraphMaintenanceService {
             if (!stored) throw new Error('Unknown snapshot');
             const normalizedOperations = (input.operations || []).map((operation, index) => {
                 const deterministicEdgeId = plannedEdgeId(organizationId, input.projectCode, input.idempotencyKey, index);
-                if (operation.operation === 'upsert_edge' && operation.expected_version === 0) {
+                if (['upsert_edge', 'link_decision_subject'].includes(operation.operation) && operation.expected_version === 0) {
                     return { ...operation, edge_id: deterministicEdgeId };
                 }
                 if (operation.operation === 'rehome_entity' && operation.new_membership_expected_version === 0) {
@@ -180,6 +476,16 @@ export class GraphMaintenanceService {
                 }
                 return operation;
             });
+            if (normalizedOperations.some((operation) => operation.operation === 'link_decision_subject')) {
+                const includesForeignProjectRows = stored.snapshot.entities.some((entity) => entity.project_code !== input.projectCode)
+                    || stored.snapshot.edges.some((edge) => edge.project_code !== input.projectCode);
+                if (includesForeignProjectRows) {
+                    const error = new Error('Decision subject link requires a source-only snapshot');
+                    error.code = 'GRAPH_CROSS_TENANT_SNAPSHOT_SCOPE_MISMATCH';
+                    error.status = 409;
+                    throw error;
+                }
+            }
             const targetProjectCodes = [...new Set(normalizedOperations
                 .filter((operation) => ['move_scope', 'rehome_entity'].includes(operation.operation))
                 .map((operation) => operation.target_project_code)
@@ -187,7 +493,7 @@ export class GraphMaintenanceService {
             for (const targetProjectCode of targetProjectCodes) {
                 await this.resolveProject(client, access, targetProjectCode);
             }
-            const newEdgeOperations = normalizedOperations.filter((operation) => operation.operation === 'upsert_edge' && operation.expected_version === 0);
+            const newEdgeOperations = normalizedOperations.filter((operation) => ['upsert_edge', 'link_decision_subject'].includes(operation.operation) && operation.expected_version === 0);
             const plannedEdgeIds = [
                 ...newEdgeOperations.map((operation) => operation.edge_id),
                 ...normalizedOperations
@@ -201,6 +507,18 @@ export class GraphMaintenanceService {
                 );
                 if (collision.rows.length) throw new Error('planned edge id conflict');
             }
+            const externalEntities = await this.loadExternalEntities(client, access, normalizedOperations, { lock: true });
+            const planningSnapshot = structuredClone(stored.snapshot);
+            const localEntityIds = new Set(planningSnapshot.entities.map((entity) => entity.id));
+            const externalOnlyEntities = externalEntities.filter((entity) => !localEntityIds.has(entity.id));
+            if (externalOnlyEntities.length) {
+                planningSnapshot.external_entities = [...new Map([
+                    ...(planningSnapshot.external_entities || []),
+                    ...externalOnlyEntities
+                ].map((entity) => [entity.id, entity])).values()]
+                    .sort((left, right) => left.id.localeCompare(right.id));
+                planningSnapshot.hash = hashGraphSnapshot(planningSnapshot);
+            }
             const activeDecisionRetires = normalizedOperations.filter((operation) => operation.operation === 'retire_entity')
                 .map((operation) => stored.snapshot.entities.find((entity) => entity.id === operation.entity_id))
                 .filter((entity) => entity?.entity_type === 'decision'
@@ -210,21 +528,44 @@ export class GraphMaintenanceService {
                 const operation = normalizedOperations.find((candidate) => candidate.operation === 'retire_entity' && candidate.entity_id === decision.id);
                 const receiptId = operation.human_gate_receipt || input.humanGateReceipt;
                 const gate = await client.query(
-                    `SELECT id, approved_by, approved_at FROM graph_maintenance_human_gate_receipts
+                    `SELECT id, approved_by, approved_at, evidence FROM graph_maintenance_human_gate_receipts
                      WHERE id=$1 AND organization_id=$2 AND project_id=$3 AND decision_id=$4
                        AND status='approved' AND approved_by <> '' AND approved_at IS NOT NULL`,
                     [receiptId, organizationId, stored.project_id, decision.id]
                 );
-                if (!gate.rows[0]) throw new Error('Valid Human Gate receipt is required for Active Decision');
+                const expectedScope = humanGateOperationScope(operation);
+                if (!gate.rows[0] || fingerprint(gate.rows[0].evidence?.operation_scope) !== fingerprint(expectedScope)) {
+                    throw new Error('Valid Human Gate receipt is required for Active Decision');
+                }
             }
-            const plan = buildGraphPlan(stored.snapshot, {
+            for (const operation of normalizedOperations.filter((candidate) => candidate.operation === 'link_decision_subject')) {
+                const decision = stored.snapshot.entities.find((entity) => entity.id === operation.decision_id);
+                const receiptId = operation.human_gate_receipt || input.humanGateReceipt;
+                const gate = await client.query(
+                    `SELECT id, evidence FROM graph_maintenance_human_gate_receipts
+                     WHERE id=$1 AND organization_id=$2 AND project_id=$3 AND decision_id=$4
+                       AND status='approved' AND approved_by <> '' AND approved_at IS NOT NULL`,
+                    [receiptId, organizationId, stored.project_id, decision?.id]
+                );
+                const approvedScope = gate.rows[0]?.evidence?.operation_scope;
+                const expectedScope = humanGateOperationScope(operation);
+                const hasApprovedScope = approvedScope && typeof approvedScope === 'object' && !Array.isArray(approvedScope);
+                if (!decision || !gate.rows[0] || !hasApprovedScope || fingerprint(approvedScope) !== fingerprint(expectedScope)) {
+                    const error = new Error('Human Gate receipt does not approve this Decision subject operation');
+                    error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
+                    error.status = 409;
+                    error.details = { expected_operation_scope: expectedScope };
+                    throw error;
+                }
+            }
+            if (hashGraphSnapshot(stored.snapshot) !== stored.snapshot_hash) throw new Error('snapshot hash mismatch');
+            const plan = buildGraphPlan(planningSnapshot, {
                 project_code: input.projectCode,
                 idempotency_key: input.idempotencyKey,
                 reason: input.reason,
                 operations: normalizedOperations,
                 human_gate_receipt: input.humanGateReceipt
             });
-            if (plan.before_hash !== stored.snapshot_hash) throw new Error('snapshot hash mismatch');
             const inputFingerprint = fingerprint({ reason: plan.reason, operations: plan.operations, snapshot_hash: plan.before_hash });
             const existing = await client.query(
                 `SELECT * FROM graph_maintenance_plans
@@ -263,17 +604,44 @@ export class GraphMaintenanceService {
     async recordHumanGateReceipt(access, { projectCode, decisionId, receiptId, evidence = {} }) {
         this.assertMaintenanceAccess(access, projectCode);
         if (access.authSource !== 'bearer' || !String(access.personId || '').trim() || access.personId === 'internal_api') {
-            throw new Error('Human Gate approval requires a signed human Bearer principal');
+            throw signedHumanPrincipalError('Human Gate approval requires a signed human Bearer principal');
         }
         if (!String(decisionId || '').trim() || !String(receiptId || '').trim()) {
             throw new Error('decision_id and receipt_id are required');
         }
-        if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
-            throw new Error('evidence must be an object');
+        validateHumanGateEvidence(evidence);
+        if (evidence.operation_scope.decision_id !== decisionId) {
+            const error = new Error('Human Gate operation_scope decision_id must match decision_id');
+            error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
+            error.status = 409;
+            throw error;
         }
-        return this.infoSSOTService.withAccessContext(access, async (client) => {
+        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
             const organizationId = access.organizationId || access.tenantId;
             const project = await this.resolveProject(client, access, projectCode, { lock: true });
+            if (evidence.operation_scope.operation === 'link_decision_subject') {
+                await this.loadExternalEntities(client, access, [evidence.operation_scope], { lock: true });
+            }
+            if (evidence.operation_scope.operation === 'apply_plan') {
+                const { rows } = await client.query(
+                    `SELECT * FROM graph_maintenance_plans
+                     WHERE id=$1 AND organization_id=$2 AND project_id=$3 AND status='planned' FOR UPDATE`,
+                    [evidence.operation_scope.plan_id, organizationId, project.id]
+                );
+                const plan = rows[0];
+                const includesDecision = planDecisionIds(plan || {}).includes(decisionId);
+                const expectedScope = plan && includesDecision ? applyHumanGateScope(plan, decisionId) : null;
+                if (!expectedScope || fingerprint(expectedScope) !== fingerprint(evidence.operation_scope)) {
+                    const error = new Error('Human Gate receipt does not approve this exact dry-run plan');
+                    error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
+                    error.status = 409;
+                    error.details = expectedScope ? { expected_operation_scope: expectedScope } : undefined;
+                    throw error;
+                }
+                if (plan.before_snapshot?.external_entities?.length) {
+                    await this.loadExternalEntitiesFromImage(client, access, plan.before_snapshot, { lock: true });
+                }
+            }
             const decision = await client.query(
                 `SELECT id FROM graph_entities
                  WHERE id=$1 AND project_id=$2 AND entity_type='decision'
@@ -300,17 +668,28 @@ export class GraphMaintenanceService {
                 || row.decision_id !== decisionId || row.status !== 'approved') {
                 throw new Error('Human Gate receipt id conflict');
             }
+            if (fingerprint(row.evidence?.operation_scope) !== fingerprint(evidence.operation_scope)) {
+                const error = new Error('Human Gate receipt id is already bound to a different operation scope');
+                error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
+                error.status = 409;
+                error.details = { expected_operation_scope: evidence.operation_scope };
+                throw error;
+            }
             return row;
         });
     }
 
     formatPlan(row) {
+        const decisionIds = planDecisionIds(row);
         return {
             plan_id: row.id, status: row.status, dry_run: row.status === 'planned',
             snapshot_id: row.snapshot_id, snapshot_hash: row.base_snapshot_hash,
             after_snapshot_hash: row.after_snapshot_hash, reason: row.reason,
             idempotency_key: row.idempotency_key, operations: row.operations,
-            operation_count: row.operations.length, before: row.before_snapshot, after: row.after_snapshot
+            operation_count: row.operations.length,
+            apply_human_gate_scope: decisionIds.length === 1 ? applyHumanGateScope(row, decisionIds[0]) : null,
+            diff_summary: planDiffSummary(row.before_snapshot, row.after_snapshot),
+            before: row.before_snapshot, after: row.after_snapshot
         };
     }
 
@@ -378,9 +757,9 @@ export class GraphMaintenanceService {
         }
     }
 
-    async applyPlan(access, { projectCode, planId, snapshotHash }) {
+    async applyPlan(access, { projectCode, planId, snapshotHash, humanGateReceipt }) {
         this.assertMaintenanceAccess(access, projectCode);
-        return this.infoSSOTService.withAccessContext(access, async (client) => {
+        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
             const organizationId = access.organizationId || access.tenantId;
             const { rows } = await client.query(
                 `SELECT p.*, pr.code AS project_code FROM graph_maintenance_plans p
@@ -390,10 +769,42 @@ export class GraphMaintenanceService {
             );
             const plan = rows[0];
             if (!plan) throw new Error('Unknown plan');
+            if (snapshotHash !== plan.base_snapshot_hash) throw new Error('snapshot hash mismatch');
+            const decisionIds = planDecisionIds(plan);
+            if (decisionIds.length > 1) {
+                const error = new Error('Apply-specific Human Gate currently requires a single Decision plan');
+                error.code = 'GRAPH_APPLY_HUMAN_GATE_SCOPE_UNSUPPORTED';
+                error.status = 409;
+                throw error;
+            }
+            if (decisionIds.length === 1) {
+                if (access.authSource !== 'bearer' || !String(access.personId || '').trim() || access.personId === 'internal_api') {
+                    throw signedHumanPrincipalError('Graph Apply requires a signed human Bearer principal');
+                }
+                if (!String(humanGateReceipt || '').trim()) {
+                    const error = new Error('Apply-specific Human Gate receipt is required');
+                    error.code = 'GRAPH_APPLY_HUMAN_GATE_REQUIRED';
+                    error.status = 403;
+                    throw error;
+                }
+                const gate = await client.query(
+                    `SELECT id, evidence FROM graph_maintenance_human_gate_receipts
+                     WHERE id=$1 AND organization_id=$2 AND project_id=$3 AND decision_id=$4
+                       AND status='approved' AND approved_by <> '' AND approved_at IS NOT NULL`,
+                    [humanGateReceipt, organizationId, plan.project_id, decisionIds[0]]
+                );
+                const expectedApplyScope = applyHumanGateScope(plan, decisionIds[0]);
+                if (!gate.rows[0] || fingerprint(gate.rows[0].evidence?.operation_scope) !== fingerprint(expectedApplyScope)) {
+                    const error = new Error('Human Gate receipt does not approve this exact dry-run plan');
+                    error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
+                    error.status = 409;
+                    error.details = { expected_operation_scope: expectedApplyScope };
+                    throw error;
+                }
+            }
             const existing = await this.findReceipt(client, planId, 'apply');
             if (existing) return existing;
             if (plan.status !== 'planned') throw new Error(`Plan is not applicable: ${plan.status}`);
-            if (snapshotHash !== plan.base_snapshot_hash) throw new Error('snapshot hash mismatch');
             if (hashGraphSnapshot(plan.before_snapshot) !== plan.base_snapshot_hash
                 || hashGraphSnapshot(plan.after_snapshot) !== plan.after_snapshot_hash) {
                 throw new Error('stored plan snapshot hash mismatch');
@@ -403,12 +814,20 @@ export class GraphMaintenanceService {
                 lock: true,
                 includeProjectCodes: snapshotProjectCodes(plan.before_snapshot).filter((code) => code !== projectCode)
             });
+            if (plan.before_snapshot.external_entities?.length) {
+                current.external_entities = await this.loadExternalEntitiesFromImage(client, access, plan.before_snapshot, { lock: true });
+                current.hash = hashGraphSnapshot(current);
+            }
             if (current.hash !== plan.base_snapshot_hash) throw new Error('snapshot hash conflict');
             await this.replaceSnapshot(client, access, plan.after_snapshot, { baseline: plan.before_snapshot });
             const { snapshot: readback } = await this.loadSnapshot(client, access, projectCode, {
                 lock: true,
                 includeProjectCodes: snapshotProjectCodes(plan.after_snapshot).filter((code) => code !== projectCode)
             });
+            if (plan.after_snapshot.external_entities?.length) {
+                readback.external_entities = await this.loadExternalEntitiesFromImage(client, access, plan.after_snapshot, { lock: true });
+                readback.hash = hashGraphSnapshot(readback);
+            }
             if (readback.hash !== plan.after_snapshot_hash) throw new Error('Graph apply readback hash mismatch');
             const receipt = await this.createReceipt(client, access, plan, 'apply', plan.base_snapshot_hash, readback.hash);
             await client.query(`UPDATE graph_maintenance_plans SET status='applied', applied_at=NOW() WHERE id=$1`, [planId]);
@@ -439,7 +858,7 @@ export class GraphMaintenanceService {
 
     async getPlanReceipt(access, { projectCode, planId }) {
         this.assertMaintenanceAccess(access, projectCode);
-        return this.infoSSOTService.withAccessContext(access, async (client) => {
+        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
             const { rows } = await client.query(
                 `SELECT r.id AS receipt_id, r.plan_id, r.receipt_type, r.status, r.before_hash, r.after_hash, r.result, r.created_at
                  FROM graph_maintenance_receipts r JOIN projects p ON p.id=r.project_id
@@ -453,7 +872,7 @@ export class GraphMaintenanceService {
 
     async rollbackPlan(access, { projectCode, planId, applyReceiptId }) {
         this.assertMaintenanceAccess(access, projectCode);
-        return this.infoSSOTService.withAccessContext(access, async (client) => {
+        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
             const organizationId = access.organizationId || access.tenantId;
             const { rows } = await client.query(
                 `SELECT p.*, pr.code AS project_code FROM graph_maintenance_plans p JOIN projects pr ON pr.id=p.project_id
@@ -473,6 +892,10 @@ export class GraphMaintenanceService {
                 lock: true,
                 includeProjectCodes: snapshotProjectCodes(plan.after_snapshot).filter((code) => code !== projectCode)
             });
+            if (plan.after_snapshot.external_entities?.length) {
+                current.external_entities = await this.loadExternalEntitiesFromImage(client, access, plan.after_snapshot, { lock: true });
+                current.hash = hashGraphSnapshot(current);
+            }
             if (current.hash !== plan.after_snapshot_hash) throw new Error('rollback snapshot hash conflict');
             const beforeEdgeIds = new Set(plan.before_snapshot.edges.map((edge) => edge.id));
             const createdEdgeIds = [...new Set(plan.after_snapshot.edges.map((edge) => edge.id).filter((id) => !beforeEdgeIds.has(id)))];
@@ -499,6 +922,10 @@ export class GraphMaintenanceService {
                 lock: true,
                 includeProjectCodes: snapshotProjectCodes(plan.before_snapshot).filter((code) => code !== projectCode)
             });
+            if (plan.before_snapshot.external_entities?.length) {
+                readback.external_entities = await this.loadExternalEntitiesFromImage(client, access, plan.before_snapshot, { lock: true });
+                readback.hash = hashGraphSnapshot(readback);
+            }
             if (readback.hash !== plan.base_snapshot_hash) throw new Error('Graph rollback readback hash mismatch');
             const receipt = await this.createReceipt(client, access, plan, 'rollback', current.hash, readback.hash);
             await client.query(`UPDATE graph_maintenance_plans SET status='rolled_back', rolled_back_at=NOW() WHERE id=$1`, [planId]);
@@ -507,11 +934,12 @@ export class GraphMaintenanceService {
     }
 
     async validate(access, { projectCode, includeProjectCodes = [] }) {
-        return this.infoSSOTService.withAccessContext(access, async (client) => {
+        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
             const { snapshot } = await this.loadSnapshot(client, access, projectCode, { includeProjectCodes });
             const structural = validateGraphSnapshot(snapshot);
             const ontology = this.infoSSOTService.validateOntology({ snapshot: {
-                entities: snapshot.entities.map((item) => ({ id: item.id, type: item.entity_type, payload: item.payload })),
+                entities: [...snapshot.entities, ...(snapshot.external_entities || [])]
+                    .map((item) => ({ id: item.id, type: item.entity_type, payload: item.payload || {} })),
                 edges: snapshot.edges.filter((item) => item.lifecycle_status === 'active').map((item) => ({ from_id: item.from_id, to_id: item.to_id, relation: item.rel_type }))
             } });
             return {

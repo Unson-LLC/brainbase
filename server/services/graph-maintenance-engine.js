@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 export const GRAPH_MAINTENANCE_OPERATIONS = Object.freeze([
     'patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'rehome_entity',
-    'upsert_edge', 'retire_edge', 'normalize_alias'
+    'upsert_edge', 'link_decision_subject', 'retire_edge', 'normalize_alias'
 ]);
 export const GRAPH_MAINTENANCE_MAX_OPERATIONS = 100;
 
@@ -23,6 +23,9 @@ function withoutHash(snapshot) {
     delete copy.snapshot_id;
     delete copy.exported_at;
     copy.entities = [...(copy.entities || [])].sort((a, b) => a.id.localeCompare(b.id));
+    if (Object.hasOwn(copy, 'external_entities')) {
+        copy.external_entities = [...(copy.external_entities || [])].sort((a, b) => a.id.localeCompare(b.id));
+    }
     copy.edges = [...(copy.edges || [])].sort((a, b) => a.id.localeCompare(b.id));
     return copy;
 }
@@ -86,7 +89,13 @@ export function findIntroducedGraphValidationIssues(beforeSnapshot, afterSnapsho
 }
 
 function findEntity(state, id) {
-    const entity = state.entities.find((item) => item.id === id);
+    const entity = (state.entities || []).find((item) => item.id === id);
+    if (!entity) throw new Error(`Unknown entity: ${id}`);
+    return entity;
+}
+
+function findAnyEntity(state, id) {
+    const entity = [...(state.entities || []), ...(state.external_entities || [])].find((item) => item.id === id);
     if (!entity) throw new Error(`Unknown entity: ${id}`);
     return entity;
 }
@@ -223,6 +232,37 @@ export function applyGraphOperations(snapshot, operations, { projectCode, humanG
                     sensitivity, lifecycle_status: 'active', version: 1
                 });
             }
+        } else if (operation.operation === 'link_decision_subject') {
+            const decision = findEntity(state, operation.decision_id);
+            const subject = findAnyEntity(state, operation.subject_entity_id);
+            requireVersion(decision, { expected_version: operation.decision_expected_version });
+            requireVersion(subject, { expected_version: operation.subject_expected_version });
+            if (decision.entity_type !== 'decision' || decision.lifecycle_status !== 'active') throw new Error('active Decision source is required');
+            if (subject.entity_type !== 'product' || subject.lifecycle_status !== 'active') throw new Error('active Product subject is required');
+            if (decision.project_code !== state.project_code) throw new Error('Decision source scope mismatch');
+            if (!String(operation.target_project_code || '').trim() || subject.project_code !== operation.target_project_code) {
+                throw new Error('Product target scope mismatch');
+            }
+            if (decision.project_code === subject.project_code) throw new Error('link_decision_subject requires cross-project endpoints');
+            if (!(operation.human_gate_receipt || humanGateReceipt)) throw new Error('human_gate_receipt is required for Decision subject link');
+            if (operation.expected_version !== 0) throw new Error('expected_version conflict');
+            if (!String(operation.edge_id || '').trim()) throw new Error('edge_id is required');
+            if (state.edges.some((edge) => edge.id === operation.edge_id)) throw new Error('edge id conflict');
+            if (state.edges.some((edge) => edge.from_id === decision.id && edge.to_id === subject.id && edge.rel_type === 'governs')) {
+                throw new Error('Decision subject edge already exists');
+            }
+            state.edges.push({
+                id: operation.edge_id,
+                from_id: decision.id,
+                to_id: subject.id,
+                rel_type: 'governs',
+                project_code: decision.project_code,
+                payload: { ...(operation.payload || {}), target_project_code: subject.project_code, cross_tenant: true },
+                role_min: 'ceo',
+                sensitivity: 'restricted',
+                lifecycle_status: 'active',
+                version: 1
+            });
         } else if (operation.operation === 'retire_edge') {
             const edge = findEdge(state, operation);
             requireVersion(edge, operation);
@@ -282,7 +322,14 @@ export function validateGraphSnapshot(snapshot) {
     if (!Array.isArray(snapshot.edges)) issues.push({ category: 'edges' });
     const entityIds = new Set();
     const entitiesById = new Map();
-    for (const entity of Array.isArray(snapshot.entities) ? snapshot.entities : []) {
+    const externalEntityIds = new Set((Array.isArray(snapshot.external_entities) ? snapshot.external_entities : [])
+        .map((entity) => entity?.id)
+        .filter(Boolean));
+    const allEntities = [
+        ...(Array.isArray(snapshot.entities) ? snapshot.entities : []),
+        ...(Array.isArray(snapshot.external_entities) ? snapshot.external_entities : [])
+    ];
+    for (const entity of allEntities) {
         if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
             issues.push({ category: 'entity' });
             continue;
@@ -297,7 +344,13 @@ export function validateGraphSnapshot(snapshot) {
         if (!(entity.role_min in ROLE_RANK)) issues.push({ category: 'role_min', id: entity.id });
         if (!(entity.sensitivity in SENSITIVITY_RANK)) issues.push({ category: 'sensitivity', id: entity.id });
         if (!LIFECYCLE_STATUSES.has(entity.lifecycle_status)) issues.push({ category: 'lifecycle', id: entity.id });
-        if (!entity.payload || typeof entity.payload !== 'object' || Array.isArray(entity.payload)) issues.push({ category: 'payload', id: entity.id });
+        // Cross-tenant endpoints are deliberately represented by metadata only.
+        // Requiring payload here would either invalidate every safe plan or copy
+        // target-tenant business data into the source-tenant receipt.
+        if (!externalEntityIds.has(entity.id)
+            && (!entity.payload || typeof entity.payload !== 'object' || Array.isArray(entity.payload))) {
+            issues.push({ category: 'payload', id: entity.id });
+        }
         if (SENSITIVITY_RANK[entity.sensitivity] >= SENSITIVITY_RANK.finance && entity.role_min === 'member') {
             issues.push({ category: 'sensitivity_role', id: entity.id });
         }
@@ -331,6 +384,17 @@ export function validateGraphSnapshot(snapshot) {
                 || target.project_code !== edge.project_code)) {
                 issues.push({ category: 'membership_scope', id: edge.id });
             }
+        }
+        const source = entitiesById.get(edge.from_id);
+        const target = entitiesById.get(edge.to_id);
+        if (source && target && externalEntityIds.has(target.id) && source.project_code !== target.project_code) {
+            const canonicalCrossTenant = edge.rel_type === 'governs'
+                && edge.project_code === source.project_code
+                && edge.payload?.cross_tenant === true
+                && edge.payload?.target_project_code === target.project_code
+                && edge.role_min === 'ceo'
+                && edge.sensitivity === 'restricted';
+            if (!canonicalCrossTenant) issues.push({ category: 'cross_tenant_edge', id: edge.id });
         }
         const key = `${edge.from_id}\u0000${edge.to_id}\u0000${edge.rel_type}`;
         if (edgeKeys.has(key)) issues.push({ category: 'duplicate_edge', id: edge.id });

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
@@ -109,9 +109,17 @@ describe('InfoSSOTService ontology API', () => {
 
     it('preserves legacy entity and edge writes while returning inactive_no_current', async () => {
         const client = {
-            query: async (sql) => String(sql).includes('SELECT id FROM projects')
-                ? { rows: [{ id: 'project:brainbase' }] }
-                : { rows: [] },
+            query: async (sql) => {
+                const text = String(sql);
+                if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
+                if (text.includes('SELECT id, project_id FROM graph_entities')) {
+                    return { rows: [
+                        { id: 'app:legacy', project_id: 'project:brainbase' },
+                        { id: 'app:dependency', project_id: 'project:brainbase' }
+                    ] };
+                }
+                return { rows: [] };
+            },
             release: () => {}
         };
         const service = new InfoSSOTService({
@@ -513,18 +521,18 @@ describe('InfoSSOTService ontology API', () => {
         let entityPage = 0;
         let edgePage = 0;
         const client = {
-            query: async (sql) => {
+            query: vi.fn(async (sql) => {
                 const text = String(sql);
-                if (text.includes('FROM graph_entities') && text.includes('ORDER BY id')) {
+                if (text.includes('FROM graph_entities') && text.includes('ORDER BY ge.id')) {
                     entityPage += 1;
                     return { rows: entityPage === 1 ? [{ id: 'org:a', type: 'org', payload: {} }] : [] };
                 }
-                if (text.includes('FROM graph_edges') && text.includes('ORDER BY from_id')) {
+                if (text.includes('FROM graph_edges') && text.includes('ORDER BY ge.from_id')) {
                     edgePage += 1;
-                    return { rows: edgePage === 1 ? [{ from_id: 'org:a', to_id: 'org:a', relation: 'derived_from', payload: {} }] : [] };
+                    return { rows: edgePage === 1 ? [{ id: 'edge:a', from_id: 'org:a', to_id: 'org:a', relation: 'derived_from', payload: {} }] : [] };
                 }
                 return { rows: [] };
-            },
+            }),
             release: () => {}
         };
         const service = new InfoSSOTService({ ontologyRegistry: activeRegistry(), pool: { connect: async () => client } });
@@ -536,5 +544,13 @@ describe('InfoSSOTService ontology API', () => {
             status: 'complete', entity_count: 1, edge_count: 1, next_cursor: null, completed_cursor_count: 4
         });
         expect(result.verification).toBe('verified');
+        const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('FROM graph_entities'));
+        expect(entityCalls[0][0]).toContain('entity_project.code=ANY($5)');
+        expect(entityCalls[0][0]).toContain("membership.lifecycle_status='active'");
+        expect(entityCalls[0][0]).toContain('membership.sensitivity=ANY($3)');
+        const edgeCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('SELECT id, from_id, to_id'));
+        expect(edgeCalls[0][0]).toContain('(ge.from_id, ge.to_id, ge.rel_type, ge.id)');
+        expect(edgeCalls[0][0]).toContain('ORDER BY ge.from_id, ge.to_id, ge.rel_type, ge.id');
+        expect(edgeCalls[1][1].slice(0, 4)).toEqual(['org:a', 'org:a', 'derived_from', 'edge:a']);
     });
 });

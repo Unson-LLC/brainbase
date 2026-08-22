@@ -39,6 +39,7 @@ const WRITE_TOOL_NAMES = new Set([
   'create_task',
   'update_task',
   'transition_task',
+  'graph_record_human_gate_receipt',
   'graph_plan_mutations',
   'graph_apply_plan',
   'graph_rollback_plan',

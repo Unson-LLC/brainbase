@@ -57,6 +57,7 @@ function assertAccessContext(access) {
 
 /** @param {unknown} error */
 function resolveErrorStatus(error) {
+    if (Number.isInteger(error?.status)) return error.status;
     const message = getErrorMessage(error);
     if (message.includes('Slack OAuth token required')) {
         return 401;
@@ -103,9 +104,16 @@ function resolveErrorStatus(error) {
     return 500;
 }
 
+function sendStructuredError(res, error, fallback) {
+    const body = { error: getErrorMessage(error) || fallback };
+    if (error?.code) body.code = error.code;
+    if (error?.details) body.details = error.details;
+    res.status(resolveErrorStatus(error)).json(body);
+}
+
 function sendOntologyError(res, error, { operation = 'read' } = {}) {
     if (!(error instanceof OntologyError)) {
-        res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) || 'Ontology operation failed' });
+        sendStructuredError(res, error, 'Ontology operation failed');
         return;
     }
     const status = error.details?.http_status || (error.code === 'ONTOLOGY_CURRENT_UNAVAILABLE'
@@ -146,6 +154,16 @@ export class InfoSSOTController {
         return { ...access, authSource: String(req.authSource || access.authSource || '') };
     }
 
+    applyMaintenanceAccess(req) {
+        if (String(req.authSource || '') !== 'bearer') {
+            const error = new Error('Graph Apply requires a signed human Bearer principal');
+            error.code = 'GRAPH_HUMAN_PRINCIPAL_REQUIRED';
+            error.status = 403;
+            throw error;
+        }
+        return this.maintenanceAccess(req);
+    }
+
     recordGraphHumanGateReceipt = async (req, res) => {
         try {
             res.status(201).json(await this.graphMaintenanceService.recordHumanGateReceipt(this.maintenanceAccess(req), {
@@ -156,7 +174,7 @@ export class InfoSSOTController {
             }));
         } catch (error) {
             logger.error('Failed to record Graph Human Gate receipt', { error });
-            res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) });
+            sendStructuredError(res, error, 'Failed to record Graph Human Gate receipt');
         }
     };
 
@@ -168,7 +186,7 @@ export class InfoSSOTController {
             }));
         } catch (error) {
             logger.error('Failed to export Graph maintenance snapshot', { error });
-            res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) });
+            sendStructuredError(res, error, 'Failed to export Graph maintenance snapshot');
         }
     };
 
@@ -181,19 +199,20 @@ export class InfoSSOTController {
             }));
         } catch (error) {
             logger.error('Failed to plan Graph maintenance mutations', { error });
-            res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) });
+            sendStructuredError(res, error, 'Failed to plan Graph maintenance mutations');
         }
     };
 
     applyGraphPlan = async (req, res) => {
         try {
-            res.json(await this.graphMaintenanceService.applyPlan(this.maintenanceAccess(req), {
+            res.json(await this.graphMaintenanceService.applyPlan(this.applyMaintenanceAccess(req), {
                 projectCode: req.body?.project_code, planId: req.params.planId,
-                snapshotHash: req.body?.snapshot_hash
+                snapshotHash: req.body?.snapshot_hash,
+                humanGateReceipt: req.body?.human_gate_receipt
             }));
         } catch (error) {
             logger.error('Failed to apply Graph maintenance plan', { error });
-            res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) });
+            sendStructuredError(res, error, 'Failed to apply Graph maintenance plan');
         }
     };
 
@@ -204,7 +223,7 @@ export class InfoSSOTController {
             }));
         } catch (error) {
             logger.error('Failed to read Graph maintenance receipt', { error });
-            res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) });
+            sendStructuredError(res, error, 'Failed to read Graph maintenance receipt');
         }
     };
 
@@ -216,7 +235,7 @@ export class InfoSSOTController {
             }));
         } catch (error) {
             logger.error('Failed to rollback Graph maintenance plan', { error });
-            res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) });
+            sendStructuredError(res, error, 'Failed to rollback Graph maintenance plan');
         }
     };
 
