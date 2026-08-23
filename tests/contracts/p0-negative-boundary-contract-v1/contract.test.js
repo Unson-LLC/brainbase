@@ -36,37 +36,54 @@ describe('P0 negative boundary contract v1', () => {
     expect(result.errors.filter(error => error.startsWith('a0-binding:'))).toEqual([]);
   });
 
-  it('treats the A0 read tuple as ingress context only and keeps positive write authority uncollected and fail closed', async () => {
+  it('catalogs generic A0 company_write authority but keeps the P0 promotion binding uncollected and fail closed', async () => {
     const semanticBinding = await readJson('a0-semantic-binding.json');
     expect(semanticBinding.field_mappings.slice(3, 6).map(mapping => mapping.relation)).toEqual([
       'observed_ingress_context_only',
       'observed_ingress_context_only',
       'observed_ingress_context_only'
     ]);
-    expect(semanticBinding.organization_acceptance_write_authority).toEqual({
+    expect(semanticBinding.organization_acceptance_write_authority.generic_a0_company_write).toMatchObject({
+      status: 'cataloged',
+      authoritative_source: '../mana-brainbase-company-authority/v1/fixtures/cases.json',
+      a0_fixture_path: '/positive/3',
+      producer_contract_source: '../mana-brainbase-company-authority/v1/producer.contract.json',
+      capability_id: 'company_write',
+      desired_effect: 'write',
+      resource_ref: 'company://tenant-b/project-b/write'
+    });
+    expect(semanticBinding.organization_acceptance_write_authority.p0_promotion_binding).toEqual({
       status: 'contract_gap',
       evidence_state: 'not_collected',
       authoritative_source: null,
       a0_mapping: null,
+      generic_company_write_role: 'insufficient_for_p0_dual_authority_promotion',
+      missing_binding_behavior: 'deny_all_effects'
+    });
+    expect(semanticBinding.organization_acceptance_write_authority).toMatchObject({
       observed_a0_read_tuple_role: 'ingress_source_context_only',
-      missing_authority_behavior: 'deny_all_effects'
     });
   });
 
-  it('RED sensitivity: inventing or resolving positive write authority without an A0 source is rejected', async () => {
-    for (const corruption of [
-      binding => { binding.organization_acceptance_write_authority.status = 'resolved'; },
-      binding => { binding.organization_acceptance_write_authority.evidence_state = 'collected'; },
-      binding => { binding.organization_acceptance_write_authority.authoritative_source = 'invented'; },
-      binding => { binding.organization_acceptance_write_authority.a0_mapping = { capability: 'company_write' }; },
-      binding => { binding.organization_acceptance_write_authority.observed_a0_read_tuple_role = 'positive_write_authority'; },
-      binding => { binding.organization_acceptance_write_authority.missing_authority_behavior = 'allow'; }
-    ]) {
+  it('RED sensitivity: generic A0 write catalog drift or P0 promotion auto-upgrade is rejected', async () => {
+    const corruptions = [
+      { mutate: binding => { binding.authoritative_sources[3].sha256 = '0'.repeat(64); }, error: 'a0-binding:source-digest:../mana-brainbase-company-authority/v1/producer.contract.json' },
+      { mutate: binding => { binding.organization_acceptance_write_authority.generic_a0_company_write.a0_fixture_path = '/positive/0'; }, error: 'a0-binding:generic-write-authority-contract' },
+      { mutate: binding => { binding.organization_acceptance_write_authority.generic_a0_company_write.capability_id = 'company_read'; }, error: 'a0-binding:generic-write-authority-contract' },
+      { mutate: binding => { binding.organization_acceptance_write_authority.generic_a0_company_write.desired_effect = 'read'; }, error: 'a0-binding:generic-write-authority-contract' },
+      { mutate: binding => { binding.organization_acceptance_write_authority.generic_a0_company_write.resource_ref = 'company://tenant-a/project-a/read'; }, error: 'a0-binding:generic-write-authority-contract' },
+      { mutate: binding => { binding.organization_acceptance_write_authority.p0_promotion_binding.status = 'resolved'; }, error: 'a0-binding:p0-promotion-binding-gap' },
+      { mutate: binding => { binding.organization_acceptance_write_authority.p0_promotion_binding.authoritative_source = 'invented'; }, error: 'a0-binding:p0-promotion-binding-gap' },
+      { mutate: binding => { binding.organization_acceptance_write_authority.p0_promotion_binding.a0_mapping = { capability: 'company_write' }; }, error: 'a0-binding:p0-promotion-binding-gap' },
+      { mutate: binding => { binding.organization_acceptance_write_authority.p0_promotion_binding.generic_company_write_role = 'promotion_authority'; }, error: 'a0-binding:p0-promotion-binding-gap' },
+      { mutate: binding => { binding.organization_acceptance_write_authority.p0_promotion_binding.missing_binding_behavior = 'allow'; }, error: 'a0-binding:p0-promotion-binding-gap' }
+    ];
+    for (const { mutate, error } of corruptions) {
       const semanticBinding = await readJson('a0-semantic-binding.json');
-      corruption(semanticBinding);
+      mutate(semanticBinding);
       const result = await validateBundle(root, { semanticBindingOverride: semanticBinding });
       expect(result.ok).toBe(false);
-      expect(result.errors).toContain('a0-binding:organization-write-authority-gap');
+      expect(result.errors).toContain(error);
     }
   });
 

@@ -16,7 +16,7 @@ Personal body（非公開）
 
 両stageは別actor、別signed contextで、同じpayload hashとcorrelation/operation/idempotencyを束縛する。A0のcapability/effect/resource、decision actor、revision、expiry、integrity、Slack provider、`mana-runtime` audience、全cross-layer bindingのいずれか一項でも不一致なら、8 effect counterを0のままdenyする。
 
-A0 semantic bindingはproducerのobserved request schema、canonical context schema、fixture bytesへdigestを固定する。A0正本に存在する`company_read/read/company://tenant-a/project-a/read`はP0 ingressの観測文脈だけであり、organization acceptanceのpositive write authorityではない。A0にはpositive write authorityの正本がないため、このmappingは`contract_gap`・`not_collected`・`deny_all_effects`へ固定し、`company_write`相当のA0 authorityを捏造しない。12 field mappingはID、A0 schema/path、A0 fixture path、type、relation、P0 path/value、A0 valueをvalidator内のauthoritative catalogと完全一致させる。12 cross-layer bindingもIDとP0/A0の左右path tupleを完全一致させ、同値な別pathへの左右同時差替えを拒否する。metadataや現在値同士だけの自己整合では通さない。
+A0 semantic bindingはproducerのobserved request schema、canonical context schema、fixture bytes、producer contractへdigestを固定する。A0正本の`company_read/read/company://tenant-a/project-a/read`はP0 ingressの観測文脈だけである。一方、A0正本の汎用`company_write/write/company://tenant-b/project-b/write` authorityはfixtureとproducerのsame-request bindingへexactにcatalogする。ただし汎用company writeだけではowner consentとorganization acceptanceからなるP0 dual-authority promotionのpositive組を証明しない。P0固有のexact promotion binding/sourceが未収集であるgapだけを`contract_gap`・`not_collected`・`deny_all_effects`へ固定し、自動昇格や架空authorityを拒否する。12 field mappingはID、A0 schema/path、A0 fixture path、type、relation、P0 path/value、A0 valueをvalidator内のauthoritative catalogと完全一致させる。12 cross-layer bindingもIDとP0/A0の左右path tupleを完全一致させ、同値な別pathへの左右同時差替えを拒否する。metadataや現在値同士だけの自己整合では通さない。
 
 ## 証拠境界
 

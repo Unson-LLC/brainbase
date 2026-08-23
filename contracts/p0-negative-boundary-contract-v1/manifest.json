@@ -8,7 +8,7 @@
     "a0-semantic-binding.json",
     "tenant-person-inventory.json"
   ],
-  "fixture_set_sha256": "f7e226b7fed39b674904036306c61a4d415dc53fadc0b8f0a1181ab356b9cfab",
+  "fixture_set_sha256": "c5babf07b6180c8a36c7643d919a9ded77fb8fda00efda3589aa85e90f900f7e",
   "hash_algorithm": "sha256(relative_path + NUL + file_bytes)",
   "synthetic_data_only": true,
   "production_evidence": "not_collected"

@@ -266,7 +266,7 @@
     {
       "id": "C-004",
       "type": "invariant",
-      "statement": "authority、ingress、receipt、12 cross-layer bindingを一項ずつfail closedにする。A0 read tupleはingress文脈に限定し、positive write authorityの正本欠落をcontract_gap・not_collectedとしてdenyする。",
+      "statement": "authority、ingress、receipt、12 cross-layer bindingを一項ずつfail closedにする。A0 read tupleはingress文脈に限定する。A0汎用company_write authorityは正本へsource-lockするがP0 dual-authority promotionへ自動昇格させず、P0固有exact promotion bindingの未収集gapだけをcontract_gap・not_collectedとしてdenyする。",
       "origin": {
         "story_refs": [
           {
@@ -287,7 +287,7 @@
           },
           {
             "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
-            "case": "treats the A0 read tuple as ingress context only and keeps positive write authority uncollected and fail closed"
+            "case": "catalogs generic A0 company_write authority but keeps the P0 promotion binding uncollected and fail closed"
           }
         ]
       },
@@ -392,7 +392,7 @@
     {
       "id": "C-008",
       "type": "test",
-      "statement": "GREENに加え、mutation path/before/after/invariant、A0 schema path/type、authoritative source digest、fixture path、relation、A0/P0 value、cross-layerのP0/A0左右path、positive write authority gapの破壊をRED sensitivityで検出する。",
+      "statement": "GREENに加え、mutation path/before/after/invariant、A0 schema path/type、authoritative source digest、fixture path、relation、A0/P0 value、cross-layerのP0/A0左右path、汎用A0 company_write catalogとP0 promotion binding gapの破壊をRED sensitivityで検出する。",
       "origin": {
         "story_refs": [
           {
@@ -424,7 +424,7 @@
           },
           {
             "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
-            "case": "RED sensitivity: inventing or resolving positive write authority without an A0 source is rejected"
+            "case": "RED sensitivity: generic A0 write catalog drift or P0 promotion auto-upgrade is rejected"
           },
           {
             "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",

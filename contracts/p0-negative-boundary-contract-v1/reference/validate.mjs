@@ -43,13 +43,35 @@ const CROSS_LAYER_CONTRACT = [
   {id:'thread',p0_left:'/bindings/request_thread',p0_right:'/bindings/context_thread',a0_left:'/request/delivery/thread_ts',a0_right:'/context/tenant_context/slack/thread_ts'},
   {id:'event',p0_left:'/bindings/request_event',p0_right:'/bindings/context_event',a0_left:'/request/delivery/event_id',a0_right:'/context/tenant_context/slack/event_id'}
 ];
-const ORGANIZATION_WRITE_AUTHORITY_GAP = {
-  status: 'contract_gap',
-  evidence_state: 'not_collected',
-  authoritative_source: null,
-  a0_mapping: null,
+const ORGANIZATION_WRITE_AUTHORITY_CONTRACT = {
   observed_a0_read_tuple_role: 'ingress_source_context_only',
-  missing_authority_behavior: 'deny_all_effects'
+  generic_a0_company_write: {
+    status: 'cataloged',
+    authority_scope: 'generic_company_write_only',
+    authoritative_source: '../mana-brainbase-company-authority/v1/fixtures/cases.json',
+    a0_fixture_path: '/positive/3',
+    producer_contract_source: '../mana-brainbase-company-authority/v1/producer.contract.json',
+    capability_path: '/request/requested_action/capability_id',
+    effect_path: '/request/requested_action/desired_effect',
+    resource_path: '/request/requested_action/resource_ref',
+    capability_id: 'company_write',
+    desired_effect: 'write',
+    resource_ref: 'company://tenant-b/project-b/write',
+    producer_requested_operation_capability_path: '$.context.authority.capability_id',
+    producer_same_request_bindings: [
+      'authority.capability_id == request.requested_action.capability_id (requested operation capability)',
+      'request.requested_action.desired_effect in authority.allowed_effects',
+      'scope.resource_ref == request.requested_action.resource_ref'
+    ]
+  },
+  p0_promotion_binding: {
+    status: 'contract_gap',
+    evidence_state: 'not_collected',
+    authoritative_source: null,
+    a0_mapping: null,
+    generic_company_write_role: 'insufficient_for_p0_dual_authority_promotion',
+    missing_binding_behavior: 'deny_all_effects'
+  }
 };
 const schemaNode = (schema, pointer) => {
   let node = schema;
@@ -74,14 +96,15 @@ export async function digestFiles(root, files) {
 
 export async function validateBundle(root, { casesOverride, semanticBindingOverride, tenantInventoryOverride } = {}) {
   const readJson = async path => JSON.parse(await readFile(resolve(root, path), 'utf8'));
-  const [manifest, sourceLock, schema, cases, liveUpstream, semanticBinding, tenantInventory, observedSchema, contextSchema, upstreamFixtures] = await Promise.all([
+  const [manifest, sourceLock, schema, cases, liveUpstream, semanticBinding, tenantInventory, observedSchema, contextSchema, upstreamFixtures, upstreamProducerContract] = await Promise.all([
     readJson('manifest.json'), readJson('source-lock.json'), readJson('schema/negative-case.schema.json'),
     casesOverride ?? readJson('fixtures/cases.json'),
     JSON.parse(await readFile(resolve(root, '../mana-brainbase-company-authority/v1/source-lock.json'), 'utf8')),
     semanticBindingOverride ?? readJson('a0-semantic-binding.json'), tenantInventoryOverride ?? readJson('tenant-person-inventory.json'),
     readJson('../mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json'),
     readJson('../mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json'),
-    readJson('../mana-brainbase-company-authority/v1/fixtures/cases.json')
+    readJson('../mana-brainbase-company-authority/v1/fixtures/cases.json'),
+    readJson('../mana-brainbase-company-authority/v1/producer.contract.json')
   ]);
   const errors = [];
   const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -125,7 +148,7 @@ export async function validateBundle(root, { casesOverride, semanticBindingOverr
   if (CASE_CONTRACT.size !== ids.length) errors.push('inventory:contract-catalog');
   if (JSON.stringify(cases.canonical_baseline) !== JSON.stringify(CANONICAL_BASELINE)) errors.push('baseline:canonical-values');
   const sourceByPath = new Map(semanticBinding.authoritative_sources?.map(source => [source.path, source]));
-  for (const path of ['../mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json','../mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json','../mana-brainbase-company-authority/v1/fixtures/cases.json']) {
+  for (const path of ['../mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json','../mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json','../mana-brainbase-company-authority/v1/fixtures/cases.json','../mana-brainbase-company-authority/v1/producer.contract.json']) {
     const actual = createHash('sha256').update(await readFile(resolve(root, path))).digest('hex');
     if (sourceByPath.get(path)?.sha256 !== actual) errors.push(`a0-binding:source-digest:${path}`);
   }
@@ -145,8 +168,26 @@ export async function validateBundle(root, { casesOverride, semanticBindingOverr
     if (JSON.stringify(pointerValue(cases.canonical_baseline, p0Path)) !== JSON.stringify(mapping.p0_value)) errors.push(`a0-binding:p0-value:${index}`);
   }
   if (mappings.length !== A0_FIELD_CONTRACT.length) errors.push('a0-binding:mapping-count');
-  if (JSON.stringify(semanticBinding.organization_acceptance_write_authority) !== JSON.stringify(ORGANIZATION_WRITE_AUTHORITY_GAP)) {
-    errors.push('a0-binding:organization-write-authority-gap');
+  const writeAuthority = semanticBinding.organization_acceptance_write_authority;
+  if (JSON.stringify(writeAuthority?.generic_a0_company_write) !== JSON.stringify(ORGANIZATION_WRITE_AUTHORITY_CONTRACT.generic_a0_company_write)) {
+    errors.push('a0-binding:generic-write-authority-contract');
+  } else {
+    const generic = writeAuthority.generic_a0_company_write;
+    const fixture = pointerValue(upstreamFixtures, generic.a0_fixture_path);
+    if (pointerValue(fixture, generic.capability_path) !== generic.capability_id ||
+        pointerValue(fixture, generic.effect_path) !== generic.desired_effect ||
+        pointerValue(fixture, generic.resource_path) !== generic.resource_ref ||
+        fixture?.context?.authority?.capability_id !== generic.capability_id ||
+        !fixture?.context?.authority?.allowed_effects?.includes(generic.desired_effect) ||
+        fixture?.context?.scope?.resource_ref !== generic.resource_ref ||
+        upstreamProducerContract.canonical_context?.requested_operation_capability_path !== generic.producer_requested_operation_capability_path ||
+        !generic.producer_same_request_bindings.every(binding => upstreamProducerContract.canonical_context?.same_request_bindings?.includes(binding))) {
+      errors.push('a0-binding:generic-write-authority-source');
+    }
+  }
+  if (writeAuthority?.observed_a0_read_tuple_role !== ORGANIZATION_WRITE_AUTHORITY_CONTRACT.observed_a0_read_tuple_role ||
+      JSON.stringify(writeAuthority?.p0_promotion_binding) !== JSON.stringify(ORGANIZATION_WRITE_AUTHORITY_CONTRACT.p0_promotion_binding)) {
+    errors.push('a0-binding:p0-promotion-binding-gap');
   }
   const crossBindings = semanticBinding.cross_layer_bindings ?? [];
   for (let index = 0; index < CROSS_LAYER_CONTRACT.length; index++) {

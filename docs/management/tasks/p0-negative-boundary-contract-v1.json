@@ -25,7 +25,8 @@
   "a0_binding_guards": {
     "field_mapping_exact_tuple_count": 12,
     "cross_layer_exact_tuple_count": 12,
-    "organization_write_authority": "contract_gap_not_collected_fail_closed",
+    "generic_a0_company_write_authority": "cataloged_source_locked",
+    "p0_promotion_binding": "contract_gap_not_collected_fail_closed",
     "red_sensitivity": [
       "authoritative_source_sha256",
       "a0_fixture_path",
@@ -33,7 +34,8 @@
       "a0_value",
       "p0_value",
       "cross_layer_equivalent_alternate_path",
-      "organization_write_authority_gap"
+      "generic_a0_company_write_catalog",
+      "p0_promotion_binding_gap"
     ]
   },
   "forbidden_claims": ["verified","production_proven","release_ready","done"]

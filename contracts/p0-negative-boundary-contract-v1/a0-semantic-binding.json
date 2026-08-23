@@ -4,7 +4,8 @@
   "authoritative_sources": [
     {"path": "../mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json", "sha256": "662757f8fae8a0bc46c62194d2dc108a2d343eb539b38c04455b3ca34468707e"},
     {"path": "../mana-brainbase-company-authority/v1/schema/canonical-execution-context.schema.json", "sha256": "050600918f10db36ea00c30cf8f01e1857e7563706872d3485858c0721ffae0a"},
-    {"path": "../mana-brainbase-company-authority/v1/fixtures/cases.json", "sha256": "d4d576cf88dff65252e3429a848f60ea5a9b2be3d5a36a6029a0e436469cd009"}
+    {"path": "../mana-brainbase-company-authority/v1/fixtures/cases.json", "sha256": "d4d576cf88dff65252e3429a848f60ea5a9b2be3d5a36a6029a0e436469cd009"},
+    {"path": "../mana-brainbase-company-authority/v1/producer.contract.json", "sha256": "638f2d116d2803aaadc40c61893f3cf540fbfc3ef8a157dc38ed43905f618aac"}
   ],
   "field_mappings": [
     {"id":"provider_observed","p0_path":"/provider","a0_schema":"observed_request","a0_path":"/provider_identity/provider","a0_fixture_path":"/positive/0/request/provider_identity/provider","type":"string","relation":"exact","p0_value":"slack","a0_value":"slack"},
@@ -21,12 +22,34 @@
     {"id":"request_event","p0_path":"/bindings/request_event","a0_schema":"observed_request","a0_path":"/delivery/event_id","a0_fixture_path":"/positive/0/request/delivery/event_id","type":"string","relation":"synthetic_alias","p0_value":"EV-SYNTH-A","a0_value":"evt-tenant-a-person-sato"}
   ],
   "organization_acceptance_write_authority": {
-    "status": "contract_gap",
-    "evidence_state": "not_collected",
-    "authoritative_source": null,
-    "a0_mapping": null,
     "observed_a0_read_tuple_role": "ingress_source_context_only",
-    "missing_authority_behavior": "deny_all_effects"
+    "generic_a0_company_write": {
+      "status": "cataloged",
+      "authority_scope": "generic_company_write_only",
+      "authoritative_source": "../mana-brainbase-company-authority/v1/fixtures/cases.json",
+      "a0_fixture_path": "/positive/3",
+      "producer_contract_source": "../mana-brainbase-company-authority/v1/producer.contract.json",
+      "capability_path": "/request/requested_action/capability_id",
+      "effect_path": "/request/requested_action/desired_effect",
+      "resource_path": "/request/requested_action/resource_ref",
+      "capability_id": "company_write",
+      "desired_effect": "write",
+      "resource_ref": "company://tenant-b/project-b/write",
+      "producer_requested_operation_capability_path": "$.context.authority.capability_id",
+      "producer_same_request_bindings": [
+        "authority.capability_id == request.requested_action.capability_id (requested operation capability)",
+        "request.requested_action.desired_effect in authority.allowed_effects",
+        "scope.resource_ref == request.requested_action.resource_ref"
+      ]
+    },
+    "p0_promotion_binding": {
+      "status": "contract_gap",
+      "evidence_state": "not_collected",
+      "authoritative_source": null,
+      "a0_mapping": null,
+      "generic_company_write_role": "insufficient_for_p0_dual_authority_promotion",
+      "missing_binding_behavior": "deny_all_effects"
+    }
   },
   "cross_layer_bindings": [
     {"id":"subject","p0_left":"/bindings/request_subject","p0_right":"/bindings/actor_external_subject","a0_left":"/request/provider_identity/authenticated_subject_id","a0_right":"/context/actor/external_subject_id"},
