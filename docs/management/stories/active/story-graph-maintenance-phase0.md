@@ -24,8 +24,8 @@ Phase 0はGraph保守用のMCP、REST、transaction service、schema、検証を
 
 ## Acceptance Criteria
 
-- [x] AC-001: MCP tools exactly: graph_export_snapshot, graph_plan_mutations, graph_apply_plan, graph_get_plan_receipt, graph_rollback_plan, graph_validate。
-- [x] AC-002: Graph maintenance REST/MCP contractはsnapshot、plan、apply、receipt、rollback、validateを提供する。
+- [x] AC-001: MCP tools exactly: graph_export_snapshot, graph_record_human_gate_receipt, graph_plan_mutations, graph_apply_plan, graph_get_plan_receipt, graph_rollback_plan, graph_validate。
+- [x] AC-002: Graph maintenance REST/MCP contractはsnapshot、Human Gate receipt、plan、apply、receipt、rollback、validateを提供する。
 - [x] AC-003: signed tenant authorizationとproject scopeを要求する。
 - [x] AC-004: expected_version、idempotency key、bulk limit、dry-run/apply snapshot hash equality、reason required。
 - [x] AC-005: Allowed mutation ops: patch_entity, merge_entities, retire_entity, move_scope, upsert_edge, retire_edge, normalize_alias。
@@ -36,7 +36,7 @@ Phase 0はGraph保守用のMCP、REST、transaction service、schema、検証を
 
 ## Scenarios
 
-- `GM-S-001`: 認証済みproject scopeで6つのMCP toolが対応するREST endpointを呼び、scope外projectはHTTP到達前に拒否される。
+- `GM-S-001`: 認証済みproject scopeで7つのMCP toolが対応するREST endpointを呼び、scope外projectはHTTP到達前に拒否される。
 - `GM-S-002`: 同じidempotency keyと入力を再実行しても変更を増やさず、異なる入力はconflictとして拒否する。
 - `GM-S-003`: 他tenantまたは他projectに存在するedge IDを指定しても、上書きやscope移動を行わず拒否する。
 - `GM-S-004`: mergeまたはpatchでsensitivityやrole_minを下げず、active Decisionのretireは束縛済みHuman Gate Receiptなしでは拒否する。

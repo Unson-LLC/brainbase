@@ -164,6 +164,23 @@ describe('Graph maintenance REST/MCP contract', () => {
         expect(exportSnapshot).not.toHaveBeenCalled();
     });
 
+    it('service-tokenのApplyを安定code付き403で拒否する', async () => {
+        process.env.NODE_ENV = 'production';
+        const applyPlan = vi.spyOn(GraphMaintenanceService.prototype, 'applyPlan');
+        const response = await request(securedApp())
+            .post('/api/info/graph/maintenance/plans/gmp_service/apply')
+            .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+            .send({ project_code: 'brainbase', snapshot_hash: 'sha256:before', human_gate_receipt: 'gate_1' });
+
+        expect(response.status).toBe(403);
+        expect(response.body).toEqual({
+            error: 'Graph Apply requires a signed human Bearer principal',
+            code: 'GRAPH_HUMAN_PRINCIPAL_REQUIRED'
+        });
+        expect(authService.verifyServiceToken).toHaveBeenCalledOnce();
+        expect(applyPlan).not.toHaveBeenCalled();
+    });
+
     it('Graph maintenanceのBearer以外のPOSTはCSRF境界で止める', async () => {
         process.env.NODE_ENV = 'production';
         const response = await request(securedApp())
@@ -190,6 +207,46 @@ describe('Graph maintenance REST/MCP contract', () => {
         expect(response.body).toEqual({ error: 'snapshot hash conflict' });
     });
 
+    it('Human Gate scope不一致を安定code・details付き409で返す', async () => {
+        process.env.NODE_ENV = 'production';
+        const error = new Error('Human Gate receipt does not approve this Decision subject operation');
+        error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
+        error.status = 409;
+        error.details = { expected_operation_scope: { target_project_code: 'aitle' } };
+        vi.spyOn(GraphMaintenanceService.prototype, 'planMutations').mockRejectedValue(error);
+
+        const response = await request(securedApp())
+            .post('/api/info/graph/maintenance/plans')
+            .set(bearerHeaders())
+            .send({ project_code: 'brainbase', snapshot_id: 'gms_1', operations: [] });
+
+        expect(response.status).toBe(409);
+        expect(response.body).toEqual({
+            error: error.message,
+            code: 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH',
+            details: error.details
+        });
+    });
+
+    it('不正なHuman Gate evidenceを安定code付き400で返す', async () => {
+        process.env.NODE_ENV = 'production';
+        const error = new Error('evidence must be an object');
+        error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID';
+        error.status = 400;
+        vi.spyOn(GraphMaintenanceService.prototype, 'recordHumanGateReceipt').mockRejectedValue(error);
+
+        const response = await request(securedApp())
+            .post('/api/info/graph/maintenance/human-gate-receipts')
+            .set(bearerHeaders())
+            .send({ project_code: 'brainbase', decision_id: 'decision_1', receipt_id: 'gate_invalid', evidence: null });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual({
+            error: 'evidence must be an object',
+            code: 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID'
+        });
+    });
+
     it('Human Gate receiptの供給経路をBearer human access付きでserviceへ渡す', async () => {
         process.env.NODE_ENV = 'production';
         const responseBody = {
@@ -209,7 +266,9 @@ describe('Graph maintenance REST/MCP contract', () => {
                 project_code: 'brainbase',
                 decision_id: 'decision_1',
                 receipt_id: 'gate_receipt_1',
-                evidence: { reviewer: 'per_graph_owner', approved_at: '2026-08-20T00:00:00.000Z' }
+                evidence: { operation_scope: {
+                    operation: 'retire_entity', decision_id: 'decision_1', decision_expected_version: 2
+                }, source: 'human-review' }
             })
             .expect(201);
 
@@ -225,7 +284,9 @@ describe('Graph maintenance REST/MCP contract', () => {
                 projectCode: 'brainbase',
                 decisionId: 'decision_1',
                 receiptId: 'gate_receipt_1',
-                evidence: { reviewer: 'per_graph_owner', approved_at: '2026-08-20T00:00:00.000Z' }
+                evidence: { operation_scope: {
+                    operation: 'retire_entity', decision_id: 'decision_1', decision_expected_version: 2
+                }, source: 'human-review' }
             }
         );
     });

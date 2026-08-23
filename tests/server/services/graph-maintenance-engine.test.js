@@ -17,6 +17,11 @@ const snapshot = {
 };
 
 describe('Graph maintenance Phase 0 contract', () => {
+    it('external_entitiesを持たないlegacy snapshotのhash互換性を維持する', () => {
+        const legacy = { project_code: 'brainbase', entities: [], edges: [] };
+        expect(hashGraphSnapshot(legacy)).toBe('sha256:dcf222d0c4dfb351d591e4041ca4d56906632ab9d5588813e4107b100048024d');
+    });
+
     it('Snapshot → Dry Run → Patch → Validation → Rollbackで元状態へ戻る', () => {
         const before = structuredClone(snapshot);
         before.hash = hashGraphSnapshot(before);
@@ -245,5 +250,56 @@ describe('Graph maintenance Phase 0 contract', () => {
             project_code: 'brainbase', idempotency_key: 'invalid-membership', reason: 'reject introduced membership mismatch',
             operations: [{ operation: 'move_scope', entity_id: 'decision', expected_version: 1, target_project_code: 'vibepro' }]
         })).toThrow('Graph operations introduced invalid state: membership_scope');
+    });
+
+    it('AC-003 INV-001 source-owned governs edge only', () => {
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [{ id: 'decision', entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 2 }],
+            external_entities: [{ id: 'product_aitle', entity_type: 'product', project_code: 'aitle', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 4 }],
+            edges: []
+        };
+        const operation = {
+            operation: 'link_decision_subject', decision_id: 'decision', decision_expected_version: 2,
+            subject_entity_id: 'product_aitle', subject_expected_version: 4, target_project_code: 'aitle',
+            edge_id: 'edge_subject', expected_version: 0, human_gate_receipt: 'gate_1'
+        };
+        const after = applyGraphOperations(snapshot, [operation], { projectCode: 'brainbase' });
+        expect(after.entities).toEqual(snapshot.entities);
+        expect(after.external_entities).toEqual(snapshot.external_entities);
+        expect(after.edges).toEqual([expect.objectContaining({
+            id: 'edge_subject', from_id: 'decision', to_id: 'product_aitle', rel_type: 'governs',
+            project_code: 'brainbase', role_min: 'ceo', sensitivity: 'restricted', version: 1,
+            payload: { target_project_code: 'aitle', cross_tenant: true }
+        })]);
+        expect(validateGraphSnapshot(after).valid).toBe(true);
+    });
+
+    it('cross-tenant Decision subjectは型、version、Human Gateをfail closedにする', () => {
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [{ id: 'decision', entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 2 }],
+            external_entities: [{ id: 'product_aitle', entity_type: 'product', project_code: 'aitle', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 4 }],
+            edges: []
+        };
+        const operation = {
+            operation: 'link_decision_subject', decision_id: 'decision', decision_expected_version: 2,
+            subject_entity_id: 'product_aitle', subject_expected_version: 4, target_project_code: 'aitle',
+            edge_id: 'edge_subject', expected_version: 0
+        };
+        expect(() => applyGraphOperations(snapshot, [operation], { projectCode: 'brainbase' })).toThrow('human_gate_receipt is required');
+        expect(() => applyGraphOperations(snapshot, [{ ...operation, human_gate_receipt: 'gate_1', subject_expected_version: 3 }], { projectCode: 'brainbase' })).toThrow('expected_version conflict');
+        expect(() => applyGraphOperations(snapshot, [{ ...operation, human_gate_receipt: 'gate_1', target_project_code: 'wrong' }], { projectCode: 'brainbase' })).toThrow('Product target scope mismatch');
+        const wrongType = structuredClone(snapshot);
+        wrongType.external_entities[0].entity_type = 'person';
+        expect(() => applyGraphOperations(wrongType, [{ ...operation, human_gate_receipt: 'gate_1' }], { projectCode: 'brainbase' })).toThrow('active Product subject is required');
+
+        const malformed = structuredClone(snapshot);
+        malformed.edges = [{
+            id: 'edge_malformed', from_id: 'decision', to_id: 'product_aitle', rel_type: 'related_to',
+            project_code: 'brainbase', payload: { target_project_code: 'wrong' }, role_min: 'gm',
+            sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        }];
+        expect(validateGraphSnapshot(malformed).issues).toContainEqual({ category: 'cross_tenant_edge', id: 'edge_malformed' });
     });
 });

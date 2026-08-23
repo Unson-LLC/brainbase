@@ -54,13 +54,213 @@ const accessContext = {
 const expectActiveOntologyGuard = (result) => {
     expect(result).toMatchObject({
         guard_status: 'active_current',
-        ontology_version: '1.0.0'
+        ontology_version: '1.1.0'
     });
 };
 
 describe('InfoSSOTService (Graph SSOT)', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
+    });
+
+    it.each(['fetchGraphEntities', 'fetchGraphEntitiesByIds'])('%sはactiveかつ閲覧可能なmember_ofだけでprojectless Personを公開する', async (method) => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValue({ rows: [] });
+        if (method === 'fetchGraphEntities') {
+            await service[method](client, accessContext, { projectCode: 'brainbase', limit: 10 });
+        } else {
+            await service[method](client, accessContext, { ids: ['per_1'], projectCode: 'brainbase' });
+        }
+        const sql = client.query.mock.calls[0][0];
+        expect(sql).toContain("gx.lifecycle_status = 'active'");
+        expect(sql).toContain('gx.sensitivity = ANY($4)');
+        expect(sql).toContain("CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END");
+        expect(sql).toContain("gy.lifecycle_status = 'active'");
+        expect(sql).toContain('gy.sensitivity = ANY($4)');
+        expect(sql.match(/px\.code = ANY\(\$3\)/g)).toHaveLength(2);
+    });
+
+    it('cross-tenant edge readは両endpointのproject accessをSQLで要求する', async () => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValue({ rows: [] });
+        await service.fetchGraphEdges(client, accessContext, { projectCode: 'brainbase', limit: 10 });
+        const [sql, params] = client.query.mock.calls[0];
+        expect(sql).toContain('endpoint.id=ge.from_id');
+        expect(sql).toContain('endpoint.id=ge.to_id');
+        expect(sql).toContain('endpoint_project.code=ANY($5)');
+        expect(sql).toContain('endpoint.sensitivity=ANY($6)');
+        expect(sql).toContain("endpoint.project_id IS NULL AND endpoint.entity_type='person'");
+        expect(sql).toContain("membership.rel_type='member_of'");
+        expect(sql).toContain('membership_project.code=ANY($5)');
+        expect(sql).toContain("CASE endpoint.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END");
+        expect(sql).toContain("ge.payload->>'target_project_code'=ANY($5)");
+        expect(sql).toContain("ge.rel_type='governs'");
+        expect(sql).toContain("ge.payload->>'cross_tenant'='true'");
+        expect(sql).toContain("ge.role_min='ceo'");
+        expect(sql).toContain("ge.sensitivity='restricted'");
+        expect(sql).toContain('app_graph_entity_organization_id(source_entity.id) IS NOT NULL');
+        expect(sql).toContain('app_graph_entity_organization_id(target_entity.id) IS NOT NULL');
+        expect(sql).toContain('IS NOT DISTINCT FROM app_graph_entity_organization_id(target_entity.id)');
+        expect(sql).not.toContain('source_project.code IS DISTINCT FROM target_project.code');
+        expect(params[4]).toEqual(['brainbase']);
+    });
+
+    it.each([
+        [['brainbase'], 0],
+        [['aitle'], 0],
+        [['brainbase', 'aitle'], 1]
+    ])('cross-tenant edgeはscope=%jのとき許可行列どおり%d件返す', async (projectCodes, expectedCount) => {
+        const edge = { id: 'edge_subject', from_id: 'decision_1', to_id: 'product_aitle', rel_type: 'governs' };
+        const client = { query: vi.fn(async (_sql, params) => ({
+            rows: params[4].includes('brainbase') && params[4].includes('aitle') ? [edge] : []
+        })) };
+        const service = new InfoSSOTService({ pool: {} });
+        const rows = await service.fetchGraphEdges(client, {
+            role: 'ceo', projectCodes, clearance: ['internal', 'restricted']
+        }, { projectCode: projectCodes[0], limit: 10 });
+        expect(rows).toHaveLength(expectedCount);
+        expect(rows).toEqual(expectedCount ? [edge] : []);
+        expect(client.query.mock.calls[0][0].match(/AND EXISTS/g)).toHaveLength(5);
+    });
+
+    it.each([
+        ['gm', 2, 0],
+        ['ceo', 3, 1]
+    ])('cross-tenant governsはrole=%sのときCEO契約どおり%d件返す', async (role, expectedRank, expectedCount) => {
+        const edge = { id: 'edge_subject', from_id: 'decision_1', to_id: 'product_aitle', rel_type: 'governs', role_min: 'ceo' };
+        const client = { query: vi.fn(async (_sql, params) => ({ rows: params[6] >= 3 ? [edge] : [] })) };
+        const service = new InfoSSOTService({ pool: {} });
+        const rows = await service.fetchGraphEdges(client, {
+            role, projectCodes: ['brainbase', 'aitle'], clearance: ['internal', 'restricted']
+        }, { projectCode: 'brainbase', limit: 10 });
+        expect(client.query.mock.calls[0][1][6]).toBe(expectedRank);
+        expect(rows).toHaveLength(expectedCount);
+    });
+
+    it.each([
+        [['decision_1'], []],
+        [['product_aitle'], []],
+        [['decision_1', 'product_aitle'], ['Aitle公開名 -[governs]-> Aitle']]
+    ])('human-readable relationは可視endpoint=%jのときtarget IDを漏らさない', async (visibleIds, expected) => {
+        const entities = {
+            decision_1: { id: 'decision_1', entity_type: 'decision', payload: { title: 'Aitle公開名' } },
+            product_aitle: { id: 'product_aitle', entity_type: 'product', payload: { name: 'Aitle', status: 'active' } }
+        };
+        const client = { query: vi.fn(async () => ({ rows: visibleIds.map(id => entities[id]) })) };
+        const service = new InfoSSOTService({ pool: {} });
+        const lines = await service.summarizeEdges(client, {
+            role: 'ceo', projectCodes: ['brainbase', 'aitle'], clearance: ['internal', 'restricted']
+        }, [{ id: 'edge_subject', from_id: 'decision_1', to_id: 'product_aitle', rel_type: 'governs' }]);
+        expect(lines).toEqual(expected);
+        expect(lines.join('\n')).not.toContain('product_aitle');
+    });
+
+    it.each([
+        ['ceo', ['brainbase', 'aitle'], 1],
+        ['ceo', ['brainbase'], 0],
+        ['gm', ['brainbase', 'aitle'], 0]
+    ])('getContext公開面はrole=%s scope=%jで越境Edgeを%d件返す', async (role, projectCodes, expectedCount) => {
+        const service = new InfoSSOTService({ pool: {} });
+        const edge = { id: 'edge_subject', from_id: 'decision_1', to_id: 'product_aitle', rel_type: 'governs' };
+        service.withAccessContext = async (_access, callback) => callback({ query: vi.fn() });
+        vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([]);
+        vi.spyOn(service, 'fetchGraphEdges').mockImplementation(async (_client, access) => (
+            access.role === 'ceo' && access.projectCodes.includes('brainbase') && access.projectCodes.includes('aitle') ? [edge] : []
+        ));
+        vi.spyOn(service, 'summarizeEdges').mockImplementation(async (_client, _access, edges) => (
+            edges.length ? ['Decision -[governs]-> Aitle'] : []
+        ));
+        const result = await service.getContext({ role, projectCodes, clearance: ['internal', 'restricted'] }, {
+            projectCode: 'brainbase', entityTypes: 'decision', includeEdges: true, humanReadable: true
+        });
+        expect(result.edges).toHaveLength(expectedCount);
+        expect(JSON.stringify(result.report)).not.toContain('product_aitle');
+        expect(result.report.meta.edge_count).toBe(expectedCount);
+        expect(result.report.relations).toEqual(expectedCount ? ['Decision -[governs]-> Aitle'] : []);
+    });
+
+    it.each([
+        ['ceo', ['brainbase', 'aitle'], 1],
+        ['ceo', ['brainbase'], 0],
+        ['gm', ['brainbase', 'aitle'], 0]
+    ])('AI query公開面はrole=%s scope=%jで越境Edgeを%d件返す', async (role, projectCodes, expectedCount) => {
+        const service = new InfoSSOTService({ pool: {} });
+        const client = { query: vi.fn(async () => ({ rows: [] })) };
+        const edge = { id: 'edge_subject', from_id: 'decision_1', to_id: 'product_aitle', rel_type: 'governs' };
+        service.withAccessContext = async (_access, callback) => callback(client);
+        vi.spyOn(service, 'getProjectId').mockResolvedValue('project_brainbase');
+        vi.spyOn(service, 'ensurePerson').mockResolvedValue('person_ai');
+        vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue(undefined);
+        vi.spyOn(service, 'upsertGraphEdge').mockResolvedValue(undefined);
+        vi.spyOn(service, 'fetchGraphEdges').mockImplementation(async (_client, access) => (
+            access.role === 'ceo' && access.projectCodes.includes('brainbase') && access.projectCodes.includes('aitle') ? [edge] : []
+        ));
+        vi.spyOn(service, 'summarizeEdges').mockImplementation(async (_client, _access, edges) => (
+            edges.length ? ['Decision -[governs]-> Aitle'] : []
+        ));
+        const result = await service.createAiQuery({ role, projectCodes, clearance: ['internal', 'restricted'] }, {
+            projectCode: 'brainbase', actorPersonName: 'AI', queryType: 'edges',
+            roleMin: 'member', sensitivity: 'internal', humanReadable: true
+        });
+        expect(result.records).toHaveLength(expectedCount);
+        expect(JSON.stringify(result.summary_lines)).not.toContain('product_aitle');
+    });
+
+    it('Graph展開は両endpointが見えるedgeだけを再帰する', async () => {
+        const client = {
+            query: vi.fn()
+                .mockResolvedValueOnce({ rows: [{ id: 'decision_1' }] })
+                .mockResolvedValueOnce({ rows: [{ id: 'decision_1' }] })
+                .mockResolvedValueOnce({ rows: [] })
+                .mockResolvedValueOnce({ rows: [{ id: 'decision_1' }] })
+        };
+        const service = new InfoSSOTService({ pool: {} });
+        service.withAccessContext = async (_access, callback) => callback(client);
+        await service.expandGraph({
+            organizationId: 'org_1', projectCodes: ['brainbase'], clearance: ['internal'], role: 'ceo'
+        }, { projectCode: 'brainbase', seedId: 'decision_1' });
+        const recursiveSql = client.query.mock.calls[1][0];
+        expect(recursiveSql).toContain("ge.payload->>'target_project_code'=ANY($3)");
+        expect(recursiveSql).toContain('COUNT(DISTINCT endpoint.id)');
+        expect(recursiveSql).toContain('endpoint_project.code=ANY($3)');
+        expect(recursiveSql).toContain('endpoint.sensitivity=ANY($4)');
+        expect(recursiveSql).toContain("endpoint.project_id IS NULL AND endpoint.entity_type='person'");
+        expect(recursiveSql).toContain("membership.rel_type='member_of'");
+        expect(service.fetchGraphEntitiesByIds).toBeDefined();
+    });
+
+    it('通常Edge APIは別project endpointへの書込みを保守APIへ限定する', async () => {
+        const service = new InfoSSOTService({ pool: {} });
+        const client = { query: vi.fn(async () => ({ rows: [
+            { id: 'decision_1', project_id: 'project_brainbase' },
+            { id: 'product_aitle', project_id: 'project_aitle' }
+        ] })) };
+        service.withAccessContext = async (_access, callback) => callback(client);
+        service.ensureProject = vi.fn().mockResolvedValue('project_brainbase');
+        vi.spyOn(service, 'validateGraphMutation').mockResolvedValue(undefined);
+        await expect(service.createOrUpdateGraphEdge({
+            role: 'ceo', projectCodes: ['brainbase', 'aitle'], clearance: ['internal', 'restricted']
+        }, {
+            fromId: 'decision_1', toId: 'product_aitle', relType: 'governs', projectCode: 'brainbase',
+            roleMin: 'ceo', sensitivity: 'restricted'
+        })).rejects.toMatchObject({ code: 'GRAPH_CROSS_PROJECT_WRITE_REQUIRES_MAINTENANCE', status: 409 });
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_edges'))).toBe(false);
+    });
+
+    it('human-readable summaryはprojectless Personをactive member_of経由で解決する', async () => {
+        const service = new InfoSSOTService({ pool: {} });
+        const client = { query: vi.fn(async () => ({ rows: [
+            { id: 'person_1', entity_type: 'person', payload: { name: '佐藤' } },
+            { id: 'decision_1', entity_type: 'decision', payload: { title: '判断' } }
+        ] })) };
+        const lines = await service.summarizeEdges(client, {
+            role: 'ceo', projectCodes: ['brainbase'], clearance: ['internal']
+        }, [{ from_id: 'person_1', to_id: 'decision_1', rel_type: 'decided' }]);
+        expect(lines).toEqual(['佐藤 -[decided]-> 判断']);
+        const sql = client.query.mock.calls[0][0];
+        expect(sql).toContain('LEFT JOIN projects');
+        expect(sql).toContain("ge.project_id IS NULL AND ge.entity_type='person'");
+        expect(sql).toContain("membership.rel_type='member_of'");
     });
 
     it('active ontology permits updating an app whose required owner relation already exists', async () => {
@@ -755,7 +955,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             org: 'ユニバーサルアーツ',
             role: '事務',
             guard_status: 'active_current',
-            ontology_version: '1.0.0'
+            ontology_version: '1.1.0'
         });
     });
 
