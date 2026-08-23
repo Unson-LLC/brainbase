@@ -174,4 +174,15 @@ describe('P0 planning and source-lock alignment', () => {
       expect(drifted).not.toEqual(contract.vibepro_verification);
     }
   });
+
+  it('keeps the public verification command on the descriptor-locked outer runner', async () => {
+    const contract = await readJson('contracts/p0-negative-boundary-contract-v1/locked-runner.json');
+    const publicSpec = await readFile('docs/specs/p0-negative-boundary-contract-v1.md', 'utf8');
+    const expectedCommand = `\`${contract.vibepro_verification.argv.join(' ')}\``;
+    const verificationSection = publicSpec.split('## 検証')[1];
+
+    expect(verificationSection).toBeDefined();
+    expect(verificationSection.trim()).toBe(expectedCommand);
+    expect(verificationSection).not.toContain('npm run test:run');
+  });
 });

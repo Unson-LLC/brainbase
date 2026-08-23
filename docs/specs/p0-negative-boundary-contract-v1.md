@@ -33,4 +33,4 @@ AC-001..AC-009は`.vibepro/spec/story-p0-negative-boundary-contract-v1/spec.json
 
 ## 検証
 
-`npm run test:run -- tests/contracts/p0-negative-boundary-contract-v1/contract.test.js tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js`
+`node --test tests/contracts/p0-negative-boundary-contract-v1/locked-runner.test.mjs`
