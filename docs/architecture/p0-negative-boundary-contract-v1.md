@@ -1,0 +1,21 @@
+# P0 negative boundary contract v1 Architecture
+
+## 判断
+
+契約を `source-lock → JSON Schema → synthetic fixture inventory → reference validator → focused test` の一方向にする。validatorはmanifest記載ファイルのbytesを相対pathとNULで束縛してSHA-256を再計算し、live A0 source-lockとも照合する。missing、unknown、partial、not_collectedのcontract evidenceはpassにしない。
+
+## 信頼境界
+
+```text
+Personal body（非公開）
+  └─ normalized payload + irreversible evidence digest
+       ├─ owner consent authority (personal_read/read/personal://...)
+       └─ distinct organization acceptance authority (company_write/write/company://...)
+            └─ future organization write（このsliceでは実行しない）
+```
+
+両stageは別actor、別signed contextで、同じpayload hashとcorrelation/operation/idempotencyを束縛する。A0のcapability/effect/resource、decision actor、revision、expiry、integrity、Slack provider、`mana-runtime` audience、全cross-layer bindingのいずれか一項でも不一致なら、8 effect counterを0のままdenyする。
+
+## 証拠境界
+
+fixtureはsynthetic dataのみ。schema/fixture/source-lockの検証はcontract evidenceであり、runtimeまたはproduction proofではない。statusは`contract_ready`を上限とする。

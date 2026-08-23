@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brainbase.unson.jp/contracts/p0-negative-boundary-contract-v1/negative-case.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_id", "synthetic_data_only", "inventory", "negative_cases", "evidence_state"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "contract_id": { "const": "p0-negative-boundary-contract-v1" },
+    "synthetic_data_only": { "const": true },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenants", "persons", "required_case_ids", "effect_counters"],
+      "properties": {
+        "tenants": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "type": "string", "pattern": "^synthetic-tenant-" } },
+        "persons": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "type": "string", "pattern": "^synthetic-person-" } },
+        "required_case_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^NEG-" } },
+        "effect_counters": {
+          "const": ["database", "organization_event", "graph", "search", "llm", "credential", "external", "deploy"]
+        }
+      }
+    },
+    "negative_cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "category", "mutation", "expected"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^NEG-[A-Z0-9-]+$" },
+          "category": { "type": "string", "minLength": 1 },
+          "mutation": { "type": "string", "minLength": 1 },
+          "source_tenant": { "type": "string", "pattern": "^synthetic-tenant-" },
+          "target_tenant": { "type": "string", "pattern": "^synthetic-tenant-" },
+          "source_person": { "type": "string", "pattern": "^synthetic-person-" },
+          "target_person": { "type": "string", "pattern": "^synthetic-person-" },
+          "expected": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["decision", "effects"],
+            "properties": {
+              "decision": { "const": "deny" },
+              "effects": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["database", "organization_event", "graph", "search", "llm", "credential", "external", "deploy"],
+                "properties": {
+                  "database": { "const": 0 }, "organization_event": { "const": 0 }, "graph": { "const": 0 }, "search": { "const": 0 },
+                  "llm": { "const": 0 }, "credential": { "const": 0 }, "external": { "const": 0 }, "deploy": { "const": 0 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "evidence_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "runtime", "production"],
+      "properties": {
+        "contract": { "const": "collected" },
+        "runtime": { "const": "not_collected" },
+        "production": { "const": "not_collected" }
+      }
+    }
+  }
+}

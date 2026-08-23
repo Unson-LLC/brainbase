@@ -1,0 +1,23 @@
+{
+  "task_id": "story-p0-negative-boundary-contract-v1",
+  "program_id": "brainbase-program-master-roadmap-v1",
+  "work_package": "P0",
+  "status": "contract_ready",
+  "done": false,
+  "primary_repository": "Unson-LLC/brainbase-unson",
+  "dependencies": {"hard":["A0"],"contract":["J0"]},
+  "deliverables": [
+    "docs/management/stories/active/story-p0-negative-boundary-contract-v1.md",
+    "docs/architecture/p0-negative-boundary-contract-v1.md",
+    "docs/specs/p0-negative-boundary-contract-v1.md",
+    "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+    "contracts/p0-negative-boundary-contract-v1/schema/negative-case.schema.json",
+    "contracts/p0-negative-boundary-contract-v1/fixtures/cases.json",
+    "contracts/p0-negative-boundary-contract-v1/reference/validate.mjs",
+    "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+    "tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js"
+  ],
+  "production_evidence": "not_collected",
+  "runtime_evidence": "not_collected",
+  "forbidden_claims": ["verified","production_proven","release_ready","done"]
+}

@@ -1,0 +1,14 @@
+{
+  "story_id": "story-p0-negative-boundary-contract-v1",
+  "spec_status": "accepted_for_contract_preparation",
+  "implementation_status": "contract_ready",
+  "runtime_evidence": "not_collected",
+  "production_evidence": "not_collected",
+  "done": false,
+  "source_lock": "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+  "manifest": "contracts/p0-negative-boundary-contract-v1/manifest.json",
+  "tests": [
+    "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+    "tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js"
+  ]
+}

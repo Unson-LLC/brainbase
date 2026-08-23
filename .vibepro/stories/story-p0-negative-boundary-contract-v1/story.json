@@ -1,0 +1,9 @@
+{
+  "story_id": "story-p0-negative-boundary-contract-v1",
+  "title": "P0 negative boundary contract v1",
+  "status": "contract_ready",
+  "architecture": "docs/architecture/p0-negative-boundary-contract-v1.md",
+  "spec": "docs/specs/p0-negative-boundary-contract-v1.md",
+  "task": "docs/management/tasks/p0-negative-boundary-contract-v1.json",
+  "production_evidence": "not_collected"
+}

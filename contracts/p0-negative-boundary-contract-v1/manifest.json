@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "contract_id": "p0-negative-boundary-contract-v1",
+  "contract_status": "contract_ready",
+  "fixture_files": [
+    "fixtures/cases.json",
+    "schema/negative-case.schema.json"
+  ],
+  "fixture_set_sha256": "a14a810a8d3609687dd1af9d83d35858591ed33dea2a1208278f47ebdb11e4c6",
+  "hash_algorithm": "sha256(relative_path + NUL + file_bytes)",
+  "synthetic_data_only": true,
+  "production_evidence": "not_collected"
+}

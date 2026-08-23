@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "contract_id": "p0-negative-boundary-contract-v1",
+  "contract_version": "1.0.0",
+  "status": "contract_ready",
+  "upstream": {
+    "repository": "Unson-LLC/brainbase-unson",
+    "merged_sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
+    "source_lock_path": "contracts/mana-brainbase-company-authority/v1/source-lock.json",
+    "contract_id": "mana-brainbase-company-authority/v1",
+    "contract_version": "1.0.0",
+    "fixture_set_sha256": "1d7af5b850abeb10e07db281c17341636d80a74cb37679b2c2b6ab5ce9b0a6ea",
+    "lock_status": "producer_contract_ready"
+  },
+  "fixture_set_sha256": "a14a810a8d3609687dd1af9d83d35858591ed33dea2a1208278f47ebdb11e4c6",
+  "schema_sha256": "9fcd114da14e98c876b8e85211d694377a728e54a2be66abb2a99c8b8e5b7096",
+  "scope": {
+    "program_id": "brainbase-program-master-roadmap-v1",
+    "work_package": "P0",
+    "primary_repository": "Unson-LLC/brainbase-unson",
+    "hard_dependency": "A0",
+    "contract_dependency": "J0"
+  },
+  "evidence_state": {"contract":"collected","runtime":"not_collected","production":"not_collected"}
+}
