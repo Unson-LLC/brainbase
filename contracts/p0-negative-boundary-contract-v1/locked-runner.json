@@ -2,6 +2,19 @@
   "schema_version": "1.0.0",
   "package_lock_sha256": "98fce66763893ab78560c9ed0d576a18eafb135b920955d95500281955def44d",
   "network_acquisition": false,
+  "install_root_input": {
+    "environment_variable": "P0_LOCK_INSTALL_ROOT",
+    "authority": "vibepro_verification_input",
+    "required": true,
+    "fail_closed_when_missing": true,
+    "validation": [
+      "realpath",
+      "package-lock-sha256",
+      "vitest-version-integrity-and-content-digest",
+      "ajv-version-integrity-and-content-digest",
+      "reject-cache-or-temporary-root"
+    ]
+  },
   "vibepro_verification": {
     "argv": [
       "node",

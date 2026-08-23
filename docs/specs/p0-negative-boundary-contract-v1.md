@@ -9,6 +9,9 @@
 - validator: `contracts/p0-negative-boundary-contract-v1/reference/validate.mjs`
 - A0 semantic binding: `contracts/p0-negative-boundary-contract-v1/a0-semantic-binding.json`
 - tenant-person inventory: `contracts/p0-negative-boundary-contract-v1/tenant-person-inventory.json`
+- locked runner descriptor: `contracts/p0-negative-boundary-contract-v1/locked-runner.json`
+- locked runner outer contract test: `tests/contracts/p0-negative-boundary-contract-v1/locked-runner.test.mjs`
+- locked Vitest executor: `tests/contracts/p0-negative-boundary-contract-v1/run-locked-vitest.mjs`
 
 ## 不変条件
 
@@ -33,4 +36,6 @@ AC-001..AC-009は`.vibepro/spec/story-p0-negative-boundary-contract-v1/spec.json
 
 ## 検証
 
-`node --test tests/contracts/p0-negative-boundary-contract-v1/locked-runner.test.mjs`
+これはVibePro verification専用経路である。`P0_LOCK_INSTALL_ROOT`は、既にlock準拠でinstall済みのcheckout rootをVibePro verification入力として渡す必須値であり、任意のcache/temp pathやagent observationではない。runnerはそのrealpath、`package-lock.json` digest、Vitest/AJVのversion・integrity・content digestを`locked-runner.json`と照合し、不一致・欠落をfail closedにする。AJV一時linkは通常終了・signal終了のどちらでも削除してから終了する。network acquisitionは行わない。
+
+`P0_LOCK_INSTALL_ROOT="${P0_LOCK_INSTALL_ROOT:?VibePro verification must provide a lock-installed checkout root}" node --test tests/contracts/p0-negative-boundary-contract-v1/locked-runner.test.mjs`

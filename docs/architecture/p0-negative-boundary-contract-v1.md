@@ -22,6 +22,8 @@ A0 semantic bindingはproducerのobserved request schema、canonical context sch
 
 fixtureはsynthetic dataのみ。schema/fixture/source-lockの検証はcontract evidenceであり、runtimeまたはproduction proofではない。statusは`contract_ready`を上限とする。
 
+locked runnerはVibePro verification入力 `P0_LOCK_INSTALL_ROOT` を唯一のinstall-root authorityとする。`locked-runner.json`がpackage lock、Vitest/AJVのversion・integrity・content digest、network acquisition禁止、content binding対象を固定し、`run-locked-vitest.mjs`がrealpathとcache/temp外を検証してAJV一時linkを作成・通常終了またはsignal終了前に削除する。`locked-runner.test.mjs`は公開VibePro専用経路、metadata、content binding、cleanupをouter testとして検証する。入力欠落・lock不一致・realpath逸脱・cleanup不成立は成功へ丸めない。
+
 ## マルチテナント境界
 
 - tenant identity: `request.source_tenant`をcanonical keyとし、署名済みSlack→mana-runtime contextからvalidator前に解決する。

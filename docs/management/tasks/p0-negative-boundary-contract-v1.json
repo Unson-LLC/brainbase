@@ -19,6 +19,9 @@
     "contracts/p0-negative-boundary-contract-v1/reference/generate-fixtures.mjs",
     "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
     "tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js"
+    ,"contracts/p0-negative-boundary-contract-v1/locked-runner.json"
+    ,"tests/contracts/p0-negative-boundary-contract-v1/locked-runner.test.mjs"
+    ,"tests/contracts/p0-negative-boundary-contract-v1/run-locked-vitest.mjs"
   ],
   "production_evidence": "not_collected",
   "runtime_evidence": "not_collected",

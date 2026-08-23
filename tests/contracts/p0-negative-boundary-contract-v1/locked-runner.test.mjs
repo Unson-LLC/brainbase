@@ -23,6 +23,19 @@ const expectedTargets = [
 test('locks the VibePro argv, computed receipt prefixes and complete content surface', async () => {
   const contract = JSON.parse(await readFile(descriptorPath, 'utf8'));
   assert.deepEqual(contract.vibepro_verification.argv, expectedArgv);
+  assert.deepEqual(contract.install_root_input, {
+    environment_variable: 'P0_LOCK_INSTALL_ROOT',
+    authority: 'vibepro_verification_input',
+    required: true,
+    fail_closed_when_missing: true,
+    validation: [
+      'realpath',
+      'package-lock-sha256',
+      'vitest-version-integrity-and-content-digest',
+      'ajv-version-integrity-and-content-digest',
+      'reject-cache-or-temporary-root'
+    ]
+  });
   assert.equal(contract.vibepro_verification.metadata_prefix, 'P0_LOCKED_RUNNER_METADATA=');
   assert.equal(contract.vibepro_verification.cleanup_prefix, 'P0_LOCKED_RUNNER_CLEANUP=');
   assert.deepEqual(contract.vibepro_verification.content_binding_targets, expectedTargets);
@@ -30,7 +43,8 @@ test('locks the VibePro argv, computed receipt prefixes and complete content sur
   for (const mutate of [
     value => { value.vibepro_verification.argv = ['npm', 'run', 'test:run']; },
     value => { value.vibepro_verification.metadata_prefix = 'AGENT_OBSERVATION='; },
-    value => { value.vibepro_verification.content_binding_targets.pop(); }
+    value => { value.vibepro_verification.content_binding_targets.pop(); },
+    value => { value.install_root_input.authority = 'agent_observation'; }
   ]) {
     const drifted = structuredClone(contract);
     mutate(drifted);
@@ -38,6 +52,7 @@ test('locks the VibePro argv, computed receipt prefixes and complete content sur
       assert.deepEqual(drifted.vibepro_verification.argv, expectedArgv);
       assert.equal(drifted.vibepro_verification.metadata_prefix, 'P0_LOCKED_RUNNER_METADATA=');
       assert.deepEqual(drifted.vibepro_verification.content_binding_targets, expectedTargets);
+      assert.equal(drifted.install_root_input.authority, 'vibepro_verification_input');
     });
   }
 });

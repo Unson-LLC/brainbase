@@ -182,7 +182,12 @@ describe('P0 planning and source-lock alignment', () => {
     const verificationSection = publicSpec.split('## 検証')[1];
 
     expect(verificationSection).toBeDefined();
-    expect(verificationSection.trim()).toBe(expectedCommand);
+    expect(verificationSection).toContain('VibePro verification専用経路');
+    expect(verificationSection).toContain('P0_LOCK_INSTALL_ROOT');
+    expect(verificationSection).toContain('fail closed');
+    expect(verificationSection).toContain('network acquisitionは行わない');
+    expect(verificationSection).toContain(expectedCommand.slice(1, -1));
+    expect(verificationSection).toContain('${P0_LOCK_INSTALL_ROOT:?');
     expect(verificationSection).not.toContain('npm run test:run');
   });
 });
