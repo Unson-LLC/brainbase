@@ -106,7 +106,7 @@ describe('P0 planning and source-lock alignment', () => {
   });
 
   it('rejects npx, cache, temp and package-lock drift before the focused runner starts', async () => {
-    const contract = await readJson('.vibepro/spec/story-p0-negative-boundary-contract-v1/locked-runner.json');
+    const contract = await readJson('contracts/p0-negative-boundary-contract-v1/locked-runner.json');
     const canonical = {
       command: ['/usr/bin/node', '/repo/node_modules/vitest/vitest.mjs', 'run'],
       install_root: '/repo',
@@ -144,6 +144,34 @@ describe('P0 planning and source-lock alignment', () => {
       const drifted = structuredClone(canonical);
       mutate(drifted);
       expect(() => assertLockedRunnerDescriptor(drifted)).toThrow();
+    }
+  });
+
+  it('rejects VibePro command bypass, non-authoritative metadata and incomplete content binding', async () => {
+    const contract = await readJson('contracts/p0-negative-boundary-contract-v1/locked-runner.json');
+    const expectedArgv = ['node', '--test', 'tests/contracts/p0-negative-boundary-contract-v1/locked-runner.test.mjs'];
+    const expectedTargets = [
+      'tests/contracts/p0-negative-boundary-contract-v1/contract.test.js',
+      'tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js',
+      'tests/contracts/p0-negative-boundary-contract-v1/locked-runner.test.mjs',
+      'tests/contracts/p0-negative-boundary-contract-v1/run-locked-vitest.mjs',
+      'contracts/p0-negative-boundary-contract-v1/locked-runner.json'
+    ];
+    expect(contract.vibepro_verification).toEqual({
+      argv: expectedArgv,
+      metadata_prefix: 'P0_LOCKED_RUNNER_METADATA=',
+      cleanup_prefix: 'P0_LOCKED_RUNNER_CLEANUP=',
+      content_binding_targets: expectedTargets
+    });
+    for (const mutate of [
+      value => { value.argv = ['npm', 'run', 'test:run']; },
+      value => { value.metadata_prefix = 'AGENT_OBSERVATION='; },
+      value => { value.content_binding_targets = value.content_binding_targets.filter(path => !path.endsWith('locked-runner.json')); },
+      value => { value.content_binding_targets = value.content_binding_targets.filter(path => !path.endsWith('run-locked-vitest.mjs')); }
+    ]) {
+      const drifted = structuredClone(contract.vibepro_verification);
+      mutate(drifted);
+      expect(drifted).not.toEqual(contract.vibepro_verification);
     }
   });
 });

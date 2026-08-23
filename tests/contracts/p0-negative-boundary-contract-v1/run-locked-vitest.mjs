@@ -2,11 +2,12 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, realpath, rm, symlink } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
+import { constants } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const runnerDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(runnerDir, '../../..');
-const contractPath = resolve(repoRoot, '.vibepro/spec/story-p0-negative-boundary-contract-v1/locked-runner.json');
+const contractPath = resolve(repoRoot, 'contracts/p0-negative-boundary-contract-v1/locked-runner.json');
 
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const readJson = async path => JSON.parse(await readFile(path, 'utf8'));
@@ -59,6 +60,46 @@ export const assertLockedRunnerDescriptor = descriptor => {
   return descriptor;
 };
 
+export const exitCodeForSignal = signal => 128 + (constants.signals[signal] ?? 1);
+
+export const finalizeRunnerResult = async (result, cleanup, applyExitCode) => {
+  await cleanup();
+  const exitCode = result.signal ? exitCodeForSignal(result.signal) : (result.code ?? 1);
+  applyExitCode(exitCode);
+  return exitCode;
+};
+
+const bindForwardedSignals = (processRef = process) => {
+  let pendingSignal = null;
+  let child = null;
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+  const handlers = new Map(signals.map(signal => [signal, () => {
+    pendingSignal ??= signal;
+    if (child && child.exitCode === null && child.signalCode === null) child.kill(signal);
+  }]));
+  const dispose = () => {
+    for (const [signal, handler] of handlers) processRef.off(signal, handler);
+  };
+  for (const [signal, handler] of handlers) processRef.on(signal, handler);
+  return {
+    attach(nextChild) {
+      child = nextChild;
+      if (pendingSignal && child.exitCode === null && child.signalCode === null) child.kill(pendingSignal);
+    },
+    dispose,
+    get pendingSignal() { return pendingSignal; }
+  };
+};
+
+const waitForChild = (child, signals) => new Promise((fulfil, rejectSpawn) => {
+  child.once('error', error => {
+    rejectSpawn(error);
+  });
+  child.once('exit', (code, signal) => {
+    fulfil({ code, signal: signal ?? signals.pendingSignal });
+  });
+});
+
 export const resolveLockedRunner = async installRootInput => {
   if (!installRootInput) throw new Error('runner-lock: P0_LOCK_INSTALL_ROOT is required');
   const installRoot = await realpath(resolve(installRootInput));
@@ -102,9 +143,10 @@ export const resolveLockedRunner = async installRootInput => {
   });
 };
 
-const run = async () => {
-  const descriptor = await resolveLockedRunner(process.env.P0_LOCK_INSTALL_ROOT);
-  process.stdout.write(`P0_LOCKED_RUNNER_METADATA=${JSON.stringify(descriptor)}\n`);
+export const run = async ({ installRoot = process.env.P0_LOCK_INSTALL_ROOT } = {}) => {
+  const signals = bindForwardedSignals();
+  const descriptor = await resolveLockedRunner(installRoot);
+  process.stdout.write(`P0_LOCKED_RUNNER_METADATA=${JSON.stringify({ authority: 'runner_computed', ...descriptor })}\n`);
   const localNodeModules = resolve(repoRoot, 'node_modules');
   const localAjv = resolve(localNodeModules, 'ajv');
   try {
@@ -115,9 +157,9 @@ const run = async () => {
   }
   await mkdir(localNodeModules, { recursive: true });
   await symlink(resolve(descriptor.install_root, 'node_modules/ajv'), localAjv, 'dir');
+  let result = { code: 1, signal: null };
   try {
-    const result = await new Promise((fulfil, rejectSpawn) => {
-      const child = spawn(process.execPath, [
+    const child = spawn(process.execPath, [
         descriptor.runner_path,
         'run',
         '--config',
@@ -134,18 +176,25 @@ const run = async () => {
         },
         stdio: 'inherit'
       });
-      child.once('error', rejectSpawn);
-      child.once('exit', (code, signal) => fulfil({ code, signal }));
-    });
-    if (result.signal) process.kill(process.pid, result.signal);
-    if (result.code !== 0) process.exitCode = result.code ?? 1;
+    signals.attach(child);
+    result = await waitForChild(child, signals);
   } finally {
     await rm(localAjv);
+    try {
+      await lstat(localAjv);
+      reject('temporary AJV link still exists after cleanup');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    process.stdout.write(`P0_LOCKED_RUNNER_CLEANUP=${JSON.stringify({ authority: 'runner_computed', ajv_link_absent: true, network_acquisition: false })}\n`);
+    signals.dispose();
   }
+  result.signal ??= signals.pendingSignal;
+  return result;
 };
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  run().catch(error => {
+  run().then(result => finalizeRunnerResult(result, async () => {}, code => { process.exitCode = code; })).catch(error => {
     process.stderr.write(`${error.message}\n`);
     process.exit(1);
   });
