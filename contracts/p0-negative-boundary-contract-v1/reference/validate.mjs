@@ -19,9 +19,9 @@ const A0_FIELD_CONTRACT = [
   {id:'provider_observed',p0_path:'/provider',a0_schema:'observed_request',a0_path:'/provider_identity/provider',a0_fixture_path:'/positive/0/request/provider_identity/provider',type:'string',relation:'exact',p0_value:'slack',a0_value:'slack'},
   {id:'provider_context',p0_path:'/provider',a0_schema:'canonical_context',a0_path:'/tenant_context/workspace_connection/provider',a0_fixture_path:'/positive/0/context/tenant_context/workspace_connection/provider',type:'string',relation:'exact',p0_value:'slack',a0_value:'slack'},
   {id:'audience_context',p0_path:'/audience',a0_schema:'canonical_context',a0_path:'/tenant_context/audience',a0_fixture_path:'/positive/0/context/tenant_context/audience',type:'array',relation:'contains',p0_value:'mana-runtime',a0_value:['mana-runtime']},
-  {id:'capability',p0_path:'/request/capability_id',a0_schema:'observed_request',a0_path:'/requested_action/capability_id',a0_fixture_path:'/positive/0/request/requested_action/capability_id',type:'string',relation:'p0_specialization',p0_value:'personal_to_organization.promote',a0_value:'company_read'},
-  {id:'resource',p0_path:'/request/resource_ref',a0_schema:'observed_request',a0_path:'/requested_action/resource_ref',a0_fixture_path:'/positive/0/request/requested_action/resource_ref',type:'string',relation:'p0_specialization',p0_value:'synthetic-personal-record-a',a0_value:'company://tenant-a/project-a/read'},
-  {id:'effect',p0_path:'/request/desired_effect',a0_schema:'observed_request',a0_path:'/requested_action/desired_effect',a0_fixture_path:'/positive/0/request/requested_action/desired_effect',type:'string',relation:'p0_effect_alias',p0_value:'organization_event',a0_value:'read'},
+  {id:'capability',p0_path:'/request/capability_id',a0_schema:'observed_request',a0_path:'/requested_action/capability_id',a0_fixture_path:'/positive/0/request/requested_action/capability_id',type:'string',relation:'observed_ingress_context_only',p0_value:'personal_to_organization.promote',a0_value:'company_read'},
+  {id:'resource',p0_path:'/request/resource_ref',a0_schema:'observed_request',a0_path:'/requested_action/resource_ref',a0_fixture_path:'/positive/0/request/requested_action/resource_ref',type:'string',relation:'observed_ingress_context_only',p0_value:'synthetic-personal-record-a',a0_value:'company://tenant-a/project-a/read'},
+  {id:'effect',p0_path:'/request/desired_effect',a0_schema:'observed_request',a0_path:'/requested_action/desired_effect',a0_fixture_path:'/positive/0/request/requested_action/desired_effect',type:'string',relation:'observed_ingress_context_only',p0_value:'organization_event',a0_value:'read'},
   {id:'request_subject',p0_path:'/bindings/request_subject',a0_schema:'observed_request',a0_path:'/provider_identity/authenticated_subject_id',a0_fixture_path:'/positive/0/request/provider_identity/authenticated_subject_id',type:'string',relation:'synthetic_alias',p0_value:'U-SYNTH-A',a0_value:'person-sato'},
   {id:'request_workspace',p0_path:'/bindings/request_workspace',a0_schema:'observed_request',a0_path:'/provider_identity/workspace_id',a0_fixture_path:'/positive/0/request/provider_identity/workspace_id',type:'string',relation:'synthetic_alias',p0_value:'W-SYNTH-A',a0_value:'workspace-tenant-a'},
   {id:'request_app',p0_path:'/bindings/request_app',a0_schema:'observed_request',a0_path:'/provider_identity/app_id',a0_fixture_path:'/positive/0/request/provider_identity/app_id',type:'string',relation:'synthetic_alias',p0_value:'A-SYNTH-A',a0_value:'synthetic-app'},
@@ -43,6 +43,14 @@ const CROSS_LAYER_CONTRACT = [
   {id:'thread',p0_left:'/bindings/request_thread',p0_right:'/bindings/context_thread',a0_left:'/request/delivery/thread_ts',a0_right:'/context/tenant_context/slack/thread_ts'},
   {id:'event',p0_left:'/bindings/request_event',p0_right:'/bindings/context_event',a0_left:'/request/delivery/event_id',a0_right:'/context/tenant_context/slack/event_id'}
 ];
+const ORGANIZATION_WRITE_AUTHORITY_GAP = {
+  status: 'contract_gap',
+  evidence_state: 'not_collected',
+  authoritative_source: null,
+  a0_mapping: null,
+  observed_a0_read_tuple_role: 'ingress_source_context_only',
+  missing_authority_behavior: 'deny_all_effects'
+};
 const schemaNode = (schema, pointer) => {
   let node = schema;
   for (const key of pointer.slice(1).split('/')) {
@@ -137,6 +145,9 @@ export async function validateBundle(root, { casesOverride, semanticBindingOverr
     if (JSON.stringify(pointerValue(cases.canonical_baseline, p0Path)) !== JSON.stringify(mapping.p0_value)) errors.push(`a0-binding:p0-value:${index}`);
   }
   if (mappings.length !== A0_FIELD_CONTRACT.length) errors.push('a0-binding:mapping-count');
+  if (JSON.stringify(semanticBinding.organization_acceptance_write_authority) !== JSON.stringify(ORGANIZATION_WRITE_AUTHORITY_GAP)) {
+    errors.push('a0-binding:organization-write-authority-gap');
+  }
   const crossBindings = semanticBinding.cross_layer_bindings ?? [];
   for (let index = 0; index < CROSS_LAYER_CONTRACT.length; index++) {
     const binding = crossBindings[index];

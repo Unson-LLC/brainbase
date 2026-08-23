@@ -96,7 +96,8 @@
       ]
     },
     "verification": {
-      "scanner_coverage": "verified",
+      "scanner_coverage": "not_collected",
+      "scope": "Contract-only verification covers synthetic schema, fixtures, source-lock, semantic mapping, and reference validator behavior. Runtime scanners, live connections, state partitioning, sandbox isolation, deployment topology, customer data, and production readback are not collected.",
       "evidence": {
         "evidence_scope": "contract_preparation_only_runtime_and_production_not_collected",
         "propagation_surfaces": [
@@ -116,18 +117,6 @@
           "tenant_a_to_b",
           "tenant_b_to_a"
         ],
-        "scanner_results": {
-          "tenant_boundary": "pass",
-          "tenant_key_propagation": "pass",
-          "cross_tenant_authorization": "pass",
-          "state_partitioning": "pass",
-          "sandbox_isolation": "pass",
-          "connection_routing": "pass",
-          "secret_scope": "pass",
-          "canonical_data_owner": "pass",
-          "deployment_topology": "pass",
-          "cross_tenant_negative_evidence": "pass"
-        },
         "graph": {
           "tenant_key": "source_tenant",
           "sharing_modes": [
@@ -156,15 +145,6 @@
           ]
         },
         "spec": {
-          "tenant_key": "source_tenant",
-          "sharing_modes": [
-            "tenant_partitioned"
-          ],
-          "deployment_modes": [
-            "managed_shared"
-          ]
-        },
-        "implementation": {
           "tenant_key": "source_tenant",
           "sharing_modes": [
             "tenant_partitioned"
@@ -286,7 +266,7 @@
     {
       "id": "C-004",
       "type": "invariant",
-      "statement": "authority、ingress、receipt、12 cross-layer bindingを一項ずつfail closedにする。",
+      "statement": "authority、ingress、receipt、12 cross-layer bindingを一項ずつfail closedにする。A0 read tupleはingress文脈に限定し、positive write authorityの正本欠落をcontract_gap・not_collectedとしてdenyする。",
       "origin": {
         "story_refs": [
           {
@@ -304,6 +284,10 @@
           {
             "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
             "case": "maps AC-004 to authority ingress receipt and cross-layer invariants"
+          },
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "case": "treats the A0 read tuple as ingress context only and keeps positive write authority uncollected and fail closed"
           }
         ]
       },
@@ -408,7 +392,7 @@
     {
       "id": "C-008",
       "type": "test",
-      "statement": "GREENに加え、mutation path/before/after/invariant、A0 schema path/type、authoritative source digest、fixture path、relation、A0/P0 value、cross-layerのP0/A0左右pathの破壊をRED sensitivityで検出する。",
+      "statement": "GREENに加え、mutation path/before/after/invariant、A0 schema path/type、authoritative source digest、fixture path、relation、A0/P0 value、cross-layerのP0/A0左右path、positive write authority gapの破壊をRED sensitivityで検出する。",
       "origin": {
         "story_refs": [
           {
@@ -437,6 +421,10 @@
           {
             "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
             "case": "RED sensitivity: an equivalent alternate cross-layer tuple is rejected by the exact catalog"
+          },
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "case": "RED sensitivity: inventing or resolving positive write authority without an A0 source is rejected"
           },
           {
             "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",

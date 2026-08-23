@@ -36,6 +36,40 @@ describe('P0 negative boundary contract v1', () => {
     expect(result.errors.filter(error => error.startsWith('a0-binding:'))).toEqual([]);
   });
 
+  it('treats the A0 read tuple as ingress context only and keeps positive write authority uncollected and fail closed', async () => {
+    const semanticBinding = await readJson('a0-semantic-binding.json');
+    expect(semanticBinding.field_mappings.slice(3, 6).map(mapping => mapping.relation)).toEqual([
+      'observed_ingress_context_only',
+      'observed_ingress_context_only',
+      'observed_ingress_context_only'
+    ]);
+    expect(semanticBinding.organization_acceptance_write_authority).toEqual({
+      status: 'contract_gap',
+      evidence_state: 'not_collected',
+      authoritative_source: null,
+      a0_mapping: null,
+      observed_a0_read_tuple_role: 'ingress_source_context_only',
+      missing_authority_behavior: 'deny_all_effects'
+    });
+  });
+
+  it('RED sensitivity: inventing or resolving positive write authority without an A0 source is rejected', async () => {
+    for (const corruption of [
+      binding => { binding.organization_acceptance_write_authority.status = 'resolved'; },
+      binding => { binding.organization_acceptance_write_authority.evidence_state = 'collected'; },
+      binding => { binding.organization_acceptance_write_authority.authoritative_source = 'invented'; },
+      binding => { binding.organization_acceptance_write_authority.a0_mapping = { capability: 'company_write' }; },
+      binding => { binding.organization_acceptance_write_authority.observed_a0_read_tuple_role = 'positive_write_authority'; },
+      binding => { binding.organization_acceptance_write_authority.missing_authority_behavior = 'allow'; }
+    ]) {
+      const semanticBinding = await readJson('a0-semantic-binding.json');
+      corruption(semanticBinding);
+      const result = await validateBundle(root, { semanticBindingOverride: semanticBinding });
+      expect(result.ok).toBe(false);
+      expect(result.errors).toContain('a0-binding:organization-write-authority-gap');
+    }
+  });
+
   it('validates the complete 2 tenant x 2 person membership and bidirectional deny matrix', async () => {
     const result = await validateBundle(root);
     expect(result.membershipCount).toBe(4);

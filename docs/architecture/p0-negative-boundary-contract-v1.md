@@ -10,13 +10,13 @@
 Personal body（非公開）
   └─ normalized payload + irreversible evidence digest
        ├─ owner consent authority (personal_read/read/personal://...)
-       └─ distinct organization acceptance authority (company_write/write/company://...)
+       └─ distinct organization acceptance authority（将来必要、A0正本mapping未収集）
             └─ future organization write（このsliceでは実行しない）
 ```
 
 両stageは別actor、別signed contextで、同じpayload hashとcorrelation/operation/idempotencyを束縛する。A0のcapability/effect/resource、decision actor、revision、expiry、integrity、Slack provider、`mana-runtime` audience、全cross-layer bindingのいずれか一項でも不一致なら、8 effect counterを0のままdenyする。
 
-A0 semantic bindingはproducerのobserved request schema、canonical context schema、fixture bytesへdigestを固定する。12 field mappingはID、A0 schema/path、A0 fixture path、type、relation、P0 path/value、A0 valueをvalidator内のauthoritative catalogと完全一致させる。12 cross-layer bindingもIDとP0/A0の左右path tupleを完全一致させ、同値な別pathへの左右同時差替えを拒否する。metadataや現在値同士だけの自己整合では通さない。
+A0 semantic bindingはproducerのobserved request schema、canonical context schema、fixture bytesへdigestを固定する。A0正本に存在する`company_read/read/company://tenant-a/project-a/read`はP0 ingressの観測文脈だけであり、organization acceptanceのpositive write authorityではない。A0にはpositive write authorityの正本がないため、このmappingは`contract_gap`・`not_collected`・`deny_all_effects`へ固定し、`company_write`相当のA0 authorityを捏造しない。12 field mappingはID、A0 schema/path、A0 fixture path、type、relation、P0 path/value、A0 valueをvalidator内のauthoritative catalogと完全一致させる。12 cross-layer bindingもIDとP0/A0の左右path tupleを完全一致させ、同値な別pathへの左右同時差替えを拒否する。metadataや現在値同士だけの自己整合では通さない。
 
 ## 証拠境界
 

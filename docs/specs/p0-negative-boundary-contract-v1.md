@@ -24,6 +24,7 @@
 10. P0 flat fieldはA0 observed request/canonical contextへ、12件の`id + a0_path + a0_fixture_path + type + relation + a0_value + p0_value`を含むexact authoritative tuple catalogで対応付ける。12 cross-layer bindingも`id + p0_left + p0_right + a0_left + a0_right`のexact catalogへ固定し、同値な別pathへの左右同時差替えを拒否する。
 11. `tenant-person-inventory.json`は2 tenantそれぞれへの2 person membership/assignment、same-tenant baseline、cross-person/cross-tenant双方向deny caseを固定する。49件のcase inventoryは変更しない。
 12. RED sensitivityはA0 authoritative source digest、fixture path、relation、A0 value、P0 value、cross-layer exact tupleの各driftを対応する`a0-binding:*` errorで拒否する。
+13. A0のread tupleは`observed_ingress_context_only`であり、organization acceptanceのpositive write authorityではない。A0 write正本は`contract_gap`・`not_collected`とし、authoritative source/mappingをnull、欠落時挙動を`deny_all_effects`へ固定する。
 
 ## ACトレーサビリティ
 
