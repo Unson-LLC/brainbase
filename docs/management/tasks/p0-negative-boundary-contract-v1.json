@@ -11,6 +11,8 @@
     "docs/architecture/p0-negative-boundary-contract-v1.md",
     "docs/specs/p0-negative-boundary-contract-v1.md",
     "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+    "contracts/p0-negative-boundary-contract-v1/a0-semantic-binding.json",
+    "contracts/p0-negative-boundary-contract-v1/tenant-person-inventory.json",
     "contracts/p0-negative-boundary-contract-v1/schema/negative-case.schema.json",
     "contracts/p0-negative-boundary-contract-v1/fixtures/cases.json",
     "contracts/p0-negative-boundary-contract-v1/reference/validate.mjs",

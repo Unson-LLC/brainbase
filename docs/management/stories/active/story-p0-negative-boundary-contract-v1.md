@@ -25,9 +25,9 @@ Personal KGの本人は、Personal本文を組織reviewerへ見せずに正規�
 ## 受け入れ条件
 
 - [x] AC-001: A0のexact SHA、contract id/version、fixture digestをlive source-lockから固定する。
-- [x] AC-002: canonical baselineにtenant identityを固定し、2 tenant × 2 personのcross-person/cross-organizationを双方向にdenyする。
+- [x] AC-002: canonical baselineとmachine-readable membership inventoryにtenant identity/assignmentを固定し、各tenantの2 personとcross-person/cross-organizationを双方向にdenyする。
 - [x] AC-003: owner consentとorganization acceptanceを別actor・別authorityへ束縛する。owner=reviewerはdenyする。
-- [x] AC-004: capability/effect/resource/decision/actor/revision/expiry/integrity、provider/audience、correlation/operation/idempotency、12個のcross-layer bindingを一項ずつfail closedにする。
+- [x] AC-004: A0正本schema/fixtureのpath・type・valueへ対応付けたcapability/effect/resource、provider/audienceと12個のcross-layer bindingを含め、各不一致をfail closedにする。
 - [x] AC-005: unknown/missing/ambiguous/inactive/merged person、stale/expired/invalid/replayed authority、unsupported direct ingressをdenyする。
 - [x] AC-006: organization reviewer、event、Graph、search、receipt、LLMからPersonal bodyを再構成できず、LLM repetitionだけでは昇格できない。
 - [x] AC-007: 全negative fixtureの8 effect counterを0にし、validatorがbaseline、exact一項差分、invariant、surface、schema、digest、scope、inventory、unknown evidenceを決定論的に検証する。

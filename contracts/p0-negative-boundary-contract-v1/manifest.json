@@ -4,9 +4,11 @@
   "contract_status": "contract_ready",
   "fixture_files": [
     "fixtures/cases.json",
-    "schema/negative-case.schema.json"
+    "schema/negative-case.schema.json",
+    "a0-semantic-binding.json",
+    "tenant-person-inventory.json"
   ],
-  "fixture_set_sha256": "e22f634deaf92b61a878e57f97b535411cd8f7003572b1fc55edf45504eb8f69",
+  "fixture_set_sha256": "b79792f3e963c1383396aa5dbdc7ef13060cb7454a319033d46135ce470151a0",
   "hash_algorithm": "sha256(relative_path + NUL + file_bytes)",
   "synthetic_data_only": true,
   "production_evidence": "not_collected"

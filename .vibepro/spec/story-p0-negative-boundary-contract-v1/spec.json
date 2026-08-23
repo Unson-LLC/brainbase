@@ -1,17 +1,459 @@
 {
-  "schema_version":"0.1.0","story_id":"story-p0-negative-boundary-contract-v1","generated_by":{"caller":"codex","stage":"ai_synthesis"},"lifecycle":"final",
-  "spec_status":"accepted_for_contract_preparation","implementation_status":"contract_ready","runtime_evidence":"not_collected","production_evidence":"not_collected","done":false,
-  "multi_tenancy":{"schema_version":"0.1.0","applicability":"applicable","tenancy_model":"pooled","tenant_identity":{"canonical_key":"source_tenant","resolved_from":["request.source_tenant in signed Slack to mana-runtime context"],"resolution_point":"contract validator before any effect","missing_behavior":"deny","ambiguity_behavior":"deny"},"propagation":{"required_surfaces":["request","authority","receipt","privacy_fixture"],"verified_surfaces":["request","authority","receipt","privacy_fixture"]},"resources":[{"name":"synthetic promotion contract envelope","sharing":"tenant_partitioned","tenant_key":"source_tenant","partition_key":"source_tenant/person_id","trust_zone":"synthetic contract fixture","residue_policy":"no production residue","data_owner":"synthetic fixture owner","credential_scope":"no credential material"}],"credentials":{"lookup_key":"source_tenant","scope":"contract-only synthetic context","raw_secret_in_artifacts":"forbidden","cross_tenant_fallback":"forbidden"},"data":{"canonical_owners":["synthetic fixture owner"],"residency":"repository synthetic fixtures","migration":"not in scope","rollback":"not in scope; no runtime write"},"failure_semantics":{"unknown_tenant":"deny","ambiguous_tenant":"deny","unavailable_connection":"unavailable","no_data":"empty","cross_tenant_candidate":"deny_and_audit"},"deployment_modes":["managed_shared"],"negative_scenarios":["unknown_tenant","ambiguous_tenant","unavailable_connection","no_data","cross_tenant_candidate","cross_person_candidate","tenant_a_to_b","tenant_b_to_a"],"graph_metadata":{"tenant_entities":["synthetic tenant","synthetic person"],"boundary_edges":["request source tenant to target tenant","source person to target person"]},"verification":{"scanner_coverage":"verified","evidence":{"evidence_scope":"contract_preparation_only_runtime_and_production_not_collected","propagation_surfaces":["request","authority","receipt","privacy_fixture"],"negative_scenarios":["unknown_tenant","ambiguous_tenant","unavailable_connection","no_data","cross_tenant_candidate"],"scanner_results":{"tenant_boundary":"pass","tenant_key_propagation":"pass","cross_tenant_authorization":"pass","state_partitioning":"pass","sandbox_isolation":"pass","connection_routing":"pass","secret_scope":"pass","canonical_data_owner":"pass","deployment_topology":"pass","cross_tenant_negative_evidence":"pass"},"graph":{"tenant_key":"source_tenant","sharing_modes":["tenant_partitioned"],"deployment_modes":["managed_shared"],"tenant_entities":[{"tenant_scope":"synthetic promotion envelope","tenant_key_source":"request.source_tenant","trust_zone":"synthetic contract fixture","data_owner":"synthetic fixture owner"}],"boundary_edges":[{"tenant_scope":"source tenant to target tenant","tenant_key_source":"request.source_tenant","sharing_mode":"tenant_partitioned","credential_scope":"no credential material","connection_mode":"contract fixture only","deployment_mode":"managed_shared"}]},"spec":{"tenant_key":"source_tenant","sharing_modes":["tenant_partitioned"],"deployment_modes":["managed_shared"]},"implementation":{"tenant_key":"source_tenant","sharing_modes":["tenant_partitioned"],"deployment_modes":["managed_shared"]}}}},
-  "source_lock":"contracts/p0-negative-boundary-contract-v1/source-lock.json","manifest":"contracts/p0-negative-boundary-contract-v1/manifest.json","tests":["tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js"],
-  "clauses":[
-    {"id":"C-001","type":"contract","statement":"A0 exact producer source-lockを固定する。","origin":{"story_refs":[{"kind":"acceptance_criteria","ac_id":"AC-001"}],"architecture_refs":[{"file":"docs/architecture/p0-negative-boundary-contract-v1.md","section":"判断"}],"code_refs":[{"file":"contracts/p0-negative-boundary-contract-v1/source-lock.json"}],"test_refs":[{"file":"tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js","case":"keeps A0 and P0 at contract_ready and production evidence not_collected"}]}},
-    {"id":"C-002","type":"invariant","statement":"2 tenant x 2 personを双方向に隔離する。","origin":{"story_refs":[{"kind":"acceptance_criteria","ac_id":"AC-002"}],"architecture_refs":[{"file":"docs/architecture/p0-negative-boundary-contract-v1.md","section":"マルチテナント境界"}],"code_refs":[{"file":"contracts/p0-negative-boundary-contract-v1/fixtures/cases.json"}],"test_refs":[{"file":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","case":"maps AC-002 to bidirectional tenant and person isolation cases"}]},"verifiable_by":{"test_pattern":[{"file_glob":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","must_contain":"maps AC-002 to bidirectional tenant and person isolation cases"}]}},
-    {"id":"C-003","type":"invariant","statement":"owner consentとorganization acceptanceを別authorityへ束縛する。","origin":{"story_refs":[{"kind":"acceptance_criteria","ac_id":"AC-003"}],"code_refs":[{"file":"contracts/p0-negative-boundary-contract-v1/reference/validate.mjs"}],"test_refs":[{"file":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","case":"maps AC-003 to separate owner and reviewer authorities"}]},"verifiable_by":{"test_pattern":[{"file_glob":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","must_contain":"maps AC-003 to separate owner and reviewer authorities"}]}},
-    {"id":"C-004","type":"invariant","statement":"authority、ingress、receipt、12 cross-layer bindingを一項ずつfail closedにする。","origin":{"story_refs":[{"kind":"acceptance_criteria","ac_id":"AC-004"}],"code_refs":[{"file":"contracts/p0-negative-boundary-contract-v1/reference/validate.mjs","anchor":"CASE_CONTRACT"}],"test_refs":[{"file":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","case":"maps AC-004 to authority ingress receipt and cross-layer invariants"}]},"verifiable_by":{"test_pattern":[{"file_glob":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","must_contain":"maps AC-004 to authority ingress receipt and cross-layer invariants"}]}},
-    {"id":"C-005","type":"invariant","statement":"identity、authority freshness、direct ingress異常をdenyする。","origin":{"story_refs":[{"kind":"acceptance_criteria","ac_id":"AC-005"}],"code_refs":[{"file":"contracts/p0-negative-boundary-contract-v1/fixtures/cases.json"}],"test_refs":[{"file":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","case":"maps AC-005 to identity authority freshness replay and direct ingress denial"}]},"verifiable_by":{"test_pattern":[{"file_glob":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","must_contain":"maps AC-005 to identity authority freshness replay and direct ingress denial"}]}},
-    {"id":"C-006","type":"privacy","statement":"Personal bodyをorganization surfaceから再構成不能にしLLM repetitionをauthorityにしない。","origin":{"story_refs":[{"kind":"acceptance_criteria","ac_id":"AC-006"}],"architecture_refs":[{"file":"docs/architecture/p0-negative-boundary-contract-v1.md","section":"信頼境界"}],"code_refs":[{"file":"contracts/p0-negative-boundary-contract-v1/fixtures/cases.json"}],"test_refs":[{"file":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","case":"fixes the 2 tenant x 2 person bidirectional isolation matrix and privacy surfaces"}]}},
-    {"id":"C-007","type":"contract","statement":"baselineとexact一項mutation、invariant、surface、全effect zeroを決定論的に検証する。","origin":{"story_refs":[{"kind":"acceptance_criteria","ac_id":"AC-007"}],"code_refs":[{"file":"contracts/p0-negative-boundary-contract-v1/reference/validate.mjs"},{"file":"contracts/p0-negative-boundary-contract-v1/schema/negative-case.schema.json"}],"test_refs":[{"file":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","case":"GREEN: validates source-lock, schema, digests, complete inventory and all-zero effects"}]}},
-    {"id":"C-008","type":"test","statement":"mutation path/value/invariantの破壊をRED sensitivityで検出する。","origin":{"story_refs":[{"kind":"acceptance_criteria","ac_id":"AC-008"}],"code_refs":[{"file":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js"}],"test_refs":[{"file":"tests/contracts/p0-negative-boundary-contract-v1/contract.test.js","case":"RED sensitivity: mutation path, before value and invariant are contract-bound"}]}},
-    {"id":"C-009","type":"boundary","statement":"status上限contract_ready、production evidence not_collected、done falseを維持する。","origin":{"story_refs":[{"kind":"acceptance_criteria","ac_id":"AC-009"}],"code_refs":[{"file":"docs/management/tasks/p0-negative-boundary-contract-v1.json"}],"test_refs":[{"file":"tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js","case":"keeps A0 and P0 at contract_ready and production evidence not_collected"}]}}
-  ],"diagrams":[],"open_questions":[]
+  "schema_version": "0.1.0",
+  "story_id": "story-p0-negative-boundary-contract-v1",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "lifecycle": "final",
+  "spec_status": "accepted_for_contract_preparation",
+  "implementation_status": "contract_ready",
+  "runtime_evidence": "not_collected",
+  "production_evidence": "not_collected",
+  "done": false,
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "source_tenant",
+      "resolved_from": [
+        "request.source_tenant in signed Slack to mana-runtime context"
+      ],
+      "resolution_point": "contract validator before any effect",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "request",
+        "authority",
+        "receipt",
+        "privacy_fixture"
+      ],
+      "verified_surfaces": [
+        "request",
+        "authority",
+        "receipt",
+        "privacy_fixture"
+      ]
+    },
+    "resources": [
+      {
+        "name": "synthetic promotion contract envelope",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "source_tenant",
+        "partition_key": "source_tenant/person_id",
+        "trust_zone": "synthetic contract fixture",
+        "residue_policy": "no production residue",
+        "data_owner": "synthetic fixture owner",
+        "credential_scope": "no credential material"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "source_tenant",
+      "scope": "contract-only synthetic context",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "synthetic fixture owner"
+      ],
+      "residency": "repository synthetic fixtures",
+      "migration": "not in scope",
+      "rollback": "not in scope; no runtime write"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "cross_person_a_to_b",
+      "cross_person_b_to_a",
+      "tenant_a_to_b",
+      "tenant_b_to_a"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "synthetic tenant",
+        "synthetic person"
+      ],
+      "boundary_edges": [
+        "request source tenant to target tenant",
+        "source person to target person"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "evidence_scope": "contract_preparation_only_runtime_and_production_not_collected",
+        "propagation_surfaces": [
+          "request",
+          "authority",
+          "receipt",
+          "privacy_fixture"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate",
+          "cross_person_a_to_b",
+          "cross_person_b_to_a",
+          "tenant_a_to_b",
+          "tenant_b_to_a"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "source_tenant",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "synthetic promotion envelope",
+              "tenant_key_source": "request.source_tenant",
+              "trust_zone": "synthetic contract fixture",
+              "data_owner": "synthetic fixture owner"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "source tenant to target tenant",
+              "tenant_key_source": "request.source_tenant",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "no credential material",
+              "connection_mode": "contract fixture only",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "source_tenant",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "source_tenant",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        }
+      }
+    }
+  },
+  "source_lock": "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+  "manifest": "contracts/p0-negative-boundary-contract-v1/manifest.json",
+  "tests": [
+    "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+    "tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js"
+  ],
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "A0 exact producer source-lockを固定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/p0-negative-boundary-contract-v1.md",
+            "section": "判断"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "contracts/p0-negative-boundary-contract-v1/source-lock.json"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js",
+            "case": "keeps A0 and P0 at contract_ready and production evidence not_collected"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-002",
+      "type": "invariant",
+      "statement": "2 tenant x 2 personを双方向に隔離する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/p0-negative-boundary-contract-v1.md",
+            "section": "マルチテナント境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "contracts/p0-negative-boundary-contract-v1/fixtures/cases.json"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "case": "maps AC-002 to bidirectional tenant and person isolation cases"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "must_contain": "maps AC-002 to bidirectional tenant and person isolation cases"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-003",
+      "type": "invariant",
+      "statement": "owner consentとorganization acceptanceを別authorityへ束縛する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "contracts/p0-negative-boundary-contract-v1/reference/validate.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "case": "maps AC-003 to separate owner and reviewer authorities"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "must_contain": "maps AC-003 to separate owner and reviewer authorities"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-004",
+      "type": "invariant",
+      "statement": "authority、ingress、receipt、12 cross-layer bindingを一項ずつfail closedにする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "contracts/p0-negative-boundary-contract-v1/reference/validate.mjs",
+            "anchor": "CASE_CONTRACT"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "case": "maps AC-004 to authority ingress receipt and cross-layer invariants"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "must_contain": "maps AC-004 to authority ingress receipt and cross-layer invariants"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-005",
+      "type": "invariant",
+      "statement": "identity、authority freshness、direct ingress異常をdenyする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "contracts/p0-negative-boundary-contract-v1/fixtures/cases.json"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "case": "maps AC-005 to identity authority freshness replay and direct ingress denial"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "must_contain": "maps AC-005 to identity authority freshness replay and direct ingress denial"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-006",
+      "type": "privacy",
+      "statement": "Personal bodyをorganization surfaceから再構成不能にしLLM repetitionをauthorityにしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/p0-negative-boundary-contract-v1.md",
+            "section": "信頼境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "contracts/p0-negative-boundary-contract-v1/fixtures/cases.json"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "case": "fixes the 2 tenant x 2 person bidirectional isolation matrix and privacy surfaces"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-007",
+      "type": "contract",
+      "statement": "baselineとexact一項mutation、invariant、surface、全effect zeroを決定論的に検証する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "contracts/p0-negative-boundary-contract-v1/reference/validate.mjs"
+          },
+          {
+            "file": "contracts/p0-negative-boundary-contract-v1/schema/negative-case.schema.json"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "case": "GREEN: validates source-lock, schema, digests, complete inventory and all-zero effects"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-008",
+      "type": "test",
+      "statement": "mutation path/value/invariantの破壊をRED sensitivityで検出する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
+            "case": "RED sensitivity: mutation path, before value and invariant are contract-bound"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-009",
+      "type": "boundary",
+      "statement": "status上限contract_ready、production evidence not_collected、done falseを維持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-009"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/tasks/p0-negative-boundary-contract-v1.json"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js",
+            "case": "keeps A0 and P0 at contract_ready and production evidence not_collected"
+          }
+        ]
+      }
+    }
+  ],
+  "diagrams": [],
+  "open_questions": []
 }

@@ -29,6 +29,51 @@ describe('P0 negative boundary contract v1', () => {
     }
   });
 
+  it('binds P0 fields and all 12 cross-layer pairs to authoritative A0 paths, types and values', async () => {
+    const result = await validateBundle(root);
+    expect(result.a0MappingCount).toBe(12);
+    expect(result.crossLayerBindingCount).toBe(12);
+    expect(result.errors.filter(error => error.startsWith('a0-binding:'))).toEqual([]);
+  });
+
+  it('validates the complete 2 tenant x 2 person membership and bidirectional deny matrix', async () => {
+    const result = await validateBundle(root);
+    expect(result.membershipCount).toBe(4);
+    expect(result.matrixDenialCount).toBe(4);
+    expect(result.errors.filter(error => error.startsWith('tenant-matrix:'))).toEqual([]);
+  });
+
+  it('RED sensitivity: A0 schema path and type drift are rejected', async () => {
+    for (const corruption of [
+      binding => { binding.field_mappings[0].a0_path = '/provider_identity/nonexistent'; },
+      binding => { binding.field_mappings[0].type = 'number'; },
+      binding => { binding.cross_layer_bindings[0].a0_right = '/context/actor/nonexistent'; }
+    ]) {
+      const semanticBinding = await readJson('a0-semantic-binding.json');
+      corruption(semanticBinding);
+      const result = await validateBundle(root, { semanticBindingOverride: semanticBinding });
+      expect(result.ok).toBe(false);
+      expect(result.errors.some(error => error.startsWith('a0-binding:'))).toBe(true);
+    }
+  });
+
+  it('RED sensitivity: incomplete tenant membership or denial direction is rejected', async () => {
+    for (const corruption of [
+      inventory => { inventory.memberships.pop(); },
+      inventory => { inventory.bidirectional_denials.cross_tenant.pop(); },
+      inventory => { inventory.resolution_contract.unknown_tenant = 'allow'; },
+      inventory => { inventory.resolution_contract.ambiguous_tenant = 'first_match'; },
+      inventory => { inventory.resolution_contract.unavailable_connection = 'fallback'; },
+      inventory => { inventory.resolution_contract.no_data = 'allow'; }
+    ]) {
+      const tenantInventory = await readJson('tenant-person-inventory.json');
+      corruption(tenantInventory);
+      const result = await validateBundle(root, { tenantInventoryOverride: tenantInventory });
+      expect(result.ok).toBe(false);
+      expect(result.errors.some(error => error.startsWith('tenant-matrix:'))).toBe(true);
+    }
+  });
+
   it('maps AC-002 to bidirectional tenant and person isolation cases', async () => {
     const cases = await readJson('fixtures/cases.json');
     const ids = new Set(cases.negative_cases.map(entry => entry.id));
