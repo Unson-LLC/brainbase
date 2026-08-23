@@ -1,6 +1,9 @@
-import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
+export default {
+  resolve: {
+    alias: process.env.P0_AJV_2020
+      ? { 'ajv/dist/2020.js': process.env.P0_AJV_2020 }
+      : {}
+  },
   test: {
     environment: 'node',
     include: [
@@ -8,4 +11,4 @@ export default defineConfig({
       'tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js'
     ]
   }
-});
+};

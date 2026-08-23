@@ -436,7 +436,7 @@
     {
       "id": "C-009",
       "type": "boundary",
-      "statement": "status上限contract_ready、production evidence not_collected、done falseを維持する。",
+      "statement": "Taskはstatus=contract_ready、runtime_evidence/production_evidence=not_collected、done=false、forbidden_claimsを維持し、accepted Specはimplementation_status=contract_ready、runtime_evidence/production_evidence=not_collected、done=falseを維持する。Story JSONは既存schema上status/production_evidenceのみ適用し、runtime_evidence/doneは非適用（Markdown frontmatterでstatus/production_evidence/doneを固定）。manifestは既存schema上contract_status/production_evidenceのみ適用し、runtime_evidence/doneは非適用。HEAD依存の生成PR summaryは正本入力ではなくpost-commit pr prepare readback対象とする。verified/production_proven/release_ready/doneへの昇格を禁止する。",
       "origin": {
         "story_refs": [
           {
@@ -452,7 +452,7 @@
         "test_refs": [
           {
             "file": "tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js",
-            "case": "keeps A0 and P0 at contract_ready and production evidence not_collected"
+            "case": "rejects AC-009 contract-only state drift across planning artifacts"
           }
         ]
       }

@@ -25,6 +25,7 @@
 11. `tenant-person-inventory.json`は2 tenantそれぞれへの2 person membership/assignment、same-tenant baseline、cross-person/cross-tenant双方向deny caseを固定する。49件のcase inventoryは変更しない。
 12. RED sensitivityはA0 authoritative source digest、fixture path、relation、A0 value、P0 value、cross-layer exact tupleの各driftを対応する`a0-binding:*` errorで拒否する。
 13. A0のread tupleは`observed_ingress_context_only`である。A0の汎用`company_write/write/company://tenant-b/project-b/write` authorityは`positive[3]`とproducer contractへsource-lockして`cataloged`とするが、P0 dual-authority promotionのpositive組へ自動昇格させない。P0固有のexact promotion binding/sourceだけを`contract_gap`・`not_collected`、authoritative source/mappingをnull、欠落時挙動を`deny_all_effects`へ固定する。
+14. AC-009の状態境界は、Taskとaccepted Specの既存`runtime_evidence`/`production_evidence`/`done`、Story JSONとmanifestの既存status/production evidence、Story Markdown frontmatter、source-lock evidence stateをcross-artifact testで固定する。Story JSONとmanifestに存在しない`runtime_evidence`/`done`はschema非適用であり追加しない。HEAD依存の生成PR summaryは正本入力にせず、focused commit後の`vibepro pr prepare`でreadbackする。
 
 ## ACトレーサビリティ
 

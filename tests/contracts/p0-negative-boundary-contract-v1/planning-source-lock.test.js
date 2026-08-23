@@ -4,6 +4,32 @@ import { describe, expect, it } from 'vitest';
 
 const readJson = async path => JSON.parse(await readFile(path, 'utf8'));
 
+const assertContractOnlyState = ({ task, spec, story, manifest, sourceLock, storyMarkdown }) => {
+  expect(task.status).toBe('contract_ready');
+  expect(task.runtime_evidence).toBe('not_collected');
+  expect(task.production_evidence).toBe('not_collected');
+  expect(task.done).toBe(false);
+  expect(task.forbidden_claims).toEqual(['verified', 'production_proven', 'release_ready', 'done']);
+  expect(spec.implementation_status).toBe('contract_ready');
+  expect(spec.runtime_evidence).toBe('not_collected');
+  expect(spec.production_evidence).toBe('not_collected');
+  expect(spec.done).toBe(false);
+  expect(story.status).toBe('contract_ready');
+  expect(story.production_evidence).toBe('not_collected');
+  expect(story).not.toHaveProperty('runtime_evidence');
+  expect(story).not.toHaveProperty('done');
+  expect(manifest.contract_status).toBe('contract_ready');
+  expect(manifest.production_evidence).toBe('not_collected');
+  expect(manifest).not.toHaveProperty('runtime_evidence');
+  expect(manifest).not.toHaveProperty('done');
+  expect(sourceLock.status).toBe('contract_ready');
+  expect(sourceLock.evidence_state).toEqual({ contract: 'collected', runtime: 'not_collected', production: 'not_collected' });
+  expect(storyMarkdown).toMatch(/^status: contract_ready$/m);
+  expect(storyMarkdown).toMatch(/^production_evidence: not_collected$/m);
+  expect(storyMarkdown).toMatch(/^done: false$/m);
+  expect(storyMarkdown).toContain('release/done宣言は対象外');
+};
+
 describe('P0 planning and source-lock alignment', () => {
   it('locks roadmap P0 to A0 and J0 without broadening primary implementation scope', async () => {
     const roadmap = await readJson('docs/management/milestones/brainbase-program-master-roadmap.json');
@@ -24,6 +50,32 @@ describe('P0 planning and source-lock alignment', () => {
     expect(task.status).toBe('contract_ready');
     expect(task.production_evidence).toBe('not_collected');
     expect(task.done).toBe(false);
+  });
+
+  it('rejects AC-009 contract-only state drift across planning artifacts', async () => {
+    const state = {
+      task: await readJson('docs/management/tasks/p0-negative-boundary-contract-v1.json'),
+      spec: await readJson('.vibepro/spec/story-p0-negative-boundary-contract-v1/spec.json'),
+      story: await readJson('.vibepro/stories/story-p0-negative-boundary-contract-v1/story.json'),
+      manifest: await readJson('contracts/p0-negative-boundary-contract-v1/manifest.json'),
+      sourceLock: await readJson('contracts/p0-negative-boundary-contract-v1/source-lock.json'),
+      storyMarkdown: await readFile('docs/management/stories/active/story-p0-negative-boundary-contract-v1.md', 'utf8')
+    };
+    expect(() => assertContractOnlyState(state)).not.toThrow();
+    const drifts = [
+      value => { value.task.runtime_evidence = 'collected'; },
+      value => { value.spec.done = true; },
+      value => { value.story.status = 'verified'; },
+      value => { value.manifest.contract_status = 'release_ready'; },
+      value => { value.sourceLock.evidence_state.runtime = 'collected'; },
+      value => { value.storyMarkdown = value.storyMarkdown.replace('done: false', 'done: true'); },
+      value => { value.task.forbidden_claims = value.task.forbidden_claims.filter(claim => claim !== 'release_ready'); }
+    ];
+    for (const mutate of drifts) {
+      const drifted = structuredClone(state);
+      mutate(drifted);
+      expect(() => assertContractOnlyState(drifted)).toThrow();
+    }
   });
 
   it('connects all nine Story ACs to machine-readable clauses and multi-tenant planning', async () => {
