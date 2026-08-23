@@ -93,4 +93,14 @@ describe('P0 planning and source-lock alignment', () => {
     expect(spec.multi_tenancy.credentials.cross_tenant_fallback).toBe('forbidden');
     expect(spec.production_evidence).toBe('not_collected');
   });
+
+  it('pins the focused runner to package-lock without an arbitrary AJV override', async () => {
+    const lock = await readJson('package-lock.json');
+    const config = await readFile('.vibepro/spec/story-p0-negative-boundary-contract-v1/vitest.config.mjs', 'utf8');
+    expect(lock.packages['node_modules/vitest'].version).toBe('4.0.16');
+    expect(lock.packages['node_modules/ajv'].version).toBe('8.17.1');
+    expect(config).not.toContain('P0_AJV_2020');
+    expect(config).not.toContain('resolve:');
+    expect(config).not.toContain('alias:');
+  });
 });
