@@ -14,6 +14,7 @@
     "contracts/p0-negative-boundary-contract-v1/schema/negative-case.schema.json",
     "contracts/p0-negative-boundary-contract-v1/fixtures/cases.json",
     "contracts/p0-negative-boundary-contract-v1/reference/validate.mjs",
+    "contracts/p0-negative-boundary-contract-v1/reference/generate-fixtures.mjs",
     "tests/contracts/p0-negative-boundary-contract-v1/contract.test.js",
     "tests/contracts/p0-negative-boundary-contract-v1/planning-source-lock.test.js"
   ],

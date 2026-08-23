@@ -19,3 +19,10 @@ Personal body（非公開）
 ## 証拠境界
 
 fixtureはsynthetic dataのみ。schema/fixture/source-lockの検証はcontract evidenceであり、runtimeまたはproduction proofではない。statusは`contract_ready`を上限とする。
+
+## マルチテナント境界
+
+- tenant identity: `request.source_tenant`をcanonical keyとし、署名済みSlack→mana-runtime contextからvalidator前に解決する。
+- isolation: request、authority、receipt、privacy surfaceは同じtenant境界へ束縛し、cross-tenant候補やfallbackを許さない。
+- fail closed: missing、unknown、ambiguous、source/target不一致はdenyし、DB・organization event・Graph・search・LLM・credential・external・deployを0にする。
+- test strategy: synthetic tenant A/B × person A/Bでcross-personとcross-organizationを双方向に検査する。runtime scanner、deployment、production isolationは未収集である。

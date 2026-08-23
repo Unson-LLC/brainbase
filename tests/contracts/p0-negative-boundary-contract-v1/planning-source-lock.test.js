@@ -25,4 +25,20 @@ describe('P0 planning and source-lock alignment', () => {
     expect(task.production_evidence).toBe('not_collected');
     expect(task.done).toBe(false);
   });
+
+  it('connects all nine Story ACs to machine-readable clauses and multi-tenant planning', async () => {
+    const spec = await readJson('.vibepro/spec/story-p0-negative-boundary-contract-v1/spec.json');
+    const story = await readJson('.vibepro/stories/story-p0-negative-boundary-contract-v1/story.json');
+    const acIds = spec.clauses.flatMap(clause => clause.origin.story_refs.map(ref => ref.ac_id));
+    expect(new Set(acIds)).toEqual(new Set(Array.from({length:9}, (_, index) => `AC-${String(index + 1).padStart(3, '0')}`)));
+    expect(story.acceptance_criteria.map(ac => ac.id)).toEqual(Array.from({length:9}, (_, index) => `AC-${String(index + 1).padStart(3, '0')}`));
+    expect(story.acceptance_criteria.every(ac => ac.source && ac.test && ac.evidence)).toBe(true);
+    for (const clause of spec.clauses) {
+      expect(clause.origin.code_refs.length).toBeGreaterThan(0);
+      expect(clause.origin.test_refs.length).toBeGreaterThan(0);
+    }
+    expect(spec.multi_tenancy.tenant_identity).toMatchObject({canonical_key:'source_tenant',missing_behavior:'deny',ambiguity_behavior:'deny'});
+    expect(spec.multi_tenancy.credentials.cross_tenant_fallback).toBe('forbidden');
+    expect(spec.production_evidence).toBe('not_collected');
+  });
 });

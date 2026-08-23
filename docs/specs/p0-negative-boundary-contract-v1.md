@@ -16,6 +16,13 @@
 4. owner consentだけではorganization acceptanceにならない。ownerとreviewerは別人である。
 5. Personal body、transcript、private note、preview、Personal内部ID、semantic canaryをorganization surfaceへ出さない。
 6. production evidenceは`not_collected`のままにする。
+7. `canonical_baseline`はauthority、Slack provider、mana-runtime audience、request、receipt、privacy、12 cross-layer bindingの正常値を固定する。
+8. 各negative caseは`mutation.mode=single`、JSON Pointer `path`、baselineと一致する`before`、異なる`after`、期待する`violated_invariant`と`surface`を持つ。validatorのcase catalogと一致しない説明的mutationは拒否する。
+9. canonical tenant keyは`request.source_tenant`である。missing/ambiguous/cross-tenantはfallbackせずdenyし、tenant A/B × person A/Bの双方向fixtureで隔離境界を検証する。
+
+## ACトレーサビリティ
+
+AC-001..AC-009は`.vibepro/spec/story-p0-negative-boundary-contract-v1/spec.json`の同一AC参照を正本とし、source pointerは本Spec/Architecture/Story、test pointerは`contract.test.js`または`planning-source-lock.test.js`、evidence pointerはmachine-readable test artifactへ接続する。fixture/test evidenceをproduction evidenceへ昇格しない。
 
 ## 検証
 

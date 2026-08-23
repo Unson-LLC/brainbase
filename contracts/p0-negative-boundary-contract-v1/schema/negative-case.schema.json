@@ -3,11 +3,20 @@
   "$id": "https://brainbase.unson.jp/contracts/p0-negative-boundary-contract-v1/negative-case.schema.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "contract_id", "synthetic_data_only", "inventory", "negative_cases", "evidence_state"],
+  "required": ["schema_version", "contract_id", "synthetic_data_only", "canonical_baseline", "inventory", "negative_cases", "evidence_state"],
   "properties": {
-    "schema_version": { "const": "1.0" },
+    "schema_version": { "const": "1.1" },
     "contract_id": { "const": "p0-negative-boundary-contract-v1" },
     "synthetic_data_only": { "const": true },
+    "canonical_baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "provider", "audience", "request", "receipt", "bindings", "privacy"],
+      "properties": {
+        "authority": { "type": "object" }, "provider": { "type": "string" }, "audience": { "type": "string" },
+        "request": { "type": "object" }, "receipt": { "type": "object" }, "bindings": { "type": "object" }, "privacy": { "type": "object" }
+      }
+    },
     "inventory": {
       "type": "object",
       "additionalProperties": false,
@@ -31,17 +40,22 @@
         "properties": {
           "id": { "type": "string", "pattern": "^NEG-[A-Z0-9-]+$" },
           "category": { "type": "string", "minLength": 1 },
-          "mutation": { "type": "string", "minLength": 1 },
-          "source_tenant": { "type": "string", "pattern": "^synthetic-tenant-" },
-          "target_tenant": { "type": "string", "pattern": "^synthetic-tenant-" },
-          "source_person": { "type": "string", "pattern": "^synthetic-person-" },
-          "target_person": { "type": "string", "pattern": "^synthetic-person-" },
+          "mutation": {
+            "type": "object", "additionalProperties": false, "required": ["mode", "path", "before", "after"],
+            "properties": {
+              "mode": { "const": "single" },
+              "path": { "type": "string", "pattern": "^/(authority|provider|audience|request|receipt|bindings|privacy)(/[^/]+)*$" },
+              "before": {}, "after": {}
+            }
+          },
           "expected": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["decision", "effects"],
+            "required": ["decision", "violated_invariant", "surface", "effects"],
             "properties": {
               "decision": { "const": "deny" },
+              "violated_invariant": { "type": "string", "minLength": 1 },
+              "surface": { "type": "string", "minLength": 1 },
               "effects": {
                 "type": "object",
                 "additionalProperties": false,
