@@ -12,7 +12,7 @@
     "fixture_set_sha256": "1d7af5b850abeb10e07db281c17341636d80a74cb37679b2c2b6ab5ce9b0a6ea",
     "lock_status": "producer_contract_ready"
   },
-  "fixture_set_sha256": "b79792f3e963c1383396aa5dbdc7ef13060cb7454a319033d46135ce470151a0",
+  "fixture_set_sha256": "3ec17d70acf3206743813d17e1696e8887abc37f261c4a0b6f01c5380d8213a3",
   "schema_sha256": "a257823a2c559f3ded9d30bbe26b47a551fab71cd6272fc2d49cf76ce6d8b6c9",
   "scope": {
     "program_id": "brainbase-program-master-roadmap-v1",

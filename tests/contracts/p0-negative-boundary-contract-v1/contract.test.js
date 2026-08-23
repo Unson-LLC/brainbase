@@ -57,6 +57,52 @@ describe('P0 negative boundary contract v1', () => {
     }
   });
 
+  it('RED sensitivity: authoritative A0 field tuple drift is rejected by the exact catalog', async () => {
+    const corruptions = [
+      {
+        mutate: binding => { binding.authoritative_sources[0].sha256 = '0'.repeat(64); },
+        error: 'a0-binding:source-digest:../mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json'
+      },
+      {
+        mutate: binding => { binding.field_mappings[0].a0_fixture_path = '/positive/0/context/tenant_context/workspace_connection/provider'; },
+        error: 'a0-binding:mapping-contract:0'
+      },
+      {
+        mutate: binding => { binding.field_mappings[0].relation = 'synthetic_alias'; },
+        error: 'a0-binding:mapping-contract:0'
+      },
+      {
+        mutate: binding => { binding.field_mappings[0].a0_value = 'not-slack'; },
+        error: 'a0-binding:mapping-contract:0'
+      },
+      {
+        mutate: binding => { binding.field_mappings[0].p0_value = 'not-slack'; },
+        error: 'a0-binding:mapping-contract:0'
+      }
+    ];
+    for (const { mutate, error } of corruptions) {
+      const semanticBinding = await readJson('a0-semantic-binding.json');
+      mutate(semanticBinding);
+      const result = await validateBundle(root, { semanticBindingOverride: semanticBinding });
+      expect(result.ok).toBe(false);
+      expect(result.errors).toContain(error);
+    }
+  });
+
+  it('RED sensitivity: an equivalent alternate cross-layer tuple is rejected by the exact catalog', async () => {
+    const semanticBinding = await readJson('a0-semantic-binding.json');
+    const alternate = semanticBinding.cross_layer_bindings[1];
+    Object.assign(semanticBinding.cross_layer_bindings[0], {
+      p0_left: alternate.p0_left,
+      p0_right: alternate.p0_right,
+      a0_left: alternate.a0_left,
+      a0_right: alternate.a0_right
+    });
+    const result = await validateBundle(root, { semanticBindingOverride: semanticBinding });
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain('a0-binding:cross-layer-contract:0');
+  });
+
   it('RED sensitivity: incomplete tenant membership or denial direction is rejected', async () => {
     for (const corruption of [
       inventory => { inventory.memberships.pop(); },

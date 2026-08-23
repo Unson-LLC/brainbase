@@ -22,5 +22,17 @@
   ],
   "production_evidence": "not_collected",
   "runtime_evidence": "not_collected",
+  "a0_binding_guards": {
+    "field_mapping_exact_tuple_count": 12,
+    "cross_layer_exact_tuple_count": 12,
+    "red_sensitivity": [
+      "authoritative_source_sha256",
+      "a0_fixture_path",
+      "relation",
+      "a0_value",
+      "p0_value",
+      "cross_layer_equivalent_alternate_path"
+    ]
+  },
   "forbidden_claims": ["verified","production_proven","release_ready","done"]
 }

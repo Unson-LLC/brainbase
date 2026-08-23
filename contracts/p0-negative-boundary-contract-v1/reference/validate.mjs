@@ -16,14 +16,33 @@ const UPSTREAM = {
   lock_status: 'producer_contract_ready'
 };
 const A0_FIELD_CONTRACT = [
-  ['/provider','observed_request','/provider_identity/provider','string'], ['/provider','canonical_context','/tenant_context/workspace_connection/provider','string'],
-  ['/audience','canonical_context','/tenant_context/audience','array'], ['/request/capability_id','observed_request','/requested_action/capability_id','string'],
-  ['/request/resource_ref','observed_request','/requested_action/resource_ref','string'], ['/request/desired_effect','observed_request','/requested_action/desired_effect','string'],
-  ['/bindings/request_subject','observed_request','/provider_identity/authenticated_subject_id','string'], ['/bindings/request_workspace','observed_request','/provider_identity/workspace_id','string'],
-  ['/bindings/request_app','observed_request','/provider_identity/app_id','string'], ['/bindings/request_enterprise','observed_request','/provider_identity/enterprise_id','string'],
-  ['/bindings/request_channel','observed_request','/delivery/channel_id','string'], ['/bindings/request_event','observed_request','/delivery/event_id','string']
+  {id:'provider_observed',p0_path:'/provider',a0_schema:'observed_request',a0_path:'/provider_identity/provider',a0_fixture_path:'/positive/0/request/provider_identity/provider',type:'string',relation:'exact',p0_value:'slack',a0_value:'slack'},
+  {id:'provider_context',p0_path:'/provider',a0_schema:'canonical_context',a0_path:'/tenant_context/workspace_connection/provider',a0_fixture_path:'/positive/0/context/tenant_context/workspace_connection/provider',type:'string',relation:'exact',p0_value:'slack',a0_value:'slack'},
+  {id:'audience_context',p0_path:'/audience',a0_schema:'canonical_context',a0_path:'/tenant_context/audience',a0_fixture_path:'/positive/0/context/tenant_context/audience',type:'array',relation:'contains',p0_value:'mana-runtime',a0_value:['mana-runtime']},
+  {id:'capability',p0_path:'/request/capability_id',a0_schema:'observed_request',a0_path:'/requested_action/capability_id',a0_fixture_path:'/positive/0/request/requested_action/capability_id',type:'string',relation:'p0_specialization',p0_value:'personal_to_organization.promote',a0_value:'company_read'},
+  {id:'resource',p0_path:'/request/resource_ref',a0_schema:'observed_request',a0_path:'/requested_action/resource_ref',a0_fixture_path:'/positive/0/request/requested_action/resource_ref',type:'string',relation:'p0_specialization',p0_value:'synthetic-personal-record-a',a0_value:'company://tenant-a/project-a/read'},
+  {id:'effect',p0_path:'/request/desired_effect',a0_schema:'observed_request',a0_path:'/requested_action/desired_effect',a0_fixture_path:'/positive/0/request/requested_action/desired_effect',type:'string',relation:'p0_effect_alias',p0_value:'organization_event',a0_value:'read'},
+  {id:'request_subject',p0_path:'/bindings/request_subject',a0_schema:'observed_request',a0_path:'/provider_identity/authenticated_subject_id',a0_fixture_path:'/positive/0/request/provider_identity/authenticated_subject_id',type:'string',relation:'synthetic_alias',p0_value:'U-SYNTH-A',a0_value:'person-sato'},
+  {id:'request_workspace',p0_path:'/bindings/request_workspace',a0_schema:'observed_request',a0_path:'/provider_identity/workspace_id',a0_fixture_path:'/positive/0/request/provider_identity/workspace_id',type:'string',relation:'synthetic_alias',p0_value:'W-SYNTH-A',a0_value:'workspace-tenant-a'},
+  {id:'request_app',p0_path:'/bindings/request_app',a0_schema:'observed_request',a0_path:'/provider_identity/app_id',a0_fixture_path:'/positive/0/request/provider_identity/app_id',type:'string',relation:'synthetic_alias',p0_value:'A-SYNTH-A',a0_value:'synthetic-app'},
+  {id:'request_enterprise',p0_path:'/bindings/request_enterprise',a0_schema:'observed_request',a0_path:'/provider_identity/enterprise_id',a0_fixture_path:'/positive/0/request/provider_identity/enterprise_id',type:'string',relation:'synthetic_alias',p0_value:'E-SYNTH-A',a0_value:'synthetic-enterprise'},
+  {id:'request_channel',p0_path:'/bindings/request_channel',a0_schema:'observed_request',a0_path:'/delivery/channel_id',a0_fixture_path:'/positive/0/request/delivery/channel_id',type:'string',relation:'synthetic_alias',p0_value:'C-SYNTH-A',a0_value:'channel-tenant-a'},
+  {id:'request_event',p0_path:'/bindings/request_event',a0_schema:'observed_request',a0_path:'/delivery/event_id',a0_fixture_path:'/positive/0/request/delivery/event_id',type:'string',relation:'synthetic_alias',p0_value:'EV-SYNTH-A',a0_value:'evt-tenant-a-person-sato'}
 ];
-const CROSS_LAYER_IDS = ['subject','actor_subject','principal','organization','project','placement','workspace','app','enterprise','channel','thread','event'];
+const CROSS_LAYER_CONTRACT = [
+  {id:'subject',p0_left:'/bindings/request_subject',p0_right:'/bindings/actor_external_subject',a0_left:'/request/provider_identity/authenticated_subject_id',a0_right:'/context/actor/external_subject_id'},
+  {id:'actor_subject',p0_left:'/bindings/actor_external_subject',p0_right:'/bindings/tenant_actor_subject',a0_left:'/context/actor/external_subject_id',a0_right:'/context/tenant_context/actor/authenticated_subject_id'},
+  {id:'principal',p0_left:'/bindings/canonical_person',p0_right:'/bindings/tenant_principal',a0_left:'/context/actor/canonical_person_id',a0_right:'/context/tenant_context/actor/principal_id'},
+  {id:'organization',p0_left:'/bindings/requested_organization',p0_right:'/bindings/authorized_organization',a0_left:'/context/scope/organization_id',a0_right:'/context/tenant_context/authorization/organization_ids/0'},
+  {id:'project',p0_left:'/bindings/requested_project',p0_right:'/bindings/authorized_project',a0_left:'/request/requested_action/project_hint',a0_right:'/context/scope/project_id'},
+  {id:'placement',p0_left:'/bindings/placement',p0_right:'/bindings/deployment',a0_left:'/context/scope/placement_id',a0_right:'/context/tenant_context/placement/deployment_id'},
+  {id:'workspace',p0_left:'/bindings/request_workspace',p0_right:'/bindings/context_workspace',a0_left:'/request/provider_identity/workspace_id',a0_right:'/context/tenant_context/workspace_connection/workspace_id'},
+  {id:'app',p0_left:'/bindings/request_app',p0_right:'/bindings/context_app',a0_left:'/request/provider_identity/app_id',a0_right:'/context/tenant_context/workspace_connection/app_id'},
+  {id:'enterprise',p0_left:'/bindings/request_enterprise',p0_right:'/bindings/context_enterprise',a0_left:'/request/provider_identity/enterprise_id',a0_right:'/context/tenant_context/slack/enterprise_id'},
+  {id:'channel',p0_left:'/bindings/request_channel',p0_right:'/bindings/context_channel',a0_left:'/request/delivery/channel_id',a0_right:'/context/tenant_context/slack/channel_id'},
+  {id:'thread',p0_left:'/bindings/request_thread',p0_right:'/bindings/context_thread',a0_left:'/request/delivery/thread_ts',a0_right:'/context/tenant_context/slack/thread_ts'},
+  {id:'event',p0_left:'/bindings/request_event',p0_right:'/bindings/context_event',a0_left:'/request/delivery/event_id',a0_right:'/context/tenant_context/slack/event_id'}
+];
 const schemaNode = (schema, pointer) => {
   let node = schema;
   for (const key of pointer.slice(1).split('/')) {
@@ -104,11 +123,12 @@ export async function validateBundle(root, { casesOverride, semanticBindingOverr
   }
   const mappings = semanticBinding.field_mappings ?? [];
   for (let index = 0; index < A0_FIELD_CONTRACT.length; index++) {
-    const [p0Path, schemaName, a0Path, type] = A0_FIELD_CONTRACT[index];
+    const expected = A0_FIELD_CONTRACT[index];
     const mapping = mappings[index];
-    if (!mapping || mapping.p0_path !== p0Path || mapping.a0_schema !== schemaName || mapping.a0_path !== a0Path || mapping.type !== type) {
+    if (!mapping || JSON.stringify(mapping) !== JSON.stringify(expected)) {
       errors.push(`a0-binding:mapping-contract:${index}`); continue;
     }
+    const { p0_path: p0Path, a0_schema: schemaName, a0_path: a0Path, type } = expected;
     const targetSchema = schemaName === 'observed_request' ? observedSchema : contextSchema;
     const node = schemaNode(targetSchema, a0Path);
     const fixtureValue = pointerValue(upstreamFixtures, mapping.a0_fixture_path);
@@ -118,15 +138,15 @@ export async function validateBundle(root, { casesOverride, semanticBindingOverr
   }
   if (mappings.length !== A0_FIELD_CONTRACT.length) errors.push('a0-binding:mapping-count');
   const crossBindings = semanticBinding.cross_layer_bindings ?? [];
-  for (let index = 0; index < CROSS_LAYER_IDS.length; index++) {
+  for (let index = 0; index < CROSS_LAYER_CONTRACT.length; index++) {
     const binding = crossBindings[index];
-    if (!binding || binding.id !== CROSS_LAYER_IDS[index]) { errors.push(`a0-binding:cross-layer-contract:${index}`); continue; }
+    if (!binding || JSON.stringify(binding) !== JSON.stringify(CROSS_LAYER_CONTRACT[index])) { errors.push(`a0-binding:cross-layer-contract:${index}`); continue; }
     const p0Left = pointerValue(cases.canonical_baseline, binding.p0_left), p0Right = pointerValue(cases.canonical_baseline, binding.p0_right);
     const a0Left = pointerValue(upstreamFixtures.positive[0], binding.a0_left), a0Right = pointerValue(upstreamFixtures.positive[0], binding.a0_right);
     if (p0Left === undefined || p0Left !== p0Right) errors.push(`a0-binding:p0-cross-layer:${binding.id}`);
     if (a0Left === undefined || a0Left !== a0Right) errors.push(`a0-binding:a0-cross-layer:${binding.id}`);
   }
-  if (crossBindings.length !== 12) errors.push('a0-binding:cross-layer-count');
+  if (crossBindings.length !== CROSS_LAYER_CONTRACT.length) errors.push('a0-binding:cross-layer-count');
   const expectedMemberships = tenantInventory.tenants?.flatMap(tenant_id => tenantInventory.persons?.map(person_id => `${tenant_id}:${person_id}`)) ?? [];
   const actualMemberships = tenantInventory.memberships?.map(item => `${item.tenant_id}:${item.person_id}`) ?? [];
   if (expectedMemberships.length !== 4 || new Set(actualMemberships).size !== 4 || expectedMemberships.some(item => !actualMemberships.includes(item))) errors.push('tenant-matrix:memberships');

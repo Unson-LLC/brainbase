@@ -21,8 +21,9 @@
 7. `canonical_baseline`はauthority、Slack provider、mana-runtime audience、request、receipt、privacy、12 cross-layer bindingの正常値を固定する。
 8. 各negative caseは`mutation.mode=single`、JSON Pointer `path`、baselineと一致する`before`、異なる`after`、期待する`violated_invariant`と`surface`を持つ。validatorのcase catalogと一致しない説明的mutationは拒否する。
 9. canonical tenant keyは`request.source_tenant`である。missing/ambiguous/cross-tenantはfallbackせずdenyし、tenant A/B × person A/Bの双方向fixtureで隔離境界を検証する。
-10. P0 flat fieldはA0 observed request/canonical contextの正本schema path、type、fixture valueへ`a0-semantic-binding.json`で対応付ける。provider 2経路、audience配列、requested action、12 cross-layer bindingのpath/type/value driftを拒否する。
+10. P0 flat fieldはA0 observed request/canonical contextへ、12件の`id + a0_path + a0_fixture_path + type + relation + a0_value + p0_value`を含むexact authoritative tuple catalogで対応付ける。12 cross-layer bindingも`id + p0_left + p0_right + a0_left + a0_right`のexact catalogへ固定し、同値な別pathへの左右同時差替えを拒否する。
 11. `tenant-person-inventory.json`は2 tenantそれぞれへの2 person membership/assignment、same-tenant baseline、cross-person/cross-tenant双方向deny caseを固定する。49件のcase inventoryは変更しない。
+12. RED sensitivityはA0 authoritative source digest、fixture path、relation、A0 value、P0 value、cross-layer exact tupleの各driftを対応する`a0-binding:*` errorで拒否する。
 
 ## ACトレーサビリティ
 

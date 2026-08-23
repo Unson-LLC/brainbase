@@ -16,7 +16,7 @@ Personal body（非公開）
 
 両stageは別actor、別signed contextで、同じpayload hashとcorrelation/operation/idempotencyを束縛する。A0のcapability/effect/resource、decision actor、revision、expiry、integrity、Slack provider、`mana-runtime` audience、全cross-layer bindingのいずれか一項でも不一致なら、8 effect counterを0のままdenyする。
 
-A0 semantic bindingはproducerのobserved request schema、canonical context schema、fixture bytesへdigestを固定し、P0 flat pathからA0 authoritative path/type/valueへの明示mappingを検証する。12 cross-layer bindingはP0の左右pathとA0 request/contextの左右pathを同時に検査し、metadataだけの自己整合では通さない。
+A0 semantic bindingはproducerのobserved request schema、canonical context schema、fixture bytesへdigestを固定する。12 field mappingはID、A0 schema/path、A0 fixture path、type、relation、P0 path/value、A0 valueをvalidator内のauthoritative catalogと完全一致させる。12 cross-layer bindingもIDとP0/A0の左右path tupleを完全一致させ、同値な別pathへの左右同時差替えを拒否する。metadataや現在値同士だけの自己整合では通さない。
 
 ## 証拠境界
 
