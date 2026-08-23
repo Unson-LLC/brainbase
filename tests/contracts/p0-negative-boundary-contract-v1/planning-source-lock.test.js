@@ -130,9 +130,22 @@ describe('P0 planning and source-lock alignment', () => {
       contract
     };
     expect(() => assertLockedRunnerDescriptor(canonical)).not.toThrow();
+    const withInstallRoot = installRoot => ({
+      ...structuredClone(canonical),
+      command: ['/usr/bin/node', `${installRoot}/node_modules/vitest/vitest.mjs`, 'run'],
+      install_root: installRoot,
+      node_modules_root: `${installRoot}/node_modules`,
+      runner_path: `${installRoot}/node_modules/vitest/vitest.mjs`,
+      runner_bin_path: `${installRoot}/node_modules/vitest/vitest.mjs`,
+      ajv_path: `${installRoot}/node_modules/ajv/dist/2020.js`
+    });
+    expect(() => assertLockedRunnerDescriptor(withInstallRoot('/Users/reviewer/cacheable-project/p0-install'))).not.toThrow();
+    expect(() => assertLockedRunnerDescriptor(withInstallRoot('/Users/reviewer/.cache-safe/p0-install'))).not.toThrow();
     const drifts = [
       value => { value.command = ['npx', 'vitest', 'run']; },
       value => { value.install_root = '/Users/test/.npm/_npx/cache'; },
+      value => { Object.assign(value, withInstallRoot('/Users/reviewer/.cache/p0-install')); },
+      value => { Object.assign(value, withInstallRoot('/Users/reviewer/Library/Caches/p0-install')); },
       value => { value.install_root = '/private/tmp/p0-runner'; },
       value => { value.installed_package_lock_sha256 = '0'.repeat(64); },
       value => { value.runner_version = '4.1.11'; },

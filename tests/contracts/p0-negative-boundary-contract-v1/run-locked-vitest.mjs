@@ -20,6 +20,9 @@ const reject = message => { throw new Error(`runner-lock: ${message}`); };
 const assertEqual = (actual, expected, label) => {
   if (actual !== expected) reject(`${label} mismatch`);
 };
+const hasCacheOrTemporarySegment = path =>
+  /(?:^|\/)(?:\.npm|_npx|\.cache|cache|caches|tmp)(?:\/|$)/i.test(path)
+  || /(?:^|\/)var\/folders(?:\/|$)/i.test(path);
 
 export const assertLockedRunnerDescriptor = descriptor => {
   if (!descriptor || typeof descriptor !== 'object') reject('descriptor is required');
@@ -27,7 +30,7 @@ export const assertLockedRunnerDescriptor = descriptor => {
   if (!contract || typeof contract !== 'object') reject('contract is required');
   if (!Array.isArray(descriptor.command) || descriptor.command.length < 3) reject('command is invalid');
   if (descriptor.command.some(value => /(^|\/)(?:npx|npm|pnpx)(?:$|\/)/i.test(value))) reject('package runner is forbidden');
-  if (/(?:^|\/)(?:\.npm|_npx|cache|tmp|var\/folders)(?:\/|$)/i.test(descriptor.install_root)) reject('cache or temporary install root is forbidden');
+  if (hasCacheOrTemporarySegment(descriptor.install_root)) reject('cache or temporary install root is forbidden');
   assertEqual(descriptor.network_acquisition, false, 'network acquisition');
   assertEqual(contract.network_acquisition, false, 'contract network acquisition');
   assertEqual(descriptor.node_modules_root, resolve(descriptor.install_root, 'node_modules'), 'node_modules root');
