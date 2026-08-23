@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "package_lock_sha256": "98fce66763893ab78560c9ed0d576a18eafb135b920955d95500281955def44d",
+  "network_acquisition": false,
+  "runner": {
+    "name": "vitest",
+    "version": "4.0.16",
+    "lock_integrity": "sha512-E4t7DJ9pESL6E3I8nFjPa4xGUd3PmiWDLsDztS2qXSJWfHtbQnwAWylaBvSNY48I3vr8PTqIZlyK8TE3V3CA4Q==",
+    "package_sha256": "9767579d70747c699b943a30591da6632efa5dbedaa3bc5960dbedc5415386f2",
+    "entrypoint": "node_modules/vitest/vitest.mjs",
+    "entrypoint_sha256": "39db22f579acf5639bbb17a261408debbde03f4692c0c439e77e7f13aeba74d6"
+  },
+  "schema_validator": {
+    "name": "ajv",
+    "version": "8.17.1",
+    "lock_integrity": "sha512-B/gBuNg5SiMTrPkC+A2+cW0RszwxYmn6VYxB/inlBStS5nx6xHIt/ehKRhIMhqusl7a8LjQoZnjCs5vhwxOQ1g==",
+    "package_sha256": "ce1539e6f4e0f345ed402c47137d2679497b2035d4a4f420ee11acdde03dea92",
+    "entrypoint": "node_modules/ajv/dist/2020.js",
+    "entrypoint_sha256": "908e9670b478b2ba126802a221b7e47006f50cf467e2c5dd7935d3dbef10a20a"
+  }
+}

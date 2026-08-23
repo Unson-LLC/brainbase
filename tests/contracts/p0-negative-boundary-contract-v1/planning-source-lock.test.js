@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
+import { assertLockedRunnerDescriptor } from './run-locked-vitest.mjs';
 
 const readJson = async path => JSON.parse(await readFile(path, 'utf8'));
 
@@ -102,5 +103,47 @@ describe('P0 planning and source-lock alignment', () => {
     expect(config).not.toContain('P0_AJV_2020');
     expect(config).not.toContain('resolve:');
     expect(config).not.toContain('alias:');
+  });
+
+  it('rejects npx, cache, temp and package-lock drift before the focused runner starts', async () => {
+    const contract = await readJson('.vibepro/spec/story-p0-negative-boundary-contract-v1/locked-runner.json');
+    const canonical = {
+      command: ['/usr/bin/node', '/repo/node_modules/vitest/vitest.mjs', 'run'],
+      install_root: '/repo',
+      node_modules_root: '/repo/node_modules',
+      package_lock_sha256: contract.package_lock_sha256,
+      installed_package_lock_sha256: contract.package_lock_sha256,
+      runner_path: '/repo/node_modules/vitest/vitest.mjs',
+      runner_bin_path: '/repo/node_modules/vitest/vitest.mjs',
+      runner_version: contract.runner.version,
+      runner_lock_version: contract.runner.version,
+      runner_lock_integrity: contract.runner.lock_integrity,
+      runner_package_sha256: contract.runner.package_sha256,
+      runner_entrypoint_sha256: contract.runner.entrypoint_sha256,
+      ajv_path: '/repo/node_modules/ajv/dist/2020.js',
+      ajv_version: contract.schema_validator.version,
+      ajv_lock_version: contract.schema_validator.version,
+      ajv_lock_integrity: contract.schema_validator.lock_integrity,
+      ajv_package_sha256: contract.schema_validator.package_sha256,
+      ajv_entrypoint_sha256: contract.schema_validator.entrypoint_sha256,
+      network_acquisition: false,
+      contract
+    };
+    expect(() => assertLockedRunnerDescriptor(canonical)).not.toThrow();
+    const drifts = [
+      value => { value.command = ['npx', 'vitest', 'run']; },
+      value => { value.install_root = '/Users/test/.npm/_npx/cache'; },
+      value => { value.install_root = '/private/tmp/p0-runner'; },
+      value => { value.installed_package_lock_sha256 = '0'.repeat(64); },
+      value => { value.runner_version = '4.1.11'; },
+      value => { value.runner_path = '/Users/test/.npm/_npx/node_modules/vitest/vitest.mjs'; },
+      value => { value.runner_entrypoint_sha256 = '0'.repeat(64); },
+      value => { value.ajv_version = '8.16.0'; }
+    ];
+    for (const mutate of drifts) {
+      const drifted = structuredClone(canonical);
+      mutate(drifted);
+      expect(() => assertLockedRunnerDescriptor(drifted)).toThrow();
+    }
   });
 });
