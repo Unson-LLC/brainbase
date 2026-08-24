@@ -123,6 +123,7 @@ describe('GraphMaintenanceService authorization', () => {
             from_id: 'decision_1', to_id: 'product_aitle', rel_type: 'governs', project_code: 'brainbase'
         })]);
         expect(plan.after.entities).toEqual(snapshot.entities);
+        expect(client.query.mock.calls.some(([sql]) => /(?:INSERT|UPDATE|DELETE)\s+(?:INTO\s+|FROM\s+)?graph_(?:entities|edges)/i.test(sql))).toBe(false);
         expect(plan.diff_summary).toMatchObject({
             entities: { added_count: 0, removed_count: 0, modified_count: 0, truncated: false },
             edges: {

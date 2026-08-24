@@ -346,6 +346,49 @@ describe('Graph maintenance Phase 0 contract', () => {
         expect(validateGraphSnapshot(after).valid).toBe(true);
     });
 
+    it('Universal Arts 4判断だけをProject subjectへ接続しbaseline違反を増やさない', () => {
+        const decisionIds = [
+            'dec_01KQW6BNXFYPJ1M0DP5VBXG58X',
+            'dec_01KQW6BP19XHPQ97861JS3HGV1',
+            'dec_01KQW6BP45FN8JEZBGFR54S6BA',
+            'dec_01KQW6BP6S5NN2G2F909JE6QV1'
+        ];
+        const before = {
+            project_code: 'brainbase',
+            entities: decisionIds.map((id) => ({
+                id, entity_type: 'decision', project_code: 'brainbase', payload: {},
+                role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+            })),
+            edges: []
+        };
+        const targetId = 'brainbase-universal-arts-ai-support';
+        const operations = [{
+            operation: 'materialize_project_subject', entity_id: targetId,
+            catalog_project_id: targetId, catalog_version: 1,
+            name: 'Universal Arts 3ヶ月AIコンサル',
+            source_ref: `project-catalog:${targetId}@1`, expected_version: 0
+        }, ...decisionIds.map((decisionId, index) => ({
+            operation: 'link_decision_project_subject',
+            decision_id: decisionId, decision_expected_version: 1,
+            subject_entity_id: targetId, subject_expected_version: 1,
+            edge_id: `edge_ua_subject_${index + 1}`, expected_version: 0,
+            human_gate_receipt: `gate_ua_${index + 1}`
+        }))];
+
+        const plan = buildGraphPlan(before, {
+            project_code: 'brainbase', idempotency_key: 'ua-four-decisions',
+            reason: 'Universal Arts 4判断をProject subjectへ接続する', operations
+        });
+
+        expect(plan.after.entities).toHaveLength(before.entities.length + 1);
+        expect(plan.after.edges).toHaveLength(4);
+        expect(plan.after.edges.map((edge) => edge.from_id).sort()).toEqual([...decisionIds].sort());
+        expect(plan.after.edges.every((edge) => edge.to_id === targetId && edge.rel_type === 'governs')).toBe(true);
+        expect(plan.validation.counts.issues).toBe(validateGraphSnapshot(before).counts.issues);
+        expect(plan.validation.counts.orphans).toBe(validateGraphSnapshot(before).counts.orphans);
+        expect(plan.after.entities.filter((entity) => entity.entity_type === 'decision')).toEqual(before.entities);
+    });
+
     it('Project subject materializeはidentity・型・version・Human Gateをfail closedにする', () => {
         const before = {
             project_code: 'brainbase',
