@@ -990,6 +990,28 @@ export class GraphMaintenanceService {
                 const remains = await client.query(`SELECT id FROM graph_edges WHERE id=ANY($1::text[])`, [createdEdgeIds]);
                 if (remains.rows.length) throw new Error('Graph rollback created-edge cleanup failed');
             }
+            const beforeEntityIds = new Set(plan.before_snapshot.entities.map((entity) => entity.id));
+            const createdEntityIds = [...new Set(plan.after_snapshot.entities
+                .map((entity) => entity.id)
+                .filter((id) => !beforeEntityIds.has(id)))];
+            if (createdEntityIds.length) {
+                const entityProjectCodes = [...new Set(plan.after_snapshot.entities
+                    .filter((entity) => createdEntityIds.includes(entity.id))
+                    .map((entity) => entity.project_code))];
+                const projects = await client.query(
+                    `SELECT id FROM projects WHERE code=ANY($1::text[]) AND organization_id=$2`,
+                    [entityProjectCodes, organizationId]
+                );
+                if (projects.rows.length !== entityProjectCodes.length) throw new Error('Access denied for rollback entity scope');
+                await client.query(
+                    `DELETE FROM graph_entities ge USING projects p
+                     WHERE ge.id=ANY($1::text[]) AND ge.project_id=p.id
+                       AND p.organization_id=$2 AND p.code=ANY($3::text[])`,
+                    [createdEntityIds, organizationId, entityProjectCodes]
+                );
+                const remains = await client.query(`SELECT id FROM graph_entities WHERE id=ANY($1::text[])`, [createdEntityIds]);
+                if (remains.rows.length) throw new Error('Graph rollback created-entity cleanup failed');
+            }
             await this.replaceSnapshot(client, access, plan.before_snapshot, { baseline: plan.before_snapshot });
             const { snapshot: readback } = await this.loadSnapshot(client, access, projectCode, {
                 lock: true,

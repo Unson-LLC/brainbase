@@ -421,5 +421,18 @@ describe('Graph maintenance Phase 0 contract', () => {
         wrongType.entities.find((entity) => entity.id === 'project_ua').entity_type = 'person';
         expect(() => applyGraphOperations(wrongType, [{ ...link, human_gate_receipt: 'gate' }], { projectCode: 'brainbase' }))
             .toThrow('active Project subject is required');
+
+        const provenanceCases = [
+            ['catalog_project_id', (payload) => { payload.catalog_project_id = 'forged-project'; }, 'Project subject catalog_project_id must match Graph Entity ID'],
+            ['catalog_version', (payload) => { payload.catalog_version = 0; }, 'Project subject catalog_version must be a positive integer'],
+            ['source_ref', (payload) => { payload.source_ref = 'project-catalog:forged-project@1'; }, 'Project subject source_ref must match Catalog Project identity and version'],
+            ['name', (payload) => { delete payload.name; }, 'Project subject Catalog name is required']
+        ];
+        for (const [, mutate, message] of provenanceCases) {
+            const malformed = structuredClone(withProject);
+            mutate(malformed.entities.find((entity) => entity.id === 'project_ua').payload);
+            expect(() => applyGraphOperations(malformed, [{ ...link, human_gate_receipt: 'gate' }], { projectCode: 'brainbase' }))
+                .toThrow(message);
+        }
     });
 });

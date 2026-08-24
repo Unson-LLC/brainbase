@@ -105,6 +105,24 @@ function findAnyEntityOrNull(state, id) {
     return [...(state.entities || []), ...(state.external_entities || [])].find((item) => item.id === id) || null;
 }
 
+function assertProjectCatalogProvenance(project) {
+    const catalogProjectId = project.payload?.catalog_project_id;
+    if (catalogProjectId !== project.id) {
+        throw new Error('Project subject catalog_project_id must match Graph Entity ID');
+    }
+    const catalogVersion = project.payload?.catalog_version;
+    if (!Number.isInteger(catalogVersion) || catalogVersion < 1) {
+        throw new Error('Project subject catalog_version must be a positive integer');
+    }
+    const expectedSourceRef = `project-catalog:${catalogProjectId}@${catalogVersion}`;
+    if (project.payload?.source_ref !== expectedSourceRef) {
+        throw new Error('Project subject source_ref must match Catalog Project identity and version');
+    }
+    if (!String(project.payload?.name || '').trim()) {
+        throw new Error('Project subject Catalog name is required');
+    }
+}
+
 function findEdge(state, operation) {
     const edge = operation.edge_id
         ? state.edges.find((item) => item.id === operation.edge_id)
@@ -272,6 +290,7 @@ export function applyGraphOperations(snapshot, operations, { projectCode, humanG
             requireVersion(subject, { expected_version: operation.subject_expected_version });
             if (decision.entity_type !== 'decision' || decision.lifecycle_status !== 'active') throw new Error('active Decision source is required');
             if (subject.entity_type !== 'project' || subject.lifecycle_status !== 'active') throw new Error('active Project subject is required');
+            assertProjectCatalogProvenance(subject);
             if (decision.project_code !== state.project_code || subject.project_code !== state.project_code) {
                 throw new Error('Decision project subject scope mismatch');
             }

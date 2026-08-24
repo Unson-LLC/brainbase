@@ -85,6 +85,7 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
     let service;
     let infoSSOTService;
     let initialSnapshot;
+    let projectCatalogCheckCount;
 
     beforeAll(async () => {
         database = await createScopedDatabase('gm_phase0');
@@ -153,7 +154,20 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         // when that key belongs to another environment.
         const ontologyRegistry = new OntologyRegistry({ rootDir: sourceRoot, publicKeyPem: '' });
         infoSSOTService = new InfoSSOTService({ pool: database.pool, ontologyRegistry });
-        service = new GraphMaintenanceService({ infoSSOTService });
+        projectCatalogCheckCount = 0;
+        const configParser = {
+            checkIntegrity: async () => {
+                projectCatalogCheckCount += 1;
+                return { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } };
+            },
+            getProjects: async () => ({ projects: [{
+                id: 'brainbase-universal-arts-ai-support',
+                name: 'Universal Arts 3ヶ月AIコンサル',
+                catalog_version: 1,
+                archived: false
+            }] })
+        };
+        service = new GraphMaintenanceService({ infoSSOTService, configParser });
         initialSnapshot = await service.exportSnapshot(access, {
             projectCode: 'brainbase', includeProjectCodes: ['vibepro']
         });
@@ -442,6 +456,150 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
                 after_hash: initialSnapshot.snapshot_hash
             }
         ]);
+    });
+
+    it('Project Catalog subjectをdry-runからApply・readback・Rollback・冪等再実行まで実DBで通す', async () => {
+        const targetId = 'brainbase-universal-arts-ai-support';
+        const catalogAccess = {
+            ...access,
+            role: 'ceo',
+            projectCodes: [...access.projectCodes, targetId]
+        };
+        const catalogInitialSnapshot = await service.exportSnapshot(catalogAccess, { projectCode: 'brainbase' });
+        const linkOperation = {
+            operation: 'link_decision_project_subject',
+            decision_id: 'decision_subject',
+            decision_expected_version: 1,
+            subject_entity_id: targetId,
+            subject_expected_version: 1,
+            target_project_code: 'brainbase',
+            expected_version: 0
+        };
+        const gate = await service.recordHumanGateReceipt(catalogAccess, {
+            projectCode: 'brainbase',
+            decisionId: 'decision_subject',
+            receiptId: 'gate_catalog_subject_1',
+            evidence: { operation_scope: linkOperation }
+        });
+        const materializeOperation = {
+            operation: 'materialize_project_subject',
+            entity_id: targetId,
+            catalog_project_id: targetId,
+            catalog_version: 999,
+            name: 'forged name must be replaced by Catalog',
+            source_ref: 'forged-source-ref',
+            expected_version: 0
+        };
+        const operations = [materializeOperation, linkOperation];
+        const graphCounts = async () => infoSSOTService.withAccessContext(
+            { ...catalogAccess, graphMaintenanceMode: true },
+            async (client) => {
+                const [entities, edges] = await Promise.all([
+                    client.query(`SELECT count(*)::int AS count FROM graph_entities WHERE project_id='project_phase0'`),
+                    client.query(`SELECT count(*)::int AS count FROM graph_edges WHERE project_id='project_phase0'`)
+                ]);
+                return { entities: entities.rows[0].count, edges: edges.rows[0].count };
+            }
+        );
+        const beforeDryRunCounts = await graphCounts();
+        const plan = await service.planMutations(catalogAccess, {
+            projectCode: 'brainbase',
+            snapshotId: catalogInitialSnapshot.snapshot_id,
+            idempotencyKey: 'catalog-project-subject-db-roundtrip-1',
+            reason: 'Project Catalog subject PostgreSQL acceptance',
+            humanGateReceipt: gate.receipt_id,
+            operations
+        });
+
+        expect(projectCatalogCheckCount).toBeGreaterThan(0);
+        expect(plan.dry_run).toBe(true);
+        expect(await graphCounts()).toEqual(beforeDryRunCounts);
+        expect(plan.operations[0]).toMatchObject({
+            operation: 'materialize_project_subject',
+            entity_id: targetId,
+            catalog_project_id: targetId,
+            catalog_version: 1,
+            name: 'Universal Arts 3ヶ月AIコンサル',
+            source_ref: `project-catalog:${targetId}@1`
+        });
+        expect(plan.after.entities).toEqual(expect.arrayContaining([expect.objectContaining({
+            id: targetId,
+            entity_type: 'project',
+            payload: {
+                name: 'Universal Arts 3ヶ月AIコンサル',
+                catalog_project_id: targetId,
+                catalog_version: 1,
+                source_ref: `project-catalog:${targetId}@1`
+            }
+        })]));
+        expect(plan.after.edges).toEqual(expect.arrayContaining([expect.objectContaining({
+            from_id: 'decision_subject', to_id: targetId, rel_type: 'governs', project_code: 'brainbase'
+        })]));
+        expect(plan.diff_summary.entities.added_count).toBe(1);
+        expect(plan.diff_summary.edges.added_count).toBe(1);
+
+        await expect(service.applyPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, snapshotHash: plan.snapshot_hash
+        })).rejects.toMatchObject({ code: 'GRAPH_APPLY_HUMAN_GATE_REQUIRED', status: 403 });
+        const applyGate = await service.recordHumanGateReceipt(catalogAccess, {
+            projectCode: 'brainbase',
+            decisionId: 'decision_subject',
+            receiptId: 'gate_catalog_subject_apply_1',
+            evidence: { operation_scope: plan.apply_human_gate_scope }
+        });
+        const applyReceipt = await service.applyPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, snapshotHash: plan.snapshot_hash,
+            humanGateReceipt: applyGate.receipt_id
+        });
+        expect(applyReceipt).toMatchObject({
+            plan_id: plan.plan_id,
+            receipt_type: 'apply',
+            status: 'completed',
+            before_hash: plan.snapshot_hash,
+            after_hash: plan.after_snapshot_hash
+        });
+        await expect(service.applyPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, snapshotHash: plan.snapshot_hash,
+            humanGateReceipt: applyGate.receipt_id
+        })).resolves.toEqual(applyReceipt);
+
+        const applied = await service.exportSnapshot(catalogAccess, { projectCode: 'brainbase' });
+        expect(applied.snapshot_hash).toBe(plan.after_snapshot_hash);
+        expect(applied.entities).toEqual(expect.arrayContaining([expect.objectContaining({ id: targetId })]));
+        expect(applied.edges).toEqual(expect.arrayContaining([expect.objectContaining({
+            from_id: 'decision_subject', to_id: targetId, rel_type: 'governs'
+        })]));
+
+        const rollbackReceipt = await service.rollbackPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, applyReceiptId: applyReceipt.receipt_id
+        });
+        expect(rollbackReceipt).toMatchObject({
+            plan_id: plan.plan_id,
+            receipt_type: 'rollback',
+            status: 'completed',
+            before_hash: plan.after_snapshot_hash,
+            after_hash: plan.snapshot_hash
+        });
+        await expect(service.rollbackPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, applyReceiptId: applyReceipt.receipt_id
+        })).resolves.toEqual(rollbackReceipt);
+
+        const restored = await service.exportSnapshot(catalogAccess, { projectCode: 'brainbase' });
+        expect(restored.snapshot_hash).toBe(catalogInitialSnapshot.snapshot_hash);
+        expect(restored.entities).toEqual(catalogInitialSnapshot.entities);
+        expect(restored.edges).toEqual(catalogInitialSnapshot.edges);
+        expect(await graphCounts()).toEqual(beforeDryRunCounts);
+
+        const replayedPlan = await service.planMutations(catalogAccess, {
+            projectCode: 'brainbase',
+            snapshotId: catalogInitialSnapshot.snapshot_id,
+            idempotencyKey: 'catalog-project-subject-db-roundtrip-1',
+            reason: 'Project Catalog subject PostgreSQL acceptance',
+            humanGateReceipt: gate.receipt_id,
+            operations
+        });
+        expect(replayedPlan.plan_id).toBe(plan.plan_id);
+        expect(replayedPlan.after_snapshot_hash).toBe(plan.after_snapshot_hash);
     });
 
     it('cross-tenant Decision subjectをHuman Gate付きでApplyしRollbackする', async () => {
