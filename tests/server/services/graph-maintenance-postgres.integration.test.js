@@ -221,6 +221,42 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
+    it('同一projectのphilosophy governs edgeをRLSで許可する', async () => {
+        await infoSSOTService.withAccessContext(access, async (client) => {
+            await client.query(`
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('philosophy_phase0', 'philosophy', 'project_phase0',
+                     '{"philosophy_id":"phi_phase0","statement":"Graph SSOT first"}',
+                     'member', 'internal', 'active', 1)
+            `);
+            await client.query(`
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('edge_philosophy_governs_project', 'philosophy_phase0', 'project_entity_a', 'governs',
+                     'project_phase0', '{}', 'member', 'internal', 'active', 1)
+            `);
+        });
+        try {
+            await expect(infoSSOTService.listGraphEdges(access, {
+                projectCode: 'brainbase', relType: 'governs', fromId: 'philosophy_phase0'
+            })).resolves.toEqual([
+                expect.objectContaining({
+                    id: 'edge_philosophy_governs_project',
+                    from_id: 'philosophy_phase0',
+                    to_id: 'project_entity_a'
+                })
+            ]);
+        } finally {
+            await infoSSOTService.withAccessContext(access, async (client) => {
+                await client.query(`DELETE FROM graph_edges WHERE id='edge_philosophy_governs_project'`);
+                await client.query(`DELETE FROM graph_entities WHERE id='philosophy_phase0'`);
+            });
+        }
+    });
+
     it('RLSはendpoint EntityのroleとclearanceをEdge read/writeにも適用する', async () => {
         await expect(infoSSOTService.listGraphEdges(access, {
             projectCode: 'brainbase', relType: 'related_to', toId: 'project_vibepro_restricted'

@@ -391,11 +391,16 @@ SET search_path FROM CURRENT
 AS $$
   SELECT CASE
     WHEN edge_rel_type = 'governs'
+      AND EXISTS (
+        SELECT 1
+        FROM graph_entities source_entity
+        WHERE source_entity.id = edge_from_id
+          AND source_entity.entity_type = 'decision'
+      )
     THEN EXISTS (
       SELECT 1
       FROM graph_entities source_entity
       WHERE source_entity.id = edge_from_id
-        AND source_entity.entity_type = 'decision'
         AND source_entity.project_id = edge_project_id
     )
     ELSE TRUE
