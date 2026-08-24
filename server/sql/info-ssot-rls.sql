@@ -391,7 +391,6 @@ SET search_path FROM CURRENT
 AS $$
   SELECT CASE
     WHEN edge_rel_type = 'governs'
-      AND edge_payload->>'cross_tenant' = 'true'
     THEN EXISTS (
       SELECT 1
       FROM graph_entities source_entity

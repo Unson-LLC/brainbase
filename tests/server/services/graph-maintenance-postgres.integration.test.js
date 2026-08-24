@@ -840,6 +840,50 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
+    it('同一tenantのProject subject governs Edgeもsource Decisionのproject owner以外へ保存できない', async () => {
+        const sameTenantAccess = { ...access, role: 'ceo' };
+        const rejectedEdgeId = 'edge_same_tenant_project_subject_wrong_owner_insert';
+        const edgePayload = '{"catalog_project_id":"project_vibepro_entity"}';
+
+        try {
+            await expect(infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(`
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ($1, 'decision_subject', 'project_vibepro_entity', 'governs',
+                     'project_vibepro', $2::jsonb, 'ceo', 'restricted', 'active', 1)
+            `, [rejectedEdgeId, edgePayload]))).rejects.toMatchObject({ code: '42501' });
+        } finally {
+            await infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(
+                `DELETE FROM graph_edges WHERE id=$1`, [rejectedEdgeId]
+            ));
+        }
+
+        const persistedEdgeId = 'edge_same_tenant_project_subject_wrong_owner_update';
+        await infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(`
+            INSERT INTO graph_edges
+                (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+            VALUES
+                ($1, 'decision_subject', 'project_vibepro_entity', 'governs',
+                 'project_phase0', $2::jsonb, 'ceo', 'restricted', 'active', 1)
+        `, [persistedEdgeId, edgePayload]));
+        try {
+            await expect(infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(`
+                UPDATE graph_edges
+                SET project_id='project_vibepro'
+                WHERE id=$1
+            `, [persistedEdgeId]))).rejects.toMatchObject({ code: '42501' });
+
+            await expect(infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(
+                `SELECT project_id FROM graph_edges WHERE id=$1`, [persistedEdgeId]
+            ))).resolves.toMatchObject({ rows: [{ project_id: 'project_phase0' }] });
+        } finally {
+            await infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(
+                `DELETE FROM graph_edges WHERE id=$1`, [persistedEdgeId]
+            ));
+        }
+    });
+
     it('AI query公開面は実DBで越境Edgeの存在とtarget IDをscope外へ漏らさない', async () => {
         await infoSSOTService.withAccessContext(crossTenantAccess, (client) => client.query(`
             INSERT INTO graph_edges
