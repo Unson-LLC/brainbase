@@ -363,6 +363,34 @@ describe('GraphMaintenanceService authorization', () => {
         expect(client.query).toHaveBeenCalledTimes(2);
     });
 
+    it('適用済みPlanでもbase snapshot hash不一致はReceipt readbackより先に拒否する', async () => {
+        const before = {
+            project_code: 'brainbase',
+            entities: [],
+            edges: []
+        };
+        before.hash = hashGraphSnapshot(before);
+        const plan = {
+            id: 'plan_applied_hash_mismatch', project_id: 'project_brainbase', organization_id: 'org_1',
+            project_code: 'brainbase', status: 'applied', base_snapshot_hash: before.hash,
+            after_snapshot_hash: before.hash, before_snapshot: before, after_snapshot: before,
+            operations: []
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            throw new Error(`Receipt readback must not run: ${sql}`);
+        }) };
+        const appliedService = new GraphMaintenanceService({
+            infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) }
+        });
+        await expect(appliedService.applyPlan({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, {
+            projectCode: 'brainbase', planId: plan.id, snapshotHash: 'sha256:wrong'
+        })).rejects.toThrow('snapshot hash does not match plan base');
+        expect(client.query).toHaveBeenCalledTimes(1);
+    });
+
     it('replaceSnapshotは別tenantのedge IDを上書きしない', async () => {
         const snapshot = {
             project_code: 'brainbase',
