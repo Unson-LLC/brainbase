@@ -5,6 +5,45 @@ import { hashGraphSnapshot, validateGraphSnapshot } from '../../../server/servic
 const service = new GraphMaintenanceService({ infoSSOTService: {} });
 
 describe('GraphMaintenanceService authorization', () => {
+    it('Project subject metadataを認証済みCatalog正本へ束縛する', async () => {
+        const configParser = {
+            checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } })),
+            getProjects: vi.fn(async () => ({ projects: [{ id: 'ua', name: 'Universal Arts', catalog_version: 3 }] }))
+        };
+        const catalogService = new GraphMaintenanceService({ infoSSOTService: {}, configParser });
+        const bound = await catalogService.bindProjectCatalogOperations({ projectCodes: ['brainbase', 'ua'] }, [{
+            operation: 'materialize_project_subject', entity_id: 'forged', catalog_project_id: 'ua',
+            catalog_version: 99, name: 'forged', source_ref: 'forged', expected_version: 0
+        }]);
+        expect(bound[0]).toMatchObject({
+            entity_id: 'ua', catalog_project_id: 'ua', catalog_version: 3,
+            name: 'Universal Arts', source_ref: 'project-catalog:ua@3'
+        });
+    });
+
+    it('Catalog欠落・権限外・版なしをdry-run前にfail closedする', async () => {
+        const unavailable = new GraphMaintenanceService({ infoSSOTService: {}, configParser: {
+            checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'missing' }, summary: { errors: 1 } }))
+        } });
+        const operation = [{ operation: 'materialize_project_subject', catalog_project_id: 'ua' }];
+        await expect(unavailable.bindProjectCatalogOperations({ projectCodes: ['ua'] }, operation))
+            .rejects.toMatchObject({ code: 'GRAPH_PROJECT_CATALOG_UNAVAILABLE', status: 503 });
+
+        const inaccessible = new GraphMaintenanceService({ infoSSOTService: {}, configParser: {
+            checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } })),
+            getProjects: vi.fn(async () => ({ projects: [{ id: 'ua', name: 'Universal Arts', catalog_version: 1 }] }))
+        } });
+        await expect(inaccessible.bindProjectCatalogOperations({ projectCodes: ['brainbase'] }, operation))
+            .rejects.toMatchObject({ code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 });
+
+        const incomplete = new GraphMaintenanceService({ infoSSOTService: {}, configParser: {
+            checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } })),
+            getProjects: vi.fn(async () => ({ projects: [{ id: 'ua', name: 'Universal Arts' }] }))
+        } });
+        await expect(incomplete.bindProjectCatalogOperations({ projectCodes: ['ua'] }, operation))
+            .rejects.toMatchObject({ code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID', status: 409 });
+    });
+
     it('署名tenant、project scope、gm以上を必須にする', () => {
         expect(() => service.assertMaintenanceAccess({ role: 'gm', projectCodes: ['brainbase'] }, 'brainbase'))
             .toThrow('Signed tenant authorization');
