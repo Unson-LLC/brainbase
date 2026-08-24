@@ -34,6 +34,7 @@ test -r server/sql/info-ssot-negative-smoke.sql
 ```bash
 INFO_SSOT_GIT_SHA="$TARGET_SHA" \
 INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA" \
+INFO_SSOT_OPERATION_MODE="apply" \
 INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-apply-receipt.json" \
 bash scripts/info-ssot-apply.sh
 ```
@@ -44,7 +45,7 @@ bash scripts/info-ssot-apply.sh
 2. commit後にRLS/readbackを再検査する。
 3. 安全なDB識別子、PostgreSQL `server_version`、適用SHAを含むReceiptを同一ディレクトリへatomicに保存する。
 
-Receiptの最低限の確認項目は、`status=applied`、`apply_commit_sha`、`database`、`server_version`、`transaction=single`、`on_error_stop=true`、`readback.status=passed`、`readback.marker=INFO_SSOT_READBACK_OK`、`negative_smoke.status=passed`、`negative_smoke.marker=INFO_SSOT_NEGATIVE_SMOKE_OK`、`rollback.status=documented`である。Receiptがない、または項目が欠ける場合は成功と扱わない。
+Receiptの最低限の確認項目は、`status=applied`、`operation_mode=apply`、`database_bundle_sha`、`service_target_sha`、`apply_commit_sha`、`database`、`server_version`、`transaction=single`、`on_error_stop=true`、`readback.status=passed`、`readback.marker=INFO_SSOT_READBACK_OK`、`negative_smoke.status=passed`、`negative_smoke.marker=INFO_SSOT_NEGATIVE_SMOKE_OK`、`rollback.status=documented`である。通常適用では`database_bundle_sha`と`service_target_sha`が適用対象SHAに一致することを確認する。Receiptがない、または項目が欠ける場合は成功と扱わない。
 
 ## API/MCP再起動
 
@@ -61,7 +62,7 @@ curl -fsS http://127.0.0.1:55123/api/version
 
 ## 失敗時とrollback
 
-適用中の失敗はtransaction rollbackとなる。API/MCPは起動せず、出力されたエラーを根拠に修正した別SHAを準備し、同じ手順を最初から実行する。前回Receiptで失敗を補完しない。
+適用中の失敗はtransaction rollbackとなる。API/MCPの再起動や新SHAへの切替を行わず、現在のサービス状態を確認する。出力されたエラーを根拠に修正した別SHAを準備し、同じ手順を最初から実行する。前回Receiptで失敗を補完しない。
 
 再起動後にruntimeまたはreadbackが失敗した場合は、まずAPI/MCPを停止する。DBのRLSは旧定義へ戻さず、失敗SHAに含まれる検証済みSQL bundleを再適用して安全な状態を前方維持する。その後、サービスコードだけを適用前に記録した`ROLLBACK_SHA`へ戻す。旧SHAに新しいrunbook、apply script、SQLが含まれることは要求しない。
 
@@ -73,13 +74,14 @@ FAILED_SHA="$(git rev-parse HEAD)"
 grep -Eq '^[0-9a-f]{40}$' <<<"$FAILED_SHA"
 INFO_SSOT_GIT_SHA="$FAILED_SHA" \
 INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA" \
+INFO_SSOT_OPERATION_MODE="rollback_prepare" \
 INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-rollback-receipt.json" \
 bash scripts/info-ssot-apply.sh
 git switch --detach "$ROLLBACK_SHA"
 sudo systemctl start brainbase-ssot.service
 ```
 
-rollback後もreadback、negative smoke、`/api/health`、`/api/version`を取り直す。Receiptの`rollback.database_strategy=forward_only_rls`と`rollback.service_strategy=switch_to_recorded_sha`を確認する。RLSは破壊的なdown migrationを行わず、冪等な前方適用とreadbackで既知の安全な状態を維持する。
+rollback後もreadback、negative smoke、`/api/health`、`/api/version`を取り直す。Receiptの`operation_mode=rollback_prepare`、`database_bundle_sha=FAILED_SHA`、`service_target_sha=ROLLBACK_SHA`、`rollback.database_strategy=forward_only_rls`、`rollback.service_strategy=switch_to_recorded_sha`を確認する。RLSは破壊的なdown migrationを行わず、冪等な前方適用とreadbackで既知の安全な状態を維持する。
 
 ## 証跡チェックリスト
 

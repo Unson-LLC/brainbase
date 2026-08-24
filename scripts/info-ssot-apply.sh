@@ -51,6 +51,16 @@ if [[ ! "$ROLLBACK_SHA" =~ ^[0-9a-f]{40}$ ]]; then
   exit 1
 fi
 
+OPERATION_MODE="${INFO_SSOT_OPERATION_MODE:-apply}"
+if [[ "$OPERATION_MODE" != "apply" && "$OPERATION_MODE" != "rollback_prepare" ]]; then
+  echo "INFO_SSOT_OPERATION_MODE must be apply or rollback_prepare" >&2
+  exit 1
+fi
+SERVICE_TARGET_SHA="$GIT_SHA"
+if [[ "$OPERATION_MODE" == "rollback_prepare" ]]; then
+  SERVICE_TARGET_SHA="$ROLLBACK_SHA"
+fi
+
 RECEIPT_PATH="${INFO_SSOT_APPLY_RECEIPT_PATH:-$REPO_ROOT/var/info-ssot-apply-receipt.json}"
 if [[ "$RECEIPT_PATH" != /* ]]; then
   RECEIPT_PATH="$REPO_ROOT/$RECEIPT_PATH"
@@ -80,25 +90,25 @@ if ! run_psql \
   -f "$RLS_SQL" \
   -f "$READBACK_SQL" \
   -f "$NEGATIVE_SMOKE_SQL" >"$MIGRATION_OUTPUT" 2>&1; then
-  echo "Info SSOT schema/RLS transaction failed; API/MCP must remain stopped" >&2
+  echo "Info SSOT schema/RLS transaction failed; do not restart or switch API/MCP, and verify the current service state" >&2
   exit 1
 fi
 if ! grep -Fqx 'INFO_SSOT_READBACK_OK' "$MIGRATION_OUTPUT"; then
-  echo "Info SSOT in-transaction readback marker is missing; API/MCP must remain stopped" >&2
+  echo "Info SSOT in-transaction readback marker is missing; do not restart or switch API/MCP, and verify the current service state" >&2
   exit 1
 fi
 if ! grep -Fqx 'INFO_SSOT_NEGATIVE_SMOKE_OK' "$MIGRATION_OUTPUT"; then
-  echo "Info SSOT in-transaction negative smoke marker is missing; API/MCP must remain stopped" >&2
+  echo "Info SSOT in-transaction negative smoke marker is missing; do not restart or switch API/MCP, and verify the current service state" >&2
   exit 1
 fi
 
 READBACK_OUTPUT="$TMP_DIR/readback.log"
 if ! run_psql -Atq -f "$READBACK_SQL" >"$READBACK_OUTPUT" 2>&1; then
-  echo "Info SSOT post-commit readback failed; API/MCP must remain stopped" >&2
+  echo "Info SSOT post-commit readback failed; do not restart or switch API/MCP, and verify the current service state" >&2
   exit 1
 fi
 if ! grep -Fqx 'INFO_SSOT_READBACK_OK' "$READBACK_OUTPUT"; then
-  echo "Info SSOT post-commit readback marker is missing; API/MCP must remain stopped" >&2
+  echo "Info SSOT post-commit readback marker is missing; do not restart or switch API/MCP, and verify the current service state" >&2
   exit 1
 fi
 
@@ -115,13 +125,16 @@ if [[ -z "$DB_FINGERPRINT" || ! "$DB_FINGERPRINT" =~ ^[A-Za-z0-9_.:@/+-]+$ ]]; t
 fi
 
 RECEIPT_TMP="$(mktemp "${RECEIPT_PATH}.tmp.XXXXXXXX")"
-node - "$RECEIPT_TMP" "$GIT_SHA" "$DB_FINGERPRINT" "$SERVER_VERSION" "$ROLLBACK_SHA" <<'NODE'
+node - "$RECEIPT_TMP" "$GIT_SHA" "$DB_FINGERPRINT" "$SERVER_VERSION" "$ROLLBACK_SHA" "$OPERATION_MODE" "$SERVICE_TARGET_SHA" <<'NODE'
 import { writeFileSync } from 'node:fs';
 
-const [, , outputPath, gitSha, database, serverVersion, rollbackSha] = process.argv;
+const [, , outputPath, gitSha, database, serverVersion, rollbackSha, operationMode, serviceTargetSha] = process.argv;
 const receipt = {
   status: 'applied',
   migration_id: 'info-ssot-schema+rls',
+  operation_mode: operationMode,
+  database_bundle_sha: gitSha,
+  service_target_sha: serviceTargetSha,
   apply_commit_sha: gitSha,
   git_sha: gitSha,
   database,

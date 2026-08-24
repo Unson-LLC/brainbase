@@ -106,6 +106,9 @@ describe('Info SSOT RLS deployment contract', () => {
         const receipt = JSON.parse(await readFile(fixture.receiptPath, 'utf8'));
         expect(receipt).toMatchObject({
             status: 'applied',
+            operation_mode: 'apply',
+            database_bundle_sha: 'a'.repeat(40),
+            service_target_sha: 'a'.repeat(40),
             git_sha: 'a'.repeat(40),
             transaction: 'single',
             on_error_stop: true,
@@ -137,6 +140,28 @@ describe('Info SSOT RLS deployment contract', () => {
         const fixture = await createPsqlFixture({ failOn: 'readback' });
 
         await expect(runApply(fixture)).rejects.toMatchObject({ code: expect.anything() });
+        await expect(access(fixture.receiptPath)).rejects.toThrow();
+    });
+
+    it('distinguishes rollback preparation from a normal apply in the receipt', async () => {
+        const fixture = await createPsqlFixture();
+
+        await runApply(fixture, { INFO_SSOT_OPERATION_MODE: 'rollback_prepare' });
+
+        const receipt = JSON.parse(await readFile(fixture.receiptPath, 'utf8'));
+        expect(receipt).toMatchObject({
+            operation_mode: 'rollback_prepare',
+            database_bundle_sha: 'a'.repeat(40),
+            service_target_sha: 'b'.repeat(40),
+        });
+    });
+
+    it('rejects an unknown operation mode before touching PostgreSQL', async () => {
+        const fixture = await createPsqlFixture();
+
+        await expect(runApply(fixture, { INFO_SSOT_OPERATION_MODE: 'down_migration' }))
+            .rejects.toMatchObject({ code: expect.anything() });
+        await expect(access(fixture.logPath)).rejects.toThrow();
         await expect(access(fixture.receiptPath)).rejects.toThrow();
     });
 
@@ -190,6 +215,9 @@ describe('Info SSOT RLS deployment contract', () => {
         expect(runbook).toContain('INFO_SSOT_NEGATIVE_SMOKE_OK');
         expect(runbook).toContain(': "${ROLLBACK_SHA:?');
         expect(runbook).toContain('INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA"');
+        expect(runbook).toContain('INFO_SSOT_OPERATION_MODE="apply"');
+        expect(runbook).toContain('INFO_SSOT_OPERATION_MODE="rollback_prepare"');
+        expect(runbook).toContain('operation_mode=rollback_prepare');
         expect(runbook).toContain('DBのRLSは旧定義へ戻さず');
         expect(runbook).toContain('rollback.database_strategy=forward_only_rls');
         expect(runbook).not.toContain('git cat-file -e "$ROLLBACK_SHA:scripts/info-ssot-apply.sh"');
