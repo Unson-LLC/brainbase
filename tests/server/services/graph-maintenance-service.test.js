@@ -387,7 +387,7 @@ describe('GraphMaintenanceService authorization', () => {
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
         }, {
             projectCode: 'brainbase', planId: plan.id, snapshotHash: 'sha256:wrong'
-        })).rejects.toThrow('snapshot hash does not match plan base');
+        })).rejects.toThrow('snapshot hash mismatch');
         expect(client.query).toHaveBeenCalledTimes(1);
     });
 
