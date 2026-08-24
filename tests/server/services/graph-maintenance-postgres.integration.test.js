@@ -120,7 +120,9 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
                 (id, organization_id, project_id, snapshot_hash, snapshot, created_by)
             VALUES
                 ('snapshot_receipt_scope_mismatch', 'org_phase0', 'project_phase0', 'receipt_scope_hash',
-                 '{"project_code":"brainbase","entities":[],"edges":[]}', 'person_phase0');
+                 '{"project_code":"brainbase","entities":[],"edges":[]}', 'person_phase0'),
+                ('snapshot_plan_scope_mismatch', 'org_aitle', 'project_aitle', 'plan_scope_hash',
+                 '{"project_code":"aitle","entities":[],"edges":[]}', 'person_phase0');
             INSERT INTO graph_maintenance_plans
                 (id, organization_id, project_id, snapshot_id, base_snapshot_hash, after_snapshot_hash,
                  idempotency_key, input_fingerprint, reason, operations, before_snapshot, after_snapshot,
@@ -130,13 +132,20 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
                  'snapshot_receipt_scope_mismatch', 'receipt_scope_hash', 'receipt_scope_hash',
                  'receipt-scope-mismatch', 'receipt-scope-mismatch', 'Receipt scope fixture', '[]',
                  '{"project_code":"brainbase","entities":[],"edges":[]}',
-                 '{"project_code":"brainbase","entities":[],"edges":[]}', 'applied', 'person_phase0');
+                 '{"project_code":"brainbase","entities":[],"edges":[]}', 'applied', 'person_phase0'),
+                ('plan_scope_mismatch', 'org_aitle', 'project_aitle',
+                 'snapshot_plan_scope_mismatch', 'plan_scope_hash', 'plan_scope_hash',
+                 'plan-scope-mismatch', 'plan-scope-mismatch', 'Plan scope fixture', '[]',
+                 '{"project_code":"aitle","entities":[],"edges":[]}',
+                 '{"project_code":"aitle","entities":[],"edges":[]}', 'applied', 'person_phase0');
             INSERT INTO graph_maintenance_receipts
                 (id, plan_id, organization_id, project_id, receipt_type, status,
                  before_hash, after_hash, result, actor_id)
             VALUES
                 ('apply_receipt_wrong_scope', 'plan_receipt_scope_mismatch', 'org_aitle', 'project_aitle',
-                 'apply', 'completed', 'receipt_scope_hash', 'receipt_scope_hash', '{}', 'person_phase0');
+                 'apply', 'completed', 'receipt_scope_hash', 'receipt_scope_hash', '{}', 'person_phase0'),
+                ('apply_receipt_forged_request_scope', 'plan_scope_mismatch', 'org_phase0', 'project_phase0',
+                 'apply', 'completed', 'plan_scope_hash', 'plan_scope_hash', '{}', 'person_phase0');
         `);
         await applyInfoSSOTRls(database.pool);
         // Pin this acceptance run to the repository's distributed trust anchor.
@@ -155,6 +164,11 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
     });
 
     it('tenantまたはprojectが不一致の既存Receiptは取得・Apply・Rollbackで返さない', async () => {
+        await expect(service.getPlanReceipt(access, {
+            projectCode: 'brainbase',
+            planId: 'plan_scope_mismatch'
+        })).rejects.toThrow('Plan receipt is required');
+
         await expect(service.getPlanReceipt(access, {
             projectCode: 'brainbase',
             planId: 'plan_receipt_scope_mismatch'
