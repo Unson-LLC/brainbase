@@ -39,13 +39,15 @@ const humanGateOperationScope = {
       type: 'object',
       properties: {
         operation: { type: 'string', enum: ['apply_plan'] },
-        decision_id: { type: 'string', minLength: 1 }, plan_id: { type: 'string', minLength: 1 },
+        decision_id: { type: 'string', minLength: 1 },
+        decision_ids: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, uniqueItems: true },
+        plan_id: { type: 'string', minLength: 1 },
         base_snapshot_hash: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
         after_snapshot_hash: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
         operations_fingerprint: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
         diff_fingerprint: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
       },
-      required: ['operation', 'decision_id', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint'],
+      required: ['operation', 'decision_id', 'decision_ids', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint'],
       additionalProperties: false,
     },
     {

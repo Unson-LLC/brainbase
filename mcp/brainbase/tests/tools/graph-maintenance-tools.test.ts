@@ -289,6 +289,15 @@ describe('Graph maintenance MCP tools', () => {
     assert.deepEqual(scopeSchema.oneOf.map((variant: any) => variant.properties.operation.enum[0]), [
       'link_decision_subject', 'link_decision_project_subject', 'apply_plan', 'retire_entity',
     ]);
+    const applyScopeSchema = scopeSchema.oneOf.find((variant: any) => (
+      variant.properties.operation.enum[0] === 'apply_plan'
+    ));
+    assert.ok(applyScopeSchema);
+    assert.ok(applyScopeSchema.required.includes('decision_ids'));
+    assert.deepEqual(applyScopeSchema.properties.decision_ids, {
+      type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, uniqueItems: true,
+    });
+    assert.equal(applyScopeSchema.additionalProperties, false);
 
     const planTool = graphMaintenanceTools.find((tool) => tool.name === 'graph_plan_mutations');
     const operationSchema = planTool?.inputSchema.properties?.operations?.items;
