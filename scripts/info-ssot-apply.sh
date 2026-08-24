@@ -74,10 +74,12 @@ run_psql() {
 
 MIGRATION_OUTPUT="$TMP_DIR/migration.log"
 if ! run_psql \
+  -Atq \
   --single-transaction \
   -f "$SCHEMA_SQL" \
   -f "$RLS_SQL" \
-  -f "$READBACK_SQL" >"$MIGRATION_OUTPUT" 2>&1; then
+  -f "$READBACK_SQL" \
+  -f "$NEGATIVE_SMOKE_SQL" >"$MIGRATION_OUTPUT" 2>&1; then
   echo "Info SSOT schema/RLS transaction failed; API/MCP must remain stopped" >&2
   exit 1
 fi
@@ -85,9 +87,13 @@ if ! grep -Fqx 'INFO_SSOT_READBACK_OK' "$MIGRATION_OUTPUT"; then
   echo "Info SSOT in-transaction readback marker is missing; API/MCP must remain stopped" >&2
   exit 1
 fi
+if ! grep -Fqx 'INFO_SSOT_NEGATIVE_SMOKE_OK' "$MIGRATION_OUTPUT"; then
+  echo "Info SSOT in-transaction negative smoke marker is missing; API/MCP must remain stopped" >&2
+  exit 1
+fi
 
 READBACK_OUTPUT="$TMP_DIR/readback.log"
-if ! run_psql -f "$READBACK_SQL" >"$READBACK_OUTPUT" 2>&1; then
+if ! run_psql -Atq -f "$READBACK_SQL" >"$READBACK_OUTPUT" 2>&1; then
   echo "Info SSOT post-commit readback failed; API/MCP must remain stopped" >&2
   exit 1
 fi
@@ -96,33 +102,30 @@ if ! grep -Fqx 'INFO_SSOT_READBACK_OK' "$READBACK_OUTPUT"; then
   exit 1
 fi
 
-NEGATIVE_SMOKE_OUTPUT="$TMP_DIR/negative-smoke.log"
-if ! run_psql --single-transaction -f "$NEGATIVE_SMOKE_SQL" >"$NEGATIVE_SMOKE_OUTPUT" 2>&1; then
-  echo "Info SSOT negative smoke failed; API/MCP must remain stopped" >&2
-  exit 1
-fi
-if ! grep -Fqx 'INFO_SSOT_NEGATIVE_SMOKE_OK' "$NEGATIVE_SMOKE_OUTPUT"; then
-  echo "Info SSOT negative smoke marker is missing; API/MCP must remain stopped" >&2
+SERVER_VERSION="$(run_psql -Atqc "SHOW server_version;" | tr -d '\r\n')"
+if [[ -z "$SERVER_VERSION" || ${#SERVER_VERSION} -gt 128 || "$SERVER_VERSION" =~ [^[:print:]] ]]; then
+  echo "Info SSOT PostgreSQL server_version readback is invalid" >&2
   exit 1
 fi
 
 DB_FINGERPRINT="$(run_psql -Atqc "SELECT current_database() || '@' || COALESCE(inet_server_addr()::text, 'local') || ':' || COALESCE(inet_server_port()::text, '');" | tr -d '\r\n')"
-if [[ -z "$DB_FINGERPRINT" || ! "$DB_FINGERPRINT" =~ ^[A-Za-z0-9_.:@-]+$ ]]; then
+if [[ -z "$DB_FINGERPRINT" || ! "$DB_FINGERPRINT" =~ ^[A-Za-z0-9_.:@/+-]+$ ]]; then
   echo "Info SSOT database identity readback is invalid" >&2
   exit 1
 fi
 
 RECEIPT_TMP="$(mktemp "${RECEIPT_PATH}.tmp.XXXXXXXX")"
-node - "$RECEIPT_TMP" "$GIT_SHA" "$DB_FINGERPRINT" "$ROLLBACK_SHA" <<'NODE'
+node - "$RECEIPT_TMP" "$GIT_SHA" "$DB_FINGERPRINT" "$SERVER_VERSION" "$ROLLBACK_SHA" <<'NODE'
 import { writeFileSync } from 'node:fs';
 
-const [, , outputPath, gitSha, database, rollbackSha] = process.argv;
+const [, , outputPath, gitSha, database, serverVersion, rollbackSha] = process.argv;
 const receipt = {
   status: 'applied',
   migration_id: 'info-ssot-schema+rls',
   apply_commit_sha: gitSha,
   git_sha: gitSha,
   database,
+  server_version: serverVersion,
   transaction: 'single',
   on_error_stop: true,
   readback: {
@@ -138,6 +141,8 @@ const receipt = {
   rollback: {
     status: 'documented',
     rollback_sha: rollbackSha || null,
+    database_strategy: 'forward_only_rls',
+    service_strategy: 'switch_to_recorded_sha',
     runbook: 'docs/runbooks/info-ssot-rls-deployment.md',
   },
   completed_at: new Date().toISOString(),

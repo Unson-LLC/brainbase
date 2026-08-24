@@ -25,14 +25,35 @@ for arg in "$@"; do
     fi
 done
 
+TUPLES_ONLY=0
+if [[ "$*" == *"-Atq"* ]]; then
+    TUPLES_ONLY=1
+fi
+
+emit_marker() {
+    if [[ "$TUPLES_ONLY" == 1 ]]; then
+        printf '%s\\n' "$1"
+    else
+        # Reproduce the aligned psql output that would make grep -Fqx fail
+        # unless the caller explicitly requests tuples-only/unaligned output.
+        printf ' marker\\n-----------------------\\n %s\\n(1 row)\\n' "$1"
+    fi
+}
+
+if [[ "$*" == *"server_version"* ]]; then
+    printf '%s\\n' '16.4 (Ubuntu 16.4-1.pgdg22.04+1)'
+    exit 0
+fi
+
 if [[ "$*" == *"-Atqc"* ]]; then
-    printf '%s\\n' 'brainbase@127.0.0.1:5432'
+    printf '%s\\n' 'brainbase@127.0.0.1/32:5432'
+    exit 0
 fi
 
 for arg in "$@"; do
     case "$arg" in
-        *info-ssot-readback.sql) printf '%s\\n' 'INFO_SSOT_READBACK_OK' ;;
-        *info-ssot-negative-smoke.sql) printf '%s\\n' 'INFO_SSOT_NEGATIVE_SMOKE_OK' ;;
+        *info-ssot-readback.sql) emit_marker 'INFO_SSOT_READBACK_OK' ;;
+        *info-ssot-negative-smoke.sql) emit_marker 'INFO_SSOT_NEGATIVE_SMOKE_OK' ;;
     esac
 done
 `);
@@ -57,6 +78,18 @@ async function runApply(fixture, extraEnv = {}) {
 }
 
 describe('Info SSOT RLS deployment contract', () => {
+    it('models aligned psql output and requires tuples-only markers', async () => {
+        const fixture = await createPsqlFixture();
+        const { stdout } = await execFile(
+            fixture.psqlPath,
+            ['postgres://test:test@example.test/brainbase', '-f', path.join(repoRoot, 'server/sql/info-ssot-readback.sql')],
+            { env: { ...process.env, FAKE_PSQL_LOG: fixture.logPath } },
+        );
+
+        expect(stdout).toContain('(1 row)');
+        expect(stdout).not.toMatch(/^INFO_SSOT_READBACK_OK$/mu);
+    });
+
     it('runs schema, RLS, readback and smoke in fail-closed single-transaction mode', async () => {
         const script = await readFile(applyScript, 'utf8');
 
@@ -78,20 +111,26 @@ describe('Info SSOT RLS deployment contract', () => {
             on_error_stop: true,
             readback: { status: 'passed', marker: 'INFO_SSOT_READBACK_OK' },
             negative_smoke: { status: 'passed', marker: 'INFO_SSOT_NEGATIVE_SMOKE_OK' },
+            server_version: '16.4 (Ubuntu 16.4-1.pgdg22.04+1)',
             rollback: {
                 status: 'documented',
                 rollback_sha: 'b'.repeat(40),
+                database_strategy: 'forward_only_rls',
+                service_strategy: 'switch_to_recorded_sha',
             },
         });
 
         const invocations = (await readFile(fixture.logPath, 'utf8')).trim().split('\n');
         expect(invocations.length).toBeGreaterThanOrEqual(3);
         expect(invocations[0]).toMatch(/--single-transaction/u);
+        expect(invocations[0]).toMatch(/-Atq/u);
         expect(invocations[0]).toMatch(/ON_ERROR_STOP=1/u);
         expect(invocations[0]).toMatch(/info-ssot-schema\.sql/u);
         expect(invocations[0]).toMatch(/info-ssot-rls\.sql/u);
         expect(invocations[0]).toMatch(/info-ssot-readback\.sql/u);
-        expect(invocations.some((invocation) => invocation.includes('info-ssot-negative-smoke.sql'))).toBe(true);
+        expect(invocations[0]).toMatch(/info-ssot-negative-smoke\.sql/u);
+        expect(invocations.filter((invocation) => invocation.includes('info-ssot-negative-smoke.sql'))).toHaveLength(2);
+        expect(invocations.filter((invocation) => invocation.includes('--single-transaction'))).toHaveLength(2);
     });
 
     it('does not write an apply receipt when readback fails', async () => {
@@ -99,6 +138,21 @@ describe('Info SSOT RLS deployment contract', () => {
 
         await expect(runApply(fixture)).rejects.toMatchObject({ code: expect.anything() });
         await expect(access(fixture.receiptPath)).rejects.toThrow();
+    });
+
+    it('rolls back the schema transaction when the negative smoke fails', async () => {
+        const fixture = await createPsqlFixture({ failOn: 'negative-smoke' });
+
+        await expect(runApply(fixture)).rejects.toMatchObject({ code: expect.anything() });
+        await expect(access(fixture.receiptPath)).rejects.toThrow();
+
+        const invocations = (await readFile(fixture.logPath, 'utf8')).trim().split('\n');
+        expect(invocations).toHaveLength(1);
+        expect(invocations[0]).toMatch(/--single-transaction/u);
+        expect(invocations[0]).toMatch(/info-ssot-schema\.sql/u);
+        expect(invocations[0]).toMatch(/info-ssot-rls\.sql/u);
+        expect(invocations[0]).toMatch(/info-ssot-readback\.sql/u);
+        expect(invocations[0]).toMatch(/info-ssot-negative-smoke\.sql/u);
     });
 
     it('requires a recorded rollback SHA before touching PostgreSQL', async () => {
@@ -118,6 +172,10 @@ describe('Info SSOT RLS deployment contract', () => {
         }
         expect(readbackSql).toContain('INFO_SSOT_READBACK_OK');
         expect(smokeSql).toContain('INFO_SSOT_NEGATIVE_SMOKE_OK');
+        expect(smokeSql).toMatch(/rel_type,\s+project_id/u);
+        expect(smokeSql).toContain("'governs'");
+        expect(smokeSql).toContain('wrong-owner');
+        expect(smokeSql).toContain('fixture residual');
         expect(smokeSql).toMatch(/raise exception/iu);
     });
 
@@ -131,9 +189,23 @@ describe('Info SSOT RLS deployment contract', () => {
         expect(runbook).toContain('API/MCPを再起動する前');
         expect(runbook).toContain('INFO_SSOT_NEGATIVE_SMOKE_OK');
         expect(runbook).toContain(': "${ROLLBACK_SHA:?');
-        expect(runbook).toContain('INFO_SSOT_ROLLBACK_SHA="$FAILED_SHA"');
+        expect(runbook).toContain('INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA"');
+        expect(runbook).toContain('DBのRLSは旧定義へ戻さず');
+        expect(runbook).toContain('rollback.database_strategy=forward_only_rls');
+        expect(runbook).not.toContain('git cat-file -e "$ROLLBACK_SHA:scripts/info-ssot-apply.sh"');
+        expect(runbook).toContain('(../brainbase-capabilities/runbooks/deploy-lightsail-production.md)');
+        const rollbackApplyOffset = runbook.lastIndexOf('bash scripts/info-ssot-apply.sh');
+        const rollbackSwitchOffset = runbook.indexOf('git switch --detach "$ROLLBACK_SHA"');
+        expect(rollbackApplyOffset).toBeGreaterThan(-1);
+        expect(rollbackSwitchOffset).toBeGreaterThan(-1);
+        expect(rollbackApplyOffset).toBeLessThan(rollbackSwitchOffset);
+        expect(deploymentRunbook).toContain('(../../runbooks/info-ssot-rls-deployment.md)');
+        expect(deploymentRunbook).toContain('The database is forward-only');
+        expect(deploymentRunbook).toContain('rollback.database_strategy=forward_only_rls');
         expect(deploymentRunbook.indexOf('bash scripts/info-ssot-apply.sh'))
             .toBeLessThan(deploymentRunbook.indexOf('sudo systemctl restart brainbase-ssot.service'));
+        expect(deploymentRunbook.lastIndexOf('sudo systemctl stop brainbase-ssot.service'))
+            .toBeLessThan(deploymentRunbook.lastIndexOf('bash scripts/info-ssot-apply.sh'));
         expect(deploymentRunbook.lastIndexOf('bash scripts/info-ssot-apply.sh'))
             .toBeLessThan(deploymentRunbook.lastIndexOf('sudo systemctl restart brainbase-ssot.service'));
     });

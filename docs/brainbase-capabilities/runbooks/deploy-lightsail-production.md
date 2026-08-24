@@ -60,7 +60,7 @@ INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-apply-receipt.json" \
 bash scripts/info-ssot-apply.sh
 ```
 
-The command must return successfully and produce a Receipt with `readback.status=passed` and `negative_smoke.status=passed`. See [`info-ssot-rls-deployment.md`](../../../runbooks/info-ssot-rls-deployment.md) for the transaction, evidence, and rollback contract.
+The command must return successfully and produce a Receipt with `readback.status=passed`, `negative_smoke.status=passed`, and a safe `server_version`. See [`info-ssot-rls-deployment.md`](../../runbooks/info-ssot-rls-deployment.md) for the transaction, evidence, and rollback contract.
 
 ## 3. Restart the service
 
@@ -117,25 +117,27 @@ Expected:
 - `https://bb.unson.jp/api/health` returns `200`
 - Graph API returns entities with a valid token
 
-## 5. Roll back to the recorded SHA
+## 5. Roll back the service to the recorded SHA
 
-Use only the SHA recorded in the pre-check. A branch reset is unnecessary and prohibited. Preserve server logs and `~/.codex/var/judgment-resolver` journals.
+Use only the SHA recorded in the pre-check. A branch reset is unnecessary and prohibited. Preserve server logs and `~/.codex/var/judgment-resolver` journals. The database is forward-only: reapply and verify the current safe RLS bundle before switching only the service code to the recorded SHA.
 
 ```bash
 ROLLBACK_SHA="<40-character SHA printed during pre-check>"
 grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
+sudo systemctl stop brainbase-ssot.service
 cd /home/ubuntu/brainbase
 test -z "$(git status --porcelain)"
 FAILED_SHA="$(git rev-parse HEAD)"
+grep -Eq '^[0-9a-f]{40}$' <<<"$FAILED_SHA"
 git cat-file -e "${ROLLBACK_SHA}^{commit}"
+INFO_SSOT_GIT_SHA="$FAILED_SHA" \
+INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA" \
+INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-rollback-receipt.json" \
+bash scripts/info-ssot-apply.sh
 git switch --detach "$ROLLBACK_SHA"
 if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock.json; then
   npm ci --omit=dev
 fi
-INFO_SSOT_GIT_SHA="$ROLLBACK_SHA" \
-INFO_SSOT_ROLLBACK_SHA="$FAILED_SHA" \
-INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-rollback-receipt.json" \
-bash scripts/info-ssot-apply.sh
 sudo systemctl restart brainbase-ssot.service
 sleep 3
 curl -fsS http://127.0.0.1:55123/api/health
@@ -148,6 +150,8 @@ console.log(JSON.stringify(git));
 ```
 
 From the Mac, repeat the public `/api/version`, `/api/health`, and authenticated Graph checks from section 4 with `TARGET_SHA="$ROLLBACK_SHA"`. A successful instance check alone does not complete rollback.
+
+The rollback Receipt must report `rollback.database_strategy=forward_only_rls` and `rollback.service_strategy=switch_to_recorded_sha`. Do not describe this procedure as a database down migration.
 
 For a Judgment Resolver deployment, this is only the Lightsail step. Follow the four-surface rollback order in [`judgment-resolve.md`](./judgment-resolve.md#rollback) to restore the global Hook checkout, local `:31013`, persistent MCP runtime, Lightsail, and exact prior Hook file as one compatible set.
 
