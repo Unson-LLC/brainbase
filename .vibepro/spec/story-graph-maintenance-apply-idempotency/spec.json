@@ -192,7 +192,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-24T01:03:42.089Z",
-      "last_revised_at": "2026-08-24T01:09:48.769Z"
+      "last_revised_at": "2026-08-24T01:17:59.093Z"
     },
     {
       "id": "C-002",
@@ -221,7 +221,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-24T01:03:42.089Z",
-      "last_revised_at": "2026-08-24T01:09:48.769Z"
+      "last_revised_at": "2026-08-24T01:17:59.093Z"
     },
     {
       "id": "C-003",
@@ -250,7 +250,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-24T01:03:42.089Z",
-      "last_revised_at": "2026-08-24T01:09:48.769Z"
+      "last_revised_at": "2026-08-24T01:17:59.093Z"
     },
     {
       "id": "C-004",
@@ -272,6 +272,14 @@
         ],
         "test_refs": [
           {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "適用済みの複数Decision Planは追加Human Gate評価前に既存Receiptを返す"
+          },
+          {
+            "file": "tests/server/routes/graph-maintenance-contract.test.js",
+            "case": "6つのREST routeがcontrollerからserviceへ正しいmethod/body/queryを渡す"
+          },
+          {
             "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
             "case": "cross-tenant Decision subjectをHuman Gate付きでApplyしRollbackする"
           }
@@ -279,13 +287,13 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-24T01:03:42.089Z",
-      "last_revised_at": "2026-08-24T01:09:48.769Z"
+      "last_revised_at": "2026-08-24T01:17:59.093Z"
     }
   ],
-  "generated_at": "2026-08-24T01:09:48.767Z",
+  "generated_at": "2026-08-24T01:17:59.091Z",
   "generated_by": {
     "caller": "codex",
     "stage": "ai_synthesis"
   },
-  "previous_spec_id": "2026-08-24T01:06:05.259Z"
+  "previous_spec_id": "2026-08-24T01:09:48.767Z"
 }
