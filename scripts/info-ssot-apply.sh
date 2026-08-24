@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+SCHEMA_SQL="$REPO_ROOT/server/sql/info-ssot-schema.sql"
+RLS_SQL="$REPO_ROOT/server/sql/info-ssot-rls.sql"
+READBACK_SQL="$REPO_ROOT/server/sql/info-ssot-readback.sql"
+NEGATIVE_SMOKE_SQL="$REPO_ROOT/server/sql/info-ssot-negative-smoke.sql"
 
 if [[ -z "${INFO_SSOT_DATABASE_URL:-}" ]]; then
   echo "INFO_SSOT_DATABASE_URL is not set" >&2
@@ -18,7 +25,126 @@ if [[ -z "$PSQL_BIN" ]]; then
   fi
 fi
 
-"$PSQL_BIN" "$INFO_SSOT_DATABASE_URL" -f server/sql/info-ssot-schema.sql
-"$PSQL_BIN" "$INFO_SSOT_DATABASE_URL" -f server/sql/info-ssot-rls.sql
+for sql_file in "$SCHEMA_SQL" "$RLS_SQL" "$READBACK_SQL" "$NEGATIVE_SMOKE_SQL"; do
+  if [[ ! -r "$sql_file" ]]; then
+    echo "Info SSOT SQL file is missing or unreadable: ${sql_file#"$REPO_ROOT/"}" >&2
+    exit 1
+  fi
+done
 
-echo "Info SSOT schema + RLS applied"
+GIT_SHA="${INFO_SSOT_GIT_SHA:-}"
+if [[ -z "$GIT_SHA" ]]; then
+  GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
+fi
+if [[ ! "$GIT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "INFO_SSOT_GIT_SHA must be a 40-character commit SHA" >&2
+  exit 1
+fi
+
+ROLLBACK_SHA="${INFO_SSOT_ROLLBACK_SHA:-}"
+if [[ -z "$ROLLBACK_SHA" ]]; then
+  echo "INFO_SSOT_ROLLBACK_SHA is required for deployment evidence" >&2
+  exit 1
+fi
+if [[ ! "$ROLLBACK_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "INFO_SSOT_ROLLBACK_SHA must be a 40-character commit SHA" >&2
+  exit 1
+fi
+
+RECEIPT_PATH="${INFO_SSOT_APPLY_RECEIPT_PATH:-$REPO_ROOT/var/info-ssot-apply-receipt.json}"
+if [[ "$RECEIPT_PATH" != /* ]]; then
+  RECEIPT_PATH="$REPO_ROOT/$RECEIPT_PATH"
+fi
+mkdir -p "$(dirname -- "$RECEIPT_PATH")"
+umask 077
+
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/info-ssot-apply.XXXXXXXX")"
+RECEIPT_TMP=""
+cleanup() {
+  rm -rf -- "$TMP_DIR"
+  if [[ -n "$RECEIPT_TMP" ]]; then
+    rm -f -- "$RECEIPT_TMP"
+  fi
+}
+trap cleanup EXIT
+
+run_psql() {
+  "$PSQL_BIN" "$INFO_SSOT_DATABASE_URL" -X -v ON_ERROR_STOP=1 "$@"
+}
+
+MIGRATION_OUTPUT="$TMP_DIR/migration.log"
+if ! run_psql \
+  --single-transaction \
+  -f "$SCHEMA_SQL" \
+  -f "$RLS_SQL" \
+  -f "$READBACK_SQL" >"$MIGRATION_OUTPUT" 2>&1; then
+  echo "Info SSOT schema/RLS transaction failed; API/MCP must remain stopped" >&2
+  exit 1
+fi
+if ! grep -Fqx 'INFO_SSOT_READBACK_OK' "$MIGRATION_OUTPUT"; then
+  echo "Info SSOT in-transaction readback marker is missing; API/MCP must remain stopped" >&2
+  exit 1
+fi
+
+READBACK_OUTPUT="$TMP_DIR/readback.log"
+if ! run_psql -f "$READBACK_SQL" >"$READBACK_OUTPUT" 2>&1; then
+  echo "Info SSOT post-commit readback failed; API/MCP must remain stopped" >&2
+  exit 1
+fi
+if ! grep -Fqx 'INFO_SSOT_READBACK_OK' "$READBACK_OUTPUT"; then
+  echo "Info SSOT post-commit readback marker is missing; API/MCP must remain stopped" >&2
+  exit 1
+fi
+
+NEGATIVE_SMOKE_OUTPUT="$TMP_DIR/negative-smoke.log"
+if ! run_psql --single-transaction -f "$NEGATIVE_SMOKE_SQL" >"$NEGATIVE_SMOKE_OUTPUT" 2>&1; then
+  echo "Info SSOT negative smoke failed; API/MCP must remain stopped" >&2
+  exit 1
+fi
+if ! grep -Fqx 'INFO_SSOT_NEGATIVE_SMOKE_OK' "$NEGATIVE_SMOKE_OUTPUT"; then
+  echo "Info SSOT negative smoke marker is missing; API/MCP must remain stopped" >&2
+  exit 1
+fi
+
+DB_FINGERPRINT="$(run_psql -Atqc "SELECT current_database() || '@' || COALESCE(inet_server_addr()::text, 'local') || ':' || COALESCE(inet_server_port()::text, '');" | tr -d '\r\n')"
+if [[ -z "$DB_FINGERPRINT" || ! "$DB_FINGERPRINT" =~ ^[A-Za-z0-9_.:@-]+$ ]]; then
+  echo "Info SSOT database identity readback is invalid" >&2
+  exit 1
+fi
+
+RECEIPT_TMP="$(mktemp "${RECEIPT_PATH}.tmp.XXXXXXXX")"
+node - "$RECEIPT_TMP" "$GIT_SHA" "$DB_FINGERPRINT" "$ROLLBACK_SHA" <<'NODE'
+import { writeFileSync } from 'node:fs';
+
+const [, , outputPath, gitSha, database, rollbackSha] = process.argv;
+const receipt = {
+  status: 'applied',
+  migration_id: 'info-ssot-schema+rls',
+  apply_commit_sha: gitSha,
+  git_sha: gitSha,
+  database,
+  transaction: 'single',
+  on_error_stop: true,
+  readback: {
+    status: 'passed',
+    marker: 'INFO_SSOT_READBACK_OK',
+    scope: 'in_transaction_and_post_commit',
+  },
+  negative_smoke: {
+    status: 'passed',
+    marker: 'INFO_SSOT_NEGATIVE_SMOKE_OK',
+    scope: 'transaction_local',
+  },
+  rollback: {
+    status: 'documented',
+    rollback_sha: rollbackSha || null,
+    runbook: 'docs/runbooks/info-ssot-rls-deployment.md',
+  },
+  completed_at: new Date().toISOString(),
+};
+writeFileSync(outputPath, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
+NODE
+mv -f -- "$RECEIPT_TMP" "$RECEIPT_PATH"
+RECEIPT_TMP=""
+
+echo "Info SSOT schema + RLS applied; receipt=${RECEIPT_PATH#"$REPO_ROOT/"}"

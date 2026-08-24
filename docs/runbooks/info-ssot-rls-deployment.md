@@ -1,0 +1,88 @@
+# Info SSOT RLS 配備ゲート
+
+`server/sql/info-ssot-schema.sql` と `server/sql/info-ssot-rls.sql` を本番へ適用する前後のリリース手順。API/MCPを再起動する前に、このゲートを完了させる。
+
+## 安全境界
+
+- 接続先は `INFO_SSOT_DATABASE_URL` からのみ取得する。URL、token、passwordをログやReceiptへ出さない。
+- schema、RLS、同一transaction内readbackは `ON_ERROR_STOP=1` と `--single-transaction` で一括実行する。
+- readbackまたはnegative smokeが失敗した場合、transactionをcommitせず、Receiptを作らず、API/MCPを起動しない。
+- SQLは既存の `IF NOT EXISTS` とpolicy再作成規約に従い、再実行可能である。
+- negative smokeのfixtureはtransaction内で作成・認可確認・拒否確認・削除を行う。成功後にGraphへfixtureを残さない。
+
+## 適用前
+
+```bash
+cd /home/ubuntu/brainbase
+test -z "$(git status --porcelain)"
+TARGET_SHA="$(git rev-parse HEAD)"
+: "${ROLLBACK_SHA:?set this to the 40-character SHA recorded before checkout advanced}"
+grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
+grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
+git cat-file -e "$ROLLBACK_SHA:scripts/info-ssot-apply.sh"
+git cat-file -e "$ROLLBACK_SHA:server/sql/info-ssot-readback.sql"
+git cat-file -e "$ROLLBACK_SHA:server/sql/info-ssot-negative-smoke.sql"
+```
+
+`INFO_SSOT_DATABASE_URL` はsystemd/Infisical等の秘密管理から注入する。値を`export`、echo、shell履歴へ残さない。
+`INFO_SSOT_ROLLBACK_SHA` は必須であり、適用前に記録した40桁SHAを渡す。未指定ならDBへ接続せず停止する。
+
+## 適用とreadback
+
+```bash
+INFO_SSOT_GIT_SHA="$TARGET_SHA" \
+INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA" \
+INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-apply-receipt.json" \
+bash scripts/info-ssot-apply.sh
+```
+
+このコマンドは次の順で実行する。
+
+1. schema、RLS、in-transaction readbackを一つのtransactionで適用する。
+2. commit後にRLS/readbackを再検査する。
+3. transaction-local negative smokeで、許可scopeのread、拒否scopeの非表示、fixture削除を確認する。
+4. 安全なDB識別子と適用SHAを含むReceiptを同一ディレクトリへatomicに保存する。
+
+Receiptの最低限の確認項目は、`status=applied`、`apply_commit_sha`、`database`、`transaction=single`、`on_error_stop=true`、`readback.status=passed`、`readback.marker=INFO_SSOT_READBACK_OK`、`negative_smoke.status=passed`、`negative_smoke.marker=INFO_SSOT_NEGATIVE_SMOKE_OK`、`rollback.status=documented`である。Receiptがない、または項目が欠ける場合は成功と扱わない。
+
+## API/MCP再起動
+
+適用コマンドの終了コード、Receipt、readback、negative smokeがすべて確認できるまで、`brainbase-ssot.service`とMCP runtimeを再起動してはならない。
+
+```bash
+sudo systemctl restart brainbase-ssot.service
+sleep 3
+curl -fsS http://127.0.0.1:55123/api/health
+curl -fsS http://127.0.0.1:55123/api/version
+```
+
+再起動後も、`/api/version`のruntime SHAが`TARGET_SHA`と一致し、healthが成功することをreadbackする。Lightsail全体の手順は [`deploy-lightsail-production.md`](../../brainbase-capabilities/runbooks/deploy-lightsail-production.md) を正本とする。
+
+## 失敗時とrollback
+
+適用中の失敗はtransaction rollbackとなる。API/MCPは起動せず、出力されたエラーを根拠に修正した別SHAを準備し、同じ手順を最初から実行する。前回Receiptで失敗を補完しない。
+
+再起動後にruntimeまたはreadbackが失敗した場合は、まずAPI/MCPを停止し、適用前に記録した`ROLLBACK_SHA`へ戻す。rollback対象SHAにもこのrunbook、apply script、readback、negative smoke SQLが含まれることを適用前に確認しておく。
+
+```bash
+sudo systemctl stop brainbase-ssot.service
+cd /home/ubuntu/brainbase
+test -z "$(git status --porcelain)"
+git switch --detach "$ROLLBACK_SHA"
+INFO_SSOT_GIT_SHA="$ROLLBACK_SHA" \
+INFO_SSOT_ROLLBACK_SHA="$FAILED_SHA" \
+INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-rollback-receipt.json" \
+bash scripts/info-ssot-apply.sh
+sudo systemctl start brainbase-ssot.service
+```
+
+rollback後もreadback、negative smoke、`/api/health`、`/api/version`を取り直す。RLSは破壊的なdown migrationを行わず、冪等な前方適用とreadbackで既知の安全な状態へ戻す。
+
+## 証跡チェックリスト
+
+- [ ] 適用対象SHAとrollback SHA
+- [ ] safe DB identity（接続URLではない）
+- [ ] in-transaction / post-commit readback marker
+- [ ] negative smoke markerとfixture cleanup
+- [ ] Receiptの保存先とSHA
+- [ ] rollback後のreadback、health、runtime SHA

@@ -50,6 +50,18 @@ If `package.json` / `package-lock.json` changed in the range:
 npm ci --omit=dev
 ```
 
+Before restarting the API/MCP service, run the mandatory Info SSOT RLS gate. A failed gate means the service must remain stopped; do not treat a previous Receipt as a successful current apply.
+
+```bash
+TARGET_SHA="$(git rev-parse HEAD)"
+INFO_SSOT_GIT_SHA="$TARGET_SHA" \
+INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA" \
+INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-apply-receipt.json" \
+bash scripts/info-ssot-apply.sh
+```
+
+The command must return successfully and produce a Receipt with `readback.status=passed` and `negative_smoke.status=passed`. See [`info-ssot-rls-deployment.md`](../../../runbooks/info-ssot-rls-deployment.md) for the transaction, evidence, and rollback contract.
+
 ## 3. Restart the service
 
 ```bash
@@ -120,6 +132,10 @@ git switch --detach "$ROLLBACK_SHA"
 if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock.json; then
   npm ci --omit=dev
 fi
+INFO_SSOT_GIT_SHA="$ROLLBACK_SHA" \
+INFO_SSOT_ROLLBACK_SHA="$FAILED_SHA" \
+INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-rollback-receipt.json" \
+bash scripts/info-ssot-apply.sh
 sudo systemctl restart brainbase-ssot.service
 sleep 3
 curl -fsS http://127.0.0.1:55123/api/health
