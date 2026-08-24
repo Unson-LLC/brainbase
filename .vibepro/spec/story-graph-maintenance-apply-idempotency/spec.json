@@ -192,7 +192,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-24T01:03:42.089Z",
-      "last_revised_at": "2026-08-24T01:06:05.260Z"
+      "last_revised_at": "2026-08-24T01:09:48.769Z"
     },
     {
       "id": "C-002",
@@ -221,7 +221,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-24T01:03:42.089Z",
-      "last_revised_at": "2026-08-24T01:06:05.260Z"
+      "last_revised_at": "2026-08-24T01:09:48.769Z"
     },
     {
       "id": "C-003",
@@ -244,13 +244,13 @@
         "test_refs": [
           {
             "file": "tests/server/services/graph-maintenance-service.test.js",
-            "case": "Apply済みplanでもbase snapshot hash不一致はReceipt readbackより先に拒否する"
+            "case": "適用済みPlanでもbase snapshot hash不一致はReceipt readbackより先に拒否する"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-24T01:03:42.089Z",
-      "last_revised_at": "2026-08-24T01:06:05.260Z"
+      "last_revised_at": "2026-08-24T01:09:48.769Z"
     },
     {
       "id": "C-004",
@@ -279,13 +279,13 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-24T01:03:42.089Z",
-      "last_revised_at": "2026-08-24T01:06:05.260Z"
+      "last_revised_at": "2026-08-24T01:09:48.769Z"
     }
   ],
-  "generated_at": "2026-08-24T01:06:05.259Z",
+  "generated_at": "2026-08-24T01:09:48.767Z",
   "generated_by": {
     "caller": "codex",
     "stage": "ai_synthesis"
   },
-  "previous_spec_id": "2026-08-24T01:03:42.088Z"
+  "previous_spec_id": "2026-08-24T01:06:05.259Z"
 }
