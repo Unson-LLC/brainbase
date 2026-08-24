@@ -770,7 +770,7 @@ export class GraphMaintenanceService {
             const plan = rows[0];
             if (!plan) throw new Error('Unknown plan');
             if (snapshotHash !== plan.base_snapshot_hash) throw new Error('snapshot hash mismatch');
-            const existing = await this.findReceipt(client, planId, 'apply');
+            const existing = await this.findReceipt(client, planId, 'apply', { organizationId, projectCode });
             if (existing) return existing;
             const decisionIds = planDecisionIds(plan);
             if (decisionIds.length > 1) {
@@ -835,10 +835,19 @@ export class GraphMaintenanceService {
         });
     }
 
-    async findReceipt(client, planId, type) {
+    async findReceipt(client, planId, type, { organizationId, projectCode } = {}) {
+        if (!String(organizationId || '').trim() || !String(projectCode || '').trim()) {
+            throw new Error('Receipt lookup requires tenant and project scope');
+        }
         const { rows } = await client.query(
-            `SELECT id AS receipt_id, plan_id, receipt_type, status, before_hash, after_hash, result, created_at
-             FROM graph_maintenance_receipts WHERE plan_id=$1 AND receipt_type=$2`, [planId, type]
+            `SELECT r.id AS receipt_id, r.plan_id, r.receipt_type, r.status, r.before_hash, r.after_hash, r.result, r.created_at
+             FROM graph_maintenance_receipts r
+             JOIN graph_maintenance_plans p ON p.id=r.plan_id
+             JOIN projects project_scope ON project_scope.id=p.project_id
+             WHERE r.plan_id=$1 AND r.receipt_type=$2
+               AND r.organization_id=$3 AND r.project_id=p.project_id
+               AND p.organization_id=$3 AND project_scope.organization_id=$3
+               AND project_scope.code=$4`, [planId, type, organizationId, projectCode]
         );
         return rows[0] || null;
     }
@@ -880,9 +889,9 @@ export class GraphMaintenanceService {
             );
             const plan = rows[0];
             if (!plan) throw new Error('Unknown plan');
-            const previousRollback = await this.findReceipt(client, planId, 'rollback');
+            const previousRollback = await this.findReceipt(client, planId, 'rollback', { organizationId, projectCode });
             if (previousRollback) return previousRollback;
-            const applyReceipt = await this.findReceipt(client, planId, 'apply');
+            const applyReceipt = await this.findReceipt(client, planId, 'apply', { organizationId, projectCode });
             if (!applyReceipt || applyReceipt.receipt_id !== applyReceiptId) throw new Error('Valid apply receipt is required for rollback');
             if (hashGraphSnapshot(plan.before_snapshot) !== plan.base_snapshot_hash
                 || hashGraphSnapshot(plan.after_snapshot) !== plan.after_snapshot_hash) {

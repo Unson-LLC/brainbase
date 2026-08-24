@@ -363,6 +363,49 @@ describe('GraphMaintenanceService authorization', () => {
         expect(client.query).toHaveBeenCalledTimes(2);
     });
 
+    it('既存Receiptの再取得はPlanのtenantとprojectに一致するものだけを返す', async () => {
+        const before = {
+            project_code: 'brainbase',
+            entities: [],
+            edges: []
+        };
+        before.hash = hashGraphSnapshot(before);
+        const plan = {
+            id: 'plan_receipt_scope', project_id: 'project_brainbase', organization_id: 'org_1',
+            project_code: 'brainbase', status: 'applied', base_snapshot_hash: before.hash,
+            after_snapshot_hash: before.hash, before_snapshot: before, after_snapshot: before,
+            operations: []
+        };
+        const mismatchedReceipt = {
+            receipt_id: 'apply_other_scope', plan_id: plan.id, receipt_type: 'apply', status: 'completed',
+            organization_id: 'org_other', project_id: 'project_other'
+        };
+        let receiptQuery;
+        const client = { query: vi.fn(async (sql, params) => {
+            if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('FROM graph_maintenance_receipts')) {
+                receiptQuery = { sql, params };
+                const scoped = sql.includes('r.organization_id=$3')
+                    && sql.includes('r.project_id=p.project_id')
+                    && sql.includes('p.organization_id=$3')
+                    && sql.includes('project_scope.code=$4');
+                return { rows: scoped ? [] : [mismatchedReceipt] };
+            }
+            throw new Error(`mutation query must not run: ${sql}`);
+        }) };
+        const scopedService = new GraphMaintenanceService({
+            infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) }
+        });
+
+        await expect(scopedService.applyPlan({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, {
+            projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash
+        })).rejects.toThrow('Plan is not applicable: applied');
+        expect(receiptQuery.params).toEqual([plan.id, 'apply', 'org_1', 'brainbase']);
+        expect(client.query).toHaveBeenCalledTimes(2);
+    });
+
     it('適用済みPlanでもbase snapshot hash不一致はReceipt readbackより先に拒否する', async () => {
         const before = {
             project_code: 'brainbase',
