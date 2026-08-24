@@ -174,11 +174,11 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         initialSnapshot = await service.exportSnapshot(access, {
             projectCode: 'brainbase', includeProjectCodes: ['vibepro']
         });
-    });
+    }, 300_000);
 
     afterAll(async () => {
         await dropScopedDatabase(database);
-    });
+    }, 300_000);
 
     it('tenantまたはprojectが不一致の既存Receiptは取得・Apply・Rollbackで返さない', async () => {
         await expect(service.getPlanReceipt(access, {
@@ -1142,11 +1142,11 @@ describeWithPostgres('Info SSOT schema migration compatibility', () => {
         await applyInfoSSOTSchema(database.pool);
         // The schema is the migration contract and must be safe to re-apply.
         await applyInfoSSOTSchema(database.pool);
-    });
+    }, 300_000);
 
     afterAll(async () => {
         await dropScopedDatabase(database);
-    });
+    }, 300_000);
 
     it('承認済みtenant mappingだけを冪等に適用する', async () => {
         const { rows: projects } = await database.pool.query(
