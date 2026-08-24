@@ -870,8 +870,15 @@ export class GraphMaintenanceService {
         return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
             const { rows } = await client.query(
                 `SELECT r.id AS receipt_id, r.plan_id, r.receipt_type, r.status, r.before_hash, r.after_hash, r.result, r.created_at
-                 FROM graph_maintenance_receipts r JOIN projects p ON p.id=r.project_id
-                 WHERE r.plan_id=$1 AND r.organization_id=$2 AND p.code=$3 ORDER BY r.created_at`,
+                 FROM graph_maintenance_receipts r
+                 JOIN graph_maintenance_plans plan_scope ON plan_scope.id=r.plan_id
+                 JOIN projects project_scope ON project_scope.id=plan_scope.project_id
+                 WHERE r.plan_id=$1 AND r.organization_id=$2
+                   AND r.project_id=plan_scope.project_id
+                   AND plan_scope.organization_id=$2
+                   AND project_scope.organization_id=$2
+                   AND project_scope.code=$3
+                 ORDER BY r.created_at`,
                 [planId, access.organizationId || access.tenantId, projectCode]
             );
             if (!rows.length) throw new Error('Plan receipt is required');

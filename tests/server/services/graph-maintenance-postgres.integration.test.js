@@ -154,7 +154,12 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         await dropScopedDatabase(database);
     });
 
-    it('tenantまたはprojectが不一致の既存ReceiptはApplyとRollbackで返さない', async () => {
+    it('tenantまたはprojectが不一致の既存Receiptは取得・Apply・Rollbackで返さない', async () => {
+        await expect(service.getPlanReceipt(access, {
+            projectCode: 'brainbase',
+            planId: 'plan_receipt_scope_mismatch'
+        })).rejects.toThrow('Plan receipt is required');
+
         await expect(service.applyPlan(access, {
             projectCode: 'brainbase',
             planId: 'plan_receipt_scope_mismatch',
