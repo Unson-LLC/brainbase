@@ -314,7 +314,7 @@
           },
           {
             "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
-            "case": "cross-tenant governs Edgeはsource Decisionのproject owner以外へ保存できない"
+            "case": "tenantまたはprojectが不一致の既存ReceiptはApplyとRollbackで返さない"
           }
         ]
       },
@@ -323,7 +323,7 @@
       "last_revised_at": "2026-08-24T02:00:00.000Z"
     }
   ],
-  "generated_at": "2026-08-24T01:17:59.091Z",
+  "generated_at": "2026-08-24T02:20:00.000Z",
   "generated_by": {
     "caller": "codex",
     "stage": "ai_synthesis"

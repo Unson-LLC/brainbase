@@ -116,6 +116,27 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
                  'project_phase0', '{}', 'member', 'internal', 'active', 1),
                 ('edge_restricted_endpoint', 'project_entity_a', 'project_vibepro_restricted', 'related_to',
                  'project_phase0', '{}', 'member', 'internal', 'active', 1);
+            INSERT INTO graph_maintenance_snapshots
+                (id, organization_id, project_id, snapshot_hash, snapshot, created_by)
+            VALUES
+                ('snapshot_receipt_scope_mismatch', 'org_phase0', 'project_phase0', 'receipt_scope_hash',
+                 '{"project_code":"brainbase","entities":[],"edges":[]}', 'person_phase0');
+            INSERT INTO graph_maintenance_plans
+                (id, organization_id, project_id, snapshot_id, base_snapshot_hash, after_snapshot_hash,
+                 idempotency_key, input_fingerprint, reason, operations, before_snapshot, after_snapshot,
+                 status, created_by)
+            VALUES
+                ('plan_receipt_scope_mismatch', 'org_phase0', 'project_phase0',
+                 'snapshot_receipt_scope_mismatch', 'receipt_scope_hash', 'receipt_scope_hash',
+                 'receipt-scope-mismatch', 'receipt-scope-mismatch', 'Receipt scope fixture', '[]',
+                 '{"project_code":"brainbase","entities":[],"edges":[]}',
+                 '{"project_code":"brainbase","entities":[],"edges":[]}', 'applied', 'person_phase0');
+            INSERT INTO graph_maintenance_receipts
+                (id, plan_id, organization_id, project_id, receipt_type, status,
+                 before_hash, after_hash, result, actor_id)
+            VALUES
+                ('apply_receipt_wrong_scope', 'plan_receipt_scope_mismatch', 'org_aitle', 'project_aitle',
+                 'apply', 'completed', 'receipt_scope_hash', 'receipt_scope_hash', '{}', 'person_phase0');
         `);
         await applyInfoSSOTRls(database.pool);
         // Pin this acceptance run to the repository's distributed trust anchor.
@@ -131,6 +152,20 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
 
     afterAll(async () => {
         await dropScopedDatabase(database);
+    });
+
+    it('tenantまたはprojectが不一致の既存ReceiptはApplyとRollbackで返さない', async () => {
+        await expect(service.applyPlan(access, {
+            projectCode: 'brainbase',
+            planId: 'plan_receipt_scope_mismatch',
+            snapshotHash: 'receipt_scope_hash'
+        })).rejects.toThrow('Plan is not applicable: applied');
+
+        await expect(service.rollbackPlan(access, {
+            projectCode: 'brainbase',
+            planId: 'plan_receipt_scope_mismatch',
+            applyReceiptId: 'apply_receipt_wrong_scope'
+        })).rejects.toThrow('Valid apply receipt is required for rollback');
     });
 
     it('同一organizationのcross-project edgeは通常readから消さない', async () => {
