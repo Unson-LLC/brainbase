@@ -302,4 +302,81 @@ describe('Graph maintenance Phase 0 contract', () => {
         }];
         expect(validateGraphSnapshot(malformed).issues).toContainEqual({ category: 'cross_tenant_edge', id: 'edge_malformed' });
     });
+
+    it('Catalog Projectを最小projectionとして生成し同一PlanでDecision subjectへ接続する', () => {
+        const before = {
+            project_code: 'brainbase',
+            entities: [{
+                id: 'decision_ua', entity_type: 'decision', project_code: 'brainbase', payload: {},
+                role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+            }],
+            edges: []
+        };
+        const after = applyGraphOperations(before, [{
+            operation: 'materialize_project_subject',
+            entity_id: 'brainbase-universal-arts-ai-support',
+            catalog_project_id: 'brainbase-universal-arts-ai-support',
+            catalog_version: 1,
+            name: 'Universal Arts 3ヶ月AIコンサル',
+            source_ref: 'project-catalog:brainbase-universal-arts-ai-support@1',
+            expected_version: 0
+        }, {
+            operation: 'link_decision_project_subject',
+            decision_id: 'decision_ua', decision_expected_version: 1,
+            subject_entity_id: 'brainbase-universal-arts-ai-support', subject_expected_version: 1,
+            edge_id: 'edge_ua_subject', expected_version: 0,
+            human_gate_receipt: 'gate_ua'
+        }], { projectCode: 'brainbase' });
+
+        expect(after.entities).toContainEqual({
+            id: 'brainbase-universal-arts-ai-support', entity_type: 'project', project_code: 'brainbase',
+            payload: {
+                name: 'Universal Arts 3ヶ月AIコンサル',
+                catalog_project_id: 'brainbase-universal-arts-ai-support',
+                catalog_version: 1,
+                source_ref: 'project-catalog:brainbase-universal-arts-ai-support@1'
+            },
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        });
+        expect(after.edges).toContainEqual(expect.objectContaining({
+            id: 'edge_ua_subject', from_id: 'decision_ua',
+            to_id: 'brainbase-universal-arts-ai-support', rel_type: 'governs',
+            project_code: 'brainbase', lifecycle_status: 'active', version: 1
+        }));
+        expect(validateGraphSnapshot(after).valid).toBe(true);
+    });
+
+    it('Project subject materializeはidentity・型・version・Human Gateをfail closedにする', () => {
+        const before = {
+            project_code: 'brainbase',
+            entities: [{ id: 'decision', entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }],
+            edges: []
+        };
+        const materialize = {
+            operation: 'materialize_project_subject', entity_id: 'project_ua',
+            catalog_project_id: 'project_ua', catalog_version: 1, name: 'UA',
+            source_ref: 'project-catalog:project_ua@1', expected_version: 0
+        };
+        expect(() => applyGraphOperations(before, [{ ...materialize, catalog_project_id: 'other' }], { projectCode: 'brainbase' }))
+            .toThrow('Catalog Project ID must match Graph Entity ID');
+        expect(() => applyGraphOperations(before, [{ ...materialize, expected_version: 1 }], { projectCode: 'brainbase' }))
+            .toThrow('expected_version conflict');
+        expect(() => applyGraphOperations(before, [{ ...materialize, catalog_version: 0 }], { projectCode: 'brainbase' }))
+            .toThrow('catalog_version must be a positive integer');
+        expect(() => applyGraphOperations(before, [{ ...materialize, source_ref: 'project-catalog:other@1' }], { projectCode: 'brainbase' }))
+            .toThrow('source_ref must match Catalog Project identity and version');
+
+        const withProject = applyGraphOperations(before, [materialize], { projectCode: 'brainbase' });
+        const link = {
+            operation: 'link_decision_project_subject', decision_id: 'decision', decision_expected_version: 1,
+            subject_entity_id: 'project_ua', subject_expected_version: 1,
+            edge_id: 'edge_subject', expected_version: 0
+        };
+        expect(() => applyGraphOperations(withProject, [link], { projectCode: 'brainbase' }))
+            .toThrow('human_gate_receipt is required for Decision project subject link');
+        const wrongType = structuredClone(withProject);
+        wrongType.entities.find((entity) => entity.id === 'project_ua').entity_type = 'person';
+        expect(() => applyGraphOperations(wrongType, [{ ...link, human_gate_receipt: 'gate' }], { projectCode: 'brainbase' }))
+            .toThrow('active Project subject is required');
+    });
 });

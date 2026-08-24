@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 
 export const GRAPH_MAINTENANCE_OPERATIONS = Object.freeze([
     'patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'rehome_entity',
-    'upsert_edge', 'link_decision_subject', 'retire_edge', 'normalize_alias'
+    'upsert_edge', 'link_decision_subject', 'materialize_project_subject',
+    'link_decision_project_subject', 'retire_edge', 'normalize_alias'
 ]);
 export const GRAPH_MAINTENANCE_MAX_OPERATIONS = 100;
 
@@ -98,6 +99,10 @@ function findAnyEntity(state, id) {
     const entity = [...(state.entities || []), ...(state.external_entities || [])].find((item) => item.id === id);
     if (!entity) throw new Error(`Unknown entity: ${id}`);
     return entity;
+}
+
+function findAnyEntityOrNull(state, id) {
+    return [...(state.entities || []), ...(state.external_entities || [])].find((item) => item.id === id) || null;
 }
 
 function findEdge(state, operation) {
@@ -232,6 +237,65 @@ export function applyGraphOperations(snapshot, operations, { projectCode, humanG
                     sensitivity, lifecycle_status: 'active', version: 1
                 });
             }
+        } else if (operation.operation === 'materialize_project_subject') {
+            if (operation.expected_version !== 0) throw new Error('expected_version conflict');
+            if (!String(operation.entity_id || '').trim()) throw new Error('entity_id is required');
+            if (operation.catalog_project_id !== operation.entity_id) {
+                throw new Error('Catalog Project ID must match Graph Entity ID');
+            }
+            if (!Number.isInteger(operation.catalog_version) || operation.catalog_version < 1) {
+                throw new Error('catalog_version must be a positive integer');
+            }
+            if (!String(operation.name || '').trim()) throw new Error('name is required');
+            const expectedSourceRef = `project-catalog:${operation.catalog_project_id}@${operation.catalog_version}`;
+            if (operation.source_ref !== expectedSourceRef) throw new Error('source_ref must match Catalog Project identity and version');
+            if (findAnyEntityOrNull(state, operation.entity_id)) throw new Error('entity id conflict');
+            state.entities.push({
+                id: operation.entity_id,
+                entity_type: 'project',
+                project_code: state.project_code,
+                payload: {
+                    name: operation.name,
+                    catalog_project_id: operation.catalog_project_id,
+                    catalog_version: operation.catalog_version,
+                    source_ref: operation.source_ref
+                },
+                role_min: 'member',
+                sensitivity: 'internal',
+                lifecycle_status: 'active',
+                version: 1
+            });
+        } else if (operation.operation === 'link_decision_project_subject') {
+            const decision = findEntity(state, operation.decision_id);
+            const subject = findEntity(state, operation.subject_entity_id);
+            requireVersion(decision, { expected_version: operation.decision_expected_version });
+            requireVersion(subject, { expected_version: operation.subject_expected_version });
+            if (decision.entity_type !== 'decision' || decision.lifecycle_status !== 'active') throw new Error('active Decision source is required');
+            if (subject.entity_type !== 'project' || subject.lifecycle_status !== 'active') throw new Error('active Project subject is required');
+            if (decision.project_code !== state.project_code || subject.project_code !== state.project_code) {
+                throw new Error('Decision project subject scope mismatch');
+            }
+            if (!(operation.human_gate_receipt || humanGateReceipt)) {
+                throw new Error('human_gate_receipt is required for Decision project subject link');
+            }
+            if (operation.expected_version !== 0) throw new Error('expected_version conflict');
+            if (!String(operation.edge_id || '').trim()) throw new Error('edge_id is required');
+            if (state.edges.some((edge) => edge.id === operation.edge_id)) throw new Error('edge id conflict');
+            if (state.edges.some((edge) => edge.from_id === decision.id && edge.to_id === subject.id && edge.rel_type === 'governs')) {
+                throw new Error('Decision project subject edge already exists');
+            }
+            state.edges.push({
+                id: operation.edge_id,
+                from_id: decision.id,
+                to_id: subject.id,
+                rel_type: 'governs',
+                project_code: decision.project_code,
+                payload: { catalog_project_id: subject.payload.catalog_project_id },
+                role_min: 'ceo',
+                sensitivity: 'restricted',
+                lifecycle_status: 'active',
+                version: 1
+            });
         } else if (operation.operation === 'link_decision_subject') {
             const decision = findEntity(state, operation.decision_id);
             const subject = findAnyEntity(state, operation.subject_entity_id);

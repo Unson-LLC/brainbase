@@ -677,6 +677,16 @@ describe('GraphMaintenanceService authorization', () => {
             target_project_code: 'aitle', expected_version: 0
         }, source: 'human-review' } });
         expect(receipt).toMatchObject({ receipt_id: 'gate_1', status: 'approved', decision_id: 'decision_1' });
+        const projectSubjectReceipt = await humanGateService.recordHumanGateReceipt({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
+        }, { projectCode: 'brainbase', decisionId: 'decision_1', receiptId: 'gate_project_subject', evidence: { operation_scope: {
+            operation: 'link_decision_project_subject', decision_id: 'decision_1', decision_expected_version: 2,
+            subject_entity_id: 'brainbase-universal-arts-ai-support', subject_expected_version: 1,
+            target_project_code: 'brainbase', expected_version: 0
+        } } });
+        expect(projectSubjectReceipt).toMatchObject({
+            receipt_id: 'gate_project_subject', status: 'approved', decision_id: 'decision_1'
+        });
         const retireReceipt = await humanGateService.recordHumanGateReceipt({
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
         }, { projectCode: 'brainbase', decisionId: 'decision_1', receiptId: 'gate_retire', evidence: { operation_scope: {
@@ -688,7 +698,7 @@ describe('GraphMaintenanceService authorization', () => {
         }, { projectCode: 'brainbase', decisionId: 'decision_other', receiptId: 'gate_mismatch', evidence: { operation_scope: {
             operation: 'retire_entity', decision_id: 'decision_1', decision_expected_version: 2
         } } })).rejects.toMatchObject({ code: 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH', status: 409 });
-        expect(withAccessContext).toHaveBeenCalledTimes(4);
+        expect(withAccessContext).toHaveBeenCalledTimes(5);
     });
 
     it('Human Gate receipt IDの再利用は同一operation_scopeだけを許可する', async () => {

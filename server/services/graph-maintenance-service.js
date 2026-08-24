@@ -112,7 +112,7 @@ function validateHumanGateEvidence(evidence) {
             throw error;
         }
         const scope = evidence.operation_scope;
-        const linkShape = scope.operation === 'link_decision_subject'
+        const linkShape = ['link_decision_subject', 'link_decision_project_subject'].includes(scope.operation)
             && ['decision_id', 'subject_entity_id', 'target_project_code'].every((key) => typeof scope[key] === 'string' && scope[key].length > 0)
             && ['decision_expected_version', 'subject_expected_version', 'expected_version']
                 .every((key) => Number.isInteger(scope[key]) && scope[key] >= (key === 'expected_version' ? 0 : 1))
@@ -468,8 +468,13 @@ export class GraphMaintenanceService {
             if (!stored) throw new Error('Unknown snapshot');
             const normalizedOperations = (input.operations || []).map((operation, index) => {
                 const deterministicEdgeId = plannedEdgeId(organizationId, input.projectCode, input.idempotencyKey, index);
-                if (['upsert_edge', 'link_decision_subject'].includes(operation.operation) && operation.expected_version === 0) {
-                    return { ...operation, edge_id: deterministicEdgeId };
+                if (['upsert_edge', 'link_decision_subject', 'link_decision_project_subject'].includes(operation.operation)
+                    && operation.expected_version === 0) {
+                    return {
+                        ...operation,
+                        ...(operation.operation === 'link_decision_project_subject' ? { target_project_code: input.projectCode } : {}),
+                        edge_id: deterministicEdgeId
+                    };
                 }
                 if (operation.operation === 'rehome_entity' && operation.new_membership_expected_version === 0) {
                     return { ...operation, new_membership_edge_id: deterministicEdgeId };
@@ -493,7 +498,9 @@ export class GraphMaintenanceService {
             for (const targetProjectCode of targetProjectCodes) {
                 await this.resolveProject(client, access, targetProjectCode);
             }
-            const newEdgeOperations = normalizedOperations.filter((operation) => ['upsert_edge', 'link_decision_subject'].includes(operation.operation) && operation.expected_version === 0);
+            const newEdgeOperations = normalizedOperations.filter((operation) => [
+                'upsert_edge', 'link_decision_subject', 'link_decision_project_subject'
+            ].includes(operation.operation) && operation.expected_version === 0);
             const plannedEdgeIds = [
                 ...newEdgeOperations.map((operation) => operation.edge_id),
                 ...normalizedOperations
@@ -538,7 +545,9 @@ export class GraphMaintenanceService {
                     throw new Error('Valid Human Gate receipt is required for Active Decision');
                 }
             }
-            for (const operation of normalizedOperations.filter((candidate) => candidate.operation === 'link_decision_subject')) {
+            for (const operation of normalizedOperations.filter((candidate) => [
+                'link_decision_subject', 'link_decision_project_subject'
+            ].includes(candidate.operation))) {
                 const decision = stored.snapshot.entities.find((entity) => entity.id === operation.decision_id);
                 const receiptId = operation.human_gate_receipt || input.humanGateReceipt;
                 const gate = await client.query(
