@@ -131,6 +131,117 @@ describe('GraphMaintenanceService authorization', () => {
         }
     });
 
+    it.each([
+        {
+            name: 'Catalog project missing',
+            access: { projectCodes: ['brainbase', 'brainbase-universal-arts-ai-support'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 }
+        },
+        {
+            name: 'Catalog source unavailable',
+            access: { projectCodes: ['brainbase', 'brainbase-universal-arts-ai-support'] },
+            integrity: { applicability: 'applicable', source: { status: 'unavailable' }, summary: { errors: 0 } },
+            projects: [],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_UNAVAILABLE', status: 503 }
+        },
+        {
+            name: 'Catalog project archived',
+            access: { projectCodes: ['brainbase', 'brainbase-universal-arts-ai-support'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'brainbase-universal-arts-ai-support', name: 'Universal Arts', catalog_version: 1, archived: true }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 }
+        },
+        {
+            name: 'Catalog grant out',
+            access: { projectCodes: ['brainbase'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'brainbase-universal-arts-ai-support', name: 'Universal Arts', catalog_version: 1 }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 }
+        },
+        {
+            name: 'Catalog version invalid',
+            access: { projectCodes: ['brainbase', 'brainbase-universal-arts-ai-support'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'brainbase-universal-arts-ai-support', name: 'Universal Arts', catalog_version: 0 }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID', status: 409 }
+        },
+        {
+            name: 'Graph projection provenance/version mismatch',
+            access: { projectCodes: ['brainbase', 'brainbase-universal-arts-ai-support'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'brainbase-universal-arts-ai-support', name: 'Universal Arts', catalog_version: 2 }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID', status: 409 },
+            subjectPayload: {
+                name: 'Universal Arts', catalog_project_id: 'brainbase-universal-arts-ai-support',
+                catalog_version: 1, source_ref: 'project-catalog:brainbase-universal-arts-ai-support@1'
+            }
+        }
+    ])('link_decision_project_subject: $name はPlan INSERTとGraph mutationへ到達しない', async ({
+        access, integrity, projects, expected, subjectPayload
+    }) => {
+        const subjectId = 'brainbase-universal-arts-ai-support';
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [
+                {
+                    id: 'decision_1', entity_type: 'decision', project_code: 'brainbase', payload: {},
+                    role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+                },
+                {
+                    id: subjectId, entity_type: 'project', project_code: 'brainbase',
+                    payload: subjectPayload || {
+                        name: 'Universal Arts', catalog_project_id: subjectId,
+                        catalog_version: 1, source_ref: `project-catalog:${subjectId}@1`
+                    },
+                    role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+                }
+            ],
+            edges: []
+        };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const client = {
+            query: vi.fn(async (sql) => {
+                if (sql.includes('FROM graph_maintenance_snapshots')) {
+                    return { rows: [{
+                        id: 'snapshot_project_subject_catalog_guard',
+                        project_id: 'project_brainbase', snapshot, snapshot_hash: snapshot.hash
+                    }] };
+                }
+                return { rows: [] };
+            })
+        };
+        const configParser = {
+            checkIntegrity: vi.fn(async () => integrity),
+            getProjects: vi.fn(async () => ({ projects }))
+        };
+        const guardedService = new GraphMaintenanceService({
+            configParser,
+            infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) }
+        });
+
+        await expect(guardedService.planMutations({
+            organizationId: 'org_1', role: 'gm', authSource: 'bearer', personId: 'person_1', ...access
+        }, {
+            projectCode: 'brainbase', snapshotId: 'snapshot_project_subject_catalog_guard',
+            idempotencyKey: `project-subject-catalog-guard-${expected.code}-${expected.status}`,
+            reason: 'Project Catalog link guard', humanGateReceipt: 'gate_project_subject', operations: [{
+                operation: 'link_decision_project_subject', decision_id: 'decision_1', decision_expected_version: 1,
+                subject_entity_id: subjectId, subject_expected_version: 1,
+                target_project_code: 'brainbase', expected_version: 0
+            }]
+        })).rejects.toMatchObject(expected);
+
+        expect(client.query.mock.calls.some(([sql]) => /\b(?:INSERT|UPDATE|DELETE)\b[\s\S]*\b(?:graph_maintenance_plans|graph_entities|graph_edges)\b/i.test(sql))).toBe(false);
+        expect(configParser.checkIntegrity).toHaveBeenCalledOnce();
+        if (expected.code === 'GRAPH_PROJECT_CATALOG_UNAVAILABLE') {
+            expect(configParser.getProjects).not.toHaveBeenCalled();
+        } else {
+            expect(configParser.getProjects).toHaveBeenCalledOnce();
+        }
+    });
+
     it('署名tenant、project scope、gm以上を必須にする', () => {
         expect(() => service.assertMaintenanceAccess({ role: 'gm', projectCodes: ['brainbase'] }, 'brainbase'))
             .toThrow('Signed tenant authorization');

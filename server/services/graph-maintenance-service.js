@@ -273,9 +273,11 @@ export class GraphMaintenanceService {
         this.configParser = configParser;
     }
 
-    async bindProjectCatalogOperations(access, operations) {
-        const materializations = operations.filter((operation) => operation.operation === 'materialize_project_subject');
-        if (!materializations.length) return operations;
+    async bindProjectCatalogOperations(access, operations, { snapshot = null } = {}) {
+        const catalogOperations = operations.filter((operation) => [
+            'materialize_project_subject', 'link_decision_project_subject'
+        ].includes(operation.operation));
+        if (!catalogOperations.length) return operations;
         if (!this.configParser) {
             const error = new Error('Project Catalog resolver is unavailable');
             error.code = 'GRAPH_PROJECT_CATALOG_UNAVAILABLE';
@@ -283,22 +285,27 @@ export class GraphMaintenanceService {
             throw error;
         }
         const integrity = await this.configParser.checkIntegrity();
-        if (integrity.applicability !== 'applicable'
-            || integrity.source?.status !== 'loaded'
-            || integrity.summary?.errors > 0) {
+        if (integrity?.applicability !== 'applicable'
+            || integrity?.source?.status !== 'loaded'
+            || integrity?.summary?.errors > 0) {
             const error = new Error('Project Catalog source is unavailable or invalid');
             error.code = 'GRAPH_PROJECT_CATALOG_UNAVAILABLE';
             error.status = 503;
-            error.details = { source_status: integrity.source?.status || 'unknown' };
+            error.details = { source_status: integrity?.source?.status || 'unknown' };
             throw error;
         }
         const catalog = await this.configParser.getProjects();
-        const byId = new Map((catalog.projects || []).filter((project) => !project.archived).map((project) => [project.id, project]));
-        return operations.map((operation) => {
-            if (operation.operation !== 'materialize_project_subject') return operation;
-            const project = byId.get(operation.catalog_project_id);
-            if (!project || !access.projectCodes.includes(project.id)) {
-                const error = new Error(`Project Catalog subject is missing or inaccessible: ${operation.catalog_project_id}`);
+        const byId = new Map((catalog?.projects || [])
+            .filter((project) => !project.archived)
+            .map((project) => [project.id, project]));
+        const projectByOperation = new Map();
+        const materializedSubjectIds = new Set();
+        for (const operation of catalogOperations) {
+            const catalogProjectId = operation.operation === 'materialize_project_subject'
+                ? operation.catalog_project_id : operation.subject_entity_id;
+            const project = byId.get(catalogProjectId);
+            if (!project || !Array.isArray(access?.projectCodes) || !access.projectCodes.includes(project.id)) {
+                const error = new Error(`Project Catalog subject is missing or inaccessible: ${catalogProjectId}`);
                 error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE';
                 error.status = 403;
                 throw error;
@@ -310,14 +317,55 @@ export class GraphMaintenanceService {
                 error.status = 409;
                 throw error;
             }
-            return {
-                ...operation,
-                entity_id: project.id,
+            projectByOperation.set(operation, {
+                ...project,
                 catalog_project_id: project.id,
                 catalog_version: catalogVersion,
                 name: project.name,
                 source_ref: `project-catalog:${project.id}@${catalogVersion}`
-            };
+            });
+            if (operation.operation === 'materialize_project_subject') materializedSubjectIds.add(project.id);
+        }
+        return operations.map((operation) => {
+            if (operation.operation !== 'link_decision_project_subject') {
+                if (operation.operation !== 'materialize_project_subject') return operation;
+                const project = projectByOperation.get(operation);
+                return {
+                    ...operation,
+                    entity_id: project.id,
+                    catalog_project_id: project.id,
+                    catalog_version: project.catalog_version,
+                    name: project.name,
+                    source_ref: project.source_ref
+                };
+            }
+            const project = projectByOperation.get(operation);
+            const subject = snapshot?.entities?.find((entity) => entity.id === operation.subject_entity_id);
+            if (!subject && materializedSubjectIds.has(operation.subject_entity_id)) return operation;
+            const projection = subject?.payload;
+            if (!subject || subject.entity_type !== 'project' || subject.lifecycle_status !== 'active'
+                || !projection || projection.catalog_project_id !== project.catalog_project_id
+                || projection.catalog_version !== project.catalog_version
+                || projection.source_ref !== project.source_ref
+                || String(projection.name || '').trim() !== String(project.name || '').trim()) {
+                const error = new Error(`Project Catalog subject projection is missing or stale: ${operation.subject_entity_id}`);
+                error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID';
+                error.status = 409;
+                error.details = {
+                    subject_entity_id: operation.subject_entity_id,
+                    catalog_project_id: project.catalog_project_id,
+                    catalog_version: project.catalog_version,
+                    source_ref: project.source_ref
+                };
+                throw error;
+            }
+            if (!Number.isInteger(subject.version) || subject.version < 1) {
+                const error = new Error(`Project Catalog subject Graph version is invalid: ${operation.subject_entity_id}`);
+                error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID';
+                error.status = 409;
+                throw error;
+            }
+            return operation;
         });
     }
 
@@ -535,7 +583,9 @@ export class GraphMaintenanceService {
             );
             const stored = snapshotRows[0];
             if (!stored) throw new Error('Unknown snapshot');
-            const catalogBoundOperations = await this.bindProjectCatalogOperations(access, input.operations || []);
+            const catalogBoundOperations = await this.bindProjectCatalogOperations(access, input.operations || [], {
+                snapshot: stored.snapshot
+            });
             const normalizedOperations = catalogBoundOperations.map((operation, index) => {
                 const deterministicEdgeId = plannedEdgeId(organizationId, input.projectCode, input.idempotencyKey, index);
                 if (['upsert_edge', 'link_decision_subject', 'link_decision_project_subject'].includes(operation.operation)
