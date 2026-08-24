@@ -78,7 +78,7 @@
     "graph_metadata": {
       "tenant_entities": [
         "projects.organization_id",
-        "graph_migration_apply_receipts.tenant_id"
+        "graph_maintenance_receipts.organization_id"
       ],
       "boundary_edges": [
         "authenticated organization reads project apply receipt"
