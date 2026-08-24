@@ -383,7 +383,7 @@ describe('GraphMaintenanceService authorization', () => {
         expect(multiDecisionService.replaceSnapshot).toHaveBeenCalledOnce();
     });
 
-    it('旧単一Decision Human Gate scopeは互換受理するが複数Decision Planには拡張しない', async () => {
+    it('旧単一Decision Human Gate scopeを単一Decision Planで互換受理する', async () => {
         const before = { project_code: 'brainbase', entities: [{
             id: 'decision_1', entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member',
             sensitivity: 'internal', lifecycle_status: 'active', version: 1
@@ -416,6 +416,79 @@ describe('GraphMaintenanceService authorization', () => {
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
         }, { projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash, humanGateReceipt: 'gate_legacy' }))
             .resolves.toEqual({ receipt_id: 'apply_legacy' });
+    });
+
+    it('旧単一Decision Human Gate scopeを複数Decision Planへ拡張しない', async () => {
+        const before = { project_code: 'brainbase', entities: ['decision_1', 'decision_2'].map((id) => ({
+            id, entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member',
+            sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        })), edges: [] };
+        before.hash = hashGraphSnapshot(before);
+        const after = structuredClone(before);
+        after.entities.forEach((entity) => { entity.lifecycle_status = 'retired'; entity.version = 2; });
+        after.hash = hashGraphSnapshot(after);
+        const plan = {
+            id: 'plan_legacy_multi', project_id: 'project_brainbase', organization_id: 'org_1',
+            project_code: 'brainbase', status: 'planned', base_snapshot_hash: before.hash,
+            after_snapshot_hash: after.hash, before_snapshot: before, after_snapshot: after,
+            operations: before.entities.map((entity) => ({ operation: 'retire_entity', entity_id: entity.id, expected_version: 1 }))
+        };
+        let legacyScope;
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
+            if (sql.includes('FROM graph_maintenance_human_gate_receipts')) return { rows: [{ id: 'gate_legacy', evidence: { operation_scope: legacyScope } }] };
+            throw new Error(`mutation query must not run: ${sql}`);
+        }) };
+        const service = new GraphMaintenanceService({ infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) } });
+        legacyScope = { ...service.formatPlan(plan).apply_human_gate_scope };
+        delete legacyScope.decision_ids;
+        vi.spyOn(service, 'loadSnapshot').mockResolvedValue({ snapshot: before });
+        const replaceSnapshot = vi.spyOn(service, 'replaceSnapshot').mockResolvedValue(undefined);
+        await expect(service.applyPlan({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
+        }, { projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash, humanGateReceipt: 'gate_legacy' }))
+            .rejects.toMatchObject({ code: 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH', status: 409 });
+        expect(replaceSnapshot).not.toHaveBeenCalled();
+    });
+
+    it('旧MCP clientは単一DecisionのApply Gateだけを新規記録できる', async () => {
+        const makePlan = (ids) => {
+            const before = { project_code: 'brainbase', entities: ids.map((id) => ({
+                id, entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member',
+                sensitivity: 'internal', lifecycle_status: 'active', version: 1
+            })), edges: [] };
+            before.hash = hashGraphSnapshot(before);
+            const after = structuredClone(before);
+            after.entities.forEach((entity) => { entity.lifecycle_status = 'retired'; entity.version = 2; });
+            after.hash = hashGraphSnapshot(after);
+            return {
+                id: `plan_${ids.length}`, project_id: 'project_brainbase', organization_id: 'org_1',
+                project_code: 'brainbase', status: 'planned', base_snapshot_hash: before.hash,
+                after_snapshot_hash: after.hash, before_snapshot: before, after_snapshot: after,
+                operations: ids.map((id) => ({ operation: 'retire_entity', entity_id: id, expected_version: 1 }))
+            };
+        };
+        const record = async (plan, receiptId) => {
+            let service;
+            const client = { query: vi.fn(async (sql, params) => {
+                if (sql.includes('SELECT id, code, organization_id FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+                if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+                if (sql.includes("entity_type='decision'")) return { rows: [{ id: 'decision_1' }] };
+                if (sql.includes('INSERT INTO graph_maintenance_human_gate_receipts')) return { rows: [{ receipt_id: receiptId, decision_id: 'decision_1', status: 'approved' }] };
+                throw new Error(`unexpected query: ${sql} ${params}`);
+            }) };
+            service = new GraphMaintenanceService({ infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) } });
+            const legacyScope = { ...service.formatPlan(plan).apply_human_gate_scope };
+            delete legacyScope.decision_ids;
+            return service.recordHumanGateReceipt({
+                organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
+            }, { projectCode: 'brainbase', decisionId: 'decision_1', receiptId, evidence: { operation_scope: legacyScope } });
+        };
+        await expect(record(makePlan(['decision_1']), 'gate_legacy_single'))
+            .resolves.toMatchObject({ receipt_id: 'gate_legacy_single', status: 'approved' });
+        await expect(record(makePlan(['decision_1', 'decision_2']), 'gate_legacy_multi'))
+            .rejects.toMatchObject({ code: 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH', status: 409 });
     });
 
     it('適用済みの複数Decision Planは追加Human Gate評価前に既存Receiptを返す', async () => {
