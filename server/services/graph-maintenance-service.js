@@ -48,7 +48,7 @@ const HUMAN_GATE_LINK_SCOPE_KEYS = new Set([
 ]);
 const HUMAN_GATE_RETIRE_SCOPE_KEYS = new Set(['operation', 'decision_id', 'decision_expected_version']);
 const HUMAN_GATE_APPLY_SCOPE_KEYS = new Set([
-    'operation', 'decision_id', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash',
+    'operation', 'decision_id', 'decision_ids', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash',
     'operations_fingerprint', 'diff_fingerprint'
 ]);
 const HUMAN_GATE_SCOPE_KEYS = new Set([
@@ -124,6 +124,10 @@ function validateHumanGateEvidence(evidence) {
         const hashPattern = /^sha256:[a-f0-9]{64}$/;
         const applyShape = scope.operation === 'apply_plan'
             && ['decision_id', 'plan_id'].every((key) => typeof scope[key] === 'string' && scope[key].length > 0)
+            && Array.isArray(scope.decision_ids) && scope.decision_ids.length > 0
+            && scope.decision_ids.every((id) => typeof id === 'string' && id.length > 0)
+            && new Set(scope.decision_ids).size === scope.decision_ids.length
+            && scope.decision_id === scope.decision_ids[0]
             && ['base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint']
                 .every((key) => typeof scope[key] === 'string' && hashPattern.test(scope[key]))
             && Object.keys(scope).length === HUMAN_GATE_APPLY_SCOPE_KEYS.size;
@@ -150,10 +154,12 @@ function validateHumanGateEvidence(evidence) {
     }
 }
 
-function applyHumanGateScope(plan, decisionId) {
+function applyHumanGateScope(plan, decisionIds) {
+    const approvedDecisionIds = [...new Set(decisionIds)].sort();
     return {
         operation: 'apply_plan',
-        decision_id: decisionId,
+        decision_id: approvedDecisionIds[0],
+        decision_ids: approvedDecisionIds,
         plan_id: plan.id,
         base_snapshot_hash: plan.base_snapshot_hash,
         after_snapshot_hash: plan.after_snapshot_hash,
@@ -686,8 +692,9 @@ export class GraphMaintenanceService {
                     [evidence.operation_scope.plan_id, organizationId, project.id]
                 );
                 const plan = rows[0];
-                const includesDecision = planDecisionIds(plan || {}).includes(decisionId);
-                const expectedScope = plan && includesDecision ? applyHumanGateScope(plan, decisionId) : null;
+                const decisionIds = planDecisionIds(plan || {});
+                const includesDecision = decisionIds.includes(decisionId);
+                const expectedScope = plan && includesDecision ? applyHumanGateScope(plan, decisionIds) : null;
                 if (!expectedScope || fingerprint(expectedScope) !== fingerprint(evidence.operation_scope)) {
                     const error = new Error('Human Gate receipt does not approve this exact dry-run plan');
                     error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
@@ -744,7 +751,7 @@ export class GraphMaintenanceService {
             after_snapshot_hash: row.after_snapshot_hash, reason: row.reason,
             idempotency_key: row.idempotency_key, operations: row.operations,
             operation_count: row.operations.length,
-            apply_human_gate_scope: decisionIds.length === 1 ? applyHumanGateScope(row, decisionIds[0]) : null,
+            apply_human_gate_scope: decisionIds.length > 0 ? applyHumanGateScope(row, decisionIds) : null,
             diff_summary: planDiffSummary(row.before_snapshot, row.after_snapshot),
             before: row.before_snapshot, after: row.after_snapshot
         };
@@ -830,13 +837,7 @@ export class GraphMaintenanceService {
             const existing = await this.findReceipt(client, planId, 'apply', { organizationId, projectCode });
             if (existing) return existing;
             const decisionIds = planDecisionIds(plan);
-            if (decisionIds.length > 1) {
-                const error = new Error('Apply-specific Human Gate currently requires a single Decision plan');
-                error.code = 'GRAPH_APPLY_HUMAN_GATE_SCOPE_UNSUPPORTED';
-                error.status = 409;
-                throw error;
-            }
-            if (decisionIds.length === 1) {
+            if (decisionIds.length > 0) {
                 if (access.authSource !== 'bearer' || !String(access.personId || '').trim() || access.personId === 'internal_api') {
                     throw signedHumanPrincipalError('Graph Apply requires a signed human Bearer principal');
                 }
@@ -850,9 +851,9 @@ export class GraphMaintenanceService {
                     `SELECT id, evidence FROM graph_maintenance_human_gate_receipts
                      WHERE id=$1 AND organization_id=$2 AND project_id=$3 AND decision_id=$4
                        AND status='approved' AND approved_by <> '' AND approved_at IS NOT NULL`,
-                    [humanGateReceipt, organizationId, plan.project_id, decisionIds[0]]
+                    [humanGateReceipt, organizationId, plan.project_id, [...decisionIds].sort()[0]]
                 );
-                const expectedApplyScope = applyHumanGateScope(plan, decisionIds[0]);
+                const expectedApplyScope = applyHumanGateScope(plan, decisionIds);
                 if (!gate.rows[0] || fingerprint(gate.rows[0].evidence?.operation_scope) !== fingerprint(expectedApplyScope)) {
                     const error = new Error('Human Gate receipt does not approve this exact dry-run plan');
                     error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';

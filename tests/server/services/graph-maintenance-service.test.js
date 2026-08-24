@@ -329,7 +329,7 @@ describe('GraphMaintenanceService authorization', () => {
         expect(receiptType).toBe(method === 'applyPlan' ? 'apply' : 'rollback');
     });
 
-    it('複数Decisionを含むPlanは単一Human GateでApplyせず変更前に停止する', async () => {
+    it('複数Decisionを含むPlanはDecision集合に束縛した単一Human Gateで原子的にApplyする', async () => {
         const before = {
             project_code: 'brainbase',
             entities: ['decision_1', 'decision_2'].map((id) => ({
@@ -350,22 +350,37 @@ describe('GraphMaintenanceService authorization', () => {
                 operation: 'retire_entity', entity_id: entity.id, expected_version: 1
             }))
         };
+        const operationScope = {
+            operation: 'apply_plan', decision_id: 'decision_1', decision_ids: ['decision_1', 'decision_2'],
+            plan_id: plan.id, base_snapshot_hash: before.hash, after_snapshot_hash: after.hash,
+            operations_fingerprint: expect.stringMatching(/^sha256:/), diff_fingerprint: expect.stringMatching(/^sha256:/)
+        };
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
             if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
+            if (sql.includes('FROM graph_maintenance_human_gate_receipts')) return { rows: [{
+                id: 'gate_multi', evidence: { operation_scope: multiDecisionService.formatPlan(plan).apply_human_gate_scope }
+            }] };
+            if (sql.includes('UPDATE graph_maintenance_plans')) return { rows: [] };
             throw new Error(`mutation query must not run: ${sql}`);
         }) };
         const multiDecisionService = new GraphMaintenanceService({
             infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) }
         });
+        vi.spyOn(multiDecisionService, 'loadSnapshot')
+            .mockResolvedValueOnce({ snapshot: before })
+            .mockResolvedValueOnce({ snapshot: after });
+        vi.spyOn(multiDecisionService, 'replaceSnapshot').mockResolvedValue(undefined);
+        vi.spyOn(multiDecisionService, 'createReceipt').mockResolvedValue({ receipt_id: 'apply_multi' });
+        expect(multiDecisionService.formatPlan(plan).apply_human_gate_scope).toMatchObject(operationScope);
         await expect(multiDecisionService.applyPlan({
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm',
             authSource: 'bearer', personId: 'person_1'
         }, {
             projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash,
-            humanGateReceipt: 'gate_single'
-        })).rejects.toMatchObject({ code: 'GRAPH_APPLY_HUMAN_GATE_SCOPE_UNSUPPORTED', status: 409 });
-        expect(client.query).toHaveBeenCalledTimes(2);
+            humanGateReceipt: 'gate_multi'
+        })).resolves.toEqual({ receipt_id: 'apply_multi' });
+        expect(multiDecisionService.replaceSnapshot).toHaveBeenCalledOnce();
     });
 
     it('適用済みの複数Decision Planは追加Human Gate評価前に既存Receiptを返す', async () => {

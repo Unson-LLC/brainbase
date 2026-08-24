@@ -103,6 +103,9 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             VALUES
                 ('decision_rehome', 'decision', 'project_phase0', '{"title":"Move to VibePro","status":"draft"}', 'member', 'internal', 'active', 1),
                 ('decision_subject', 'decision', 'project_phase0', '{"title":"Aitle product decision","status":"draft"}', 'ceo', 'restricted', 'active', 1),
+                ('decision_subject_2', 'decision', 'project_phase0', '{"title":"Universal Arts decision 2","status":"draft"}', 'ceo', 'restricted', 'active', 1),
+                ('decision_subject_3', 'decision', 'project_phase0', '{"title":"Universal Arts decision 3","status":"draft"}', 'ceo', 'restricted', 'active', 1),
+                ('decision_subject_4', 'decision', 'project_phase0', '{"title":"Universal Arts decision 4","status":"draft"}', 'ceo', 'restricted', 'active', 1),
                 ('project_phase0', 'project', 'project_phase0', '{"name":"Brainbase canonical project"}', 'member', 'internal', 'active', 1),
                 ('project_entity_a', 'project', 'project_phase0', '{"name":"Brainbase"}', 'member', 'internal', 'active', 1),
                 ('project_entity_b', 'project', 'project_phase0', '{"name":"Brainbase secondary fixture"}', 'member', 'internal', 'active', 1),
@@ -502,21 +505,25 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             projectCodes: [...access.projectCodes, targetId]
         };
         const catalogInitialSnapshot = await service.exportSnapshot(catalogAccess, { projectCode: 'brainbase' });
-        const linkOperation = {
-            operation: 'link_decision_project_subject',
-            decision_id: 'decision_subject',
-            decision_expected_version: 1,
-            subject_entity_id: targetId,
-            subject_expected_version: 1,
-            target_project_code: 'brainbase',
-            expected_version: 0
-        };
-        const gate = await service.recordHumanGateReceipt(catalogAccess, {
-            projectCode: 'brainbase',
-            decisionId: 'decision_subject',
-            receiptId: 'gate_catalog_subject_1',
-            evidence: { operation_scope: linkOperation }
-        });
+        const decisionIds = ['decision_subject', 'decision_subject_2', 'decision_subject_3', 'decision_subject_4'];
+        const linkOperations = await Promise.all(decisionIds.map(async (decisionId, index) => {
+            const operation = {
+                operation: 'link_decision_project_subject',
+                decision_id: decisionId,
+                decision_expected_version: 1,
+                subject_entity_id: targetId,
+                subject_expected_version: 1,
+                target_project_code: 'brainbase',
+                expected_version: 0
+            };
+            const gate = await service.recordHumanGateReceipt(catalogAccess, {
+                projectCode: 'brainbase',
+                decisionId,
+                receiptId: `gate_catalog_subject_${index + 1}`,
+                evidence: { operation_scope: operation }
+            });
+            return { ...operation, human_gate_receipt: gate.receipt_id };
+        }));
         const materializeOperation = {
             operation: 'materialize_project_subject',
             entity_id: targetId,
@@ -526,7 +533,7 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             source_ref: 'forged-source-ref',
             expected_version: 0
         };
-        const operations = [materializeOperation, linkOperation];
+        const operations = [materializeOperation, ...linkOperations];
         const graphCounts = async () => infoSSOTService.withAccessContext(
             { ...catalogAccess, graphMaintenanceMode: true },
             async (client) => {
@@ -543,7 +550,6 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             snapshotId: catalogInitialSnapshot.snapshot_id,
             idempotencyKey: 'catalog-project-subject-db-roundtrip-1',
             reason: 'Project Catalog subject PostgreSQL acceptance',
-            humanGateReceipt: gate.receipt_id,
             operations
         });
 
@@ -568,11 +574,16 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
                 source_ref: `project-catalog:${targetId}@1`
             }
         })]));
-        expect(plan.after.edges).toEqual(expect.arrayContaining([expect.objectContaining({
-            from_id: 'decision_subject', to_id: targetId, rel_type: 'governs', project_code: 'brainbase'
-        })]));
+        for (const decisionId of decisionIds) {
+            expect(plan.after.edges).toEqual(expect.arrayContaining([expect.objectContaining({
+                from_id: decisionId, to_id: targetId, rel_type: 'governs', project_code: 'brainbase'
+            })]));
+        }
         expect(plan.diff_summary.entities.added_count).toBe(1);
-        expect(plan.diff_summary.edges.added_count).toBe(1);
+        expect(plan.diff_summary.edges.added_count).toBe(4);
+        expect(plan.apply_human_gate_scope).toMatchObject({
+            decision_id: decisionIds[0], decision_ids: decisionIds
+        });
 
         await expect(service.applyPlan(catalogAccess, {
             projectCode: 'brainbase', planId: plan.plan_id, snapshotHash: plan.snapshot_hash
@@ -602,9 +613,11 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         const applied = await service.exportSnapshot(catalogAccess, { projectCode: 'brainbase' });
         expect(applied.snapshot_hash).toBe(plan.after_snapshot_hash);
         expect(applied.entities).toEqual(expect.arrayContaining([expect.objectContaining({ id: targetId })]));
-        expect(applied.edges).toEqual(expect.arrayContaining([expect.objectContaining({
-            from_id: 'decision_subject', to_id: targetId, rel_type: 'governs'
-        })]));
+        for (const decisionId of decisionIds) {
+            expect(applied.edges).toEqual(expect.arrayContaining([expect.objectContaining({
+                from_id: decisionId, to_id: targetId, rel_type: 'governs'
+            })]));
+        }
 
         const rollbackReceipt = await service.rollbackPlan(catalogAccess, {
             projectCode: 'brainbase', planId: plan.plan_id, applyReceiptId: applyReceipt.receipt_id
@@ -631,7 +644,6 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             snapshotId: catalogInitialSnapshot.snapshot_id,
             idempotencyKey: 'catalog-project-subject-db-roundtrip-1',
             reason: 'Project Catalog subject PostgreSQL acceptance',
-            humanGateReceipt: gate.receipt_id,
             operations
         });
         expect(replayedPlan.plan_id).toBe(plan.plan_id);
