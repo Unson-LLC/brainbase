@@ -312,6 +312,7 @@ describe('GraphMaintenanceService authorization', () => {
         };
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
             throw new Error(`mutation query must not run: ${sql}`);
         }) };
         const multiDecisionService = new GraphMaintenanceService({
@@ -324,7 +325,42 @@ describe('GraphMaintenanceService authorization', () => {
             projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash,
             humanGateReceipt: 'gate_single'
         })).rejects.toMatchObject({ code: 'GRAPH_APPLY_HUMAN_GATE_SCOPE_UNSUPPORTED', status: 409 });
-        expect(client.query).toHaveBeenCalledTimes(1);
+        expect(client.query).toHaveBeenCalledTimes(2);
+    });
+
+    it('適用済みの複数Decision Planは追加Human Gate評価前に既存Receiptを返す', async () => {
+        const before = {
+            project_code: 'brainbase',
+            entities: ['decision_1', 'decision_2'].map((id) => ({
+                id, entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member',
+                sensitivity: 'internal', lifecycle_status: 'active', version: 1
+            })),
+            edges: []
+        };
+        before.hash = hashGraphSnapshot(before);
+        const plan = {
+            id: 'plan_applied_two_decisions', project_id: 'project_brainbase', organization_id: 'org_1',
+            project_code: 'brainbase', status: 'applied', base_snapshot_hash: before.hash,
+            after_snapshot_hash: before.hash, before_snapshot: before, after_snapshot: before,
+            operations: before.entities.map((entity) => ({
+                operation: 'retire_entity', entity_id: entity.id, expected_version: 1
+            }))
+        };
+        const receipt = { receipt_id: 'apply_existing', plan_id: plan.id, receipt_type: 'apply', status: 'completed' };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [receipt] };
+            throw new Error(`mutation query must not run: ${sql}`);
+        }) };
+        const appliedService = new GraphMaintenanceService({
+            infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) }
+        });
+        await expect(appliedService.applyPlan({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, {
+            projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash
+        })).resolves.toEqual(receipt);
+        expect(client.query).toHaveBeenCalledTimes(2);
     });
 
     it('replaceSnapshotは別tenantのedge IDを上書きしない', async () => {

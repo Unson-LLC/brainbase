@@ -770,6 +770,8 @@ export class GraphMaintenanceService {
             const plan = rows[0];
             if (!plan) throw new Error('Unknown plan');
             if (snapshotHash !== plan.base_snapshot_hash) throw new Error('snapshot hash mismatch');
+            const existing = await this.findReceipt(client, planId, 'apply');
+            if (existing) return existing;
             const decisionIds = planDecisionIds(plan);
             if (decisionIds.length > 1) {
                 const error = new Error('Apply-specific Human Gate currently requires a single Decision plan');
@@ -802,8 +804,6 @@ export class GraphMaintenanceService {
                     throw error;
                 }
             }
-            const existing = await this.findReceipt(client, planId, 'apply');
-            if (existing) return existing;
             if (plan.status !== 'planned') throw new Error(`Plan is not applicable: ${plan.status}`);
             if (hashGraphSnapshot(plan.before_snapshot) !== plan.base_snapshot_hash
                 || hashGraphSnapshot(plan.after_snapshot) !== plan.after_snapshot_hash) {
