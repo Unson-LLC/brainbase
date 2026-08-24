@@ -293,7 +293,7 @@ describe('Graph maintenance MCP tools', () => {
       variant.properties.operation.enum[0] === 'apply_plan'
     ));
     assert.ok(applyScopeSchema);
-    assert.ok(applyScopeSchema.required.includes('decision_ids'));
+    assert.equal(applyScopeSchema.required.includes('decision_ids'), false);
     assert.deepEqual(applyScopeSchema.properties.decision_ids, {
       type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, uniqueItems: true,
     });

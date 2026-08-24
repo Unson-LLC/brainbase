@@ -383,6 +383,41 @@ describe('GraphMaintenanceService authorization', () => {
         expect(multiDecisionService.replaceSnapshot).toHaveBeenCalledOnce();
     });
 
+    it('旧単一Decision Human Gate scopeは互換受理するが複数Decision Planには拡張しない', async () => {
+        const before = { project_code: 'brainbase', entities: [{
+            id: 'decision_1', entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member',
+            sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        }], edges: [] };
+        before.hash = hashGraphSnapshot(before);
+        const after = structuredClone(before);
+        after.entities[0].lifecycle_status = 'retired';
+        after.entities[0].version = 2;
+        after.hash = hashGraphSnapshot(after);
+        const plan = {
+            id: 'plan_legacy_single', project_id: 'project_brainbase', organization_id: 'org_1',
+            project_code: 'brainbase', status: 'planned', base_snapshot_hash: before.hash,
+            after_snapshot_hash: after.hash, before_snapshot: before, after_snapshot: after,
+            operations: [{ operation: 'retire_entity', entity_id: 'decision_1', expected_version: 1 }]
+        };
+        const service = new GraphMaintenanceService({ infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) } });
+        const legacyScope = { ...service.formatPlan(plan).apply_human_gate_scope };
+        delete legacyScope.decision_ids;
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
+            if (sql.includes('FROM graph_maintenance_human_gate_receipts')) return { rows: [{ id: 'gate_legacy', evidence: { operation_scope: legacyScope } }] };
+            if (sql.includes('UPDATE graph_maintenance_plans')) return { rows: [] };
+            throw new Error(`mutation query must not run: ${sql}`);
+        }) };
+        vi.spyOn(service, 'loadSnapshot').mockResolvedValueOnce({ snapshot: before }).mockResolvedValueOnce({ snapshot: after });
+        vi.spyOn(service, 'replaceSnapshot').mockResolvedValue(undefined);
+        vi.spyOn(service, 'createReceipt').mockResolvedValue({ receipt_id: 'apply_legacy' });
+        await expect(service.applyPlan({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
+        }, { projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash, humanGateReceipt: 'gate_legacy' }))
+            .resolves.toEqual({ receipt_id: 'apply_legacy' });
+    });
+
     it('適用済みの複数Decision Planは追加Human Gate評価前に既存Receiptを返す', async () => {
         const before = {
             project_code: 'brainbase',

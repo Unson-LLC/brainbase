@@ -122,15 +122,20 @@ function validateHumanGateEvidence(evidence) {
             && Number.isInteger(scope.decision_expected_version) && scope.decision_expected_version >= 1
             && Object.keys(scope).length === HUMAN_GATE_RETIRE_SCOPE_KEYS.size;
         const hashPattern = /^sha256:[a-f0-9]{64}$/;
-        const applyShape = scope.operation === 'apply_plan'
+        const applyCommonShape = scope.operation === 'apply_plan'
             && ['decision_id', 'plan_id'].every((key) => typeof scope[key] === 'string' && scope[key].length > 0)
+            && ['base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint']
+                .every((key) => typeof scope[key] === 'string' && hashPattern.test(scope[key]));
+        const applyDecisionSetShape = applyCommonShape
             && Array.isArray(scope.decision_ids) && scope.decision_ids.length > 0
             && scope.decision_ids.every((id) => typeof id === 'string' && id.length > 0)
             && new Set(scope.decision_ids).size === scope.decision_ids.length
             && scope.decision_id === scope.decision_ids[0]
-            && ['base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint']
-                .every((key) => typeof scope[key] === 'string' && hashPattern.test(scope[key]))
             && Object.keys(scope).length === HUMAN_GATE_APPLY_SCOPE_KEYS.size;
+        const legacySingleDecisionApplyShape = applyCommonShape
+            && scope.decision_ids === undefined
+            && Object.keys(scope).length === HUMAN_GATE_APPLY_SCOPE_KEYS.size - 1;
+        const applyShape = applyDecisionSetShape || legacySingleDecisionApplyShape;
         if (!linkShape && !retireShape && !applyShape) {
             const error = new Error('Human Gate operation_scope does not match the supported Decision subject contract');
             error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID';
@@ -166,6 +171,15 @@ function applyHumanGateScope(plan, decisionIds) {
         operations_fingerprint: fingerprint(plan.operations),
         diff_fingerprint: fingerprint(planDiffSummary(plan.before_snapshot, plan.after_snapshot))
     };
+}
+
+function normalizeApplyHumanGateScope(scope, expectedScope) {
+    if (expectedScope.decision_ids.length !== 1 || scope?.decision_ids !== undefined) return scope;
+    return { ...scope, decision_ids: [scope.decision_id] };
+}
+
+function matchesApplyHumanGateScope(scope, expectedScope) {
+    return fingerprint(normalizeApplyHumanGateScope(scope, expectedScope)) === fingerprint(expectedScope);
 }
 
 function planDecisionIds(plan) {
@@ -695,7 +709,7 @@ export class GraphMaintenanceService {
                 const decisionIds = planDecisionIds(plan || {});
                 const includesDecision = decisionIds.includes(decisionId);
                 const expectedScope = plan && includesDecision ? applyHumanGateScope(plan, decisionIds) : null;
-                if (!expectedScope || fingerprint(expectedScope) !== fingerprint(evidence.operation_scope)) {
+                if (!expectedScope || !matchesApplyHumanGateScope(evidence.operation_scope, expectedScope)) {
                     const error = new Error('Human Gate receipt does not approve this exact dry-run plan');
                     error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
                     error.status = 409;
@@ -854,7 +868,7 @@ export class GraphMaintenanceService {
                     [humanGateReceipt, organizationId, plan.project_id, [...decisionIds].sort()[0]]
                 );
                 const expectedApplyScope = applyHumanGateScope(plan, decisionIds);
-                if (!gate.rows[0] || fingerprint(gate.rows[0].evidence?.operation_scope) !== fingerprint(expectedApplyScope)) {
+                if (!gate.rows[0] || !matchesApplyHumanGateScope(gate.rows[0].evidence?.operation_scope, expectedApplyScope)) {
                     const error = new Error('Human Gate receipt does not approve this exact dry-run plan');
                     error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
                     error.status = 409;

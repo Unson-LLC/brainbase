@@ -47,7 +47,7 @@ const humanGateOperationScope = {
         operations_fingerprint: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
         diff_fingerprint: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
       },
-      required: ['operation', 'decision_id', 'decision_ids', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint'],
+      required: ['operation', 'decision_id', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint'],
       additionalProperties: false,
     },
     {
