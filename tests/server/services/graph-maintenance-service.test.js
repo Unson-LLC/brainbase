@@ -44,6 +44,93 @@ describe('GraphMaintenanceService authorization', () => {
             .rejects.toMatchObject({ code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID', status: 409 });
     });
 
+    it.each([
+        {
+            name: 'Catalog source missing',
+            access: { projectCodes: ['brainbase'] },
+            integrity: { applicability: 'applicable', source: { status: 'missing' }, summary: { errors: 0 } },
+            projects: [],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_UNAVAILABLE', status: 503 }
+        },
+        {
+            name: 'Catalog project missing',
+            access: { projectCodes: ['brainbase', 'ua'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 }
+        },
+        {
+            name: 'Catalog grant out',
+            access: { projectCodes: ['brainbase'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'ua', name: 'Universal Arts', catalog_version: 1 }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 }
+        },
+        {
+            name: 'Catalog metadata invalid',
+            access: { projectCodes: ['brainbase', 'ua'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'ua', name: '', catalog_version: 1 }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID', status: 409 }
+        }
+    ])('planMutations: $name はPlan INSERTとGraph mutationへ到達しない', async ({ access, integrity, projects, expected }) => {
+        const snapshot = { project_code: 'brainbase', entities: [], edges: [] };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const client = {
+            query: vi.fn(async (sql) => {
+                if (sql.includes('FROM graph_maintenance_snapshots')) {
+                    return { rows: [{
+                        id: 'snapshot_catalog_guard',
+                        project_id: 'project_brainbase',
+                        snapshot,
+                        snapshot_hash: snapshot.hash
+                    }] };
+                }
+                return { rows: [] };
+            })
+        };
+        const configParser = {
+            checkIntegrity: vi.fn(async () => integrity),
+            getProjects: vi.fn(async () => ({ projects }))
+        };
+        const guardedService = new GraphMaintenanceService({
+            configParser,
+            infoSSOTService: {
+                withAccessContext: async (_access, callback) => callback(client)
+            }
+        });
+
+        await expect(guardedService.planMutations({
+            organizationId: 'org_1',
+            role: 'gm',
+            authSource: 'bearer',
+            personId: 'person_1',
+            ...access
+        }, {
+            projectCode: 'brainbase',
+            snapshotId: 'snapshot_catalog_guard',
+            idempotencyKey: `catalog-guard-${expected.code}`,
+            reason: 'Project Catalog guard',
+            operations: [{
+                operation: 'materialize_project_subject',
+                entity_id: 'forged',
+                catalog_project_id: 'ua',
+                catalog_version: 999,
+                name: 'forged',
+                source_ref: 'forged',
+                expected_version: 0
+            }]
+        })).rejects.toMatchObject(expected);
+
+        expect(client.query.mock.calls.some(([sql]) => /\b(?:INSERT|UPDATE|DELETE)\b[\s\S]*\b(?:graph_maintenance_plans|graph_entities|graph_edges)\b/i.test(sql))).toBe(false);
+        expect(configParser.checkIntegrity).toHaveBeenCalledOnce();
+        if (expected.code === 'GRAPH_PROJECT_CATALOG_UNAVAILABLE') {
+            expect(configParser.getProjects).not.toHaveBeenCalled();
+        } else {
+            expect(configParser.getProjects).toHaveBeenCalledOnce();
+        }
+    });
+
     it('署名tenant、project scope、gm以上を必須にする', () => {
         expect(() => service.assertMaintenanceAccess({ role: 'gm', projectCodes: ['brainbase'] }, 'brainbase'))
             .toThrow('Signed tenant authorization');

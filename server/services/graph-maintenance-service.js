@@ -283,7 +283,9 @@ export class GraphMaintenanceService {
             throw error;
         }
         const integrity = await this.configParser.checkIntegrity();
-        if (integrity.applicability !== 'applicable' || integrity.summary?.errors > 0) {
+        if (integrity.applicability !== 'applicable'
+            || integrity.source?.status !== 'loaded'
+            || integrity.summary?.errors > 0) {
             const error = new Error('Project Catalog source is unavailable or invalid');
             error.code = 'GRAPH_PROJECT_CATALOG_UNAVAILABLE';
             error.status = 503;

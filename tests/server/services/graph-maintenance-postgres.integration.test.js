@@ -650,6 +650,120 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         expect(replayedPlan.after_snapshot_hash).toBe(plan.after_snapshot_hash);
     });
 
+    it('Project subjectの通常readはsource scopeとrole・clearance境界を守りRollback後に消える', async () => {
+        const targetId = 'brainbase-universal-arts-ai-support';
+        const catalogAccess = {
+            ...access,
+            role: 'ceo',
+            projectCodes: [...access.projectCodes, targetId]
+        };
+        const baseline = await service.exportSnapshot(catalogAccess, { projectCode: 'brainbase' });
+        const linkOperation = {
+            operation: 'link_decision_project_subject',
+            decision_id: 'decision_subject',
+            decision_expected_version: 1,
+            subject_entity_id: targetId,
+            subject_expected_version: 1,
+            target_project_code: 'brainbase',
+            expected_version: 0
+        };
+        const gate = await service.recordHumanGateReceipt(catalogAccess, {
+            projectCode: 'brainbase',
+            decisionId: 'decision_subject',
+            receiptId: 'gate_catalog_subject_read_boundary',
+            evidence: { operation_scope: linkOperation }
+        });
+        const plan = await service.planMutations(catalogAccess, {
+            projectCode: 'brainbase',
+            snapshotId: baseline.snapshot_id,
+            idempotencyKey: 'catalog-project-subject-read-boundary-1',
+            reason: 'Project subject normal read boundary',
+            operations: [{
+                operation: 'materialize_project_subject',
+                entity_id: targetId,
+                catalog_project_id: targetId,
+                catalog_version: 999,
+                name: 'forged name must be replaced by Catalog',
+                source_ref: 'forged-source-ref',
+                expected_version: 0
+            }, { ...linkOperation, human_gate_receipt: gate.receipt_id }]
+        });
+        const applyGate = await service.recordHumanGateReceipt(catalogAccess, {
+            projectCode: 'brainbase',
+            decisionId: 'decision_subject',
+            receiptId: 'gate_catalog_subject_read_boundary_apply',
+            evidence: { operation_scope: plan.apply_human_gate_scope }
+        });
+        const applyReceipt = await service.applyPlan(catalogAccess, {
+            projectCode: 'brainbase',
+            planId: plan.plan_id,
+            snapshotHash: plan.snapshot_hash,
+            humanGateReceipt: applyGate.receipt_id
+        });
+
+        await expect(infoSSOTService.listGraphEntities(catalogAccess, {
+            id: targetId, projectCode: 'brainbase', entityType: 'project'
+        })).resolves.toEqual([
+            expect.objectContaining({ id: targetId, entity_type: 'project', project_code: 'brainbase' })
+        ]);
+        await expect(infoSSOTService.listGraphEdges(catalogAccess, {
+            projectCode: 'brainbase', relType: 'governs', fromId: 'decision_subject', toId: targetId
+        })).resolves.toEqual([
+            expect.objectContaining({ from_id: 'decision_subject', to_id: targetId, rel_type: 'governs' })
+        ]);
+
+        const sameOrganizationOtherScope = { ...catalogAccess, projectCodes: ['vibepro'] };
+        await expect(infoSSOTService.listGraphEntities(sameOrganizationOtherScope, {
+            id: targetId, projectCode: 'vibepro', entityType: 'project'
+        })).resolves.toEqual([]);
+        await expect(infoSSOTService.listGraphEdges(sameOrganizationOtherScope, {
+            projectCode: 'vibepro', relType: 'governs', fromId: 'decision_subject', toId: targetId
+        })).resolves.toEqual([]);
+
+        const memberInternal = {
+            ...catalogAccess,
+            role: 'member',
+            projectCodes: ['brainbase'],
+            clearance: ['internal']
+        };
+        await expect(infoSSOTService.listGraphEdges(memberInternal, {
+            projectCode: 'brainbase', relType: 'governs', fromId: 'decision_subject', toId: targetId
+        })).resolves.toEqual([]);
+        const memberContext = await infoSSOTService.getContext(memberInternal, {
+            projectCode: 'brainbase',
+            entityTypes: 'decision,project',
+            includeEdges: true,
+            humanReadable: true
+        });
+        expect(memberContext.entities.project).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: targetId })
+        ]));
+        expect(memberContext.entities.decision).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'decision_subject' })
+        ]));
+        expect(memberContext.edges).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ from_id: 'decision_subject', to_id: targetId, rel_type: 'governs' })
+        ]));
+        expect(JSON.stringify(memberContext)).not.toContain('decision_subject');
+
+        const rollbackReceipt = await service.rollbackPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, applyReceiptId: applyReceipt.receipt_id
+        });
+        expect(rollbackReceipt).toMatchObject({
+            receipt_type: 'rollback', status: 'completed', after_hash: baseline.snapshot_hash
+        });
+        await expect(infoSSOTService.listGraphEntities(catalogAccess, {
+            id: targetId, projectCode: 'brainbase', entityType: 'project'
+        })).resolves.toEqual([]);
+        await expect(infoSSOTService.listGraphEdges(catalogAccess, {
+            projectCode: 'brainbase', relType: 'governs', fromId: 'decision_subject', toId: targetId
+        })).resolves.toEqual([]);
+        const restoredContext = await infoSSOTService.getContext(catalogAccess, {
+            projectCode: 'brainbase', entityTypes: 'project', includeEdges: true, humanReadable: true
+        });
+        expect(JSON.stringify(restoredContext)).not.toContain(targetId);
+    });
+
     it('cross-tenant Decision subjectをHuman Gate付きでApplyしRollbackする', async () => {
         const baseline = await service.exportSnapshot(crossTenantAccess, { projectCode: 'brainbase' });
         const operation = {
