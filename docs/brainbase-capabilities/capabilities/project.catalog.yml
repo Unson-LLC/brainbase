@@ -28,6 +28,8 @@ visibility_rules:
   - brainbase_projects intersects JWT projectCodes with BRAINBASE_PROJECT_CODES; callers cannot expand scope through tool arguments.
   - brainbase_projects returns status ok, unavailable, or error together with scope and audit evidence.
   - "A confirmed empty catalog is status: ok with count: 0; auth, transport, upstream, and contract failures never become an empty catalog."
+  - Graph MaintenanceでProjectをbusiness subjectへ投影するprojectは、空でないnameと正の整数catalog_versionを持つ。
+  - Graph projectionのsource_refはproject-catalog:<id>@<catalog_version>としてサーバーが導出し、呼び出し元の自己申告値を採用しない。
 verification:
   commands:
     - curl -s http://127.0.0.1:31013/api/config
@@ -39,6 +41,7 @@ verification:
     - projects without NocoDB mappings are returned as healthStatus: unmapped
     - an unauthenticated /api/brainbase/projects request returns 401
     - brainbase_projects exposes only the intersection of token and configured project scopes
+    - Graph subjectとして投影するprojectのnameとcatalog_versionがProject Catalogから保持される
 common_failures:
   - A project exists in /api/config but is hidden from session selector by auth access filtering.
   - A project exists in config but has no NocoDB mapping, so health data is N/A.

@@ -150,6 +150,48 @@ describe('Graph maintenance REST/MCP contract', () => {
         );
     });
 
+    it('Project Catalog subject操作をREST plan経路から改変せずserviceへ渡す', async () => {
+        process.env.NODE_ENV = 'production';
+        const operations = [
+            {
+                operation: 'materialize_project_subject',
+                catalog_project_id: 'brainbase-universal-arts-ai-support',
+                expected_version: 0
+            },
+            {
+                operation: 'link_decision_project_subject',
+                decision_id: 'dec_ua',
+                decision_expected_version: 1,
+                subject_entity_id: 'brainbase-universal-arts-ai-support',
+                subject_expected_version: 1,
+                expected_version: 0
+            }
+        ];
+        const planMutations = vi.spyOn(GraphMaintenanceService.prototype, 'planMutations')
+            .mockResolvedValue({ plan_id: 'gmp_phase03', status: 'planned', dry_run: true });
+
+        await request(securedApp())
+            .post('/api/info/graph/maintenance/plans')
+            .set(bearerHeaders())
+            .send({
+                project_code: 'brainbase',
+                snapshot_id: 'gms_phase03',
+                idempotency_key: 'phase03-rest-contract',
+                reason: 'Phase 0.3 REST contract',
+                operations
+            })
+            .expect(201);
+
+        expect(planMutations).toHaveBeenCalledWith(
+            expect.objectContaining({ organizationId: 'org_unson' }),
+            expect.objectContaining({
+                projectCode: 'brainbase',
+                snapshotId: 'gms_phase03',
+                operations
+            })
+        );
+    });
+
     it('service-tokenをBearer相当として扱わず、controller到達後も拒否する', async () => {
         process.env.NODE_ENV = 'production';
         const exportSnapshot = vi.spyOn(GraphMaintenanceService.prototype, 'exportSnapshot');

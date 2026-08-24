@@ -6,6 +6,8 @@ import yaml from 'js-yaml';
 /**
  * @typedef {object} ProjectConfig
  * @property {string} id
+ * @property {string} [name] - Graph subjectへ投影する場合に必須の正本表示名
+ * @property {number} [catalog_version] - Graph subjectへ投影する場合に必須の正の整数version
  * @property {string} [emoji]
  * @property {boolean} [archived]
  * @property {{ path?: string, glob_include?: string[] }} [local]
