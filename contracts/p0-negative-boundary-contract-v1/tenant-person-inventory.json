@@ -1,0 +1,17 @@
+{
+  "schema_version":"1.0",
+  "tenants":["synthetic-tenant-a","synthetic-tenant-b"],
+  "persons":["synthetic-person-a","synthetic-person-b"],
+  "memberships":[
+    {"tenant_id":"synthetic-tenant-a","person_id":"synthetic-person-a","assignment":"owner"},
+    {"tenant_id":"synthetic-tenant-a","person_id":"synthetic-person-b","assignment":"reviewer"},
+    {"tenant_id":"synthetic-tenant-b","person_id":"synthetic-person-a","assignment":"owner"},
+    {"tenant_id":"synthetic-tenant-b","person_id":"synthetic-person-b","assignment":"reviewer"}
+  ],
+  "same_tenant_baseline":{"tenant_id":"synthetic-tenant-a","source_person":"synthetic-person-a","target_person":"synthetic-person-a"},
+  "resolution_contract":{"unknown_tenant":"deny","ambiguous_tenant":"deny","unavailable_connection":"unavailable","no_data":"empty"},
+  "bidirectional_denials":{
+    "cross_person":["NEG-CROSS-PERSON-A-B","NEG-CROSS-PERSON-B-A"],
+    "cross_tenant":["NEG-CROSS-ORG-A-B","NEG-CROSS-ORG-B-A"]
+  }
+}

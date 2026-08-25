@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brainbase.unson.jp/contracts/p0-negative-boundary-contract-v1/negative-case.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_id", "synthetic_data_only", "canonical_baseline", "inventory", "negative_cases", "evidence_state"],
+  "properties": {
+    "schema_version": { "const": "1.1" },
+    "contract_id": { "const": "p0-negative-boundary-contract-v1" },
+    "synthetic_data_only": { "const": true },
+    "canonical_baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "provider", "audience", "request", "receipt", "bindings", "privacy"],
+      "properties": {
+        "authority": { "type": "object" }, "provider": { "type": "string" }, "audience": { "type": "string" },
+        "request": { "type": "object" }, "receipt": { "type": "object" }, "bindings": { "type": "object" }, "privacy": { "type": "object" }
+      }
+    },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenants", "persons", "required_case_ids", "effect_counters"],
+      "properties": {
+        "tenants": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "type": "string", "pattern": "^synthetic-tenant-" } },
+        "persons": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "type": "string", "pattern": "^synthetic-person-" } },
+        "required_case_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^NEG-" } },
+        "effect_counters": {
+          "const": ["database", "organization_event", "graph", "search", "llm", "credential", "external", "deploy"]
+        }
+      }
+    },
+    "negative_cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "category", "mutation", "expected"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^NEG-[A-Z0-9-]+$" },
+          "category": { "type": "string", "minLength": 1 },
+          "mutation": {
+            "type": "object", "additionalProperties": false, "required": ["mode", "path", "before", "after"],
+            "properties": {
+              "mode": { "const": "single" },
+              "path": { "type": "string", "pattern": "^/(authority|provider|audience|request|receipt|bindings|privacy)(/[^/]+)*$" },
+              "before": {}, "after": {}
+            }
+          },
+          "expected": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["decision", "violated_invariant", "surface", "effects"],
+            "properties": {
+              "decision": { "const": "deny" },
+              "violated_invariant": { "type": "string", "minLength": 1 },
+              "surface": { "type": "string", "minLength": 1 },
+              "effects": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["database", "organization_event", "graph", "search", "llm", "credential", "external", "deploy"],
+                "properties": {
+                  "database": { "const": 0 }, "organization_event": { "const": 0 }, "graph": { "const": 0 }, "search": { "const": 0 },
+                  "llm": { "const": 0 }, "credential": { "const": 0 }, "external": { "const": 0 }, "deploy": { "const": 0 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "evidence_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "runtime", "production"],
+      "properties": {
+        "contract": { "const": "collected" },
+        "runtime": { "const": "not_collected" },
+        "production": { "const": "not_collected" }
+      }
+    }
+  }
+}
