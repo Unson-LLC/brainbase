@@ -609,12 +609,13 @@ Company Brainを複数組織で継続運用できるenterprise productにする�
 
 ### 10.0.1 P0 source-lock lineage
 
-P0のmachine source-lock [`contracts/p0-negative-boundary-contract-v1/source-lock.json`](../../../contracts/p0-negative-boundary-contract-v1/source-lock.json) は、A0 producerをmerged SHA `ad908bce7b90678f9ed7f1c570f808bdf1a500ad`へ固定する。このSHAは、`Unson-LLC/brainbase-unson#1302`のmerge commitであり、P0 #1304のmerge SHA `27b37cdaac50967edff095b696c540322feb75c2`の祖先であることを`git merge-base --is-ancestor`で確認した。これは契約の入力系譜であり、A0 work-packageのexit、consumer conformance、独立review、Gate、production evidenceを表さない。
+P0のmachine source-lock [`contracts/p0-negative-boundary-contract-v1/source-lock.json`](../../../contracts/p0-negative-boundary-contract-v1/source-lock.json) は、upstream repositoryとmerged SHAを固定する。Program-owned companion lock [`docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json`](../evidence/program-external-delivery-reconciliation-lock-v1.json) は、その実値を直接照合したうえで、live readback由来のPR `1302`とcanonical role `producer_contract_delivery`を結合する。このSHAはP0 #1304のmerge SHA `27b37cdaac50967edff095b696c540322feb75c2`の祖先であることを`git merge-base --is-ancestor`で確認した。これは契約の入力系譜であり、A0 work-packageのexit、consumer conformance、独立review、Gate、production evidenceを表さない。
 
 | lineage項目 | 固定値 |
 |---|---|
 | source-lock | `contracts/p0-negative-boundary-contract-v1/source-lock.json` |
-| upstream | `Unson-LLC/brainbase-unson#1302`, role=`A0 producer`, state=`MERGED` |
+| upstream | `Unson-LLC/brainbase-unson#1302`, role=`producer_contract_delivery`, state=`MERGED` |
+| Program companion lock | `docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json` |
 | upstream merge | `ad908bce7b90678f9ed7f1c570f808bdf1a500ad` at `2026-08-21T19:09:27Z` |
 | downstream | `Unson-LLC/brainbase-unson#1304`, role=`P0 contract`, state=`MERGED` |
 | downstream merge | `27b37cdaac50967edff095b696c540322feb75c2` at `2026-08-25T12:29:25Z` |

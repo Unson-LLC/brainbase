@@ -41,6 +41,7 @@
       "architecture_path": "docs/architecture/story-program-external-delivery-reconciliation-v1.md",
       "spec_path": "docs/specs/program-external-delivery-reconciliation-v1.md",
       "task_path": "docs/management/tasks/program-external-delivery-reconciliation-v1.json",
+      "companion_lock_path": "docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json",
       "test_path": "tests/contracts/program-external-delivery-reconciliation.test.js",
       "production_evidence": "not_collected"
     },
@@ -113,7 +114,7 @@
           "upstream_contract_id": "mana-brainbase-company-authority/v1",
           "upstream_repository": "Unson-LLC/brainbase-unson",
           "upstream_pull_request": 1302,
-          "upstream_role": "A0 producer",
+          "upstream_role": "producer_contract_delivery",
           "upstream_state": "MERGED",
           "upstream_merged_sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
           "downstream_pull_request": 1304,
