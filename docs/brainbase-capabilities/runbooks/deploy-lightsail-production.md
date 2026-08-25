@@ -74,7 +74,14 @@ grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
 # 1. writeを排水して停止する。authoritative preflightは停止後に採取する。
 sudo systemctl stop brainbase-ssot.service
 
-# 2. DB identity、status別件数、総件数、移行対象request_id集合を0600のReceiptへ固定する。
+# 2. systemdと同じenv filesを一時subshellへ読み、接続先を値非表示で検証する。
+set -a
+. /home/ubuntu/brainbase/.env
+. /home/ubuntu/brainbase/.env.infisical
+set +a
+test -n "${INFO_SSOT_DATABASE_URL:-${INFO_SSOT_DB_URL:-${DATABASE_URL:-}}}"
+
+# DB identity、status別件数、総件数、移行対象request_id集合を0600のReceiptへ固定する。
 PERSONAL_KG_RELEASE_RECEIPT="var/personal-knowledge-migration-release-receipt.json"
 TARGET_SHA="$TARGET_SHA" node scripts/personal-knowledge-migration-release-gate.mjs \
   preflight "$PERSONAL_KG_RELEASE_RECEIPT"
@@ -84,7 +91,9 @@ npm run migrate:m5a -- --only personal-knowledge
 
 # 4. 同一対象集合のfail-closed移行、総件数・対象外status不変、RLSを機械判定する。
 TARGET_SHA="$TARGET_SHA" node scripts/personal-knowledge-migration-release-gate.mjs \
-  postflight "$PERSONAL_KG_RELEASE_RECEIPT"
+postflight "$PERSONAL_KG_RELEASE_RECEIPT"
+
+# このshellを使い回さない。接続値を引き継がないよう、ここでSSH sessionを閉じてもよい。
 ```
 
 postflightは、移行対象request ID集合が全件`pending_owner_approval`へ移りowner同意証跡がNULLへ戻ったこと、総行数不変、対象外status件数不変、RLSがENABLE/FORCEであることをすべて満たす場合だけ`status=passed`を同じReceiptへ保存する。失敗時は非zero終了し、serviceを起動しない。成功時だけsection 3で同じ`TARGET_SHA`のserviceを起動し、Personal KG本番スモークのDB/API/Graph/Receipt readbackまで実行する。

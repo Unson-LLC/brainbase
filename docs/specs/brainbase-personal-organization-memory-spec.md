@@ -7,6 +7,12 @@ architecture: docs/architecture/adr-personal-organization-memory-boundary.md
 
 # Brainbase個人・組織記憶境界仕様
 
+この文書はPersonal Vaultと組織記憶境界の基礎契約である。昇格writeの現行正本は
+`story-p0-negative-boundary-runtime-v1`、
+`docs/architecture/story-p0-negative-boundary-runtime-v1.md`、
+`.vibepro/spec/story-p0-negative-boundary-runtime-v1/spec.json`とする。
+以下の旧`/decision`は互換owner-consent経路であり、それ単体ではGraphへ公開しない。
+
 ## 公開API
 
 - `POST /api/personal-knowledge/events`
@@ -14,6 +20,10 @@ architecture: docs/architecture/adr-personal-organization-memory-boundary.md
 - `GET /api/personal-knowledge/cycles/:eventId`
 - `POST /api/personal-knowledge/events/:eventId/promotion-requests`
 - `POST /api/personal-knowledge/promotions/:requestId/decision`
+- `POST /api/personal-knowledge/promotions/:requestId/normalized-payload`
+- `POST /api/personal-knowledge/promotions/:requestId/owner-decision`
+- `GET /api/personal-knowledge/organization-reviews`
+- `POST /api/personal-knowledge/promotions/:requestId/organization-decision`
 
 全APIは認証必須とする。個人主体と組織は`req.access`から確定し、本文・queryの`owner_person_id`、`organization_id`による上書きを拒否する。本人を確定できない場合はfail-closedにする。service/internal actorは代理person、organization、理由を明示し、監査記録に成功しなければ処理しない。
 
@@ -28,9 +38,10 @@ architecture: docs/architecture/adr-personal-organization-memory-boundary.md
 1. 所有する個人イベントから共有候補を作る。
 2. secret、credential、個人情報、個人絶対パス、原文引用を除去する。
 3. 洗浄済みpreview、共有project、subjectを本人へ提示する。
-4. 本人承認後、request identityから決定的な`knowledge_event.v1` IDを生成する。
-5. 通常の組織イベント取込み、権限、競合、機密判定へ渡す。
-6. `knowledge_promotion_lineage`へpersonal event、request、organization eventの関係と洗浄情報を追記する。
+4. 本人承認後もGraphへ公開せず、別personの組織reviewerが組織承認する。
+5. A0署名context、actor、organization、project、期限、payload hashを再検証してから、request identityから決定的な`knowledge_event.v1` IDを生成する。
+6. 通常の組織イベント取込み、権限、競合、機密判定へ渡す。
+7. `knowledge_promotion_lineage`へpersonal event、request、organization eventの関係と洗浄情報を追記する。
 
 却下または未回答では組織イベントを発行しない。同じrequestの並行承認、再送、再起動で組織イベントを重複させない。訂正は元eventを更新せず、新eventとsupersede transitionを追加する。
 
