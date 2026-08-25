@@ -24,7 +24,8 @@ const SYNTHETIC_RUN_ID = /^p0_smoke_[a-z0-9][a-z0-9_-]{5,127}$/iu;
 const SYNTHETIC_EVENT_ID = /^pke_smoke_[a-z0-9][a-z0-9_-]{5,127}$/iu;
 const SYNTHETIC_ENTITY_ID = /^smoke_[a-z0-9][a-z0-9_-]{2,127}$/iu;
 const SAFE_FAILURE_CODE = /^[a-z][a-z0-9_]{2,80}$/u;
-const FORBIDDEN_OUTPUT_KEY = /^(?:body|body_hash|raw|transcript|conversation|message|prompt|private|personal|personal_event_id|excerpt|preview|sanitized_preview|content|note|token|authorization|signed_context|normalized_payload|subject|reason)$/iu;
+const FORBIDDEN_ORGANIZATION_RESPONSE_KEY = /^(?:body|body_hash|raw|transcript|conversation|message|prompt|private|personal|personal_event_id|excerpt|preview|sanitized_preview|content|note|token|authorization|signed_context|subject|reason)$/iu;
+const FORBIDDEN_EVIDENCE_KEY = /^(?:body|raw|transcript|conversation|message|prompt|private|personal|excerpt|preview|sanitized_preview|content|note|token|authorization|signed_context|normalized_payload|subject|reason)$/iu;
 
 class SmokeFailure extends Error {
     constructor(code) {
@@ -259,25 +260,30 @@ async function readDbState(pool, { eventId, requestId, entityId, body }) {
     };
 }
 
-function assertNoForbiddenOutputKeys(value) {
+function assertNoForbiddenOutputKeys(value, forbiddenKey) {
     if (Array.isArray(value)) {
-        value.forEach(assertNoForbiddenOutputKeys);
+        value.forEach((item) => assertNoForbiddenOutputKeys(item, forbiddenKey));
         return;
     }
     if (!value || typeof value !== 'object') return;
     for (const [key, nested] of Object.entries(value)) {
-        assert(!FORBIDDEN_OUTPUT_KEY.test(key), 'personal_data_output_key_detected');
-        assertNoForbiddenOutputKeys(nested);
+        assert(!forbiddenKey.test(key), 'personal_data_output_key_detected');
+        assertNoForbiddenOutputKeys(nested, forbiddenKey);
     }
 }
 
 export function assertSafeEvidence(evidence, { body, ownerToken, reviewerToken } = {}) {
-    assertNoForbiddenOutputKeys(evidence);
+    assertNoForbiddenOutputKeys(evidence, FORBIDDEN_EVIDENCE_KEY);
     const serialized = JSON.stringify(evidence);
     assert(!body || !serialized.includes(body), 'personal_body_output_detected');
     assert(!ownerToken || !serialized.includes(ownerToken), 'owner_token_output_detected');
     assert(!reviewerToken || !serialized.includes(reviewerToken), 'reviewer_token_output_detected');
     return true;
+}
+
+export function assertSafeOrganizationResponse(response, secrets = {}) {
+    assertNoForbiddenOutputKeys(response, FORBIDDEN_ORGANIZATION_RESPONSE_KEY);
+    return assertSafeEvidence(response, secrets);
 }
 
 async function requestJson(fetchImpl, baseUrl, {
@@ -435,7 +441,7 @@ export async function runSmoke({
             body: { decision: 'approve', reason: `synthetic smoke ${parsed.runId}` }
         });
         const organizationPayload = expectStatus(organizationResponse, 200, 'organization_review_failed');
-        assertSafeEvidence(organizationPayload, { body: parsed.event.body, ownerToken, reviewerToken });
+        assertSafeOrganizationResponse(organizationPayload, { body: parsed.event.body, ownerToken, reviewerToken });
         const firstReceipt = redactReceipt(organizationPayload);
         assert(firstReceipt.graph_entity_id === parsed.entityId, 'organization_receipt_graph_id_missing');
         assert(firstReceipt.organization_review_receipt_id, 'organization_receipt_missing');

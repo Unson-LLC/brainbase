@@ -34,7 +34,7 @@ Personal KGの本人が正規化payloadへ同意し、本人とは別の組織�
 - [x] AC-004: normalized payloadはallowlist schemaだけを受け入れ、Personal本文、raw content、preview、local path、secret、credential、personal event idをGraph payloadから排除する。
 - [x] AC-005: 組織承認とGraph mutationを単一transactionで実行し、同一署名authorityの再送を409で拒否してauthority使用台帳を含む更新差分を0にし、二重Entity・Edge・Receiptを生成しない。新しい署名authorityで完了済みrequestを再確認した場合は、新しいauthority使用Receiptだけを監査記録として追加できるが、event・Graph・promotion・Receiptは変更しない。
 - [x] AC-006: synthetic fixtureで正常系、cross-tenant、cross-person、owner=reviewer、期限切れ、署名改ざん、再送をfocused testする。
-- [x] AC-007: schema migrationへauthority使用台帳とRLSを後方互換で追加し、旧Personal KG経路を維持する。
+- [x] AC-007: authority使用台帳とRLSを再適用可能なDDLで追加する。Personal Vaultのread経路は維持しつつ、証跡のない旧`pending_org_review`はfail closedでowner再同意へ戻し、writeはA0署名必須へ切り替える。適用前後件数をreadbackする。
 - [ ] AC-008: VibePro Gate、PR更新、merge、migration、service deploy後に同一runのReceipt・DB/Graph readback・冪等性を確認する。確認前は`production_evidence: not_collected`と`done: false`を維持する。
 
 ## 非目標

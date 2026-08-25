@@ -63,6 +63,37 @@ bash scripts/info-ssot-apply.sh
 
 The command must return successfully and produce a Receipt with `readback.status=passed`, `negative_smoke.status=passed`, and a safe `server_version`. See [`info-ssot-rls-deployment.md`](../../runbooks/info-ssot-rls-deployment.md) for the transaction, evidence, and rollback contract.
 
+### Personal KG二段階昇格を含むrelease
+
+対象差分に`personal-knowledge-two-stage-promotion.sql`または署名昇格runtimeが含まれる場合は、一般restartへ進む前に次の順序を守る。旧writerを動かしたままmigrationしない。
+
+```bash
+TARGET_SHA="$(git rev-parse HEAD)"
+grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
+
+# 1. read-only preflight。出力件数をrelease Receiptへ保存する。
+psql "$INFO_SSOT_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "
+SELECT count(*) FROM knowledge_promotion_requests
+WHERE status = 'pending_org_review'
+  AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL);"
+
+# 2. writeを排水して停止し、対応checkoutのmigrationを適用する。
+sudo systemctl stop brainbase-ssot.service
+npm run migrate:m5a -- --only personal-knowledge
+
+# 3. fail-closed移行とRLSをreadbackする。1行でも違反があれば停止したままにする。
+psql "$INFO_SSOT_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "
+SELECT count(*) FROM knowledge_promotion_requests
+WHERE status = 'pending_org_review'
+  AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL);
+SELECT relrowsecurity::int, relforcerowsecurity::int
+FROM pg_class WHERE oid = 'knowledge_promotion_authority_uses'::regclass;"
+```
+
+最初のreadbackは`0`、RLSは`1|1`が必須である。満たさない場合はserviceを起動しない。満たした場合だけsection 3で同じ`TARGET_SHA`のserviceを起動し、Personal KG本番スモークのDB/API/Graph/Receipt readbackまで実行する。
+
+このmigration適用後は、A0署名昇格対応前のSHAへ通常rollbackしてはならない。対応SHAが起動できない場合は`brainbase-ssot.service`を停止したままpromotion writeを全面停止し、readback済みのA0対応SHAへforward fixする。DB down migrationや旧writerの再公開はしない。
+
 ## 3. Restart the service
 
 ```bash

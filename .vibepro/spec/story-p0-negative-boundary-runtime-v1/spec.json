@@ -444,7 +444,7 @@
       "statement": "authority使用台帳とRLSを再適用可能なDDLで追加する。署名・正規化証跡のない旧pending_org_reviewはfail closedでpending_owner_approvalへ正規化し、write routeをA0署名必須へ切り替えるため、状態意味論は意図的な互換変更として適用前後の件数をreadbackする。",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-007" }],
-        "architecture_refs": [{ "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md", "section": "Transactionと副作用" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md", "section": "移行とリリース境界" }],
         "code_refs": [{ "file": "scripts/migrate-m5a-production-schema.js", "anchor": "personal-knowledge" }],
         "test_refs": [
           { "file": "tests/server/services/personal-knowledge-promotion-migration.integration.test.js", "case": "normalizes legacy rows behind an existing guard and is re-applicable" },

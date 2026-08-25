@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     assertAcceptedState,
     assertSafeEvidence,
+    assertSafeOrganizationResponse,
     assertGraphBodyAbsent,
     parseSmokeFixture,
     redactReceipt
@@ -81,9 +82,13 @@ describe('Personal KG production smoke evidence helpers', () => {
         expect(() => assertSafeEvidence({ value: 'personal text' }, { body: 'personal text' }))
             .toThrowError('personal_body_output_detected');
         for (const key of ['personal_event_id', 'sanitized_preview', 'body_hash']) {
-            expect(() => assertSafeEvidence({ [key]: 'private' }))
+            expect(() => assertSafeOrganizationResponse({ [key]: 'private' }))
                 .toThrowError('personal_data_output_key_detected');
         }
+        expect(assertSafeEvidence({
+            correlation: { personal_event_id: 'pke_synthetic', normalized_payload_hash: 'sha256:synthetic' },
+            db: { event: { body_hash: 'sha256:synthetic' } }
+        })).toBe(true);
     });
 
     it('rejects a Graph readback that contains the Personal body', () => {
