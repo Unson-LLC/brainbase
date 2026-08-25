@@ -56,11 +56,17 @@ export function assertReceiptBinding(receipt, targetSha) {
   }
 }
 
+export async function writeReceipt(filePath, value) {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+  await fs.chmod(filePath, 0o600);
+}
+
 async function main() {
   const mode = process.argv[2];
   const receiptPath = path.resolve(process.argv[3] || 'var/personal-knowledge-migration-release-receipt.json');
   const targetSha = process.env.TARGET_SHA || '';
-  const databaseUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || process.env.DATABASE_URL;
+  const databaseUrl = process.env.M5A_DATABASE_URL || process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || process.env.DATABASE_URL;
   if (!['preflight', 'postflight'].includes(mode)) throw new Error('usage: personal-knowledge-migration-release-gate.mjs preflight|postflight [receipt-path]');
   if (!/^[0-9a-f]{40}$/.test(targetSha)) throw new Error('TARGET_SHA must be a 40-character Git SHA');
   if (!databaseUrl) throw new Error('INFO_SSOT_DATABASE_URL, INFO_SSOT_DB_URL, or DATABASE_URL is required');
@@ -70,9 +76,7 @@ async function main() {
   if (mode === 'preflight') {
     const before = await snapshot(client);
     const receipt = { schema_version: 'personal_knowledge_migration_release.v1', status: 'preflight_recorded', target_sha: targetSha, recorded_at: new Date().toISOString(), before };
-    await fs.mkdir(path.dirname(receiptPath), { recursive: true });
-    await fs.writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
-    await fs.chmod(receiptPath, 0o600);
+    await writeReceipt(receiptPath, receipt);
     console.log(JSON.stringify({ status: receipt.status, target_sha: targetSha, target_count: before.target_request_ids.length, total: before.total, receipt_path: receiptPath }));
   } else {
     const receipt = JSON.parse(await fs.readFile(receiptPath, 'utf8'));
@@ -86,8 +90,7 @@ async function main() {
     const rls = (await client.query("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = 'knowledge_promotion_authority_uses'::regclass")).rows[0];
     assertPostflight(receipt.before, after, targetRows, rls);
     const completed = { ...receipt, status: 'passed', completed_at: new Date().toISOString(), after, rls: { enabled: rls.relrowsecurity, forced: rls.relforcerowsecurity } };
-    await fs.writeFile(receiptPath, `${JSON.stringify(completed, null, 2)}\n`, { mode: 0o600 });
-    await fs.chmod(receiptPath, 0o600);
+    await writeReceipt(receiptPath, completed);
     console.log(JSON.stringify({ status: completed.status, target_sha: targetSha, target_count: ids.length, total: after.total, receipt_path: receiptPath }));
   }
   } finally {

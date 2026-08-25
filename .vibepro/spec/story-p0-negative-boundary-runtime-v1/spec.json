@@ -445,11 +445,15 @@
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-007" }],
         "architecture_refs": [{ "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md", "section": "移行とリリース境界" }],
-        "code_refs": [{ "file": "scripts/migrate-m5a-production-schema.js", "anchor": "personal-knowledge" }],
+        "code_refs": [
+          { "file": "scripts/migrate-m5a-production-schema.js", "anchor": "personal-knowledge" },
+          { "file": "scripts/personal-knowledge-migration-release-gate.mjs", "anchor": "assertPostflight" }
+        ],
         "test_refs": [
           { "file": "tests/server/services/personal-knowledge-promotion-migration.integration.test.js", "case": "normalizes legacy rows behind an existing guard and is re-applicable" },
           { "file": "tests/server/services/personal-knowledge-schema.test.js", "case": "requires normalized hashes, both receipts, Knowledge Event, and Graph readback for new acceptance" },
-          { "file": "tests/server/routes/personal-knowledge-routes.test.js", "case": "registers and searches the authenticated Personal Vault" }
+          { "file": "tests/server/routes/personal-knowledge-routes.test.js", "case": "registers and searches the authenticated Personal Vault" },
+          { "file": "tests/server/scripts/personal-knowledge-migration-release-gate.test.js", "case": "accepts the exact fail-closed transition" }
         ]
       },
       "verifiable_by": { "test_pattern": [
@@ -466,12 +470,16 @@
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-008" }],
         "architecture_refs": [{ "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md", "section": "本番検証" }],
-        "code_refs": [{ "file": "scripts/personal-knowledge-promotion-production-smoke.mjs", "anchor": "main" }],
+        "code_refs": [
+          { "file": "scripts/personal-knowledge-promotion-production-smoke.mjs", "anchor": "main" },
+          { "file": "scripts/personal-knowledge-migration-release-gate.mjs", "anchor": "assertReceiptBinding" }
+        ],
         "test_refs": [
           { "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js", "case": "fails evidence safety when a personal body or forbidden key is present" },
           { "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js", "case": "rejects a production DB readback when incident Graph edge count differs from the normalized payload" },
           { "file": "tests/unit/personal-knowledge-promotion-service.test.js", "case": "records a fresh authority use after organization acceptance without duplicate effects" },
-          { "file": "tests/server/services/personal-knowledge-promotion-graph-boundary.integration.test.js", "case": "persists the organization event and performs one Graph version increment; replay performs zero" }
+          { "file": "tests/server/services/personal-knowledge-promotion-graph-boundary.integration.test.js", "case": "persists the organization event and performs one Graph version increment; replay performs zero" },
+          { "file": "tests/server/scripts/personal-knowledge-migration-release-gate.test.js", "case": "rejects a Receipt from another target SHA" }
         ]
       },
       "verifiable_by": { "test_pattern": [

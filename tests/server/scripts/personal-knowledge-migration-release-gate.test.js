@@ -1,5 +1,8 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { assertPostflight, assertReceiptBinding } from '../../../scripts/personal-knowledge-migration-release-gate.mjs';
+import { assertPostflight, assertReceiptBinding, writeReceipt } from '../../../scripts/personal-knowledge-migration-release-gate.mjs';
 
 const identity = { database: 'brainbase', role: 'brainbase', host: '127.0.0.1', port: 5432 };
 const before = {
@@ -25,6 +28,16 @@ const rows = ['req_1', 'req_2'].map((request_id) => ({
 const rls = { relrowsecurity: true, relforcerowsecurity: true };
 
 describe('personal knowledge migration release gate', () => {
+  it('repairs an existing Receipt to mode 0600', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'personal-kg-release-'));
+    const file = path.join(directory, 'receipt.json');
+    await fs.writeFile(file, '{}\n', { mode: 0o644 });
+    await fs.chmod(file, 0o644);
+    await writeReceipt(file, { status: 'passed' });
+    expect((await fs.stat(file)).mode & 0o777).toBe(0o600);
+    await fs.rm(directory, { recursive: true });
+  });
+
   it('rejects a Receipt from another target SHA', () => {
     expect(() => assertReceiptBinding({ schema_version: 'personal_knowledge_migration_release.v1', target_sha: 'a'.repeat(40), before }, 'b'.repeat(40))).toThrow('does not match TARGET_SHA');
   });
