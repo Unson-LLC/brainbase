@@ -1,0 +1,116 @@
+name: Validate and publish public documentation
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - README.md
+      - AGENTS.md
+      - CLAUDE.md
+      - package.json
+      - package-lock.json
+      - contracts/**
+      - docs/**
+      - scripts/**
+      - tests/public-message-promotion.test.ts
+      - tests/repo-hygiene.test.ts
+      - .github/workflows/docs-cloudflare-pages.yml
+      - .github/workflows/public-message-promotion.yml
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the validated develop build to Cloudflare Pages
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: brainbase-public-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build
+
+      - name: Validate public-message projections and documentation
+        run: npm run docs:check
+
+      - name: Run publication contract tests
+        run: npx vitest run tests/public-message-promotion.test.ts tests/repo-hygiene.test.ts
+
+      - name: Build VitePress site
+        run: npm run docs:build
+
+      - name: Smoke-test built HTML
+        run: npm run docs:smoke
+
+      - name: Decide whether to deploy
+        id: deployment
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_DEPLOY: ${{ inputs.deploy }}
+        run: |
+          SHOULD_DEPLOY=false
+          if [ "$EVENT_NAME" = "push" ]; then
+            SHOULD_DEPLOY=true
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$MANUAL_DEPLOY" = "true" ]; then
+            SHOULD_DEPLOY=true
+          fi
+          echo "should_deploy=$SHOULD_DEPLOY" >> "$GITHUB_OUTPUT"
+
+      - name: Require Cloudflare deployment credentials
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        run: |
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || {
+            echo "CLOUDFLARE_ACCOUNT_ID is not configured" >&2
+            exit 1
+          }
+          test -n "$CLOUDFLARE_API_TOKEN" || {
+            echo "CLOUDFLARE_API_TOKEN is not configured" >&2
+            exit 1
+          }
+
+      - name: Deploy verified build to Cloudflare Pages
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy docs/.vitepress/dist --project-name=brainbase --branch=develop --commit-dirty=true
+
+      - name: Read back the public site
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        env:
+          EXPECTED_BUILD_SHA: ${{ github.sha }}
+          BRAINBASE_PUBLIC_URL: https://brainbase.pages.dev
+          PUBLIC_READBACK_ATTEMPTS: '18'
+          PUBLIC_READBACK_DELAY_MS: '5000'
+        run: npm run docs:verify-public

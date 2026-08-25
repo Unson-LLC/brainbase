@@ -1,0 +1,165 @@
+name: Promote an approved Brainbase public message
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_id:
+        description: Exact candidate_id in the approved candidate JSON
+        required: true
+        type: string
+      candidate_json_base64:
+        description: Base64-encoded approved public-message candidate JSON
+        required: true
+        type: string
+  repository_dispatch:
+    types:
+      - brainbase-public-message-candidate
+
+concurrency:
+  group: brainbase-public-message-${{ github.event.inputs.candidate_id || github.event.client_payload.candidate_id || github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  promote-to-review-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_id || github.event.client_payload.candidate_id }}
+      CANDIDATE_JSON_BASE64: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_json_base64 || github.event.client_payload.candidate_json_base64 }}
+    steps:
+      - name: Check out authoritative develop branch
+        uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate dispatch envelope
+        run: |
+          test -n "$CANDIDATE_ID" || {
+            echo "candidate_id is required" >&2
+            exit 1
+          }
+          printf '%s' "$CANDIDATE_ID" | grep -Eq '^[a-z0-9][a-z0-9._-]{2,127}$' || {
+            echo "candidate_id has an invalid format" >&2
+            exit 1
+          }
+          test -n "$CANDIDATE_JSON_BASE64" || {
+            echo "candidate_json_base64 is required" >&2
+            exit 1
+          }
+          printf '%s' "$CANDIDATE_JSON_BASE64" | base64 --decode > "$RUNNER_TEMP/public-message-candidate.json"
+          test -s "$RUNNER_TEMP/public-message-candidate.json"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build
+
+      - name: Create dry-run promotion plan
+        run: >-
+          npm run docs:promotion:plan --
+          --candidate "$RUNNER_TEMP/public-message-candidate.json"
+          --expected-candidate-id "$CANDIDATE_ID"
+          > "$RUNNER_TEMP/public-message-plan.json"
+
+      - name: Apply candidate to generated projections
+        run: >-
+          npm run docs:promotion:apply --
+          --candidate "$RUNNER_TEMP/public-message-candidate.json"
+          --expected-candidate-id "$CANDIDATE_ID"
+
+      - name: Restrict the generated diff to publication projections
+        run: |
+          HISTORY_PATH="docs/publication/history/${CANDIDATE_ID}.json"
+          git diff --name-only --diff-filter=ACMRTUXB > "$RUNNER_TEMP/changed-files.txt"
+          test -s "$RUNNER_TEMP/changed-files.txt" || {
+            echo "candidate produced no repository change" >&2
+            exit 1
+          }
+          while IFS= read -r path; do
+            case "$path" in
+              README.md|AGENTS.md|CLAUDE.md|package.json|docs/core-philosophy.md|docs/manual/index.md|docs/manual/guide/grand-design.md|docs/manual/guide/judgment-system.md|docs/publication/public-message.json|"$HISTORY_PATH")
+                ;;
+              *)
+                echo "promotion changed an unauthorized path: $path" >&2
+                exit 1
+                ;;
+            esac
+          done < "$RUNNER_TEMP/changed-files.txt"
+
+      - name: Validate generated public documentation
+        run: npm run docs:check
+
+      - name: Run publication contract tests
+        run: npx vitest run tests/public-message-promotion.test.ts tests/repo-hygiene.test.ts
+
+      - name: Build and smoke-test VitePress site
+        run: |
+          npm run docs:build
+          npm run docs:smoke
+
+      - name: Commit and push review branch
+        id: commit
+        env:
+          BRANCH_NAME: automation/public-message-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH_NAME"
+          git add -- README.md AGENTS.md CLAUDE.md package.json docs/core-philosophy.md docs/manual/index.md docs/manual/guide/grand-design.md docs/manual/guide/judgment-system.md docs/publication/public-message.json "docs/publication/history/${CANDIDATE_ID}.json"
+          git commit -m "docs: promote public message ${CANDIDATE_ID}"
+          git push --set-upstream origin "$BRANCH_NAME"
+          HEAD_SHA=$(git rev-parse HEAD)
+          {
+            echo "branch=$BRANCH_NAME"
+            echo "sha=$HEAD_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Record successful preflight on the candidate commit
+        env:
+          HEAD_SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state=success \
+            -f context='public-message-promotion/preflight' \
+            -f description='Candidate, projections, tests, build, and smoke checks passed'
+
+      - name: Open human-review pull request
+        env:
+          BRANCH_NAME: ${{ steps.commit.outputs.branch }}
+          TRIGGER_ACTOR: ${{ github.actor }}
+        run: |
+          ENTITY_ID=$(jq -r '.source.entity_id' "$RUNNER_TEMP/public-message-plan.json")
+          SNAPSHOT_HASH=$(jq -r '.source.snapshot_hash' "$RUNNER_TEMP/public-message-plan.json")
+          CHANGED_FIELDS=$(jq -r '.changed_copy_fields | if length == 0 then "metadata only" else join(", ") end' "$RUNNER_TEMP/public-message-plan.json")
+          cat > "$RUNNER_TEMP/pr-body.md" <<BODY
+          ## Public-message promotion
+
+          - Candidate: \`${CANDIDATE_ID}\`
+          - Graph entity: \`${ENTITY_ID}\`
+          - Snapshot: \`${SNAPSHOT_HASH}\`
+          - Changed copy fields: ${CHANGED_FIELDS}
+          - Triggered by: \`${TRIGGER_ACTOR}\`
+
+          The workflow validated the exact Graph snapshot reference, explicit approval metadata, generated projections, repository path boundary, tests, VitePress build, and built HTML smoke checks.
+
+          This PR is the publication approval gate. The workflow does not merge or deploy it.
+          BODY
+          gh pr create \
+            --base develop \
+            --head "$BRANCH_NAME" \
+            --title "docs: promote public message ${CANDIDATE_ID}" \
+            --body-file "$RUNNER_TEMP/pr-body.md"

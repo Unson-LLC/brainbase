@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brainbase.pages.dev/contracts/public-message-candidate.schema.json",
+  "title": "Brainbase approved public-message candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "candidate_id",
+    "status",
+    "source",
+    "approval",
+    "copy"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"
+    },
+    "status": {
+      "const": "approved"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "entity_id",
+        "snapshot_hash",
+        "exported_at",
+        "scope"
+      ],
+      "properties": {
+        "type": {
+          "const": "brainbase_graph"
+        },
+        "entity_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "entity_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "snapshot_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "exported_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "approved_by",
+        "approved_at",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "const": "approved"
+        },
+        "approved_by": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "approved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "copy": {
+      "$ref": "#/$defs/copy"
+    }
+  },
+  "$defs": {
+    "copy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "headline",
+        "short_definition",
+        "definition",
+        "human_role",
+        "ai_role",
+        "package_description"
+      ],
+      "properties": {
+        "headline": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "short_definition": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "definition": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "human_role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "ai_role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "package_description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        }
+      }
+    }
+  }
+}

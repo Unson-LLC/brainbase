@@ -20,7 +20,9 @@ const forbiddenArtifactPatterns = [
   /codex-app-server/i
 ];
 const allowedWorkflowFiles = new Set([
-  '.github/workflows/npm-publish.yml'
+  '.github/workflows/npm-publish.yml',
+  '.github/workflows/docs-cloudflare-pages.yml',
+  '.github/workflows/public-message-promotion.yml'
 ]);
 
 async function exists(path: string): Promise<boolean> {
@@ -73,8 +75,12 @@ describe('MCP-only repository hygiene', () => {
     expect(forbiddenMatches(trackedFiles)).toEqual([]);
   });
 
-  it('AP-1 limits the workflow exception to the npm publication workflow', () => {
-    expect(forbiddenMatches(['.github/workflows/npm-publish.yml'])).toEqual([]);
+  it('AP-1 limits workflow exceptions to the three approved publication workflows', () => {
+    expect(forbiddenMatches([
+      '.github/workflows/npm-publish.yml',
+      '.github/workflows/docs-cloudflare-pages.yml',
+      '.github/workflows/public-message-promotion.yml'
+    ])).toEqual([]);
     expect(forbiddenMatches(['.github/workflows/xterm.yml'])).toEqual([
       '.github/workflows/xterm.yml'
     ]);

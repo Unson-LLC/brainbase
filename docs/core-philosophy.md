@@ -1,23 +1,36 @@
 # Brainbase Core Philosophy
 
+<!-- brainbase:public-message:start -->
+## Central promise
+
+> **会社の判断を、属人化させない。**
+
+Brainbaseは、経営者や担当者の判断基準、過去の決定、その理由を会社に残し、AIや次の担当者が同じ前提で考え、動けるようにする仕組みです。
+
+## Human and AI responsibility
+
+- **Human:** 人間が、目的と判断基準、任せてよい範囲を決める。Human authority defines who the judgment is for, what it prioritizes, what it protects, and what may be delegated.
+- **AI:** AIは、それをもとに調べ、選択肢を比較し、見落としを指摘し、許可された仕事を進める。AI must search broadly, surface the strongest counterargument, preserve evidence, and stay inside approved execution boundaries.
+
+A judgment is not correct in the abstract. It is correct or incorrect only relative to an explicit subject, objective, priority, protected constraint, and authority boundary.
+<!-- brainbase:public-message:end -->
+
 ## Company as a judgment system
 
 Brainbase starts from a simple hypothesis:
 
-> A company is not merely a collection of information. It is a system that accumulates judgments, turns them into structures and actions, and updates those judgments from outcomes.
+> A company is not merely a collection of information. It is a system that accumulates judgments, turns them into commitments and actions, and updates those judgments from outcomes.
 
-Documents, messages, meeting notes, databases, and source code are important, but they are evidence and traces. They do not by themselves explain why an organization behaves as it does.
+Documents, messages, meeting notes, databases, and source code are evidence and traces. They matter, but they do not by themselves explain why an organization behaves as it does.
 
-What makes an organization distinct is how it interprets the information available to it, what it chooses, who is allowed to choose, and how those choices are revised when reality changes.
+The durable structure around judgment includes:
 
-A useful company memory therefore needs to preserve more than facts. It needs to preserve the structure around judgment:
-
-- goals and constraints
+- goals and protected constraints
 - observations and evidence
 - assumptions and hypotheses
 - judgments and decisions
-- actors and authority
-- actions and commitments
+- actors, authority, and approval
+- commitments and actions
 - outcomes and lessons
 - validity, supersession, and review conditions
 
@@ -34,32 +47,37 @@ Observation
   -> Judgment update
 ```
 
-Brainbase should help make that loop explicit, inspectable, reusable, and transferable between humans and agents.
+Brainbase makes that loop explicit, inspectable, reusable, replayable, and transferable between humans and agents.
 
 ## Knowledge is evidence, not the final unit of value
 
-A knowledge base can answer "what information exists?" Brainbase aims to help answer additional questions:
+A knowledge base can answer "what information exists?" Brainbase must also answer:
 
 - Why did we decide this?
-- Which evidence and assumptions supported the decision?
-- Who had authority to make it?
-- Is the decision still valid?
+- Which evidence and assumptions supported it?
+- Who had authority to decide?
+- What did the decision prioritize and protect?
+- Is it still valid?
 - What would invalidate or supersede it?
-- What happened after we acted on it?
-- What should the next person or agent learn from that outcome?
+- What happened after execution?
+- What should the next human or agent learn?
 
-For this reason, Brainbase should not treat documents as the primary representation of organizational intelligence. Documents and conversations are sources. The more durable units are the entities and relationships that explain the organization's current judgment state.
+Documents and conversations are sources. The durable units are the entities and relationships that explain the current judgment state.
 
 ## Judgment is temporal
 
-A company is not the sum of every judgment it has ever made.
+A person or company is not the sum of every judgment it has ever made.
 
-Judgments become active, constrained, revised, superseded, or invalidated as their assumptions and context change. Brainbase should preserve this temporal structure rather than flattening contradictory historical records into an undifferentiated search corpus.
+Judgments become active, constrained, revised, superseded, or invalidated as assumptions and context change. Brainbase preserves that temporal structure instead of flattening contradictory historical records into one search corpus.
 
-A judgment should be interpretable through fields such as:
+A judgment should remain interpretable through fields such as:
 
 ```text
 Judgment
+- subject / beneficiary
+- objective
+- priority
+- protected_constraint
 - context
 - evidence
 - assumptions
@@ -73,30 +91,31 @@ Judgment
 - observed_outcome
 ```
 
-The exact ontology may evolve, but the design principle is stable: the system should make it possible to distinguish what was once believed from what is currently authoritative and why.
+The exact ontology may evolve, but the principle is stable: distinguish what was once believed from what is currently authoritative, and explain why.
 
 ## Judgment has layers
 
-Not every judgment has the same organizational weight. Brainbase should be able to represent at least these layers conceptually:
+Not every judgment has the same organizational weight.
 
 1. **Case judgment** — a decision for a specific situation.
-2. **Policy judgment** — a reusable rule for classes of situations.
+2. **Policy judgment** — a reusable rule for a class of situations.
 3. **Structural judgment** — a decision embedded into organization, software, contracts, roles, budgets, or process.
-4. **Meta-judgment** — a rule about who may decide, what evidence is required, and how conflicting criteria are resolved.
+4. **Meta-judgment** — a rule about who may decide, which evidence is required, and how conflicting criteria are resolved.
 
-Repeated case judgments can become policy. Repeated policy enforcement can become organizational structure or culture. Brainbase should make that evolution observable rather than leaving it implicit.
+Repeated case judgments can become policy. Repeated policy enforcement can become structure or culture. Brainbase makes that evolution observable and approval-gated.
 
 ## The product goal
 
-Brainbase is therefore not only a memory system or retrieval layer for AI.
+Brainbase is not only a memory system or retrieval layer for AI.
 
 Its deeper purpose is to externalize judgment capability so that a person or organization can:
 
 - preserve the reasoning behind important choices;
-- avoid re-litigating resolved questions without new evidence;
+- avoid reopening resolved questions without new evidence;
 - detect when old assumptions no longer hold;
 - transfer decision context to another human or agent;
+- delegate work without silently delegating authority;
 - learn from the outcomes of prior actions;
 - progressively turn individual judgment into reusable organizational capability.
 
-The practical test is not whether Brainbase stores more information. The test is whether a future human or agent can make a better, more contextually faithful decision because the relevant judgment structure survived.
+The practical test is not whether Brainbase stores more information. The test is whether a future human or agent can make a better, contextually faithful decision because the relevant judgment structure survived.

@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "candidate_id": "brainbase-public-message-baseline-2026-08-25",
+  "status": "approved",
+  "source": {
+    "type": "human_approved_baseline",
+    "reference": "owner-approved-public-copy",
+    "recorded_at": "2026-08-25T16:38:09+09:00"
+  },
+  "approval": {
+    "status": "approved",
+    "approved_by": "sintariran",
+    "approved_at": "2026-08-25T16:38:09+09:00",
+    "reason": "Public product copy explicitly approved by the repository owner."
+  },
+  "copy": {
+    "headline": "会社の判断を、属人化させない。",
+    "short_definition": "人の頭の中にある判断を、AIと会社が引き継げるようにする。",
+    "definition": "Brainbaseは、経営者や担当者の判断基準、過去の決定、その理由を会社に残し、AIや次の担当者が同じ前提で考え、動けるようにする仕組みです。",
+    "human_role": "人間が、目的と判断基準、任せてよい範囲を決める。",
+    "ai_role": "AIは、それをもとに調べ、選択肢を比較し、見落としを指摘し、許可された仕事を進める。",
+    "package_description": "Local-first Brainbase MCP for preserving decision context and helping humans and AI work from the same judgment criteria."
+  }
+}
