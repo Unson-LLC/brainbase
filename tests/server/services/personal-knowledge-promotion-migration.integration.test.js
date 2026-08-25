@@ -11,10 +11,12 @@ const readSql = (file) => fs.readFileSync(path.resolve(process.cwd(), file), 'ut
 
 describe('Personal Knowledge promotion migration upgrade path', () => {
     let pool;
+    let adminPool;
     let dataDirectory;
     let postgresBin;
     let databaseUrl;
     let receiptDirectory;
+    let ownerRole;
     const port = 55439;
 
     beforeAll(async () => {
@@ -23,7 +25,6 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
             // CI supplies a disposable PostgreSQL service. Keeping the test's
             // schema setup below means this still exercises the real migration
             // against PostgreSQL rather than a mocked repository.
-            pool = new Pool({ connectionString: externalDatabaseUrl });
             databaseUrl = externalDatabaseUrl;
         } else {
             const candidates = [
@@ -47,14 +48,31 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
                 '-D', dataDirectory, '-o', `-p ${port} -h 127.0.0.1`, '-w', 'start'
             ], { stdio: 'ignore' });
             databaseUrl = `postgresql://127.0.0.1:${port}/postgres`;
-            pool = new Pool({ connectionString: databaseUrl });
         }
+        adminPool = new Pool({ connectionString: databaseUrl });
+        ownerRole = `personal_kg_migration_owner_${process.pid}`;
+        const ownerPassword = `owner-${process.pid}-test-only`;
+        await adminPool.query(`CREATE ROLE ${ownerRole} LOGIN PASSWORD '${ownerPassword}' NOSUPERUSER NOBYPASSRLS`);
+        await adminPool.query(`GRANT CREATE ON SCHEMA public TO ${ownerRole}`);
+        const ownerUrl = new URL(databaseUrl);
+        ownerUrl.username = ownerRole;
+        ownerUrl.password = ownerPassword;
+        databaseUrl = ownerUrl.toString();
+        pool = new Pool({ connectionString: databaseUrl });
         await pool.query(`
           CREATE OR REPLACE FUNCTION app_project_codes()
           RETURNS TEXT[] LANGUAGE sql STABLE AS $$ SELECT ARRAY[]::TEXT[] $$;
         `);
         await pool.query(readSql('server/sql/knowledge-event-schema.sql'));
         await pool.query(readSql('server/sql/personal-knowledge-schema.sql'));
+        await pool.query(`
+          SELECT set_config('app.person_id', 'person_owner', false),
+                 set_config('app.actor_person_id', 'person_owner', false),
+                 set_config('app.organization_id', 'org_a', false),
+                 set_config('app.project_codes', 'brainbase', false),
+                 set_config('app.role', 'owner', false),
+                 set_config('app.clearance', 'personal,internal,confidential', false)
+        `);
 
         await pool.query(`
           INSERT INTO personal_knowledge_events
@@ -93,6 +111,11 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
 
     afterAll(async () => {
         await pool?.end();
+        if (adminPool && ownerRole) {
+            await adminPool.query(`DROP OWNED BY ${ownerRole} CASCADE`);
+            await adminPool.query(`DROP ROLE ${ownerRole}`);
+        }
+        await adminPool?.end();
         if (receiptDirectory) fs.rmSync(receiptDirectory, { recursive: true, force: true });
         if (dataDirectory) {
             execFileSync(path.join(postgresBin, 'pg_ctl'), ['-D', dataDirectory, '-m', 'fast', '-w', 'stop'], { stdio: 'ignore' });
@@ -106,6 +129,21 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
         const targetSha = 'c'.repeat(40);
         const gate = path.resolve(process.cwd(), 'scripts/personal-knowledge-migration-release-gate.mjs');
         const env = { ...process.env, TARGET_SHA: targetSha, M5A_DATABASE_URL: databaseUrl };
+
+        const productionOwnerContract = (await pool.query(`
+          SELECT r.rolsuper, r.rolbypassrls, c.relrowsecurity, c.relforcerowsecurity,
+                 pg_get_userbyid(c.relowner) = current_user AS is_owner
+          FROM pg_roles r
+          JOIN pg_class c ON c.oid = 'knowledge_promotion_requests'::regclass
+          WHERE r.rolname = current_user
+        `)).rows[0];
+        expect(productionOwnerContract).toEqual({
+            rolsuper: false,
+            rolbypassrls: false,
+            relrowsecurity: true,
+            relforcerowsecurity: true,
+            is_owner: true
+        });
 
         // The authoritative preflight runs before the release adds normalized columns.
         execFileSync(process.execPath, [gate, 'preflight', receiptPath], { env, stdio: 'pipe' });

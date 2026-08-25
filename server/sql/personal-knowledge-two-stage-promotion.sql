@@ -1,6 +1,12 @@
 -- Personal KG promotion consent, organization review, and Graph publication are
 -- separate decisions. Personal text is never copied into the organization Graph.
 
+-- Production runs this migration as the table owner while FORCE RLS is active.
+-- Temporarily disable FORCE only inside the migration transaction so legacy
+-- rows can be normalized; the end of this file restores ENABLE/FORCE before
+-- the transaction is committed.
+ALTER TABLE knowledge_promotion_requests NO FORCE ROW LEVEL SECURITY;
+
 ALTER TABLE knowledge_promotion_requests
   ADD COLUMN IF NOT EXISTS owner_decided_by TEXT;
 ALTER TABLE knowledge_promotion_requests
