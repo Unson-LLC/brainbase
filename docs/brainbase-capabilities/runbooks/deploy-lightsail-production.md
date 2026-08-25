@@ -168,12 +168,16 @@ Use only the SHA recorded in the pre-check. A branch reset is unnecessary and pr
 ROLLBACK_SHA="<40-character SHA printed during pre-check>"
 grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
 sudo systemctl stop brainbase-ssot.service
-PERSONAL_KG_RELEASE_RECEIPT="var/personal-knowledge-migration-release-receipt.json"
-if test -f "$PERSONAL_KG_RELEASE_RECEIPT" && PERSONAL_KG_RELEASE_RECEIPT="$PERSONAL_KG_RELEASE_RECEIPT" node -e '
+PERSONAL_KG_RELEASE_RECEIPT="/home/ubuntu/brainbase/var/personal-knowledge-migration-release-receipt.json"
+if test -e "$PERSONAL_KG_RELEASE_RECEIPT"; then
+  if ! PERSONAL_KG_RELEASE_RECEIPT="$PERSONAL_KG_RELEASE_RECEIPT" node -e '
 const fs = require("node:fs");
 const receipt = JSON.parse(fs.readFileSync(process.env.PERSONAL_KG_RELEASE_RECEIPT, "utf8"));
 process.exit(receipt.schema_version === "personal_knowledge_migration_release.v1" && receipt.status === "passed" ? 0 : 1);
 '; then
+    echo "Personal KG migration Receipt is unreadable or invalid; general service rollback is blocked." >&2
+    exit 1
+  fi
   echo "Personal KG migration is forward-only; general service rollback is blocked. Keep the service stopped and forward-fix with an A0-compatible SHA." >&2
   exit 1
 fi
