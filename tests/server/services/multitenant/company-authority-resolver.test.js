@@ -1,10 +1,16 @@
 import { generateKeyPairSync } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
     CompanyAuthorityResolver,
     normalizeObservedExecutionRequest
 } from '../../../../server/services/multitenant/company-authority-resolver.js';
+import {
+    actionForRuntimeCapability,
+    assertPersonalKnowledgePromotionAuthority,
+    runtimeCapabilityForAction
+} from '../../../../server/services/personal-knowledge/promotion-authority-contract.js';
 import { TenantContextProducer } from '../../../../server/services/multitenant/tenant-context-producer.js';
 
 const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
@@ -156,6 +162,93 @@ describe('CompanyAuthorityResolver', () => {
 });
 
 describe('TenantContextProducer company authority cutover', () => {
+    it('keeps the three runtime capabilities bound to versioned promotion actions', () => {
+        expect(['request', 'owner_consent', 'organization_review'].map((action) => ({
+            action,
+            ...runtimeCapabilityForAction(action)
+        }))).toEqual([
+            {
+                action: 'request',
+                runtime_capability_id: 'personal_knowledge_promotion:request'
+            },
+            {
+                action: 'owner_consent',
+                runtime_capability_id: 'personal_knowledge_promotion:owner_consent'
+            },
+            {
+                action: 'organization_review',
+                runtime_capability_id: 'personal_knowledge_promotion:organization_review'
+            }
+        ]);
+        expect(actionForRuntimeCapability('personal_knowledge_promotion:request')).toMatchObject({
+            action: 'request', runtime_capability_id: 'personal_knowledge_promotion:request'
+        });
+    });
+
+    it('issues a signed promotion authority from the customer-data-free fixture request', async () => {
+        const fixture = JSON.parse(await readFile(
+            'tests/fixtures/personal-knowledge-promotion/producer-request.json',
+            'utf8'
+        ));
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+        const repository = canonicalRepository();
+        repository.resolveCanonicalAuthority.mockImplementation(async (input) => ({
+            binding_id: 'binding-promotion-fixture',
+            binding_revision: '1',
+            capability_id: input.capability_id,
+            decision: 'auto',
+            allowed_effects: [input.desired_effect],
+            responsible_person_id: 'person-umeda',
+            accountable_person_id: 'person-sato',
+            approver_person_id: null,
+            delegated_by_person_id: null,
+            policy_revision: '8',
+            raci_revision: '5',
+            resource_revision: '12',
+            stop_conditions: [],
+            authority_resolution_receipt_id: 'authres-promotion-fixture'
+        }));
+        const producer = new TenantContextProducer({
+            resolveCanonicalContext: async () => canonicalRuntime(),
+            companyAuthorityResolver: new CompanyAuthorityResolver({ repository }),
+            signingKey: {
+                key_id: 'company-authority-fixture-key',
+                private_key: privateKey,
+                public_key: publicKey
+            },
+            audience: 'mana-runtime',
+            deploymentId,
+            deploymentProfile: 'shared_cloud',
+            now: () => now
+        });
+
+        const envelope = await producer.resolveContext(fixture);
+
+        expect(assertPersonalKnowledgePromotionAuthority(envelope.authority)).toMatchObject({
+            action: 'request',
+            resource_ref: 'personal-knowledge://events/pke_fixture_1',
+            request_id: null,
+            normalized_payload_hash: null
+        });
+        expect(envelope.authorization.capability_ids).toEqual(['personal_knowledge_promotion:request']);
+        expect(envelope.integrity).toMatchObject({
+            method: 'jws_detached',
+            algorithm: 'EdDSA',
+            key_id: 'company-authority-fixture-key'
+        });
+
+        await expect(producer.resolveContext({
+            ...fixture,
+            promotion_authority: {
+                ...fixture.promotion_authority,
+                resource_ref: 'personal-knowledge://events/pke_other'
+            }
+        })).rejects.toMatchObject({
+            code: 'PERSONAL_KNOWLEDGE_PROMOTION_AUTHORITY_INVALID',
+            status: 403
+        });
+    });
+
     it('ignores legacy actor/organization claims and signs the canonical resolution', async () => {
         const { privateKey, publicKey } = generateKeyPairSync('ed25519');
         const resolver = new CompanyAuthorityResolver({ repository: canonicalRepository() });

@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1.0",
+  "generated_at": "2026-08-26T00:00:00.000Z",
+  "story": { "story_id": "story-p0-negative-boundary-runtime-v1", "title": "P0 Personal→Organization負境界を本番runtimeへ実装する", "ssot": "local", "status": "active" },
+  "source_run": { "run_id": "phase0-runtime-implementation", "gate_status": "needs_review" },
+  "tasks": [
+    {
+      "id": "P0-AUTHORITY", "title": "A0署名contextをPersonal KG昇格経路へ接続する", "priority": "urgent", "status": "done", "order": 10,
+      "execution_policy": "implemented", "mutates_repository": true,
+      "target_files": ["server/services/personal-knowledge/promotion-authority-contract.js", "server/middleware/personal-knowledge-promotion-authority.js", "server/services/personal-knowledge/personal-knowledge-promotion-service.js"],
+      "acceptance_criteria": ["request、payload hash、actor、organization、project、capabilityを署名authorityへ束縛し、service transaction内で再検証する"]
+    },
+    {
+      "id": "P0-NEGATIVE-RUNTIME", "title": "期限切れ・不正署名・再送を副作用0で拒否する", "priority": "urgent", "status": "done", "order": 20,
+      "execution_policy": "implemented", "mutates_repository": true,
+      "target_files": ["tests/server/middleware/personal-knowledge-promotion-authority.test.js", "tests/unit/personal-knowledge-promotion-service.test.js"],
+      "acceptance_criteria": ["実HTTP runtimeでexpired、tampered、cross-person、payload差し替え、署名authority replayを拒否し、下流副作用0を確認する"]
+    },
+    {
+      "id": "P0-MIGRATION", "title": "authority使用台帳とRLSを後方互換で追加する", "priority": "high", "status": "done", "order": 30,
+      "execution_policy": "implemented", "mutates_repository": true,
+      "target_files": ["scripts/migrate-m5a-production-schema.js", "tests/server/services/personal-knowledge-promotion-migration.integration.test.js", "tests/server/routes/personal-knowledge-routes.test.js"],
+      "acceptance_criteria": ["migrationが再適用可能で、既存Personal KG routeを維持する"]
+    },
+    {
+      "id": "P0-GRAPH-BOUNDARY", "title": "組織承認をGraphへ一度だけ反映し公開readbackを揃える", "priority": "urgent", "status": "done", "order": 40,
+      "execution_policy": "implemented", "mutates_repository": true,
+      "target_files": ["server/services/personal-knowledge/personal-knowledge-promotion-service.js", "tests/server/services/personal-knowledge-promotion-graph-boundary.integration.test.js"],
+      "acceptance_criteria": ["organization event、Graph、request、Receiptを一transactionで確定し、Graph version増分は1、replay増分は0にする"]
+    },
+    {
+      "id": "P0-PRODUCTION-SMOKE", "title": "本番用synthetic fixture issuerとsmoke検証を用意する", "priority": "high", "status": "done", "order": 50,
+      "execution_policy": "implemented", "mutates_repository": true,
+      "target_files": ["scripts/issue-personal-knowledge-promotion-smoke-fixture.mjs", "scripts/personal-knowledge-promotion-production-smoke.mjs", ".github/workflows/graph-writer-contract.yml"],
+      "acceptance_criteria": ["Tenant Runtimeが署名fixtureを発行し、秘密やPersonal本文を証跡へ残さない"]
+    },
+    {
+      "id": "P0-RELEASE", "title": "Gate・PR・merge・本番migration・同一run readbackを完了する", "priority": "urgent", "status": "in_progress", "order": 60,
+      "execution_policy": "operator_follow_through", "mutates_repository": false,
+      "target_files": ["docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md", "docs/brainbase-capabilities/runbooks/personal-knowledge-promotion-production-smoke.md"],
+      "acceptance_criteria": ["VibePro Gateと独立レビューを通し、PRをmergeする", "本番migrationとservice deploy後、同一runのReceipt・DB/API/Graph・重複0・replay差分0をreadbackする"]
+    }
+  ]
+}

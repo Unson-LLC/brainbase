@@ -63,6 +63,52 @@ bash scripts/info-ssot-apply.sh
 
 The command must return successfully and produce a Receipt with `readback.status=passed`, `negative_smoke.status=passed`, and a safe `server_version`. See [`info-ssot-rls-deployment.md`](../../runbooks/info-ssot-rls-deployment.md) for the transaction, evidence, and rollback contract.
 
+### Personal KG二段階昇格を含むrelease
+
+対象差分に`personal-knowledge-two-stage-promotion.sql`または署名昇格runtimeが含まれる場合は、一般restartへ進む前に次の順序を守る。旧writerを動かしたままmigrationしない。
+
+```bash
+(
+set -euo pipefail
+TARGET_SHA="$(git rev-parse HEAD)"
+grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
+
+# 1. writeを排水して停止し、inactiveをreadbackする。
+sudo systemctl stop brainbase-ssot.service
+if sudo systemctl is-active --quiet brainbase-ssot.service; then
+  echo "brainbase-ssot.service is still active" >&2
+  exit 1
+fi
+
+# 2. systemdと同じenv filesを読み、接続先を値非表示で検証する。
+set -a
+. /home/ubuntu/brainbase/.env
+. /home/ubuntu/brainbase/.env.infisical
+set +a
+# Personal KG repositoryと同じInfo SSOT接続先を一度だけ確定する。
+# SNS posting ledgerや汎用DATABASE_URLへはfallbackしない。
+M5A_DATABASE_URL="${INFO_SSOT_DATABASE_URL:-${INFO_SSOT_DB_URL:-}}"
+export M5A_DATABASE_URL
+test -n "$M5A_DATABASE_URL"
+
+# DB identity、status別件数、総件数、移行対象request_id集合を0600のReceiptへ固定する。
+PERSONAL_KG_RELEASE_RECEIPT="var/personal-knowledge-migration-release-receipt.json"
+TARGET_SHA="$TARGET_SHA" node scripts/personal-knowledge-migration-release-gate.mjs \
+  preflight "$PERSONAL_KG_RELEASE_RECEIPT"
+
+# 3. 対応checkoutのmigrationを適用する。
+npm run migrate:m5a -- --only personal-knowledge
+
+# 4. 同一対象集合のfail-closed移行、総件数・対象外status不変、RLSを機械判定する。
+TARGET_SHA="$TARGET_SHA" node scripts/personal-knowledge-migration-release-gate.mjs \
+  postflight "$PERSONAL_KG_RELEASE_RECEIPT"
+)
+```
+
+postflightは、移行対象request ID集合が全件`pending_owner_approval`へ移りowner同意証跡がNULLへ戻ったこと、総行数不変、対象外status件数不変、RLSがENABLE/FORCEであることをすべて満たす場合だけ`status=passed`を同じReceiptへ保存する。失敗時は非zero終了し、serviceを起動しない。成功時だけsection 3で同じ`TARGET_SHA`のserviceを起動し、Personal KG本番スモークのDB/API/Graph/Receipt readbackまで実行する。
+
+このmigration適用後は、A0署名昇格対応前のSHAへ通常rollbackしてはならない。対応SHAが起動できない場合は`brainbase-ssot.service`を停止したままpromotion writeを全面停止し、readback済みのA0対応SHAへforward fixする。DB down migrationや旧writerの再公開はしない。
+
 ## 3. Restart the service
 
 ```bash
@@ -122,10 +168,25 @@ Expected:
 
 Use only the SHA recorded in the pre-check. A branch reset is unnecessary and prohibited. Preserve server logs and `~/.codex/var/judgment-resolver` journals. The database is forward-only: reapply and verify the current safe RLS bundle before switching only the service code to the recorded SHA.
 
+**Personal KG migration Receiptが存在するreleaseでは、以下の一般rollbackを実行しない。** Receiptの状態にかかわらずserviceを停止したまま、A0対応SHAへforward fixする。この一般手順にはservice rollbackの例外経路を設けない。
+
 ```bash
 ROLLBACK_SHA="<40-character SHA printed during pre-check>"
 grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
 sudo systemctl stop brainbase-ssot.service
+PERSONAL_KG_RELEASE_RECEIPT="/home/ubuntu/brainbase/var/personal-knowledge-migration-release-receipt.json"
+if test -e "$PERSONAL_KG_RELEASE_RECEIPT"; then
+  if ! PERSONAL_KG_RELEASE_RECEIPT="$PERSONAL_KG_RELEASE_RECEIPT" node -e '
+const fs = require("node:fs");
+const receipt = JSON.parse(fs.readFileSync(process.env.PERSONAL_KG_RELEASE_RECEIPT, "utf8"));
+process.exit(receipt.schema_version === "personal_knowledge_migration_release.v1" && receipt.status === "passed" ? 0 : 1);
+'; then
+    echo "Personal KG migration Receipt is unreadable or invalid; general service rollback is blocked." >&2
+    exit 1
+  fi
+  echo "Personal KG migration is forward-only; general service rollback is blocked. Keep the service stopped and forward-fix with an A0-compatible SHA." >&2
+  exit 1
+fi
 cd /home/ubuntu/brainbase
 test -z "$(git status --porcelain)"
 FAILED_SHA="$(git rev-parse HEAD)"

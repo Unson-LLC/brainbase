@@ -1,5 +1,10 @@
 import { canonicalJson } from './canonical-json.js';
 import { ContractError } from './errors.js';
+import {
+    PERSONAL_KNOWLEDGE_PROMOTION_CAPABILITY_MAP,
+    PERSONAL_TO_ORGANIZATION_PROMOTION_CAPABILITY,
+    PERSONAL_TO_ORGANIZATION_PROMOTION_SCHEMA_VERSION
+} from '../personal-knowledge/promotion-authority-contract.js';
 
 export const CANONICAL_SCHEMA_SHA256 = '359f039284efc35ad96783f798bab7f830d4a5c2a914e044dfcaa600f6591742';
 
@@ -24,6 +29,10 @@ const COLLECTION_STATES = new Set(['collected', 'partial', 'not_collected']);
 const OUTCOMES = new Set(['succeeded', 'failed', 'cancelled', 'timed_out']);
 const DEPLOYMENT_PROFILES = new Set(['shared_cloud', 'dedicated_cloud', 'customer_managed_oss']);
 const QUOTA_DECISIONS = new Set(['allowed', 'warning', 'hard_stopped', 'approval_required', 'unavailable']);
+const PROMOTION_AUTHORITY_SCHEMA_VERSION = PERSONAL_TO_ORGANIZATION_PROMOTION_SCHEMA_VERSION;
+const PROMOTION_AUTHORITY_CAPABILITY = PERSONAL_TO_ORGANIZATION_PROMOTION_CAPABILITY;
+const PROMOTION_AUTHORITY_ACTIONS = new Set(Object.keys(PERSONAL_KNOWLEDGE_PROMOTION_CAPABILITY_MAP));
+const PROMOTION_RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u;
 
 function fail(path, reason = 'schema') {
     throw new ContractError('SCHEMA_INVALID', {
@@ -138,7 +147,7 @@ function tenantContext(value, { requireIntegrity }) {
         'operation_id', 'idempotency_key', 'contract_revision', 'credential', 'issued_at', 'expires_at'
     ];
     if (requireIntegrity) required.push('integrity');
-    exactObject(value, { required, optional: requireIntegrity ? [] : ['integrity'] });
+    exactObject(value, { required, optional: requireIntegrity ? ['authority'] : ['integrity', 'authority'] });
     constValue(value.schema_version, '1.0', '$.schema_version');
     constValue(value.protocol_id, 'mana-brainbase-tenant-context', '$.protocol_id');
     protocolVersion(value.protocol_version, '$.protocol_version');
@@ -189,12 +198,48 @@ function tenantContext(value, { requireIntegrity }) {
     timestamp(value.issued_at, '$.issued_at');
     timestamp(value.expires_at, '$.expires_at');
 
+    if (value.authority !== undefined) personalKnowledgePromotionAuthority(value.authority);
+
     if (value.integrity !== undefined) {
         exactObject(value.integrity, { required: ['method', 'algorithm', 'key_id', 'value'], path: '$.integrity' });
         constValue(value.integrity.method, 'jws_detached', '$.integrity.method');
         constValue(value.integrity.algorithm, 'EdDSA', '$.integrity.algorithm');
         nonEmpty(value.integrity.key_id, '$.integrity.key_id');
         string(value.integrity.value, '$.integrity.value', { pattern: /^[A-Za-z0-9_-]+\.\.[A-Za-z0-9_-]{86}$/ });
+    }
+}
+
+function personalKnowledgePromotionAuthority(value) {
+    const path = '$.authority';
+    exactObject(value, {
+        required: [
+            'schema_version', 'capability_id', 'action', 'resource_ref',
+            'request_id', 'normalized_payload_hash'
+        ],
+        path
+    });
+    constValue(value.schema_version, PROMOTION_AUTHORITY_SCHEMA_VERSION, `${path}.schema_version`);
+    constValue(value.capability_id, PROMOTION_AUTHORITY_CAPABILITY, `${path}.capability_id`);
+    enumValue(value.action, PROMOTION_AUTHORITY_ACTIONS, `${path}.action`);
+    nonEmpty(value.resource_ref, `${path}.resource_ref`);
+    const eventRef = value.resource_ref.startsWith('personal-knowledge://events/');
+    const promotionRef = value.resource_ref.startsWith('personal-knowledge://promotions/');
+    const resourceId = value.resource_ref.slice(
+        eventRef ? 'personal-knowledge://events/'.length : 'personal-knowledge://promotions/'.length
+    );
+    if ((!eventRef && !promotionRef) || !PROMOTION_RESOURCE_ID.test(resourceId)) {
+        fail(`${path}.resource_ref`, 'resource_ref');
+    }
+    if (value.action === 'request') {
+        if (!eventRef || value.request_id !== null || value.normalized_payload_hash !== null) {
+            fail(path, 'request_target');
+        }
+    } else {
+        if (!promotionRef || typeof value.request_id !== 'string' || value.request_id.length === 0
+            || value.resource_ref !== `personal-knowledge://promotions/${value.request_id}`) {
+            fail(path, 'promotion_target');
+        }
+        sha256(value.normalized_payload_hash, `${path}.normalized_payload_hash`);
     }
 }
 

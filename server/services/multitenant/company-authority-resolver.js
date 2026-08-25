@@ -1,4 +1,5 @@
 import { ContractError } from './errors.js';
+import { assertPersonalKnowledgePromotionAuthority } from '../personal-knowledge/promotion-authority-contract.js';
 
 const EFFECTS = new Set(['read', 'write', 'external_side_effect']);
 const DECISIONS = new Set(['auto', 'approval', 'human_action', 'deny']);
@@ -65,6 +66,9 @@ export function normalizeObservedExecutionRequest(input) {
             details: { field: 'requested_action.desired_effect' }
         });
     }
+    const promotionAuthority = input.promotion_authority === undefined
+        ? undefined
+        : assertPersonalKnowledgePromotionAuthority(input.promotion_authority);
     return {
         tenant_id: nonEmptyString(input.tenant_id, 'tenant_id'),
         expected_tenant_revision: optionalString(input.expected_tenant_revision, 'expected_tenant_revision'),
@@ -95,7 +99,8 @@ export function normalizeObservedExecutionRequest(input) {
         slack: structuredClone(slack),
         correlation_id: nonEmptyString(input.correlation_id, 'correlation_id'),
         operation_id: nonEmptyString(input.operation_id, 'operation_id'),
-        billing_principal_id: optionalString(input.billing_principal_id, 'billing_principal_id')
+        billing_principal_id: optionalString(input.billing_principal_id, 'billing_principal_id'),
+        ...(promotionAuthority ? { promotion_authority: promotionAuthority } : {})
     };
 }
 
