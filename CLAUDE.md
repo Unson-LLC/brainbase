@@ -1,13 +1,26 @@
 # Brainbase MCP Agent Instructions
 
-This repository is the external Brainbase Personal Onboarding Kit.
+<!-- brainbase:public-message:start -->
+This repository contains the OSS Brainbase judgment substrate and its local-first personal onboarding entry point. It is not limited to memory retrieval.
+
+Brainbase's public promise is:
+
+> **会社の判断を、属人化させない。**
+>
+> Brainbaseは、経営者や担当者の判断基準、過去の決定、その理由を会社に残し、AIや次の担当者が同じ前提で考え、動けるようにする仕組みです。
+
+The product boundary is explicit: 人間が、目的と判断基準、任せてよい範囲を決める。 AIは、それをもとに調べ、選択肢を比較し、見落としを指摘し、許可された仕事を進める。
+<!-- brainbase:public-message:end -->
 
 - Keep the repository UI-free. Do not add browser UI, session dashboards, xterm, launchd runtime, workflow mission control, or Unson internal operations.
-- The v1 source of truth is local personal data under `~/.brainbase/personal-os/`.
-- Do not require hosted services, Infisical, bb.unson.jp, Lightsail, or Unson internal data for v1 behavior.
+- The current OSS runtime is local-first and single-owner. Its canonical personal data lives under `~/.brainbase/personal-os/`.
+- Do not require hosted services, Infisical, bb.unson.jp, Lightsail, or Unson internal data for OSS behavior.
 - MCP tools must prefer canonical local SSOT files over raw `sources/` material.
-- Fail loudly when canonical files are malformed.
-- Keep changes scoped to the local MCP server, onboarding CLI, schemas, README, and tests.
+- Fail loudly when canonical files are malformed or when authority, approval, provenance, or current validity cannot be verified.
+- Keep the Judgment DAG semantic model shared across personal, project, and organization scopes. Do not create a separate company brain model.
+- Do not imply that planned replay, persistent artifact storage, human/agent governance, scope promotion, or enterprise controls already exist. Keep Released / Develop / Planned boundaries explicit.
+- Public product copy inside `brainbase:public-message` markers is generated from `docs/publication/public-message.json`. Do not hand-edit one projection. Use `npm run docs:sync` or the approved promotion flow.
+- A Brainbase Graph candidate may update public copy only when it includes an exact entity id, snapshot hash, exported time, and explicit human approval. Promotion must create a PR; it must not deploy or merge directly.
 
 ## Agent-assisted onboarding behavior
 

@@ -1,6 +1,15 @@
+import { readFileSync } from 'node:fs';
+
+const publicMessage = JSON.parse(
+  readFileSync(new URL('../publication/public-message.json', import.meta.url), 'utf8')
+);
+const buildSha = process.env.CF_PAGES_COMMIT_SHA ?? process.env.GITHUB_SHA ?? 'local';
+const buildRef = process.env.CF_PAGES_BRANCH ?? process.env.GITHUB_REF_NAME ?? 'local';
+const shortBuildSha = buildSha === 'local' ? 'local' : buildSha.slice(0, 12);
+
 export default {
   title: 'Brainbase',
-  description: 'CodexやClaude Codeに自分の仕事文脈を渡すためのBrainbase MCPマニュアル',
+  description: publicMessage.copy.definition,
   lang: 'ja-JP',
   cleanUrls: true,
   srcDir: 'manual',
@@ -8,9 +17,11 @@ export default {
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/assets/brainbase-mark.svg' }]
   ],
   themeConfig: {
-    siteTitle: 'Brainbase Manual',
+    siteTitle: 'Brainbase',
     nav: [
-      { text: 'ガイド', link: '/guide/onboarding-process' },
+      { text: 'Brainbaseとは', link: '/guide/grand-design' },
+      { text: '10分で試す', link: '/guide/quick-start' },
+      { text: '現在の状態', link: '/guide/status' },
       { text: 'リファレンス', link: '/reference/mcp-tools' },
       { text: 'GitHub', link: 'https://github.com/Unson-LLC/brainbase' }
     ],
@@ -20,14 +31,16 @@ export default {
           text: 'まず理解する',
           items: [
             { text: '概要', link: '/' },
-            { text: '最短で試す', link: '/guide/quick-start' },
-            { text: '全体像', link: '/guide/grand-design' },
-            { text: '導入の5フェーズ', link: '/guide/onboarding-process' }
+            { text: 'Brainbaseの全体像', link: '/guide/grand-design' },
+            { text: 'Judgment DAGの考え方', link: '/guide/judgment-system' },
+            { text: '現在の状態', link: '/guide/status' }
           ]
         },
         {
           text: '導入する',
           items: [
+            { text: '最短で試す', link: '/guide/quick-start' },
+            { text: '導入の5フェーズ', link: '/guide/onboarding-process' },
             { text: '1. 準備と目的', link: '/guide/getting-started' },
             { text: '2. 仕事の前提', link: '/guide/project-context' },
             { text: '3. 最初の価値', link: '/guide/first-value' },
@@ -51,7 +64,7 @@ export default {
           items: [
             { text: 'MCPツール', link: '/reference/mcp-tools' },
             { text: 'CLI', link: '/reference/cli' },
-            { text: 'Cloudflare Pages', link: '/reference/cloudflare-pages' },
+            { text: 'Cloudflare Pagesと公開経路', link: '/reference/cloudflare-pages' },
             { text: 'バージョン履歴', link: '/reference/version-history' }
           ]
         }
@@ -88,7 +101,7 @@ export default {
     sidebarMenuLabel: 'メニュー',
     darkModeSwitchLabel: '表示モード',
     footer: {
-      message: 'Released under the MIT License.',
+      message: `Build ${shortBuildSha} · ${buildRef} · Released under the MIT License.`,
       copyright: 'Copyright Unson LLC'
     }
   }

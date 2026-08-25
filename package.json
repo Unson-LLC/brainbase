@@ -1,7 +1,7 @@
 {
   "name": "@unson/brainbase-mcp",
   "version": "0.4.0",
-  "description": "Local-first Brainbase MCP server and personal onboarding kit.",
+  "description": "Local-first Brainbase MCP for preserving decision context and helping humans and AI work from the same judgment criteria.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -50,7 +50,13 @@
     "test:integration:release-evidence": "vitest run tests/npm-release-validation.integration.test.ts tests/npm-prepublication-evidence.integration.test.ts",
     "test:e2e": "vitest run tests/e2e/brainbase-mcp-only-acceptance.spec.ts tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
     "docs:dev": "vitepress dev docs",
+    "docs:sync": "node scripts/sync-public-message.mjs --write",
+    "docs:check": "node scripts/check-public-docs.mjs",
     "docs:build": "vitepress build docs",
+    "docs:smoke": "node scripts/check-built-docs.mjs",
+    "docs:verify-public": "node scripts/verify-public-site.mjs",
+    "docs:promotion:plan": "node scripts/promote-public-message.mjs --plan",
+    "docs:promotion:apply": "node scripts/promote-public-message.mjs --apply",
     "docs:preview": "vitepress preview docs",
     "start": "node dist/index.js",
     "doctor": "node dist/cli.js doctor",

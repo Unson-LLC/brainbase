@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "candidate_id": "test-public-message-2026-08-25",
+  "status": "approved",
+  "source": {
+    "type": "brainbase_graph",
+    "entity_id": "phi_test_public_message",
+    "entity_version": 1,
+    "snapshot_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "exported_at": "2026-08-25T07:45:00.000Z",
+    "scope": "brainbase-test"
+  },
+  "approval": {
+    "status": "approved",
+    "approved_by": "test-fixture",
+    "approved_at": "2026-08-25T07:46:00.000Z",
+    "reason": "Synthetic fixture for publication contract tests."
+  },
+  "copy": {
+    "headline": "テスト用の判断を、属人化させない。",
+    "short_definition": "テスト用の判断を、AIと会社が引き継げるようにする。",
+    "definition": "これはGraph由来の公開候補を安全にPRへ昇格できることを検証するための合成テスト文です。",
+    "human_role": "人間が、テストの目的と判断基準、任せてよい範囲を決める。",
+    "ai_role": "AIは、テスト条件を確認し、差分を生成し、許可された一時ディレクトリだけを更新する。",
+    "package_description": "Synthetic Brainbase public-message promotion fixture for automated tests."
+  }
+}
