@@ -106,6 +106,12 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
           CREATE TRIGGER knowledge_promotion_status_guard
             BEFORE UPDATE OF status ON knowledge_promotion_requests
             FOR EACH ROW EXECUTE FUNCTION enforce_knowledge_promotion_status_transition();
+          RESET app.person_id;
+          RESET app.actor_person_id;
+          RESET app.organization_id;
+          RESET app.project_codes;
+          RESET app.role;
+          RESET app.clearance;
         `);
     }, 60_000);
 
@@ -147,10 +153,18 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
 
         // The authoritative preflight runs before the release adds normalized columns.
         execFileSync(process.execPath, [gate, 'preflight', receiptPath], { env, stdio: 'pipe' });
-        const migration = readSql('server/sql/personal-knowledge-two-stage-promotion.sql');
+        const migration = `${readSql('server/sql/personal-knowledge-schema.sql')}\n${readSql('server/sql/personal-knowledge-two-stage-promotion.sql')}`;
         await pool.query(`BEGIN; ${migration}; COMMIT;`);
         await pool.query(`BEGIN; ${migration}; COMMIT;`);
         execFileSync(process.execPath, [gate, 'postflight', receiptPath], { env, stdio: 'pipe' });
+        await pool.query(`
+          SELECT set_config('app.person_id', 'person_owner', false),
+                 set_config('app.actor_person_id', 'person_owner', false),
+                 set_config('app.organization_id', 'org_a', false),
+                 set_config('app.project_codes', 'brainbase', false),
+                 set_config('app.role', 'owner', false),
+                 set_config('app.clearance', 'personal,internal,confidential', false)
+        `);
 
         const { rows } = await pool.query(`
           SELECT status, owner_decided_at, owner_consent_receipt_id,

@@ -195,6 +195,12 @@ ALTER TABLE knowledge_events ADD COLUMN IF NOT EXISTS sensitivity TEXT NOT NULL 
 ALTER TABLE knowledge_events ADD COLUMN IF NOT EXISTS role_min TEXT NOT NULL DEFAULT 'member';
 ALTER TABLE knowledge_events ADD COLUMN IF NOT EXISTS venue TEXT NOT NULL DEFAULT 'legacy';
 ALTER TABLE knowledge_events ADD COLUMN IF NOT EXISTS permission_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
+-- Re-applying this schema in production runs as the table owner while FORCE
+-- RLS and the append-only trigger from the previous release are active. Open
+-- the maintenance boundary only inside the migration transaction; this file
+-- recreates the trigger and restores FORCE RLS below before commit.
+ALTER TABLE knowledge_events NO FORCE ROW LEVEL SECURITY;
+DROP TRIGGER IF EXISTS knowledge_events_no_mutation ON knowledge_events;
 UPDATE knowledge_events
 SET organization_id = COALESCE(organization_id, applicability_scope->>'organization_id', '__quarantine__')
 WHERE organization_id IS NULL;
