@@ -15,7 +15,7 @@
       "docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json",
       "scripts/program/reconcile-external-delivery.mjs",
       "tests/contracts/program-external-delivery-reconciliation.test.js",
-      "tests/fixtures/program-external-delivery-reconciliation/same-pr-number-different-repo.json",
+      "tests/fixtures/program-external-delivery-reconciliation/**",
       ".vibepro/** story-scoped artifacts"
     ],
     "forbidden": [

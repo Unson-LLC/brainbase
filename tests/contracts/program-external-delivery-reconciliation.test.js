@@ -15,6 +15,7 @@ const acceptedTaskInputPath = 'docs/management/tasks/program-external-delivery-r
 const sourceLockPath = 'contracts/p0-negative-boundary-contract-v1/source-lock.json';
 const companionLockPath = 'docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json';
 const crossRepoFixturePath = 'tests/fixtures/program-external-delivery-reconciliation/same-pr-number-different-repo.json';
+const generatedFixtureRoot = 'tests/fixtures/program-external-delivery-reconciliation/generated-surfaces';
 const canonicalRole = 'producer_contract_delivery';
 const expectedStatuses = [
   'planned',
@@ -170,7 +171,7 @@ describe('Program external delivery reconciliation contract', () => {
     assert.equal(task.done, false);
     assert.deepEqual(task.canonical_identity, deliveryIdentity(identity));
     assert.equal(task.scope.allowed.includes(companionLockPath), true);
-    assert.equal(task.scope.allowed.includes(crossRepoFixturePath), true);
+    assert.equal(task.scope.allowed.includes('tests/fixtures/program-external-delivery-reconciliation/**'), true);
   });
 
   it('binds accepted Spec and Task inputs to every Story acceptance criterion', async () => {
@@ -191,40 +192,89 @@ describe('Program external delivery reconciliation contract', () => {
     assert.deepEqual(acceptedTasks.tasks[0].acceptance_criteria, ['AC-001', 'AC-006', 'AC-008']);
   });
 
-  it('rejects contradictory generated PR, traceability, summary and gate surfaces', () => {
-    const contradictory = {
-      preparation: { spec: { present: false }, task_authorities: { accepted: { present: false } } },
-      traceability: {
-        acceptance_criteria: [
-          { id: 'AC-001', status: 'unmapped' },
-          { id: 'AC-006', status: 'unmapped' },
-          { id: 'AC-008', status: 'weakly_mapped' },
-        ],
-        summary: { mapped_count: 5, weakly_mapped_count: 1, unmapped_count: 2 },
-      },
-      prBody: '- no accepted spec found for this story',
-      gate: { blocking_reasons: ['accepted_spec:missing'] },
-    };
-    assert.throws(() => assertGeneratedAuthoritySurfaces(contradictory), /accepted spec|accepted task|AC-001|PR body/);
+  it('rejects contradictory generated PR, traceability, summary and gate surfaces', async () => {
+    const [acceptedSpec, acceptedTasks, lifecycle, preFix, current] = await Promise.all([
+      readJson(acceptedSpecInputPath),
+      readJson(acceptedTaskInputPath),
+      readJson(taskPath),
+      readGeneratedSurfaces('pre-fix'),
+      readGeneratedSurfaces('current'),
+    ]);
+
+    assert.throws(
+      () => assertGeneratedAuthoritySurfaces(preFix, { acceptedSpec, acceptedTasks, lifecycle }),
+      /accepted spec|accepted task|AC-001|PR body|summary/,
+    );
+    assert.doesNotThrow(
+      () => assertGeneratedAuthoritySurfaces(current, { acceptedSpec, acceptedTasks, lifecycle }),
+    );
   });
 });
 
-function assertGeneratedAuthoritySurfaces({ preparation, traceability, prBody, gate }) {
+function assertGeneratedAuthoritySurfaces({ preparation, traceability, prBody }, authorities) {
   const failures = [];
+  const expectedIds = authorities.acceptedSpec.clauses.flatMap(
+    (clause) => clause.origin.story_refs.map((ref) => ref.ac_id),
+  );
+  const traceabilityById = new Map(
+    traceability.acceptance_criteria.map((criterion) => [criterion.id, criterion]),
+  );
+  const expectedSummary = {
+    clause_count: authorities.acceptedSpec.clauses.length,
+    acceptance_criteria_count: expectedIds.length,
+    mapped_count: expectedIds.length,
+    weakly_mapped_count: 0,
+    unmapped_count: 0,
+  };
+
   if (!preparation.spec?.present) failures.push('accepted spec missing');
   if (!preparation.task_authorities?.accepted?.present) failures.push('accepted task missing');
-  for (const id of ['AC-001', 'AC-006', 'AC-008']) {
-    const clause = traceability.acceptance_criteria.find((item) => item.id === id);
+  if (preparation.spec?.clause_count !== authorities.acceptedSpec.clauses.length) {
+    failures.push('accepted spec clause count differs from source');
+  }
+  if (preparation.task_authorities?.accepted?.task_count !== authorities.acceptedTasks.tasks.length) {
+    failures.push('accepted task count differs from source');
+  }
+  for (const id of expectedIds) {
+    const clause = traceabilityById.get(id);
     if (clause?.status !== 'mapped') failures.push(`${id} is not mapped`);
+    if (clause?.mapping_source !== 'accepted_spec' || clause?.lineage_status !== 'resolved') {
+      failures.push(`${id} accepted Spec lineage is unresolved`);
+    }
+    if (!prBody.includes(`[mapped] ${id}:`)) failures.push(`PR body omits mapped ${id}`);
   }
-  if (traceability.summary?.weakly_mapped_count !== 0 || traceability.summary?.unmapped_count !== 0) {
-    failures.push('traceability summary is incomplete');
+  for (const [key, expected] of Object.entries(expectedSummary)) {
+    if (traceability.coverage_summary?.[key] !== expected) failures.push(`traceability summary ${key} differs`);
+    if (preparation.traceability?.summary?.[key] !== expected) failures.push(`PR summary ${key} differs`);
   }
+  if (traceability.accepted_spec_lineage?.status !== 'resolved') failures.push('accepted spec lineage unresolved');
+  if (preparation.traceability?.accepted_spec_lineage?.status !== 'resolved') failures.push('PR accepted spec lineage unresolved');
   if (/no accepted spec found/i.test(prBody)) failures.push('PR body rejects accepted spec');
-  if ((gate.blocking_reasons ?? []).some((reason) => /accepted_spec|accepted_task|traceability/i.test(reason))) {
+  if (!/accepted spec present .*8 clause/i.test(prBody)) failures.push('PR body omits accepted spec authority');
+  if (!/受理済みauthority: 1件 \(accepted=1\)/.test(prBody)) failures.push('PR body omits accepted task authority');
+  if ((preparation.blocking_reasons ?? []).some((reason) => /accepted_spec|accepted_task|traceability/i.test(reason))) {
     failures.push('gate contradicts accepted authority');
   }
+  if (preparation.review?.status !== preparation.gate_status || preparation.gate_status !== 'needs_review') {
+    failures.push('review and gate synthesis differ');
+  }
+  assertPartial(authorities.lifecycle, {
+    status: 'contract_ready',
+    production_evidence: 'not_collected',
+    done: false,
+  });
+  if (/production_proven|\bdone:\s*true\b/i.test(prBody)) failures.push('PR body promotes lifecycle');
   assert.deepEqual(failures, []);
+}
+
+async function readGeneratedSurfaces(name) {
+  const root = `${generatedFixtureRoot}/${name}`;
+  const [preparation, traceability, prBody] = await Promise.all([
+    readJson(`${root}/pr-prepare.json`),
+    readJson(`${root}/traceability.json`),
+    readFile(`${root}/pr-body.md`, 'utf8'),
+  ]);
+  return { preparation, traceability, prBody };
 }
 
 async function readJson(path) {
