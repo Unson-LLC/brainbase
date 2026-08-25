@@ -202,6 +202,7 @@ function safeOrganizationEventRow(row) {
     return {
         event_id: row.event_id ?? null,
         semantic_state: row.semantic_state ?? null,
+        graph_entity_id: row.graph_entity_id ?? null,
         personal_body_found_in_payload: Boolean(row.personal_body_found_in_payload)
     };
 }
@@ -228,6 +229,7 @@ async function readDbState(pool, { eventId, requestId, body }) {
           GROUP BY action ORDER BY action`, [requestId]),
         pool.query(`
           SELECT event.event_id, event.semantic_state,
+                 event.current_result->>'graph_entity_id' AS graph_entity_id,
                  position($2 in COALESCE(event.payload::text, '')) > 0 AS personal_body_found_in_payload
           FROM knowledge_events event
           JOIN knowledge_promotion_requests request
@@ -336,6 +338,7 @@ function assertAcceptedState(state, parsed) {
     assert(state.db.promotion.status === 'org_accepted', 'db_promotion_not_accepted');
     assert(state.db.promotion.graph_entity_id === parsed.entityId, 'db_graph_id_readback_mismatch');
     assert(state.db.organization_event?.event_id === state.db.promotion.organization_event_id, 'db_organization_event_readback_mismatch');
+    assert(state.db.organization_event.graph_entity_id === parsed.entityId, 'db_organization_event_graph_id_mismatch');
     assert(state.db.organization_event.personal_body_found_in_payload === false, 'personal_body_copied_to_organization_event');
     assert(state.db.lineage.length === 1, 'db_lineage_readback_mismatch');
     assert(state.db.authority_uses.reduce((sum, row) => sum + row.count, 0) === 3, 'db_authority_use_count_mismatch');

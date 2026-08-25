@@ -74,7 +74,11 @@ function createEventRepository() {
         }),
         saveResult: vi.fn(async (eventId, result) => {
             const event = events.get(eventId);
-            if (event) event.result = structuredClone(result);
+            if (event) {
+                event.result = structuredClone(result);
+                return structuredClone(event);
+            }
+            return null;
         })
     };
 }
@@ -217,6 +221,17 @@ describe('personal knowledge promotion Graph write boundary', () => {
             promoted_graph_entity_id: normalization.normalized.entity.id
         }));
         const [organizationEventId] = eventRepository.events.keys();
+        expect(eventRepository.events.get(organizationEventId)?.result).toMatchObject({
+            candidate_id: 'candidate_graph_boundary_1',
+            graph_entity_id: normalization.normalized.entity.id,
+            processing_stage: 'retrievable',
+            semantic_state: 'active'
+        });
+        expect(eventRepository.saveResult).toHaveBeenLastCalledWith(
+            organizationEventId,
+            expect.objectContaining({ graph_entity_id: normalization.normalized.entity.id }),
+            { client, access: ACCESS }
+        );
         expect(candidateRepository.transitionWithAudit.mock.calls[0][2]).toEqual(expect.objectContaining({
             actor_person_id: request.owner_person_id,
             evidence_ids: [organizationEventId]

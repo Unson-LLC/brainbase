@@ -449,14 +449,15 @@ export class KnowledgeEventService {
     async reconcileGraphProjection(candidateId, graphEntityId, {
         client,
         eventId,
-        actorPersonId
+        actorPersonId,
+        access = null
     } = {}) {
         if (!client) {
             const error = new Error('knowledge_event_transaction_required');
             error.code = 'knowledge_event_transaction_required';
             throw error;
         }
-        if (!candidateId || !graphEntityId || !actorPersonId) {
+        if (!candidateId || !graphEntityId || !eventId || !actorPersonId) {
             const error = new Error('knowledge_event_graph_projection_reconciliation_invalid');
             error.code = 'knowledge_event_graph_projection_reconciliation_invalid';
             throw error;
@@ -466,7 +467,12 @@ export class KnowledgeEventService {
             error.code = 'knowledge_event_candidate_repository_unavailable';
             throw error;
         }
-        return this.candidateRepository.transitionWithAudit(
+        if (typeof this.eventRepository?.saveResult !== 'function') {
+            const error = new Error('knowledge_event_repository_unavailable');
+            error.code = 'knowledge_event_repository_unavailable';
+            throw error;
+        }
+        const candidateTransition = await this.candidateRepository.transitionWithAudit(
             candidateId,
             'promoted_to_graph',
             {
@@ -481,6 +487,19 @@ export class KnowledgeEventService {
                 promoted_graph_entity_id: graphEntityId
             }
         );
+        const event = await this.eventRepository.saveResult(eventId, {
+            event_id: eventId,
+            candidate_id: candidateId,
+            graph_entity_id: graphEntityId,
+            processing_stage: 'retrievable',
+            semantic_state: 'active'
+        }, { client, access });
+        if (!event) {
+            const error = new Error('knowledge_event_graph_projection_readback_failed');
+            error.code = 'knowledge_event_graph_projection_readback_failed';
+            throw error;
+        }
+        return { candidateTransition, event };
     }
 
     async _ingestWithContext(event, context = {}) {
