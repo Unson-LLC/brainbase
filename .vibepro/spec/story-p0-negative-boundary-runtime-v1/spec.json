@@ -450,7 +450,7 @@
           { "file": "scripts/personal-knowledge-migration-release-gate.mjs", "anchor": "assertPostflight" }
         ],
         "test_refs": [
-          { "file": "tests/server/services/personal-knowledge-promotion-migration.integration.test.js", "case": "normalizes legacy rows behind an existing guard and is re-applicable" },
+          { "file": "tests/server/services/personal-knowledge-promotion-migration.integration.test.js", "case": "runs preflight on the legacy schema, migrates fail closed, and is re-applicable" },
           { "file": "tests/server/services/personal-knowledge-schema.test.js", "case": "requires normalized hashes, both receipts, Knowledge Event, and Graph readback for new acceptance" },
           { "file": "tests/server/routes/personal-knowledge-routes.test.js", "case": "registers and searches the authenticated Personal Vault" },
           { "file": "tests/server/scripts/personal-knowledge-migration-release-gate.test.js", "case": "accepts the exact fail-closed transition" }
