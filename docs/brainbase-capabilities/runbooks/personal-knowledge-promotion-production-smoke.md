@@ -13,16 +13,11 @@
 
 ## Migration preflightとreadback
 
-このmigrationのDDLは再適用可能だが、署名・正規化証跡のない旧`pending_org_review`をfail closedで`pending_owner_approval`へ戻す。適用前に次のread-only集計を保存し、影響対象を未確認のまま進めない。
+このmigrationのDDLは再適用可能だが、署名・正規化証跡のない旧`pending_org_review`をfail closedで`pending_owner_approval`へ戻す。適用前の対象集計は、生SQLで正規化列を直接参照しない。旧スキーマではその列自体がまだ存在しないためである。
 
-```sql
-SELECT count(*) AS legacy_pending_org_review
-FROM knowledge_promotion_requests
-WHERE status = 'pending_org_review'
-  AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL);
-```
+`deploy-lightsail-production.md`のPersonal KG手順を正本とし、`personal-knowledge-migration-release-gate.mjs preflight`で列の存在を検査して対象集合とDB identityをReceiptへ固定する。migration後は同じReceiptを`postflight`へ渡し、対象集合、総件数、status別件数、database・role・host・port、`knowledge_promotion_authority_uses`のRLS有効・強制を照合する。preflight・migration・postflightのいずれかが失敗した場合はserviceを停止したまま終了する。
 
-対応する署名producerとAPI serviceを同じrelease単位で反映する。migration後は上の集計が`0`であること、`knowledge_promotion_authority_uses`でRLSが有効かつ強制されていること、移行前件数と同数が`pending_owner_approval`へ戻ったことをreadbackする。対象者への再同意通知は自動送信せず、影響件数を運用Receiptへ記録して別途判断する。旧clientからのwriteは503でfail closedするため、producer未反映の状態でserviceだけを公開しない。
+対応する署名producerとAPI serviceを同じrelease単位で反映する。対象者への再同意通知は自動送信せず、影響件数を運用Receiptへ記録して別途判断する。旧clientからのwriteは503でfail closedするため、producer未反映の状態でserviceだけを公開しない。
 
 ## Fixture
 
