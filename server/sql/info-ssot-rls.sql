@@ -1,53 +1,108 @@
 -- Info SSOT RLS policies (Postgres)
 -- Requires app.role, app.project_codes, app.clearance via set_config
 
-CREATE OR REPLACE FUNCTION app_role_rank(role text)
-RETURNS integer
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT CASE lower(coalesce(role, ''))
-    WHEN 'member' THEN 1
-    WHEN 'gm' THEN 2
-    WHEN 'ceo' THEN 3
-    ELSE 0
-  END;
-$$;
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_role_rank(text)');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION app_role_rank(role text)
+      RETURNS integer
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT CASE lower(coalesce(role, ''))
+          WHEN 'member' THEN 1
+          WHEN 'gm' THEN 2
+          WHEN 'ceo' THEN 3
+          ELSE 0
+        END;
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
-CREATE OR REPLACE FUNCTION app_setting_array(setting text)
-RETURNS text[]
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT CASE
-    WHEN current_setting(setting, true) IS NULL OR current_setting(setting, true) = '' THEN ARRAY[]::text[]
-    ELSE string_to_array(current_setting(setting, true), ',')
-  END;
-$$;
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_setting_array(text)');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION app_setting_array(setting text)
+      RETURNS text[]
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT CASE
+          WHEN current_setting(setting, true) IS NULL OR current_setting(setting, true) = '' THEN ARRAY[]::text[]
+          ELSE string_to_array(current_setting(setting, true), ',')
+        END;
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
-CREATE OR REPLACE FUNCTION app_current_role_rank()
-RETURNS integer
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT app_role_rank(current_setting('app.role', true));
-$$;
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_current_role_rank()');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION app_current_role_rank()
+      RETURNS integer
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT app_role_rank(current_setting('app.role', true));
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
-CREATE OR REPLACE FUNCTION app_project_codes()
-RETURNS text[]
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT app_setting_array('app.project_codes');
-$$;
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_project_codes()');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION app_project_codes()
+      RETURNS text[]
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT app_setting_array('app.project_codes');
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
-CREATE OR REPLACE FUNCTION app_clearance()
-RETURNS text[]
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT app_setting_array('app.clearance');
-$$;
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_clearance()');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION app_clearance()
+      RETURNS text[]
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT app_setting_array('app.clearance');
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
 ALTER TABLE decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE decisions FORCE ROW LEVEL SECURITY;
@@ -264,13 +319,21 @@ CREATE POLICY info_graph_entities_update ON graph_entities
 
 DROP POLICY IF EXISTS info_graph_edges_select ON graph_edges;
 
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_graph_entity_organization_id(text)');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
 CREATE OR REPLACE FUNCTION app_graph_entity_organization_id(entity_id TEXT)
 RETURNS TEXT
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path FROM CURRENT
-AS $$
+AS $body$
   SELECT COALESCE(
     direct_project.organization_id,
     CASE
@@ -290,8 +353,19 @@ AS $$
   LEFT JOIN projects membership_project ON membership_project.id = membership.project_id
   WHERE entity.id = entity_id
   GROUP BY entity.entity_type, direct_project.organization_id
-$$;
+$body$
+    $function$;
+  END IF;
+END $do$;
 
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_graph_edge_scope_visible(text,text,text,jsonb,text,text)');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
 CREATE OR REPLACE FUNCTION app_graph_edge_scope_visible(
   edge_from_id TEXT,
   edge_to_id TEXT,
@@ -308,7 +382,7 @@ SECURITY DEFINER
 -- isolated acceptance schemas resolve to their own schema instead of silently
 -- querying unrelated public tables.
 SET search_path FROM CURRENT
-AS $$
+AS $body$
   SELECT COALESCE((
   SELECT CASE
     WHEN app_graph_entity_organization_id(source_entity.id) IS NULL
@@ -375,8 +449,19 @@ AS $$
     AND app_current_role_rank() >= app_role_rank(target_entity.role_min)
     AND target_entity.sensitivity = ANY(app_clearance())
   ), FALSE)
-$$;
+$body$
+    $function$;
+  END IF;
+END $do$;
 
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_graph_edge_source_project_matches(text,text,text,jsonb)');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
 CREATE OR REPLACE FUNCTION app_graph_edge_source_project_matches(
   edge_from_id TEXT,
   edge_rel_type TEXT,
@@ -388,7 +473,7 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path FROM CURRENT
-AS $$
+AS $body$
   SELECT CASE
     WHEN edge_rel_type = 'governs'
       AND EXISTS (
@@ -405,7 +490,10 @@ AS $$
     )
     ELSE TRUE
   END
-$$;
+$body$
+    $function$;
+  END IF;
+END $do$;
 
 CREATE POLICY info_graph_edges_select ON graph_edges
   FOR SELECT
