@@ -7,7 +7,7 @@
   },
   "provenance": {
     "input_path": "docs/management/tasks/program-external-delivery-reconciliation-v1.vibepro.json",
-    "input_sha256": "1bae61365e546884cf8a67213c5b89a9c07ada9107d41327d442f729afaff52d"
+    "input_sha256": "23308dddd278055629311b508142400c3c5b51e2e851b92746a01394b28bf60c"
   },
   "tasks": [
     {
@@ -34,7 +34,12 @@
       ],
       "acceptance_criteria": [
         "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005",
         "AC-006",
+        "AC-007",
         "AC-008"
       ],
       "status": "accepted"

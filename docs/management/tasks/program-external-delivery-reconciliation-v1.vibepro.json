@@ -24,7 +24,16 @@
         "tests/contracts/program-external-delivery-reconciliation.test.js",
         "tests/fixtures/program-external-delivery-reconciliation/**"
       ],
-      "acceptance_criteria": ["AC-001", "AC-006", "AC-008"],
+      "acceptance_criteria": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005",
+        "AC-006",
+        "AC-007",
+        "AC-008"
+      ],
       "status": "accepted"
     }
   ]

@@ -230,12 +230,15 @@ describe('Program external delivery reconciliation contract', () => {
     assert.deepEqual(task.canonical_identity, deliveryIdentity(identity));
     assert.equal(task.scope.allowed.includes(companionLockPath), true);
     assert.equal(task.scope.allowed.includes('tests/fixtures/program-external-delivery-reconciliation/**'), true);
+    assert.equal(task.scope.allowed.includes('docs/specs/program-external-delivery-reconciliation-v1.json'), true);
+    assert.equal(task.scope.allowed.includes('docs/management/tasks/program-external-delivery-reconciliation-v1.vibepro.json'), true);
   });
 
   it('binds accepted Spec and Task inputs to every Story acceptance criterion', async () => {
-    const [acceptedSpec, acceptedTasks] = await Promise.all([
+    const [acceptedSpec, acceptedTasks, task] = await Promise.all([
       readJson(acceptedSpecInputPath),
       readJson(acceptedTaskInputPath),
+      readJson(taskPath),
     ]);
     assert.equal(acceptedSpec.story_id, 'story-program-external-delivery-reconciliation-v1');
     assert.deepEqual(
@@ -247,7 +250,23 @@ describe('Program external delivery reconciliation contract', () => {
       assert.ok(clause.origin.test_refs.length > 0);
     }
     assert.equal(acceptedTasks.story_id, acceptedSpec.story_id);
-    assert.deepEqual(acceptedTasks.tasks[0].acceptance_criteria, ['AC-001', 'AC-006', 'AC-008']);
+    assert.deepEqual(
+      acceptedTasks.tasks[0].acceptance_criteria,
+      ['AC-001', 'AC-002', 'AC-003', 'AC-004', 'AC-005', 'AC-006', 'AC-007', 'AC-008'],
+    );
+    const expandedLifecycleAllowed = task.scope.allowed.flatMap((path) => (
+      path === '.vibepro/** story-scoped artifacts'
+        ? [
+            '.vibepro/pr/story-program-external-delivery-reconciliation-v1/**',
+            '.vibepro/spec/story-program-external-delivery-reconciliation-v1/**',
+            '.vibepro/stories/story-program-external-delivery-reconciliation-v1/tasks/**',
+          ]
+        : [path]
+    ));
+    assert.deepEqual(
+      [...expandedLifecycleAllowed].sort(),
+      [...acceptedTasks.tasks[0].allowed_paths].sort(),
+    );
   });
 
   it('rejects contradictory generated PR, traceability, summary and gate surfaces', async () => {
