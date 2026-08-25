@@ -1,0 +1,495 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-p0-negative-boundary-runtime-v1",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "final",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "signed Brainbase access context"
+      ],
+      "resolution_point": "PersonalKnowledgePromotionService before repository mutation",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "promotion request",
+        "owner consent",
+        "organization review",
+        "knowledge event",
+        "Graph mutation",
+        "Receipt"
+      ],
+      "verified_surfaces": [
+        "promotion request",
+        "owner consent",
+        "organization review",
+        "knowledge event",
+        "Graph mutation",
+        "Receipt"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Personal knowledge promotion request",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_code/owner_person_id",
+        "trust_zone": "promotion database transaction",
+        "residue_policy": "rollback all organization-side effects on failure",
+        "data_owner": "Brainbase organization",
+        "credential_scope": "tenant/person/project-bound signed access context"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "request and reviewer authority binding",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase organization"
+      ],
+      "residency": "organization-scoped PostgreSQL tables and Graph SSOT",
+      "migration": "additive promotion ledger columns and RLS-safe indexes",
+      "rollback": "single transaction rollback; committed corrections use audited Graph maintenance"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "missing_signed_context": "deny",
+      "expired_signed_context": "deny",
+      "invalid_signed_context": "deny",
+      "replayed_signed_context": "deny",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "missing_signed_context",
+      "expired_signed_context",
+      "invalid_signed_context",
+      "replayed_signed_context",
+      "cross_tenant_candidate",
+      "cross_person_candidate",
+      "owner_equals_reviewer",
+      "payload_hash_mismatch"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "promotion request",
+        "organization knowledge event",
+        "Graph entity"
+      ],
+      "boundary_edges": [
+        "Personal evidence hash authorizes normalized organization knowledge"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "scope": "Personal promotion service, normalized payload allowlist, PostgreSQL migration and Graph transaction boundary",
+      "evidence": {
+        "propagation_surfaces": [
+          "promotion request",
+          "owner consent",
+          "organization review",
+          "knowledge event",
+          "Graph mutation",
+          "Receipt"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "missing_signed_context",
+          "expired_signed_context",
+          "invalid_signed_context",
+          "replayed_signed_context",
+          "cross_tenant_candidate",
+          "cross_person_candidate",
+          "owner_equals_reviewer",
+          "payload_hash_mismatch"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "sandbox_isolation": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "name": "knowledge_promotion_requests",
+              "tenant_scope": "organization/project/owner",
+              "tenant_key_source": "organization_id column",
+              "trust_zone": "PostgreSQL RLS transaction",
+              "data_owner": "Brainbase organization"
+            },
+            {
+              "name": "knowledge_promotion_authority_uses",
+              "tenant_scope": "organization/project/actor",
+              "tenant_key_source": "signed context rebound to organization_id",
+              "trust_zone": "PostgreSQL RLS transaction",
+              "data_owner": "Brainbase organization"
+            },
+            {
+              "name": "knowledge_events",
+              "tenant_scope": "organization/project",
+              "tenant_key_source": "promotion request organization_id",
+              "trust_zone": "PostgreSQL RLS transaction",
+              "data_owner": "Brainbase organization"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "from": "signed A0 authority",
+              "to": "promotion request",
+              "tenant_scope": "single organization and project",
+              "tenant_key_source": "signed context",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "exact operation capability",
+              "connection_mode": "managed",
+              "deployment_mode": "managed_shared"
+            },
+            {
+              "from": "owner consent",
+              "to": "normalized payload",
+              "tenant_scope": "single organization project and owner",
+              "tenant_key_source": "promotion request",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "owner consent capability",
+              "connection_mode": "managed",
+              "deployment_mode": "managed_shared"
+            },
+            {
+              "from": "organization review",
+              "to": "Graph mutation",
+              "tenant_scope": "single organization and project",
+              "tenant_key_source": "promotion request",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "organization review capability",
+              "connection_mode": "managed",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "認証済みcontextのorganization_id、person_id、project_codeへ全操作を束縛し、cross-tenantとcross-personを最初の書込み前に拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md",
+            "section": "Authority契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "PersonalKnowledgePromotionService"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects cross-tenant review before every organization-side effect"
+          },
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects cross-tenant organization review through the HTTP runtime with every downstream effect at zero"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "cross-tenant"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T13:58:13.280Z",
+      "last_revised_at": "2026-08-25T13:58:13.280Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "owner consentと別personのorganization acceptanceを同一request・同一normalized payload hashへ束縛し、owner=reviewer、expired、invalid signature、replay、hash差し替えを更新副作用0で拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md",
+            "section": "Authority契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "reviewOrganizationPromotion"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects an expired context with downstream effects at zero"
+          },
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects a tampered signature with downstream effects at zero"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "requires a distinct organization reviewer with GM/CEO role in the same project"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "rejects an expired context"
+          },
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "distinct organization reviewer"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T13:58:13.280Z",
+      "last_revised_at": "2026-08-25T13:58:13.280Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "Graphへ渡すのはpersonal_knowledge_normalized.v1 allowlist payloadだけで、Personal本文、raw content、preview、local path、secret、credential、personal event idを含めない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md",
+            "section": "データ契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-normalization.js",
+            "anchor": "normalizePromotionPayload"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects forbidden raw transcript, private fields, and server-controlled evidence"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "forbidden"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T13:58:13.280Z",
+      "last_revised_at": "2026-08-25T13:58:13.280Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "organization event、Graph mutation、promotion request、Receiptを単一transactionで確定する。同一の署名authority再送はHTTP 409で拒否し、authority使用台帳を含む更新差分を0にして二重Entity・Edge・Receiptを生成しない。新しい署名authorityで完了済みrequestを再確認した場合は新しいauthority使用Receiptだけを追加できるが、event・Graph・promotion・Receiptは変更しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md",
+            "section": "Transactionと副作用"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "reviewOrganizationPromotion"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects replayed signed authority before a second Graph effect"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "records a fresh authority use after organization acceptance without duplicate effects"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "replayed signed authority"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T13:58:13.280Z",
+      "last_revised_at": "2026-08-26T00:00:00.000Z"
+    },
+    {
+      "id": "C-005",
+      "type": "verification",
+      "statement": "synthetic fixtureで正常系、cross-tenant、cross-person、owner=reviewer、期限切れ、署名改ざん、同一署名authority再送を実runtime境界で検証し、拒否時の下流副作用が0であることを確認する。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md", "section": "本番検証" }],
+        "code_refs": [{ "file": "scripts/issue-personal-knowledge-promotion-smoke-fixture.mjs", "anchor": "main" }],
+        "test_refs": [
+          { "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js", "case": "rejects replay through the HTTP runtime before a second Graph effect" },
+          { "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js", "case": "rejects a valid signed authority for a different authenticated actor before every promotion effect" },
+          { "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js", "case": "rejects cross-tenant organization review through the HTTP runtime with every downstream effect at zero" },
+          { "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js", "case": "rejects owner equals reviewer through the HTTP runtime with every downstream effect at zero" },
+          { "file": "tests/server/routes/learning.test.js", "case": "direct memory-candidate Graph promotion remains disabled after authentication" },
+          { "file": "tests/server/scripts/issue-personal-knowledge-promotion-smoke-fixture.test.js", "case": "uses the runtime producer for three distinct scoped contexts and readbacks a 0600 synthetic fixture" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [
+        { "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js", "must_cover": "expired context" },
+        { "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js", "must_cover": "tampered signature" },
+        { "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js", "must_cover": "replay through the HTTP runtime" }
+      ] },
+      "first_seen_at": "2026-08-26T00:00:00.000Z",
+      "last_revised_at": "2026-08-26T00:00:00.000Z"
+    },
+    {
+      "id": "C-006",
+      "type": "migration",
+      "statement": "authority使用台帳とRLSを再適用可能なDDLで追加する。署名・正規化証跡のない旧pending_org_reviewはfail closedでpending_owner_approvalへ正規化し、write routeをA0署名必須へ切り替えるため、状態意味論は意図的な互換変更として適用前後の件数をreadbackする。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-007" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md", "section": "移行とリリース境界" }],
+        "code_refs": [
+          { "file": "scripts/migrate-m5a-production-schema.js", "anchor": "personal-knowledge" },
+          { "file": "scripts/personal-knowledge-migration-release-gate.mjs", "anchor": "assertPostflight" }
+        ],
+        "test_refs": [
+          { "file": "tests/server/services/personal-knowledge-promotion-migration.integration.test.js", "case": "runs preflight on the legacy schema, migrates fail closed, and is re-applicable" },
+          { "file": "tests/server/services/personal-knowledge-schema.test.js", "case": "requires normalized hashes, both receipts, Knowledge Event, and Graph readback for new acceptance" },
+          { "file": "tests/server/routes/personal-knowledge-routes.test.js", "case": "registers and searches the authenticated Personal Vault" },
+          { "file": "tests/server/scripts/personal-knowledge-migration-release-gate.test.js", "case": "accepts the exact fail-closed transition" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [
+        { "file_glob": "tests/server/services/personal-knowledge-promotion-migration.integration.test.js", "must_cover": "re-applicable" },
+        { "file_glob": "tests/server/routes/personal-knowledge-routes.test.js", "must_cover": "authenticated Personal Vault" }
+      ] },
+      "first_seen_at": "2026-08-26T00:00:00.000Z",
+      "last_revised_at": "2026-08-26T00:00:00.000Z"
+    },
+    {
+      "id": "C-007",
+      "type": "release",
+      "statement": "VibePro Gate、PR、merge、migration、service deployを順に完了し、同一runのReceipt・DB/API/Graph readback、Personal本文不在、重複0、replay更新差分0を本番証跡として確認する。確認前はproduction_evidenceをnot_collectedのままにする。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-008" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-p0-negative-boundary-runtime-v1.md", "section": "本番検証" }],
+        "code_refs": [
+          { "file": "scripts/personal-knowledge-promotion-production-smoke.mjs", "anchor": "main" },
+          { "file": "scripts/personal-knowledge-migration-release-gate.mjs", "anchor": "assertReceiptBinding" }
+        ],
+        "test_refs": [
+          { "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js", "case": "fails evidence safety when a personal body or forbidden key is present" },
+          { "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js", "case": "rejects a production DB readback when incident Graph edge count differs from the normalized payload" },
+          { "file": "tests/unit/personal-knowledge-promotion-service.test.js", "case": "records a fresh authority use after organization acceptance without duplicate effects" },
+          { "file": "tests/server/services/personal-knowledge-promotion-graph-boundary.integration.test.js", "case": "persists the organization event and performs one Graph version increment; replay performs zero" },
+          { "file": "tests/server/scripts/personal-knowledge-migration-release-gate.test.js", "case": "rejects a Receipt from another target SHA" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [
+        { "file_glob": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js", "must_cover": "Personal body" },
+        { "file_glob": "tests/server/services/personal-knowledge-promotion-graph-boundary.integration.test.js", "must_cover": "replay performs zero" }
+      ] },
+      "first_seen_at": "2026-08-26T00:00:00.000Z",
+      "last_revised_at": "2026-08-26T00:00:00.000Z"
+    }
+  ],
+  "generated_at": "2026-08-25T13:58:13.279Z",
+  "previous_spec_id": ""
+}

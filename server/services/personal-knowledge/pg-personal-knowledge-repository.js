@@ -6,6 +6,7 @@ async function setAccessContext(client, access) {
     requireAccess(access);
     const settings = [
         ['app.person_id', access.personId],
+        ['app.actor_person_id', access.actorPersonId || access.personId],
         ['app.organization_id', access.organizationId],
         ['app.project_codes', (access.projectCodes || []).join(',')],
         ['app.role', access.role || 'member'],
@@ -228,12 +229,16 @@ export class PgPersonalKnowledgeRepository {
         const { rows } = await clientFor(this, options).query(
             `INSERT INTO knowledge_promotion_requests
              (request_id, personal_event_id, owner_person_id, organization_id, project_code, status,
-              sanitized_preview, subject, body_hash, created_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10)
+              sanitized_preview, subject, body_hash, normalized_payload, normalized_payload_hash,
+              normalized_by_person_id, normalized_at, owner_consent_receipt_id,
+              normalization_contract_version, created_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10::jsonb,$11,$12,$13,$14,$15,$16)
              ON CONFLICT (request_id) DO UPDATE SET request_id = EXCLUDED.request_id RETURNING *`,
             [request.request_id, request.personal_event_id, request.owner_person_id, request.organization_id,
                 request.project_code, request.status, request.sanitized_preview, JSON.stringify(request.subject),
-                request.body_hash, request.created_at]
+                request.body_hash, JSON.stringify(request.normalized_payload), request.normalized_payload_hash,
+                request.normalized_by_person_id, request.normalized_at, request.owner_consent_receipt_id,
+                request.normalization_contract_version, request.created_at]
         );
         return rows[0];
     }
@@ -243,6 +248,26 @@ export class PgPersonalKnowledgeRepository {
             'SELECT * FROM knowledge_promotion_requests WHERE request_id = $1 LIMIT 1', [requestId]
         );
         return rows[0] || null;
+    }
+
+    async claimPromotionAuthorityUse(use, options = {}) {
+        try {
+            await clientFor(this, options).query(
+                `INSERT INTO knowledge_promotion_authority_uses
+                 (operation_id, idempotency_key, request_id, action, actor_person_id,
+                  organization_id, project_code)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+                [use.operation_id, use.idempotency_key, use.request_id, use.action,
+                    use.actor_person_id, use.organization_id, use.project_code]
+            );
+        } catch (error) {
+            if (error?.code === '23505') {
+                const replay = new Error('personal_knowledge_promotion_authority_replayed');
+                replay.status = 409;
+                throw replay;
+            }
+            throw error;
+        }
     }
 
     async decidePromotionRequest(requestId, decision, options = {}) {

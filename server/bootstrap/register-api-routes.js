@@ -41,6 +41,10 @@ import {
 } from '../routes/workflows.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePersonalKnowledgeAccess } from '../middleware/personal-knowledge-access.js';
+import {
+    createPersonalKnowledgePromotionAuthorityGuard,
+    createUnavailablePersonalKnowledgePromotionAuthorityGuard
+} from '../middleware/personal-knowledge-promotion-authority.js';
 import { AdminVisualizationService } from '../services/admin-visualization-service.js';
 import { AccountService } from '../services/account/account-service.js';
 import { PgAccountRepository } from '../services/account/account-repository.js';
@@ -305,6 +309,25 @@ export function registerApiRoutes(app, {
         ? (entry) => personalKnowledgeService.auditAccess(entry)
         : null;
     const personalKnowledgeAccessGuard = requirePersonalKnowledgeAccess({ audit: auditPersonalAccess });
+    const unavailablePromotionAuthority = createUnavailablePersonalKnowledgePromotionAuthorityGuard();
+    const promotionAuthorityGuards = tenantRuntimeServices ? {
+        request: createPersonalKnowledgePromotionAuthorityGuard(
+            tenantRuntimeServices,
+            'personal_knowledge_promotion:request'
+        ),
+        owner: createPersonalKnowledgePromotionAuthorityGuard(
+            tenantRuntimeServices,
+            'personal_knowledge_promotion:owner_consent'
+        ),
+        organization: createPersonalKnowledgePromotionAuthorityGuard(
+            tenantRuntimeServices,
+            'personal_knowledge_promotion:organization_review'
+        )
+    } : {
+        request: unavailablePromotionAuthority,
+        owner: unavailablePromotionAuthority,
+        organization: unavailablePromotionAuthority
+    };
     app.use(
         '/api/learning',
         personalKnowledgeAuthGuard,
@@ -318,7 +341,8 @@ export function registerApiRoutes(app, {
             personalKnowledgeAccessGuard,
             createPersonalKnowledgeRouter({
                 personalKnowledgeService,
-                promotionService: personalKnowledgePromotionService
+                promotionService: personalKnowledgePromotionService,
+                promotionAuthorityGuards
             })
         );
     }

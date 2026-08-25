@@ -78,6 +78,50 @@ export class InfoSSOTKnowledgeGraphRepository {
         }, client ? { client } : undefined);
     }
 
+    async commitNormalizedPromotion(input, { client, access } = {}) {
+        this._requireAccess(access);
+        const projectCode = input?.project_code;
+        const entity = input?.entity;
+        if (!projectCode || !entity?.id || !entity?.type || !entity?.payload) {
+            const error = new Error('normalized knowledge Graph mutation is incomplete');
+            error.code = 'knowledge_normalized_graph_input_invalid';
+            throw error;
+        }
+        const commit = async (contextClient) => {
+            if (entity.type === 'decision') {
+                const authority = entity.payload.decision_authority;
+                const projectId = await this._resolveProjectId(contextClient, projectCode);
+                if (!projectId || !authority?.decider_id || !authority?.domain) {
+                    const error = new Error('normalized decision authority is incomplete');
+                    error.code = 'knowledge_normalized_decision_authority_invalid';
+                    throw error;
+                }
+                await this.infoSSOTService.assertDecisionAuthority(contextClient, {
+                    projectId,
+                    projectCode,
+                    personId: authority.decider_id,
+                    decisionDomain: authority.domain
+                });
+            }
+            const result = await this.infoSSOTService.commitOntologyGraph(access, {
+                projectCode,
+                entity,
+                edges: Array.isArray(input.edges) ? input.edges : [],
+                contextEntities: Array.isArray(input.context_entities) ? input.context_entities : [],
+                roleMin: input.role_min || 'member',
+                sensitivity: input.sensitivity || 'internal'
+            }, { client: contextClient, access_context_applied: true });
+            return {
+                id: result.entity_id,
+                entity_type: entity.type,
+                edge_count: result.edge_count,
+                ontology_version: result.ontology_version,
+                payload: entity.payload
+            };
+        };
+        if (client) return commit(client);
+        return this.infoSSOTService.withAccessContext(access, commit);
+    }
 
     async supersedeDecision(input, { client, access } = {}) {
         this._requireAccess(access);

@@ -54,6 +54,8 @@
     "test:e2e:ontology": "VIBEPRO_EVIDENCE_ID=story-brainbase-ontology-kernel playwright test tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts --reporter=line",
     "test:e2e:ui": "playwright test --ui",
     "test:admin-personal-kg-smoke": "node scripts/admin-personal-kg-smoke.mjs",
+    "test:personal-kg:production-smoke": "node scripts/personal-knowledge-promotion-production-smoke.mjs",
+    "personal-kg:issue-production-smoke-fixture": "node scripts/issue-personal-knowledge-promotion-smoke-fixture.mjs",
     "test:active-indicator": "vitest run tests/server/session-activity-state-machine-contract.test.js tests/server/session-manager.test.js tests/unit/session-activity-state.test.js tests/unit/session-indicators-ws.test.js tests/ui/views/session-view.test.js",
     "vibepro:ci": "node scripts/vibepro-score-run.mjs auto-run \"${VIBEPRO_RUN_DIR:-var/vibepro-ci-run}\"",
     "vibepro:score-verify": "node scripts/vibepro-score-run.mjs verify-changed",

@@ -12,6 +12,14 @@ import {
 import { databaseConfig, selectedMigrations } from '../../../scripts/migrate-m5a-production-schema.js';
 
 describe('SNS posting ledger runtime database config', () => {
+    it('prefers an explicitly bound release database over service-specific URLs', () => {
+        expect(databaseConfig({
+            M5A_DATABASE_URL: 'postgres://release-db',
+            SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://sns-ledger',
+            INFO_SSOT_DATABASE_URL: 'postgres://info-ssot'
+        })).toEqual({ connectionString: 'postgres://release-db' });
+    });
+
     it('prefers a dedicated SNS ledger database URL when configured', () => {
         expect(resolveSnsPostingLedgerDatabaseUrl({
             SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://sns-ledger',

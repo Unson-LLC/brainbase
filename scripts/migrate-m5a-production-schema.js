@@ -32,6 +32,9 @@ export function selectedMigrations(argv = process.argv.slice(2)) {
 }
 
 export function databaseConfig(env = process.env) {
+    if (env.M5A_DATABASE_URL) {
+        return { connectionString: env.M5A_DATABASE_URL };
+    }
     if (env.SNS_POSTING_LEDGER_DATABASE_URL) {
         return { connectionString: env.SNS_POSTING_LEDGER_DATABASE_URL };
     }

@@ -5,6 +5,10 @@ import {
     CompanyAuthorityResolver,
     normalizeObservedExecutionRequest
 } from './company-authority-resolver.js';
+import {
+    assertPersonalKnowledgePromotionAuthority,
+    assertPromotionAuthorityProducerBinding
+} from '../personal-knowledge/promotion-authority-contract.js';
 
 const MAX_TTL_SECONDS = 300;
 
@@ -51,6 +55,9 @@ function observedRequest(input) {
     }
     const projectHint = singleString(input.authorization.project_ids, 'authorization.project_ids');
     const capabilityId = singleString(input.authorization.capability_ids, 'authorization.capability_ids');
+    const promotionAuthority = input.promotion_authority === undefined
+        ? undefined
+        : assertPersonalKnowledgePromotionAuthority(input.promotion_authority);
     return {
         tenant_id: requiredString(input.tenant_id, 'tenant_id'),
         expected_tenant_revision: input.expected_tenant_revision,
@@ -80,7 +87,8 @@ function observedRequest(input) {
         slack: structuredClone(input.slack),
         correlation_id: requiredString(input.correlation_id, 'correlation_id'),
         operation_id: requiredString(input.operation_id, 'operation_id'),
-        billing_principal_id: input.billing_principal_id
+        billing_principal_id: input.billing_principal_id,
+        ...(promotionAuthority ? { promotion_authority: promotionAuthority } : {})
     };
 }
 
@@ -202,6 +210,12 @@ export class TenantContextProducer {
         const canonicalRuntime = await this.#loadCanonicalRuntime(preliminaryRequest);
         const request = canonicalizeRequest(preliminaryRequest, canonicalRuntime);
         const resolvedAuthority = await this.companyAuthorityResolver.resolve(request, canonicalRuntime);
+        const promotionAuthority = request.promotion_authority
+            ? assertPromotionAuthorityProducerBinding(request.promotion_authority, {
+                runtimeCapabilityId: request.requested_action.capability_id,
+                resourceRef: request.requested_action.resource_ref
+            })
+            : undefined;
         const issuedAt = this.now();
         const expiresAt = new Date(issuedAt.getTime() + MAX_TTL_SECONDS * 1000);
         const tenant = canonicalRuntime.tenant;
@@ -235,6 +249,7 @@ export class TenantContextProducer {
             },
             actor: structuredClone(resolvedAuthority.actor),
             authorization: structuredClone(resolvedAuthority.authorization),
+            ...(promotionAuthority ? { authority: promotionAuthority } : {}),
             placement: {
                 deployment_id: this.deploymentId,
                 profile: this.deploymentProfile

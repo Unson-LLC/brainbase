@@ -229,7 +229,12 @@ export class KnowledgeEventService {
         await eventRepository.appendStage(eventId, { stage, occurred_at: this.now() });
     }
 
-    async _ingest(event, { eventRepository = this.eventRepository, client = null, access = null } = {}) {
+    async _ingest(event, {
+        eventRepository = this.eventRepository,
+        client = null,
+        access = null,
+        skipGraphProjection = false
+    } = {}) {
         requireKnowledgeEvent(event);
         const existing = client
             ? await eventRepository.findById(event.event_id, { client })
@@ -312,7 +317,7 @@ export class KnowledgeEventService {
         }
 
         let graphEntityId = null;
-        if (event.subject.type === 'decision') {
+        if (!skipGraphProjection && event.subject.type === 'decision') {
             const graphInput = {
                 id: event.subject.id,
                 payload: graphPayload(event, candidate.id)
@@ -408,6 +413,94 @@ export class KnowledgeEventService {
         } finally {
             this.inFlight.delete(scopedEvent.event_id);
         }
+    }
+
+    /**
+     * Persist an event inside a caller-owned transaction without opening a
+     * second transaction. Promotion flows use this to record the
+     * organization review event before their explicit normalized Graph write;
+     * the event service must not project the same decision implicitly.
+     */
+    async ingestInTransaction(event, {
+        client,
+        access = null,
+        skipGraphProjection = false
+    } = {}) {
+        if (!client) {
+            const error = new Error('knowledge_event_transaction_required');
+            error.code = 'knowledge_event_transaction_required';
+            throw error;
+        }
+        await this.eventRepository.ensureSchema?.();
+        return this._ingest(event, {
+            eventRepository: this.eventRepository,
+            client,
+            access,
+            skipGraphProjection
+        });
+    }
+
+    /**
+     * Complete an event-only ingestion after a caller-owned Graph mutation.
+     * The candidate transition must use that same transaction client so an
+     * organization promotion cannot commit a Graph entity while leaving its
+     * Candidate in the pre-projection state.
+     */
+    async reconcileGraphProjection(candidateId, graphEntityId, {
+        client,
+        eventId,
+        actorPersonId,
+        decisionOwnerPersonId,
+        access = null
+    } = {}) {
+        if (!client) {
+            const error = new Error('knowledge_event_transaction_required');
+            error.code = 'knowledge_event_transaction_required';
+            throw error;
+        }
+        if (!candidateId || !graphEntityId || !eventId || !actorPersonId || !decisionOwnerPersonId) {
+            const error = new Error('knowledge_event_graph_projection_reconciliation_invalid');
+            error.code = 'knowledge_event_graph_projection_reconciliation_invalid';
+            throw error;
+        }
+        if (typeof this.candidateRepository?.transitionWithAudit !== 'function') {
+            const error = new Error('knowledge_event_candidate_repository_unavailable');
+            error.code = 'knowledge_event_candidate_repository_unavailable';
+            throw error;
+        }
+        if (typeof this.eventRepository?.saveResult !== 'function') {
+            const error = new Error('knowledge_event_repository_unavailable');
+            error.code = 'knowledge_event_repository_unavailable';
+            throw error;
+        }
+        const candidateTransition = await this.candidateRepository.transitionWithAudit(
+            candidateId,
+            'promoted_to_graph',
+            {
+                actor_person_id: actorPersonId,
+                decision_owner_person_id: decisionOwnerPersonId,
+                decision_reason: 'knowledge_event_graph_promotion',
+                evidence_ids: eventId ? [eventId] : null
+            },
+            {
+                client,
+                requires_approval: false,
+                promoted_graph_entity_id: graphEntityId
+            }
+        );
+        const event = await this.eventRepository.saveResult(eventId, {
+            event_id: eventId,
+            candidate_id: candidateId,
+            graph_entity_id: graphEntityId,
+            processing_stage: 'retrievable',
+            semantic_state: 'active'
+        }, { client, access });
+        if (!event) {
+            const error = new Error('knowledge_event_graph_projection_readback_failed');
+            error.code = 'knowledge_event_graph_projection_readback_failed';
+            throw error;
+        }
+        return { candidateTransition, event };
     }
 
     async _ingestWithContext(event, context = {}) {

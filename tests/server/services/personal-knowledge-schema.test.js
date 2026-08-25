@@ -12,11 +12,14 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toContain('CREATE TABLE IF NOT EXISTS personal_knowledge_event_transitions');
         expect(sql).toContain('CREATE TABLE IF NOT EXISTS knowledge_event_transitions');
         expect(sql).toContain('CREATE TABLE IF NOT EXISTS knowledge_promotion_requests');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS knowledge_promotion_authority_uses');
+        expect(sql).toContain('idempotency_key TEXT NOT NULL UNIQUE');
         expect(sql).toContain('CREATE TABLE IF NOT EXISTS knowledge_promotion_lineage');
         expect(sql).toContain('CREATE TABLE IF NOT EXISTS episode_compaction_artifacts');
         expect(sql).toMatch(/personal_knowledge_events ENABLE ROW LEVEL SECURITY/);
         expect(sql).toMatch(/personal_knowledge_events FORCE ROW LEVEL SECURITY/);
         expect(sql).toContain("current_setting('app.person_id', true)");
+        expect(sql).toContain("current_setting('app.actor_person_id', true)");
         expect(sql).toContain("current_setting('app.organization_id', true)");
         expect(sql).toContain('personal_knowledge_events is append-only');
     });
@@ -87,6 +90,54 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toMatch(/owner_person_id <> app_person_id_required\(\)/);
         expect(sql).toMatch(/app_role_rank\(current_setting\('app.role', true\)\) >= app_role_rank\('gm'\)/);
         expect(sql).toMatch(/status IN \('pending_org_review', 'org_accepted', 'org_rejected'\)/);
+    });
+
+    it('requires normalized hashes, both receipts, Knowledge Event, and Graph readback for new acceptance', () => {
+        const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
+
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS knowledge_promotion_authority_uses');
+        expect(sql).toContain('idempotency_key TEXT NOT NULL UNIQUE');
+        expect(sql).toMatch(/knowledge_promotion_authority_uses ENABLE ROW LEVEL SECURITY/);
+        expect(sql).toMatch(/knowledge_promotion_authority_uses FORCE ROW LEVEL SECURITY/);
+        expect(sql).toContain('actor_person_id = app_actor_person_id_required()');
+        expect(sql).toContain('normalization_contract_version TEXT');
+        expect(sql).toContain('normalized_payload JSONB');
+        expect(sql).toContain('normalized_payload_hash TEXT');
+        expect(sql).toContain('normalized_by_person_id TEXT');
+        expect(sql).toContain('owner_consent_receipt_id TEXT');
+        expect(sql).toContain('organization_review_receipt_id TEXT');
+        expect(sql).toContain('graph_entity_id TEXT');
+        expect(sql).toContain("normalized_payload->>'schema_version' = 'personal_knowledge_normalized.v1'");
+        expect(sql).toContain("normalized_payload_hash ~ '^sha256:[a-f0-9]{64}$'");
+        expect(sql).toContain("status = 'pending_owner_approval'");
+        expect(sql).toContain("WHERE status = 'pending_org_review'");
+        expect(sql).toContain('knowledge_promotion_owner_consent_evidence_check');
+        expect(sql).toMatch(/status <> 'org_accepted'[\s\S]*organization_event_id IS NOT NULL[\s\S]*graph_entity_id IS NOT NULL/);
+    });
+
+    it('grandfathers only pre-M1-C rows and blocks new legacy or mutable evidence', () => {
+        const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
+
+        expect(sql).toContain('legacy_without_normalized_evidence BOOLEAN NOT NULL DEFAULT FALSE');
+        expect(sql).toMatch(/UPDATE knowledge_promotion_requests[\s\S]*legacy_without_normalized_evidence = TRUE[\s\S]*status = 'org_accepted'/);
+        expect(sql).toContain('New promotion rows cannot opt into legacy evidence bypass');
+        expect(sql).toContain('Promotion rows cannot opt into legacy evidence bypass');
+        expect(sql).toContain('Normalized promotion evidence is immutable; create a new promotion request');
+        expect(sql).toMatch(/CREATE TRIGGER knowledge_promotion_evidence_guard[\s\S]*BEFORE INSERT OR UPDATE/);
+    });
+
+    it('keeps the private Personal event FK owner-readable and reviewer-insert-only', () => {
+        const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
+
+        expect(sql).toMatch(/knowledge_promotion_lineage ENABLE ROW LEVEL SECURITY/);
+        expect(sql).toMatch(/CREATE POLICY personal_lineage_owner_read[\s\S]*FOR SELECT/);
+        expect(sql).toMatch(/CREATE POLICY personal_lineage_reviewer_insert[\s\S]*FOR INSERT/);
+        expect(sql).not.toMatch(/CREATE POLICY personal_lineage_reviewer_read/);
+        expect(sql).toMatch(/request\.personal_event_id = knowledge_promotion_lineage\.personal_event_id/);
+        expect(sql).toMatch(/request\.organization_event_id = knowledge_promotion_lineage\.organization_event_id/);
+        expect(sql).toMatch(/request\.normalized_payload_hash = knowledge_promotion_lineage\.sanitization->>'normalized_payload_hash'/);
+        expect(sql).toMatch(/request\.owner_consent_receipt_id = knowledge_promotion_lineage\.sanitization->>'owner_consent_receipt_id'/);
+        expect(sql).toMatch(/request\.organization_review_receipt_id = knowledge_promotion_lineage\.sanitization->>'organization_review_receipt_id'/);
     });
 
     it('registers both Personal KG migrations under the same deployment unit', () => {
