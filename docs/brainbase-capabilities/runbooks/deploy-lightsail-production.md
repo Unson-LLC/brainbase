@@ -80,8 +80,9 @@ set -a
 . /home/ubuntu/brainbase/.env
 . /home/ubuntu/brainbase/.env.infisical
 set +a
-# Personal KG runtimeと同じ優先順位で接続先を一度だけ確定する。
-M5A_DATABASE_URL="${SNS_POSTING_LEDGER_DATABASE_URL:-${INFO_SSOT_DATABASE_URL:-${INFO_SSOT_DB_URL:-${DATABASE_URL:-}}}}"
+# Personal KG repositoryと同じInfo SSOT接続先を一度だけ確定する。
+# SNS posting ledgerや汎用DATABASE_URLへはfallbackしない。
+M5A_DATABASE_URL="${INFO_SSOT_DATABASE_URL:-${INFO_SSOT_DB_URL:-}}"
 export M5A_DATABASE_URL
 test -n "$M5A_DATABASE_URL"
 

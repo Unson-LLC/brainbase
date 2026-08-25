@@ -65,12 +65,6 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
              '{"fixture":"upgrade"}', 'private fixture', 'sha256:fixture', 'personal');
           ALTER TABLE knowledge_promotion_requests
             DROP CONSTRAINT knowledge_promotion_requests_status_check;
-          ALTER TABLE knowledge_promotion_requests
-            ADD COLUMN normalized_payload JSONB,
-            ADD COLUMN normalized_payload_hash TEXT,
-            ADD COLUMN normalization_contract_version TEXT,
-            ADD COLUMN normalized_by_person_id TEXT,
-            ADD COLUMN normalized_at TIMESTAMPTZ;
           INSERT INTO knowledge_promotion_requests
             (request_id, personal_event_id, owner_person_id, organization_id,
              project_code, status, sanitized_preview, subject, body_hash, decided_at)
@@ -78,12 +72,6 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
             ('kpr_upgrade_1', 'pke_upgrade_1', 'person_owner', 'org_a',
              'brainbase', 'pending_org_review', 'safe fixture', '{"type":"decision","id":"fixture"}',
              'sha256:fixture', NOW());
-          UPDATE knowledge_promotion_requests
-          SET normalized_payload_hash = 'sha256:${'a'.repeat(64)}',
-              normalization_contract_version = 'personal_knowledge_normalized.v1',
-              normalized_by_person_id = 'person_owner',
-              normalized_at = NOW()
-          WHERE request_id = 'kpr_upgrade_1';
         `);
 
         // Reproduce the guard installed by the previous production release.
@@ -112,10 +100,19 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
         }
     });
 
-    it('normalizes legacy rows behind an existing guard and is re-applicable', async () => {
+    it('runs preflight on the legacy schema, migrates fail closed, and is re-applicable', async () => {
+        receiptDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-pkg-release-'));
+        const receiptPath = path.join(receiptDirectory, 'receipt.json');
+        const targetSha = 'c'.repeat(40);
+        const gate = path.resolve(process.cwd(), 'scripts/personal-knowledge-migration-release-gate.mjs');
+        const env = { ...process.env, TARGET_SHA: targetSha, M5A_DATABASE_URL: databaseUrl };
+
+        // The authoritative preflight runs before the release adds normalized columns.
+        execFileSync(process.execPath, [gate, 'preflight', receiptPath], { env, stdio: 'pipe' });
         const migration = readSql('server/sql/personal-knowledge-two-stage-promotion.sql');
         await pool.query(`BEGIN; ${migration}; COMMIT;`);
         await pool.query(`BEGIN; ${migration}; COMMIT;`);
+        execFileSync(process.execPath, [gate, 'postflight', receiptPath], { env, stdio: 'pipe' });
 
         const { rows } = await pool.query(`
           SELECT status, owner_decided_at, owner_consent_receipt_id,
@@ -133,35 +130,6 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
             normalized_by_person_id: null,
             normalized_at: null
         }]);
-    }, 30_000);
-
-    it('runs preflight and postflight against the real database and writes a passed Receipt', async () => {
-        await pool.query(`
-          ALTER TABLE knowledge_promotion_requests
-            DROP CONSTRAINT knowledge_promotion_normalized_payload_check,
-            DROP CONSTRAINT knowledge_promotion_owner_consent_evidence_check,
-            DROP CONSTRAINT knowledge_promotion_org_acceptance_evidence_check;
-          DROP TRIGGER IF EXISTS knowledge_promotion_status_guard ON knowledge_promotion_requests;
-          DROP TRIGGER IF EXISTS knowledge_promotion_evidence_guard ON knowledge_promotion_requests;
-          UPDATE knowledge_promotion_requests
-          SET status = 'pending_org_review',
-              normalized_payload_hash = 'sha256:${'b'.repeat(64)}',
-              normalization_contract_version = 'personal_knowledge_normalized.v1',
-              normalized_by_person_id = 'person_owner',
-              normalized_at = NOW(),
-              owner_decided_at = NOW()
-          WHERE request_id = 'kpr_upgrade_1';
-        `);
-        receiptDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-pkg-release-'));
-        const receiptPath = path.join(receiptDirectory, 'receipt.json');
-        const targetSha = 'c'.repeat(40);
-        const gate = path.resolve(process.cwd(), 'scripts/personal-knowledge-migration-release-gate.mjs');
-        const env = { ...process.env, TARGET_SHA: targetSha, M5A_DATABASE_URL: databaseUrl };
-
-        execFileSync(process.execPath, [gate, 'preflight', receiptPath], { env, stdio: 'pipe' });
-        await pool.query(`BEGIN; ${readSql('server/sql/personal-knowledge-two-stage-promotion.sql')}; COMMIT;`);
-        execFileSync(process.execPath, [gate, 'postflight', receiptPath], { env, stdio: 'pipe' });
-
         const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
         expect(receipt).toMatchObject({ status: 'passed', target_sha: targetSha });
         expect(receipt.before.target_request_ids).toEqual(['kpr_upgrade_1']);

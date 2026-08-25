@@ -8,11 +8,19 @@ const { Pool } = pg;
 async function snapshot(client) {
   const identity = await client.query("SELECT current_database() AS database, current_user AS role, inet_server_addr()::text AS host, inet_server_port() AS port");
   const counts = await client.query("SELECT status, count(*)::int AS count FROM knowledge_promotion_requests GROUP BY status ORDER BY status");
+  const normalizedColumns = await client.query(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'knowledge_promotion_requests'
+      AND column_name IN ('normalized_payload', 'normalized_payload_hash')
+  `);
+  const hasNormalizedColumns = normalizedColumns.rows.length === 2;
   const targets = await client.query(`
     SELECT request_id
     FROM knowledge_promotion_requests
     WHERE status = 'pending_org_review'
-      AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL)
+      ${hasNormalizedColumns ? 'AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL)' : ''}
     ORDER BY request_id
   `);
   const total = counts.rows.reduce((sum, row) => sum + row.count, 0);
