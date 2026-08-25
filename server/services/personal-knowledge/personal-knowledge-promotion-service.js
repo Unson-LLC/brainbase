@@ -95,7 +95,9 @@ function requireOrganizationReviewer(request, access) {
 }
 
 function requirePromotionAuthority(authority, access, projectCode, capabilityId) {
-    if (!authority) return;
+    if (!authority) {
+        throw promotionError('personal_knowledge_promotion_authority_required', 403);
+    }
     if (authority.capabilityId !== capabilityId
         || authority.actorPersonId !== (access.actorPersonId || access.personId)
         || authority.organizationIds?.length !== 1
@@ -109,7 +111,9 @@ function requirePromotionAuthority(authority, access, projectCode, capabilityId)
 }
 
 async function claimPromotionAuthorityUse(repository, authority, requestId, action, options) {
-    if (!authority) return;
+    if (!authority) {
+        throw promotionError('personal_knowledge_promotion_authority_required', 403);
+    }
     if (typeof repository.claimPromotionAuthorityUse === 'function') {
         await repository.claimPromotionAuthorityUse({
             operation_id: authority.operationId,

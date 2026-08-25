@@ -6,6 +6,7 @@ async function setAccessContext(client, access) {
     requireAccess(access);
     const settings = [
         ['app.person_id', access.personId],
+        ['app.actor_person_id', access.actorPersonId || access.personId],
         ['app.organization_id', access.organizationId],
         ['app.project_codes', (access.projectCodes || []).join(',')],
         ['app.role', access.role || 'member'],

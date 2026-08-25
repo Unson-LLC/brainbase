@@ -26,6 +26,16 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('app.person_id', true), '')
 $$;
 
+CREATE OR REPLACE FUNCTION app_actor_person_id_required()
+RETURNS TEXT LANGUAGE plpgsql STABLE AS $$
+DECLARE value TEXT := current_setting('app.actor_person_id', true);
+BEGIN
+  IF value IS NULL OR btrim(value) = '' THEN
+    RAISE EXCEPTION 'personal knowledge actor context required' USING ERRCODE = '42501';
+  END IF;
+  RETURN value;
+END $$;
+
 CREATE OR REPLACE FUNCTION app_role_rank(role TEXT)
 RETURNS INTEGER LANGUAGE sql STABLE AS $$
   SELECT CASE lower(coalesce(role, ''))
@@ -143,7 +153,7 @@ CREATE POLICY personal_promotion_authority_scope ON knowledge_promotion_authorit
   WITH CHECK (
     organization_id = app_organization_id_required()
     AND project_code = ANY(string_to_array(current_setting('app.project_codes', true), ','))
-    AND actor_person_id = app_person_id_required()
+    AND actor_person_id = app_actor_person_id_required()
   );
 
 CREATE TABLE IF NOT EXISTS episode_compaction_artifacts (

@@ -29,11 +29,30 @@ function createApp() {
         req.access = req.personalKnowledgeAccess;
         next();
     });
-    app.use('/api/personal-knowledge', createPersonalKnowledgeRouter({ personalKnowledgeService, promotionService }));
+    const attachAuthority = (req, _res, next) => {
+        req.personalKnowledgePromotionAuthority = { operationId: 'op_test' };
+        next();
+    };
+    app.use('/api/personal-knowledge', createPersonalKnowledgeRouter({
+        personalKnowledgeService,
+        promotionService,
+        promotionAuthorityGuards: { request: attachAuthority, owner: attachAuthority, organization: attachAuthority }
+    }));
     return { app, personalKnowledgeService, promotionService };
 }
 
 describe('personal knowledge routes', () => {
+    it('fails closed when promotion authority guards are omitted', async () => {
+        const personalKnowledgeService = {};
+        const promotionService = { requestPromotion: vi.fn() };
+        const app = express();
+        app.use(express.json());
+        app.use(createPersonalKnowledgeRouter({ personalKnowledgeService, promotionService }));
+        await request(app).post('/events/pke_1/promotion-requests').send({}).expect(503, {
+            error: 'personal_knowledge_promotion_authority_unavailable'
+        });
+        expect(promotionService.requestPromotion).not.toHaveBeenCalled();
+    });
     it('registers and searches the authenticated Personal Vault', async () => {
         const { app, personalKnowledgeService } = createApp();
         await request(app).post('/api/personal-knowledge/events').send({ event_id: 'pke_1' }).expect(201);

@@ -53,6 +53,15 @@ ALTER TABLE knowledge_promotion_requests
 ALTER TABLE knowledge_promotion_requests
   DROP CONSTRAINT IF EXISTS knowledge_promotion_owner_consent_evidence_check;
 
+-- An earlier release may already have installed guards that reject the
+-- fail-closed back-transition used by the evidence normalization below. Drop
+-- both guards before touching legacy rows and recreate them after the new
+-- contract is in place. The migration runner wraps this file in one
+-- transaction, so concurrent writers never observe an unguarded committed
+-- schema.
+DROP TRIGGER IF EXISTS knowledge_promotion_status_guard ON knowledge_promotion_requests;
+DROP TRIGGER IF EXISTS knowledge_promotion_evidence_guard ON knowledge_promotion_requests;
+
 UPDATE knowledge_promotion_requests
 SET status = CASE status
   WHEN 'approved' THEN 'org_accepted'
@@ -201,12 +210,10 @@ BEGIN
   RETURN NEW;
 END $$;
 
-DROP TRIGGER IF EXISTS knowledge_promotion_status_guard ON knowledge_promotion_requests;
 CREATE TRIGGER knowledge_promotion_status_guard
   BEFORE UPDATE OF status ON knowledge_promotion_requests
   FOR EACH ROW EXECUTE FUNCTION enforce_knowledge_promotion_status_transition();
 
-DROP TRIGGER IF EXISTS knowledge_promotion_evidence_guard ON knowledge_promotion_requests;
 CREATE TRIGGER knowledge_promotion_evidence_guard
   BEFORE INSERT OR UPDATE ON knowledge_promotion_requests
   FOR EACH ROW EXECUTE FUNCTION enforce_knowledge_promotion_evidence_immutability();
@@ -252,7 +259,7 @@ CREATE POLICY personal_promotion_authority_scope ON knowledge_promotion_authorit
   WITH CHECK (
     organization_id = app_organization_id_required()
     AND project_code = ANY(string_to_array(current_setting('app.project_codes', true), ','))
-    AND actor_person_id = app_person_id_required()
+    AND actor_person_id = app_actor_person_id_required()
   );
 
 -- The private Personal event foreign key remains owner-visible. A distinct GM/CEO

@@ -19,6 +19,7 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toMatch(/personal_knowledge_events ENABLE ROW LEVEL SECURITY/);
         expect(sql).toMatch(/personal_knowledge_events FORCE ROW LEVEL SECURITY/);
         expect(sql).toContain("current_setting('app.person_id', true)");
+        expect(sql).toContain("current_setting('app.actor_person_id', true)");
         expect(sql).toContain("current_setting('app.organization_id', true)");
         expect(sql).toContain('personal_knowledge_events is append-only');
     });
@@ -98,6 +99,7 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toContain('idempotency_key TEXT NOT NULL UNIQUE');
         expect(sql).toMatch(/knowledge_promotion_authority_uses ENABLE ROW LEVEL SECURITY/);
         expect(sql).toMatch(/knowledge_promotion_authority_uses FORCE ROW LEVEL SECURITY/);
+        expect(sql).toContain('actor_person_id = app_actor_person_id_required()');
         expect(sql).toContain('normalization_contract_version TEXT');
         expect(sql).toContain('normalized_payload JSONB');
         expect(sql).toContain('normalized_payload_hash TEXT');

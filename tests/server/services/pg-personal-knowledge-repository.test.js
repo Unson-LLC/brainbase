@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PgPersonalKnowledgeRepository } from '../../../server/services/personal-knowledge/pg-personal-knowledge-repository.js';
 
-const access = { personId: 'person_a', organizationId: 'org_a', role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] };
+const access = { personId: 'person_a', actorPersonId: 'actor_a', organizationId: 'org_a', role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] };
 
 describe('PgPersonalKnowledgeRepository', () => {
     it('sets every RLS identity variable inside the transaction', async () => {
@@ -12,6 +12,7 @@ describe('PgPersonalKnowledgeRepository', () => {
         await repository.transaction(async () => 'ok', { access });
 
         expect(client.query).toHaveBeenCalledWith('SELECT set_config($1, $2, true)', ['app.person_id', 'person_a']);
+        expect(client.query).toHaveBeenCalledWith('SELECT set_config($1, $2, true)', ['app.actor_person_id', 'actor_a']);
         expect(client.query).toHaveBeenCalledWith('SELECT set_config($1, $2, true)', ['app.organization_id', 'org_a']);
         expect(client.query).toHaveBeenCalledWith('SELECT set_config($1, $2, true)', ['app.project_codes', 'brainbase']);
         expect(client.query).toHaveBeenCalledWith('SELECT set_config($1, $2, true)', ['app.role', 'member']);

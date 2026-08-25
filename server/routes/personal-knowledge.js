@@ -15,7 +15,9 @@ function sendError(res, error) {
     });
 }
 
-const pass = (_req, _res, next) => next();
+const unavailablePromotionAuthority = (_req, res) => res.status(503).json({
+    error: 'personal_knowledge_promotion_authority_unavailable'
+});
 
 export function createPersonalKnowledgeRouter({
     personalKnowledgeService,
@@ -23,9 +25,9 @@ export function createPersonalKnowledgeRouter({
     promotionAuthorityGuards = {}
 }) {
     const router = express.Router();
-    const requestAuthority = promotionAuthorityGuards.request || pass;
-    const ownerAuthority = promotionAuthorityGuards.owner || pass;
-    const organizationAuthority = promotionAuthorityGuards.organization || pass;
+    const requestAuthority = promotionAuthorityGuards.request || unavailablePromotionAuthority;
+    const ownerAuthority = promotionAuthorityGuards.owner || unavailablePromotionAuthority;
+    const organizationAuthority = promotionAuthorityGuards.organization || unavailablePromotionAuthority;
     router.post('/events', async (req, res) => {
         try { res.status(201).json(await personalKnowledgeService.ingest(req.body || {}, context(req))); } catch (error) { sendError(res, error); }
     });
