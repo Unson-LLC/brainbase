@@ -23,7 +23,12 @@ const rows = ['req_1', 'req_2'].map((request_id) => ({
   owner_decided_by: null,
   owner_decided_at: null,
   owner_consent_receipt_id: null,
-  decided_at: null
+  decided_at: null,
+  normalization_contract_version: null,
+  normalized_payload: null,
+  normalized_payload_hash: null,
+  normalized_by_person_id: null,
+  normalized_at: null
 }));
 const rls = { relrowsecurity: true, relforcerowsecurity: true };
 
@@ -49,6 +54,7 @@ describe('personal knowledge migration release gate', () => {
     ['missing target row', after, rows.slice(1), rls, 'target rows'],
     ['wrong target status', after, [{ ...rows[0], status: 'org_rejected' }, rows[1]], rls, 'did not fail closed exactly'],
     ['owner evidence remains', after, [{ ...rows[0], owner_decided_by: 'per_1' }, rows[1]], rls, 'did not fail closed exactly'],
+    ['partial normalization evidence remains', after, [{ ...rows[0], normalized_payload_hash: `sha256:${'a'.repeat(64)}` }, rows[1]], rls, 'did not fail closed exactly'],
     ['total changes', { ...after, total: 4 }, rows, rls, 'total changed'],
     ['unrelated status changes', { ...after, status_counts: { pending_owner_approval: 3, org_accepted: 1, org_rejected: 1 } }, rows, rls, 'status org_accepted'],
     ['RLS disabled', after, rows, { relrowsecurity: false, relforcerowsecurity: true }, 'RLS is not ENABLE/FORCE']

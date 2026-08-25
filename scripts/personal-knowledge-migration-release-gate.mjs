@@ -42,7 +42,16 @@ export function assertPostflight(before, after, targetRows, rls) {
   }
   if (targetRows.length !== targetCount) errors.push(`target rows: expected ${targetCount}, got ${targetRows.length}`);
   for (const row of targetRows) {
-    if (row.status !== 'pending_owner_approval' || row.owner_decided_by !== null || row.owner_decided_at !== null || row.owner_consent_receipt_id !== null || row.decided_at !== null) {
+    if (row.status !== 'pending_owner_approval'
+      || row.owner_decided_by !== null
+      || row.owner_decided_at !== null
+      || row.owner_consent_receipt_id !== null
+      || row.decided_at !== null
+      || row.normalization_contract_version !== null
+      || row.normalized_payload !== null
+      || row.normalized_payload_hash !== null
+      || row.normalized_by_person_id !== null
+      || row.normalized_at !== null) {
       errors.push(`target ${row.request_id} did not fail closed exactly`);
     }
   }
@@ -84,7 +93,9 @@ async function main() {
     const after = await snapshot(client);
     const ids = receipt.before.target_request_ids;
     const targetRows = ids.length === 0 ? [] : (await client.query(`
-      SELECT request_id, status, owner_decided_by, owner_decided_at, owner_consent_receipt_id, decided_at
+      SELECT request_id, status, owner_decided_by, owner_decided_at, owner_consent_receipt_id, decided_at,
+             normalization_contract_version, normalized_payload, normalized_payload_hash,
+             normalized_by_person_id, normalized_at
       FROM knowledge_promotion_requests WHERE request_id = ANY($1::text[]) ORDER BY request_id
     `, [ids])).rows;
     const rls = (await client.query("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = 'knowledge_promotion_authority_uses'::regclass")).rows[0];

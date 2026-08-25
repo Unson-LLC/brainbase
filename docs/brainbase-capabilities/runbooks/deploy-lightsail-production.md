@@ -80,7 +80,8 @@ set -a
 . /home/ubuntu/brainbase/.env
 . /home/ubuntu/brainbase/.env.infisical
 set +a
-M5A_DATABASE_URL="${INFO_SSOT_DATABASE_URL:-${INFO_SSOT_DB_URL:-${DATABASE_URL:-}}}"
+# Personal KG runtimeと同じ優先順位で接続先を一度だけ確定する。
+M5A_DATABASE_URL="${SNS_POSTING_LEDGER_DATABASE_URL:-${INFO_SSOT_DATABASE_URL:-${INFO_SSOT_DB_URL:-${DATABASE_URL:-}}}}"
 export M5A_DATABASE_URL
 test -n "$M5A_DATABASE_URL"
 
@@ -167,6 +168,15 @@ Use only the SHA recorded in the pre-check. A branch reset is unnecessary and pr
 ROLLBACK_SHA="<40-character SHA printed during pre-check>"
 grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
 sudo systemctl stop brainbase-ssot.service
+PERSONAL_KG_RELEASE_RECEIPT="var/personal-knowledge-migration-release-receipt.json"
+if test -f "$PERSONAL_KG_RELEASE_RECEIPT" && PERSONAL_KG_RELEASE_RECEIPT="$PERSONAL_KG_RELEASE_RECEIPT" node -e '
+const fs = require("node:fs");
+const receipt = JSON.parse(fs.readFileSync(process.env.PERSONAL_KG_RELEASE_RECEIPT, "utf8"));
+process.exit(receipt.schema_version === "personal_knowledge_migration_release.v1" && receipt.status === "passed" ? 0 : 1);
+'; then
+  echo "Personal KG migration is forward-only; general service rollback is blocked. Keep the service stopped and forward-fix with an A0-compatible SHA." >&2
+  exit 1
+fi
 cd /home/ubuntu/brainbase
 test -z "$(git status --porcelain)"
 FAILED_SHA="$(git rev-parse HEAD)"

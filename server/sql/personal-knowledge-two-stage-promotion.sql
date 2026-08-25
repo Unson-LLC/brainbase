@@ -87,7 +87,12 @@ SET status = 'pending_owner_approval',
     owner_decided_by = NULL,
     owner_decided_at = NULL,
     owner_consent_receipt_id = NULL,
-    decided_at = NULL
+    decided_at = NULL,
+    normalization_contract_version = NULL,
+    normalized_payload = NULL,
+    normalized_payload_hash = NULL,
+    normalized_by_person_id = NULL,
+    normalized_at = NULL
 WHERE status = 'pending_org_review'
   AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL);
 
