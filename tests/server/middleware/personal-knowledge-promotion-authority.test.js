@@ -176,7 +176,8 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
                 graphRepository,
                 ingestInTransaction: vi.fn(async (event) => ({
                     event_id: event.event_id, candidate_id: 'candidate_runtime', semantic_state: 'active'
-                }))
+                })),
+                reconcileGraphProjection: vi.fn(async () => undefined)
             },
             now: () => NOW
         });

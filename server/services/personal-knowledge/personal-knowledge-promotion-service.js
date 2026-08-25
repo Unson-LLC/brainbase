@@ -504,6 +504,21 @@ export class PersonalKnowledgePromotionService {
             if (!graphResult?.id) {
                 throw promotionError('personal_knowledge_graph_readback_failed', 409);
             }
+            if (!eventResult?.candidate_id) {
+                throw promotionError('personal_knowledge_candidate_readback_failed', 409);
+            }
+            if (typeof this.knowledgeEventService?.reconcileGraphProjection !== 'function') {
+                throw promotionError('personal_knowledge_candidate_reconciliation_unavailable', 503);
+            }
+            await this.knowledgeEventService.reconcileGraphProjection(
+                eventResult.candidate_id,
+                graphResult.id,
+                {
+                    client,
+                    eventId: organizationEvent.event_id,
+                    actorPersonId: organizationEvent.decision_authority.decider_id
+                }
+            );
 
             const accepted = await reviewOrganizationPromotionRequest(this.repository, requestId, {
                 status: 'org_accepted',

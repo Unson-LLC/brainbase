@@ -8,7 +8,7 @@
 
 - 対象デプロイのAPIと、同じ環境のPostgreSQLへ接続できること。
 - owner用と、ownerとは別人のGM/CEO reviewer用のBearer JWT。両方とも対象projectへアクセスできること。
-- `TenantContextProducer` が発行した有効な署名済みcontextを3個（request / owner consent / organization review）。秘密鍵はfixtureに入れない。
+- Tenant Runtimeへ接続できるfixture発行専用service token。署名はTenant Runtime内の`TenantContextProducer`が行い、秘密鍵はfixture発行プロセスへ渡さない。
 - 本番データを検索・削除して再利用しない。synthetic IDが既に存在した場合、スクリプトは開始前に停止する。
 
 ## Fixture
@@ -41,6 +41,34 @@
 ```
 
 署名contextはAPIへ `Brainbase-Tenant-Context` として送られる。署名の有効期限、対象event/request、operation ID、idempotency key、normalized payload hashはサーバーが検証するため、手で書き換えない。ownerとorganizationのcontextは別の `operation_id` にする。
+
+## 署名済みFixtureの発行
+
+合成run IDごとに、次のコマンドでrequest / owner consent / organization reviewの3 contextを発行する。service tokenと署名鍵は標準出力やfixtureへ保存されない。出力先は新規ファイルに限定され、権限`0600`でreadbackされる。
+
+環境値は本番のProject Catalogとtenant connectionのreadback値を使う。revisionを推測しない。ownerとreviewerは別の認証主体にする。
+
+```bash
+export BRAINBASE_TENANT_RUNTIME_URL='http://127.0.0.1:<tenant-runtime-port>'
+export BRAINBASE_PERSONAL_KG_FIXTURE_SERVICE_TOKEN='(secret)'
+export BRAINBASE_PERSONAL_KG_FIXTURE_TENANT_ID='ten_...'
+export BRAINBASE_PERSONAL_KG_FIXTURE_TENANT_REVISION='<confirmed revision>'
+export BRAINBASE_PERSONAL_KG_FIXTURE_CONNECTION_ID='wsc_...'
+export BRAINBASE_PERSONAL_KG_FIXTURE_CONNECTION_REVISION='<confirmed revision>'
+export BRAINBASE_PERSONAL_KG_FIXTURE_WORKSPACE_ID='<workspace id>'
+export BRAINBASE_PERSONAL_KG_FIXTURE_APP_ID='<app id>'
+export BRAINBASE_PERSONAL_KG_FIXTURE_PROJECT_CODE='brainbase'
+export BRAINBASE_PERSONAL_KG_FIXTURE_CHANNEL_ID='<synthetic smoke channel id>'
+export BRAINBASE_PERSONAL_KG_FIXTURE_OWNER_SUBJECT_ID='<owner subject id>'
+export BRAINBASE_PERSONAL_KG_FIXTURE_REVIEWER_SUBJECT_ID='<reviewer subject id>'
+
+npm run personal-kg:issue-production-smoke-fixture -- \
+  --run-id p0_smoke_20260826_001 \
+  --output /secure/path/personal-knowledge-promotion-smoke.json \
+  > /secure/path/personal-knowledge-promotion-smoke.fixture-receipt.json
+```
+
+発行Receiptの`status=passed`、`readback.status=passed`、`readback.mode=0600`、`correlation.context_count=3`を確認する。失敗時は`failure.code`だけを記録し、同じ出力ファイルを上書きしない。
 
 ## 実行
 

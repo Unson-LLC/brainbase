@@ -80,10 +80,27 @@ function createEventRepository() {
 }
 
 function createCandidateRepository() {
+    const candidates = new Map();
     return {
-        create: vi.fn(async (input) => ({ id: 'candidate_graph_boundary_1', ...input })),
+        candidates,
+        create: vi.fn(async (input) => {
+            const candidate = {
+                id: 'candidate_graph_boundary_1',
+                ...input,
+                promoted_graph_entity_id: null
+            };
+            candidates.set(candidate.id, candidate);
+            return structuredClone(candidate);
+        }),
         transitionProcessingStage: vi.fn(async () => undefined),
-        transitionWithAudit: vi.fn(async () => undefined),
+        transitionWithAudit: vi.fn(async (id, nextStatus, _audit, options = {}) => {
+            const candidate = candidates.get(id);
+            if (!candidate) throw new Error(`candidate not found: ${id}`);
+            candidate.promotion_status = nextStatus;
+            candidate.requires_approval = options.requires_approval;
+            candidate.promoted_graph_entity_id = options.promoted_graph_entity_id || null;
+            return { candidate: structuredClone(candidate) };
+        }),
         updateSemanticState: vi.fn(async () => undefined)
     };
 }
@@ -188,6 +205,24 @@ describe('personal knowledge promotion Graph write boundary', () => {
         expect(autoProjection).not.toHaveBeenCalled();
         expect(infoSSOTService.commitOntologyGraph).toHaveBeenCalledOnce();
         expect(getGraphVersion()).toBe(1);
+        expect(candidateRepository.candidates.get('candidate_graph_boundary_1')).toMatchObject({
+            promotion_status: 'promoted_to_graph',
+            promoted_graph_entity_id: normalization.normalized.entity.id,
+            requires_approval: false
+        });
+        expect(candidateRepository.transitionWithAudit).toHaveBeenCalledOnce();
+        expect(candidateRepository.transitionWithAudit.mock.calls[0][3]).toEqual(expect.objectContaining({
+            client,
+            requires_approval: false,
+            promoted_graph_entity_id: normalization.normalized.entity.id
+        }));
+        const [organizationEventId] = eventRepository.events.keys();
+        expect(candidateRepository.transitionWithAudit.mock.calls[0][2]).toEqual(expect.objectContaining({
+            actor_person_id: request.owner_person_id,
+            evidence_ids: [organizationEventId]
+        }));
+        expect(candidateRepository.transitionWithAudit.mock.invocationCallOrder[0])
+            .toBeGreaterThan(infoSSOTService.commitOntologyGraph.mock.invocationCallOrder[0]);
         expect(eventRepository.create.mock.calls[0][1]).toEqual({ client });
         expect(repository.reviewOrganizationPromotionRequest.mock.calls[0][2]).toEqual(expect.objectContaining({
             client,

@@ -440,6 +440,49 @@ export class KnowledgeEventService {
         });
     }
 
+    /**
+     * Complete an event-only ingestion after a caller-owned Graph mutation.
+     * The candidate transition must use that same transaction client so an
+     * organization promotion cannot commit a Graph entity while leaving its
+     * Candidate in the pre-projection state.
+     */
+    async reconcileGraphProjection(candidateId, graphEntityId, {
+        client,
+        eventId,
+        actorPersonId
+    } = {}) {
+        if (!client) {
+            const error = new Error('knowledge_event_transaction_required');
+            error.code = 'knowledge_event_transaction_required';
+            throw error;
+        }
+        if (!candidateId || !graphEntityId || !actorPersonId) {
+            const error = new Error('knowledge_event_graph_projection_reconciliation_invalid');
+            error.code = 'knowledge_event_graph_projection_reconciliation_invalid';
+            throw error;
+        }
+        if (typeof this.candidateRepository?.transitionWithAudit !== 'function') {
+            const error = new Error('knowledge_event_candidate_repository_unavailable');
+            error.code = 'knowledge_event_candidate_repository_unavailable';
+            throw error;
+        }
+        return this.candidateRepository.transitionWithAudit(
+            candidateId,
+            'promoted_to_graph',
+            {
+                actor_person_id: actorPersonId,
+                decision_owner_person_id: actorPersonId,
+                decision_reason: 'knowledge_event_graph_promotion',
+                evidence_ids: eventId ? [eventId] : null
+            },
+            {
+                client,
+                requires_approval: false,
+                promoted_graph_entity_id: graphEntityId
+            }
+        );
+    }
+
     async _ingestWithContext(event, context = {}) {
         await this.eventRepository.ensureSchema?.();
         if (context.transaction) {

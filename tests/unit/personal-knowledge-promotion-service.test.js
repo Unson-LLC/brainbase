@@ -161,7 +161,8 @@ function promotionHarness({ request, eventResult = null, graphEdgeCount = 0 } = 
             event_id: event.event_id,
             candidate_id: 'candidate_1',
             semantic_state: 'active'
-        }))
+        })),
+        reconcileGraphProjection: vi.fn(async () => undefined)
     };
     const service = new PersonalKnowledgePromotionService({
         repository,

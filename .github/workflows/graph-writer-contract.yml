@@ -53,6 +53,7 @@ jobs:
           tests/unit/personal-knowledge-promotion-service.test.js
           tests/server/middleware/personal-knowledge-promotion-authority.test.js
           tests/server/services/personal-knowledge-promotion-migration.integration.test.js
+          tests/server/services/personal-knowledge-promotion-graph-boundary.integration.test.js
           tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js
           tests/server/routes/personal-knowledge-routes.test.js
           tests/server/services/personal-knowledge-schema.test.js
