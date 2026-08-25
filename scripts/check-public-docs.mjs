@@ -85,14 +85,19 @@ const promotionWorkflow = await read('.github/workflows/public-message-promotion
 
 for (const [path, text] of [
   ['README.md', readme],
-  ['docs/manual/index.md', home],
-  ['docs/manual/guide/grand-design.md', grandDesign],
-  ['docs/manual/guide/judgment-system.md', judgmentSystem]
+  ['docs/manual/index.md', home]
 ]) {
   requireText(text, publicMessage.copy.headline, path);
   requireText(text, publicMessage.copy.human_role, path);
   requireText(text, publicMessage.copy.ai_role, path);
 }
+
+requireText(grandDesign, publicMessage.copy.definition, 'docs/manual/guide/grand-design.md');
+requireText(grandDesign, publicMessage.copy.human_role, 'docs/manual/guide/grand-design.md');
+requireText(grandDesign, publicMessage.copy.ai_role, 'docs/manual/guide/grand-design.md');
+requireText(judgmentSystem, publicMessage.copy.short_definition, 'docs/manual/guide/judgment-system.md');
+requireText(judgmentSystem, publicMessage.copy.human_role, 'docs/manual/guide/judgment-system.md');
+requireText(judgmentSystem, publicMessage.copy.ai_role, 'docs/manual/guide/judgment-system.md');
 
 for (const [path, text] of [['AGENTS.md', agents], ['CLAUDE.md', claude]]) {
   requireText(text, 'This repository contains the OSS Brainbase judgment substrate', path);
