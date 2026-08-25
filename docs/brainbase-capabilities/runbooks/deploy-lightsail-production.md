@@ -162,7 +162,7 @@ Expected:
 
 Use only the SHA recorded in the pre-check. A branch reset is unnecessary and prohibited. Preserve server logs and `~/.codex/var/judgment-resolver` journals. The database is forward-only: reapply and verify the current safe RLS bundle before switching only the service code to the recorded SHA.
 
-**Personal KG migrationを適用したreleaseでは、以下の一般rollbackをそのまま実行しない。** `var/personal-knowledge-migration-release-receipt.json`が`status=passed`なら、`ROLLBACK_SHA`がA0署名昇格対応済みであることを別のexact-HEAD Gate Receiptで証明できる場合だけservice rollbackを許可する。証明できない場合はserviceを停止したまま、A0対応SHAへforward fixする。
+**Personal KG migration Receiptが存在するreleaseでは、以下の一般rollbackを実行しない。** Receiptの状態にかかわらずserviceを停止したまま、A0対応SHAへforward fixする。この一般手順にはservice rollbackの例外経路を設けない。
 
 ```bash
 ROLLBACK_SHA="<40-character SHA printed during pre-check>"
