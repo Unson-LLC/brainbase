@@ -327,14 +327,21 @@ BEGIN
   END IF;
 END $$;
 
-CREATE OR REPLACE FUNCTION prevent_events_mutation()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
+DO $$
 BEGIN
-  RAISE EXCEPTION 'events is append-only';
-END;
-$$;
+  IF to_regprocedure('prevent_events_mutation()') IS NULL THEN
+    EXECUTE $function$
+      CREATE FUNCTION prevent_events_mutation()
+      RETURNS trigger
+      LANGUAGE plpgsql
+      AS $body$
+      BEGIN
+        RAISE EXCEPTION 'events is append-only';
+      END;
+      $body$
+    $function$;
+  END IF;
+END $$;
 
 DO $$
 BEGIN
