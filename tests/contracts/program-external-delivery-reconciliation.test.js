@@ -35,6 +35,102 @@ const expectedStatuses = [
   'production_proven',
   'done',
 ];
+const expectedExternalDeliveries = [
+  {
+    program_id: 'A0',
+    repository: 'Unson-LLC/brainbase-unson',
+    pull_request: 1302,
+    role: 'producer_contract_delivery',
+    state: 'MERGED_EXTERNALLY',
+    title: 'Canonical Company Authority Producer Contract v1 (completed)',
+    base: { branch: 'develop', sha: '0ed0cc9828018a893bb4bbc426b5d0639f68e732' },
+    head: {
+      branch: 'codex/a0/company-authority-producer-contract-v1-r2',
+      sha: '7bc849da01dedabfced2eeca8943534cf3dee78e',
+    },
+    merge: {
+      sha: 'ad908bce7b90678f9ed7f1c570f808bdf1a500ad',
+      merged_at: '2026-08-21T19:09:27Z',
+    },
+    source_url: 'https://github.com/Unson-LLC/brainbase-unson/pull/1302',
+  },
+  {
+    program_id: 'P0',
+    repository: 'Unson-LLC/brainbase-unson',
+    pull_request: 1304,
+    role: 'negative_boundary_contract_delivery',
+    state: 'MERGED_EXTERNALLY',
+    title: 'story-p0-negative-boundary-contract-v1',
+    base: { branch: 'develop', sha: '3ff5b0766d3414051b4fd15da7617896ea534eed' },
+    head: {
+      branch: 'codex/p0-negative-boundary-contract-v1',
+      sha: '3f9e06373831485fa48175487515fd746c69a590',
+    },
+    merge: {
+      sha: '27b37cdaac50967edff095b696c540322feb75c2',
+      merged_at: '2026-08-25T12:29:25Z',
+    },
+    source_url: 'https://github.com/Unson-LLC/brainbase-unson/pull/1304',
+  },
+  {
+    program_id: 'J0',
+    repository: 'Unson-LLC/brainbase',
+    pull_request: 479,
+    role: 'judgment_contract_delivery',
+    state: 'MERGED_EXTERNALLY',
+    title: 'J0 typed DAG contract and preflight validation',
+    base: { branch: 'develop', sha: '7e5d5693f988f4ba84072c5910ef32f0e70871e1' },
+    head: {
+      branch: 'codex/j0/judgment-dag-core-contract',
+      sha: '44a0e53f0b664c1a647fac1fd7eaeea700315ca4',
+    },
+    merge: {
+      sha: '0ee5db39ac8f91a484628cc07a2df21cdfb149b7',
+      merged_at: '2026-08-20T22:44:52Z',
+    },
+    source_url: 'https://github.com/Unson-LLC/brainbase/pull/479',
+  },
+  {
+    program_id: 'J0',
+    repository: 'Unson-LLC/brainbase',
+    pull_request: 481,
+    role: 'judgment_runner_delivery',
+    state: 'MERGED_EXTERNALLY',
+    title: 'J0 ローカル決定論的ランナーと不変run記録',
+    base: { branch: 'develop', sha: '3db3218107845cac051d7a433ad5e0c8a398ea16' },
+    head: {
+      branch: 'codex/j0/local-deterministic-runner',
+      sha: '3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde',
+    },
+    merge: {
+      sha: 'f8e7ac61349b326863feae5d7d3d8ae68e2b9d10',
+      merged_at: '2026-08-21T19:08:44Z',
+    },
+    source_url: 'https://github.com/Unson-LLC/brainbase/pull/481',
+  },
+  {
+    program_area: 'VibePro external gate dependency',
+    repository: 'Unson-LLC/vibepro',
+    pull_request: 493,
+    role: 'release_dependency_delivery',
+    state: 'MERGED_EXTERNALLY',
+    title: 'chore: prepare 0.2.0-beta.16 release',
+    base: { branch: 'main', sha: '3db04f430fe017aef42a456ef6c18434ad8b4407' },
+    head: {
+      branch: 'codex/vibepro-beta16-release',
+      sha: '5dc2c8e0964167a79fe08fac97d6c8c800580d4e',
+    },
+    merge: {
+      sha: '8b9fd24b6614f8d55b4e6c42d1179a68e6f92f85',
+      merged_at: '2026-08-25T12:43:06Z',
+    },
+    source_url: 'https://github.com/Unson-LLC/vibepro/pull/493',
+  },
+];
+const expectedFreshness = {
+  scope: 'A0 producer #1302 -> P0 #1304 source-lock lineage and external delivery identity',
+  revalidated_at: '2026-08-25T14:36:32Z',
+};
 
 async function roadmap() {
   return readJson(roadmapPath);
@@ -135,6 +231,98 @@ describe('Program external delivery reconciliation contract', () => {
     assert.equal(p0.dependency_debt.includes(
       'A0 contract delivery #1302 does not satisfy A0 work-package, consumer, independent review, Gate or production completion',
     ), true);
+  });
+
+  it('binds repo-qualified PR provenance, source-lock lineage and freshness across JSON and Markdown', async () => {
+    const [value, markdown, sourceLock, companion] = await Promise.all([
+      roadmap(),
+      readFile(roadmapMarkdownPath, 'utf8'),
+      readJson(sourceLockPath),
+      readJson(companionLockPath),
+    ]);
+    const live = value.live_reconciliation;
+    assert.equal(live.scope, 'external_delivery_provenance_and_source_lock_lineage_only');
+    assert.deepEqual(live.freshness, {
+      ...expectedFreshness,
+      evidence_sources: [
+        'gh pr view Unson-LLC/brainbase-unson#1302',
+        'gh pr view Unson-LLC/brainbase-unson#1304',
+        'git merge-base --is-ancestor ad908bce7b90678f9ed7f1c570f808bdf1a500ad 27b37cdaac50967edff095b696c540322feb75c2',
+      ],
+    });
+    assert.equal(live.revalidated_at, expectedFreshness.revalidated_at);
+    assert.match(markdown, new RegExp(escapeRegExp(`freshness scopeは\`${expectedFreshness.scope}\``)));
+    assert.match(markdown, new RegExp(escapeRegExp(`再照合時刻は\`${expectedFreshness.revalidated_at}\``)));
+
+    for (const expected of expectedExternalDeliveries) {
+      const artifact = live.artifacts.find((candidate) => (
+        candidate.repository === expected.repository
+        && candidate.pull_request === expected.pull_request
+      ));
+      assert.ok(artifact, `${expected.repository}#${expected.pull_request} missing from JSON`);
+      const { program_id: _programId, program_area: _programArea, ...provenance } = expected;
+      assertPartial(artifact, provenance);
+      assert.equal(artifact[_programId === undefined ? 'program_area' : 'program_id'], _programId ?? _programArea);
+
+      const row = markdown.split('\n').find((line) => line.includes(
+        `\`${expected.repository}#${expected.pull_request}\``,
+      ));
+      assert.ok(row, `${expected.repository}#${expected.pull_request} missing from Markdown`);
+      for (const token of [
+        `role=${expected.role}`,
+        `state=${expected.state}`,
+        `title=${expected.title}`,
+        `base ${expected.base.branch}@${expected.base.sha}`,
+        `head ${expected.head.branch}@${expected.head.sha}`,
+        `merge \`${expected.merge.sha}\``,
+        `mergedAt ${expected.merge.merged_at}`,
+        expected.source_url,
+      ]) {
+        assert.match(row, new RegExp(escapeRegExp(token)), `${expected.repository}#${expected.pull_request} missing ${token}`);
+      }
+    }
+
+    assertPartial(sourceLock, {
+      upstream: {
+        repository: expectedExternalDeliveries[0].repository,
+        merged_sha: expectedExternalDeliveries[0].merge.sha,
+      },
+    });
+    assertPartial(companion, {
+      external_delivery: {
+        repository: expectedExternalDeliveries[0].repository,
+        pull_request: expectedExternalDeliveries[0].pull_request,
+        role: expectedExternalDeliveries[0].role,
+        merged_sha: expectedExternalDeliveries[0].merge.sha,
+      },
+    });
+    const p0 = live.artifacts.find((artifact) => artifact.pull_request === 1304);
+    assertPartial(p0.source_lock_lineage, {
+      upstream_pull_request: expectedExternalDeliveries[0].pull_request,
+      upstream_role: expectedExternalDeliveries[0].role,
+      upstream_merged_sha: expectedExternalDeliveries[0].merge.sha,
+      downstream_pull_request: expectedExternalDeliveries[1].pull_request,
+      downstream_merge_sha: expectedExternalDeliveries[1].merge.sha,
+      ancestor_verified: true,
+    });
+
+    const producer = live.artifacts.find((artifact) => artifact.pull_request === 1302);
+    const expectedIdentity = deliveryIdentity(companion.external_delivery);
+    for (const [key, invalidValue] of [
+      ['repository', 'Unson-LLC/brainbase'],
+      ['pull_request', 1283],
+      ['role', 'consumer_delivery'],
+      ['state', 'OPEN'],
+      ['merge', { ...producer.merge, sha: '0000000000000000000000000000000000000000' }],
+    ]) {
+      const candidate = structuredClone(producer);
+      candidate[key] = invalidValue;
+      assert.throws(
+        () => selectCanonicalDelivery([candidate], expectedIdentity),
+        /canonical external delivery match count|canonical external delivery candidate|does not match expected identity|not verified merged delivery/,
+        `mutation of ${key} must fail closed`,
+      );
+    }
   });
 
   it('rejects the same PR number and role from a different repository', async () => {
@@ -567,6 +755,10 @@ function assertExactRoleSet(roles, expected, message, failures) {
     || actual.some((role, index) => role !== [...expected].sort()[index])) {
     failures.push(message);
   }
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 async function readJson(path) {
