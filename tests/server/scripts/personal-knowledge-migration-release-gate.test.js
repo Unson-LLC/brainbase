@@ -49,6 +49,35 @@ describe('personal knowledge migration release gate', () => {
 
   it('accepts the exact fail-closed transition', () => expect(() => assertPostflight(before, after, rows, rls)).not.toThrow());
 
+  it('accepts deterministic legacy terminal status normalization', () => {
+    const legacyBefore = {
+      ...before,
+      status_counts: { pending_owner_approval: 1, approved: 2, rejected: 1 },
+      target_request_ids: [],
+      total: 4
+    };
+    const normalizedAfter = {
+      ...after,
+      status_counts: { pending_owner_approval: 1, org_accepted: 2, owner_rejected: 1 },
+      total: 4
+    };
+    expect(() => assertPostflight(legacyBefore, normalizedAfter, [], rls)).not.toThrow();
+  });
+
+  it.each([
+    ['approved mapped to owner_rejected', { pending_owner_approval: 1, owner_rejected: 2, rejected: 1 }],
+    ['rejected mapped to org_accepted', { pending_owner_approval: 1, approved: 2, org_accepted: 1 }],
+    ['legacy terminal mappings mixed', { pending_owner_approval: 1, org_accepted: 1, owner_rejected: 2 }]
+  ])('rejects %s', (_label, status_counts) => {
+    const legacyBefore = {
+      ...before,
+      status_counts: { pending_owner_approval: 1, approved: 2, rejected: 1 },
+      target_request_ids: [],
+      total: 4
+    };
+    expect(() => assertPostflight(legacyBefore, { ...after, status_counts, total: 4 }, [], rls)).toThrow('status');
+  });
+
   it.each([
     ['database identity mismatch', { ...after, database: { ...identity, database: 'other' } }, rows, rls, 'database identity database changed'],
     ['database role mismatch', { ...after, database: { ...identity, role: 'other' } }, rows, rls, 'database identity role changed'],
