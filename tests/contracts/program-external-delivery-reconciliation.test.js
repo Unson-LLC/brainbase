@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { describe, it } from 'node:test';
+import { promisify } from 'node:util';
 import { deliveryIdentity, selectCanonicalDelivery } from '../../scripts/program/reconcile-external-delivery.mjs';
 
 const roadmapPath = 'docs/management/milestones/brainbase-program-master-roadmap.json';
@@ -16,6 +18,9 @@ const sourceLockPath = 'contracts/p0-negative-boundary-contract-v1/source-lock.j
 const companionLockPath = 'docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json';
 const crossRepoFixturePath = 'tests/fixtures/program-external-delivery-reconciliation/same-pr-number-different-repo.json';
 const generatedFixtureRoot = 'tests/fixtures/program-external-delivery-reconciliation/generated-surfaces';
+const preFixGeneratorBindingPath = `${generatedFixtureRoot}/pre-fix-generator-binding.json`;
+const canonicalBaseRef = 'origin/develop';
+const execFileAsync = promisify(execFile);
 const canonicalRole = 'producer_contract_delivery';
 const expectedStatuses = [
   'planned',
@@ -159,6 +164,36 @@ describe('Program external delivery reconciliation contract', () => {
         new RegExp(`identity requires nonempty .*invalid: ${key}`),
       );
     }
+    for (const pullRequest of [0, -1, 1.5, Number.NaN, '1302', {}, null]) {
+      assert.throws(
+        () => selectCanonicalDelivery(
+          value.live_reconciliation.artifacts,
+          { ...expectedIdentity, pull_request: pullRequest },
+        ),
+        /invalid: pull_request/,
+      );
+    }
+    for (const [key, valueToReject] of [
+      ['repository', 1302], ['repository', {}], ['role', 1], ['merged_sha', []],
+    ]) {
+      assert.throws(
+        () => selectCanonicalDelivery(
+          value.live_reconciliation.artifacts,
+          { ...expectedIdentity, [key]: valueToReject },
+        ),
+        new RegExp(`invalid: ${key}`),
+      );
+    }
+    for (const malformed of [null, [], 'candidate']) {
+      assert.throws(
+        () => selectCanonicalDelivery([malformed], expectedIdentity),
+        /canonical external delivery candidate\[0\] must be an object/,
+      );
+    }
+    assert.throws(
+      () => selectCanonicalDelivery([{ ...expectedIdentity, pull_request: 0 }], expectedIdentity),
+      /candidate\[0\] has invalid identity fields: pull_request/,
+    );
   });
 
   it('keeps Markdown, orchestrator, Story, Architecture, Spec and Task aligned', async () => {
@@ -253,18 +288,34 @@ describe('Program external delivery reconciliation contract', () => {
     );
   });
 
-  it('binds live VibePro generator artifacts to the tracked canonical projection', {
-    skip: process.env.VIBEPRO_LIVE_SURFACE_ROOT ? false : 'set VIBEPRO_LIVE_SURFACE_ROOT after vibepro pr prepare',
-  }, async () => {
+  it('records the pre-fix stale-base generator failure against the prior HEAD', async () => {
+    const proof = await readJson(preFixGeneratorBindingPath);
+    assert.deepEqual(proof, {
+      prior_head_sha: '825563fccaa113798274c092da6e90d1a9b59b5c',
+      stale_base_ref: 'develop',
+      canonical_base_ref: canonicalBaseRef,
+      generated_changed_files: 427,
+      canonical_changed_files: 25,
+      unrelated_changed_files: 402,
+      prior_standard_regression: 'skipped_without_VIBEPRO_LIVE_SURFACE_ROOT',
+    });
+  });
+
+  it('executes and binds live VibePro generator artifacts to the canonical remote projection', async () => {
+    await execFileAsync('vibepro', [
+      'pr', 'prepare', '.', '--story-id', 'story-program-external-delivery-reconciliation-v1',
+      '--base', canonicalBaseRef, '--head', 'HEAD', '--json',
+    ], { env: childProcessEnv(), maxBuffer: 16 * 1024 * 1024 });
     const [acceptedSpec, acceptedTasks, lifecycle, live] = await Promise.all([
       readJson(acceptedSpecInputPath),
       readJson(acceptedTaskInputPath),
       readJson(taskPath),
-      readLiveGeneratedSurfaces(process.env.VIBEPRO_LIVE_SURFACE_ROOT),
+      readLiveGeneratedSurfaces('.'),
     ]);
     assert.doesNotThrow(
       () => assertGeneratedAuthoritySurfaces(live, { acceptedSpec, acceptedTasks, lifecycle }),
     );
+    await assertCanonicalGitProjection(live.preparation);
   });
 });
 
@@ -338,6 +389,8 @@ function assertGeneratedAuthoritySurfaces({
     'planning review roles differ',
     failures,
   );
+  assertReviewSynthesis(preparation, planningReview, failures);
+  assertReviewSynthesis(preparation, gateReview, failures);
   assertExactRoleSet(
     gateReview.roles,
     ['gate_evidence', 'pr_split_scope', 'release_risk'],
@@ -353,6 +406,59 @@ function assertGeneratedAuthoritySurfaces({
     failures.push('PR body promotes lifecycle');
   }
   assert.deepEqual(failures, []);
+}
+
+function assertReviewSynthesis(preparation, summary, failures) {
+  if (!preparation.git) return;
+  const expectedHead = preparation.git?.head_sha;
+  if (!expectedHead || summary.current_git_context?.head_sha !== expectedHead) {
+    failures.push(`${summary.stage} review summary is not bound to current HEAD`);
+  }
+  const preparedStage = preparation.review?.stages?.find((stage) => stage.stage === summary.stage);
+  if (!preparedStage || preparedStage.status !== summary.status) {
+    failures.push(`${summary.stage} review status differs from PR prepare`);
+    return;
+  }
+  const detailsByRole = new Map((preparedStage.role_details ?? []).map((role) => [role.role, role]));
+  for (const role of summary.roles ?? []) {
+    const expectedEffective = role.stale ? 'stale' : role.status;
+    if (role.effective_status !== expectedEffective) {
+      failures.push(`${summary.stage}/${role.role} effective status is inconsistent`);
+    }
+    if ((role.content_binding?.missing_files ?? []).length > 0 && !role.stale) {
+      failures.push(`${summary.stage}/${role.role} missing content is not stale`);
+    }
+    const preparedRole = detailsByRole.get(role.role);
+    if (!preparedRole
+      || preparedRole.effective_status !== role.effective_status
+      || (preparedRole.binding_status ?? null) !== (role.binding_status ?? null)) {
+      failures.push(`${summary.stage}/${role.role} differs from PR prepare`);
+    }
+  }
+  const requiresReview = (summary.roles ?? []).some(
+    (role) => role.effective_status !== 'pass',
+  );
+  if (summary.status !== (requiresReview ? 'needs_review' : 'pass')) {
+    failures.push(`${summary.stage} review aggregate status is inconsistent`);
+  }
+}
+
+function childProcessEnv() {
+  const { NODE_TEST_CONTEXT: _nodeTestContext, ...env } = process.env;
+  return env;
+}
+
+async function assertCanonicalGitProjection(preparation) {
+  assert.equal(preparation.git?.base_ref, canonicalBaseRef);
+  assert.equal(preparation.git?.head_ref, 'HEAD');
+  const { stdout } = await execFileAsync(
+    'git', ['diff', '--name-status', `${canonicalBaseRef}...HEAD`],
+  );
+  const expected = stdout.trim().split('\n').filter(Boolean).map((line) => {
+    const [status, ...pathParts] = line.split('\t');
+    return { status, path: pathParts.at(-1) };
+  });
+  assert.deepEqual(preparation.git.changed_files, expected);
 }
 
 async function readGeneratedSurfaces(name) {
