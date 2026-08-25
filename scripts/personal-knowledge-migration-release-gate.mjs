@@ -5,17 +5,6 @@ import process from 'node:process';
 import pg from 'pg';
 
 const { Pool } = pg;
-const mode = process.argv[2];
-const receiptPath = path.resolve(process.argv[3] || 'var/personal-knowledge-migration-release-receipt.json');
-const targetSha = process.env.TARGET_SHA || '';
-const databaseUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || process.env.DATABASE_URL;
-
-if (!['preflight', 'postflight'].includes(mode)) throw new Error('usage: personal-knowledge-migration-release-gate.mjs preflight|postflight [receipt-path]');
-if (!/^[0-9a-f]{40}$/.test(targetSha)) throw new Error('TARGET_SHA must be a 40-character Git SHA');
-if (!databaseUrl) throw new Error('INFO_SSOT_DATABASE_URL, INFO_SSOT_DB_URL, or DATABASE_URL is required');
-
-const pool = new Pool({ connectionString: databaseUrl });
-
 async function snapshot(client) {
   const identity = await client.query("SELECT current_database() AS database, current_user AS role, inet_server_addr()::text AS host, inet_server_port() AS port");
   const counts = await client.query("SELECT status, count(*)::int AS count FROM knowledge_promotion_requests GROUP BY status ORDER BY status");
@@ -35,13 +24,16 @@ async function snapshot(client) {
   };
 }
 
-function assertPostflight(before, after, targetRows, rls) {
+export function assertPostflight(before, after, targetRows, rls) {
   const targetCount = before.target_request_ids.length;
   const expected = { ...before.status_counts };
   expected.pending_org_review = (expected.pending_org_review || 0) - targetCount;
   expected.pending_owner_approval = (expected.pending_owner_approval || 0) + targetCount;
   const keys = new Set([...Object.keys(expected), ...Object.keys(after.status_counts)]);
   const errors = [];
+  for (const key of ['database', 'role', 'host', 'port']) {
+    if (after.database?.[key] !== before.database?.[key]) errors.push(`database identity ${key} changed`);
+  }
   if (after.total !== before.total) errors.push(`total changed: ${before.total} -> ${after.total}`);
   for (const key of keys) {
     if ((after.status_counts[key] || 0) !== (expected[key] || 0)) {
@@ -58,8 +50,23 @@ function assertPostflight(before, after, targetRows, rls) {
   if (errors.length) throw new Error(errors.join('; '));
 }
 
-const client = await pool.connect();
-try {
+export function assertReceiptBinding(receipt, targetSha) {
+  if (receipt.schema_version !== 'personal_knowledge_migration_release.v1' || receipt.target_sha !== targetSha || !receipt.before) {
+    throw new Error('preflight Receipt does not match TARGET_SHA');
+  }
+}
+
+async function main() {
+  const mode = process.argv[2];
+  const receiptPath = path.resolve(process.argv[3] || 'var/personal-knowledge-migration-release-receipt.json');
+  const targetSha = process.env.TARGET_SHA || '';
+  const databaseUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || process.env.DATABASE_URL;
+  if (!['preflight', 'postflight'].includes(mode)) throw new Error('usage: personal-knowledge-migration-release-gate.mjs preflight|postflight [receipt-path]');
+  if (!/^[0-9a-f]{40}$/.test(targetSha)) throw new Error('TARGET_SHA must be a 40-character Git SHA');
+  if (!databaseUrl) throw new Error('INFO_SSOT_DATABASE_URL, INFO_SSOT_DB_URL, or DATABASE_URL is required');
+  const pool = new Pool({ connectionString: databaseUrl });
+  const client = await pool.connect();
+  try {
   if (mode === 'preflight') {
     const before = await snapshot(client);
     const receipt = { schema_version: 'personal_knowledge_migration_release.v1', status: 'preflight_recorded', target_sha: targetSha, recorded_at: new Date().toISOString(), before };
@@ -68,7 +75,7 @@ try {
     console.log(JSON.stringify({ status: receipt.status, target_sha: targetSha, target_count: before.target_request_ids.length, total: before.total, receipt_path: receiptPath }));
   } else {
     const receipt = JSON.parse(await fs.readFile(receiptPath, 'utf8'));
-    if (receipt.schema_version !== 'personal_knowledge_migration_release.v1' || receipt.target_sha !== targetSha || !receipt.before) throw new Error('preflight Receipt does not match TARGET_SHA');
+    assertReceiptBinding(receipt, targetSha);
     const after = await snapshot(client);
     const ids = receipt.before.target_request_ids;
     const targetRows = ids.length === 0 ? [] : (await client.query(`
@@ -81,7 +88,15 @@ try {
     await fs.writeFile(receiptPath, `${JSON.stringify(completed, null, 2)}\n`, { mode: 0o600 });
     console.log(JSON.stringify({ status: completed.status, target_sha: targetSha, target_count: ids.length, total: after.total, receipt_path: receiptPath }));
   }
-} finally {
-  client.release();
-  await pool.end();
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
 }
