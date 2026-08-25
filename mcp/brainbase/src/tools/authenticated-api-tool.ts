@@ -9,7 +9,7 @@ export type ToolResult = {
   status: 'ok' | 'error' | 'unavailable';
   scope: { project_codes: string[] };
   data?: unknown;
-  error?: { code: string; message: string; http_status?: number };
+  error?: { code: string; message: string; http_status?: number; details?: unknown };
 };
 
 export type AuthenticatedProjectContext = {
@@ -23,11 +23,17 @@ export function toolError(
   message: string,
   scope: string[],
   httpStatus?: number,
+  details?: unknown,
 ): ToolResult {
   return {
     status,
     scope: { project_codes: scope },
-    error: { code, message, ...(httpStatus ? { http_status: httpStatus } : {}) },
+    error: {
+      code,
+      message,
+      ...(httpStatus ? { http_status: httpStatus } : {}),
+      ...(details !== undefined ? { details } : {}),
+    },
   };
 }
 function decodeProjectCodes(token: string): string[] {

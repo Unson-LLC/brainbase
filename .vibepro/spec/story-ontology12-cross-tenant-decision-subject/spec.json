@@ -1,0 +1,309 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ontology12-cross-tenant-decision-subject",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "accepted"
+  },
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "authenticated access context",
+        "projects.organization_id"
+      ],
+      "resolution_point": "GraphMaintenanceService.planMutations",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "MCP plan input",
+        "Graph maintenance service",
+        "Graph edge read path"
+      ],
+      "verified_surfaces": [
+        "MCP plan input",
+        "Graph maintenance service",
+        "Graph edge read path"
+      ]
+    },
+    "resources": [
+      {
+        "name": "cross-tenant decision subject edge",
+        "sharing": "tenant_partitioned",
+        "partition_key": "organization_id",
+        "tenant_key": "organization_id",
+        "trust_zone": "Brainbase PostgreSQL RLS transaction",
+        "residue_policy": "rollback removes only the created source-owned edge",
+        "data_owner": "source project Graph edge",
+        "credential_scope": "source and target project codes"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "source and target project codes plus CEO role",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "source project Graph edge"
+      ],
+      "residency": "Brainbase PostgreSQL Graph SSOT",
+      "migration": "source-owned governs Edgeだけを追加しendpoint Entityは移動・複製しない",
+      "rollback": "Apply Receiptに紐づく作成Edgeだけを削除しendpoint versionを再確認する"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "source_only_access",
+      "target_only_access",
+      "member_role",
+      "missing_human_gate",
+      "stale_endpoint_version"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "projects.organization_id",
+        "graph_entities.project_id"
+      ],
+      "boundary_edges": [
+        "decision governs product"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+    "evidence": {
+      "propagation_surfaces": ["MCP plan input", "Graph maintenance service", "Graph edge read path"],
+      "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate", "source_only_access", "target_only_access", "member_role", "missing_human_gate", "stale_endpoint_version"],
+      "graph": {
+        "tenant_key": "organization_id",
+        "sharing_modes": ["tenant_partitioned"],
+        "deployment_modes": ["managed_shared"],
+        "tenant_entities": [
+          {
+            "tenant_scope": "organization and explicit project codes",
+            "tenant_key_source": "projects.organization_id or one active Person member_of organization",
+            "trust_zone": "Brainbase PostgreSQL RLS transaction",
+            "data_owner": "Brainbase Graph SSOT"
+          }
+        ],
+        "boundary_edges": [
+          {
+            "tenant_scope": "source and target organization plus explicit project codes",
+            "tenant_key_source": "resolved endpoint organization_id",
+            "sharing_mode": "tenant_partitioned",
+            "credential_scope": "CEO and both project codes for cross-tenant governs",
+            "connection_mode": "pooled RLS transaction",
+            "deployment_mode": "managed_shared"
+          }
+        ]
+      },
+      "spec": {
+        "tenant_key": "organization_id",
+        "sharing_modes": ["tenant_partitioned"],
+        "deployment_modes": ["managed_shared"]
+      },
+      "implementation": {
+        "tenant_key": "organization_id",
+        "sharing_modes": ["tenant_partitioned"],
+        "deployment_modes": ["managed_shared"]
+      },
+      "scanner_results": {
+        "tenant_boundary": "pass",
+        "tenant_key_propagation": "pass",
+        "cross_tenant_authorization": "pass",
+        "state_partitioning": "pass",
+        "sandbox_isolation": "pass",
+        "connection_routing": "pass",
+        "secret_scope": "pass",
+        "canonical_data_owner": "pass",
+        "deployment_topology": "pass",
+        "cross_tenant_negative_evidence": "pass"
+      }
+    }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "belongs_to_projectはアクセス・実行scope、governsはDecisionの業務対象を表す。",
+      "rationale": "tenant scopeと業務上の対象を混同しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-001"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "config/ontology/releases/1.1.0.json",
+            "anchor": "governs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+        "case": "AC-003 INV-001 source-owned governs edge only"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-22T00:50:45.568Z",
+      "last_revised_at": "2026-08-22T01:39:56.208Z"
+    },
+    {
+      "id": "SEC-001",
+      "type": "contract",
+      "statement": "cross-tenant governs作成と参照はCEO、両project scopeを必須にし、作成時のHuman Gateはoperation・対象ID・target project・双方のexpected versionへ束縛する。",
+      "rationale": "暗黙のtenant間データ共有を防ぐ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-002"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "link_decision_subject"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "cross-tenant subjectはCEOと双方project scopeを要求しtarget最小行だけを読む"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-22T00:50:45.568Z",
+      "last_revised_at": "2026-08-22T01:39:56.208Z"
+    },
+    {
+      "id": "SEC-002",
+      "type": "contract",
+      "statement": "cross-tenant Edgeはcallerがsource/target双方へアクセスできる場合だけread pathに返す。",
+      "rationale": "Edgeの存在とtarget IDもtenant情報として保護する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/info-ssot-service.js",
+            "anchor": "fetchGraphEdges"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/info-ssot-service.test.js",
+            "case": "cross-tenant edge readは両endpointのproject accessをSQLで要求する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-22T00:50:45.568Z",
+      "last_revised_at": "2026-08-22T01:39:56.208Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "Decision/Productは移動・複製せず、source-owned governs Edge 1件だけを変更する。",
+      "rationale": "canonical ownershipとrollback境界を維持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "link_decision_subject"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "AC-003 INV-001 source-owned governs edge only"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "AC-003 INV-001 source-owned governs edge only"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-22T00:50:45.568Z",
+      "last_revised_at": "2026-08-22T01:39:56.208Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Plan/Apply/Rollbackはexternal endpointを含むhash、冪等性、lock下のversion確認、完全readbackを維持する。Decisionを含むApplyは、人間Bearer principalがdry-run後に発行したplan ID・before/after hash・operations・差分fingerprint束縛Receiptを必須とする。",
+      "rationale": "計画後のtarget変更や別tenantのEdge上書きをfail closedにする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-005"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "loadExternalEntitiesFromImage"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+        "case": "AC-005 INV-002 external endpoint version drift changes composite snapshot hash"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "AC-005 INV-002 external endpoint version drift changes composite snapshot hash"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-22T01:20:00.000Z",
+      "last_revised_at": "2026-08-22T01:39:56.208Z"
+    }
+  ],
+  "generated_at": "2026-08-22T00:50:45.567Z",
+  "previous_spec_id": "2026-08-22T00:50:45.567Z"
+}

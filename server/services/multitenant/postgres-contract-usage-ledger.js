@@ -15,17 +15,7 @@ export class PostgresContractUsageLedger {
     }
 
     async decideQuota(input) {
-        const contract = await this.repository.loadContractRevision({
-            tenant_id: input.tenant_id,
-            contract_revision: input.contract_revision
-        });
-        this.ledger.registerContract(contract);
-        const decision = this.ledger.decideQuota(input);
-        await this.repository.recordQuotaDecision(decision, {
-            idempotency_key: input.idempotency_key,
-            metric: input.metric
-        });
-        return decision;
+        return this.repository.decideQuota(input);
     }
 
     async recordUsage(input) {

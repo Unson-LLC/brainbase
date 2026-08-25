@@ -45,14 +45,22 @@ describe('ContractUsageLedger', () => {
             hard_stop_basis_points: 10000, rate_card_revision: 8, fx_table_revision: 5,
             window_started_at: '2026-08-01T00:00:00Z', window_ends_at: '2026-09-01T00:00:00Z'
         });
-        expect(ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', observed_quantity: 79, requested_quantity: 1 }).decision).toBe('warning');
-        expect(ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', observed_quantity: 99, requested_quantity: 1 }).decision).toBe('hard_stopped');
+        expect(ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', used_quantity: 79, requested_quantity: 1 }).decision).toBe('warning');
+        expect(ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', used_quantity: 99, requested_quantity: 1 }).decision).toBe('hard_stopped');
         expectContractError(
-            () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: '12', metric: 'tool_calls', observed_quantity: 0, requested_quantity: 1 }),
+            () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: '12', metric: 'tool_calls', used_quantity: 0, requested_quantity: 1 }),
             { code: 'UPSTREAM_UNAVAILABLE' }
         );
         expectContractError(
-            () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', observed_quantity: 0, requested_quantity: -1 }),
+            () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', used_quantity: 0, requested_quantity: -1 }),
+            { code: 'QUOTA_INPUT_INVALID' }
+        );
+        expectContractError(
+            () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', used_quantity: 0, requested_quantity: 1, observed_quantity: 0 }),
+            { code: 'QUOTA_INPUT_INVALID' }
+        );
+        expectContractError(
+            () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', used_quantity: 0, requested_quantity: 1, window_started_at: '2026-08-01T00:00:00Z' }),
             { code: 'QUOTA_INPUT_INVALID' }
         );
     });

@@ -7,8 +7,13 @@ import { Pool } from 'pg';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCHEMA_PATH = path.join(ROOT, 'server/sql/multitenant-platform-schema.sql');
-const MIGRATION_ID = 'multitenant-platform-schema.v1';
-const ADVISORY_LOCK_NAME = 'brainbase:multitenant-platform-schema:v1';
+const MIGRATION_ID = 'multitenant-platform-schema.v2';
+const ADVISORY_LOCK_NAME = 'brainbase:multitenant-platform-schema:v2';
+const QUOTA_AUTHORITY_COLUMN_TYPES = Object.freeze({
+    'tenant_contract_revisions.quota_window_policy': Object.freeze({ data_type: 'jsonb', udt_name: 'jsonb' }),
+    'tenant_quota_decisions.requested_value': Object.freeze({ data_type: 'numeric', udt_name: 'numeric' }),
+    'tenant_quota_decisions.request_fingerprint': Object.freeze({ data_type: 'text', udt_name: 'text' })
+});
 
 class SchemaMigrationError extends Error {
     constructor(code, message) {
@@ -91,7 +96,7 @@ async function readbackSchema(client, contract) {
     }
 
     const columnResult = await client.query(
-        `SELECT table_name, column_name
+        `SELECT table_name, column_name, data_type, udt_name
            FROM information_schema.columns
           WHERE table_schema = current_schema()
             AND table_name = ANY($1::text[])
@@ -110,6 +115,21 @@ async function readbackSchema(client, contract) {
         throw new SchemaMigrationError(
             'SCHEMA_READBACK_FAILED',
             `Multitenant schema has missing columns: ${missingColumns.join(', ')}`
+        );
+    }
+
+    const invalidQuotaAuthorityTypes = Object.entries(QUOTA_AUTHORITY_COLUMN_TYPES)
+        .filter(([qualified, expected]) => {
+            const [table, column] = qualified.split('.');
+            const row = columnResult.rows.find((candidate) =>
+                candidate.table_name === table && candidate.column_name === column);
+            return !row || row.data_type !== expected.data_type || row.udt_name !== expected.udt_name;
+        })
+        .map(([qualified, expected]) => `${qualified} must be ${expected.data_type}/${expected.udt_name}`);
+    if (invalidQuotaAuthorityTypes.length > 0) {
+        throw new SchemaMigrationError(
+            'SCHEMA_READBACK_FAILED',
+            `Multitenant schema has invalid quota authority column types: ${invalidQuotaAuthorityTypes.join(', ')}`
         );
     }
 

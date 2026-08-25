@@ -1,0 +1,385 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-maintenance-phase02-rehome",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "accepted"
+  },
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "authenticated access context",
+        "projects.organization_id"
+      ],
+      "resolution_point": "GraphMaintenanceService.resolveProject",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "snapshot",
+        "plan",
+        "apply",
+        "rollback",
+        "receipt"
+      ],
+      "verified_surfaces": [
+        "snapshot",
+        "plan",
+        "apply",
+        "rollback",
+        "receipt"
+      ]
+    },
+    "resources": [
+      {
+        "name": "graph maintenance project scopes",
+        "sharing": "tenant_partitioned",
+        "partition_key": "organization_id/project_code",
+        "tenant_key": "organization_id",
+        "trust_zone": "Brainbase PostgreSQL RLS transaction",
+        "residue_policy": "rollback restores the complete authorized scope image",
+        "data_owner": "Brainbase Graph SSOT",
+        "credential_scope": "organization and explicit project codes"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "organization and explicit project codes",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Graph SSOT"
+      ],
+      "residency": "existing Brainbase PostgreSQL deployment",
+      "migration": "explicit idempotent project to organization mapping",
+      "rollback": "transactional before-image restore with full-scope hash readback"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "organization",
+        "project",
+        "graph_entity",
+        "graph_edge"
+      ],
+      "boundary_edges": [
+        "project.organization_id",
+        "graph_entity.project_id",
+        "graph_edge.project_id"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "needs_review",
+      "evidence": {
+        "propagation_surfaces": [
+          "snapshot",
+          "plan",
+          "apply",
+          "rollback",
+          "receipt"
+        ],
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "organization and project",
+              "tenant_key_source": "authenticated access context joined to projects.organization_id",
+              "trust_zone": "Brainbase PostgreSQL RLS transaction",
+              "data_owner": "Brainbase Graph SSOT"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "organization and explicit project codes",
+              "tenant_key_source": "projects.organization_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "organization and explicit project codes",
+              "connection_mode": "pooled RLS transaction",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "needs_review",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "needs_review"
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Snapshotは同一organizationかつcallerが全件アクセスできる複数project scopeを一つのcanonical hashへ束縛する。",
+      "rationale": "cross-scope targetをPlanとApplyの同じ競合検知境界へ含める。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-001"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "exportSnapshot"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "複合scope snapshotは全project accessとorganization一致を要求する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-21T11:12:45.372Z",
+      "last_revised_at": "2026-08-21T11:12:45.372Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "rehome_entityは旧membershipをretireしtarget Projectへの新membershipを作り、active membershipのscope整合を保証する。",
+      "rationale": "移動後も旧Projectを指す矛盾を永続化しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+          "text_snippet": "AC-002"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "rehome_entity"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "rehomeは旧所属をretireし、新所属をactiveで作成し、無関係edgeを変更しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "rehomeは旧所属をretireし、新所属をactiveで作成し、無関係edgeを変更しない"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-21T11:12:45.372Z",
+      "last_revised_at": "2026-08-21T11:12:45.372Z"
+  },
+  {
+    "id": "INV-004",
+    "type": "invariant",
+    "statement": "active belongs_to_projectはsource Entity、Edge、target Project entityのproject_code一致を要求し、既存baseline違反を増やさない。",
+    "rationale": "rehome以外のPlan経路からも所属scope矛盾を導入させない。",
+    "origin": {
+      "story_refs": [
+        {
+          "kind": "acceptance_criteria",
+          "text_snippet": "AC-003"
+        }
+      ],
+      "code_refs": [
+        {
+          "file": "server/services/graph-maintenance-engine.js",
+          "anchor": "validateGraphSnapshot"
+        }
+      ],
+      "test_refs": [
+        {
+          "file": "tests/server/services/graph-maintenance-engine.test.js",
+          "case": "active belongs_to_projectのsource・edge・target scope不一致を検出する"
+        }
+      ]
+    },
+      "verifiable_by": {
+      "test_pattern": [
+        {
+          "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+          "must_cover": "active belongs_to_projectのsource・edge・target scope不一致を検出する"
+        }
+      ]
+      },
+    "confidence": 0.99,
+    "first_seen_at": "2026-08-21T11:12:45.372Z",
+    "last_revised_at": "2026-08-21T11:12:45.372Z"
+  },
+  {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "ApplyとRollbackはbefore/afterに含まれる全scopeをlockしてhashとrowsを完全にreadbackする。",
+      "rationale": "単一scope hashによるcross-scope変更の取りこぼしを防ぐ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "applyPlan"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "rollbackPlan"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "複合scope rehomeをApplyしRollbackで全rowsを復元する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "must_cover": "複合scope rehomeをApplyしRollbackで全rowsを復元する"
+          }
+        ]
+      },
+      "confidence": 0.98,
+      "first_seen_at": "2026-08-21T11:12:45.372Z",
+      "last_revised_at": "2026-08-21T11:12:45.372Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "REST/MCPはinclude_project_codesとrehome_entityを公開し、target scope不足を拒否する。",
+      "rationale": "利用者が本番と同じdry-run契約をconnectorから実行できるようにする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-006"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/tools/graph-maintenance-tools.ts",
+            "anchor": "rehome_entity"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "case": "cross-scope snapshotとrehome targetは全scopeのpreflightを要求する"
+          }
+        ]
+      },
+      "confidence": 0.98,
+      "first_seen_at": "2026-08-21T11:12:45.372Z",
+      "last_revised_at": "2026-08-21T11:12:45.372Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "aitleとunsonだけを承認済みorganizationへ冪等に紐付け、未知projectは変更しない。",
+      "rationale": "fail-closed tenant境界を保ったまま既知scopeだけを解放する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-005"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/sql/info-ssot-schema.sql",
+            "anchor": "organization_id"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "承認済みtenant mappingだけを冪等に適用する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "must_cover": "承認済みtenant mappingだけを冪等に適用する"
+          }
+        ]
+      },
+      "confidence": 0.98,
+      "first_seen_at": "2026-08-21T11:12:45.372Z",
+      "last_revised_at": "2026-08-21T11:12:45.372Z"
+    }
+  ],
+  "generated_at": "2026-08-21T11:12:45.369Z",
+  "previous_spec_id": ""
+}

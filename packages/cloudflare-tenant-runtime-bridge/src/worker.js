@@ -2,6 +2,7 @@ export const MAX_REQUEST_BODY_BYTES = 256 * 1024;
 
 export const CANONICAL_RUNTIME_POST_PATHS = Object.freeze([
     '/api/v1/runtime/tenant-context:resolve',
+    '/api/v1/runtime/workspace-connections:validate-revision',
     '/api/v1/runtime/credential-leases',
     '/api/v1/runtime/provider-requests:forward',
     '/api/v1/runtime/quota:decide',
@@ -9,6 +10,7 @@ export const CANONICAL_RUNTIME_POST_PATHS = Object.freeze([
     '/api/v1/runtime/operation-receipts:finalize',
     '/api/v1/runtime/operation-receipts:finalize-with-pricing'
 ]);
+export const VERIFICATION_KEYS_PATH = '/api/v1/runtime/verification-keys';
 const RECEIPT_HISTORY_PATH = /^\/api\/v1\/runtime\/operation-receipts\/receipt_[0-9A-HJKMNP-TV-Z]{26}\/history:read$/;
 const REQUEST_HEADERS = Object.freeze([
     'accept',
@@ -71,9 +73,13 @@ function configuredOrigin(env) {
 
 function allowedRuntimePath(request) {
     const url = new URL(request.url);
-    if (request.method !== 'POST' || url.search !== '') return null;
-    if (CANONICAL_RUNTIME_POST_PATHS.includes(url.pathname) || RECEIPT_HISTORY_PATH.test(url.pathname)) {
-        return url.pathname;
+    if (url.search !== '') return null;
+    if (request.method === 'GET' && url.pathname === VERIFICATION_KEYS_PATH) {
+        return { method: 'GET', path: url.pathname };
+    }
+    if (request.method === 'POST'
+        && (CANONICAL_RUNTIME_POST_PATHS.includes(url.pathname) || RECEIPT_HISTORY_PATH.test(url.pathname))) {
+        return { method: 'POST', path: url.pathname };
     }
     return null;
 }
@@ -145,8 +151,8 @@ function downstreamResponse(upstream) {
 }
 
 export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl = fetch } = {}) {
-    const routePath = allowedRuntimePath(request);
-    if (!routePath) return problem(404, 'BRIDGE_ROUTE_NOT_ALLOWED');
+    const route = allowedRuntimePath(request);
+    if (!route) return problem(404, 'BRIDGE_ROUTE_NOT_ALLOWED');
 
     let origin;
     let headers;
@@ -157,19 +163,21 @@ export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl
         return problem(503, 'BRIDGE_CONFIGURATION_INVALID');
     }
 
-    let body;
-    try {
-        body = await readBoundedBody(request);
-    } catch (error) {
-        if (error instanceof RangeError) return problem(413, 'REQUEST_BODY_TOO_LARGE');
-        return problem(400, 'REQUEST_BODY_INVALID');
+    let body = null;
+    if (route.method === 'POST') {
+        try {
+            body = await readBoundedBody(request);
+        } catch (error) {
+            if (error instanceof RangeError) return problem(413, 'REQUEST_BODY_TOO_LARGE');
+            return problem(400, 'REQUEST_BODY_INVALID');
+        }
     }
 
-    const upstreamUrl = new URL(routePath, origin);
+    const upstreamUrl = new URL(route.path, origin);
     const upstreamRequest = new Request(upstreamUrl, {
-        method: 'POST',
+        method: route.method,
         headers,
-        body,
+        ...(body === null ? {} : { body }),
         redirect: 'manual'
     });
     try {

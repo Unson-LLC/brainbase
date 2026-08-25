@@ -32,20 +32,20 @@ export class TokenManager {
 
   /**
    * Get the current access token
-   * Falls back to environment variable if file doesn't exist
+   * Dedicated service runtimes must not be shadowed by a persisted user token.
    */
   async getToken(): Promise<string> {
+    const envToken = process.env.BRAINBASE_GRAPH_API_TOKEN?.trim();
+    if (envToken) {
+      return envToken;
+    }
+
     // Try loading from file
     if (!this.tokenData) {
       try {
         await this.loadTokens();
       } catch {
-        // File doesn't exist, try environment variable
-        const envToken = process.env.BRAINBASE_GRAPH_API_TOKEN;
-        if (!envToken) {
-          throw new Error('No token found. Run `npm run mcp-setup` to obtain tokens.');
-        }
-        return envToken;
+        throw new Error('No token found. Run `npm run mcp-setup` to obtain tokens.');
       }
     }
 

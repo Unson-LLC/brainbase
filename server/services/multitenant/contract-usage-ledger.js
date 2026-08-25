@@ -22,9 +22,134 @@ const PRICING_SNAPSHOT_FIELDS = Object.freeze([
 ]);
 const CURRENCY = /^[A-Z]{3}$/;
 const POSITIVE_DECIMAL = /^(?:0\.(?:0*[1-9][0-9]*)|[1-9][0-9]*(?:\.[0-9]+)?)$/;
+const QUOTA_METRIC = /^[a-z][a-z0-9_.:-]{0,127}$/u;
+const QUOTA_CALLER_AUTHORITY_FIELDS = new Set([
+    'observed_quantity', 'quota_revision', 'unit',
+    'window_started_at', 'window_ends_at'
+]);
 
 function fail(code, options = {}) {
     throw new ContractError(code, { status: 400, fault_domain: 'protocol', ...options });
+}
+
+function quotaUnavailable() {
+    throw new ContractError('UPSTREAM_UNAVAILABLE', {
+        status: 503,
+        retryable: true,
+        fault_domain: 'brainbase_cloud'
+    });
+}
+
+export function validateQuotaRequest(input) {
+    if (!input || typeof input !== 'object'
+        || typeof input.metric !== 'string' || !QUOTA_METRIC.test(input.metric)
+        || typeof input.requested_quantity !== 'number'
+        || !Number.isFinite(input.requested_quantity) || input.requested_quantity <= 0) {
+        throw new ContractError('QUOTA_INPUT_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
+    return true;
+}
+
+export function resolveQuotaWindowPolicy(policy, now = new Date()) {
+    let normalized = policy;
+    if (typeof normalized === 'string') {
+        try {
+            normalized = JSON.parse(normalized);
+        } catch {
+            quotaUnavailable();
+        }
+    }
+    if (!normalized || typeof normalized !== 'object' || Array.isArray(normalized)) {
+        quotaUnavailable();
+    }
+    if (normalized.kind === 'calendar_month') {
+        if (normalized.timezone !== 'UTC') quotaUnavailable();
+        const current = now instanceof Date ? new Date(now.getTime()) : new Date(now);
+        if (!Number.isFinite(current.getTime())) quotaUnavailable();
+        const startedAt = new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), 1));
+        const endsAt = new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() + 1, 1));
+        return {
+            window_started_at: startedAt.toISOString(),
+            window_ends_at: endsAt.toISOString()
+        };
+    }
+    if (normalized.kind !== 'fixed'
+        || typeof normalized.window_started_at !== 'string'
+        || typeof normalized.window_ends_at !== 'string'
+        || !normalized.window_started_at.endsWith('Z')
+        || !normalized.window_ends_at.endsWith('Z')) {
+        quotaUnavailable();
+    }
+    const startedAt = Date.parse(normalized.window_started_at);
+    const endsAt = Date.parse(normalized.window_ends_at);
+    if (!Number.isFinite(startedAt) || !Number.isFinite(endsAt) || endsAt <= startedAt) {
+        quotaUnavailable();
+    }
+    return {
+        window_started_at: normalized.window_started_at,
+        window_ends_at: normalized.window_ends_at
+    };
+}
+
+export function calculateQuotaDecision({
+    contract,
+    tenant_id,
+    contract_revision,
+    metric,
+    used_quantity,
+    requested_quantity,
+    quota_revision,
+    unit = metric,
+    window_started_at,
+    window_ends_at,
+    decided_at
+}) {
+    assertCanonicalRevision(contract_revision, 'contract_revision');
+    validateQuotaRequest({ metric, requested_quantity });
+    const allowance = Number(contract?.allowances?.[metric]);
+    if (!Number.isFinite(allowance) || allowance <= 0) quotaUnavailable();
+    if (typeof used_quantity !== 'number' || !Number.isFinite(used_quantity) || used_quantity < 0) {
+        throw new ContractError('QUOTA_INPUT_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
+    if (typeof window_started_at !== 'string' || typeof window_ends_at !== 'string'
+        || !window_started_at.endsWith('Z') || !window_ends_at.endsWith('Z')
+        || !Number.isFinite(Date.parse(window_started_at)) || !Number.isFinite(Date.parse(window_ends_at))
+        || Date.parse(window_ends_at) <= Date.parse(window_started_at)) {
+        quotaUnavailable();
+    }
+    const resulting = used_quantity + requested_quantity;
+    if (!Number.isFinite(resulting)) {
+        throw new ContractError('QUOTA_INPUT_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
+    const thresholds = Array.isArray(contract.thresholds_basis_points)
+        ? contract.thresholds_basis_points.map(Number)
+        : [];
+    const hardStop = Number(contract.hard_stop_basis_points);
+    if (!Number.isFinite(hardStop) || thresholds.some((threshold) => !Number.isFinite(threshold))) {
+        quotaUnavailable();
+    }
+    const basisPoints = Math.round((resulting / allowance) * 10000);
+    let decision = 'allowed';
+    if (basisPoints >= hardStop && contract.overage_policy === 'deny') decision = 'hard_stopped';
+    else if (contract.overage_policy === 'allow_with_approval' && basisPoints >= hardStop) decision = 'approval_required';
+    else if (thresholds.some((threshold) => basisPoints >= threshold)) decision = 'warning';
+    const decisionRecord = {
+        message_type: 'quota_decision',
+        tenant_id,
+        contract_revision,
+        quota_revision: String(quota_revision ?? contract.quota_revision ?? contract_revision),
+        limit: allowance,
+        used: used_quantity,
+        remaining: Math.max(0, allowance - resulting),
+        unit,
+        window_started_at,
+        window_ends_at,
+        decision,
+        decided_at: decided_at ?? new Date().toISOString(),
+        failure_code: null
+    };
+    validateQuotaDecision(decisionRecord);
+    return deepFreeze(decisionRecord);
 }
 
 function lengthPrefix(value) {
@@ -182,36 +307,35 @@ export class ContractUsageLedger {
         assertCanonicalRevision(input.contract_revision, 'contract_revision');
         const contract = this.#contracts.get(`${input.tenant_id}:${input.contract_revision}`);
         if (!contract) throw new ContractError('UPSTREAM_UNAVAILABLE', { status: 503, retryable: true, fault_domain: 'brainbase_cloud' });
-        const allowance = Number(contract.allowances[input.metric]);
-        if (!Number.isFinite(allowance) || allowance <= 0) throw new ContractError('UPSTREAM_UNAVAILABLE', { status: 503 });
-        const observed = Number(input.observed_quantity);
-        const requested = Number(input.requested_quantity);
-        if (!Number.isFinite(observed) || !Number.isFinite(requested) || observed < 0 || requested < 0) {
-            throw new ContractError('QUOTA_INPUT_INVALID', { status: 400 });
+        if (Object.keys(input).some((field) => QUOTA_CALLER_AUTHORITY_FIELDS.has(field)
+            || field.startsWith('window_'))) {
+            throw new ContractError('QUOTA_INPUT_INVALID', { status: 400, fault_domain: 'protocol' });
         }
-        const resulting = observed + requested;
-        const basisPoints = Math.round((resulting / allowance) * 10000);
-        let decision = 'allowed';
-        if (basisPoints >= contract.hard_stop_basis_points && contract.overage_policy === 'deny') decision = 'hard_stopped';
-        else if (contract.overage_policy === 'allow_with_approval' && basisPoints >= contract.hard_stop_basis_points) decision = 'approval_required';
-        else if (contract.thresholds_basis_points.some((threshold) => basisPoints >= threshold)) decision = 'warning';
-        const decisionRecord = {
-            message_type: 'quota_decision',
+        if (input.used_quantity === undefined) {
+            quotaUnavailable();
+        }
+        const used = input.used_quantity;
+        const policyWindow = contract.quota_window_policy
+            ? resolveQuotaWindowPolicy(contract.quota_window_policy, this.now())
+            : {
+                // Compatibility for the in-memory test ledger: these are explicit
+                // contract-owned bounds, never a caller-supplied or inferred period.
+                window_started_at: contract.window_started_at,
+                window_ends_at: contract.window_ends_at
+            };
+        return calculateQuotaDecision({
+            contract,
             tenant_id: input.tenant_id,
             contract_revision: input.contract_revision,
-            quota_revision: String(input.quota_revision ?? contract.quota_revision ?? contract.contract_revision_number ?? '0'),
-            limit: allowance,
-            used: observed,
-            remaining: Math.max(0, allowance - resulting),
-            unit: input.unit ?? input.metric,
-            window_started_at: input.window_started_at ?? contract.window_started_at,
-            window_ends_at: input.window_ends_at ?? contract.window_ends_at,
-            decision,
-            decided_at: this.now().toISOString(),
-            failure_code: null
-        };
-        validateQuotaDecision(decisionRecord);
-        return deepFreeze(decisionRecord);
+            metric: input.metric,
+            used_quantity: used,
+            requested_quantity: input.requested_quantity,
+            quota_revision: contract.quota_revision ?? contract.contract_revision_number ?? input.contract_revision,
+            unit: input.metric,
+            window_started_at: policyWindow.window_started_at,
+            window_ends_at: policyWindow.window_ends_at,
+            decided_at: this.now().toISOString()
+        });
     }
 
     claimEffect(input) {

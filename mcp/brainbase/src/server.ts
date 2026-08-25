@@ -47,11 +47,13 @@ import {
   handleMeetingMinutesContextToolCall,
 } from './tools/meeting-minutes-context-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
+import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from './tools/graph-maintenance-tools.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
 import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
 import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
 import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
+import { annotateToolCapabilities } from './tools/tool-annotations.js';
 import {
   buildKnowledgeOwnerAudit,
   buildKnowledgeToolContent,
@@ -275,6 +277,9 @@ function formatEntity(entity: unknown): string {
   lines.push(`- **ID**: ${e.id}`);
 
   if (e.status) lines.push(`- **Status**: ${e.status}`);
+  if (e.lifecycle_status || e.lifecycle_state) lines.push(`- **Lifecycle**: ${e.lifecycle_status || e.lifecycle_state}`);
+  if (e.semantic_state) lines.push(`- **Semantic State**: ${e.semantic_state}`);
+  if (typeof e.version === 'number') lines.push(`- **Version**: ${e.version}`);
   if (e.role) lines.push(`- **Role**: ${e.role}`);
   if (e.org) lines.push(`- **Organization**: ${e.org}`);
   if (e.scope) lines.push(`- **Scope**: ${e.scope}`);
@@ -1023,8 +1028,22 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   }
 }
 
+const publishedTools = annotateToolCapabilities([
+  ...tools,
+  ...controlPlaneTools,
+  ...onboardingTools,
+  ...graphMaintenanceTools,
+  ...judgmentResolutionTools,
+  ...knowledgeResolutionTools,
+  ...meetingMinutesContextTools,
+  ...taskTools,
+  ...tenantBoundaryTools,
+  ...meshTools,
+]);
+
 export const __testing = {
-  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...meetingMinutesContextTools, ...taskTools, ...tenantBoundaryTools],
+  tools: publishedTools,
+  formatEntity,
   dispatchOnboardingToolCall,
   dispatchJudgmentResolutionBeforeModel,
   dispatchKnowledgeResolutionToolCall,
@@ -1174,7 +1193,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...meetingMinutesContextTools, ...taskTools, ...tenantBoundaryTools, ...meshTools] };
+    return { tools: publishedTools };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -1193,6 +1212,11 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           tokenManager: globalTokenManager,
         }),
         (toolName, extensionArgs) => dispatchOnboardingToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleGraphMaintenanceToolCall(toolName, extensionArgs, {
+          apiUrl: resolveBrainbaseApiUrl(),
+          configuredProjectCodes,
+          tokenManager: globalTokenManager,
+        }),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),

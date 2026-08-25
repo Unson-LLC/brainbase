@@ -154,13 +154,8 @@ describe('tenant runtime API', () => {
 
         const quota = await request(app).post('/api/v1/runtime/quota:decide').set(headers).send({
             ...body,
-            quota_revision: '19',
             metric: 'model_tokens',
-            observed_quantity: 1200,
-            requested_quantity: 0,
-            unit: 'model_tokens',
-            window_started_at: '2026-08-01T00:00:00Z',
-            window_ends_at: '2026-09-01T00:00:00Z'
+            requested_quantity: 1
         });
         const usage = await request(app).post('/api/v1/runtime/usage-events').set(headers).send({
             ...body,
@@ -224,6 +219,31 @@ describe('tenant runtime API', () => {
             scope: 'business_effect',
             idempotency_key: tenantContext.idempotency_key
         }), { connection_revision: '1' });
+    });
+
+    it('D-006: quota authority rejects caller-supplied observed quantity and window fields', async () => {
+        const decideQuota = vi.fn((input) => input);
+        const app = createApp({ usageLedger: { decideQuota } });
+        const headers = {
+            authorization: 'Bearer service-test',
+            'Brainbase-Protocol-Version': '1.0',
+            'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+        };
+
+        const response = await request(app)
+            .post('/api/v1/runtime/quota:decide')
+            .set(headers)
+            .send({
+                tenant_context: tenantContext,
+                metric: 'model_tokens',
+                requested_quantity: 1,
+                observed_quantity: 0,
+                window_started_at: '2026-08-01T00:00:00Z'
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toMatchObject({ code: 'QUOTA_INPUT_INVALID' });
+        expect(decideQuota).not.toHaveBeenCalled();
     });
 
     it.each([

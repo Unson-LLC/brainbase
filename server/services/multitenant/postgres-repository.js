@@ -2,6 +2,12 @@ import { createHash } from 'node:crypto';
 import { ContractError } from './errors.js';
 import { canonicalJson } from './canonical-json.js';
 import { isCanonicalId } from './ids.js';
+import {
+    calculateQuotaDecision,
+    resolveQuotaWindowPolicy,
+    validateQuotaDecision,
+    validateQuotaRequest
+} from './contract-usage-ledger.js';
 
 const OWNED_RESOURCE_TABLES = Object.freeze({
     tenant: { table: 'brainbase_tenants', id: 'tenant_id', revision: 'tenant_revision' },
@@ -30,6 +36,108 @@ function unavailable(error) {
         fault_domain: 'brainbase_cloud',
         message: 'Multitenant PostgreSQL repository is unavailable'
     });
+}
+
+function parseJsonValue(value) {
+    if (typeof value !== 'string') return value;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return null;
+    }
+}
+
+function canonicalTimestamp(value) {
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) return null;
+    return new Date(value).toISOString();
+}
+
+function quotaReplayUnavailable() {
+    return new ContractError('UPSTREAM_UNAVAILABLE', {
+        status: 503,
+        retryable: true,
+        fault_domain: 'brainbase_cloud'
+    });
+}
+
+function contractFromRow(contract) {
+    const runtimeCapabilities = Array.isArray(contract.runtime_capabilities)
+        ? contract.runtime_capabilities
+        : [];
+    const runtimeAudience = Array.isArray(contract.runtime_audience)
+        ? contract.runtime_audience
+        : [];
+    return {
+        ...contract,
+        allowances: parseJsonValue(contract.allowances),
+        quota_window_policy: parseJsonValue(contract.quota_window_policy),
+        contract_revision: String(contract.contract_revision),
+        rate_card_revision: Number(contract.rate_card_revision),
+        fx_table_revision: Number(contract.fx_table_revision),
+        sales_price_revision: Number(contract.sales_price_revision),
+        hard_stop_basis_points: Number(contract.hard_stop_basis_points),
+        runtime_binding: {
+            capabilities: [...runtimeCapabilities],
+            audience: [...runtimeAudience],
+            deployment_id: contract.runtime_deployment_id,
+            profile: contract.runtime_profile
+        }
+    };
+}
+
+async function loadContractRevisionFromClient(client, { tenant_id, contract_revision, now }) {
+    const result = await client.query(
+        `SELECT tcr.tenant_id, tcr.contract_id, tcr.contract_revision, tcr.allowances,
+                tcr.quota_window_policy,
+                tcr.thresholds_basis_points, tcr.overage_policy, tcr.hard_stop_basis_points,
+                tcr.rate_card_revision, tcr.fx_table_revision, tcr.sales_price_revision,
+                rb.capabilities AS runtime_capabilities,
+                rb.audience AS runtime_audience,
+                rb.deployment_id AS runtime_deployment_id,
+                rb.profile AS runtime_profile
+           FROM tenant_contract_revisions AS tcr
+           JOIN tenant_contract_revision_runtime_bindings AS rb
+             ON rb.tenant_id = tcr.tenant_id
+            AND rb.contract_id = tcr.contract_id
+            AND rb.contract_revision = tcr.contract_revision
+          WHERE tcr.tenant_id = $1
+            AND tcr.contract_revision = $2
+            AND tcr.status = 'active'
+            AND tcr.effective_from <= $3
+            AND (tcr.effective_until IS NULL OR tcr.effective_until > $3)
+          FOR SHARE OF tcr, rb`,
+        [tenant_id, contract_revision, now]
+    );
+    const contract = result.rows[0];
+    if (!contract) {
+        throw new ContractError('UPSTREAM_UNAVAILABLE', {
+            status: 503,
+            retryable: true,
+            fault_domain: 'brainbase_cloud'
+        });
+    }
+    return contractFromRow(contract);
+}
+
+function quotaRequestFingerprint(input) {
+    return sha256(canonicalJson({
+        tenant_id: input.tenant_id,
+        contract_revision: String(input.contract_revision),
+        metric: input.metric,
+        requested_quantity: input.requested_quantity
+    }));
+}
+
+function assertQuotaAuthorityInput(input) {
+    const allowed = new Set(['tenant_id', 'contract_revision', 'metric', 'requested_quantity', 'idempotency_key']);
+    if (!input || typeof input !== 'object' || Object.keys(input).some((field) => !allowed.has(field))
+        || ['tenant_id', 'contract_revision', 'idempotency_key'].some((field) => (
+            typeof input[field] !== 'string' || input[field].length === 0
+        ))) {
+        throw new ContractError('QUOTA_INPUT_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
+    validateQuotaRequest(input);
 }
 
 async function readConnectionRevision(client, {
@@ -791,7 +899,7 @@ export class MultitenantPostgresRepository {
 
     async resolveRuntimeContext({
         tenant_id, expected_tenant_revision, connection_id, expected_connection_revision,
-        workspace_id, app_id, authorization = {}
+        workspace_id, app_id, required_connection_scopes = []
     }) {
         return this.withTenant(tenant_id, async (client) => {
             const workspaceConnection = await readConnectionRevision(client, {
@@ -800,7 +908,7 @@ export class MultitenantPostgresRepository {
                 expected_connection_revision,
                 workspace_id,
                 app_id,
-                required_scopes: authorization.capability_ids ?? []
+                required_scopes: required_connection_scopes
             });
             const tenantResult = await client.query(
                 `SELECT tenant_id, tenant_revision, status
@@ -971,77 +1079,162 @@ export class MultitenantPostgresRepository {
     }
 
     async loadContractRevision({ tenant_id, contract_revision }) {
-        return this.withTenant(tenant_id, async (client) => {
-            const result = await client.query(
-                `SELECT tenant_id, contract_id, contract_revision, allowances,
-                        thresholds_basis_points, overage_policy, hard_stop_basis_points,
-                        rate_card_revision, fx_table_revision, sales_price_revision,
-                        rb.capabilities AS runtime_capabilities,
-                        rb.audience AS runtime_audience,
-                        rb.deployment_id AS runtime_deployment_id,
-                        rb.profile AS runtime_profile
-                 FROM tenant_contract_revisions
-                 JOIN tenant_contract_revision_runtime_bindings rb
-                   ON rb.tenant_id = tenant_contract_revisions.tenant_id
-                  AND rb.contract_id = tenant_contract_revisions.contract_id
-                  AND rb.contract_revision = tenant_contract_revisions.contract_revision
-                 WHERE tenant_contract_revisions.tenant_id = $1
-                   AND tenant_contract_revisions.contract_revision = $2
-                   AND tenant_contract_revisions.status = 'active'
-                   AND tenant_contract_revisions.effective_from <= $3
-                   AND (tenant_contract_revisions.effective_until IS NULL OR tenant_contract_revisions.effective_until > $3)
-                 FOR SHARE`,
-                [tenant_id, contract_revision, this.now().toISOString()]
+        return this.withTenant(tenant_id, (client) => loadContractRevisionFromClient(client, {
+            tenant_id,
+            contract_revision,
+            now: this.now().toISOString()
+        }));
+    }
+
+    async decideQuota(input, { now = this.now } = {}) {
+        assertQuotaAuthorityInput(input);
+        const decisionTime = typeof now === 'function' ? now() : now;
+        const nowIso = decisionTime instanceof Date
+            ? decisionTime.toISOString()
+            : String(decisionTime);
+        const fingerprint = quotaRequestFingerprint(input);
+        return this.withTenant(input.tenant_id, async (client) => {
+            // Serialize every quota decision for the tenant.  The lock is
+            // transaction-local and is acquired before the replay/aggregate
+            // reads, so concurrent requests cannot both observe the same use.
+            await client.query(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                [`quota:${input.tenant_id}`]
             );
-            const contract = result.rows[0];
-            if (!contract) {
+
+            const readExisting = async () => {
+                const result = await client.query(
+                    `SELECT contract_revision, quota_revision, metric, decision,
+                            limit_value, used_value, remaining_value, requested_value, unit,
+                            window_started_at, window_ends_at, decided_at, failure_code,
+                            request_fingerprint, decision_payload
+                       FROM tenant_quota_decisions
+                      WHERE tenant_id = $1 AND idempotency_key = $2
+                      FOR UPDATE`,
+                    [input.tenant_id, input.idempotency_key]
+                );
+                return result.rows[0] ?? null;
+            };
+            const replay = (existing) => {
+                if (!existing || existing.requested_value == null || existing.request_fingerprint == null) {
+                    throw quotaReplayUnavailable();
+                }
+                const storedFingerprint = String(existing.request_fingerprint);
+                if (!/^sha256:[a-f0-9]{64}$/u.test(storedFingerprint)) {
+                    throw quotaReplayUnavailable();
+                }
+                if (storedFingerprint !== fingerprint) {
+                    throw new ContractError('IDEMPOTENCY_CONFLICT', { status: 409 });
+                }
+                const requestedValue = Number(existing.requested_value);
+                if (!Number.isFinite(requestedValue) || requestedValue <= 0
+                    || requestedValue !== input.requested_quantity
+                    || existing.metric !== input.metric) {
+                    throw quotaReplayUnavailable();
+                }
+                const payload = parseJsonValue(existing.decision_payload);
+                if (!payload) {
+                    throw quotaReplayUnavailable();
+                }
+                const persistedDecision = {
+                    message_type: 'quota_decision',
+                    tenant_id: input.tenant_id,
+                    contract_revision: String(existing.contract_revision),
+                    quota_revision: String(existing.quota_revision),
+                    limit: existing.limit_value == null ? null : Number(existing.limit_value),
+                    used: existing.used_value == null ? null : Number(existing.used_value),
+                    remaining: existing.remaining_value == null ? null : Number(existing.remaining_value),
+                    unit: existing.unit,
+                    window_started_at: canonicalTimestamp(existing.window_started_at),
+                    window_ends_at: canonicalTimestamp(existing.window_ends_at),
+                    decision: existing.decision,
+                    decided_at: canonicalTimestamp(existing.decided_at),
+                    failure_code: existing.failure_code ?? null
+                };
+                try {
+                    validateQuotaDecision(persistedDecision);
+                } catch {
+                    throw quotaReplayUnavailable();
+                }
+                if (canonicalJson(payload) !== canonicalJson(persistedDecision)) {
+                    throw quotaReplayUnavailable();
+                }
+                return payload;
+            };
+
+            const existing = await readExisting();
+            if (existing) return replay(existing);
+
+            // Contract selection and window policy are authoritative reads in
+            // this same tenant transaction.  Missing/invalid policy fails
+            // closed; no monthly default is inferred here.
+            const contract = await loadContractRevisionFromClient(client, {
+                tenant_id: input.tenant_id,
+                contract_revision: input.contract_revision,
+                now: nowIso
+            });
+            const window = resolveQuotaWindowPolicy(contract.quota_window_policy, decisionTime);
+            const aggregateResult = await client.query(
+                `SELECT COALESCE(SUM(requested_value), 0) AS used_value,
+                        COUNT(*) FILTER (WHERE requested_value IS NULL) AS legacy_count
+                   FROM tenant_quota_decisions
+                  WHERE tenant_id = $1
+                    AND contract_revision = $2
+                    AND metric = $3
+                    AND window_started_at = $4
+                    AND window_ends_at = $5
+                    AND decision IN ('allowed', 'warning')`,
+                [input.tenant_id, contract.contract_revision, input.metric,
+                    window.window_started_at, window.window_ends_at]
+            );
+            const aggregate = aggregateResult.rows[0];
+            const legacyCount = Number(aggregate?.legacy_count);
+            const used = Number(aggregate?.used_value);
+            if (!aggregate || aggregate.legacy_count == null || aggregate.used_value == null
+                || !Number.isFinite(legacyCount) || legacyCount > 0
+                || !Number.isFinite(used) || used < 0) {
                 throw new ContractError('UPSTREAM_UNAVAILABLE', {
                     status: 503,
                     retryable: true,
                     fault_domain: 'brainbase_cloud'
                 });
             }
-            return {
-                ...contract,
-                contract_revision: String(contract.contract_revision),
-                rate_card_revision: Number(contract.rate_card_revision),
-                fx_table_revision: Number(contract.fx_table_revision),
-                sales_price_revision: Number(contract.sales_price_revision),
-                hard_stop_basis_points: Number(contract.hard_stop_basis_points),
-                runtime_binding: {
-                    capabilities: [...contract.runtime_capabilities],
-                    audience: [...contract.runtime_audience],
-                    deployment_id: contract.runtime_deployment_id,
-                    profile: contract.runtime_profile
-                }
-            };
-        });
-    }
-
-    async recordQuotaDecision(decision, { idempotency_key, metric }) {
-        return this.withTenant(decision.tenant_id, async (client) => {
-            const result = await client.query(
+            const decision = calculateQuotaDecision({
+                contract,
+                tenant_id: input.tenant_id,
+                contract_revision: contract.contract_revision,
+                metric: input.metric,
+                used_quantity: used,
+                requested_quantity: input.requested_quantity,
+                quota_revision: contract.quota_revision ?? contract.contract_revision,
+                unit: input.metric,
+                window_started_at: window.window_started_at,
+                window_ends_at: window.window_ends_at,
+                decided_at: nowIso
+            });
+            const inserted = await client.query(
                 `INSERT INTO tenant_quota_decisions (
                     tenant_id, contract_revision, quota_revision, idempotency_key, metric,
-                    decision, limit_value, used_value, remaining_value, unit,
-                    window_started_at, window_ends_at, decided_at, failure_code, decision_payload
-                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb)
-                 ON CONFLICT (tenant_id, idempotency_key) DO UPDATE
-                 SET decision_payload = tenant_quota_decisions.decision_payload
-                 RETURNING decision_payload`,
+                    decision, limit_value, used_value, remaining_value, requested_value, unit,
+                    window_started_at, window_ends_at, decided_at, failure_code,
+                    request_fingerprint, decision_payload
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb)
+                 ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+                 RETURNING contract_revision, quota_revision, metric, decision,
+                           limit_value, used_value, remaining_value, requested_value, unit,
+                           window_started_at, window_ends_at, decided_at, failure_code,
+                           request_fingerprint, decision_payload`,
                 [
                     decision.tenant_id, decision.contract_revision, decision.quota_revision,
-                    idempotency_key, metric, decision.decision, decision.limit, decision.used,
-                    decision.remaining, decision.unit, decision.window_started_at,
-                    decision.window_ends_at, decision.decided_at, decision.failure_code,
-                    canonicalJson(decision)
+                    input.idempotency_key, input.metric, decision.decision, decision.limit,
+                    decision.used, decision.remaining, input.requested_quantity, decision.unit,
+                    decision.window_started_at, decision.window_ends_at, decision.decided_at,
+                    decision.failure_code, fingerprint, canonicalJson(decision)
                 ]
             );
-            const stored = result.rows[0]?.decision_payload;
-            if (!stored || canonicalJson(stored) !== canonicalJson(decision)) {
-                throw new ContractError('IDEMPOTENCY_CONFLICT', { status: 409 });
-            }
-            return stored;
+            if (inserted.rows[0]) return replay(inserted.rows[0]);
+            const concurrent = await readExisting();
+            return replay(concurrent);
         });
     }
 

@@ -2,10 +2,11 @@
 import { logger } from '../utils/logger.js';
 import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 import { OntologyError } from '../services/ontology-kernel.js';
+import { GraphMaintenanceService } from '../services/graph-maintenance-service.js';
 
 /** @typedef {any} Request */
 /** @typedef {any} Response */
-/** @typedef {{ role: string, projectCodes: string[], clearance: string[], personId?: string | null, workspace?: string | null, channelId?: string | null, sessionId?: string | null }} AccessContext */
+/** @typedef {{ role: string, projectCodes: string[], clearance: string[], organizationId?: string | null, tenantId?: string | null, personId?: string | null, authSource?: string | null, workspace?: string | null, channelId?: string | null, sessionId?: string | null }} AccessContext */
 
 /** @param {unknown} error */
 function getErrorMessage(error) {
@@ -56,12 +57,31 @@ function assertAccessContext(access) {
 
 /** @param {unknown} error */
 function resolveErrorStatus(error) {
+    if (Number.isInteger(error?.status)) return error.status;
     const message = getErrorMessage(error);
     if (message.includes('Slack OAuth token required')) {
         return 401;
     }
+    if (message.includes('Bearer authorization')) {
+        return 401;
+    }
+    if (message.includes('Signed tenant authorization')) {
+        return 401;
+    }
+    if (message.includes('conflict') || message.includes('not applicable')) {
+        return 409;
+    }
     if (message.includes('Access denied')) {
         return 403;
+    }
+    if (message.includes('requires gm or ceo')) {
+        return 403;
+    }
+    if (message.includes('signed human Bearer principal')) {
+        return 403;
+    }
+    if (message.includes('Human Gate receipt id conflict')) {
+        return 409;
     }
     if (message.includes('Decision authority missing')) {
         return 403;
@@ -84,9 +104,16 @@ function resolveErrorStatus(error) {
     return 500;
 }
 
+function sendStructuredError(res, error, fallback) {
+    const body = { error: getErrorMessage(error) || fallback };
+    if (error?.code) body.code = error.code;
+    if (error?.details) body.details = error.details;
+    res.status(resolveErrorStatus(error)).json(body);
+}
+
 function sendOntologyError(res, error, { operation = 'read' } = {}) {
     if (!(error instanceof OntologyError)) {
-        res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) || 'Ontology operation failed' });
+        sendStructuredError(res, error, 'Ontology operation failed');
         return;
     }
     const status = error.details?.http_status || (error.code === 'ONTOLOGY_CURRENT_UNAVAILABLE'
@@ -108,9 +135,121 @@ function sendOntologyError(res, error, { operation = 'read' } = {}) {
 
 export class InfoSSOTController {
     /** @param {any} infoSSOTService */
-    constructor(infoSSOTService) {
+    constructor(infoSSOTService, { configParser = null } = {}) {
         this.infoSSOTService = infoSSOTService;
+        this.graphMaintenanceService = new GraphMaintenanceService({ infoSSOTService, configParser });
     }
+
+    maintenanceAccess(req) {
+        // Graph maintenance is deliberately restricted to a user Bearer token.
+        // Internal/service-token principals use separate machine APIs and must not
+        // reach a write-capable maintenance surface, even when they carry a
+        // project scope. The CSRF middleware has the same exact boundary.
+        if (String(req.authSource || '') !== 'bearer') {
+            throw new Error('Bearer authorization is required');
+        }
+        const access = buildAccessContext(req);
+        assertAccessContext(access);
+        if (!access.organizationId && !access.tenantId) throw new Error('Signed tenant authorization with organization is required');
+        return { ...access, authSource: String(req.authSource || access.authSource || '') };
+    }
+
+    applyMaintenanceAccess(req) {
+        if (String(req.authSource || '') !== 'bearer') {
+            const error = new Error('Graph Apply requires a signed human Bearer principal');
+            error.code = 'GRAPH_HUMAN_PRINCIPAL_REQUIRED';
+            error.status = 403;
+            throw error;
+        }
+        return this.maintenanceAccess(req);
+    }
+
+    recordGraphHumanGateReceipt = async (req, res) => {
+        try {
+            res.status(201).json(await this.graphMaintenanceService.recordHumanGateReceipt(this.maintenanceAccess(req), {
+                projectCode: req.body?.project_code,
+                decisionId: req.body?.decision_id,
+                receiptId: req.body?.receipt_id,
+                evidence: req.body?.evidence
+            }));
+        } catch (error) {
+            logger.error('Failed to record Graph Human Gate receipt', { error });
+            sendStructuredError(res, error, 'Failed to record Graph Human Gate receipt');
+        }
+    };
+
+    exportGraphSnapshot = async (req, res) => {
+        try {
+            res.status(201).json(await this.graphMaintenanceService.exportSnapshot(this.maintenanceAccess(req), {
+                projectCode: req.body?.project_code,
+                includeProjectCodes: req.body?.include_project_codes
+            }));
+        } catch (error) {
+            logger.error('Failed to export Graph maintenance snapshot', { error });
+            sendStructuredError(res, error, 'Failed to export Graph maintenance snapshot');
+        }
+    };
+
+    planGraphMutations = async (req, res) => {
+        try {
+            res.status(201).json(await this.graphMaintenanceService.planMutations(this.maintenanceAccess(req), {
+                projectCode: req.body?.project_code, snapshotId: req.body?.snapshot_id,
+                idempotencyKey: req.body?.idempotency_key, reason: req.body?.reason,
+                operations: req.body?.operations, humanGateReceipt: req.body?.human_gate_receipt
+            }));
+        } catch (error) {
+            logger.error('Failed to plan Graph maintenance mutations', { error });
+            sendStructuredError(res, error, 'Failed to plan Graph maintenance mutations');
+        }
+    };
+
+    applyGraphPlan = async (req, res) => {
+        try {
+            res.json(await this.graphMaintenanceService.applyPlan(this.applyMaintenanceAccess(req), {
+                projectCode: req.body?.project_code, planId: req.params.planId,
+                snapshotHash: req.body?.snapshot_hash,
+                humanGateReceipt: req.body?.human_gate_receipt
+            }));
+        } catch (error) {
+            logger.error('Failed to apply Graph maintenance plan', { error });
+            sendStructuredError(res, error, 'Failed to apply Graph maintenance plan');
+        }
+    };
+
+    getGraphPlanReceipt = async (req, res) => {
+        try {
+            res.json(await this.graphMaintenanceService.getPlanReceipt(this.maintenanceAccess(req), {
+                projectCode: req.query.project_code, planId: req.params.planId
+            }));
+        } catch (error) {
+            logger.error('Failed to read Graph maintenance receipt', { error });
+            sendStructuredError(res, error, 'Failed to read Graph maintenance receipt');
+        }
+    };
+
+    rollbackGraphPlan = async (req, res) => {
+        try {
+            res.json(await this.graphMaintenanceService.rollbackPlan(this.maintenanceAccess(req), {
+                projectCode: req.body?.project_code, planId: req.params.planId,
+                applyReceiptId: req.body?.apply_receipt_id
+            }));
+        } catch (error) {
+            logger.error('Failed to rollback Graph maintenance plan', { error });
+            sendStructuredError(res, error, 'Failed to rollback Graph maintenance plan');
+        }
+    };
+
+    validateGraphMaintenance = async (req, res) => {
+        try {
+            res.json(await this.graphMaintenanceService.validate(this.maintenanceAccess(req), {
+                projectCode: req.body?.project_code,
+                includeProjectCodes: req.body?.include_project_codes
+            }));
+        } catch (error) {
+            logger.error('Failed to validate maintained Graph', { error });
+            sendOntologyError(res, error, { operation: 'validate' });
+        }
+    };
 
     appendOntologyGuard(result) {
         return { ...result, ...this.infoSSOTService.getOntologyGuard() };

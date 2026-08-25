@@ -24,6 +24,25 @@ describe('personal and organization knowledge schema', () => {
     it('adds organization ACL fields and transition-derived current state', () => {
         const sql = read('server/sql/personal-knowledge-schema.sql');
         const infoSsotRls = read('server/sql/info-ssot-rls.sql');
+        const edgeScopeFunction = infoSsotRls.match(
+            /CREATE OR REPLACE FUNCTION app_graph_edge_scope_visible\([\s\S]*?\n(?:\$\$;|\s*\$function\$;)/
+        )?.[0] || '';
+        expect(infoSsotRls).toContain('app_graph_edge_scope_visible');
+        expect(infoSsotRls).toContain('app_graph_entity_organization_id');
+        expect(infoSsotRls).toContain("edge_rel_type = 'governs'");
+        expect(infoSsotRls).toContain("edge_payload->>'cross_tenant' = 'true'");
+        expect(infoSsotRls).toContain('COUNT(DISTINCT membership_project.organization_id) = 1');
+        expect(infoSsotRls).toContain("membership.rel_type = 'member_of'");
+        expect(infoSsotRls).toContain('target_project.code = ANY(app_project_codes())');
+        expect(edgeScopeFunction).toContain('app_graph_entity_organization_id(source_entity.id) IS NULL');
+        expect(edgeScopeFunction).toContain('app_graph_entity_organization_id(target_entity.id) IS NULL');
+        expect(edgeScopeFunction).toContain('IS DISTINCT FROM app_graph_entity_organization_id(target_entity.id)');
+        expect(edgeScopeFunction).not.toContain("current_setting('app.graph_maintenance_mode', true) = 'true'");
+        expect(edgeScopeFunction).not.toMatch(/app_current_role_rank\(\) >= app_role_rank\('gm'\)/);
+        expect(edgeScopeFunction).toContain('SECURITY DEFINER');
+        expect(edgeScopeFunction).toContain('SET search_path FROM CURRENT');
+        expect(infoSsotRls.match(/CREATE OR REPLACE FUNCTION app_setting_array\([\s\S]*?\n(?:\$\$;|\s*\$function\$;)/)?.[0])
+            .not.toContain('COALESCE((');
 
         expect(sql).toContain('ADD COLUMN IF NOT EXISTS organization_id');
         expect(sql).toContain('ADD COLUMN IF NOT EXISTS sensitivity');

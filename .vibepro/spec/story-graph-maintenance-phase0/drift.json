@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-maintenance-phase0",
+  "spec_id": "2026-08-20T16:29:46.238Z",
+  "evaluated_at": "2026-08-20T16:30:25.256Z",
+  "status": "clean",
+  "summary": {
+    "spec_code_drift": 0,
+    "spec_test_drift": 0,
+    "code_test_drift": 0,
+    "spec_pr_drift": 0
+  },
+  "items": []
+}

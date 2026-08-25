@@ -108,6 +108,21 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
         await container?.stop();
     });
 
+    it('reads the active contract revision when the contract and runtime binding share column names', async () => {
+        await expect(repository.loadContractRevision({ tenant_id: tenantId, contract_revision: '1' }))
+            .resolves.toMatchObject({
+                tenant_id: tenantId,
+                contract_id: contractId,
+                contract_revision: '1',
+                runtime_binding: {
+                    capabilities: ['send_message', 'create_task'],
+                    audience: ['mana-runtime'],
+                    deployment_id: deploymentId,
+                    profile: 'shared_cloud'
+                }
+            });
+    }, 120_000);
+
     it('writes and reads back the intent, connection revision, opaque credential and exchange ledger atomically', async () => {
         const intent = {
             installation_intent_id: intentId,

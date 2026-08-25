@@ -298,7 +298,7 @@ export function registerApiRoutes(app, {
     app.use(
         '/api/info',
         requireAuth(authService, { allowInsecureHeaders: false }),
-        createInfoSSOTRouter(infoSSOTService, { auditTenantGuard })
+        createInfoSSOTRouter(infoSSOTService, { auditTenantGuard, configParser })
     );
     const personalKnowledgeAuthGuard = requireAuth(authService, { allowInsecureHeaders: false });
     const auditPersonalAccess = personalKnowledgeService

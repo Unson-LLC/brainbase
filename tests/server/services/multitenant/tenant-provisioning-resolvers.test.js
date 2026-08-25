@@ -185,6 +185,49 @@ describe('tenant provisioning production resolvers', () => {
         })).resolves.toEqual({ valid: false, tenant_key: 'unson-business' });
     });
 
+    it('passes and verifies the strict connection binding for a remote first install', async () => {
+        const fixture = createPool([]);
+        const credentialBoundary = {
+            verify: vi.fn(async ({ tenant_id, credential_ref, provider, connection_id, connection_revision }) => ({
+                valid: true,
+                tenant_id,
+                credential_ref,
+                provider,
+                connection_id,
+                connection_revision
+            }))
+        };
+        const resolver = createPostgresCredentialResolver({ pool: fixture.pool, credentialBoundary });
+
+        await expect(resolver.verifyOpaqueReference({
+            tenant_key: 'unson-business',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            credential_ref: 'credref://unson-business/slack/primary',
+            provider: 'slack',
+            workspace_id: 'T0123456789',
+            app_id: 'A0123456789',
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            connection_revision: '1',
+            allow_unregistered: true
+        })).resolves.toEqual({
+            valid: true,
+            tenant_key: 'unson-business',
+            first_install: true,
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            connection_revision: 1
+        });
+        expect(credentialBoundary.verify).toHaveBeenCalledWith({
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            tenant_key: 'unson-business',
+            credential_ref: 'credref://unson-business/slack/primary',
+            provider: 'slack',
+            workspace_id: 'T0123456789',
+            app_id: 'A0123456789',
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            connection_revision: '1'
+        });
+    });
+
     it('requires a production pool and rejects unbounded timeout configuration', () => {
         expect(() => createPostgresGraphProjectResolver()).toThrow(/PostgreSQL pool/u);
         expect(() => createPostgresCredentialResolver({ pool: { connect: vi.fn() }, timeoutMs: 0 }))

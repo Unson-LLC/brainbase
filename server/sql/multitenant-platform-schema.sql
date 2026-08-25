@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS tenant_contract_revisions (
     rate_card_revision BIGINT NOT NULL,
     fx_table_revision BIGINT NOT NULL,
     sales_price_revision BIGINT NOT NULL,
+    quota_window_policy JSONB,
     PRIMARY KEY (tenant_id, contract_id, contract_revision),
     UNIQUE (tenant_id, contract_revision),
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision)
@@ -165,17 +166,55 @@ CREATE TABLE IF NOT EXISTS tenant_quota_decisions (
     limit_value NUMERIC,
     used_value NUMERIC,
     remaining_value NUMERIC,
+    requested_value NUMERIC
+        CONSTRAINT tenant_quota_decisions_requested_value_check
+        CHECK (requested_value IS NULL OR requested_value > 0),
     unit TEXT NOT NULL,
     window_started_at TIMESTAMPTZ NOT NULL,
     window_ends_at TIMESTAMPTZ NOT NULL,
     decided_at TIMESTAMPTZ NOT NULL,
     failure_code TEXT,
+    request_fingerprint TEXT
+        CONSTRAINT tenant_quota_decisions_request_fingerprint_check
+        CHECK (request_fingerprint IS NULL OR request_fingerprint ~ '^sha256:[a-f0-9]{64}$'),
     decision_payload JSONB NOT NULL,
     PRIMARY KEY (tenant_id, idempotency_key),
     CHECK (window_ends_at > window_started_at),
     CHECK ((decision = 'unavailable' AND limit_value IS NULL AND used_value IS NULL AND remaining_value IS NULL)
         OR (decision <> 'unavailable' AND limit_value >= 0 AND used_value >= 0 AND remaining_value >= 0))
 );
+
+-- Existing installations may already have these tables.  The quota authority
+-- must retain legacy NULLs so readiness can fail closed instead of inventing a
+-- usage value or window policy during migration.
+ALTER TABLE tenant_contract_revisions
+    ADD COLUMN IF NOT EXISTS quota_window_policy JSONB;
+ALTER TABLE tenant_quota_decisions
+    ADD COLUMN IF NOT EXISTS requested_value NUMERIC,
+    ADD COLUMN IF NOT EXISTS request_fingerprint TEXT;
+
+DO $brainbase_tenant_quota_decisions_upgrade$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'tenant_quota_decisions'::regclass
+           AND conname = 'tenant_quota_decisions_requested_value_check'
+    ) THEN
+        ALTER TABLE tenant_quota_decisions
+            ADD CONSTRAINT tenant_quota_decisions_requested_value_check
+            CHECK (requested_value IS NULL OR requested_value > 0);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'tenant_quota_decisions'::regclass
+           AND conname = 'tenant_quota_decisions_request_fingerprint_check'
+    ) THEN
+        ALTER TABLE tenant_quota_decisions
+            ADD CONSTRAINT tenant_quota_decisions_request_fingerprint_check
+            CHECK (request_fingerprint IS NULL OR request_fingerprint ~ '^sha256:[a-f0-9]{64}$');
+    END IF;
+END
+$brainbase_tenant_quota_decisions_upgrade$;
 
 CREATE TABLE IF NOT EXISTS tenant_usage_events (
     usage_event_id TEXT PRIMARY KEY CHECK (usage_event_id ~ '^usage_[0-9A-HJKMNP-TV-Z]{26}$'),

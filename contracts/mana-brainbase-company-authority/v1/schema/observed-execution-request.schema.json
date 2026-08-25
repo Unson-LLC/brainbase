@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Unson-LLC/brainbase-unson/contracts/mana-brainbase-company-authority/v1/schema/observed-execution-request.schema.json",
+  "title": "ObservedExecutionRequestV1",
+  "description": "The only authority input Brainbase accepts from an external runtime: observed Slack identity, requested operation capability, delivery metadata, and correlation. v1 is Slack-only because the nested TenantContextEnvelopeV1 is Slack-backed; company_authority_v1 is a response protocol marker, not a requested operation capability.",
+  "x-supported-providers": ["slack"],
+  "x-requested-operation-capability-path": "$.requested_action.capability_id",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider_identity", "requested_action", "correlation_id"],
+  "properties": {
+    "provider_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "authenticated_subject_id"],
+      "properties": {
+        "provider": { "const": "slack" },
+        "authenticated_subject_id": { "type": "string", "minLength": 1 },
+        "app_id": { "type": "string", "minLength": 1 },
+        "workspace_id": { "type": "string", "minLength": 1 },
+        "enterprise_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "requested_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability_id", "resource_ref", "desired_effect"],
+      "properties": {
+        "capability_id": { "type": "string", "minLength": 1 },
+        "resource_ref": { "type": "string", "minLength": 1 },
+        "project_hint": { "type": "string", "minLength": 1 },
+        "desired_effect": { "enum": ["read", "write", "external_side_effect"] }
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "channel_id": { "type": "string", "minLength": 1 },
+        "thread_ts": { "type": "string", "minLength": 1 },
+        "event_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "correlation_id": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "not": {
+        "anyOf": [
+          { "required": ["canonical_person_id"] },
+          { "required": ["organization_id"] },
+          { "required": ["project_id"] },
+          { "required": ["owner_person_id"] },
+          { "required": ["responsible_person_id"] },
+          { "required": ["accountable_person_id"] },
+          { "required": ["approver_person_id"] },
+          { "required": ["decision"] },
+          { "required": ["policy_revision"] },
+          { "required": ["raci_revision"] },
+          { "required": ["credential"] }
+        ]
+      }
+    }
+  ]
+}

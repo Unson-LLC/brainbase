@@ -10,7 +10,11 @@
 
 import crypto from 'crypto';
 import { logger } from '../utils/logger.js';
-import { isDedicatedSlackInstallationExchangeRequest } from '../services/multitenant/slack-installation-auth.js';
+import {
+    isAuthenticatedSlackInstallationAuthorizeRequest,
+    isDedicatedSlackInstallationExchangeRequest,
+    SLACK_INSTALLATION_AUTHORIZE_PATH
+} from '../services/multitenant/slack-installation-auth.js';
 
 /** @typedef {{ token: string, createdAt: number }} StoredToken */
 /** @typedef {{ method?: string, path?: string, headers?: Record<string, string | string[] | undefined> }} RequestLike */
@@ -99,6 +103,45 @@ function hasValidInternalApiKey(req) {
         && crypto.timingSafeEqual(configuredBuffer, requestBuffer);
 }
 
+function isExactSlackInstallationAuthorizeRequest(req) {
+    const requestPath = String(req.originalUrl || req.path || '').split('?')[0];
+    return req.method === 'POST'
+        && requestPath === `/api/v1${SLACK_INSTALLATION_AUTHORIZE_PATH}`;
+}
+
+function enforceCsrf(req, res, next) {
+    const tokenHeader = req.headers?.['x-csrf-token'];
+    const sessionHeader = req.headers?.['x-session-id'];
+    const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
+    const sessionId = Array.isArray(sessionHeader) ? (sessionHeader[0] || 'default') : (sessionHeader || 'default');
+
+    if (process.env.NODE_ENV !== 'production') {
+        if (!token) {
+            warnOncePerInterval(
+                `[CSRF] Missing token for ${req.method} ${req.path}`,
+                `${req.method || 'UNKNOWN'}:${req.path || 'unknown'}`
+            );
+        }
+        return next();
+    }
+
+    if (!token) {
+        return res.status(403).json({
+            error: 'Forbidden',
+            message: 'CSRF token required'
+        });
+    }
+
+    if (!validateCsrfToken(sessionId, token)) {
+        return res.status(403).json({
+            error: 'Forbidden',
+            message: 'Invalid CSRF token'
+        });
+    }
+
+    return next();
+}
+
 // Run cleanup every 15 minutes
 setInterval(cleanupExpiredTokens, 15 * 60 * 1000);
 
@@ -116,6 +159,14 @@ export function csrfMiddleware() {
         // Skip safe methods
         if (['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
             return next();
+        }
+
+        // This exact non-cookie entry point accepts only a currently valid
+        // human Bearer JWT. Invalid/service/cookie/internal/insecure auth must
+        // not fall through to any broader machine-client CSRF exemption.
+        if (isExactSlackInstallationAuthorizeRequest(req)) {
+            if (isAuthenticatedSlackInstallationAuthorizeRequest(req)) return next();
+            return enforceCsrf(req, res, next);
         }
 
         // This exact machine-to-machine OAuth exchange is authenticated by a
@@ -239,38 +290,29 @@ export function csrfMiddleware() {
             return next();
         }
 
-        const tokenHeader = req.headers?.['x-csrf-token'];
-        const sessionHeader = req.headers?.['x-session-id'];
-        const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
-        const sessionId = Array.isArray(sessionHeader) ? (sessionHeader[0] || 'default') : (sessionHeader || 'default');
-
-        // In development, log warning but allow request
-        if (process.env.NODE_ENV !== 'production') {
-            if (!token) {
-                warnOncePerInterval(
-                    `[CSRF] Missing token for ${req.method} ${req.path}`,
-                    `${req.method || 'UNKNOWN'}:${req.path || 'unknown'}`
-                );
-            }
+        // Graph maintenance is a machine-only API. The controller rejects cookie
+        // auth and requires a signed tenant identity plus project authorization.
+        const requestPath = String(req.originalUrl || req.path || '').split('?')[0];
+        if (
+            requestPath.startsWith('/api/info/graph/maintenance/')
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
             return next();
         }
 
-        // In production, enforce CSRF validation
-        if (!token) {
-            return res.status(403).json({
-                error: 'Forbidden',
-                message: 'CSRF token required'
-            });
+        // Ontology publication authorization is called by the non-cookie release
+        // publisher. The exact route still verifies the bearer principal, Graph
+        // Decision/RACI bindings, and the signing authority before issuing a receipt.
+        if (
+            requestPath === '/api/info/ontology/publications/authorize'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
         }
 
-        if (!token || !validateCsrfToken(sessionId, token)) {
-            return res.status(403).json({
-                error: 'Forbidden',
-                message: 'Invalid CSRF token'
-            });
-        }
-
-        return next();
+        return enforceCsrf(req, res, next);
     };
 }
 

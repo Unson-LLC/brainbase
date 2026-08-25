@@ -729,7 +729,9 @@ export class AdminVisualizationService {
     }
 
     normalizeGraphRecord(record) {
-        return { source_class: SOURCE_CLASSES.GRAPH, id: record?.id || null, entity_type: record?.entity_type || 'unknown', label: graphLabel(record), project_code: record?.project_code || null, sensitivity: record?.sensitivity || null, role_min: record?.role_min || null, created_at: record?.created_at || null, updated_at: record?.updated_at || null, payload_preview: preview(parsePayload(record?.payload), 320) };
+        const payload = parsePayload(record?.payload);
+        const lifecycleStatus = record?.lifecycle_status || record?.lifecycle_state || null;
+        return { source_class: SOURCE_CLASSES.GRAPH, id: record?.id || null, entity_type: record?.entity_type || 'unknown', label: graphLabel(record), project_code: record?.project_code || null, sensitivity: record?.sensitivity || null, role_min: record?.role_min || null, lifecycle_status: lifecycleStatus, lifecycle_state: lifecycleStatus, semantic_state: record?.semantic_state || payload.semantic_state || null, version: Number.isInteger(record?.version) ? record.version : null, created_at: record?.created_at || null, updated_at: record?.updated_at || null, payload_preview: preview(payload, 320) };
     }
 
     normalizeCandidateRecord(record) {

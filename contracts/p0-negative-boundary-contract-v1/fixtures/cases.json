@@ -1,0 +1,1388 @@
+{
+  "schema_version": "1.1",
+  "contract_id": "p0-negative-boundary-contract-v1",
+  "synthetic_data_only": true,
+  "canonical_baseline": {
+    "authority": {
+      "owner_consent": true,
+      "organization_acceptance": true,
+      "capability_id": "personal_to_organization.promote",
+      "allowed_effects": [
+        "organization_event"
+      ],
+      "resource_ref": "synthetic-personal-record-a",
+      "decision": "approval",
+      "owner_person_id": "synthetic-person-a",
+      "reviewer_person_id": "synthetic-person-b",
+      "revisions": {
+        "policy": 7,
+        "raci": 5,
+        "resource": 3,
+        "tenant": 11,
+        "connection": 13,
+        "membership": 17
+      },
+      "expires_at": "2099-01-01T00:00:00.000Z",
+      "integrity": "valid",
+      "freshness": "current",
+      "replayed": false
+    },
+    "provider": "slack",
+    "audience": "mana-runtime",
+    "request": {
+      "capability_id": "personal_to_organization.promote",
+      "desired_effect": "organization_event",
+      "resource_ref": "synthetic-personal-record-a",
+      "correlation_id": "corr-p0-001",
+      "operation_id": "op-p0-001",
+      "idempotency_key": "idem-p0-001",
+      "source_tenant": "synthetic-tenant-a",
+      "target_tenant": "synthetic-tenant-a",
+      "source_person": "synthetic-person-a",
+      "target_person": "synthetic-person-a",
+      "person_resolution": "active_exact",
+      "ingress": "mana-runtime"
+    },
+    "receipt": {
+      "correlation_id": "corr-p0-001",
+      "operation_id": "op-p0-001",
+      "idempotency_key": "idem-p0-001"
+    },
+    "bindings": {
+      "request_subject": "U-SYNTH-A",
+      "actor_external_subject": "U-SYNTH-A",
+      "tenant_actor_subject": "U-SYNTH-A",
+      "canonical_person": "synthetic-person-a",
+      "tenant_principal": "synthetic-person-a",
+      "requested_organization": "synthetic-tenant-a",
+      "authorized_organization": "synthetic-tenant-a",
+      "requested_project": "synthetic-project-a",
+      "authorized_project": "synthetic-project-a",
+      "placement": "synthetic-placement-a",
+      "deployment": "synthetic-placement-a",
+      "request_workspace": "W-SYNTH-A",
+      "context_workspace": "W-SYNTH-A",
+      "request_app": "A-SYNTH-A",
+      "context_app": "A-SYNTH-A",
+      "request_enterprise": "E-SYNTH-A",
+      "context_enterprise": "E-SYNTH-A",
+      "request_channel": "C-SYNTH-A",
+      "context_channel": "C-SYNTH-A",
+      "request_thread": "1700000000.000001",
+      "context_thread": "1700000000.000001",
+      "request_event": "EV-SYNTH-A",
+      "context_event": "EV-SYNTH-A"
+    },
+    "privacy": {
+      "organization_reviewer_can_view_personal_body": false,
+      "graph_personal_body": "absent",
+      "search_personal_body": "absent",
+      "event_personal_body": "absent",
+      "receipt_personal_body": "absent",
+      "llm_is_promotion_authority": false
+    }
+  },
+  "inventory": {
+    "tenants": [
+      "synthetic-tenant-a",
+      "synthetic-tenant-b"
+    ],
+    "persons": [
+      "synthetic-person-a",
+      "synthetic-person-b"
+    ],
+    "required_case_ids": [
+      "NEG-CROSS-PERSON-A-B",
+      "NEG-CROSS-PERSON-B-A",
+      "NEG-CROSS-ORG-A-B",
+      "NEG-CROSS-ORG-B-A",
+      "NEG-OWNER-APPROVAL-ALONE",
+      "NEG-REVIEWER-PERSONAL-BODY",
+      "NEG-GRAPH-RECONSTRUCTION",
+      "NEG-SEARCH-RECONSTRUCTION",
+      "NEG-EVENT-RECONSTRUCTION",
+      "NEG-RECEIPT-RECONSTRUCTION",
+      "NEG-LLM-REPETITION",
+      "NEG-OWNER-REVIEWER-SAME",
+      "NEG-PERSON-UNKNOWN",
+      "NEG-PERSON-MISSING",
+      "NEG-PERSON-AMBIGUOUS",
+      "NEG-PERSON-INACTIVE",
+      "NEG-PERSON-MERGED",
+      "NEG-AUTHORITY-CAPABILITY",
+      "NEG-AUTHORITY-EFFECT",
+      "NEG-AUTHORITY-RESOURCE",
+      "NEG-AUTHORITY-DECISION",
+      "NEG-AUTHORITY-ACTOR",
+      "NEG-AUTHORITY-REVISION",
+      "NEG-AUTHORITY-EXPIRY",
+      "NEG-AUTHORITY-INTEGRITY",
+      "NEG-AUTHORITY-STALE",
+      "NEG-AUTHORITY-REPLAY",
+      "NEG-PROVIDER",
+      "NEG-AUDIENCE",
+      "NEG-CORRELATION",
+      "NEG-OPERATION",
+      "NEG-IDEMPOTENCY",
+      "NEG-BIND-SUBJECT",
+      "NEG-BIND-ACTOR-SUBJECT",
+      "NEG-BIND-PRINCIPAL",
+      "NEG-BIND-ORG",
+      "NEG-BIND-PROJECT",
+      "NEG-BIND-PLACEMENT",
+      "NEG-BIND-WORKSPACE",
+      "NEG-BIND-APP",
+      "NEG-BIND-ENTERPRISE",
+      "NEG-BIND-CHANNEL",
+      "NEG-BIND-THREAD",
+      "NEG-BIND-EVENT",
+      "NEG-DIRECT-WEB",
+      "NEG-DIRECT-SERVICE",
+      "NEG-DIRECT-API",
+      "NEG-DIRECT-UI",
+      "NEG-DIRECT-LEGACY"
+    ],
+    "effect_counters": [
+      "database",
+      "organization_event",
+      "graph",
+      "search",
+      "llm",
+      "credential",
+      "external",
+      "deploy"
+    ]
+  },
+  "negative_cases": [
+    {
+      "id": "NEG-CROSS-PERSON-A-B",
+      "category": "cross_person",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/target_person",
+        "before": "synthetic-person-a",
+        "after": "synthetic-person-b"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "tenant_person_isolation",
+        "surface": "request",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-CROSS-PERSON-B-A",
+      "category": "cross_person",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/source_person",
+        "before": "synthetic-person-a",
+        "after": "synthetic-person-b"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "tenant_person_isolation",
+        "surface": "request",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-CROSS-ORG-A-B",
+      "category": "cross_organization",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/target_tenant",
+        "before": "synthetic-tenant-a",
+        "after": "synthetic-tenant-b"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "tenant_isolation",
+        "surface": "request",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-CROSS-ORG-B-A",
+      "category": "cross_organization",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/source_tenant",
+        "before": "synthetic-tenant-a",
+        "after": "synthetic-tenant-b"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "tenant_isolation",
+        "surface": "request",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-OWNER-APPROVAL-ALONE",
+      "category": "dual_authority",
+      "mutation": {
+        "mode": "single",
+        "path": "/authority/organization_acceptance",
+        "before": true,
+        "after": false
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "dual_authority_required",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-REVIEWER-PERSONAL-BODY",
+      "category": "privacy",
+      "mutation": {
+        "mode": "single",
+        "path": "/privacy/organization_reviewer_can_view_personal_body",
+        "before": false,
+        "after": true
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "personal_body_non_visibility",
+        "surface": "privacy",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-GRAPH-RECONSTRUCTION",
+      "category": "privacy",
+      "mutation": {
+        "mode": "single",
+        "path": "/privacy/graph_personal_body",
+        "before": "absent",
+        "after": "semantic_canary"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "personal_body_non_reconstruction",
+        "surface": "graph",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-SEARCH-RECONSTRUCTION",
+      "category": "privacy",
+      "mutation": {
+        "mode": "single",
+        "path": "/privacy/search_personal_body",
+        "before": "absent",
+        "after": "reconstructed"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "personal_body_non_reconstruction",
+        "surface": "search",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-EVENT-RECONSTRUCTION",
+      "category": "privacy",
+      "mutation": {
+        "mode": "single",
+        "path": "/privacy/event_personal_body",
+        "before": "absent",
+        "after": "reconstructed"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "personal_body_non_reconstruction",
+        "surface": "organization_event",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-RECEIPT-RECONSTRUCTION",
+      "category": "privacy",
+      "mutation": {
+        "mode": "single",
+        "path": "/privacy/receipt_personal_body",
+        "before": "absent",
+        "after": "reconstructed"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "personal_body_non_reconstruction",
+        "surface": "receipt",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-LLM-REPETITION",
+      "category": "llm_non_authority",
+      "mutation": {
+        "mode": "single",
+        "path": "/privacy/llm_is_promotion_authority",
+        "before": false,
+        "after": true
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "llm_repetition_is_not_authority",
+        "surface": "llm",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-OWNER-REVIEWER-SAME",
+      "category": "dual_authority",
+      "mutation": {
+        "mode": "single",
+        "path": "/authority/reviewer_person_id",
+        "before": "synthetic-person-b",
+        "after": "synthetic-person-a"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "separate_authorities",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-PERSON-UNKNOWN",
+      "category": "identity",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/person_resolution",
+        "before": "active_exact",
+        "after": "unknown"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "canonical_person_active_exact",
+        "surface": "identity",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-PERSON-MISSING",
+      "category": "identity",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/person_resolution",
+        "before": "active_exact",
+        "after": "missing"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "canonical_person_active_exact",
+        "surface": "identity",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-PERSON-AMBIGUOUS",
+      "category": "identity",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/person_resolution",
+        "before": "active_exact",
+        "after": "ambiguous"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "canonical_person_active_exact",
+        "surface": "identity",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-PERSON-INACTIVE",
+      "category": "identity",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/person_resolution",
+        "before": "active_exact",
+        "after": "inactive"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "canonical_person_active_exact",
+        "surface": "identity",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-PERSON-MERGED",
+      "category": "identity",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/person_resolution",
+        "before": "active_exact",
+        "after": "merged"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "canonical_person_active_exact",
+        "surface": "identity",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-CAPABILITY",
+      "category": "authority_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/capability_id",
+        "before": "personal_to_organization.promote",
+        "after": "promotion.other"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "authority_capability_binding",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-EFFECT",
+      "category": "authority_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/desired_effect",
+        "before": "organization_event",
+        "after": "graph_write"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "authority_effect_binding",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-RESOURCE",
+      "category": "authority_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/resource_ref",
+        "before": "synthetic-personal-record-a",
+        "after": "synthetic-personal-record-b"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "authority_resource_binding",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-DECISION",
+      "category": "authority_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/authority/decision",
+        "before": "approval",
+        "after": "auto"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "human_decision_required",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-ACTOR",
+      "category": "authority_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/authority/reviewer_person_id",
+        "before": "synthetic-person-b",
+        "after": "synthetic-person-c"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "authority_actor_binding",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-REVISION",
+      "category": "authority_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/authority/revisions/policy",
+        "before": 7,
+        "after": 8
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "authority_revision_binding",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-EXPIRY",
+      "category": "authority_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/authority/expires_at",
+        "before": "2099-01-01T00:00:00.000Z",
+        "after": "2000-01-01T00:00:00.000Z"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "authority_not_expired",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-INTEGRITY",
+      "category": "authority_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/authority/integrity",
+        "before": "valid",
+        "after": "invalid"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "authority_integrity",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-STALE",
+      "category": "authority_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/authority/freshness",
+        "before": "current",
+        "after": "stale"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "authority_freshness",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUTHORITY-REPLAY",
+      "category": "authority_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/authority/replayed",
+        "before": false,
+        "after": true
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "authority_not_replayed",
+        "surface": "authority",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-PROVIDER",
+      "category": "ingress",
+      "mutation": {
+        "mode": "single",
+        "path": "/provider",
+        "before": "slack",
+        "after": "teams"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "provider_slack",
+        "surface": "provider",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-AUDIENCE",
+      "category": "ingress",
+      "mutation": {
+        "mode": "single",
+        "path": "/audience",
+        "before": "mana-runtime",
+        "after": "brainbase"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "audience_mana_runtime",
+        "surface": "audience",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-CORRELATION",
+      "category": "request_receipt_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/receipt/correlation_id",
+        "before": "corr-p0-001",
+        "after": "corr-p0-other"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "correlation_binding",
+        "surface": "receipt",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-OPERATION",
+      "category": "request_receipt_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/receipt/operation_id",
+        "before": "op-p0-001",
+        "after": "op-p0-other"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "operation_binding",
+        "surface": "receipt",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-IDEMPOTENCY",
+      "category": "request_receipt_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/receipt/idempotency_key",
+        "before": "idem-p0-001",
+        "after": "idem-p0-other"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "idempotency_binding",
+        "surface": "receipt",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-SUBJECT",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/actor_external_subject",
+        "before": "U-SYNTH-A",
+        "after": "U-SYNTH-B"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_request_subject",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-ACTOR-SUBJECT",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/tenant_actor_subject",
+        "before": "U-SYNTH-A",
+        "after": "U-SYNTH-B"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_actor_subject",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-PRINCIPAL",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/tenant_principal",
+        "before": "synthetic-person-a",
+        "after": "synthetic-person-b"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_principal",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-ORG",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/authorized_organization",
+        "before": "synthetic-tenant-a",
+        "after": "synthetic-tenant-b"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_organization",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-PROJECT",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/authorized_project",
+        "before": "synthetic-project-a",
+        "after": "synthetic-project-b"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_project",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-PLACEMENT",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/deployment",
+        "before": "synthetic-placement-a",
+        "after": "synthetic-placement-b"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_placement",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-WORKSPACE",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/context_workspace",
+        "before": "W-SYNTH-A",
+        "after": "W-SYNTH-B"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_workspace",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-APP",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/context_app",
+        "before": "A-SYNTH-A",
+        "after": "A-SYNTH-B"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_app",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-ENTERPRISE",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/context_enterprise",
+        "before": "E-SYNTH-A",
+        "after": "E-SYNTH-B"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_enterprise",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-CHANNEL",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/context_channel",
+        "before": "C-SYNTH-A",
+        "after": "C-SYNTH-B"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_channel",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-THREAD",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/context_thread",
+        "before": "1700000000.000001",
+        "after": "1700000000.000002"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_thread",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-BIND-EVENT",
+      "category": "cross_layer_binding",
+      "mutation": {
+        "mode": "single",
+        "path": "/bindings/context_event",
+        "before": "EV-SYNTH-A",
+        "after": "EV-SYNTH-B"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "binding_event",
+        "surface": "cross_layer",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-DIRECT-WEB",
+      "category": "unsupported_ingress",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/ingress",
+        "before": "mana-runtime",
+        "after": "brainbase-web"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "mana_runtime_only_ingress",
+        "surface": "ingress",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-DIRECT-SERVICE",
+      "category": "unsupported_ingress",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/ingress",
+        "before": "mana-runtime",
+        "after": "brainbase-service"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "mana_runtime_only_ingress",
+        "surface": "ingress",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-DIRECT-API",
+      "category": "unsupported_ingress",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/ingress",
+        "before": "mana-runtime",
+        "after": "brainbase-api"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "mana_runtime_only_ingress",
+        "surface": "ingress",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-DIRECT-UI",
+      "category": "unsupported_ingress",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/ingress",
+        "before": "mana-runtime",
+        "after": "brainbase-ui"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "mana_runtime_only_ingress",
+        "surface": "ingress",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    },
+    {
+      "id": "NEG-DIRECT-LEGACY",
+      "category": "unsupported_ingress",
+      "mutation": {
+        "mode": "single",
+        "path": "/request/ingress",
+        "before": "mana-runtime",
+        "after": "brainbase-legacy"
+      },
+      "expected": {
+        "decision": "deny",
+        "violated_invariant": "mana_runtime_only_ingress",
+        "surface": "ingress",
+        "effects": {
+          "database": 0,
+          "organization_event": 0,
+          "graph": 0,
+          "search": 0,
+          "llm": 0,
+          "credential": 0,
+          "external": 0,
+          "deploy": 0
+        }
+      }
+    }
+  ],
+  "evidence_state": {
+    "contract": "collected",
+    "runtime": "not_collected",
+    "production": "not_collected"
+  }
+}

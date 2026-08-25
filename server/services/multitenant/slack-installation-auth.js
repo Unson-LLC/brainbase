@@ -64,6 +64,15 @@ function exactExchangeRequestPath(req) {
     return path === `/api/v1${SLACK_INSTALLATION_EXCHANGE_PATH}`;
 }
 
+function exactAuthorizeRequestPath(req) {
+    const path = typeof req?.path === 'string'
+        ? req.path
+        : typeof req?.originalUrl === 'string'
+            ? req.originalUrl.split('?')[0]
+            : '';
+    return path === `/api/v1${SLACK_INSTALLATION_AUTHORIZE_PATH}`;
+}
+
 function routePath(req) {
     const value = typeof req?.path === 'string' ? req.path : '';
     if (value === SLACK_INSTALLATION_AUTHORIZE_PATH || value === SLACK_INSTALLATION_EXCHANGE_PATH) {
@@ -196,6 +205,30 @@ export function isDedicatedSlackInstallationExchangeRequest(req, {
             && claims?.deployment_id === deploymentId
             && Number.isFinite(expiresAt) && expiresAt > now().getTime()
             && capabilities.includes(capability);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * The authorize endpoint is called by a non-cookie runtime client before the
+ * normal route auth middleware runs. Exempt only an exact POST carrying a
+ * currently valid Brainbase human JWT. The route guard still resolves the
+ * canonical tenant/person membership and enforces the administrative role.
+ */
+export function isAuthenticatedSlackInstallationAuthorizeRequest(req, {
+    env = process.env
+} = {}) {
+    if (req?.method !== 'POST' || !exactAuthorizeRequestPath(req)) return false;
+    const token = bearerToken(req);
+    const secret = required(env, 'BRAINBASE_JWT_SECRET');
+    if (!token || token.startsWith('bbsvc_') || !secret) return false;
+    try {
+        const claims = jwt.verify(token, secret);
+        const principal = claims?.sub ?? claims?.personId;
+        return claims?.typ !== 'service'
+            && typeof principal === 'string'
+            && principal.length > 0;
     } catch {
         return false;
     }

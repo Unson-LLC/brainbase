@@ -1,0 +1,390 @@
+{
+  "schema_version": "1.0.0",
+  "title": "Brainbase Program Master Roadmap",
+  "updated_at": "2026-08-20",
+  "authority_markdown": "docs/management/milestones/brainbase-program-master-roadmap.md",
+  "authority": "cross_repository_dependency_order_and_completion_gates",
+  "status_vocabulary": [
+    "planned",
+    "contract_ready",
+    "implementing",
+    "verified",
+    "production_proven",
+    "done"
+  ],
+  "rules": {
+    "downstream_design_start": "allowed_when_required_upstream_contracts_are_source_locked",
+    "downstream_release": "blocked_until_all_hard_dependencies_are_done",
+    "docs_only_completion": false,
+    "exact_head_evidence_required": true,
+    "production_not_collected_is_pass": false,
+    "one_story_one_branch_one_worktree": true,
+    "semantic_dependency_direction": "brainbase-unson -> brainbase"
+  },
+  "work_packages": [
+    {
+      "id": "R0",
+      "name": "Program contract and dependency lock",
+      "repositories": [
+        "Unson-LLC/brainbase-unson"
+      ],
+      "hard_dependencies": [],
+      "parallel_wave": "W0",
+      "exit_gate": [
+        "master roadmap is accepted",
+        "component roadmaps map to master IDs",
+        "shared status vocabulary is used",
+        "docs merge is not treated as implementation completion"
+      ]
+    },
+    {
+      "id": "T0",
+      "name": "Multi-tenant production foundation",
+      "repositories": [
+        "Unson-LLC/brainbase-unson",
+        "Unson-LLC/mana-runtime"
+      ],
+      "hard_dependencies": [
+        "R0"
+      ],
+      "parallel_wave": "W1",
+      "exit_gate": [
+        "real PostgreSQL and runtime cross-tenant negative E2E passes",
+        "production schema, bridge, secret, OAuth and readback are executed",
+        "retry and redelivery side effects are bounded and auditable",
+        "not_collected is never treated as pass or zero"
+      ]
+    },
+    {
+      "id": "J0",
+      "name": "Shared Judgment DAG kernel",
+      "repositories": [
+        "Unson-LLC/brainbase"
+      ],
+      "hard_dependencies": [
+        "R0"
+      ],
+      "parallel_wave": "W1",
+      "exit_gate": [
+        "Context to Evaluation DAG runs deterministically",
+        "missing, cyclic and reverse-layer dependencies fail before execution",
+        "run input, output, artifact and version are readable",
+        "organization edition consumes the same semantics without fork"
+      ]
+    },
+    {
+      "id": "A0",
+      "name": "Canonical Company Authority",
+      "repositories": [
+        "Unson-LLC/brainbase-unson",
+        "Unson-LLC/mana-runtime"
+      ],
+      "hard_dependencies": [
+        "T0"
+      ],
+      "parallel_wave": "W2",
+      "exit_gate": [
+        "2 tenant x 2 person x read/write/approval/deny fresh E2E passes",
+        "unknown, ambiguous, inactive, out-of-scope and stale revision fail closed",
+        "Mana does not synthesize person, organization, project, owner or approver",
+        "authority, execution, usage and receipt share one correlation ID"
+      ]
+    },
+    {
+      "id": "R1",
+      "name": "Replay and evaluation primitives",
+      "repositories": [
+        "Unson-LLC/brainbase"
+      ],
+      "hard_dependencies": [
+        "J0"
+      ],
+      "parallel_wave": "W2",
+      "exit_gate": [
+        "historical version replays against recorded context",
+        "version comparison does not rewrite history",
+        "evaluation cannot mutate the evaluated event set"
+      ]
+    },
+    {
+      "id": "P0",
+      "name": "Personal boundary and scope promotion",
+      "repositories": [
+        "Unson-LLC/brainbase-unson",
+        "Unson-LLC/brainbase"
+      ],
+      "hard_dependencies": [
+        "A0"
+      ],
+      "contract_dependencies": [
+        "J0"
+      ],
+      "parallel_wave": "W3",
+      "exit_gate": [
+        "cross-person Personal KG non-leakage passes",
+        "owner approval alone writes zero Graph records",
+        "organization reviewer cannot read Personal body",
+        "Graph cannot reconstruct Personal body",
+        "LLM repetition alone cannot promote knowledge"
+      ]
+    },
+    {
+      "id": "G0",
+      "name": "Governed execution and approval runtime",
+      "repositories": [
+        "Unson-LLC/brainbase",
+        "Unson-LLC/brainbase-unson"
+      ],
+      "hard_dependencies": [
+        "J0",
+        "A0",
+        "P0"
+      ],
+      "parallel_wave": "W4",
+      "exit_gate": [
+        "same node runs through human and agent under one input contract",
+        "agent confidence cannot override authority",
+        "unauthorized approver, stale context and missing accountable owner fail closed",
+        "execution artifact is bound to authority receipt"
+      ]
+    },
+    {
+      "id": "C0",
+      "name": "OSS and Organization complete conformance",
+      "repositories": [
+        "Unson-LLC/brainbase-unson",
+        "Unson-LLC/brainbase"
+      ],
+      "hard_dependencies": [
+        "J0",
+        "G0"
+      ],
+      "parallel_wave": "W5",
+      "exit_gate": [
+        "all OSS public contracts pass in organization CI at an exact version",
+        "authentication, tenant, authority and failure semantics conform",
+        "local-only features are safely adapted or explicit non_applicable",
+        "no separate organization Judgment DAG semantic implementation exists"
+      ]
+    },
+    {
+      "id": "D0",
+      "name": "Brainbase Deployment DAG dogfood",
+      "repositories": [
+        "Unson-LLC/brainbase-unson"
+      ],
+      "hard_dependencies": [
+        "J0",
+        "G0"
+      ],
+      "parallel_wave": "W5",
+      "exit_gate": [
+        "one real deployment runs end-to-end",
+        "all Keigo-only judgments are explicit human-run nodes",
+        "expert escalation count per deployment is measurable",
+        "at least one repeated judgment is promoted into a reusable node"
+      ]
+    },
+    {
+      "id": "V0",
+      "name": "Internal multi-user proof",
+      "repositories": [
+        "Unson-LLC/brainbase-unson"
+      ],
+      "hard_dependencies": [
+        "T0",
+        "A0",
+        "P0",
+        "G0",
+        "C0"
+      ],
+      "parallel_wave": "W6",
+      "lanes": [
+        "V0-U Umeda",
+        "V0-T TechKnight"
+      ],
+      "exit_gate": [
+        "each lane closes at least one real work Ship",
+        "person, tenant, project, authority, artifact and readback are traceable",
+        "boundary incident count is zero",
+        "user value is recorded, not only technical success"
+      ]
+    },
+    {
+      "id": "O0",
+      "name": "Mana management execution loop",
+      "repositories": [
+        "Unson-LLC/mana-runtime"
+      ],
+      "hard_dependencies": [
+        "D0",
+        "G0"
+      ],
+      "parallel_wave": "W6",
+      "exit_gate": [
+        "same governed contract is reused in Umeda and TechKnight work",
+        "Mana closes executable work to Ship",
+        "human decisions are routed to canonical owner or approver and stale work is detected",
+        "Mana does not synthesize authority or upstream judgment"
+      ]
+    },
+    {
+      "id": "V1",
+      "name": "Growin design-partner proof",
+      "repositories": [
+        "Unson-LLC/brainbase-unson"
+      ],
+      "hard_dependencies": [
+        "D0",
+        "C0",
+        "V0"
+      ],
+      "parallel_wave": "W7",
+      "exit_gate": [
+        "at least one evidence-to-outcome judgment chain operates live",
+        "current policy, evidence, change authority and downstream impact are answerable",
+        "invalid and superseded judgments are not returned as current",
+        "Growin-specific requirements are separated from reusable core"
+      ]
+    },
+    {
+      "id": "V2",
+      "name": "Second-company portability proof",
+      "repositories": [
+        "Unson-LLC/brainbase-unson"
+      ],
+      "hard_dependencies": [
+        "V1",
+        "C0"
+      ],
+      "parallel_wave": "W8",
+      "exit_gate": [
+        "same DAG semantics are reused without schema fork",
+        "reusable nodes are reused or explicitly versioned",
+        "customer adapters remain outside shared core",
+        "comparable phases require fewer Keigo escalations than the first company"
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "Organizational replay and backtest",
+      "repositories": [
+        "Unson-LLC/brainbase",
+        "Unson-LLC/brainbase-unson"
+      ],
+      "hard_dependencies": [
+        "R1",
+        "V1"
+      ],
+      "parallel_wave": "W8",
+      "exit_gate": [
+        "past organizational judgment replays from recorded context",
+        "proposed version comparison does not alter history",
+        "insufficient causal evidence is not converted into certainty",
+        "evaluation connects to promotion or supersession candidates"
+      ]
+    },
+    {
+      "id": "E0",
+      "name": "Enterprise production",
+      "repositories": [
+        "Unson-LLC/brainbase-unson",
+        "Unson-LLC/mana-runtime"
+      ],
+      "hard_dependencies": [
+        "V2",
+        "R2",
+        "O0",
+        "C0"
+      ],
+      "parallel_wave": "W9",
+      "exit_gate": [
+        "enterprise controls wrap the shared DAG model without semantic fork",
+        "customer production operation has explicit authority and audit trail",
+        "failure drill, restore, credential rotation and tenant deletion are readable",
+        "V2, R2 and O0 outcomes remain valid on the production path"
+      ]
+    }
+  ],
+  "crosswalk": {
+    "company_authority_roadmap": {
+      "M0": [
+        "T0",
+        "A0"
+      ],
+      "M1": [
+        "P0"
+      ],
+      "M2": [
+        "V0-U"
+      ],
+      "M3": [
+        "V0-T"
+      ],
+      "M4": [
+        "O0"
+      ],
+      "M5": [
+        "C0"
+      ]
+    },
+    "oss_judgment_dag_roadmap": {
+      "M0": [
+        "R0",
+        "J0"
+      ],
+      "M1": [
+        "J0"
+      ],
+      "M2": [
+        "G0"
+      ],
+      "M3": [
+        "R1"
+      ],
+      "M4": [
+        "D0"
+      ],
+      "M5": [
+        "P0"
+      ],
+      "M6": [
+        "G0",
+        "C0"
+      ]
+    },
+    "organization_judgment_dag_roadmap": {
+      "M0": [
+        "R0",
+        "C0"
+      ],
+      "M1": [
+        "D0"
+      ],
+      "M2": [
+        "D0"
+      ],
+      "M3": [
+        "G0",
+        "D0"
+      ],
+      "M4": [
+        "V1"
+      ],
+      "M5": [
+        "V2"
+      ],
+      "M6": [
+        "A0",
+        "G0"
+      ],
+      "M7": [
+        "R1",
+        "R2"
+      ],
+      "M8": [
+        "E0"
+      ]
+    }
+  }
+}

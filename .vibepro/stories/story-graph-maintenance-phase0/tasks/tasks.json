@@ -1,0 +1,365 @@
+{
+  "schema_version": "0.1.0",
+  "generated_at": "2026-08-20T16:11:42.929Z",
+  "story": {
+    "story_id": "story-graph-maintenance-phase0",
+    "title": "Graph SSOTデータ整備 Phase 0 MCP",
+    "ssot": "local",
+    "status": "active",
+    "horizon": null,
+    "view": null,
+    "period": null,
+    "started_at": null,
+    "due_at": null,
+    "category": null,
+    "contract_type": null
+  },
+  "source_run": {
+    "run_id": "2026-08-20T161128Z",
+    "gate_status": "needs_review"
+  },
+  "tasks": [
+    {
+      "id": "VP-TASK-FLOW-006",
+      "source_type": "finding",
+      "source_id": "VP-FLOW-006",
+      "finding_id": "VP-FLOW-006",
+      "title": "クリック可能に見えるUIに操作契約がない候補がある",
+      "priority": "high",
+      "status": "todo",
+      "order": 50,
+      "gate_effect": null,
+      "execution_policy": "proposal_only",
+      "mutates_repository": false,
+      "target_count": 20,
+      "target_files": [
+        "public/modules/app/ui-setup-mixin.js",
+        "public/modules/settings/settings-core.js",
+        "public/modules/settings/settings-ui.js",
+        "public/modules/ui/mobile-tab-controller.js",
+        "public/modules/utils/ansi-to-html.js",
+        "public/modules/ui/modals/archive-modal.js",
+        "public/modules/ui/modals/health-alert-modal.js",
+        "public/modules/ui/modals/learning-candidate-modal.js",
+        "public/modules/ui/views/file-viewer-view.js",
+        "public/modules/ui/views/folder-tree-view.js",
+        "public/modules/ui/views/inbox-view.js",
+        "public/modules/ui/views/lead-console-view.js",
+        "public/modules/ui/views/nocodb-tasks-view.js",
+        "public/modules/ui/views/portal-overlay-view.js",
+        "public/modules/ui/views/portal-view.js",
+        "public/modules/ui/views/session-context-bar-view.js",
+        "public/modules/ui/views/timeline-list-view.js",
+        "public/modules/ui/views/timeline-view.js",
+        "public/modules/ui/views/wiki-view.js",
+        "public/modules/ui/views/portal-sections/frame-section.js"
+      ],
+      "target_routes": [],
+      "target_groups": [],
+      "read_first_files": [
+        {
+          "file": "public/modules/app/ui-setup-mixin.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/settings/settings-core.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/settings/settings-ui.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/mobile-tab-controller.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/utils/ansi-to-html.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/archive-modal.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/health-alert-modal.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/learning-candidate-modal.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/file-viewer-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/folder-tree-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/inbox-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/lead-console-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/nocodb-tasks-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/portal-overlay-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/portal-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/session-context-bar-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/timeline-list-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/timeline-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/wiki-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/portal-sections/frame-section.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        }
+      ],
+      "recommended_strategy": {
+        "id": "manual-review",
+        "reason": "クリック可能に見える要素は、保存、表示変化、画面遷移、scroll/focus、disabled、または準備中表示のいずれかに分類できるようにする。画面単位で全クリック可能要素を棚卸しし、Playwrightでは主要導線だけでなく押せそうなUIの反応も確認する。"
+      },
+      "implementation_steps": [
+        {
+          "id": "review-finding",
+          "title": "検出内容を確認する",
+          "detail": "128 件のinteractive element contract違反候補を検出した。"
+        }
+      ],
+      "acceptance_criteria": [
+        "クリック可能に見える要素は、保存、表示変化、画面遷移、scroll/focus、disabled、または準備中表示のいずれかに分類できるようにする。画面単位で全クリック可能要素を棚卸しし、Playwrightでは主要導線だけでなく押せそうなUIの反応も確認する。"
+      ],
+      "graph_context": null,
+      "pre_fix_briefing": null
+    },
+    {
+      "id": "VP-TASK-STATIC-003",
+      "source_type": "finding",
+      "source_id": "VP-STATIC-003",
+      "finding_id": "VP-STATIC-003",
+      "title": "XSS につながり得る DOM 操作がある",
+      "priority": "high",
+      "status": "todo",
+      "order": 50,
+      "gate_effect": null,
+      "execution_policy": "proposal_only",
+      "mutates_repository": false,
+      "target_count": 34,
+      "target_files": [
+        "scripts/vibepro-component-style-check.mjs",
+        "public/modules/confirm-modal.js",
+        "public/modules/iframe-contextmenu-handler.js",
+        "public/modules/app/mobile-navigation-mixin.js",
+        "public/modules/app/session-creation-mixin.js",
+        "public/modules/app/terminal-input-ux-mixin.js",
+        "public/modules/app/ui-setup-mixin.js",
+        "public/modules/components/donut-chart.js",
+        "public/modules/components/gauge-chart.js",
+        "public/modules/components/line-chart.js",
+        "public/modules/components/project-card.js",
+        "public/modules/device/device-auth-controller.js",
+        "public/modules/settings/settings-core.js",
+        "public/modules/settings/settings-ui.js",
+        "public/modules/ui/choice-overlay-controller.js",
+        "public/modules/ui/mobile-input-sheet-manager.js",
+        "public/modules/ui/mobile-tab-controller.js",
+        "public/modules/ui/modals/archive-modal.js",
+        "public/modules/ui/modals/health-alert-modal.js",
+        "public/modules/ui/modals/project-details-modal.js",
+        "public/modules/ui/modals/task-add-modal.js",
+        "public/modules/ui/views/base-view.js",
+        "public/modules/ui/views/commit-tree-view.js",
+        "public/modules/ui/views/file-viewer-view.js",
+        "public/modules/ui/views/folder-tree-view.js",
+        "public/modules/ui/views/inbox-view.js",
+        "public/modules/ui/views/lead-console-view.js",
+        "public/modules/ui/views/live-feed-view.js",
+        "public/modules/ui/views/nocodb-tasks-view.js",
+        "public/modules/ui/views/portal-overlay-view.js",
+        "public/modules/ui/views/portal-view.js",
+        "public/modules/ui/views/timeline-list-view.js",
+        "public/modules/ui/views/timeline-view.js",
+        "public/modules/ui/views/wiki-view.js"
+      ],
+      "target_routes": [],
+      "target_groups": [],
+      "read_first_files": [
+        {
+          "file": "scripts/vibepro-component-style-check.mjs",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/confirm-modal.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/iframe-contextmenu-handler.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/app/mobile-navigation-mixin.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/app/session-creation-mixin.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/app/terminal-input-ux-mixin.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/app/ui-setup-mixin.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/components/donut-chart.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/components/gauge-chart.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/components/line-chart.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/components/project-card.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/device/device-auth-controller.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/settings/settings-core.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/settings/settings-ui.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/choice-overlay-controller.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/mobile-input-sheet-manager.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/mobile-tab-controller.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/archive-modal.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/health-alert-modal.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/project-details-modal.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/task-add-modal.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/base-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/commit-tree-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/file-viewer-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/folder-tree-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/inbox-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/lead-console-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/live-feed-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/nocodb-tasks-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/portal-overlay-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/portal-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/timeline-list-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/timeline-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/wiki-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        }
+      ],
+      "recommended_strategy": {
+        "id": "manual-review",
+        "reason": "ユーザー入力をHTMLとして挿入しない。必要な場合はサニタイズし、textContentなど安全な代替を使う。"
+      },
+      "implementation_steps": [
+        {
+          "id": "review-finding",
+          "title": "検出内容を確認する",
+          "detail": "100 件のgate対象の危険なDOM操作候補を検出した。内訳: block: 0件, review: 100件, info: 614件。"
+        }
+      ],
+      "acceptance_criteria": [
+        "ユーザー入力をHTMLとして挿入しない。必要な場合はサニタイズし、textContentなど安全な代替を使う。"
+      ],
+      "graph_context": null,
+      "pre_fix_briefing": null
+    }
+  ]
+}

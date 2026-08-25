@@ -220,16 +220,31 @@ export class InfoSSOTService {
             let edgeCursor = cursor?.edge || null;
             let completedCursorCount = 0;
             let failurePosition = null;
+            const roleRank = this.getRoleRank(access.role);
             try {
                 while (true) {
                     failurePosition = { phase: 'entities', cursor: entityCursor };
                     const result = await client.query(
-                        `SELECT id, entity_type AS type, payload
-                         FROM graph_entities
-                         WHERE ($1::text IS NULL OR id > $1)
-                         ORDER BY id
+                        `SELECT ge.id, ge.entity_type AS type, ge.payload
+                         FROM graph_entities ge
+                         LEFT JOIN projects entity_project ON entity_project.id=ge.project_id
+                         WHERE ($1::text IS NULL OR ge.id > $1)
+                           AND ge.sensitivity=ANY($3)
+                           AND (CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $4
+                           AND (
+                             entity_project.code=ANY($5)
+                             OR (ge.project_id IS NULL AND ge.entity_type='person' AND EXISTS (
+                               SELECT 1 FROM graph_edges membership
+                               JOIN projects membership_project ON membership_project.id=membership.project_id
+                               WHERE membership.from_id=ge.id AND membership.rel_type='member_of'
+                                 AND membership.lifecycle_status='active' AND membership_project.code=ANY($5)
+                                 AND membership.sensitivity=ANY($3)
+                                 AND (CASE membership.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $4
+                             ))
+                           )
+                         ORDER BY ge.id
                          LIMIT $2`,
-                        [entityCursor, safeLimit]
+                        [entityCursor, safeLimit, access.clearance, roleRank, access.projectCodes]
                     );
                     entities.push(...result.rows);
                     completedCursorCount += 1;
@@ -239,18 +254,49 @@ export class InfoSSOTService {
                 while (true) {
                     failurePosition = { phase: 'edges', cursor: edgeCursor };
                     const result = await client.query(
-                        `SELECT from_id, to_id, rel_type AS relation, payload
-                         FROM graph_edges
-                         WHERE ($1::text IS NULL OR (from_id, to_id, rel_type) > ($1::text, $2::text, $3::text))
-                         ORDER BY from_id, to_id, rel_type
-                         LIMIT $4`,
-                        [edgeCursor?.from_id || null, edgeCursor?.to_id || null, edgeCursor?.relation || null, safeLimit]
+                        `SELECT id, from_id, to_id, rel_type AS relation, payload
+                         FROM graph_edges ge
+                         WHERE ($1::text IS NULL OR (ge.from_id, ge.to_id, ge.rel_type, ge.id) > ($1::text, $2::text, $3::text, $4::text))
+                           AND ge.sensitivity=ANY($5)
+                           AND (CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $6
+                           AND (NOT (ge.payload ? 'target_project_code') OR ge.payload->>'target_project_code'=ANY($7))
+                           AND 2 = (
+                             SELECT COUNT(DISTINCT endpoint.id)
+                             FROM graph_entities endpoint
+                             LEFT JOIN projects endpoint_project ON endpoint_project.id=endpoint.project_id
+                             WHERE endpoint.id IN (ge.from_id, ge.to_id)
+                               AND endpoint.sensitivity=ANY($5)
+                               AND (CASE endpoint.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $6
+                               AND (
+                                 endpoint_project.code=ANY($7)
+                                 OR (endpoint.project_id IS NULL AND endpoint.entity_type='person' AND EXISTS (
+                                   SELECT 1 FROM graph_edges membership
+                                   JOIN projects membership_project ON membership_project.id=membership.project_id
+                                   WHERE membership.from_id=endpoint.id AND membership.rel_type='member_of'
+                                     AND membership.lifecycle_status='active' AND membership_project.code=ANY($7)
+                                     AND membership.sensitivity=ANY($5)
+                                     AND (CASE membership.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $6
+                                 ))
+                               )
+                           )
+                         ORDER BY ge.from_id, ge.to_id, ge.rel_type, ge.id
+                         LIMIT $8`,
+                        [
+                            edgeCursor?.from_id || null,
+                            edgeCursor?.to_id || null,
+                            edgeCursor?.relation || null,
+                            edgeCursor?.id || null,
+                            access.clearance,
+                            roleRank,
+                            access.projectCodes,
+                            safeLimit
+                        ]
                     );
                     edges.push(...result.rows);
                     completedCursorCount += 1;
                     if (result.rows.length < safeLimit) break;
                     const last = result.rows.at(-1);
-                    edgeCursor = { from_id: last.from_id, to_id: last.to_id, relation: last.relation };
+                    edgeCursor = { id: last.id, from_id: last.from_id, to_id: last.to_id, relation: last.relation };
                 }
                 const validation = kernel.validateSnapshot({ entities, edges, complete: true });
                 return {
@@ -570,6 +616,7 @@ export class InfoSSOTService {
                 payload = EXCLUDED.payload,
                 role_min = EXCLUDED.role_min,
                 sensitivity = EXCLUDED.sensitivity,
+                version = graph_entities.version + 1,
                 updated_at = NOW()`,
             [
                 id,
@@ -599,6 +646,19 @@ export class InfoSSOTService {
                 rel_type: relType
             }, validationEntityIds: [fromId, toId] });
         }
+        const endpointProjects = await client.query(
+            `SELECT id, project_id FROM graph_entities WHERE id = ANY($1::text[])`,
+            [[fromId, toId]]
+        );
+        if (endpointProjects.rows.length !== new Set([fromId, toId]).size) {
+            throw new Error('Graph edge endpoint is missing');
+        }
+        if (endpointProjects.rows.some((endpoint) => endpoint.project_id && endpoint.project_id !== projectId)) {
+            const error = new Error('Cross-project edge writes require Graph Maintenance');
+            error.code = 'GRAPH_CROSS_PROJECT_WRITE_REQUIRES_MAINTENANCE';
+            error.status = 409;
+            throw error;
+        }
         const edgeId = this.generateId('edg');
         await client.query(
             `INSERT INTO graph_edges (
@@ -618,6 +678,7 @@ export class InfoSSOTService {
                 payload = EXCLUDED.payload,
                 role_min = EXCLUDED.role_min,
                 sensitivity = EXCLUDED.sensitivity,
+                version = graph_edges.version + 1,
                 updated_at = NOW()`,
             [
                 edgeId,
@@ -751,7 +812,7 @@ export class InfoSSOTService {
         });
     }
 
-    async summarizeEdges(client, records) {
+    async summarizeEdges(client, access, records) {
         const idSet = new Set();
         for (const record of records) {
             if (record.from_id) idSet.add(record.from_id);
@@ -760,18 +821,34 @@ export class InfoSSOTService {
         const ids = Array.from(idSet);
         const labelMap = new Map();
         if (ids.length) {
+            const roleRank = this.getRoleRank(access.role);
             const { rows } = await client.query(
-                'SELECT id, entity_type, payload FROM graph_entities WHERE id = ANY($1)',
-                [ids]
+                `SELECT ge.id, ge.entity_type, ge.payload
+                 FROM graph_entities ge LEFT JOIN projects p ON p.id=ge.project_id
+                 WHERE ge.id=ANY($1) AND (
+                   p.code=ANY($2)
+                   OR (ge.project_id IS NULL AND ge.entity_type='person' AND EXISTS (
+                     SELECT 1 FROM graph_edges membership
+                     JOIN projects membership_project ON membership_project.id=membership.project_id
+                     WHERE membership.from_id=ge.id AND membership.rel_type='member_of'
+                       AND membership.lifecycle_status='active' AND membership_project.code=ANY($2)
+                       AND membership.sensitivity=ANY($3)
+                       AND (CASE membership.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $4
+                   ))
+                 )
+                   AND ge.sensitivity=ANY($3)
+                   AND (CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $4`,
+                [ids, access.projectCodes, access.clearance, roleRank]
             );
             for (const row of rows) {
                 labelMap.set(row.id, this.formatEntityLabel(row));
             }
         }
-        const labelFor = (id) => labelMap.get(id) || id;
-        return records.map(record => {
-            const fromLabel = labelFor(record.from_id);
-            const toLabel = labelFor(record.to_id);
+        return records.filter(record => (
+            labelMap.has(record.from_id) && labelMap.has(record.to_id)
+        )).map(record => {
+            const fromLabel = labelMap.get(record.from_id);
+            const toLabel = labelMap.get(record.to_id);
             return `${fromLabel} -[${record.rel_type}]-> ${toLabel}`;
         });
     }
@@ -972,6 +1049,8 @@ export class InfoSSOTService {
             await client.query('SELECT set_config($1, $2, true)', ['app.role', access.role]);
             await client.query('SELECT set_config($1, $2, true)', ['app.project_codes', access.projectCodes.join(',')]);
             await client.query('SELECT set_config($1, $2, true)', ['app.clearance', access.clearance.join(',')]);
+            await client.query('SELECT set_config($1, $2, true)', ['app.organization_id', access.organizationId || access.tenantId || '']);
+            await client.query('SELECT set_config($1, $2, true)', ['app.graph_maintenance_mode', access.graphMaintenanceMode === true ? 'true' : 'false']);
             const result = await handler(client);
             if (ownsTransaction) await client.query('COMMIT');
             return result;
@@ -997,13 +1076,22 @@ export class InfoSSOTService {
                       JOIN projects px ON px.id = gx.project_id
                       WHERE gx.from_id = ge.id
                         AND gx.rel_type = 'member_of'
+                        AND gx.lifecycle_status = 'active'
+                        AND px.code = ANY($3)
+                        AND gx.sensitivity = ANY($4)
+                        AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                       ORDER BY px.code
                     ) AS member_of_project_codes,
                     ARRAY(
                       SELECT DISTINCT gx.project_id::text
                       FROM graph_edges gx
+                      JOIN projects px ON px.id = gx.project_id
                       WHERE gx.from_id = ge.id
                         AND gx.rel_type = 'member_of'
+                        AND gx.lifecycle_status = 'active'
+                        AND px.code = ANY($3)
+                        AND gx.sensitivity = ANY($4)
+                        AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                       ORDER BY gx.project_id::text
                     ) AS member_of_project_ids
              FROM graph_entities ge
@@ -1017,9 +1105,12 @@ export class InfoSSOTService {
                    SELECT 1
                    FROM graph_edges gx
                    JOIN projects px ON px.id = gx.project_id
-                   WHERE gx.from_id = ge.id
-                     AND gx.rel_type = 'member_of'
-                     AND px.code = $1
+                     WHERE gx.from_id = ge.id
+                       AND gx.rel_type = 'member_of'
+                       AND gx.lifecycle_status = 'active'
+                       AND gx.sensitivity = ANY($4)
+                       AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
+                       AND px.code = $1
                  )
                )
              )
@@ -1033,6 +1124,9 @@ export class InfoSSOTService {
                      JOIN projects py ON py.id = gy.project_id
                      WHERE gy.from_id = ge.id
                        AND gy.rel_type = 'member_of'
+                       AND gy.lifecycle_status = 'active'
+                       AND gy.sensitivity = ANY($4)
+                       AND (CASE gy.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                        AND py.code = ANY($3)
                    )
                  )
@@ -1080,6 +1174,68 @@ export class InfoSSOTService {
                AND p.code = ANY($5)
                AND ge.sensitivity = ANY($6)
                AND (CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $7
+               AND (
+                 NOT (ge.payload ? 'target_project_code')
+                 OR ge.payload->>'target_project_code'=ANY($5)
+               )
+               AND EXISTS (
+                   SELECT 1 FROM graph_entities source_entity
+                   LEFT JOIN projects source_project ON source_project.id=source_entity.project_id
+                   JOIN graph_entities target_entity ON target_entity.id=ge.to_id
+                   LEFT JOIN projects target_project ON target_project.id=target_entity.project_id
+                   WHERE source_entity.id=ge.from_id
+                     AND app_graph_entity_organization_id(source_entity.id) IS NOT NULL
+                     AND app_graph_entity_organization_id(target_entity.id) IS NOT NULL
+                     AND (
+                       app_graph_entity_organization_id(source_entity.id)
+                         IS NOT DISTINCT FROM app_graph_entity_organization_id(target_entity.id)
+                       OR (
+                         ge.rel_type='governs'
+                         AND ge.payload->>'cross_tenant'='true'
+                         AND ge.role_min='ceo'
+                         AND ge.sensitivity='restricted'
+                         AND ge.payload->>'target_project_code'=target_project.code
+                       )
+                     )
+                   )
+               AND EXISTS (
+                 SELECT 1
+                 FROM graph_entities endpoint
+                 LEFT JOIN projects endpoint_project ON endpoint_project.id=endpoint.project_id
+                 WHERE endpoint.id=ge.from_id
+                   AND endpoint.sensitivity=ANY($6)
+                   AND (CASE endpoint.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $7
+                   AND (
+                     endpoint_project.code=ANY($5)
+                     OR (endpoint.project_id IS NULL AND endpoint.entity_type='person' AND EXISTS (
+                       SELECT 1 FROM graph_edges membership
+                       JOIN projects membership_project ON membership_project.id=membership.project_id
+                       WHERE membership.from_id=endpoint.id AND membership.rel_type='member_of'
+                         AND membership.lifecycle_status='active' AND membership_project.code=ANY($5)
+                         AND membership.sensitivity=ANY($6)
+                         AND (CASE membership.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $7
+                     ))
+                   )
+               )
+               AND EXISTS (
+                 SELECT 1
+                 FROM graph_entities endpoint
+                 LEFT JOIN projects endpoint_project ON endpoint_project.id=endpoint.project_id
+                 WHERE endpoint.id=ge.to_id
+                   AND endpoint.sensitivity=ANY($6)
+                   AND (CASE endpoint.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $7
+                   AND (
+                     endpoint_project.code=ANY($5)
+                     OR (endpoint.project_id IS NULL AND endpoint.entity_type='person' AND EXISTS (
+                       SELECT 1 FROM graph_edges membership
+                       JOIN projects membership_project ON membership_project.id=membership.project_id
+                       WHERE membership.from_id=endpoint.id AND membership.rel_type='member_of'
+                         AND membership.lifecycle_status='active' AND membership_project.code=ANY($5)
+                         AND membership.sensitivity=ANY($6)
+                         AND (CASE membership.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $7
+                     ))
+                   )
+               )
              ORDER BY ge.updated_at DESC
              LIMIT $8`,
             [projectCode || null, relType || null, fromId || null, toId || null, access.projectCodes, access.clearance, roleRank, safeLimit]
@@ -1099,13 +1255,22 @@ export class InfoSSOTService {
                       JOIN projects px ON px.id = gx.project_id
                       WHERE gx.from_id = ge.id
                         AND gx.rel_type = 'member_of'
+                        AND gx.lifecycle_status = 'active'
+                        AND px.code = ANY($3)
+                        AND gx.sensitivity = ANY($4)
+                        AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                       ORDER BY px.code
                     ) AS member_of_project_codes,
                     ARRAY(
                       SELECT DISTINCT gx.project_id::text
                       FROM graph_edges gx
+                      JOIN projects px ON px.id = gx.project_id
                       WHERE gx.from_id = ge.id
                         AND gx.rel_type = 'member_of'
+                        AND gx.lifecycle_status = 'active'
+                        AND px.code = ANY($3)
+                        AND gx.sensitivity = ANY($4)
+                        AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                       ORDER BY gx.project_id::text
                     ) AS member_of_project_ids
              FROM graph_entities ge
@@ -1122,6 +1287,9 @@ export class InfoSSOTService {
                      JOIN projects px ON px.id = gx.project_id
                      WHERE gx.from_id = ge.id
                        AND gx.rel_type = 'member_of'
+                       AND gx.lifecycle_status = 'active'
+                       AND gx.sensitivity = ANY($4)
+                       AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                        AND px.code = $2
                    )
                  )
@@ -1135,6 +1303,9 @@ export class InfoSSOTService {
                      JOIN projects py ON py.id = gy.project_id
                      WHERE gy.from_id = ge.id
                        AND gy.rel_type = 'member_of'
+                       AND gy.lifecycle_status = 'active'
+                       AND gy.sensitivity = ANY($4)
+                       AND (CASE gy.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                        AND py.code = ANY($3)
                    )
                  )
@@ -1167,7 +1338,10 @@ export class InfoSSOTService {
 
     async ensureProject(client, { projectCode, projectName }) {
         const { rows } = await client.query(
-            'SELECT id FROM projects WHERE code = $1 LIMIT 1',
+            `SELECT id FROM projects
+             WHERE code = $1
+               AND (organization_id IS NULL OR organization_id = NULLIF(current_setting('app.organization_id', true), ''))
+             LIMIT 1`,
             [projectCode]
         );
         if (rows.length > 0) {
@@ -1187,7 +1361,8 @@ export class InfoSSOTService {
         }
         const id = this.generateId('prj');
         await client.query(
-            'INSERT INTO projects (id, code, name) VALUES ($1, $2, $3)',
+            `INSERT INTO projects (id, code, name, organization_id)
+             VALUES ($1, $2, $3, NULLIF(current_setting('app.organization_id', true), ''))`,
             [id, projectCode, projectName]
         );
         await this.upsertGraphEntity(client, {
@@ -1947,7 +2122,7 @@ export class InfoSSOTService {
             if (humanReadable) {
                 const allNodes = Object.values(entities).flat();
                 const summaryLines = includeEdges
-                    ? await this.summarizeEdges(client, edges)
+                    ? await this.summarizeEdges(client, access, edges)
                     : [];
                 report = this.buildHumanReport({
                     seedId: null,
@@ -2196,6 +2371,29 @@ export class InfoSSOTService {
                       AND p.code = ANY($3)
                       AND ge.sensitivity = ANY($4)
                       AND (CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
+                      AND (
+                        NOT (ge.payload ? 'target_project_code')
+                        OR ge.payload->>'target_project_code'=ANY($3)
+                      )
+                      AND 2 = (
+                        SELECT COUNT(DISTINCT endpoint.id)
+                        FROM graph_entities endpoint
+                        LEFT JOIN projects endpoint_project ON endpoint_project.id=endpoint.project_id
+                        WHERE endpoint.id IN (ge.from_id, ge.to_id)
+                          AND endpoint.sensitivity=ANY($4)
+                          AND (CASE endpoint.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
+                          AND (
+                            endpoint_project.code=ANY($3)
+                            OR (endpoint.project_id IS NULL AND endpoint.entity_type='person' AND EXISTS (
+                              SELECT 1 FROM graph_edges membership
+                              JOIN projects membership_project ON membership_project.id=membership.project_id
+                              WHERE membership.from_id=endpoint.id AND membership.rel_type='member_of'
+                                AND membership.lifecycle_status='active' AND membership_project.code=ANY($3)
+                                AND membership.sensitivity=ANY($4)
+                                AND (CASE membership.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
+                            ))
+                          )
+                      )
                 )
                 SELECT DISTINCT id FROM node_walk
                 LIMIT $7`,
@@ -2213,13 +2411,13 @@ export class InfoSSOTService {
             const filteredEdges = edges.filter(edge => nodeIds.includes(edge.from_id) || nodeIds.includes(edge.to_id));
             const nodes = await this.fetchGraphEntitiesByIds(client, access, {
                 ids: nodeIds,
-                projectCode
+                projectCode: null
             });
 
             let summaryLines = null;
             let report = null;
             if (humanReadable) {
-                summaryLines = await this.summarizeEdges(client, filteredEdges);
+                summaryLines = await this.summarizeEdges(client, access, filteredEdges);
                 report = this.buildHumanReport({
                     seedId,
                     projectCode,
@@ -2638,7 +2836,7 @@ export class InfoSSOTService {
             if (input.humanReadable) {
                 summaryLines = queryType === 'entities'
                     ? this.summarizeEntities(records)
-                    : await this.summarizeEdges(client, records);
+                    : await this.summarizeEdges(client, access, records);
             }
 
             return {

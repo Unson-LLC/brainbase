@@ -1,0 +1,311 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-maintenance-apply-idempotency",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "authenticated access context",
+        "projects.organization_id"
+      ],
+      "resolution_point": "GraphMaintenanceService.applyPlan",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "MCP apply input",
+        "Graph maintenance service",
+        "Apply Receipt store"
+      ],
+      "verified_surfaces": [
+        "MCP apply input",
+        "Graph maintenance service",
+        "Apply Receipt store"
+      ]
+    },
+    "resources": [
+      {
+        "name": "graph migration apply receipt",
+        "sharing": "tenant_partitioned",
+        "partition_key": "organization_id",
+        "tenant_key": "organization_id",
+        "trust_zone": "Brainbase PostgreSQL RLS transaction",
+        "residue_policy": "existing receipt readback does not mutate Graph state",
+        "data_owner": "Brainbase Graph SSOT",
+        "credential_scope": "tenant and project code"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "tenant and project code",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Graph SSOT"
+      ],
+      "residency": "Brainbase PostgreSQL Graph SSOT",
+      "migration": "none; validation order only",
+      "rollback": "code rollback; no schema or data migration"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "wrong_tenant",
+      "wrong_project",
+      "wrong_base_snapshot_hash",
+      "missing_human_gate",
+      "multi_decision_unapplied_plan"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "projects.organization_id",
+        "graph_maintenance_receipts.organization_id"
+      ],
+      "boundary_edges": [
+        "authenticated organization reads project apply receipt"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": [
+          "MCP apply input",
+          "Graph maintenance service",
+          "Apply Receipt store"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate",
+          "wrong_tenant",
+          "wrong_project",
+          "wrong_base_snapshot_hash",
+          "missing_human_gate",
+          "multi_decision_unapplied_plan"
+        ],
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "organization and explicit project code",
+              "tenant_key_source": "projects.organization_id",
+              "trust_zone": "Brainbase PostgreSQL RLS transaction",
+              "data_owner": "Brainbase Graph SSOT"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "organization and explicit project code",
+              "tenant_key_source": "projects.organization_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant and project code",
+              "connection_mode": "pooled RLS transaction",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "適用済みPlanの同一入力は既存Apply Receiptを返し、Graph mutationを再実行しない。",
+      "rationale": "再送を安全な冪等readbackとして扱う。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-001"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "findReceipt"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "適用済みの複数Decision Planは追加Human Gate評価前に既存Receiptを返す"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-24T01:03:42.089Z",
+      "last_revised_at": "2026-08-24T01:17:59.093Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "未適用の複数Decision PlanはHuman Gate scope検証により構造化409で停止する。",
+      "rationale": "冪等readbackの例外を未適用Planへ拡張しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-002"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "GRAPH_APPLY_HUMAN_GATE_SCOPE_UNSUPPORTED"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "複数Decisionを含むPlanは単一Human GateでApplyせず変更前に停止する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-24T01:03:42.089Z",
+      "last_revised_at": "2026-08-24T01:17:59.093Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "plan ID、tenant、project、base snapshot hashの検証を既存Receipt readbackより前に行い、Receipt・Plan・Projectが要求tenantとprojectに一致する場合だけReceiptを返す。",
+      "rationale": "plan IDが既知でも、他tenant・他project・異なるsnapshotのReceiptをreadbackできないよう永続化層でfail closedにする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "applyPlan"
+          },
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "findReceipt"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "適用済みPlanでもbase snapshot hash不一致はReceipt readbackより先に拒否する"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "既存Receiptの再取得はPlanのtenantとprojectに一致するものだけを返す"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "tenantまたはprojectが不一致の既存Receiptは取得・Apply・Rollbackで返さない"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-24T01:03:42.089Z",
+      "last_revised_at": "2026-08-24T03:00:00.000Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "Graph Maintenance service、REST契約、実PostgreSQLの冪等readback検証が通る。",
+      "rationale": "mockだけでなく永続化境界まで確認する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "applyPlan"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "適用済みの複数Decision Planは追加Human Gate評価前に既存Receiptを返す"
+          },
+          {
+            "file": "tests/server/routes/graph-maintenance-contract.test.js",
+            "case": "6つのREST routeがcontrollerからserviceへ正しいmethod/body/queryを渡す"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "cross-tenant Decision subjectをHuman Gate付きでApplyしRollbackする"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-24T01:03:42.089Z",
+      "last_revised_at": "2026-08-24T01:17:59.093Z"
+    }
+  ],
+  "generated_at": "2026-08-24T03:00:00.000Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": "2026-08-24T01:09:48.767Z"
+}

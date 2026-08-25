@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "contract_id": "p0-negative-boundary-contract-v1",
+  "contract_status": "contract_ready",
+  "fixture_files": [
+    "fixtures/cases.json",
+    "schema/negative-case.schema.json",
+    "a0-semantic-binding.json",
+    "tenant-person-inventory.json"
+  ],
+  "fixture_set_sha256": "c5babf07b6180c8a36c7643d919a9ded77fb8fda00efda3589aa85e90f900f7e",
+  "hash_algorithm": "sha256(relative_path + NUL + file_bytes)",
+  "synthetic_data_only": true,
+  "production_evidence": "not_collected"
+}

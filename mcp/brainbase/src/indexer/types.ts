@@ -11,6 +11,10 @@ export interface BaseEntity {
   source?: string;
   source_path?: string;
   legacy_source_path?: string;
+  lifecycle_status?: string;
+  lifecycle_state?: string;
+  semantic_state?: string;
+  version?: number;
 }
 
 // Project entity from projects/*/project.md

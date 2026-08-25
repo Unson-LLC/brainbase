@@ -236,11 +236,17 @@ OAuth refreshは`credential_ref`と`expected_refresh_revision`によるcompare-a
   "overage_policy": "deny|allow_and_bill|allow_with_approval",
   "hard_stop_basis_points": 10000,
   "rate_card_revision": 8,
-  "fx_table_revision": 5
+  "fx_table_revision": 5,
+  "quota_window_policy": {
+    "kind": "calendar_month",
+    "timezone": "UTC"
+  }
 }
 ```
 
-QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`のいずれかで、tenant、contract revision、metric、observed quantity、threshold、reason、decided_atを含む。Contract Authorityへ到達不能な場合は`allowed`へ丸めない。
+`quota_window_policy`はcontract revisionが明示する必須の権威情報であり、`calendar_month`（`timezone=UTC`）または`fixed`（`window_started_at`／`window_ends_at`）だけを受理する。欠落・不正・未知のpolicyを月次などへ推測してはならず、Quota Authorityはfail closedする。既存revisionを変更せず、新revisionでpolicyを明示する。
+
+QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`のいずれかで、tenant、contract revision、metric、authorityが集計したwindow内の`used`、`limit`、`remaining`、window、decided_atを含む。callerは`requested_quantity`だけを渡し、`observed_quantity`、window、unit、quota revisionを渡せない。Brainbaseは同一tenant transactionで`requested_value`を集計し、legacy NULLやContract Authorityへ到達不能な場合は`allowed`へ丸めずfail closedする。
 
 ### Contract-06: UsageEvent
 
@@ -374,7 +380,7 @@ Tunnel hostのcloudflaredはNode runtimeの`127.0.0.1`専用portへ接続する�
 | `POST /api/v1/runtime/workspace-connections:validate-revision` | tenant、connection、expected revision、workspace／app | `200 RevisionValidation` | 不可逆副作用直前のauthoritative conditional read |
 | `POST /api/v1/runtime/credential-leases` | Envelopeと`credential_lease_request`（binding、requested TTL） | `201 credential_lease_response` | 要求値以下かつ最大60秒、`max_uses=1`のopaque lease |
 | `POST /api/v1/runtime/oauth-refresh:compare-and-swap` | credential ref、expected refresh revision、new opaque ref | `200 RefreshState` | Brainbase所有の競合安全なrefresh |
-| `POST /api/v1/runtime/quota:decide` | Envelope、metric、requested quantity | `200 QuotaDecision` | contract revisionを固定した判断 |
+| `POST /api/v1/runtime/quota:decide` | Envelope、metric、requested quantityのみ | `200 QuotaDecision` | contract revisionとwindow policyを固定し、同一tenant transactionで既存requested valueを集計した判断 |
 | `POST /api/v1/runtime/usage-events` | Envelope、UsageEvent | `202 UsageEvent` | 成否に関係なく冪等記録 |
 | `POST /api/v1/runtime/operation-receipts:finalize` | Envelope、correlation、operation／usage set | `201 OperationReceipt` | outcomeとcollection stateを分離して保存 |
 | `POST /api/v1/runtime/operation-receipts:finalize-with-pricing` | Envelope、canonical OperationReceipt、Brainbase価格snapshot | `201 { receipt, pricing_snapshot }` | Receiptと価格revisionを同一transactionで保存 |

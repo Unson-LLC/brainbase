@@ -36,9 +36,18 @@ async function createPool({ missingTable = null, ledgerHash = null } = {}) {
             const rows = [];
             for (const match of contract.sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)\s*\(([^;]+)\);/gis)) {
                 for (const line of match[2].split('\n')) {
-                    const column = line.trim().match(/^([a-z][a-z0-9_]*)\s+/i)?.[1];
+                    const columnMatch = line.trim().match(/^([a-z][a-z0-9_]*)\s+([a-z][a-z0-9_]*(?:\s*\(\s*\d+\s*\))?)/i);
+                    const column = columnMatch?.[1];
                     if (column && !['primary', 'unique', 'foreign', 'references', 'check', 'constraint', 'and', 'or'].includes(column.toLowerCase())) {
-                        rows.push({ table_name: match[1], column_name: column });
+                        const declaredType = columnMatch[2].toLowerCase().replace(/\s+/gu, '');
+                        const type = declaredType.startsWith('jsonb')
+                            ? { data_type: 'jsonb', udt_name: 'jsonb' }
+                            : declaredType.startsWith('numeric')
+                                ? { data_type: 'numeric', udt_name: 'numeric' }
+                                : declaredType.startsWith('text')
+                                    ? { data_type: 'text', udt_name: 'text' }
+                                    : { data_type: declaredType, udt_name: declaredType };
+                        rows.push({ table_name: match[1], column_name: column, ...type });
                     }
                 }
             }
@@ -122,6 +131,8 @@ describe('multitenant platform schema migration runner', () => {
         expect(result).toMatchObject({ ok: true, mode: 'apply', persisted: true, schema_sha256: contract.sha256 });
         expect(queries.some(({ text }) => text.includes('pg_advisory_xact_lock'))).toBe(true);
         expect(queries.some(({ text }) => text.includes('INSERT INTO brainbase_schema_migrations'))).toBe(true);
+        expect(queries.find(({ text }) => text.includes('INSERT INTO brainbase_schema_migrations'))?.values[0])
+            .toBe('multitenant-platform-schema.v2');
         expect(queries.map(({ text }) => text)).toContain('COMMIT');
         expect(JSON.stringify(result)).not.toContain('operator@example.test');
     });
