@@ -592,7 +592,7 @@ Company Brainを複数組織で継続運用できるenterprise productにする�
 
 ## 10. Live external delivery reconciliation — 2026-08-25
 
-この節は、外部リポジトリで発生したマージ・リリースのprovenanceだけを記録する。取得時刻は`2026-08-25T14:10:02Z`で、GitHubのPRメタデータ、GitHubのrelease/tag、npm packageメタデータをreadbackした。
+この節は、外部リポジトリで発生したマージ・リリースのprovenanceだけを記録する。取得時刻は`2026-08-25T14:10:02Z`で、GitHubのPRメタデータ、GitHubのrelease/tag、npm packageメタデータをreadbackした。A0識別子の再照合は`2026-08-25T14:20:41Z`にGitHub PRメタデータを再取得した。
 
 `MERGED`、`published`、npmへの公開は外部deliveryの事実であり、Master Roadmapのwork packageを`verified`、`production_proven`、`done`へ昇格する証拠ではない。この節では独立reviewの判定結果を自己記録しない。特に、外部マージはT0、A0、G0、Gate、productionの完了を満たさない。
 
@@ -609,6 +609,7 @@ Company Brainを複数組織で継続運用できるenterprise productにする�
 - Master Roadmapのhard dependencyは`T0 → A0 → P0`である。P0 #1304は2026-08-25に外部マージされたが、現在のA0候補#1283は`OPEN`であり、T0のproduction exit evidenceもこのProgram記録上は確定していない。したがって、P0を完了扱いにせず、依存順を満たさない外部deliveryとしてdebtに残す。
 - J0 #479/#481とVibePro #493/beta16は、各リポジトリの外部deliveryを証明するだけである。J0/R1やVibePro Gateの独立review、T0/A0/G0、production readbackを代替しない。
 - `docs/session: archive gog`の`Unson-LLC/brainbase-unson#338`は、handoffでA0のopen PRとされた識別子と一致しない。GitHub上の#338は別件として`MERGED`（merge `8274ec7be148ca545669f4e9f2a54cce5818ad82`、`mergedAt 2026-04-25T11:07:50Z`）である。タイトル上A0候補の#1283は`OPEN`（`base develop@135dd778eb2c94b29ccbe9be364548a53d428464`、`head codex/a0/company-authority-producer-contract-v1@fb98642b0f2268369ad61224124794cabbd29a04`）であり、A0完了の証拠はない。
+- 監査で参照された`Unson-LLC/mana-runtime#338`（[PR #338](https://github.com/Unson-LLC/mana-runtime/pull/338)）は、`MANAがBrainbase署名済み会社権限だけを実行する`というconsumer側の`OPEN` PRである。`base main@da9a1d1ecfd67d34113ab3894d1a77c18460fe81` → `head codex/a0-company-authority-consumer@487371328b70b466e0f6bec9a7dc54c475a029d1`、merge SHA/timeはGitHub metadata上`null`（未マージ）である。RoadmapはA0の正本repoを`brainbase-unson`、`mana-runtime`をconsumerと定義しているため、この#338はA0 producerの識別子ではなく、`Unson-LLC/brainbase-unson#1283`（`OPEN`）を置き換えない。
 
 このreconciliationは外部事実と依存debtを正本へ反映したもので、独立reviewの判定、Gateの合否、production成功を自己記録していない。
 

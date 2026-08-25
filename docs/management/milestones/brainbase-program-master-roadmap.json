@@ -23,6 +23,7 @@
   },
   "live_reconciliation": {
     "captured_at": "2026-08-25T14:10:02Z",
+    "revalidated_at": "2026-08-25T14:20:41Z",
     "scope": "external_delivery_provenance_only",
     "sources": [
       "GitHub PR metadata via gh pr view",
@@ -188,6 +189,25 @@
         },
         "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1283",
         "conclusion": "A0 remains open or otherwise unverified; no completion is inferred from this PR"
+      },
+      {
+        "claimed_program_item": "A0 #338 from merge audit",
+        "repository": "Unson-LLC/mana-runtime",
+        "pull_request": 338,
+        "state": "OPEN",
+        "title": "MANAがBrainbase署名済み会社権限だけを実行する",
+        "base": {
+          "branch": "main",
+          "sha": "da9a1d1ecfd67d34113ab3894d1a77c18460fe81"
+        },
+        "head": {
+          "branch": "codex/a0-company-authority-consumer",
+          "sha": "487371328b70b466e0f6bec9a7dc54c475a029d1"
+        },
+        "merge": null,
+        "source_url": "https://github.com/Unson-LLC/mana-runtime/pull/338",
+        "roadmap_role": "A0 consumer; canonical source is brainbase-unson",
+        "conclusion": "This consumer-side PR does not identify or complete the A0 producer source; the brainbase-unson candidate #1283 remains open or otherwise unverified"
       }
     ],
     "non_compliant_order": [
