@@ -72,6 +72,7 @@ async function main() {
     const receipt = { schema_version: 'personal_knowledge_migration_release.v1', status: 'preflight_recorded', target_sha: targetSha, recorded_at: new Date().toISOString(), before };
     await fs.mkdir(path.dirname(receiptPath), { recursive: true });
     await fs.writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
+    await fs.chmod(receiptPath, 0o600);
     console.log(JSON.stringify({ status: receipt.status, target_sha: targetSha, target_count: before.target_request_ids.length, total: before.total, receipt_path: receiptPath }));
   } else {
     const receipt = JSON.parse(await fs.readFile(receiptPath, 'utf8'));
@@ -86,6 +87,7 @@ async function main() {
     assertPostflight(receipt.before, after, targetRows, rls);
     const completed = { ...receipt, status: 'passed', completed_at: new Date().toISOString(), after, rls: { enabled: rls.relrowsecurity, forced: rls.relforcerowsecurity } };
     await fs.writeFile(receiptPath, `${JSON.stringify(completed, null, 2)}\n`, { mode: 0o600 });
+    await fs.chmod(receiptPath, 0o600);
     console.log(JSON.stringify({ status: completed.status, target_sha: targetSha, target_count: ids.length, total: after.total, receipt_path: receiptPath }));
   }
   } finally {
