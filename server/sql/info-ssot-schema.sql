@@ -247,12 +247,23 @@ BEGIN
   END IF;
 END $$;
 
-CREATE OR REPLACE FUNCTION prevent_graph_maintenance_human_gate_receipt_mutation()
-RETURNS trigger LANGUAGE plpgsql AS $$
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('prevent_graph_maintenance_human_gate_receipt_mutation()');
 BEGIN
-  RAISE EXCEPTION 'graph maintenance Human Gate receipts are append-only';
-END;
-$$;
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION prevent_graph_maintenance_human_gate_receipt_mutation()
+      RETURNS trigger LANGUAGE plpgsql AS $body$
+      BEGIN
+        RAISE EXCEPTION 'graph maintenance Human Gate receipts are append-only';
+      END;
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
 DO $$
 BEGIN
@@ -278,12 +289,23 @@ CREATE TABLE IF NOT EXISTS graph_maintenance_receipts (
   UNIQUE (plan_id, receipt_type)
 );
 
-CREATE OR REPLACE FUNCTION prevent_graph_maintenance_receipt_mutation()
-RETURNS trigger LANGUAGE plpgsql AS $$
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('prevent_graph_maintenance_receipt_mutation()');
 BEGIN
-  RAISE EXCEPTION 'graph maintenance receipts are append-only';
-END;
-$$;
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION prevent_graph_maintenance_receipt_mutation()
+      RETURNS trigger LANGUAGE plpgsql AS $body$
+      BEGIN
+        RAISE EXCEPTION 'graph maintenance receipts are append-only';
+      END;
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
 DO $$
 BEGIN
