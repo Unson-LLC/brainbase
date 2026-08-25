@@ -25,11 +25,15 @@
 - Graph payloadは`personal_knowledge_normalized.v1`のallowlistだけを受け入れる。
 - `body`、`raw`、`content`、`preview`、`personal_event_id`、local path、secret、credentialを拒否する。
 - Personal eventとの対応は組織Graph payloadではなくpromotion台帳のhashとReceiptで監査する。
-- mutation結果はrequest単位で一意にし、同じrequestから二重Entity・Edge・Receiptを生成しない。同一の署名authorityを再送した場合は、使用済みauthorityとしてHTTP 409で拒否し、authority使用台帳を含む全更新差分を0にする。別hashへの差し替えも競合として停止する。
+- mutation結果はrequest単位で一意にし、同じrequestから二重Entity・Edge・Receiptを生成しない。同一の署名authorityを再送した場合は、使用済みauthorityとしてHTTP 409で拒否し、authority使用台帳を含む全更新差分を0にする。新しい署名authorityで完了済みrequestを再確認した場合は、新しいauthority使用Receiptだけを監査記録として追加できるが、event・Graph・promotion・Receiptは変更しない。別hashへの差し替えも競合として停止する。
 
 ## Transactionと副作用
 
-署名・期限・capability検証はroute middlewareでtransaction開始前に完了する。actor・organization・project再束縛とauthority再送claimはservice transaction内のGraph書込み前に完了する。承認系はauthority使用台帳、organization event、Graph、promotion request、Receiptを同一transactionに含める。途中失敗はrollbackし、検索index、LLM、外部送信などtransaction外副作用はcommit後のoutboxからだけ起動する。
+署名・期限・capability検証はroute middlewareでtransaction開始前に完了する。actor・organization・project再束縛とauthority再送claimはservice transaction内のGraph書込み前に完了する。承認系はauthority使用台帳、organization event、Graph、promotion request、Receiptを同一transactionに含める。途中失敗はrollbackする。検索とLLM contextはGraph SSOTのallowlist projectionだけを入力にし、このtransactionからPersonal本文を検索index、LLM、外部送信へ直接渡さない。本Storyには別outbox経路を追加しない。
+
+## predecessorとの関係
+
+`story-p0-negative-boundary-contract-v1`は境界契約を確定した履歴であり、本Storyが実runtimeの振る舞いを置き換える。旧Storyの`production_evidence: not_collected`と「組織側writeなし」は旧contract sliceだけの記録であり、本Storyの本番受入判定には流用しない。
 
 ## 本番検証
 

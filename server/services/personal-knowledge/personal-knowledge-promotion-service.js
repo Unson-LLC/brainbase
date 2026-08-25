@@ -300,11 +300,6 @@ export class PersonalKnowledgePromotionService {
                 normalizedPayloadHash: request.normalized_payload_hash
             });
 
-            if (request.status === 'pending_org_review' && input.decision === 'approve') return request;
-            if (request.status === 'owner_rejected' && input.decision === 'reject') return request;
-            if (request.status !== 'pending_owner_approval') {
-                throw promotionError('personal_knowledge_promotion_already_decided', 409);
-            }
             requirePromotionAuthorityTarget(promotionAuthority, {
                 capabilityId: 'personal_knowledge_promotion:owner_consent',
                 requestId,
@@ -318,6 +313,14 @@ export class PersonalKnowledgePromotionService {
                 'owner_consent',
                 options
             );
+
+            // Claim the exact signed authority before returning an idempotent state.
+            // A replay of the same operation must fail closed with no second effect.
+            if (request.status === 'pending_org_review' && input.decision === 'approve') return request;
+            if (request.status === 'owner_rejected' && input.decision === 'reject') return request;
+            if (request.status !== 'pending_owner_approval') {
+                throw promotionError('personal_knowledge_promotion_already_decided', 409);
+            }
 
             const decidedAt = this.now().toISOString();
             const status = input.decision === 'approve' ? 'pending_org_review' : 'owner_rejected';

@@ -207,8 +207,8 @@ function safeOrganizationEventRow(row) {
     };
 }
 
-async function readDbState(pool, { eventId, requestId, body }) {
-    const [events, requests, lineage, authorities, organizationEvents] = await Promise.all([
+async function readDbState(pool, { eventId, requestId, entityId, body }) {
+    const [events, requests, lineage, authorities, organizationEvents, graphEdges] = await Promise.all([
         pool.query(`
           SELECT event_id, body_hash, body IS NOT NULL AS body_present, length(body) AS body_length
           FROM personal_knowledge_events WHERE event_id = $1`, [eventId]),
@@ -234,7 +234,11 @@ async function readDbState(pool, { eventId, requestId, body }) {
           FROM knowledge_events event
           JOIN knowledge_promotion_requests request
             ON request.organization_event_id = event.event_id
-          WHERE request.request_id = $1`, [requestId, body])
+          WHERE request.request_id = $1`, [requestId, body]),
+        pool.query(`
+          SELECT count(*)::int AS count
+          FROM graph_edges
+          WHERE from_id = $1 OR to_id = $1`, [entityId])
     ]);
     return {
         event: safeDbRow(events.rows[0]),
@@ -250,7 +254,8 @@ async function readDbState(pool, { eventId, requestId, body }) {
             organization_review_receipt_id: row.organization_review_receipt_id,
             graph_entity_id: row.graph_entity_id
         })),
-        authority_uses: authorities.rows.map((row) => ({ action: row.action, count: Number(row.count) }))
+        authority_uses: authorities.rows.map((row) => ({ action: row.action, count: Number(row.count) })),
+        incident_graph_edge_count: Number(graphEdges.rows[0]?.count || 0)
     };
 }
 
@@ -328,6 +333,7 @@ function assertInitialState(state) {
     assert(state.db.promotion === null, 'synthetic_promotion_already_exists');
     assert(state.db.lineage.length === 0, 'synthetic_lineage_already_exists');
     assert(state.db.authority_uses.length === 0, 'synthetic_authority_already_used');
+    assert(state.db.incident_graph_edge_count === 0, 'synthetic_graph_edge_already_exists');
     assert(state.graph.length === 0, 'synthetic_graph_entity_already_exists');
 }
 
@@ -342,6 +348,7 @@ function assertAcceptedState(state, parsed) {
     assert(state.db.organization_event.personal_body_found_in_payload === false, 'personal_body_copied_to_organization_event');
     assert(state.db.lineage.length === 1, 'db_lineage_readback_mismatch');
     assert(state.db.authority_uses.reduce((sum, row) => sum + row.count, 0) === 3, 'db_authority_use_count_mismatch');
+    assert(state.db.incident_graph_edge_count === parsed.normalizedPayload.edges.length, 'db_graph_edge_count_mismatch');
     assert(state.graph.length === 1 && state.graph[0].id === parsed.entityId, 'graph_readback_mismatch');
 }
 

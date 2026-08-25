@@ -417,6 +417,36 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         expect(knowledgeEventService.ingest).not.toHaveBeenCalled();
     });
 
+    it('rejects replayed owner-consent authority before returning an already approved request', async () => {
+        const request = consentedRequest();
+        const { service, repository, knowledgeEventService, knowledgeGraphRepository } = promotionHarness({ request });
+        const claimed = new Set();
+        repository.claimPromotionAuthorityUse = vi.fn(async (use) => {
+            if (claimed.has(use.operation_id)) {
+                throw Object.assign(new Error('personal_knowledge_promotion_authority_replayed'), { status: 409 });
+            }
+            claimed.add(use.operation_id);
+        });
+        const promotionAuthority = authorityFor(
+            ownerAccess,
+            'personal_knowledge_promotion:owner_consent',
+            { normalizedPayloadHash: request.normalized_payload_hash }
+        );
+        const context = { access: ownerAccess, promotionAuthority };
+        const input = { decision: 'approve', normalized_payload_hash: request.normalized_payload_hash };
+
+        await expect(service.decideOwnerPromotion('kpr_1', input, context)).resolves.toBe(request);
+        await expect(service.decideOwnerPromotion('kpr_1', input, context)).rejects.toMatchObject({
+            message: 'personal_knowledge_promotion_authority_replayed', status: 409
+        });
+
+        expect(repository.claimPromotionAuthorityUse).toHaveBeenCalledTimes(2);
+        expect(knowledgeEventService.ingestInTransaction).not.toHaveBeenCalled();
+        expect(knowledgeGraphRepository.commitNormalizedPromotion).not.toHaveBeenCalled();
+        expect(repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();
+        expect(repository.createLineage).not.toHaveBeenCalled();
+    });
+
     it('rejects stale or substituted payload hashes before recording owner consent', async () => {
         const normalization = normalizeFixture(normalizedDecision());
         const request = requestFixture({

@@ -367,7 +367,7 @@
     {
       "id": "C-004",
       "type": "contract",
-      "statement": "organization event、Graph mutation、promotion request、Receiptを単一transactionで確定する。同一の署名authority再送はHTTP 409で拒否し、authority使用台帳を含む更新差分を0にして二重Entity・Edge・Receiptを生成しない。",
+      "statement": "organization event、Graph mutation、promotion request、Receiptを単一transactionで確定する。同一の署名authority再送はHTTP 409で拒否し、authority使用台帳を含む更新差分を0にして二重Entity・Edge・Receiptを生成しない。新しい署名authorityで完了済みrequestを再確認した場合は新しいauthority使用Receiptだけを追加できるが、event・Graph・promotion・Receiptは変更しない。",
       "origin": {
         "story_refs": [
           {
@@ -415,6 +415,7 @@
         "code_refs": [{ "file": "scripts/issue-personal-knowledge-promotion-smoke-fixture.mjs", "anchor": "main" }],
         "test_refs": [
           { "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js", "case": "rejects replay through the HTTP runtime before a second Graph effect" },
+          { "file": "tests/server/routes/learning.test.js", "case": "direct memory-candidate Graph promotion remains disabled after authentication" },
           { "file": "tests/server/scripts/issue-personal-knowledge-promotion-smoke-fixture.test.js", "case": "uses the runtime producer for three distinct scoped contexts and readbacks a 0600 synthetic fixture" }
         ]
       },
