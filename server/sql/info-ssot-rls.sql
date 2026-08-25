@@ -1,53 +1,108 @@
 -- Info SSOT RLS policies (Postgres)
 -- Requires app.role, app.project_codes, app.clearance via set_config
 
-CREATE OR REPLACE FUNCTION app_role_rank(role text)
-RETURNS integer
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT CASE lower(coalesce(role, ''))
-    WHEN 'member' THEN 1
-    WHEN 'gm' THEN 2
-    WHEN 'ceo' THEN 3
-    ELSE 0
-  END;
-$$;
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_role_rank(text)');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION app_role_rank(role text)
+      RETURNS integer
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT CASE lower(coalesce(role, ''))
+          WHEN 'member' THEN 1
+          WHEN 'gm' THEN 2
+          WHEN 'ceo' THEN 3
+          ELSE 0
+        END;
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
-CREATE OR REPLACE FUNCTION app_setting_array(setting text)
-RETURNS text[]
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT CASE
-    WHEN current_setting(setting, true) IS NULL OR current_setting(setting, true) = '' THEN ARRAY[]::text[]
-    ELSE string_to_array(current_setting(setting, true), ',')
-  END;
-$$;
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_setting_array(text)');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION app_setting_array(setting text)
+      RETURNS text[]
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT CASE
+          WHEN current_setting(setting, true) IS NULL OR current_setting(setting, true) = '' THEN ARRAY[]::text[]
+          ELSE string_to_array(current_setting(setting, true), ',')
+        END;
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
-CREATE OR REPLACE FUNCTION app_current_role_rank()
-RETURNS integer
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT app_role_rank(current_setting('app.role', true));
-$$;
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_current_role_rank()');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION app_current_role_rank()
+      RETURNS integer
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT app_role_rank(current_setting('app.role', true));
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
-CREATE OR REPLACE FUNCTION app_project_codes()
-RETURNS text[]
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT app_setting_array('app.project_codes');
-$$;
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_project_codes()');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION app_project_codes()
+      RETURNS text[]
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT app_setting_array('app.project_codes');
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
-CREATE OR REPLACE FUNCTION app_clearance()
-RETURNS text[]
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT app_setting_array('app.clearance');
-$$;
+DO $do$
+DECLARE
+  function_oid oid := to_regprocedure('app_clearance()');
+BEGIN
+  IF function_oid IS NULL OR EXISTS (
+    SELECT 1 FROM pg_proc WHERE oid = function_oid AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  ) THEN
+    EXECUTE $function$
+      CREATE OR REPLACE FUNCTION app_clearance()
+      RETURNS text[]
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT app_setting_array('app.clearance');
+      $body$
+    $function$;
+  END IF;
+END $do$;
 
 ALTER TABLE decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE decisions FORCE ROW LEVEL SECURITY;
