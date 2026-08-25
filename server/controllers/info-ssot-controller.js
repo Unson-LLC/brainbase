@@ -135,9 +135,9 @@ function sendOntologyError(res, error, { operation = 'read' } = {}) {
 
 export class InfoSSOTController {
     /** @param {any} infoSSOTService */
-    constructor(infoSSOTService) {
+    constructor(infoSSOTService, { configParser = null } = {}) {
         this.infoSSOTService = infoSSOTService;
-        this.graphMaintenanceService = new GraphMaintenanceService({ infoSSOTService });
+        this.graphMaintenanceService = new GraphMaintenanceService({ infoSSOTService, configParser });
     }
 
     maintenanceAccess(req) {

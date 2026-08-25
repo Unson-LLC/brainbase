@@ -5,6 +5,243 @@ import { hashGraphSnapshot, validateGraphSnapshot } from '../../../server/servic
 const service = new GraphMaintenanceService({ infoSSOTService: {} });
 
 describe('GraphMaintenanceService authorization', () => {
+    it('Project subject metadataを認証済みCatalog正本へ束縛する', async () => {
+        const configParser = {
+            checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } })),
+            getProjects: vi.fn(async () => ({ projects: [{ id: 'ua', name: 'Universal Arts', catalog_version: 3 }] }))
+        };
+        const catalogService = new GraphMaintenanceService({ infoSSOTService: {}, configParser });
+        const bound = await catalogService.bindProjectCatalogOperations({ projectCodes: ['brainbase', 'ua'] }, [{
+            operation: 'materialize_project_subject', entity_id: 'forged', catalog_project_id: 'ua',
+            catalog_version: 99, name: 'forged', source_ref: 'forged', expected_version: 0
+        }]);
+        expect(bound[0]).toMatchObject({
+            entity_id: 'ua', catalog_project_id: 'ua', catalog_version: 3,
+            name: 'Universal Arts', source_ref: 'project-catalog:ua@3'
+        });
+    });
+
+    it('Catalog欠落・権限外・版なしをdry-run前にfail closedする', async () => {
+        const unavailable = new GraphMaintenanceService({ infoSSOTService: {}, configParser: {
+            checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'missing' }, summary: { errors: 1 } }))
+        } });
+        const operation = [{ operation: 'materialize_project_subject', catalog_project_id: 'ua' }];
+        await expect(unavailable.bindProjectCatalogOperations({ projectCodes: ['ua'] }, operation))
+            .rejects.toMatchObject({ code: 'GRAPH_PROJECT_CATALOG_UNAVAILABLE', status: 503 });
+
+        const inaccessible = new GraphMaintenanceService({ infoSSOTService: {}, configParser: {
+            checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } })),
+            getProjects: vi.fn(async () => ({ projects: [{ id: 'ua', name: 'Universal Arts', catalog_version: 1 }] }))
+        } });
+        await expect(inaccessible.bindProjectCatalogOperations({ projectCodes: ['brainbase'] }, operation))
+            .rejects.toMatchObject({ code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 });
+
+        const incomplete = new GraphMaintenanceService({ infoSSOTService: {}, configParser: {
+            checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } })),
+            getProjects: vi.fn(async () => ({ projects: [{ id: 'ua', name: 'Universal Arts' }] }))
+        } });
+        await expect(incomplete.bindProjectCatalogOperations({ projectCodes: ['ua'] }, operation))
+            .rejects.toMatchObject({ code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID', status: 409 });
+    });
+
+    it.each([
+        {
+            name: 'Catalog source missing',
+            access: { projectCodes: ['brainbase'] },
+            integrity: { applicability: 'applicable', source: { status: 'missing' }, summary: { errors: 0 } },
+            projects: [],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_UNAVAILABLE', status: 503 }
+        },
+        {
+            name: 'Catalog project missing',
+            access: { projectCodes: ['brainbase', 'ua'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 }
+        },
+        {
+            name: 'Catalog grant out',
+            access: { projectCodes: ['brainbase'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'ua', name: 'Universal Arts', catalog_version: 1 }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 }
+        },
+        {
+            name: 'Catalog metadata invalid',
+            access: { projectCodes: ['brainbase', 'ua'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'ua', name: '', catalog_version: 1 }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID', status: 409 }
+        }
+    ])('planMutations: $name はPlan INSERTとGraph mutationへ到達しない', async ({ access, integrity, projects, expected }) => {
+        const snapshot = { project_code: 'brainbase', entities: [], edges: [] };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const client = {
+            query: vi.fn(async (sql) => {
+                if (sql.includes('FROM graph_maintenance_snapshots')) {
+                    return { rows: [{
+                        id: 'snapshot_catalog_guard',
+                        project_id: 'project_brainbase',
+                        snapshot,
+                        snapshot_hash: snapshot.hash
+                    }] };
+                }
+                return { rows: [] };
+            })
+        };
+        const configParser = {
+            checkIntegrity: vi.fn(async () => integrity),
+            getProjects: vi.fn(async () => ({ projects }))
+        };
+        const guardedService = new GraphMaintenanceService({
+            configParser,
+            infoSSOTService: {
+                withAccessContext: async (_access, callback) => callback(client)
+            }
+        });
+
+        await expect(guardedService.planMutations({
+            organizationId: 'org_1',
+            role: 'gm',
+            authSource: 'bearer',
+            personId: 'person_1',
+            ...access
+        }, {
+            projectCode: 'brainbase',
+            snapshotId: 'snapshot_catalog_guard',
+            idempotencyKey: `catalog-guard-${expected.code}`,
+            reason: 'Project Catalog guard',
+            operations: [{
+                operation: 'materialize_project_subject',
+                entity_id: 'forged',
+                catalog_project_id: 'ua',
+                catalog_version: 999,
+                name: 'forged',
+                source_ref: 'forged',
+                expected_version: 0
+            }]
+        })).rejects.toMatchObject(expected);
+
+        expect(client.query.mock.calls.some(([sql]) => /\b(?:INSERT|UPDATE|DELETE)\b[\s\S]*\b(?:graph_maintenance_plans|graph_entities|graph_edges)\b/i.test(sql))).toBe(false);
+        expect(configParser.checkIntegrity).toHaveBeenCalledOnce();
+        if (expected.code === 'GRAPH_PROJECT_CATALOG_UNAVAILABLE') {
+            expect(configParser.getProjects).not.toHaveBeenCalled();
+        } else {
+            expect(configParser.getProjects).toHaveBeenCalledOnce();
+        }
+    });
+
+    it.each([
+        {
+            name: 'Catalog project missing',
+            access: { projectCodes: ['brainbase', 'brainbase-universal-arts-ai-support'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 }
+        },
+        {
+            name: 'Catalog source unavailable',
+            access: { projectCodes: ['brainbase', 'brainbase-universal-arts-ai-support'] },
+            integrity: { applicability: 'applicable', source: { status: 'unavailable' }, summary: { errors: 0 } },
+            projects: [],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_UNAVAILABLE', status: 503 }
+        },
+        {
+            name: 'Catalog project archived',
+            access: { projectCodes: ['brainbase', 'brainbase-universal-arts-ai-support'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'brainbase-universal-arts-ai-support', name: 'Universal Arts', catalog_version: 1, archived: true }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 }
+        },
+        {
+            name: 'Catalog grant out',
+            access: { projectCodes: ['brainbase'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'brainbase-universal-arts-ai-support', name: 'Universal Arts', catalog_version: 1 }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE', status: 403 }
+        },
+        {
+            name: 'Catalog version invalid',
+            access: { projectCodes: ['brainbase', 'brainbase-universal-arts-ai-support'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'brainbase-universal-arts-ai-support', name: 'Universal Arts', catalog_version: 0 }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID', status: 409 }
+        },
+        {
+            name: 'Graph projection provenance/version mismatch',
+            access: { projectCodes: ['brainbase', 'brainbase-universal-arts-ai-support'] },
+            integrity: { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } },
+            projects: [{ id: 'brainbase-universal-arts-ai-support', name: 'Universal Arts', catalog_version: 2 }],
+            expected: { code: 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID', status: 409 },
+            subjectPayload: {
+                name: 'Universal Arts', catalog_project_id: 'brainbase-universal-arts-ai-support',
+                catalog_version: 1, source_ref: 'project-catalog:brainbase-universal-arts-ai-support@1'
+            }
+        }
+    ])('link_decision_project_subject: $name はPlan INSERTとGraph mutationへ到達しない', async ({
+        access, integrity, projects, expected, subjectPayload
+    }) => {
+        const subjectId = 'brainbase-universal-arts-ai-support';
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [
+                {
+                    id: 'decision_1', entity_type: 'decision', project_code: 'brainbase', payload: {},
+                    role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+                },
+                {
+                    id: subjectId, entity_type: 'project', project_code: 'brainbase',
+                    payload: subjectPayload || {
+                        name: 'Universal Arts', catalog_project_id: subjectId,
+                        catalog_version: 1, source_ref: `project-catalog:${subjectId}@1`
+                    },
+                    role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+                }
+            ],
+            edges: []
+        };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const client = {
+            query: vi.fn(async (sql) => {
+                if (sql.includes('FROM graph_maintenance_snapshots')) {
+                    return { rows: [{
+                        id: 'snapshot_project_subject_catalog_guard',
+                        project_id: 'project_brainbase', snapshot, snapshot_hash: snapshot.hash
+                    }] };
+                }
+                return { rows: [] };
+            })
+        };
+        const configParser = {
+            checkIntegrity: vi.fn(async () => integrity),
+            getProjects: vi.fn(async () => ({ projects }))
+        };
+        const guardedService = new GraphMaintenanceService({
+            configParser,
+            infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) }
+        });
+
+        await expect(guardedService.planMutations({
+            organizationId: 'org_1', role: 'gm', authSource: 'bearer', personId: 'person_1', ...access
+        }, {
+            projectCode: 'brainbase', snapshotId: 'snapshot_project_subject_catalog_guard',
+            idempotencyKey: `project-subject-catalog-guard-${expected.code}-${expected.status}`,
+            reason: 'Project Catalog link guard', humanGateReceipt: 'gate_project_subject', operations: [{
+                operation: 'link_decision_project_subject', decision_id: 'decision_1', decision_expected_version: 1,
+                subject_entity_id: subjectId, subject_expected_version: 1,
+                target_project_code: 'brainbase', expected_version: 0
+            }]
+        })).rejects.toMatchObject(expected);
+
+        expect(client.query.mock.calls.some(([sql]) => /\b(?:INSERT|UPDATE|DELETE)\b[\s\S]*\b(?:graph_maintenance_plans|graph_entities|graph_edges)\b/i.test(sql))).toBe(false);
+        expect(configParser.checkIntegrity).toHaveBeenCalledOnce();
+        if (expected.code === 'GRAPH_PROJECT_CATALOG_UNAVAILABLE') {
+            expect(configParser.getProjects).not.toHaveBeenCalled();
+        } else {
+            expect(configParser.getProjects).toHaveBeenCalledOnce();
+        }
+    });
+
     it('署名tenant、project scope、gm以上を必須にする', () => {
         expect(() => service.assertMaintenanceAccess({ role: 'gm', projectCodes: ['brainbase'] }, 'brainbase'))
             .toThrow('Signed tenant authorization');
@@ -84,6 +321,7 @@ describe('GraphMaintenanceService authorization', () => {
             from_id: 'decision_1', to_id: 'product_aitle', rel_type: 'governs', project_code: 'brainbase'
         })]);
         expect(plan.after.entities).toEqual(snapshot.entities);
+        expect(client.query.mock.calls.some(([sql]) => /(?:INSERT|UPDATE|DELETE)\s+(?:INTO\s+|FROM\s+)?graph_(?:entities|edges)/i.test(sql))).toBe(false);
         expect(plan.diff_summary).toMatchObject({
             entities: { added_count: 0, removed_count: 0, modified_count: 0, truncated: false },
             edges: {
@@ -289,7 +527,7 @@ describe('GraphMaintenanceService authorization', () => {
         expect(receiptType).toBe(method === 'applyPlan' ? 'apply' : 'rollback');
     });
 
-    it('複数Decisionを含むPlanは単一Human GateでApplyせず変更前に停止する', async () => {
+    it('複数Decisionを含むPlanはDecision集合に束縛した単一Human Gateで原子的にApplyする', async () => {
         const before = {
             project_code: 'brainbase',
             entities: ['decision_1', 'decision_2'].map((id) => ({
@@ -310,22 +548,145 @@ describe('GraphMaintenanceService authorization', () => {
                 operation: 'retire_entity', entity_id: entity.id, expected_version: 1
             }))
         };
+        const operationScope = {
+            operation: 'apply_plan', decision_id: 'decision_1', decision_ids: ['decision_1', 'decision_2'],
+            plan_id: plan.id, base_snapshot_hash: before.hash, after_snapshot_hash: after.hash,
+            operations_fingerprint: expect.stringMatching(/^sha256:/), diff_fingerprint: expect.stringMatching(/^sha256:/)
+        };
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
             if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
+            if (sql.includes('FROM graph_maintenance_human_gate_receipts')) return { rows: [{
+                id: 'gate_multi', evidence: { operation_scope: multiDecisionService.formatPlan(plan).apply_human_gate_scope }
+            }] };
+            if (sql.includes('UPDATE graph_maintenance_plans')) return { rows: [] };
             throw new Error(`mutation query must not run: ${sql}`);
         }) };
         const multiDecisionService = new GraphMaintenanceService({
             infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) }
         });
+        vi.spyOn(multiDecisionService, 'loadSnapshot')
+            .mockResolvedValueOnce({ snapshot: before })
+            .mockResolvedValueOnce({ snapshot: after });
+        vi.spyOn(multiDecisionService, 'replaceSnapshot').mockResolvedValue(undefined);
+        vi.spyOn(multiDecisionService, 'createReceipt').mockResolvedValue({ receipt_id: 'apply_multi' });
+        expect(multiDecisionService.formatPlan(plan).apply_human_gate_scope).toMatchObject(operationScope);
         await expect(multiDecisionService.applyPlan({
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm',
             authSource: 'bearer', personId: 'person_1'
         }, {
             projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash,
-            humanGateReceipt: 'gate_single'
-        })).rejects.toMatchObject({ code: 'GRAPH_APPLY_HUMAN_GATE_SCOPE_UNSUPPORTED', status: 409 });
-        expect(client.query).toHaveBeenCalledTimes(2);
+            humanGateReceipt: 'gate_multi'
+        })).resolves.toEqual({ receipt_id: 'apply_multi' });
+        expect(multiDecisionService.replaceSnapshot).toHaveBeenCalledOnce();
+    });
+
+    it('旧単一Decision Human Gate scopeを単一Decision Planで互換受理する', async () => {
+        const before = { project_code: 'brainbase', entities: [{
+            id: 'decision_1', entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member',
+            sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        }], edges: [] };
+        before.hash = hashGraphSnapshot(before);
+        const after = structuredClone(before);
+        after.entities[0].lifecycle_status = 'retired';
+        after.entities[0].version = 2;
+        after.hash = hashGraphSnapshot(after);
+        const plan = {
+            id: 'plan_legacy_single', project_id: 'project_brainbase', organization_id: 'org_1',
+            project_code: 'brainbase', status: 'planned', base_snapshot_hash: before.hash,
+            after_snapshot_hash: after.hash, before_snapshot: before, after_snapshot: after,
+            operations: [{ operation: 'retire_entity', entity_id: 'decision_1', expected_version: 1 }]
+        };
+        const service = new GraphMaintenanceService({ infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) } });
+        const legacyScope = { ...service.formatPlan(plan).apply_human_gate_scope };
+        delete legacyScope.decision_ids;
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
+            if (sql.includes('FROM graph_maintenance_human_gate_receipts')) return { rows: [{ id: 'gate_legacy', evidence: { operation_scope: legacyScope } }] };
+            if (sql.includes('UPDATE graph_maintenance_plans')) return { rows: [] };
+            throw new Error(`mutation query must not run: ${sql}`);
+        }) };
+        vi.spyOn(service, 'loadSnapshot').mockResolvedValueOnce({ snapshot: before }).mockResolvedValueOnce({ snapshot: after });
+        vi.spyOn(service, 'replaceSnapshot').mockResolvedValue(undefined);
+        vi.spyOn(service, 'createReceipt').mockResolvedValue({ receipt_id: 'apply_legacy' });
+        await expect(service.applyPlan({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
+        }, { projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash, humanGateReceipt: 'gate_legacy' }))
+            .resolves.toEqual({ receipt_id: 'apply_legacy' });
+    });
+
+    it('旧単一Decision Human Gate scopeを複数Decision Planへ拡張しない', async () => {
+        const before = { project_code: 'brainbase', entities: ['decision_1', 'decision_2'].map((id) => ({
+            id, entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member',
+            sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        })), edges: [] };
+        before.hash = hashGraphSnapshot(before);
+        const after = structuredClone(before);
+        after.entities.forEach((entity) => { entity.lifecycle_status = 'retired'; entity.version = 2; });
+        after.hash = hashGraphSnapshot(after);
+        const plan = {
+            id: 'plan_legacy_multi', project_id: 'project_brainbase', organization_id: 'org_1',
+            project_code: 'brainbase', status: 'planned', base_snapshot_hash: before.hash,
+            after_snapshot_hash: after.hash, before_snapshot: before, after_snapshot: after,
+            operations: before.entities.map((entity) => ({ operation: 'retire_entity', entity_id: entity.id, expected_version: 1 }))
+        };
+        let legacyScope;
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
+            if (sql.includes('FROM graph_maintenance_human_gate_receipts')) return { rows: [{ id: 'gate_legacy', evidence: { operation_scope: legacyScope } }] };
+            throw new Error(`mutation query must not run: ${sql}`);
+        }) };
+        const service = new GraphMaintenanceService({ infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) } });
+        legacyScope = { ...service.formatPlan(plan).apply_human_gate_scope };
+        delete legacyScope.decision_ids;
+        vi.spyOn(service, 'loadSnapshot').mockResolvedValue({ snapshot: before });
+        const replaceSnapshot = vi.spyOn(service, 'replaceSnapshot').mockResolvedValue(undefined);
+        await expect(service.applyPlan({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
+        }, { projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash, humanGateReceipt: 'gate_legacy' }))
+            .rejects.toMatchObject({ code: 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH', status: 409 });
+        expect(replaceSnapshot).not.toHaveBeenCalled();
+    });
+
+    it('旧MCP clientは単一DecisionのApply Gateだけを新規記録できる', async () => {
+        const makePlan = (ids) => {
+            const before = { project_code: 'brainbase', entities: ids.map((id) => ({
+                id, entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member',
+                sensitivity: 'internal', lifecycle_status: 'active', version: 1
+            })), edges: [] };
+            before.hash = hashGraphSnapshot(before);
+            const after = structuredClone(before);
+            after.entities.forEach((entity) => { entity.lifecycle_status = 'retired'; entity.version = 2; });
+            after.hash = hashGraphSnapshot(after);
+            return {
+                id: `plan_${ids.length}`, project_id: 'project_brainbase', organization_id: 'org_1',
+                project_code: 'brainbase', status: 'planned', base_snapshot_hash: before.hash,
+                after_snapshot_hash: after.hash, before_snapshot: before, after_snapshot: after,
+                operations: ids.map((id) => ({ operation: 'retire_entity', entity_id: id, expected_version: 1 }))
+            };
+        };
+        const record = async (plan, receiptId) => {
+            let service;
+            const client = { query: vi.fn(async (sql, params) => {
+                if (sql.includes('SELECT id, code, organization_id FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+                if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+                if (sql.includes("entity_type='decision'")) return { rows: [{ id: 'decision_1' }] };
+                if (sql.includes('INSERT INTO graph_maintenance_human_gate_receipts')) return { rows: [{ receipt_id: receiptId, decision_id: 'decision_1', status: 'approved' }] };
+                throw new Error(`unexpected query: ${sql} ${params}`);
+            }) };
+            service = new GraphMaintenanceService({ infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) } });
+            const legacyScope = { ...service.formatPlan(plan).apply_human_gate_scope };
+            delete legacyScope.decision_ids;
+            return service.recordHumanGateReceipt({
+                organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
+            }, { projectCode: 'brainbase', decisionId: 'decision_1', receiptId, evidence: { operation_scope: legacyScope } });
+        };
+        await expect(record(makePlan(['decision_1']), 'gate_legacy_single'))
+            .resolves.toMatchObject({ receipt_id: 'gate_legacy_single', status: 'approved' });
+        await expect(record(makePlan(['decision_1', 'decision_2']), 'gate_legacy_multi'))
+            .rejects.toMatchObject({ code: 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH', status: 409 });
     });
 
     it('適用済みの複数Decision Planは追加Human Gate評価前に既存Receiptを返す', async () => {
@@ -677,6 +1038,16 @@ describe('GraphMaintenanceService authorization', () => {
             target_project_code: 'aitle', expected_version: 0
         }, source: 'human-review' } });
         expect(receipt).toMatchObject({ receipt_id: 'gate_1', status: 'approved', decision_id: 'decision_1' });
+        const projectSubjectReceipt = await humanGateService.recordHumanGateReceipt({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
+        }, { projectCode: 'brainbase', decisionId: 'decision_1', receiptId: 'gate_project_subject', evidence: { operation_scope: {
+            operation: 'link_decision_project_subject', decision_id: 'decision_1', decision_expected_version: 2,
+            subject_entity_id: 'brainbase-universal-arts-ai-support', subject_expected_version: 1,
+            target_project_code: 'brainbase', expected_version: 0
+        } } });
+        expect(projectSubjectReceipt).toMatchObject({
+            receipt_id: 'gate_project_subject', status: 'approved', decision_id: 'decision_1'
+        });
         const retireReceipt = await humanGateService.recordHumanGateReceipt({
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
         }, { projectCode: 'brainbase', decisionId: 'decision_1', receiptId: 'gate_retire', evidence: { operation_scope: {
@@ -688,7 +1059,7 @@ describe('GraphMaintenanceService authorization', () => {
         }, { projectCode: 'brainbase', decisionId: 'decision_other', receiptId: 'gate_mismatch', evidence: { operation_scope: {
             operation: 'retire_entity', decision_id: 'decision_1', decision_expected_version: 2
         } } })).rejects.toMatchObject({ code: 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH', status: 409 });
-        expect(withAccessContext).toHaveBeenCalledTimes(4);
+        expect(withAccessContext).toHaveBeenCalledTimes(5);
     });
 
     it('Human Gate receipt IDの再利用は同一operation_scopeだけを許可する', async () => {

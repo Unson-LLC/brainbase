@@ -85,6 +85,7 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
     let service;
     let infoSSOTService;
     let initialSnapshot;
+    let projectCatalogCheckCount;
 
     beforeAll(async () => {
         database = await createScopedDatabase('gm_phase0');
@@ -102,6 +103,9 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             VALUES
                 ('decision_rehome', 'decision', 'project_phase0', '{"title":"Move to VibePro","status":"draft"}', 'member', 'internal', 'active', 1),
                 ('decision_subject', 'decision', 'project_phase0', '{"title":"Aitle product decision","status":"draft"}', 'ceo', 'restricted', 'active', 1),
+                ('decision_subject_2', 'decision', 'project_phase0', '{"title":"Universal Arts decision 2","status":"draft"}', 'ceo', 'restricted', 'active', 1),
+                ('decision_subject_3', 'decision', 'project_phase0', '{"title":"Universal Arts decision 3","status":"draft"}', 'ceo', 'restricted', 'active', 1),
+                ('decision_subject_4', 'decision', 'project_phase0', '{"title":"Universal Arts decision 4","status":"draft"}', 'ceo', 'restricted', 'active', 1),
                 ('project_phase0', 'project', 'project_phase0', '{"name":"Brainbase canonical project"}', 'member', 'internal', 'active', 1),
                 ('project_entity_a', 'project', 'project_phase0', '{"name":"Brainbase"}', 'member', 'internal', 'active', 1),
                 ('project_entity_b', 'project', 'project_phase0', '{"name":"Brainbase secondary fixture"}', 'member', 'internal', 'active', 1),
@@ -153,15 +157,28 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         // when that key belongs to another environment.
         const ontologyRegistry = new OntologyRegistry({ rootDir: sourceRoot, publicKeyPem: '' });
         infoSSOTService = new InfoSSOTService({ pool: database.pool, ontologyRegistry });
-        service = new GraphMaintenanceService({ infoSSOTService });
+        projectCatalogCheckCount = 0;
+        const configParser = {
+            checkIntegrity: async () => {
+                projectCatalogCheckCount += 1;
+                return { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } };
+            },
+            getProjects: async () => ({ projects: [{
+                id: 'brainbase-universal-arts-ai-support',
+                name: 'Universal Arts 3ヶ月AIコンサル',
+                catalog_version: 1,
+                archived: false
+            }] })
+        };
+        service = new GraphMaintenanceService({ infoSSOTService, configParser });
         initialSnapshot = await service.exportSnapshot(access, {
             projectCode: 'brainbase', includeProjectCodes: ['vibepro']
         });
-    });
+    }, 300_000);
 
     afterAll(async () => {
         await dropScopedDatabase(database);
-    });
+    }, 300_000);
 
     it('tenantまたはprojectが不一致の既存Receiptは取得・Apply・Rollbackで返さない', async () => {
         await expect(service.getPlanReceipt(access, {
@@ -204,6 +221,42 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         } finally {
             await infoSSOTService.withAccessContext(access, (client) =>
                 client.query(`DELETE FROM graph_edges WHERE id='edge_same_org_cross_project'`));
+        }
+    });
+
+    it('同一projectのphilosophy governs edgeをRLSで許可する', async () => {
+        await infoSSOTService.withAccessContext(access, async (client) => {
+            await client.query(`
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('philosophy_phase0', 'philosophy', 'project_phase0',
+                     '{"philosophy_id":"phi_phase0","statement":"Graph SSOT first"}',
+                     'member', 'internal', 'active', 1)
+            `);
+            await client.query(`
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('edge_philosophy_governs_project', 'philosophy_phase0', 'project_entity_a', 'governs',
+                     'project_phase0', '{}', 'member', 'internal', 'active', 1)
+            `);
+        });
+        try {
+            await expect(infoSSOTService.listGraphEdges(access, {
+                projectCode: 'brainbase', relType: 'governs', fromId: 'philosophy_phase0'
+            })).resolves.toEqual([
+                expect.objectContaining({
+                    id: 'edge_philosophy_governs_project',
+                    from_id: 'philosophy_phase0',
+                    to_id: 'project_entity_a'
+                })
+            ]);
+        } finally {
+            await infoSSOTService.withAccessContext(access, async (client) => {
+                await client.query(`DELETE FROM graph_edges WHERE id='edge_philosophy_governs_project'`);
+                await client.query(`DELETE FROM graph_entities WHERE id='philosophy_phase0'`);
+            });
         }
     });
 
@@ -444,6 +497,273 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         ]);
     });
 
+    it('Project Catalog subjectをdry-runからApply・readback・Rollback・冪等再実行まで実DBで通す', async () => {
+        const targetId = 'brainbase-universal-arts-ai-support';
+        const catalogAccess = {
+            ...access,
+            role: 'ceo',
+            projectCodes: [...access.projectCodes, targetId]
+        };
+        const catalogInitialSnapshot = await service.exportSnapshot(catalogAccess, { projectCode: 'brainbase' });
+        const decisionIds = ['decision_subject', 'decision_subject_2', 'decision_subject_3', 'decision_subject_4'];
+        const linkOperations = await Promise.all(decisionIds.map(async (decisionId, index) => {
+            const operation = {
+                operation: 'link_decision_project_subject',
+                decision_id: decisionId,
+                decision_expected_version: 1,
+                subject_entity_id: targetId,
+                subject_expected_version: 1,
+                target_project_code: 'brainbase',
+                expected_version: 0
+            };
+            const gate = await service.recordHumanGateReceipt(catalogAccess, {
+                projectCode: 'brainbase',
+                decisionId,
+                receiptId: `gate_catalog_subject_${index + 1}`,
+                evidence: { operation_scope: operation }
+            });
+            return { ...operation, human_gate_receipt: gate.receipt_id };
+        }));
+        const materializeOperation = {
+            operation: 'materialize_project_subject',
+            entity_id: targetId,
+            catalog_project_id: targetId,
+            catalog_version: 999,
+            name: 'forged name must be replaced by Catalog',
+            source_ref: 'forged-source-ref',
+            expected_version: 0
+        };
+        const operations = [materializeOperation, ...linkOperations];
+        const graphCounts = async () => infoSSOTService.withAccessContext(
+            { ...catalogAccess, graphMaintenanceMode: true },
+            async (client) => {
+                const [entities, edges] = await Promise.all([
+                    client.query(`SELECT count(*)::int AS count FROM graph_entities WHERE project_id='project_phase0'`),
+                    client.query(`SELECT count(*)::int AS count FROM graph_edges WHERE project_id='project_phase0'`)
+                ]);
+                return { entities: entities.rows[0].count, edges: edges.rows[0].count };
+            }
+        );
+        const beforeDryRunCounts = await graphCounts();
+        const plan = await service.planMutations(catalogAccess, {
+            projectCode: 'brainbase',
+            snapshotId: catalogInitialSnapshot.snapshot_id,
+            idempotencyKey: 'catalog-project-subject-db-roundtrip-1',
+            reason: 'Project Catalog subject PostgreSQL acceptance',
+            operations
+        });
+
+        expect(projectCatalogCheckCount).toBeGreaterThan(0);
+        expect(plan.dry_run).toBe(true);
+        expect(await graphCounts()).toEqual(beforeDryRunCounts);
+        expect(plan.operations[0]).toMatchObject({
+            operation: 'materialize_project_subject',
+            entity_id: targetId,
+            catalog_project_id: targetId,
+            catalog_version: 1,
+            name: 'Universal Arts 3ヶ月AIコンサル',
+            source_ref: `project-catalog:${targetId}@1`
+        });
+        expect(plan.after.entities).toEqual(expect.arrayContaining([expect.objectContaining({
+            id: targetId,
+            entity_type: 'project',
+            payload: {
+                name: 'Universal Arts 3ヶ月AIコンサル',
+                catalog_project_id: targetId,
+                catalog_version: 1,
+                source_ref: `project-catalog:${targetId}@1`
+            }
+        })]));
+        for (const decisionId of decisionIds) {
+            expect(plan.after.edges).toEqual(expect.arrayContaining([expect.objectContaining({
+                from_id: decisionId, to_id: targetId, rel_type: 'governs', project_code: 'brainbase'
+            })]));
+        }
+        expect(plan.diff_summary.entities.added_count).toBe(1);
+        expect(plan.diff_summary.edges.added_count).toBe(4);
+        expect(plan.apply_human_gate_scope).toMatchObject({
+            decision_id: decisionIds[0], decision_ids: decisionIds
+        });
+
+        await expect(service.applyPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, snapshotHash: plan.snapshot_hash
+        })).rejects.toMatchObject({ code: 'GRAPH_APPLY_HUMAN_GATE_REQUIRED', status: 403 });
+        const applyGate = await service.recordHumanGateReceipt(catalogAccess, {
+            projectCode: 'brainbase',
+            decisionId: 'decision_subject',
+            receiptId: 'gate_catalog_subject_apply_1',
+            evidence: { operation_scope: plan.apply_human_gate_scope }
+        });
+        const applyReceipt = await service.applyPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, snapshotHash: plan.snapshot_hash,
+            humanGateReceipt: applyGate.receipt_id
+        });
+        expect(applyReceipt).toMatchObject({
+            plan_id: plan.plan_id,
+            receipt_type: 'apply',
+            status: 'completed',
+            before_hash: plan.snapshot_hash,
+            after_hash: plan.after_snapshot_hash
+        });
+        await expect(service.applyPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, snapshotHash: plan.snapshot_hash,
+            humanGateReceipt: applyGate.receipt_id
+        })).resolves.toEqual(applyReceipt);
+
+        const applied = await service.exportSnapshot(catalogAccess, { projectCode: 'brainbase' });
+        expect(applied.snapshot_hash).toBe(plan.after_snapshot_hash);
+        expect(applied.entities).toEqual(expect.arrayContaining([expect.objectContaining({ id: targetId })]));
+        for (const decisionId of decisionIds) {
+            expect(applied.edges).toEqual(expect.arrayContaining([expect.objectContaining({
+                from_id: decisionId, to_id: targetId, rel_type: 'governs'
+            })]));
+        }
+
+        const rollbackReceipt = await service.rollbackPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, applyReceiptId: applyReceipt.receipt_id
+        });
+        expect(rollbackReceipt).toMatchObject({
+            plan_id: plan.plan_id,
+            receipt_type: 'rollback',
+            status: 'completed',
+            before_hash: plan.after_snapshot_hash,
+            after_hash: plan.snapshot_hash
+        });
+        await expect(service.rollbackPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, applyReceiptId: applyReceipt.receipt_id
+        })).resolves.toEqual(rollbackReceipt);
+
+        const restored = await service.exportSnapshot(catalogAccess, { projectCode: 'brainbase' });
+        expect(restored.snapshot_hash).toBe(catalogInitialSnapshot.snapshot_hash);
+        expect(restored.entities).toEqual(catalogInitialSnapshot.entities);
+        expect(restored.edges).toEqual(catalogInitialSnapshot.edges);
+        expect(await graphCounts()).toEqual(beforeDryRunCounts);
+
+        const replayedPlan = await service.planMutations(catalogAccess, {
+            projectCode: 'brainbase',
+            snapshotId: catalogInitialSnapshot.snapshot_id,
+            idempotencyKey: 'catalog-project-subject-db-roundtrip-1',
+            reason: 'Project Catalog subject PostgreSQL acceptance',
+            operations
+        });
+        expect(replayedPlan.plan_id).toBe(plan.plan_id);
+        expect(replayedPlan.after_snapshot_hash).toBe(plan.after_snapshot_hash);
+    });
+
+    it('Project subjectの通常readはsource scopeとrole・clearance境界を守りRollback後に消える', async () => {
+        const targetId = 'brainbase-universal-arts-ai-support';
+        const catalogAccess = {
+            ...access,
+            role: 'ceo',
+            projectCodes: [...access.projectCodes, targetId]
+        };
+        const baseline = await service.exportSnapshot(catalogAccess, { projectCode: 'brainbase' });
+        const linkOperation = {
+            operation: 'link_decision_project_subject',
+            decision_id: 'decision_subject',
+            decision_expected_version: 1,
+            subject_entity_id: targetId,
+            subject_expected_version: 1,
+            target_project_code: 'brainbase',
+            expected_version: 0
+        };
+        const gate = await service.recordHumanGateReceipt(catalogAccess, {
+            projectCode: 'brainbase',
+            decisionId: 'decision_subject',
+            receiptId: 'gate_catalog_subject_read_boundary',
+            evidence: { operation_scope: linkOperation }
+        });
+        const plan = await service.planMutations(catalogAccess, {
+            projectCode: 'brainbase',
+            snapshotId: baseline.snapshot_id,
+            idempotencyKey: 'catalog-project-subject-read-boundary-1',
+            reason: 'Project subject normal read boundary',
+            operations: [{
+                operation: 'materialize_project_subject',
+                entity_id: targetId,
+                catalog_project_id: targetId,
+                catalog_version: 999,
+                name: 'forged name must be replaced by Catalog',
+                source_ref: 'forged-source-ref',
+                expected_version: 0
+            }, { ...linkOperation, human_gate_receipt: gate.receipt_id }]
+        });
+        const applyGate = await service.recordHumanGateReceipt(catalogAccess, {
+            projectCode: 'brainbase',
+            decisionId: 'decision_subject',
+            receiptId: 'gate_catalog_subject_read_boundary_apply',
+            evidence: { operation_scope: plan.apply_human_gate_scope }
+        });
+        const applyReceipt = await service.applyPlan(catalogAccess, {
+            projectCode: 'brainbase',
+            planId: plan.plan_id,
+            snapshotHash: plan.snapshot_hash,
+            humanGateReceipt: applyGate.receipt_id
+        });
+
+        await expect(infoSSOTService.listGraphEntities(catalogAccess, {
+            id: targetId, projectCode: 'brainbase', entityType: 'project'
+        })).resolves.toEqual([
+            expect.objectContaining({ id: targetId, entity_type: 'project', project_code: 'brainbase' })
+        ]);
+        await expect(infoSSOTService.listGraphEdges(catalogAccess, {
+            projectCode: 'brainbase', relType: 'governs', fromId: 'decision_subject', toId: targetId
+        })).resolves.toEqual([
+            expect.objectContaining({ from_id: 'decision_subject', to_id: targetId, rel_type: 'governs' })
+        ]);
+
+        const sameOrganizationOtherScope = { ...catalogAccess, projectCodes: ['vibepro'] };
+        await expect(infoSSOTService.listGraphEntities(sameOrganizationOtherScope, {
+            id: targetId, projectCode: 'vibepro', entityType: 'project'
+        })).resolves.toEqual([]);
+        await expect(infoSSOTService.listGraphEdges(sameOrganizationOtherScope, {
+            projectCode: 'vibepro', relType: 'governs', fromId: 'decision_subject', toId: targetId
+        })).resolves.toEqual([]);
+
+        const memberInternal = {
+            ...catalogAccess,
+            role: 'member',
+            projectCodes: ['brainbase'],
+            clearance: ['internal']
+        };
+        await expect(infoSSOTService.listGraphEdges(memberInternal, {
+            projectCode: 'brainbase', relType: 'governs', fromId: 'decision_subject', toId: targetId
+        })).resolves.toEqual([]);
+        const memberContext = await infoSSOTService.getContext(memberInternal, {
+            projectCode: 'brainbase',
+            entityTypes: 'decision,project',
+            includeEdges: true,
+            humanReadable: true
+        });
+        expect(memberContext.entities.project).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: targetId })
+        ]));
+        expect(memberContext.entities.decision).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'decision_subject' })
+        ]));
+        expect(memberContext.edges).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ from_id: 'decision_subject', to_id: targetId, rel_type: 'governs' })
+        ]));
+        expect(JSON.stringify(memberContext)).not.toContain('decision_subject');
+
+        const rollbackReceipt = await service.rollbackPlan(catalogAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, applyReceiptId: applyReceipt.receipt_id
+        });
+        expect(rollbackReceipt).toMatchObject({
+            receipt_type: 'rollback', status: 'completed', after_hash: baseline.snapshot_hash
+        });
+        await expect(infoSSOTService.listGraphEntities(catalogAccess, {
+            id: targetId, projectCode: 'brainbase', entityType: 'project'
+        })).resolves.toEqual([]);
+        await expect(infoSSOTService.listGraphEdges(catalogAccess, {
+            projectCode: 'brainbase', relType: 'governs', fromId: 'decision_subject', toId: targetId
+        })).resolves.toEqual([]);
+        const restoredContext = await infoSSOTService.getContext(catalogAccess, {
+            projectCode: 'brainbase', entityTypes: 'project', includeEdges: true, humanReadable: true
+        });
+        expect(JSON.stringify(restoredContext)).not.toContain(targetId);
+    });
+
     it('cross-tenant Decision subjectをHuman Gate付きでApplyしRollbackする', async () => {
         const baseline = await service.exportSnapshot(crossTenantAccess, { projectCode: 'brainbase' });
         const operation = {
@@ -682,6 +1002,50 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
+    it('同一tenantのProject subject governs Edgeもsource Decisionのproject owner以外へ保存できない', async () => {
+        const sameTenantAccess = { ...access, role: 'ceo' };
+        const rejectedEdgeId = 'edge_same_tenant_project_subject_wrong_owner_insert';
+        const edgePayload = '{"catalog_project_id":"project_vibepro_entity"}';
+
+        try {
+            await expect(infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(`
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ($1, 'decision_subject', 'project_vibepro_entity', 'governs',
+                     'project_vibepro', $2::jsonb, 'ceo', 'restricted', 'active', 1)
+            `, [rejectedEdgeId, edgePayload]))).rejects.toMatchObject({ code: '42501' });
+        } finally {
+            await infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(
+                `DELETE FROM graph_edges WHERE id=$1`, [rejectedEdgeId]
+            ));
+        }
+
+        const persistedEdgeId = 'edge_same_tenant_project_subject_wrong_owner_update';
+        await infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(`
+            INSERT INTO graph_edges
+                (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+            VALUES
+                ($1, 'decision_subject', 'project_vibepro_entity', 'governs',
+                 'project_phase0', $2::jsonb, 'ceo', 'restricted', 'active', 1)
+        `, [persistedEdgeId, edgePayload]));
+        try {
+            await expect(infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(`
+                UPDATE graph_edges
+                SET project_id='project_vibepro'
+                WHERE id=$1
+            `, [persistedEdgeId]))).rejects.toMatchObject({ code: '42501' });
+
+            await expect(infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(
+                `SELECT project_id FROM graph_edges WHERE id=$1`, [persistedEdgeId]
+            ))).resolves.toMatchObject({ rows: [{ project_id: 'project_phase0' }] });
+        } finally {
+            await infoSSOTService.withAccessContext(sameTenantAccess, (client) => client.query(
+                `DELETE FROM graph_edges WHERE id=$1`, [persistedEdgeId]
+            ));
+        }
+    });
+
     it('AI query公開面は実DBで越境Edgeの存在とtarget IDをscope外へ漏らさない', async () => {
         await infoSSOTService.withAccessContext(crossTenantAccess, (client) => client.query(`
             INSERT INTO graph_edges
@@ -778,11 +1142,11 @@ describeWithPostgres('Info SSOT schema migration compatibility', () => {
         await applyInfoSSOTSchema(database.pool);
         // The schema is the migration contract and must be safe to re-apply.
         await applyInfoSSOTSchema(database.pool);
-    });
+    }, 300_000);
 
     afterAll(async () => {
         await dropScopedDatabase(database);
-    });
+    }, 300_000);
 
     it('承認済みtenant mappingだけを冪等に適用する', async () => {
         const { rows: projects } = await database.pool.query(

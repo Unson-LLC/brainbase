@@ -22,6 +22,23 @@ describe('ConfigParser', () => {
   });
 
   describe('project catalog source contract', () => {
+    it('Graph subject用のnameとcatalog_versionをProject Catalogから保持する', async () => {
+      fs.readFile.mockResolvedValue(`
+projects:
+  - id: brainbase-universal-arts-ai-support
+    name: Universal Arts 3ヶ月AIコンサル
+    catalog_version: 1
+`);
+
+      const catalog = await parser.getProjects();
+
+      expect(catalog.projects).toContainEqual(expect.objectContaining({
+        id: 'brainbase-universal-arts-ai-support',
+        name: 'Universal Arts 3ヶ月AIコンサル',
+        catalog_version: 1
+      }));
+    });
+
     it('required catalog missing is an integrity error, not a valid empty catalog', async () => {
       const missing = new Error('ENOENT: no such file or directory');
       missing.code = 'ENOENT';

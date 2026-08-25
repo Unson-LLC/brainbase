@@ -5,9 +5,9 @@
 import express from 'express';
 import { InfoSSOTController } from '../controllers/info-ssot-controller.js';
 
-export function createInfoSSOTRouter(infoSSOTService, { auditTenantGuard = (_req, _res, next) => next() } = {}) {
+export function createInfoSSOTRouter(infoSSOTService, { auditTenantGuard = (_req, _res, next) => next(), configParser = null } = {}) {
     const router = express.Router();
-    const controller = new InfoSSOTController(infoSSOTService);
+    const controller = new InfoSSOTController(infoSSOTService, { configParser });
 
     // Ontology contract (explicit version/as-of remains available before current publication)
     router.get('/ontology', controller.getOntology);

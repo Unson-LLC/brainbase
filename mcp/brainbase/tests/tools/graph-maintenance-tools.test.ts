@@ -287,8 +287,17 @@ describe('Graph maintenance MCP tools', () => {
     const scopeSchema = evidenceSchema.properties.operation_scope;
     assert.ok(scopeSchema && 'oneOf' in scopeSchema);
     assert.deepEqual(scopeSchema.oneOf.map((variant: any) => variant.properties.operation.enum[0]), [
-      'link_decision_subject', 'apply_plan', 'retire_entity',
+      'link_decision_subject', 'link_decision_project_subject', 'apply_plan', 'retire_entity',
     ]);
+    const applyScopeSchema = scopeSchema.oneOf.find((variant: any) => (
+      variant.properties.operation.enum[0] === 'apply_plan'
+    ));
+    assert.ok(applyScopeSchema);
+    assert.equal(applyScopeSchema.required.includes('decision_ids'), false);
+    assert.deepEqual(applyScopeSchema.properties.decision_ids, {
+      type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, uniqueItems: true,
+    });
+    assert.equal(applyScopeSchema.additionalProperties, false);
 
     const planTool = graphMaintenanceTools.find((tool) => tool.name === 'graph_plan_mutations');
     const operationSchema = planTool?.inputSchema.properties?.operations?.items;
@@ -322,6 +331,64 @@ describe('Graph maintenance MCP tools', () => {
     assert.deepEqual(body, {
       project_code: 'brainbase', snapshot_id: 'gms_cross', idempotency_key: 'subject-2',
       reason: 'subject link', human_gate_receipt: 'gate_1', operations: [operation],
+    });
+  });
+
+  it('Project subject materialize/linkを必要fieldとHuman Gate scope付きで公開する', async () => {
+    const receiptTool = graphMaintenanceTools.find((tool) => tool.name === 'graph_record_human_gate_receipt');
+    const scopeSchema = receiptTool?.inputSchema.properties?.evidence?.properties?.operation_scope;
+    assert.ok(scopeSchema && 'oneOf' in scopeSchema);
+    assert.ok(scopeSchema.oneOf.some((variant: any) => (
+      variant.properties.operation.enum[0] === 'link_decision_project_subject'
+      && variant.required.includes('target_project_code')
+      && variant.required.includes('subject_expected_version')
+    )));
+
+    const planTool = graphMaintenanceTools.find((tool) => tool.name === 'graph_plan_mutations');
+    const operationSchema = planTool?.inputSchema.properties?.operations?.items;
+    assert.ok(operationSchema && 'properties' in operationSchema);
+    assert.ok(operationSchema.properties.operation.enum.includes('materialize_project_subject'));
+    assert.ok(operationSchema.properties.operation.enum.includes('link_decision_project_subject'));
+    assert.ok('catalog_project_id' in operationSchema.properties);
+    for (const serverOwnedField of ['catalog_version', 'name', 'source_ref']) {
+      assert.ok(!(serverOwnedField in operationSchema.properties), `server-owned field leaked: ${serverOwnedField}`);
+    }
+
+    let fetched = false;
+    const denied = await handleGraphMaintenanceToolCall('graph_record_human_gate_receipt', {
+      project_code: 'brainbase', decision_id: 'dec_ua', receipt_id: 'gate_ua',
+      evidence: { operation_scope: {
+        operation: 'link_decision_project_subject', decision_id: 'dec_ua', decision_expected_version: 1,
+        subject_entity_id: 'brainbase-universal-arts-ai-support', subject_expected_version: 1,
+        target_project_code: 'universal-arts', expected_version: 0,
+      } },
+    }, deps(async () => { fetched = true; return new Response('{}', { status: 201 }); }));
+    assert.equal(fetched, false);
+    assert.equal(denied?.status, 'error');
+    assert.equal(denied?.error?.code, 'brainbase_project_not_accessible');
+
+    const operations = [{
+      operation: 'materialize_project_subject',
+      catalog_project_id: 'brainbase-universal-arts-ai-support', expected_version: 0,
+    }, {
+      operation: 'link_decision_project_subject',
+      decision_id: 'dec_ua', decision_expected_version: 1,
+      subject_entity_id: 'brainbase-universal-arts-ai-support', subject_expected_version: 1,
+      target_project_code: 'brainbase', edge_id: 'edge_ua_subject', expected_version: 0,
+      human_gate_receipt: 'gate_ua',
+    }];
+    let body: Record<string, unknown> | undefined;
+    const allowed = await handleGraphMaintenanceToolCall('graph_plan_mutations', {
+      project_code: 'brainbase', snapshot_id: 'gms_ua', idempotency_key: 'ua-subject-1',
+      reason: 'materialize and link project subject', human_gate_receipt: 'gate_ua', operations,
+    }, deps(async (_url, init) => {
+      body = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ plan_id: 'gmp_ua', status: 'planned', dry_run: true }), { status: 201 });
+    }));
+    assert.equal(allowed?.status, 'ok');
+    assert.deepEqual(body, {
+      project_code: 'brainbase', snapshot_id: 'gms_ua', idempotency_key: 'ua-subject-1',
+      reason: 'materialize and link project subject', human_gate_receipt: 'gate_ua', operations,
     });
   });
 });

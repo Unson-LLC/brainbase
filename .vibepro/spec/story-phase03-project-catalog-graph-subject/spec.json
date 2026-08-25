@@ -1,0 +1,481 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-phase03-project-catalog-graph-subject",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "final",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "signed Brainbase access context"
+      ],
+      "resolution_point": "GraphMaintenanceService before snapshot and plan access",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "Graph maintenance access",
+        "snapshot",
+        "plan",
+        "Human Gate",
+        "Apply Receipt"
+      ],
+      "verified_surfaces": [
+        "Graph maintenance access",
+        "snapshot",
+        "plan",
+        "Human Gate",
+        "Apply Receipt"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Project subject projection and governs edge",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_id",
+        "trust_zone": "Graph Maintenance transaction",
+        "residue_policy": "rollback through before snapshot and Receipt",
+        "data_owner": "Brainbase Graph SSOT organization",
+        "credential_scope": "signed tenant-bound Brainbase principal"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "tenant-bound Brainbase access context",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Graph SSOT organization"
+      ],
+      "residency": "organization-scoped PostgreSQL Graph tables",
+      "migration": "Project Catalog identity is projected into the Decision access scope without changing catalog ownership",
+      "rollback": "restore exact before snapshot and verify rollback Receipt"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "organization",
+        "project subject projection",
+        "decision"
+      ],
+      "boundary_edges": [
+        "Decision governs Project subject within one access scope"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "scope": "Graph Maintenance engine, service authorization, PostgreSQL RLS and rollback contracts",
+      "evidence": {
+        "propagation_surfaces": [
+          "Graph maintenance access",
+          "snapshot",
+          "plan",
+          "Human Gate",
+          "Apply Receipt"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "sandbox_isolation": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "organization/project Graph scope",
+              "tenant_key_source": "signed Brainbase access context",
+              "trust_zone": "Graph Maintenance transaction",
+              "data_owner": "Brainbase Graph SSOT organization"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "Decision and Project projection scope",
+              "tenant_key_source": "organization_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "signed tenant-bound Brainbase principal",
+              "connection_mode": "Project Catalog canonical lookup",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "materialize_project_subjectはCatalog Project IDとGraph Entity IDの完全一致、expected_version=0、正のcatalog_versionを必須にし、Project型の最小projectionをversion 1で生成する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-1"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-phase03-project-catalog-graph-subject.md",
+            "section": "境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "materialize_project_subject"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "Catalog Projectを最小projectionとして生成し同一PlanでDecision subjectへ接続する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "materialize_project_subject"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-24T03:30:55.437Z",
+      "last_revised_at": "2026-08-24T04:00:19.378Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "呼び出し元はcatalog_project_idだけを指定し、サーバーが認証済みProject Catalogからentity_id、name、catalog_version、source_refを解決する。Catalog欠落、権限外、版なしはPlan作成前にfail closedする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-2"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-phase03-project-catalog-graph-subject.md",
+            "section": "安全条件"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "bindProjectCatalogOperations"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "Project subject metadataを認証済みCatalog正本へ束縛する"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "Catalog欠落・権限外・版なしをdry-run前にfail closedする"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "認証済みCatalog正本"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-24T03:59:23.252Z",
+      "last_revised_at": "2026-08-24T04:00:19.378Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "Project subjectはDecisionと同じ認可scopeへ最小projectionとして生成し、link_decision_project_subjectがactive Decisionからactive Projectへgoverns Edgeを作成する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-3"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-phase03-project-catalog-graph-subject.md",
+            "section": "境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "link_decision_project_subject"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "Catalog Projectを最小projectionとして生成し同一PlanでDecision subjectへ接続する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "Decision subjectへ接続"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-24T03:59:23.252Z",
+      "last_revised_at": "2026-08-24T04:00:19.378Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "Project subjectの生成とDecision接続を一つのdry-run Planへ含め、Plan Receiptだけを保存し、Apply前にgraph_entitiesとgraph_edgesを変更しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-4"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-phase03-project-catalog-graph-subject.md",
+            "section": "境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "planMutations"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "cross-tenant subject planはHuman Gateを検証しtarget payloadを複製せずEdge 1件だけをdry-runする"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "Catalog Projectを最小projectionとして生成し同一PlanでDecision subjectへ接続する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-*.test.js",
+            "must_cover": "dry-run"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-24T03:59:23.252Z",
+      "last_revised_at": "2026-08-24T04:00:19.378Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Project subject Planは既存のHuman Gate、Apply Receipt、rollback、冪等性、baseline相対validation、tenant/project read filtering契約を維持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-5"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-phase03-project-catalog-graph-subject.md",
+            "section": "安全条件"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "applyPlan"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "cross-tenant Decision subjectをHuman Gate付きでApplyしRollbackする"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "適用済みの複数Decision Planは追加Human Gate評価前に既存Receiptを返す"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "tenantまたはprojectが不一致の既存Receiptは取得・Apply・Rollbackで返さない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-*.test.js",
+            "must_cover": "ApplyしRollback"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-24T03:59:23.252Z",
+      "last_revised_at": "2026-08-24T04:00:19.378Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "既存のcross-tenant Product向けlink_decision_subjectの型、version、Human Gate、scope分離契約を変更しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-6"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-phase03-project-catalog-graph-subject.md",
+            "section": "安全条件"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "link_decision_subject"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "cross-tenant Decision subjectは型、version、Human Gateをfail closedにする"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "cross-tenant Decision subjectをHuman Gate付きでApplyしRollbackする"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-*.test.js",
+            "must_cover": "cross-tenant Decision subject"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-24T03:59:23.252Z",
+      "last_revised_at": "2026-08-24T04:00:19.378Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "Universal Artsの確定Decision 4件ではProject projection 1件とgoverns Edge 4件だけを追加し、既存Decisionとbaseline validation違反件数を変更しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-7"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-phase03-project-catalog-graph-subject.md",
+            "section": "安全条件"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "buildGraphPlan"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "Universal Arts 4判断だけをProject subjectへ接続しbaseline違反を増やさない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "Universal Arts 4判断"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-24T03:59:23.252Z",
+      "last_revised_at": "2026-08-24T04:00:19.378Z"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-08-24T04:00:19.377Z",
+  "previous_spec_id": "2026-08-24T03:59:23.251Z"
+}

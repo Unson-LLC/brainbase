@@ -48,7 +48,7 @@ const HUMAN_GATE_LINK_SCOPE_KEYS = new Set([
 ]);
 const HUMAN_GATE_RETIRE_SCOPE_KEYS = new Set(['operation', 'decision_id', 'decision_expected_version']);
 const HUMAN_GATE_APPLY_SCOPE_KEYS = new Set([
-    'operation', 'decision_id', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash',
+    'operation', 'decision_id', 'decision_ids', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash',
     'operations_fingerprint', 'diff_fingerprint'
 ]);
 const HUMAN_GATE_SCOPE_KEYS = new Set([
@@ -112,7 +112,7 @@ function validateHumanGateEvidence(evidence) {
             throw error;
         }
         const scope = evidence.operation_scope;
-        const linkShape = scope.operation === 'link_decision_subject'
+        const linkShape = ['link_decision_subject', 'link_decision_project_subject'].includes(scope.operation)
             && ['decision_id', 'subject_entity_id', 'target_project_code'].every((key) => typeof scope[key] === 'string' && scope[key].length > 0)
             && ['decision_expected_version', 'subject_expected_version', 'expected_version']
                 .every((key) => Number.isInteger(scope[key]) && scope[key] >= (key === 'expected_version' ? 0 : 1))
@@ -122,11 +122,20 @@ function validateHumanGateEvidence(evidence) {
             && Number.isInteger(scope.decision_expected_version) && scope.decision_expected_version >= 1
             && Object.keys(scope).length === HUMAN_GATE_RETIRE_SCOPE_KEYS.size;
         const hashPattern = /^sha256:[a-f0-9]{64}$/;
-        const applyShape = scope.operation === 'apply_plan'
+        const applyCommonShape = scope.operation === 'apply_plan'
             && ['decision_id', 'plan_id'].every((key) => typeof scope[key] === 'string' && scope[key].length > 0)
             && ['base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint']
-                .every((key) => typeof scope[key] === 'string' && hashPattern.test(scope[key]))
+                .every((key) => typeof scope[key] === 'string' && hashPattern.test(scope[key]));
+        const applyDecisionSetShape = applyCommonShape
+            && Array.isArray(scope.decision_ids) && scope.decision_ids.length > 0
+            && scope.decision_ids.every((id) => typeof id === 'string' && id.length > 0)
+            && new Set(scope.decision_ids).size === scope.decision_ids.length
+            && scope.decision_id === scope.decision_ids[0]
             && Object.keys(scope).length === HUMAN_GATE_APPLY_SCOPE_KEYS.size;
+        const legacySingleDecisionApplyShape = applyCommonShape
+            && scope.decision_ids === undefined
+            && Object.keys(scope).length === HUMAN_GATE_APPLY_SCOPE_KEYS.size - 1;
+        const applyShape = applyDecisionSetShape || legacySingleDecisionApplyShape;
         if (!linkShape && !retireShape && !applyShape) {
             const error = new Error('Human Gate operation_scope does not match the supported Decision subject contract');
             error.code = 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID';
@@ -150,16 +159,27 @@ function validateHumanGateEvidence(evidence) {
     }
 }
 
-function applyHumanGateScope(plan, decisionId) {
+function applyHumanGateScope(plan, decisionIds) {
+    const approvedDecisionIds = [...new Set(decisionIds)].sort();
     return {
         operation: 'apply_plan',
-        decision_id: decisionId,
+        decision_id: approvedDecisionIds[0],
+        decision_ids: approvedDecisionIds,
         plan_id: plan.id,
         base_snapshot_hash: plan.base_snapshot_hash,
         after_snapshot_hash: plan.after_snapshot_hash,
         operations_fingerprint: fingerprint(plan.operations),
         diff_fingerprint: fingerprint(planDiffSummary(plan.before_snapshot, plan.after_snapshot))
     };
+}
+
+function normalizeApplyHumanGateScope(scope, expectedScope) {
+    if (expectedScope.decision_ids.length !== 1 || scope?.decision_ids !== undefined) return scope;
+    return { ...scope, decision_ids: [scope.decision_id] };
+}
+
+function matchesApplyHumanGateScope(scope, expectedScope) {
+    return fingerprint(normalizeApplyHumanGateScope(scope, expectedScope)) === fingerprint(expectedScope);
 }
 
 function planDecisionIds(plan) {
@@ -248,8 +268,105 @@ function planDiffSummary(before, after) {
 }
 
 export class GraphMaintenanceService {
-    constructor({ infoSSOTService }) {
+    constructor({ infoSSOTService, configParser = null }) {
         this.infoSSOTService = infoSSOTService;
+        this.configParser = configParser;
+    }
+
+    async bindProjectCatalogOperations(access, operations, { snapshot = null } = {}) {
+        const catalogOperations = operations.filter((operation) => [
+            'materialize_project_subject', 'link_decision_project_subject'
+        ].includes(operation.operation));
+        if (!catalogOperations.length) return operations;
+        if (!this.configParser) {
+            const error = new Error('Project Catalog resolver is unavailable');
+            error.code = 'GRAPH_PROJECT_CATALOG_UNAVAILABLE';
+            error.status = 503;
+            throw error;
+        }
+        const integrity = await this.configParser.checkIntegrity();
+        if (integrity?.applicability !== 'applicable'
+            || integrity?.source?.status !== 'loaded'
+            || integrity?.summary?.errors > 0) {
+            const error = new Error('Project Catalog source is unavailable or invalid');
+            error.code = 'GRAPH_PROJECT_CATALOG_UNAVAILABLE';
+            error.status = 503;
+            error.details = { source_status: integrity?.source?.status || 'unknown' };
+            throw error;
+        }
+        const catalog = await this.configParser.getProjects();
+        const byId = new Map((catalog?.projects || [])
+            .filter((project) => !project.archived)
+            .map((project) => [project.id, project]));
+        const projectByOperation = new Map();
+        const materializedSubjectIds = new Set();
+        for (const operation of catalogOperations) {
+            const catalogProjectId = operation.operation === 'materialize_project_subject'
+                ? operation.catalog_project_id : operation.subject_entity_id;
+            const project = byId.get(catalogProjectId);
+            if (!project || !Array.isArray(access?.projectCodes) || !access.projectCodes.includes(project.id)) {
+                const error = new Error(`Project Catalog subject is missing or inaccessible: ${catalogProjectId}`);
+                error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE';
+                error.status = 403;
+                throw error;
+            }
+            const catalogVersion = project.catalog_version;
+            if (!Number.isInteger(catalogVersion) || catalogVersion < 1 || !String(project.name || '').trim()) {
+                const error = new Error(`Project Catalog subject metadata is incomplete: ${project.id}`);
+                error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID';
+                error.status = 409;
+                throw error;
+            }
+            projectByOperation.set(operation, {
+                ...project,
+                catalog_project_id: project.id,
+                catalog_version: catalogVersion,
+                name: project.name,
+                source_ref: `project-catalog:${project.id}@${catalogVersion}`
+            });
+            if (operation.operation === 'materialize_project_subject') materializedSubjectIds.add(project.id);
+        }
+        return operations.map((operation) => {
+            if (operation.operation !== 'link_decision_project_subject') {
+                if (operation.operation !== 'materialize_project_subject') return operation;
+                const project = projectByOperation.get(operation);
+                return {
+                    ...operation,
+                    entity_id: project.id,
+                    catalog_project_id: project.id,
+                    catalog_version: project.catalog_version,
+                    name: project.name,
+                    source_ref: project.source_ref
+                };
+            }
+            const project = projectByOperation.get(operation);
+            const subject = snapshot?.entities?.find((entity) => entity.id === operation.subject_entity_id);
+            if (!subject && materializedSubjectIds.has(operation.subject_entity_id)) return operation;
+            const projection = subject?.payload;
+            if (!subject || subject.entity_type !== 'project' || subject.lifecycle_status !== 'active'
+                || !projection || projection.catalog_project_id !== project.catalog_project_id
+                || projection.catalog_version !== project.catalog_version
+                || projection.source_ref !== project.source_ref
+                || String(projection.name || '').trim() !== String(project.name || '').trim()) {
+                const error = new Error(`Project Catalog subject projection is missing or stale: ${operation.subject_entity_id}`);
+                error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID';
+                error.status = 409;
+                error.details = {
+                    subject_entity_id: operation.subject_entity_id,
+                    catalog_project_id: project.catalog_project_id,
+                    catalog_version: project.catalog_version,
+                    source_ref: project.source_ref
+                };
+                throw error;
+            }
+            if (!Number.isInteger(subject.version) || subject.version < 1) {
+                const error = new Error(`Project Catalog subject Graph version is invalid: ${operation.subject_entity_id}`);
+                error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_INVALID';
+                error.status = 409;
+                throw error;
+            }
+            return operation;
+        });
     }
 
     assertMaintenanceAccess(access, projectCode) {
@@ -466,10 +583,18 @@ export class GraphMaintenanceService {
             );
             const stored = snapshotRows[0];
             if (!stored) throw new Error('Unknown snapshot');
-            const normalizedOperations = (input.operations || []).map((operation, index) => {
+            const catalogBoundOperations = await this.bindProjectCatalogOperations(access, input.operations || [], {
+                snapshot: stored.snapshot
+            });
+            const normalizedOperations = catalogBoundOperations.map((operation, index) => {
                 const deterministicEdgeId = plannedEdgeId(organizationId, input.projectCode, input.idempotencyKey, index);
-                if (['upsert_edge', 'link_decision_subject'].includes(operation.operation) && operation.expected_version === 0) {
-                    return { ...operation, edge_id: deterministicEdgeId };
+                if (['upsert_edge', 'link_decision_subject', 'link_decision_project_subject'].includes(operation.operation)
+                    && operation.expected_version === 0) {
+                    return {
+                        ...operation,
+                        ...(operation.operation === 'link_decision_project_subject' ? { target_project_code: input.projectCode } : {}),
+                        edge_id: deterministicEdgeId
+                    };
                 }
                 if (operation.operation === 'rehome_entity' && operation.new_membership_expected_version === 0) {
                     return { ...operation, new_membership_edge_id: deterministicEdgeId };
@@ -493,7 +618,9 @@ export class GraphMaintenanceService {
             for (const targetProjectCode of targetProjectCodes) {
                 await this.resolveProject(client, access, targetProjectCode);
             }
-            const newEdgeOperations = normalizedOperations.filter((operation) => ['upsert_edge', 'link_decision_subject'].includes(operation.operation) && operation.expected_version === 0);
+            const newEdgeOperations = normalizedOperations.filter((operation) => [
+                'upsert_edge', 'link_decision_subject', 'link_decision_project_subject'
+            ].includes(operation.operation) && operation.expected_version === 0);
             const plannedEdgeIds = [
                 ...newEdgeOperations.map((operation) => operation.edge_id),
                 ...normalizedOperations
@@ -538,7 +665,9 @@ export class GraphMaintenanceService {
                     throw new Error('Valid Human Gate receipt is required for Active Decision');
                 }
             }
-            for (const operation of normalizedOperations.filter((candidate) => candidate.operation === 'link_decision_subject')) {
+            for (const operation of normalizedOperations.filter((candidate) => [
+                'link_decision_subject', 'link_decision_project_subject'
+            ].includes(candidate.operation))) {
                 const decision = stored.snapshot.entities.find((entity) => entity.id === operation.decision_id);
                 const receiptId = operation.human_gate_receipt || input.humanGateReceipt;
                 const gate = await client.query(
@@ -629,9 +758,10 @@ export class GraphMaintenanceService {
                     [evidence.operation_scope.plan_id, organizationId, project.id]
                 );
                 const plan = rows[0];
-                const includesDecision = planDecisionIds(plan || {}).includes(decisionId);
-                const expectedScope = plan && includesDecision ? applyHumanGateScope(plan, decisionId) : null;
-                if (!expectedScope || fingerprint(expectedScope) !== fingerprint(evidence.operation_scope)) {
+                const decisionIds = planDecisionIds(plan || {});
+                const includesDecision = decisionIds.includes(decisionId);
+                const expectedScope = plan && includesDecision ? applyHumanGateScope(plan, decisionIds) : null;
+                if (!expectedScope || !matchesApplyHumanGateScope(evidence.operation_scope, expectedScope)) {
                     const error = new Error('Human Gate receipt does not approve this exact dry-run plan');
                     error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
                     error.status = 409;
@@ -687,7 +817,7 @@ export class GraphMaintenanceService {
             after_snapshot_hash: row.after_snapshot_hash, reason: row.reason,
             idempotency_key: row.idempotency_key, operations: row.operations,
             operation_count: row.operations.length,
-            apply_human_gate_scope: decisionIds.length === 1 ? applyHumanGateScope(row, decisionIds[0]) : null,
+            apply_human_gate_scope: decisionIds.length > 0 ? applyHumanGateScope(row, decisionIds) : null,
             diff_summary: planDiffSummary(row.before_snapshot, row.after_snapshot),
             before: row.before_snapshot, after: row.after_snapshot
         };
@@ -773,13 +903,7 @@ export class GraphMaintenanceService {
             const existing = await this.findReceipt(client, planId, 'apply', { organizationId, projectCode });
             if (existing) return existing;
             const decisionIds = planDecisionIds(plan);
-            if (decisionIds.length > 1) {
-                const error = new Error('Apply-specific Human Gate currently requires a single Decision plan');
-                error.code = 'GRAPH_APPLY_HUMAN_GATE_SCOPE_UNSUPPORTED';
-                error.status = 409;
-                throw error;
-            }
-            if (decisionIds.length === 1) {
+            if (decisionIds.length > 0) {
                 if (access.authSource !== 'bearer' || !String(access.personId || '').trim() || access.personId === 'internal_api') {
                     throw signedHumanPrincipalError('Graph Apply requires a signed human Bearer principal');
                 }
@@ -793,10 +917,10 @@ export class GraphMaintenanceService {
                     `SELECT id, evidence FROM graph_maintenance_human_gate_receipts
                      WHERE id=$1 AND organization_id=$2 AND project_id=$3 AND decision_id=$4
                        AND status='approved' AND approved_by <> '' AND approved_at IS NOT NULL`,
-                    [humanGateReceipt, organizationId, plan.project_id, decisionIds[0]]
+                    [humanGateReceipt, organizationId, plan.project_id, [...decisionIds].sort()[0]]
                 );
-                const expectedApplyScope = applyHumanGateScope(plan, decisionIds[0]);
-                if (!gate.rows[0] || fingerprint(gate.rows[0].evidence?.operation_scope) !== fingerprint(expectedApplyScope)) {
+                const expectedApplyScope = applyHumanGateScope(plan, decisionIds);
+                if (!gate.rows[0] || !matchesApplyHumanGateScope(gate.rows[0].evidence?.operation_scope, expectedApplyScope)) {
                     const error = new Error('Human Gate receipt does not approve this exact dry-run plan');
                     error.code = 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH';
                     error.status = 409;
@@ -932,6 +1056,28 @@ export class GraphMaintenanceService {
                 );
                 const remains = await client.query(`SELECT id FROM graph_edges WHERE id=ANY($1::text[])`, [createdEdgeIds]);
                 if (remains.rows.length) throw new Error('Graph rollback created-edge cleanup failed');
+            }
+            const beforeEntityIds = new Set(plan.before_snapshot.entities.map((entity) => entity.id));
+            const createdEntityIds = [...new Set(plan.after_snapshot.entities
+                .map((entity) => entity.id)
+                .filter((id) => !beforeEntityIds.has(id)))];
+            if (createdEntityIds.length) {
+                const entityProjectCodes = [...new Set(plan.after_snapshot.entities
+                    .filter((entity) => createdEntityIds.includes(entity.id))
+                    .map((entity) => entity.project_code))];
+                const projects = await client.query(
+                    `SELECT id FROM projects WHERE code=ANY($1::text[]) AND organization_id=$2`,
+                    [entityProjectCodes, organizationId]
+                );
+                if (projects.rows.length !== entityProjectCodes.length) throw new Error('Access denied for rollback entity scope');
+                await client.query(
+                    `DELETE FROM graph_entities ge USING projects p
+                     WHERE ge.id=ANY($1::text[]) AND ge.project_id=p.id
+                       AND p.organization_id=$2 AND p.code=ANY($3::text[])`,
+                    [createdEntityIds, organizationId, entityProjectCodes]
+                );
+                const remains = await client.query(`SELECT id FROM graph_entities WHERE id=ANY($1::text[])`, [createdEntityIds]);
+                if (remains.rows.length) throw new Error('Graph rollback created-entity cleanup failed');
             }
             await this.replaceSnapshot(client, access, plan.before_snapshot, { baseline: plan.before_snapshot });
             const { snapshot: readback } = await this.loadSnapshot(client, access, projectCode, {

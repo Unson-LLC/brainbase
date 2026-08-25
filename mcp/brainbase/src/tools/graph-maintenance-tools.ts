@@ -5,7 +5,11 @@ import {
 } from './authenticated-api-tool.js';
 
 const project = { project_code: { type: 'string', minLength: 1 } } as const;
-const operationNames = ['patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'rehome_entity', 'upsert_edge', 'link_decision_subject', 'retire_edge', 'normalize_alias'] as const;
+const operationNames = [
+  'patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'rehome_entity', 'upsert_edge',
+  'link_decision_subject', 'materialize_project_subject', 'link_decision_project_subject',
+  'retire_edge', 'normalize_alias',
+] as const;
 const planId = { plan_id: { type: 'string', minLength: 1 } } as const;
 const humanGateOperationScope = {
   oneOf: [
@@ -23,8 +27,21 @@ const humanGateOperationScope = {
     {
       type: 'object',
       properties: {
+        operation: { type: 'string', enum: ['link_decision_project_subject'] },
+        decision_id: { type: 'string', minLength: 1 }, decision_expected_version: { type: 'integer', minimum: 1 },
+        subject_entity_id: { type: 'string', minLength: 1 }, subject_expected_version: { type: 'integer', minimum: 1 },
+        target_project_code: { type: 'string', minLength: 1 }, expected_version: { type: 'integer', minimum: 0 },
+      },
+      required: ['operation', 'decision_id', 'decision_expected_version', 'subject_entity_id', 'subject_expected_version', 'target_project_code', 'expected_version'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object',
+      properties: {
         operation: { type: 'string', enum: ['apply_plan'] },
-        decision_id: { type: 'string', minLength: 1 }, plan_id: { type: 'string', minLength: 1 },
+        decision_id: { type: 'string', minLength: 1 },
+        decision_ids: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, uniqueItems: true },
+        plan_id: { type: 'string', minLength: 1 },
         base_snapshot_hash: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
         after_snapshot_hash: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
         operations_fingerprint: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
@@ -100,6 +117,7 @@ export const graphMaintenanceTools: Tool[] = [
               target_project_expected_version: { type: 'integer', minimum: 1 }, membership_expected_version: { type: 'integer', minimum: 1 },
               decision_id: { type: 'string', minLength: 1 }, subject_entity_id: { type: 'string', minLength: 1 },
               decision_expected_version: { type: 'integer', minimum: 1 }, subject_expected_version: { type: 'integer', minimum: 1 },
+              catalog_project_id: { type: 'string', minLength: 1 },
               new_membership_expected_version: { type: 'integer', minimum: 0, maximum: 0 },
               patch: { type: 'object' }, payload: { type: 'object' }, aliases: { type: 'array', items: { type: 'string' } },
               role_min: { type: 'string', enum: ['member', 'gm', 'ceo'] },
