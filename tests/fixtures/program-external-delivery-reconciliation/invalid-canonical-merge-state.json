@@ -1,6 +1,8 @@
 {
   "schema_version": "1.0.0",
   "prior_head": "fc821b58ed1e4bb6d276ec3ab2cf0ce0861a2764",
+  "missing_mergeability_prior_head": "eb18ed63a0f37e2d554372f85a62b1346d18db0c",
+  "missing_mergeability_prior_behavior": "accepted canonical identity when mergeable or merge_state_status was absent",
   "expected_identity": {
     "repository": "Unson-LLC/brainbase-unson",
     "pull_request": 1302,
@@ -12,6 +14,8 @@
     "pull_request": 1302,
     "role": "producer_contract_delivery",
     "state": "MERGED_EXTERNALLY",
+    "mergeable": "MERGEABLE",
+    "merge_state_status": "CLEAN",
     "merge": {
       "sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
       "merged_at": "2026-08-21T19:09:27Z",
@@ -20,6 +24,8 @@
     "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1302"
   },
   "negative_patches": [
+    { "id": "missing-mergeable", "omit": ["mergeable"], "patch": {}, "invalid": "mergeable" },
+    { "id": "missing-merge-state-status", "omit": ["merge_state_status"], "patch": {}, "invalid": "merge_state_status" },
     { "id": "open", "patch": { "state": "OPEN" }, "invalid": "state" },
     { "id": "unknown-state", "patch": { "state": "UNKNOWN" }, "invalid": "state" },
     { "id": "nonmerged", "patch": { "state": "CLOSED" }, "invalid": "state" },

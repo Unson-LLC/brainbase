@@ -64,6 +64,8 @@
         "pull_request": 1302,
         "title": "Canonical Company Authority Producer Contract v1 (completed)",
         "state": "MERGED_EXTERNALLY",
+        "mergeable": "MERGEABLE",
+        "merge_state_status": "CLEAN",
         "base": {
           "branch": "develop",
           "sha": "0ed0cc9828018a893bb4bbc426b5d0639f68e732"

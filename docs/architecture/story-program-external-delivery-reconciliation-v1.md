@@ -19,7 +19,7 @@ exact-HEAD test + independent review + CI + production/exit evidence
 
 PR番号やtitleだけではrepositoryを跨いで一意にならない。canonical identityは`repository + pull_request + role`であり、A0 producerのroleは全surfaceで`producer_contract_delivery`とする。merge済みの場合はmerge SHAを加える。P0 machine source-lockが権威を持つのはupstream repositoryとmerged SHAである。Program-owned companion lockはその実値を直接照合し、live readback由来のPRとProgram契約由来のroleを結合する。title一致だけのopen PR、別repositoryの同番号PR、consumer PRをproducerへ代入しない。
 
-この契約のcanonical identityはrepository=`Unson-LLC/brainbase-unson`、pull_request=`1302`、role=`producer_contract_delivery`、merged_sha=`ad908bce7b90678f9ed7f1c570f808bdf1a500ad`である。`scripts/program/reconcile-external-delivery.mjs`は候補集合から4要素が完全一致する唯一のdeliveryだけを選ぶ。
+この契約のcanonical identityはrepository=`Unson-LLC/brainbase-unson`、pull_request=`1302`、role=`producer_contract_delivery`、merged_sha=`ad908bce7b90678f9ed7f1c570f808bdf1a500ad`である。`scripts/program/reconcile-external-delivery.mjs`は候補集合から4要素が完全一致する唯一のdeliveryだけを選ぶ。さらにcanonical候補は`state=MERGED_EXTERNALLY`、`mergeable=MERGEABLE`、`merge_state_status=CLEAN`、merge provenance、canonical GitHub PR URLをすべて必須とする。欠損、unknown、conflicting、dirty、非merged、または`merged_sha`と`merge.sha`の矛盾はfail closedにする。
 
 ## 証拠境界
 

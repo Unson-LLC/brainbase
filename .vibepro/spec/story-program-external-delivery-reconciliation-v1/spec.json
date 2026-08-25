@@ -27,12 +27,12 @@
         ]
       },
       "first_seen_at": "2026-08-25T16:34:03.704Z",
-      "last_revised_at": "2026-08-25T16:34:03.704Z"
+      "last_revised_at": "2026-08-25T20:46:20.086Z"
     },
     {
-      "id": "C-002",
+      "id": "C-009",
       "type": "contract",
-      "statement": "canonical producerはmerged PR 1302でありstale open PR 1283ではない。",
+      "statement": "canonical producerはmerged PR 1302であり、MERGED_EXTERNALLY、MERGEABLE、CLEAN、完全なmerge provenanceをすべて必須とし、欠損・矛盾またはstale open PR 1283をfail closedにする。",
       "origin": {
         "story_refs": [
           {
@@ -42,19 +42,19 @@
         ],
         "code_refs": [
           {
-            "file": "docs/management/milestones/brainbase-program-master-roadmap.json",
-            "anchor": "stale_title_matched_candidate"
+            "file": "scripts/program/reconcile-external-delivery.mjs",
+            "anchor": "assertVerifiedMergedDelivery"
           }
         ],
         "test_refs": [
           {
             "file": "tests/contracts/program-external-delivery-reconciliation.test.js",
-            "case": "does not promote the stale title-matched open PR to canonical A0 producer"
+            "case": "rejects canonical identity matches without verified merged state and provenance"
           }
         ]
       },
-      "first_seen_at": "2026-08-25T16:34:03.704Z",
-      "last_revised_at": "2026-08-25T16:34:03.704Z"
+      "first_seen_at": "2026-08-25T20:45:26.021Z",
+      "last_revised_at": "2026-08-25T20:46:20.086Z"
     },
     {
       "id": "C-003",
@@ -81,7 +81,7 @@
         ]
       },
       "first_seen_at": "2026-08-25T16:34:03.704Z",
-      "last_revised_at": "2026-08-25T16:34:03.704Z"
+      "last_revised_at": "2026-08-25T20:46:20.086Z"
     },
     {
       "id": "C-004",
@@ -108,7 +108,7 @@
         ]
       },
       "first_seen_at": "2026-08-25T16:34:03.704Z",
-      "last_revised_at": "2026-08-25T16:34:03.704Z"
+      "last_revised_at": "2026-08-25T20:46:20.086Z"
     },
     {
       "id": "C-005",
@@ -135,7 +135,7 @@
         ]
       },
       "first_seen_at": "2026-08-25T16:34:03.704Z",
-      "last_revised_at": "2026-08-25T16:34:03.704Z"
+      "last_revised_at": "2026-08-25T20:46:20.086Z"
     },
     {
       "id": "C-006",
@@ -162,7 +162,7 @@
         ]
       },
       "first_seen_at": "2026-08-25T16:34:03.704Z",
-      "last_revised_at": "2026-08-25T16:34:03.704Z"
+      "last_revised_at": "2026-08-25T20:46:20.086Z"
     },
     {
       "id": "C-007",
@@ -189,7 +189,7 @@
         ]
       },
       "first_seen_at": "2026-08-25T16:34:03.704Z",
-      "last_revised_at": "2026-08-25T16:34:03.704Z"
+      "last_revised_at": "2026-08-25T20:46:20.086Z"
     },
     {
       "id": "C-008",
@@ -216,7 +216,7 @@
         ]
       },
       "first_seen_at": "2026-08-25T16:34:03.704Z",
-      "last_revised_at": "2026-08-25T16:34:03.704Z"
+      "last_revised_at": "2026-08-25T20:46:20.086Z"
     }
   ],
   "open_questions": [
@@ -225,10 +225,10 @@
       "question": "production evidenceは未収集"
     }
   ],
-  "generated_at": "2026-08-25T16:34:03.703Z",
+  "generated_at": "2026-08-25T20:46:20.085Z",
   "generated_by": {
     "caller": "codex-program-reconcile-owner",
     "stage": "ai_synthesis"
   },
-  "previous_spec_id": null
+  "previous_spec_id": "2026-08-25T20:45:26.020Z"
 }

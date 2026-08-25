@@ -77,10 +77,10 @@ function assertVerifiedMergedDelivery(candidate, identity, index) {
   } else if (isNonemptyString(merge?.sha) && identity.merged_sha !== merge.sha) {
     invalid.push('merged_sha/merge.sha');
   }
-  if (Object.hasOwn(candidate, 'mergeable') && candidate.mergeable !== 'MERGEABLE') {
+  if (candidate.mergeable !== 'MERGEABLE') {
     invalid.push('mergeable');
   }
-  if (Object.hasOwn(candidate, 'merge_state_status') && candidate.merge_state_status !== 'CLEAN') {
+  if (candidate.merge_state_status !== 'CLEAN') {
     invalid.push('merge_state_status');
   }
   const expectedSourceUrl = `https://github.com/${identity.repository}/pull/${identity.pull_request}`;

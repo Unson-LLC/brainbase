@@ -23,6 +23,10 @@ const preFixGeneratorBindingPath = `${generatedFixtureRoot}/pre-fix-generator-bi
 const canonicalBaseRef = 'origin/develop';
 const execFileAsync = promisify(execFile);
 const canonicalRole = 'producer_contract_delivery';
+const canonicalReviewRoles = {
+  planning_spec: ['architecture_boundary', 'product_requirement', 'spec_consistency'],
+  gate: ['gate_evidence', 'pr_split_scope', 'release_risk'],
+};
 const expectedStatuses = [
   'planned',
   'contract_ready',
@@ -58,6 +62,8 @@ describe('Program external delivery reconciliation contract', () => {
       program_id: 'A0',
       role: canonicalRole,
       state: 'MERGED_EXTERNALLY',
+      mergeable: 'MERGEABLE',
+      merge_state_status: 'CLEAN',
       program_effect: 'contract_delivery_only',
       merge: { sha: 'ad908bce7b90678f9ed7f1c570f808bdf1a500ad' },
       exit_evidence: {
@@ -200,6 +206,8 @@ describe('Program external delivery reconciliation contract', () => {
   it('rejects canonical identity matches without verified merged state and provenance', async () => {
     const fixture = await readJson(invalidMergeStateFixturePath);
     assert.equal(fixture.prior_head, 'fc821b58ed1e4bb6d276ec3ab2cf0ce0861a2764');
+    assert.equal(fixture.missing_mergeability_prior_head, 'eb18ed63a0f37e2d554372f85a62b1346d18db0c');
+    assert.match(fixture.missing_mergeability_prior_behavior, /accepted canonical identity/);
     assert.deepEqual(deliveryIdentity(fixture.verified_delivery), fixture.expected_identity);
     assert.deepEqual(
       deliveryIdentity(selectCanonicalDelivery([fixture.verified_delivery], fixture.expected_identity)),
@@ -214,6 +222,7 @@ describe('Program external delivery reconciliation contract', () => {
           ...(negative.patch.merge ?? {}),
         },
       };
+      for (const key of negative.omit ?? []) delete candidate[key];
       assert.throws(
         () => selectCanonicalDelivery([candidate], fixture.expected_identity),
         new RegExp(`candidate\\[0\\] is not verified merged delivery; invalid: .*${negative.invalid}`),
@@ -250,6 +259,8 @@ describe('Program external delivery reconciliation contract', () => {
     assert.match(orchestrator, /docs merge.*昇格させない/);
     assert.match(story, /production_evidence: not_collected/);
     assert.match(story, /done: false/);
+    assert.match(architecture, /`mergeable=MERGEABLE`.*`merge_state_status=CLEAN`/);
+    assert.match(spec, /`mergeable=MERGEABLE`.*`merge_state_status=CLEAN`/);
     assert.equal(task.status, 'contract_ready');
     assert.equal(task.production_evidence, 'not_collected');
     assert.equal(task.done, false);
@@ -331,6 +342,18 @@ describe('Program external delivery reconciliation contract', () => {
       ),
       /gate review roles differ/,
     );
+
+    const incompletePlanningReview = structuredClone(current);
+    incompletePlanningReview.planningReview.roles = incompletePlanningReview.planningReview.roles.filter(
+      (role) => role.role === 'architecture_boundary',
+    );
+    assert.throws(
+      () => assertGeneratedAuthoritySurfaces(
+        incompletePlanningReview,
+        { acceptedSpec, acceptedTasks, lifecycle },
+      ),
+      /planning review roles differ/,
+    );
   });
 
   it('records the pre-fix stale-base generator failure against the prior HEAD', async () => {
@@ -347,6 +370,12 @@ describe('Program external delivery reconciliation contract', () => {
   });
 
   it('executes and binds live VibePro generator artifacts to the canonical remote projection', async () => {
+    for (const [stage, roles] of Object.entries(canonicalReviewRoles)) {
+      await execFileAsync('vibepro', [
+        'review', 'prepare', '.', '--id', 'story-program-external-delivery-reconciliation-v1',
+        '--stage', stage, ...roles.flatMap((role) => ['--role', role]), '--json',
+      ], { env: childProcessEnv(), maxBuffer: 16 * 1024 * 1024 });
+    }
     await execFileAsync('vibepro', [
       'pr', 'prepare', '.', '--story-id', 'story-program-external-delivery-reconciliation-v1',
       '--base', canonicalBaseRef, '--head', 'HEAD', '--json',
@@ -430,7 +459,7 @@ function assertGeneratedAuthoritySurfaces({
   }
   assertExactRoleSet(
     planningReview.roles,
-    ['architecture_boundary', 'product_requirement', 'spec_consistency'],
+    canonicalReviewRoles.planning_spec,
     'planning review roles differ',
     failures,
   );
@@ -438,7 +467,7 @@ function assertGeneratedAuthoritySurfaces({
   assertReviewSynthesis(preparation, gateReview, failures);
   assertExactRoleSet(
     gateReview.roles,
-    ['gate_evidence', 'pr_split_scope', 'release_risk'],
+    canonicalReviewRoles.gate,
     'gate review roles differ',
     failures,
   );

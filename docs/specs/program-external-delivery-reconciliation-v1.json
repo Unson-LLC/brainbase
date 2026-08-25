@@ -15,11 +15,11 @@
     {
       "id": "AC-002-CONTRACT",
       "type": "contract",
-      "statement": "canonical producerはmerged PR 1302でありstale open PR 1283ではない。",
+      "statement": "canonical producerはmerged PR 1302であり、MERGED_EXTERNALLY、MERGEABLE、CLEAN、完全なmerge provenanceをすべて必須とし、欠損・矛盾またはstale open PR 1283をfail closedにする。",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
-        "code_refs": [{ "file": "docs/management/milestones/brainbase-program-master-roadmap.json", "anchor": "stale_title_matched_candidate" }],
-        "test_refs": [{ "file": "tests/contracts/program-external-delivery-reconciliation.test.js", "case": "does not promote the stale title-matched open PR to canonical A0 producer" }]
+        "code_refs": [{ "file": "scripts/program/reconcile-external-delivery.mjs", "anchor": "assertVerifiedMergedDelivery" }],
+        "test_refs": [{ "file": "tests/contracts/program-external-delivery-reconciliation.test.js", "case": "rejects canonical identity matches without verified merged state and provenance" }]
       }
     },
     {

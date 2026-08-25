@@ -14,7 +14,7 @@
 
 1. `status_vocabulary`は`planned`、`contract_ready`、`implementing`、`verified`、`production_proven`、`done`のexact setである。
 2. `live_reconciliation.artifacts`のidentityはrepositoryとPRの組で一意で、roleを明記する。
-3. A0 producer contract deliveryはrepository=`Unson-LLC/brainbase-unson`、pull_request=`1302`、role=`producer_contract_delivery`、merged_sha=`ad908bce7b90678f9ed7f1c570f808bdf1a500ad`である。
+3. A0 producer contract deliveryはrepository=`Unson-LLC/brainbase-unson`、pull_request=`1302`、role=`producer_contract_delivery`、merged_sha=`ad908bce7b90678f9ed7f1c570f808bdf1a500ad`である。canonical選択には`state=MERGED_EXTERNALLY`、`mergeable=MERGEABLE`、`merge_state_status=CLEAN`、完全なmerge provenance、canonical GitHub PR URL、`merged_sha=merge.sha`をすべて必須とし、欠損または矛盾はfail closedにする。
 4. `Unson-LLC/brainbase-unson#1283`はstale title-matched candidateであり、canonical producerまたはcompletion evidenceではない。
 5. P0 machine source-lockのupstream repository/merged SHAを直接読み、Program companion lockがlive readback由来のPRとcanonical role `producer_contract_delivery`を出典付きで結合する。4要素はA0 producer deliveryと一致する。
 6. A0 artifactの`program_effect`は`contract_delivery_only`で、work package、consumer、independent review、Gate、productionを未確定のまま保持する。
