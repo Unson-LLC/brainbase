@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    assertAcceptedState,
     assertSafeEvidence,
     assertGraphBodyAbsent,
     parseSmokeFixture,
@@ -86,5 +87,31 @@ describe('Personal KG production smoke evidence helpers', () => {
             .toThrowError('personal_body_copied_to_graph');
         expect(assertGraphBodyAbsent({ records: [{ id: 'smoke_entity', semantic_state: 'active' }] }, 'personal text'))
             .toBe(true);
+    });
+
+    it('rejects a production DB readback when incident Graph edge count differs from the normalized payload', () => {
+        const parsed = {
+            eventId: 'pke_smoke', requestId: 'kpr_smoke', entityId: 'decision_smoke',
+            normalizedPayload: { edges: [] }
+        };
+        const state = {
+            db: {
+                event: { event_id: parsed.eventId, body_present: true },
+                promotion: {
+                    request_id: parsed.requestId, status: 'org_accepted', graph_entity_id: parsed.entityId,
+                    organization_event_id: 'kev_smoke'
+                },
+                organization_event: {
+                    event_id: 'kev_smoke', graph_entity_id: parsed.entityId,
+                    personal_body_found_in_payload: false
+                },
+                lineage: [{}], authority_uses: [{ count: 3 }], incident_graph_edge_count: 1
+            },
+            graph: [{ id: parsed.entityId }], receipt: {}
+        };
+
+        expect(() => assertAcceptedState(state, parsed)).toThrowError('db_graph_edge_count_mismatch');
+        state.db.incident_graph_edge_count = 0;
+        expect(() => assertAcceptedState(state, parsed)).not.toThrow();
     });
 });

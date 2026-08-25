@@ -15,6 +15,36 @@ function sendError(res, error) {
     });
 }
 
+function projectOrganizationReview(value = {}) {
+    return {
+        request_id: value.request_id,
+        organization_id: value.organization_id,
+        project_code: value.project_code,
+        status: value.status,
+        subject: value.subject,
+        normalized_payload: value.normalized_payload,
+        normalized_payload_hash: value.normalized_payload_hash,
+        normalization_contract_version: value.normalization_contract_version,
+        owner_consent_receipt_id: value.owner_consent_receipt_id,
+        owner_decided_at: value.owner_decided_at,
+        created_at: value.created_at
+    };
+}
+
+function projectOrganizationDecisionReceipt(value = {}) {
+    return {
+        request_id: value.request_id,
+        status: value.status,
+        organization_event_id: value.organization_event_id,
+        graph_entity_id: value.graph_entity_id,
+        owner_consent_receipt_id: value.owner_consent_receipt_id,
+        organization_review_receipt_id: value.organization_review_receipt_id,
+        normalized_payload_hash: value.normalized_payload_hash,
+        organization_reviewed_at: value.organization_reviewed_at,
+        organization_review_reason: value.organization_review_reason
+    };
+}
+
 const unavailablePromotionAuthority = (_req, res) => res.status(503).json({
     error: 'personal_knowledge_promotion_authority_unavailable'
 });
@@ -57,7 +87,8 @@ export function createPersonalKnowledgeRouter({
 
     router.get('/organization-reviews', async (req, res) => {
         try {
-            res.json({ reviews: await promotionService.listOrganizationReviews({ limit: req.query.limit }, context(req)) });
+            const reviews = await promotionService.listOrganizationReviews({ limit: req.query.limit }, context(req));
+            res.json({ reviews: reviews.map(projectOrganizationReview) });
         } catch (error) { sendError(res, error); }
     });
     router.put('/promotions/:requestId/normalized-payload', ownerAuthority, async (req, res) => {
@@ -67,7 +98,8 @@ export function createPersonalKnowledgeRouter({
     });
     router.post('/promotions/:requestId/organization-decision', organizationAuthority, async (req, res) => {
         try {
-            res.json(await promotionService.reviewOrganizationPromotion(req.params.requestId, req.body || {}, context(req)));
+            const receipt = await promotionService.reviewOrganizationPromotion(req.params.requestId, req.body || {}, context(req));
+            res.json(projectOrganizationDecisionReceipt(receipt));
         } catch (error) { sendError(res, error); }
     });
     return router;

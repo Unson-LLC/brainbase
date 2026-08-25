@@ -696,13 +696,18 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         expect(repository.createLineage).not.toHaveBeenCalled();
     });
 
-    it('is idempotent after organization acceptance and creates no duplicate effects', async () => {
+    it('records a fresh authority use after organization acceptance without duplicate effects', async () => {
         const request = consentedRequest(normalizedDecision(), { status: 'org_accepted' });
         const { service, repository, knowledgeGraphRepository, knowledgeEventService } = promotionHarness({ request });
         const result = await service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
             ...organizationContext()
         });
         expect(result).toBe(request);
+        expect(repository.claimPromotionAuthorityUse).toHaveBeenCalledOnce();
+        expect(repository.claimPromotionAuthorityUse).toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'organization_review', request_id: 'kpr_1' }),
+            expect.objectContaining({ access: reviewerAccess, client: expect.any(Object) })
+        );
         expect(knowledgeEventService.ingestInTransaction).not.toHaveBeenCalled();
         expect(knowledgeGraphRepository.commitNormalizedPromotion).not.toHaveBeenCalled();
         expect(repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();

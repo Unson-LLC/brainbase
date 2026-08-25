@@ -328,7 +328,7 @@ function projectBeforeAfter({ db, graph, receipt }) {
     return { db, graph, receipt };
 }
 
-function assertInitialState(state) {
+export function assertInitialState(state) {
     assert(state.db.event === null, 'synthetic_event_already_exists');
     assert(state.db.promotion === null, 'synthetic_promotion_already_exists');
     assert(state.db.lineage.length === 0, 'synthetic_lineage_already_exists');
@@ -337,7 +337,7 @@ function assertInitialState(state) {
     assert(state.graph.length === 0, 'synthetic_graph_entity_already_exists');
 }
 
-function assertAcceptedState(state, parsed) {
+export function assertAcceptedState(state, parsed) {
     assert(state.db.event?.event_id === parsed.eventId, 'db_event_readback_mismatch');
     assert(state.db.event.body_present === true, 'db_event_missing_body');
     assert(state.db.promotion?.request_id === parsed.requestId, 'db_promotion_readback_mismatch');
@@ -435,6 +435,7 @@ export async function runSmoke({
             body: { decision: 'approve', reason: `synthetic smoke ${parsed.runId}` }
         });
         const organizationPayload = expectStatus(organizationResponse, 200, 'organization_review_failed');
+        assertSafeEvidence(organizationPayload, { body: parsed.event.body, ownerToken, reviewerToken });
         const firstReceipt = redactReceipt(organizationPayload);
         assert(firstReceipt.graph_entity_id === parsed.entityId, 'organization_receipt_graph_id_missing');
         assert(firstReceipt.organization_review_receipt_id, 'organization_receipt_missing');

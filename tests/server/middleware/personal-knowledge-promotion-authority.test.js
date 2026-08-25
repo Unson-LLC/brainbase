@@ -69,6 +69,81 @@ function header(value) {
     return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
 
+function organizationReviewRuntime({
+    requestOrganizationId = 'org_a',
+    accessOrganizationId = 'org_a',
+    ownerPersonId = 'person_owner',
+    reviewerPersonId = 'person_reviewer'
+} = {}) {
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const requestId = 'kpr_runtime_scope';
+    const normalized = normalizePromotionPayload({
+        schema_version: 'personal_knowledge_normalized.v1', kind: 'decision',
+        entity: { id: 'decision_runtime_scope', type: 'decision', payload: { statement: '境界外を拒否する' } },
+        edges: [], context_entities: [], decision_domain: 'brainbase_architecture',
+        sensitivity: 'internal', role_min: 'member'
+    });
+    const unsigned = envelope();
+    unsigned.authorization.capability_ids = ['personal_knowledge_promotion:organization_review'];
+    unsigned.authorization.organization_ids = [accessOrganizationId];
+    unsigned.actor.principal_id = `${reviewerPersonId}_auth`;
+    unsigned.authority = buildPersonalKnowledgePromotionAuthority({
+        action: 'organization_review', requestId,
+        normalizedPayloadHash: normalized.normalized_payload_hash
+    });
+    unsigned.idempotency_key = computeBusinessIdempotencyKey({
+        protocol_id: unsigned.protocol_id, protocol_major: '1', tenant_id: unsigned.tenant.tenant_id,
+        connection_id: unsigned.workspace_connection.connection_id,
+        slack_event_id: unsigned.slack.event_id, operation_id: unsigned.operation_id
+    });
+    const signed = createSignedTenantContext(unsigned, { key_id: 'p0-key', private_key: privateKey });
+    const promotionRequest = {
+        request_id: requestId, personal_event_id: 'pke_private_scope', owner_person_id: ownerPersonId,
+        organization_id: requestOrganizationId, project_code: 'brainbase', status: 'pending_org_review',
+        normalized_payload: normalized.normalized, normalized_payload_hash: normalized.normalized_payload_hash,
+        owner_consent_receipt_id: 'pkoc_scope'
+    };
+    const repository = {
+        transaction: (work) => work({ client: { query: vi.fn() } }),
+        findPromotionRequest: vi.fn(async () => promotionRequest),
+        claimPromotionAuthorityUse: vi.fn(), reviewOrganizationPromotionRequest: vi.fn(), createLineage: vi.fn()
+    };
+    const graphRepository = { commitNormalizedPromotion: vi.fn() };
+    const knowledgeEventService = { graphRepository, ingestInTransaction: vi.fn() };
+    const promotionService = new PersonalKnowledgePromotionService({
+        repository, knowledgeGraphRepository: graphRepository, knowledgeEventService, now: () => NOW
+    });
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+        req.personalKnowledgeAccess = {
+            personId: reviewerPersonId, actorPersonId: `${reviewerPersonId}_auth`,
+            organizationId: accessOrganizationId, projectCodes: ['brainbase'], role: 'gm', clearance: ['internal']
+        };
+        next();
+    });
+    app.use(createPersonalKnowledgeRouter({
+        personalKnowledgeService: {}, promotionService,
+        promotionAuthorityGuards: {
+            organization: createPersonalKnowledgePromotionAuthorityGuard({
+                tenantContextVerifier: (input) => verifyTenantContext(input, {
+                    keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
+                    audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now: NOW
+                })
+            }, 'personal_knowledge_promotion:organization_review')
+        }
+    }));
+    return { app, signed, requestId, repository, graphRepository, knowledgeEventService };
+}
+
+function expectNoPromotionEffects(runtime) {
+    expect(runtime.repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
+    expect(runtime.knowledgeEventService.ingestInTransaction).not.toHaveBeenCalled();
+    expect(runtime.graphRepository.commitNormalizedPromotion).not.toHaveBeenCalled();
+    expect(runtime.repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();
+    expect(runtime.repository.createLineage).not.toHaveBeenCalled();
+}
+
 describe('Personal KG promotion A0 signed authority boundary', () => {
     it('returns unavailable_connection and leaves downstream effects at zero', async () => {
         const effect = vi.fn((_req, res) => res.status(204).end());
@@ -291,5 +366,25 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
         expect(repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();
         expect(repository.createLineage).not.toHaveBeenCalled();
         expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
+    });
+
+    it('rejects cross-tenant organization review through the HTTP runtime with every downstream effect at zero', async () => {
+        const runtime = organizationReviewRuntime({ requestOrganizationId: 'org_a', accessOrganizationId: 'org_b' });
+        await request(runtime.app)
+            .post(`/promotions/${runtime.requestId}/organization-decision`)
+            .set('Brainbase-Tenant-Context', header(runtime.signed))
+            .send({ decision: 'approve' })
+            .expect(404, { error: 'personal_knowledge_promotion_not_found' });
+        expectNoPromotionEffects(runtime);
+    });
+
+    it('rejects owner equals reviewer through the HTTP runtime with every downstream effect at zero', async () => {
+        const runtime = organizationReviewRuntime({ ownerPersonId: 'person_reviewer', reviewerPersonId: 'person_reviewer' });
+        await request(runtime.app)
+            .post(`/promotions/${runtime.requestId}/organization-decision`)
+            .set('Brainbase-Tenant-Context', header(runtime.signed))
+            .send({ decision: 'approve' })
+            .expect(403, { error: 'personal_knowledge_distinct_organization_reviewer_required' });
+        expectNoPromotionEffects(runtime);
     });
 });

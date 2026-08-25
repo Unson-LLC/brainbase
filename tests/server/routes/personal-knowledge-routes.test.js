@@ -13,11 +13,18 @@ function createApp() {
     const promotionService = {
         requestPromotion: vi.fn(async () => ({ request_id: 'kpr_1', status: 'pending_owner_approval' })),
         decideOwnerPromotion: vi.fn(async () => ({ request_id: 'kpr_1', status: 'pending_org_review' })),
-        listOrganizationReviews: vi.fn(async () => [{ request_id: 'kpr_1', status: 'pending_org_review' }]),
+        listOrganizationReviews: vi.fn(async () => [{
+            request_id: 'kpr_1', status: 'pending_org_review', organization_id: 'org_a',
+            project_code: 'brainbase', normalized_payload: { kind: 'decision' },
+            personal_event_id: 'pke_private', sanitized_preview: 'private preview', body_hash: 'sha256:private'
+        }]),
         saveNormalizedPromotion: vi.fn(async () => ({
             request_id: 'kpr_1', status: 'pending_org_review', normalized_payload_hash: 'sha256:abc'
         })),
-        reviewOrganizationPromotion: vi.fn(async () => ({ request_id: 'kpr_1', status: 'org_rejected' }))
+        reviewOrganizationPromotion: vi.fn(async () => ({
+            request_id: 'kpr_1', status: 'org_rejected', organization_review_receipt_id: 'pkor_1',
+            personal_event_id: 'pke_private', sanitized_preview: 'private preview', body_hash: 'sha256:private'
+        }))
     };
     const app = express();
     app.use(express.json());
@@ -114,8 +121,15 @@ describe('personal knowledge routes', () => {
             .expect(200);
 
         expect(queue.body.reviews).toHaveLength(1);
+        expect(queue.body.reviews[0]).not.toHaveProperty('personal_event_id');
+        expect(queue.body.reviews[0]).not.toHaveProperty('sanitized_preview');
+        expect(queue.body.reviews[0]).not.toHaveProperty('body_hash');
         expect(normalization.body.normalized_payload_hash).toBe('sha256:abc');
         expect(decision.body.status).toBe('org_rejected');
+        expect(decision.body.organization_review_receipt_id).toBe('pkor_1');
+        expect(decision.body).not.toHaveProperty('personal_event_id');
+        expect(decision.body).not.toHaveProperty('sanitized_preview');
+        expect(decision.body).not.toHaveProperty('body_hash');
         expect(promotionService.listOrganizationReviews).toHaveBeenCalledWith(
             { limit: '10' },
             expect.objectContaining({ access: expect.objectContaining({ role: 'gm' }) })
