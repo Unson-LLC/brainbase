@@ -40,7 +40,12 @@ export function selectCanonicalDelivery(candidates, expectedIdentity) {
         `canonical external delivery candidate[${index}] has invalid identity fields: ${candidateInvalidKeys.join(', ')}`,
       );
     }
-    return canonicalDeliveryIdentityKeys.every((key) => identity[key] === expectedIdentity[key]);
+    const identityMatches = canonicalDeliveryIdentityKeys.every(
+      (key) => identity[key] === expectedIdentity[key],
+    );
+    if (!identityMatches) return false;
+    assertVerifiedMergedDelivery(candidate, identity, index);
+    return true;
   });
   if (matches.length !== 1) {
     throw new Error(`canonical external delivery match count must be 1, received ${matches.length}`);
@@ -57,4 +62,40 @@ function assertIdentityObject(value, label) {
 function isValidIdentityValue(key, value) {
   if (key === 'pull_request') return Number.isInteger(value) && value > 0;
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function assertVerifiedMergedDelivery(candidate, identity, index) {
+  const invalid = [];
+  const merge = isPlainObject(candidate.merge) ? candidate.merge : null;
+  if (candidate.state !== 'MERGED_EXTERNALLY') invalid.push('state');
+  if (!merge) invalid.push('merge');
+  if (!isNonemptyString(merge?.sha)) invalid.push('merge.sha');
+  if (!isNonemptyString(merge?.merged_at)) invalid.push('merge.merged_at');
+  if (!isNonemptyString(merge?.merged_by)) invalid.push('merge.merged_by');
+  if (Object.hasOwn(candidate, 'merged_sha') && candidate.merged_sha !== merge?.sha) {
+    invalid.push('merged_sha/merge.sha');
+  } else if (isNonemptyString(merge?.sha) && identity.merged_sha !== merge.sha) {
+    invalid.push('merged_sha/merge.sha');
+  }
+  if (Object.hasOwn(candidate, 'mergeable') && candidate.mergeable !== 'MERGEABLE') {
+    invalid.push('mergeable');
+  }
+  if (Object.hasOwn(candidate, 'merge_state_status') && candidate.merge_state_status !== 'CLEAN') {
+    invalid.push('merge_state_status');
+  }
+  const expectedSourceUrl = `https://github.com/${identity.repository}/pull/${identity.pull_request}`;
+  if (candidate.source_url !== expectedSourceUrl) invalid.push('source_url');
+  if (invalid.length > 0) {
+    throw new Error(
+      `canonical external delivery candidate[${index}] is not verified merged delivery; invalid: ${invalid.join(', ')}`,
+    );
+  }
+}
+
+function isNonemptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

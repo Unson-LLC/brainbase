@@ -17,6 +17,7 @@ const acceptedTaskInputPath = 'docs/management/tasks/program-external-delivery-r
 const sourceLockPath = 'contracts/p0-negative-boundary-contract-v1/source-lock.json';
 const companionLockPath = 'docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json';
 const crossRepoFixturePath = 'tests/fixtures/program-external-delivery-reconciliation/same-pr-number-different-repo.json';
+const invalidMergeStateFixturePath = 'tests/fixtures/program-external-delivery-reconciliation/invalid-canonical-merge-state.json';
 const generatedFixtureRoot = 'tests/fixtures/program-external-delivery-reconciliation/generated-surfaces';
 const preFixGeneratorBindingPath = `${generatedFixtureRoot}/pre-fix-generator-binding.json`;
 const canonicalBaseRef = 'origin/develop';
@@ -194,6 +195,31 @@ describe('Program external delivery reconciliation contract', () => {
       () => selectCanonicalDelivery([{ ...expectedIdentity, pull_request: 0 }], expectedIdentity),
       /candidate\[0\] has invalid identity fields: pull_request/,
     );
+  });
+
+  it('rejects canonical identity matches without verified merged state and provenance', async () => {
+    const fixture = await readJson(invalidMergeStateFixturePath);
+    assert.equal(fixture.prior_head, 'fc821b58ed1e4bb6d276ec3ab2cf0ce0861a2764');
+    assert.deepEqual(deliveryIdentity(fixture.verified_delivery), fixture.expected_identity);
+    assert.deepEqual(
+      deliveryIdentity(selectCanonicalDelivery([fixture.verified_delivery], fixture.expected_identity)),
+      fixture.expected_identity,
+    );
+    for (const negative of fixture.negative_patches) {
+      const candidate = {
+        ...fixture.verified_delivery,
+        ...negative.patch,
+        merge: {
+          ...fixture.verified_delivery.merge,
+          ...(negative.patch.merge ?? {}),
+        },
+      };
+      assert.throws(
+        () => selectCanonicalDelivery([candidate], fixture.expected_identity),
+        new RegExp(`candidate\\[0\\] is not verified merged delivery; invalid: .*${negative.invalid}`),
+        negative.id,
+      );
+    }
   });
 
   it('keeps Markdown, orchestrator, Story, Architecture, Spec and Task aligned', async () => {
