@@ -68,14 +68,19 @@ The command must return successfully and produce a Receipt with `readback.status
 対象差分に`personal-knowledge-two-stage-promotion.sql`または署名昇格runtimeが含まれる場合は、一般restartへ進む前に次の順序を守る。旧writerを動かしたままmigrationしない。
 
 ```bash
+(
+set -euo pipefail
 TARGET_SHA="$(git rev-parse HEAD)"
 grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
 
-# 1. writeを排水して停止する。authoritative preflightは停止後に採取する。
+# 1. writeを排水して停止し、inactiveをreadbackする。
 sudo systemctl stop brainbase-ssot.service
+if sudo systemctl is-active --quiet brainbase-ssot.service; then
+  echo "brainbase-ssot.service is still active" >&2
+  exit 1
+fi
 
-# 2. systemdと同じenv filesを一時subshellへ読み、接続先を値非表示で検証する。
-(
+# 2. systemdと同じenv filesを読み、接続先を値非表示で検証する。
 set -a
 . /home/ubuntu/brainbase/.env
 . /home/ubuntu/brainbase/.env.infisical
