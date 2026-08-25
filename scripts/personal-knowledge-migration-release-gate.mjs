@@ -79,6 +79,10 @@ export function assertPostflight(before, after, targetRows, rls) {
   const expected = { ...before.status_counts };
   expected.pending_org_review = (expected.pending_org_review || 0) - targetCount;
   expected.pending_owner_approval = (expected.pending_owner_approval || 0) + targetCount;
+  expected.org_accepted = (expected.org_accepted || 0) + (expected.approved || 0);
+  expected.owner_rejected = (expected.owner_rejected || 0) + (expected.rejected || 0);
+  expected.approved = 0;
+  expected.rejected = 0;
   const keys = new Set([...Object.keys(expected), ...Object.keys(after.status_counts)]);
   const errors = [];
   for (const key of ['database', 'role', 'host', 'port']) {
