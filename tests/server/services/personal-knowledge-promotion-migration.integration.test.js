@@ -80,7 +80,11 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
              source_pointer, body, body_hash, sensitivity)
           VALUES
             ('pke_upgrade_1', 'person_owner', 'org_a', NOW(), '{"type":"manual"}',
-             '{"fixture":"upgrade"}', 'private fixture', 'sha256:fixture', 'personal');
+             '{"fixture":"upgrade"}', 'private fixture', 'sha256:fixture', 'personal'),
+            ('pke_upgrade_approved', 'person_owner', 'org_a', NOW(), '{"type":"manual"}',
+             '{"fixture":"approved"}', 'private approved fixture', 'sha256:approved', 'personal'),
+            ('pke_upgrade_rejected', 'person_owner', 'org_a', NOW(), '{"type":"manual"}',
+             '{"fixture":"rejected"}', 'private rejected fixture', 'sha256:rejected', 'personal');
           ALTER TABLE knowledge_promotion_requests
             DROP CONSTRAINT knowledge_promotion_requests_status_check;
           INSERT INTO knowledge_promotion_requests
@@ -89,7 +93,13 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
           VALUES
             ('kpr_upgrade_1', 'pke_upgrade_1', 'person_owner', 'org_a',
              'brainbase', 'pending_org_review', 'safe fixture', '{"type":"decision","id":"fixture"}',
-             'sha256:fixture', NOW());
+             'sha256:fixture', NOW()),
+            ('kpr_upgrade_approved', 'pke_upgrade_approved', 'person_owner', 'org_a',
+             'brainbase', 'approved', 'safe approved fixture', '{"type":"decision","id":"approved"}',
+             'sha256:approved', NOW()),
+            ('kpr_upgrade_rejected', 'pke_upgrade_rejected', 'person_owner', 'org_a',
+             'brainbase', 'rejected', 'safe rejected fixture', '{"type":"decision","id":"rejected"}',
+             'sha256:rejected', NOW());
         `);
 
         // Reproduce the guard installed by the previous production release.
@@ -182,9 +192,21 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
             normalized_by_person_id: null,
             normalized_at: null
         }]);
+        const terminalRows = (await pool.query(`
+          SELECT request_id, status
+          FROM knowledge_promotion_requests
+          WHERE request_id IN ('kpr_upgrade_approved', 'kpr_upgrade_rejected')
+          ORDER BY request_id
+        `)).rows;
+        expect(terminalRows).toEqual([
+            { request_id: 'kpr_upgrade_approved', status: 'org_accepted' },
+            { request_id: 'kpr_upgrade_rejected', status: 'owner_rejected' }
+        ]);
         const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
         expect(receipt).toMatchObject({ status: 'passed', target_sha: targetSha });
         expect(receipt.before.target_request_ids).toEqual(['kpr_upgrade_1']);
+        expect(receipt.before.total).toBe(3);
+        expect(receipt.after.total).toBe(3);
         expect(fs.statSync(receiptPath).mode & 0o777).toBe(0o600);
 
         // Also preserve the upgrade contract for rows left partially normalized
