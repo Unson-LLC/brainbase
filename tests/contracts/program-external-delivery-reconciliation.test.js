@@ -138,6 +138,29 @@ describe('Program external delivery reconciliation contract', () => {
     assert.notEqual(selected.repository, fixture.repository);
   });
 
+  it('requires all four nonempty identity keys before selecting a canonical delivery', async () => {
+    const value = await roadmap();
+    const companion = await readJson(companionLockPath);
+    const expectedIdentity = deliveryIdentity(companion.external_delivery);
+    for (const key of ['repository', 'pull_request', 'role', 'merged_sha']) {
+      const partialIdentity = { ...expectedIdentity };
+      delete partialIdentity[key];
+      assert.throws(
+        () => selectCanonicalDelivery(value.live_reconciliation.artifacts, partialIdentity),
+        new RegExp(`identity requires nonempty .*invalid: ${key}`),
+      );
+    }
+    for (const [key, valueToReject] of [['repository', ' '], ['role', ''], ['merged_sha', null]]) {
+      assert.throws(
+        () => selectCanonicalDelivery(
+          value.live_reconciliation.artifacts,
+          { ...expectedIdentity, [key]: valueToReject },
+        ),
+        new RegExp(`identity requires nonempty .*invalid: ${key}`),
+      );
+    }
+  });
+
   it('keeps Markdown, orchestrator, Story, Architecture, Spec and Task aligned', async () => {
     const [value, companion, markdown, orchestrator, story, architecture, spec, task] = await Promise.all([
       roadmap(),
@@ -208,10 +231,50 @@ describe('Program external delivery reconciliation contract', () => {
     assert.doesNotThrow(
       () => assertGeneratedAuthoritySurfaces(current, { acceptedSpec, acceptedTasks, lifecycle }),
     );
+
+    const contradictoryReview = structuredClone(current);
+    contradictoryReview.planningReview.status = 'done';
+    assert.throws(
+      () => assertGeneratedAuthoritySurfaces(
+        contradictoryReview,
+        { acceptedSpec, acceptedTasks, lifecycle },
+      ),
+      /planning review synthesis differs/,
+    );
+
+    const contradictoryGate = structuredClone(current);
+    contradictoryGate.gateReview.roles = [];
+    assert.throws(
+      () => assertGeneratedAuthoritySurfaces(
+        contradictoryGate,
+        { acceptedSpec, acceptedTasks, lifecycle },
+      ),
+      /gate review roles differ/,
+    );
+  });
+
+  it('binds live VibePro generator artifacts to the tracked canonical projection', {
+    skip: process.env.VIBEPRO_LIVE_SURFACE_ROOT ? false : 'set VIBEPRO_LIVE_SURFACE_ROOT after vibepro pr prepare',
+  }, async () => {
+    const [acceptedSpec, acceptedTasks, lifecycle, live] = await Promise.all([
+      readJson(acceptedSpecInputPath),
+      readJson(acceptedTaskInputPath),
+      readJson(taskPath),
+      readLiveGeneratedSurfaces(process.env.VIBEPRO_LIVE_SURFACE_ROOT),
+    ]);
+    assert.doesNotThrow(
+      () => assertGeneratedAuthoritySurfaces(live, { acceptedSpec, acceptedTasks, lifecycle }),
+    );
   });
 });
 
-function assertGeneratedAuthoritySurfaces({ preparation, traceability, prBody }, authorities) {
+function assertGeneratedAuthoritySurfaces({
+  preparation,
+  traceability,
+  prBody,
+  planningReview,
+  gateReview,
+}, authorities) {
   const failures = [];
   const expectedIds = authorities.acceptedSpec.clauses.flatMap(
     (clause) => clause.origin.story_refs.map((ref) => ref.ac_id),
@@ -258,23 +321,72 @@ function assertGeneratedAuthoritySurfaces({ preparation, traceability, prBody },
   if (preparation.review?.status !== preparation.gate_status || preparation.gate_status !== 'needs_review') {
     failures.push('review and gate synthesis differ');
   }
+  const storyId = authorities.acceptedSpec.story_id;
+  if (planningReview.story_id !== storyId
+    || planningReview.stage !== 'planning_spec'
+    || !['pass', 'needs_review', 'needs_changes', 'block'].includes(planningReview.status)) {
+    failures.push('planning review synthesis differs');
+  }
+  if (gateReview.story_id !== storyId
+    || gateReview.stage !== 'gate'
+    || !['pass', 'needs_review', 'needs_changes', 'block'].includes(gateReview.status)) {
+    failures.push('gate review synthesis differs');
+  }
+  assertExactRoleSet(
+    planningReview.roles,
+    ['architecture_boundary', 'product_requirement', 'spec_consistency'],
+    'planning review roles differ',
+    failures,
+  );
+  assertExactRoleSet(
+    gateReview.roles,
+    ['gate_evidence', 'pr_split_scope', 'release_risk'],
+    'gate review roles differ',
+    failures,
+  );
   assertPartial(authorities.lifecycle, {
     status: 'contract_ready',
     production_evidence: 'not_collected',
     done: false,
   });
-  if (/production_proven|\bdone:\s*true\b/i.test(prBody)) failures.push('PR body promotes lifecycle');
+  if (/\b(?:program )?status:\s*(?:verified|production_proven|done)\b|\bdone:\s*true\b|production_evidence:\s*(?!not_collected)\S+/i.test(prBody)) {
+    failures.push('PR body promotes lifecycle');
+  }
   assert.deepEqual(failures, []);
 }
 
 async function readGeneratedSurfaces(name) {
   const root = `${generatedFixtureRoot}/${name}`;
-  const [preparation, traceability, prBody] = await Promise.all([
+  const [preparation, traceability, prBody, planningReview, gateReview] = await Promise.all([
     readJson(`${root}/pr-prepare.json`),
     readJson(`${root}/traceability.json`),
     readFile(`${root}/pr-body.md`, 'utf8'),
+    readJson(`${root}/planning-review-summary.json`),
+    readJson(`${root}/gate-review-summary.json`),
   ]);
-  return { preparation, traceability, prBody };
+  return { preparation, traceability, prBody, planningReview, gateReview };
+}
+
+async function readLiveGeneratedSurfaces(repoRoot) {
+  const storyId = 'story-program-external-delivery-reconciliation-v1';
+  const prRoot = `${repoRoot}/.vibepro/pr/${storyId}`;
+  const reviewRoot = `${repoRoot}/.vibepro/reviews/${storyId}`;
+  const [preparation, traceability, prBody, planningReview, gateReview] = await Promise.all([
+    readJson(`${prRoot}/pr-prepare.json`),
+    readJson(`${prRoot}/traceability.json`),
+    readFile(`${prRoot}/pr-body.md`, 'utf8'),
+    readJson(`${reviewRoot}/planning_spec/review-summary.json`),
+    readJson(`${reviewRoot}/gate/review-summary.json`),
+  ]);
+  return { preparation, traceability, prBody, planningReview, gateReview };
+}
+
+function assertExactRoleSet(roles, expected, message, failures) {
+  const actual = (roles ?? []).map((entry) => entry.role).sort();
+  if (!Array.isArray(roles) || actual.length !== expected.length
+    || actual.some((role, index) => role !== [...expected].sort()[index])) {
+    failures.push(message);
+  }
 }
 
 async function readJson(path) {
