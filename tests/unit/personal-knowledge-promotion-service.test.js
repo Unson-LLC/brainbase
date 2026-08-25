@@ -112,6 +112,7 @@ function promotionHarness({ request, eventResult = null, graphEdgeCount = 0 } = 
     const repository = {
         transaction: vi.fn(transaction),
         findPromotionRequest: vi.fn(async () => request),
+        claimPromotionAuthorityUse: vi.fn(async () => undefined),
         saveNormalizedPromotionPayload: vi.fn(async (_id, normalization, options) => {
             Object.assign(request, {
                 normalized_payload: normalization.normalized_payload,
@@ -195,6 +196,28 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             }
         })).rejects.toMatchObject({ message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403 });
         expect(knowledgeGraphRepository.commitNormalizedPromotion).not.toHaveBeenCalled();
+    });
+
+    it('rejects a valid signed authority for a different authenticated actor before every organization effect', async () => {
+        const request = consentedRequest();
+        const { service, repository, knowledgeGraphRepository, knowledgeEventService } = promotionHarness({ request });
+        const crossPersonAuthority = authorityFor(
+            { ...reviewerAccess, actorPersonId: 'person_other_auth' },
+            'personal_knowledge_promotion:organization_review'
+        );
+
+        await expect(service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
+            access: reviewerAccess,
+            promotionAuthority: crossPersonAuthority
+        })).rejects.toMatchObject({
+            message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403
+        });
+
+        expect(knowledgeEventService.ingestInTransaction).not.toHaveBeenCalled();
+        expect(knowledgeGraphRepository.commitNormalizedPromotion).not.toHaveBeenCalled();
+        expect(repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();
+        expect(repository.createLineage).not.toHaveBeenCalled();
+        expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
     });
 
     it('returns no_data for a missing Personal event before promotion effects', async () => {
@@ -414,6 +437,50 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             message: 'personal_knowledge_promotion_already_decided', status: 409
         });
         expect(repository.saveNormalizedPromotionPayload).not.toHaveBeenCalled();
+    });
+
+    it('claims owner consent authority for normalized-payload PUT and rejects the same signed replay', async () => {
+        const normalization = normalizeFixture(normalizedDecision());
+        const request = requestFixture({
+            normalized_payload: normalization.normalized,
+            normalized_payload_hash: normalization.normalized_payload_hash
+        });
+        const { service, repository, knowledgeEventService, knowledgeGraphRepository } = promotionHarness({ request });
+        const claimed = new Set();
+        repository.claimPromotionAuthorityUse = vi.fn(async (use) => {
+            if (claimed.has(use.operation_id)) {
+                throw Object.assign(new Error('personal_knowledge_promotion_authority_replayed'), { status: 409 });
+            }
+            claimed.add(use.operation_id);
+        });
+        const promotionAuthority = authorityFor(ownerAccess, 'personal_knowledge_promotion:owner_consent');
+        const context = { access: ownerAccess, promotionAuthority };
+
+        await expect(service.saveNormalizedPromotion('kpr_1', {
+            normalized_payload: normalizedDecision()
+        }, context)).resolves.toMatchObject({
+            request_id: 'kpr_1', idempotent: true
+        });
+        await expect(service.saveNormalizedPromotion('kpr_1', {
+            normalized_payload: normalizedDecision()
+        }, context)).rejects.toMatchObject({
+            message: 'personal_knowledge_promotion_authority_replayed', status: 409
+        });
+
+        expect(repository.claimPromotionAuthorityUse).toHaveBeenCalledTimes(2);
+        expect(repository.claimPromotionAuthorityUse).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                operation_id: promotionAuthority.operationId,
+                action: 'owner_consent',
+                request_id: 'kpr_1'
+            }),
+            expect.objectContaining({ access: ownerAccess, client: expect.any(Object) })
+        );
+        expect(knowledgeEventService.ingestInTransaction).not.toHaveBeenCalled();
+        expect(knowledgeGraphRepository.commitNormalizedPromotion).not.toHaveBeenCalled();
+        expect(repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();
+        expect(repository.createLineage).not.toHaveBeenCalled();
     });
 
     it('rejects forbidden raw transcript, private fields, and server-controlled evidence', async () => {

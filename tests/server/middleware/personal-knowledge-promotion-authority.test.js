@@ -185,4 +185,75 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
         expect(repository.reviewOrganizationPromotionRequest).toHaveBeenCalledOnce();
         expect(repository.createLineage).toHaveBeenCalledOnce();
     });
+
+    it('rejects a valid signed authority for a different authenticated actor before every promotion effect', async () => {
+        const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+        const unsigned = envelope();
+        unsigned.authorization.capability_ids = ['personal_knowledge_promotion:organization_review'];
+        unsigned.actor.principal_id = 'person_other_auth';
+        const signed = createSignedTenantContext(unsigned, { key_id: 'p0-key', private_key: privateKey });
+        const promotionRequest = {
+            request_id: 'kpr_runtime_cross_person', personal_event_id: 'pke_private_cross_person',
+            owner_person_id: 'person_owner', organization_id: 'org_a', project_code: 'brainbase',
+            status: 'pending_org_review', sanitized_preview: 'private preview',
+            subject: { type: 'decision', id: 'decision_runtime_cross_person' },
+            body_hash: 'sha256:private', normalized_payload: { schema_version: 'personal_knowledge_normalized.v1' },
+            normalized_payload_hash: 'sha256:normalized', owner_consent_receipt_id: 'pkoc_owner_cross_person'
+        };
+        const repository = {
+            transaction: (work) => work({ client: { query: vi.fn() } }),
+            findPromotionRequest: vi.fn(async () => promotionRequest),
+            claimPromotionAuthorityUse: vi.fn(),
+            reviewOrganizationPromotionRequest: vi.fn(),
+            createLineage: vi.fn()
+        };
+        const graphRepository = { commitNormalizedPromotion: vi.fn() };
+        const knowledgeEventService = {
+            graphRepository,
+            ingestInTransaction: vi.fn()
+        };
+        const promotionService = new PersonalKnowledgePromotionService({
+            repository,
+            knowledgeGraphRepository: graphRepository,
+            knowledgeEventService,
+            now: () => NOW
+        });
+        const services = {
+            tenantContextVerifier: (input) => verifyTenantContext(input, {
+                keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
+                audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now: NOW
+            })
+        };
+        const app = express();
+        app.use(express.json());
+        app.use((_req, _res, next) => {
+            _req.personalKnowledgeAccess = {
+                personId: 'person_reviewer', actorPersonId: 'person_reviewer_auth',
+                organizationId: 'org_a', projectCodes: ['brainbase'], role: 'gm', clearance: ['internal']
+            };
+            next();
+        });
+        app.use(createPersonalKnowledgeRouter({
+            personalKnowledgeService: {},
+            promotionService,
+            promotionAuthorityGuards: {
+                organization: createPersonalKnowledgePromotionAuthorityGuard(
+                    services,
+                    'personal_knowledge_promotion:organization_review'
+                )
+            }
+        }));
+
+        await request(app)
+            .post('/promotions/kpr_runtime_cross_person/organization-decision')
+            .set('Brainbase-Tenant-Context', header(signed))
+            .send({ decision: 'approve' })
+            .expect(403, { error: 'personal_knowledge_promotion_authority_scope_mismatch' });
+
+        expect(knowledgeEventService.ingestInTransaction).not.toHaveBeenCalled();
+        expect(graphRepository.commitNormalizedPromotion).not.toHaveBeenCalled();
+        expect(repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();
+        expect(repository.createLineage).not.toHaveBeenCalled();
+        expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
+    });
 });

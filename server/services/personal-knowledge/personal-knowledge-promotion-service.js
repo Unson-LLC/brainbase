@@ -304,12 +304,25 @@ export class PersonalKnowledgePromotionService {
         return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
     }
 
-    async saveNormalizedPromotion(requestId, input, { access } = {}) {
+    async saveNormalizedPromotion(requestId, input, { access, promotionAuthority } = {}) {
         requireAccess(access);
         const run = async ({ client } = {}) => {
             const options = { access, client };
             const request = await this.repository.findPromotionRequest(requestId, options);
             requireOwner(request, access);
+            requirePromotionAuthority(
+                promotionAuthority,
+                access,
+                request?.project_code,
+                'personal_knowledge_promotion:owner_consent'
+            );
+            await claimPromotionAuthorityUse(
+                this.repository,
+                promotionAuthority,
+                requestId,
+                'owner_consent',
+                options
+            );
             if (request.status !== 'pending_owner_approval') {
                 throw promotionError('personal_knowledge_promotion_already_decided', 409);
             }

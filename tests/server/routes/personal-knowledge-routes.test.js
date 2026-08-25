@@ -123,7 +123,10 @@ describe('personal knowledge routes', () => {
         expect(promotionService.saveNormalizedPromotion).toHaveBeenCalledWith(
             'kpr_1',
             { normalized_payload: normalizedPayload },
-            expect.any(Object)
+            expect.objectContaining({
+                access: expect.objectContaining({ actorPersonId: 'person_a_auth' }),
+                promotionAuthority: expect.objectContaining({ operationId: 'op_test' })
+            })
         );
         expect(promotionService.reviewOrganizationPromotion).toHaveBeenCalledWith(
             'kpr_1',
