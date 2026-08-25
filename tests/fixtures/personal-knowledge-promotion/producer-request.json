@@ -1,0 +1,35 @@
+{
+  "tenant_id": "ten_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "expected_tenant_revision": "7",
+  "connection_id": "wsc_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+  "expected_connection_revision": "11",
+  "workspace_id": "workspace-a",
+  "app_id": "app-a",
+  "provider_identity": {
+    "provider": "slack",
+    "authenticated_subject_id": "fixture-user",
+    "workspace_id": "workspace-a",
+    "app_id": "app-a"
+  },
+  "requested_action": {
+    "capability_id": "personal_knowledge_promotion:request",
+    "resource_ref": "personal-knowledge://events/pke_fixture_1",
+    "project_hint": "unson-backoffice",
+    "desired_effect": "write"
+  },
+  "promotion_authority": {
+    "schema_version": "personal_to_organization.promote.v1",
+    "capability_id": "personal_to_organization.promote",
+    "action": "request",
+    "resource_ref": "personal-knowledge://events/pke_fixture_1",
+    "request_id": null,
+    "normalized_payload_hash": null
+  },
+  "slack": {
+    "event_id": "Ev-personal-knowledge-promotion-fixture",
+    "channel_id": "C-contract-fixture",
+    "requester_id": "fixture-user"
+  },
+  "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FA1",
+  "operation_id": "op_01ARZ3NDEKTSV4RRFFQ69G5FA2"
+}

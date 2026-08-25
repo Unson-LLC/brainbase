@@ -12,16 +12,39 @@ const readSql = (file) => fs.readFileSync(path.resolve(process.cwd(), file), 'ut
 describe('Personal Knowledge promotion migration upgrade path', () => {
     let pool;
     let dataDirectory;
-    const postgresBin = '/usr/local/opt/postgresql@16/bin';
+    let postgresBin;
     const port = 55439;
 
     beforeAll(async () => {
-        dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-pkg-migration-'));
-        execFileSync(path.join(postgresBin, 'initdb'), ['-D', dataDirectory, '--auth=trust', '--no-locale'], { stdio: 'ignore' });
-        execFileSync(path.join(postgresBin, 'pg_ctl'), [
-            '-D', dataDirectory, '-o', `-p ${port} -h 127.0.0.1`, '-w', 'start'
-        ], { stdio: 'ignore' });
-        pool = new Pool({ connectionString: `postgresql://127.0.0.1:${port}/postgres` });
+        const externalDatabaseUrl = process.env.PERSONAL_KNOWLEDGE_MIGRATION_DATABASE_URL;
+        if (externalDatabaseUrl) {
+            // CI supplies a disposable PostgreSQL service. Keeping the test's
+            // schema setup below means this still exercises the real migration
+            // against PostgreSQL rather than a mocked repository.
+            pool = new Pool({ connectionString: externalDatabaseUrl });
+        } else {
+            const candidates = [
+                process.env.PG_BIN_DIR,
+                '/usr/local/opt/postgresql@16/bin',
+                '/opt/homebrew/opt/postgresql@16/bin',
+                '/usr/lib/postgresql/16/bin',
+                '/usr/lib/postgresql/15/bin'
+            ].filter(Boolean);
+            postgresBin = candidates.find((candidate) => fs.existsSync(path.join(candidate, 'initdb')));
+            if (!postgresBin) {
+                try {
+                    postgresBin = path.dirname(execFileSync('which', ['initdb'], { encoding: 'utf8' }).trim());
+                } catch {
+                    throw new Error('PostgreSQL initdb is required; set PERSONAL_KNOWLEDGE_MIGRATION_DATABASE_URL or PG_BIN_DIR');
+                }
+            }
+            dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-pkg-migration-'));
+            execFileSync(path.join(postgresBin, 'initdb'), ['-D', dataDirectory, '--auth=trust', '--no-locale'], { stdio: 'ignore' });
+            execFileSync(path.join(postgresBin, 'pg_ctl'), [
+                '-D', dataDirectory, '-o', `-p ${port} -h 127.0.0.1`, '-w', 'start'
+            ], { stdio: 'ignore' });
+            pool = new Pool({ connectionString: `postgresql://127.0.0.1:${port}/postgres` });
+        }
         await pool.query(`
           CREATE OR REPLACE FUNCTION app_project_codes()
           RETURNS TEXT[] LANGUAGE sql STABLE AS $$ SELECT ARRAY[]::TEXT[] $$;

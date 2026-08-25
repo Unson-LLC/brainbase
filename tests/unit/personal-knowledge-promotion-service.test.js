@@ -5,6 +5,7 @@ import {
     normalizePromotionPayload,
     ownerConsentReceipt
 } from '../../server/services/personal-knowledge/personal-knowledge-normalization.js';
+import { buildPersonalKnowledgePromotionAuthority } from '../../server/services/personal-knowledge/promotion-authority-contract.js';
 
 const ownerAccess = {
     personId: 'person_a', actorPersonId: 'person_a_auth', organizationId: 'org_a',
@@ -16,20 +17,33 @@ const reviewerAccess = {
 };
 
 let authoritySequence = 0;
-function authorityFor(access, capabilityId) {
+function authorityFor(access, capabilityId, overrides = {}) {
     authoritySequence += 1;
+    const action = capabilityId.endsWith(':request')
+        ? 'request'
+        : capabilityId.endsWith(':owner_consent') ? 'owner_consent' : 'organization_review';
+    const target = buildPersonalKnowledgePromotionAuthority({
+        action,
+        personalEventId: overrides.personalEventId || 'pke_1',
+        requestId: overrides.requestId || (action === 'request' ? null : 'kpr_1'),
+        normalizedPayloadHash: action === 'request'
+            ? null
+            : (overrides.normalizedPayloadHash
+                || normalizePromotionPayload(normalizedDecision()).normalized_payload_hash)
+    });
     return {
         capabilityId,
         actorPersonId: access.actorPersonId || access.personId,
         organizationIds: [access.organizationId],
         projectIds: ['brainbase'],
         operationId: `op_test_${authoritySequence}`,
-        idempotencyKey: `ik_test_${authoritySequence}`
+        idempotencyKey: `ik_test_${authoritySequence}`,
+        ...target
     };
 }
-const requestContext = (access = ownerAccess) => ({ access, promotionAuthority: authorityFor(access, 'personal_knowledge_promotion:request') });
-const ownerContext = (access = ownerAccess) => ({ access, promotionAuthority: authorityFor(access, 'personal_knowledge_promotion:owner_consent') });
-const organizationContext = (access = reviewerAccess) => ({ access, promotionAuthority: authorityFor(access, 'personal_knowledge_promotion:organization_review') });
+const requestContext = (access = ownerAccess, overrides = {}) => ({ access, promotionAuthority: authorityFor(access, 'personal_knowledge_promotion:request', overrides) });
+const ownerContext = (access = ownerAccess, overrides = {}) => ({ access, promotionAuthority: authorityFor(access, 'personal_knowledge_promotion:owner_consent', overrides) });
+const organizationContext = (access = reviewerAccess, overrides = {}) => ({ access, promotionAuthority: authorityFor(access, 'personal_knowledge_promotion:organization_review', overrides) });
 
 function transaction(handler) {
     return handler({ client: { id: 'tx', query: vi.fn() } });
@@ -183,7 +197,11 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             capabilityId: 'personal_knowledge_promotion:organization_review',
             actorPersonId: reviewerAccess.actorPersonId,
             organizationIds: ['org_unknown'], projectIds: ['brainbase'],
-            operationId: 'op_unknown', idempotencyKey: 'ik_unknown'
+            operationId: 'op_unknown', idempotencyKey: 'ik_unknown',
+            ...buildPersonalKnowledgePromotionAuthority({
+                action: 'organization_review', requestId: 'kpr_1',
+                normalizedPayloadHash: normalizePromotionPayload(normalizedDecision()).normalized_payload_hash
+            })
         };
         await expect(service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
             access: reviewerAccess, promotionAuthority: baseAuthority
@@ -209,6 +227,52 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         await expect(service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
             access: reviewerAccess,
             promotionAuthority: crossPersonAuthority
+        })).rejects.toMatchObject({
+            message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403
+        });
+
+        expect(knowledgeEventService.ingestInTransaction).not.toHaveBeenCalled();
+        expect(knowledgeGraphRepository.commitNormalizedPromotion).not.toHaveBeenCalled();
+        expect(repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();
+        expect(repository.createLineage).not.toHaveBeenCalled();
+        expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
+    });
+
+    it('rejects a signed authority for request A when the transaction targets request B', async () => {
+        const request = consentedRequest();
+        const { service, repository, knowledgeGraphRepository, knowledgeEventService } = promotionHarness({ request });
+        const authorityForOtherRequest = authorityFor(
+            reviewerAccess,
+            'personal_knowledge_promotion:organization_review',
+            { requestId: 'kpr_other' }
+        );
+
+        await expect(service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
+            access: reviewerAccess,
+            promotionAuthority: authorityForOtherRequest
+        })).rejects.toMatchObject({
+            message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403
+        });
+
+        expect(knowledgeEventService.ingestInTransaction).not.toHaveBeenCalled();
+        expect(knowledgeGraphRepository.commitNormalizedPromotion).not.toHaveBeenCalled();
+        expect(repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();
+        expect(repository.createLineage).not.toHaveBeenCalled();
+        expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
+    });
+
+    it('rejects a signed authority for a different normalized payload before every organization effect', async () => {
+        const request = consentedRequest();
+        const { service, repository, knowledgeGraphRepository, knowledgeEventService } = promotionHarness({ request });
+        const authorityWithOtherHash = authorityFor(
+            reviewerAccess,
+            'personal_knowledge_promotion:organization_review',
+            { normalizedPayloadHash: `sha256:${'f'.repeat(64)}` }
+        );
+
+        await expect(service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
+            access: reviewerAccess,
+            promotionAuthority: authorityWithOtherHash
         })).rejects.toMatchObject({
             message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403
         });
@@ -249,7 +313,11 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             organizationIds: [reviewerAccess.organizationId],
             projectIds: ['brainbase'],
             operationId: 'op_replay_1',
-            idempotencyKey: 'ik_replay_1'
+            idempotencyKey: 'ik_replay_1',
+            ...buildPersonalKnowledgePromotionAuthority({
+                action: 'organization_review', requestId: 'kpr_1',
+                normalizedPayloadHash: request.normalized_payload_hash
+            })
         };
 
         await service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
@@ -363,7 +431,7 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         await expect(service.decideOwnerPromotion('kpr_1', {
             decision: 'approve', normalized_payload_hash: `sha256:${'0'.repeat(64)}`
         }, ownerContext())).rejects.toMatchObject({
-            message: 'personal_knowledge_normalized_payload_hash_mismatch', status: 409
+            message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403
         });
         expect(repository.decideOwnerPromotionRequest).not.toHaveBeenCalled();
     });
@@ -562,7 +630,9 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         const { service, knowledgeGraphRepository } = promotionHarness({ request, graphEdgeCount: 1 });
 
         await service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
-            ...organizationContext()
+            ...organizationContext(reviewerAccess, {
+                normalizedPayloadHash: normalizePromotionPayload(normalizedRelation()).normalized_payload_hash
+            })
         });
 
         const mutation = knowledgeGraphRepository.commitNormalizedPromotion.mock.calls[0][0];

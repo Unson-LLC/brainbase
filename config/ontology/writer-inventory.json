@@ -23,6 +23,7 @@
     "scripts/ontology-remediate-production-1.0.0.js": { "mode": "controlled_migration", "reason": "exact-precondition production remediation with transaction and backup", "vocabulary": { "types": ["app", "decision", "org", "person", "project"], "relations": ["belongs_to_project", "owned_by"] } },
     "scripts/seed-sato-personal-records.js": { "mode": "deferred", "reason": "personal record seed", "vocabulary": { "types": [], "relations": [] }, "classified_literals": { "compatibility": [], "internal": ["hex", "sha1"], "rejected": [] } },
     "scripts/upsert-app-environments.mjs": { "mode": "deferred", "reason": "app environment migration", "vocabulary": { "types": ["app"], "relations": [] }, "classified_literals": { "compatibility": [], "internal": [], "rejected": [] } },
-    "scripts/vibepro-graph-ssot-check.mjs": { "mode": "deferred", "reason": "Graph checker contains write-path contract fixtures", "vocabulary": { "types": [], "relations": [] }, "classified_literals": { "compatibility": [], "internal": [], "rejected": [] } }
+    "scripts/vibepro-graph-ssot-check.mjs": { "mode": "deferred", "reason": "Graph checker contains write-path contract fixtures", "vocabulary": { "types": [], "relations": [] }, "classified_literals": { "compatibility": [], "internal": [], "rejected": [] } },
+    "scripts/personal-knowledge-promotion-production-smoke.mjs": { "mode": "deferred", "reason": "customer-data-free production smoke reads Graph state and verifies promotion evidence; it never writes Graph entities or edges", "vocabulary": { "types": [], "relations": [] }, "classified_literals": { "compatibility": [], "internal": [], "rejected": [] } }
   }
 }

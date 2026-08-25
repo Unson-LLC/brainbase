@@ -21,6 +21,21 @@ jobs:
   contract:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PERSONAL_KNOWLEDGE_MIGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,6 +51,9 @@ jobs:
           tests/server/scripts/admin-api-path-surface-smoke.test.js
           tests/unit/info-ssot-knowledge-graph-repository.test.js
           tests/unit/personal-knowledge-promotion-service.test.js
+          tests/server/middleware/personal-knowledge-promotion-authority.test.js
+          tests/server/services/personal-knowledge-promotion-migration.integration.test.js
+          tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js
           tests/server/routes/personal-knowledge-routes.test.js
           tests/server/services/personal-knowledge-schema.test.js
       - name: Run tenant production provisioning contract suite

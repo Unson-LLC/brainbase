@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PersonalKnowledgePromotionService } from '../../../server/services/personal-knowledge/personal-knowledge-promotion-service.js';
 import { normalizePromotionPayload } from '../../../server/services/personal-knowledge/personal-knowledge-normalization.js';
+import { buildPersonalKnowledgePromotionAuthority } from '../../../server/services/personal-knowledge/promotion-authority-contract.js';
 
 describe('PersonalKnowledgePromotionService runtime boundary', () => {
     it('binds owner consent to the exact normalized decision and performs no Graph write', async () => {
@@ -59,7 +60,12 @@ describe('PersonalKnowledgePromotionService runtime boundary', () => {
                 organizationIds: ['unson'],
                 projectIds: ['brainbase'],
                 operationId: 'op_owner_runtime_1',
-                idempotencyKey: 'ik_owner_runtime_1'
+                idempotencyKey: 'ik_owner_runtime_1',
+                ...buildPersonalKnowledgePromotionAuthority({
+                    action: 'owner_consent',
+                    requestId: 'kpr_1',
+                    normalizedPayloadHash: normalized.normalized_payload_hash
+                })
             }
         });
 

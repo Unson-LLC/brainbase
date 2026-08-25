@@ -13,13 +13,14 @@ import {
     ownerConsentReceipt
 } from '../../../server/services/personal-knowledge/personal-knowledge-normalization.js';
 import { PersonalKnowledgePromotionService } from '../../../server/services/personal-knowledge/personal-knowledge-promotion-service.js';
+import { buildPersonalKnowledgePromotionAuthority } from '../../../server/services/personal-knowledge/promotion-authority-contract.js';
 import { computeBusinessIdempotencyKey } from '../../../server/services/multitenant/contract-usage-ledger.js';
 import { createSignedTenantContext, verifyTenantContext } from '../../../server/services/multitenant/tenant-context.js';
 
 const CAPABILITY = 'personal_knowledge_promotion:owner_consent';
 const NOW = new Date('2026-08-25T00:01:00.000Z');
 
-function envelope() {
+function envelope(overrides = {}) {
     const value = {
         schema_version: '1.0', protocol_id: 'mana-brainbase-tenant-context', protocol_version: '1.0',
         issuer: 'brainbase', audience: ['brainbase-api'],
@@ -32,7 +33,12 @@ function envelope() {
         correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAV', operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
         idempotency_key: '', contract_revision: '1',
         credential: { mode: 'cloud_standard', credential_ref: 'credref:a', billing_principal_id: 'billing_a' },
-        issued_at: '2026-08-25T00:00:00.000Z', expires_at: '2026-08-25T00:05:00.000Z'
+        issued_at: '2026-08-25T00:00:00.000Z', expires_at: '2026-08-25T00:05:00.000Z',
+        authority: buildPersonalKnowledgePromotionAuthority({
+            action: 'owner_consent', requestId: 'kpr_test',
+            normalizedPayloadHash: `sha256:${'1'.repeat(64)}`
+        }),
+        ...overrides
     };
     value.idempotency_key = computeBusinessIdempotencyKey({
         protocol_id: value.protocol_id, protocol_major: '1', tenant_id: value.tenant.tenant_id,
@@ -42,9 +48,9 @@ function envelope() {
     return value;
 }
 
-function harness({ now = NOW, tamper = false } = {}) {
+function harness({ now = NOW, tamper = false, envelopeOverrides = {} } = {}) {
     const { publicKey, privateKey } = generateKeyPairSync('ed25519');
-    const signed = createSignedTenantContext(envelope(), { key_id: 'p0-key', private_key: privateKey });
+    const signed = createSignedTenantContext(envelope(envelopeOverrides), { key_id: 'p0-key', private_key: privateKey });
     const supplied = tamper ? { ...signed, actor: { ...signed.actor, principal_id: 'attacker' } } : signed;
     const effect = vi.fn((_req, res) => res.status(204).end());
     const services = {
@@ -54,7 +60,8 @@ function harness({ now = NOW, tamper = false } = {}) {
         })
     };
     const app = express();
-    app.post('/promotion', createPersonalKnowledgePromotionAuthorityGuard(services, CAPABILITY), effect);
+    app.use(express.json());
+    app.post('/promotions/:requestId/owner-decision', createPersonalKnowledgePromotionAuthorityGuard(services, CAPABILITY), effect);
     return { app, supplied, effect };
 }
 
@@ -75,19 +82,39 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
 
     it('accepts a valid exact-capability signed context', async () => {
         const { app, supplied, effect } = harness();
-        await request(app).post('/promotion').set('Brainbase-Tenant-Context', header(supplied)).expect(204);
+        await request(app).post('/promotions/kpr_test/owner-decision').set('Brainbase-Tenant-Context', header(supplied)).expect(204);
         expect(effect).toHaveBeenCalledOnce();
     });
 
     it('rejects an expired context with downstream effects at zero', async () => {
         const { app, supplied, effect } = harness({ now: new Date('2026-08-25T00:05:31.000Z') });
-        await request(app).post('/promotion').set('Brainbase-Tenant-Context', header(supplied)).expect(403);
+        await request(app).post('/promotions/kpr_test/owner-decision').set('Brainbase-Tenant-Context', header(supplied)).expect(403);
         expect(effect).not.toHaveBeenCalled();
     });
 
     it('rejects a tampered signature with downstream effects at zero', async () => {
         const { app, supplied, effect } = harness({ tamper: true });
-        await request(app).post('/promotion').set('Brainbase-Tenant-Context', header(supplied)).expect(403);
+        await request(app).post('/promotions/kpr_test/owner-decision').set('Brainbase-Tenant-Context', header(supplied)).expect(403);
+        expect(effect).not.toHaveBeenCalled();
+    });
+
+    it('rejects a signed authority for request A when the route targets request B', async () => {
+        const { app, supplied, effect } = harness();
+        await request(app)
+            .post('/promotions/kpr_other/owner-decision')
+            .set('Brainbase-Tenant-Context', header(supplied))
+            .send({ decision: 'approve' })
+            .expect(403);
+        expect(effect).not.toHaveBeenCalled();
+    });
+
+    it('rejects a body hash different from the signed normalized payload hash', async () => {
+        const { app, supplied, effect } = harness();
+        await request(app)
+            .post('/promotions/kpr_test/owner-decision')
+            .set('Brainbase-Tenant-Context', header(supplied))
+            .send({ decision: 'approve', normalized_payload_hash: `sha256:${'2'.repeat(64)}` })
+            .expect(403);
         expect(effect).not.toHaveBeenCalled();
     });
 
@@ -96,7 +123,6 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
         const unsigned = envelope();
         unsigned.authorization.capability_ids = ['personal_knowledge_promotion:organization_review'];
         unsigned.actor.principal_id = 'person_reviewer_auth';
-        const signed = createSignedTenantContext(unsigned, { key_id: 'p0-key', private_key: privateKey });
         const normalized = normalizePromotionPayload({
             schema_version: 'personal_knowledge_normalized.v1',
             kind: 'decision',
@@ -107,6 +133,11 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
             edges: [], context_entities: [], decision_domain: 'brainbase_architecture',
             sensitivity: 'internal', role_min: 'member'
         });
+        unsigned.authority = buildPersonalKnowledgePromotionAuthority({
+            action: 'organization_review', requestId: 'kpr_runtime_replay',
+            normalizedPayloadHash: normalized.normalized_payload_hash
+        });
+        const signed = createSignedTenantContext(unsigned, { key_id: 'p0-key', private_key: privateKey });
         const promotionRequest = {
             request_id: 'kpr_runtime_replay', personal_event_id: 'pke_private_runtime',
             owner_person_id: 'person_owner', organization_id: 'org_a', project_code: 'brainbase',
@@ -191,6 +222,10 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
         const unsigned = envelope();
         unsigned.authorization.capability_ids = ['personal_knowledge_promotion:organization_review'];
         unsigned.actor.principal_id = 'person_other_auth';
+        unsigned.authority = buildPersonalKnowledgePromotionAuthority({
+            action: 'organization_review', requestId: 'kpr_runtime_cross_person',
+            normalizedPayloadHash: `sha256:${'3'.repeat(64)}`
+        });
         const signed = createSignedTenantContext(unsigned, { key_id: 'p0-key', private_key: privateKey });
         const promotionRequest = {
             request_id: 'kpr_runtime_cross_person', personal_event_id: 'pke_private_cross_person',

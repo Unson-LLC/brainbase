@@ -229,7 +229,12 @@ export class KnowledgeEventService {
         await eventRepository.appendStage(eventId, { stage, occurred_at: this.now() });
     }
 
-    async _ingest(event, { eventRepository = this.eventRepository, client = null, access = null } = {}) {
+    async _ingest(event, {
+        eventRepository = this.eventRepository,
+        client = null,
+        access = null,
+        skipGraphProjection = false
+    } = {}) {
         requireKnowledgeEvent(event);
         const existing = client
             ? await eventRepository.findById(event.event_id, { client })
@@ -312,7 +317,7 @@ export class KnowledgeEventService {
         }
 
         let graphEntityId = null;
-        if (event.subject.type === 'decision') {
+        if (!skipGraphProjection && event.subject.type === 'decision') {
             const graphInput = {
                 id: event.subject.id,
                 payload: graphPayload(event, candidate.id)
@@ -408,6 +413,31 @@ export class KnowledgeEventService {
         } finally {
             this.inFlight.delete(scopedEvent.event_id);
         }
+    }
+
+    /**
+     * Persist an event inside a caller-owned transaction without opening a
+     * second transaction. Promotion flows use this to record the
+     * organization review event before their explicit normalized Graph write;
+     * the event service must not project the same decision implicitly.
+     */
+    async ingestInTransaction(event, {
+        client,
+        access = null,
+        skipGraphProjection = false
+    } = {}) {
+        if (!client) {
+            const error = new Error('knowledge_event_transaction_required');
+            error.code = 'knowledge_event_transaction_required';
+            throw error;
+        }
+        await this.eventRepository.ensureSchema?.();
+        return this._ingest(event, {
+            eventRepository: this.eventRepository,
+            client,
+            access,
+            skipGraphProjection
+        });
     }
 
     async _ingestWithContext(event, context = {}) {
