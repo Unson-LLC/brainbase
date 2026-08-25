@@ -5,20 +5,29 @@
     {
       "id": "AC-001-CONTRACT",
       "type": "contract",
-      "statement": "provenance identityはrepository、pull request、role、merge SHAの四要素で固定する。",
+      "statement": "provenance identityはrepository、pull request、role、merge SHAの四要素で固定し、全artifactのrepository + pull request組を一意にする。重複候補はcanonical選択前にfail closedにする。",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
-        "code_refs": [{ "file": "scripts/program/reconcile-external-delivery.mjs", "anchor": "deliveryIdentity" }],
-        "test_refs": [{ "file": "tests/contracts/program-external-delivery-reconciliation.test.js", "case": "identifies the canonical A0 producer by repository, PR, role and merge SHA" }]
+        "code_refs": [
+          { "file": "scripts/program/reconcile-external-delivery.mjs", "anchor": "deliveryIdentity" },
+          { "file": "scripts/program/reconcile-external-delivery.mjs", "anchor": "assertUniqueDeliveryReferences" }
+        ],
+        "test_refs": [
+          { "file": "tests/contracts/program-external-delivery-reconciliation.test.js", "case": "identifies the canonical A0 producer by repository, PR, role and merge SHA" },
+          { "file": "tests/contracts/program-external-delivery-reconciliation.test.js", "case": "rejects duplicate repository and PR entries before canonical selection" }
+        ]
       }
     },
     {
       "id": "AC-002-CONTRACT",
       "type": "contract",
-      "statement": "canonical producerはmerged PR 1302であり、MERGED_EXTERNALLY、MERGEABLE、CLEAN、完全なmerge provenanceをすべて必須とし、欠損・矛盾またはstale open PR 1283をfail closedにする。",
+      "statement": "canonical producerはmerged PR 1302であり、MERGED_EXTERNALLYと完全なimmutable merge provenanceを必須とする。mergeableとmerge_state_statusはpre_merge_healthへ分離し、post-mergeのUNKNOWNを許容するが、不正な観測値、欠損・矛盾またはstale open PR 1283はfail closedにする。",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
-        "code_refs": [{ "file": "scripts/program/reconcile-external-delivery.mjs", "anchor": "assertVerifiedMergedDelivery" }],
+        "code_refs": [
+          { "file": "scripts/program/reconcile-external-delivery.mjs", "anchor": "assertVerifiedMergedDelivery" },
+          { "file": "scripts/program/reconcile-external-delivery.mjs", "anchor": "canonicalSelectorContract" }
+        ],
         "test_refs": [{ "file": "tests/contracts/program-external-delivery-reconciliation.test.js", "case": "rejects canonical identity matches without verified merged state and provenance" }]
       }
     },

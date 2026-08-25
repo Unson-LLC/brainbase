@@ -64,8 +64,12 @@
         "pull_request": 1302,
         "title": "Canonical Company Authority Producer Contract v1 (completed)",
         "state": "MERGED_EXTERNALLY",
-        "mergeable": "MERGEABLE",
-        "merge_state_status": "CLEAN",
+        "pre_merge_health": {
+          "mergeable": "UNKNOWN",
+          "merge_state_status": "UNKNOWN",
+          "observed_at": "2026-08-25T14:36:32Z",
+          "source": "gh pr view Unson-LLC/brainbase-unson#1302 (post-merge snapshot; transient fields)"
+        },
         "base": {
           "branch": "develop",
           "sha": "0ed0cc9828018a893bb4bbc426b5d0639f68e732"

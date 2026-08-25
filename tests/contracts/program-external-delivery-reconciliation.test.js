@@ -3,7 +3,12 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { describe, it } from 'node:test';
 import { promisify } from 'node:util';
-import { deliveryIdentity, selectCanonicalDelivery } from '../../scripts/program/reconcile-external-delivery.mjs';
+import {
+  assertUniqueDeliveryReferences,
+  canonicalSelectorContract,
+  deliveryIdentity,
+  selectCanonicalDelivery,
+} from '../../scripts/program/reconcile-external-delivery.mjs';
 
 const roadmapPath = 'docs/management/milestones/brainbase-program-master-roadmap.json';
 const roadmapMarkdownPath = 'docs/management/milestones/brainbase-program-master-roadmap.md';
@@ -17,6 +22,7 @@ const acceptedTaskInputPath = 'docs/management/tasks/program-external-delivery-r
 const sourceLockPath = 'contracts/p0-negative-boundary-contract-v1/source-lock.json';
 const companionLockPath = 'docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json';
 const crossRepoFixturePath = 'tests/fixtures/program-external-delivery-reconciliation/same-pr-number-different-repo.json';
+const duplicateRepoPrFixturePath = 'tests/fixtures/program-external-delivery-reconciliation/duplicate-repository-pr.json';
 const invalidMergeStateFixturePath = 'tests/fixtures/program-external-delivery-reconciliation/invalid-canonical-merge-state.json';
 const generatedFixtureRoot = 'tests/fixtures/program-external-delivery-reconciliation/generated-surfaces';
 const preFixGeneratorBindingPath = `${generatedFixtureRoot}/pre-fix-generator-binding.json`;
@@ -158,8 +164,10 @@ describe('Program external delivery reconciliation contract', () => {
       program_id: 'A0',
       role: canonicalRole,
       state: 'MERGED_EXTERNALLY',
-      mergeable: 'MERGEABLE',
-      merge_state_status: 'CLEAN',
+      pre_merge_health: {
+        mergeable: 'UNKNOWN',
+        merge_state_status: 'UNKNOWN',
+      },
       program_effect: 'contract_delivery_only',
       merge: { sha: 'ad908bce7b90678f9ed7f1c570f808bdf1a500ad' },
       exit_evidence: {
@@ -338,6 +346,21 @@ describe('Program external delivery reconciliation contract', () => {
     assert.notEqual(selected.repository, fixture.repository);
   });
 
+  it('rejects duplicate repository and PR entries before canonical selection', async () => {
+    const value = await roadmap();
+    const fixture = await readJson(duplicateRepoPrFixturePath);
+    const companion = await readJson(companionLockPath);
+    const expectedIdentity = deliveryIdentity(companion.external_delivery);
+    assert.doesNotThrow(() => assertUniqueDeliveryReferences(value.live_reconciliation.artifacts));
+    assert.throws(
+      () => selectCanonicalDelivery(
+        [fixture, ...value.live_reconciliation.artifacts],
+        expectedIdentity,
+      ),
+      /external delivery repository\+pull_request must be unique: Unson-LLC\/brainbase#479/,
+    );
+  });
+
   it('requires all four nonempty identity keys before selecting a canonical delivery', async () => {
     const value = await roadmap();
     const companion = await readJson(companionLockPath);
@@ -405,6 +428,10 @@ describe('Program external delivery reconciliation contract', () => {
       const candidate = {
         ...fixture.verified_delivery,
         ...negative.patch,
+        pre_merge_health: {
+          ...fixture.verified_delivery.pre_merge_health,
+          ...(negative.patch.pre_merge_health ?? {}),
+        },
         merge: {
           ...fixture.verified_delivery.merge,
           ...(negative.patch.merge ?? {}),
@@ -447,8 +474,14 @@ describe('Program external delivery reconciliation contract', () => {
     assert.match(orchestrator, /docs merge.*昇格させない/);
     assert.match(story, /production_evidence: not_collected/);
     assert.match(story, /done: false/);
-    assert.match(architecture, /`mergeable=MERGEABLE`.*`merge_state_status=CLEAN`/);
-    assert.match(spec, /`mergeable=MERGEABLE`.*`merge_state_status=CLEAN`/);
+    assert.match(architecture, /`pre_merge_health`.*`UNKNOWN`/s);
+    assert.match(spec, /`pre_merge_health`.*`UNKNOWN`/s);
+    assert.match(architecture, /selector.*owner.*trigger.*failure surface/s);
+    assert.deepEqual(canonicalSelectorContract, {
+      owner: 'scripts/program/reconcile-external-delivery.mjs',
+      trigger: 'external_delivery_readback_before_program_status_evaluation',
+      failure_surface: 'throw_fail_closed_reconciliation_gate_needs_review',
+    });
     assert.equal(task.status, 'contract_ready');
     assert.equal(task.production_evidence, 'not_collected');
     assert.equal(task.done, false);

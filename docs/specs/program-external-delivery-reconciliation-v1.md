@@ -13,8 +13,8 @@
 ## 不変条件
 
 1. `status_vocabulary`は`planned`、`contract_ready`、`implementing`、`verified`、`production_proven`、`done`のexact setである。
-2. `live_reconciliation.artifacts`のidentityはrepositoryとPRの組で一意で、roleを明記する。
-3. A0 producer contract deliveryはrepository=`Unson-LLC/brainbase-unson`、pull_request=`1302`、role=`producer_contract_delivery`、merged_sha=`ad908bce7b90678f9ed7f1c570f808bdf1a500ad`である。canonical選択には`state=MERGED_EXTERNALLY`、`mergeable=MERGEABLE`、`merge_state_status=CLEAN`、完全なmerge provenance、canonical GitHub PR URL、`merged_sha=merge.sha`をすべて必須とし、欠損または矛盾はfail closedにする。
+2. `live_reconciliation.artifacts`の全候補はrepositoryとPRの組で一意で、roleを明記する。重複候補はcanonical候補との一致有無に関係なくfail closedにする。
+3. A0 producer contract deliveryはrepository=`Unson-LLC/brainbase-unson`、pull_request=`1302`、role=`producer_contract_delivery`、merged_sha=`ad908bce7b90678f9ed7f1c570f808bdf1a500ad`である。canonical選択には`state=MERGED_EXTERNALLY`、完全なmerge provenance、canonical GitHub PR URL、`merged_sha=merge.sha`を必須とし、欠損または矛盾はfail closedにする。`mergeable`と`merge_state_status`は`pre_merge_health`に分離した観測値で、post-merge readbackの`UNKNOWN`はimmutableなmerge provenanceを無効にしない。記録する場合は許容値だけを受け付ける。
 4. `Unson-LLC/brainbase-unson#1283`はstale title-matched candidateであり、canonical producerまたはcompletion evidenceではない。
 5. P0 machine source-lockのupstream repository/merged SHAを直接読み、Program companion lockがlive readback由来のPRとcanonical role `producer_contract_delivery`を出典付きで結合する。4要素はA0 producer deliveryと一致する。
 6. A0 artifactの`program_effect`は`contract_delivery_only`で、work package、consumer、independent review、Gate、productionを未確定のまま保持する。
@@ -23,6 +23,8 @@
 9. contract testのpassはproduction evidenceではない。`production_evidence=not_collected`、`done=false`を維持する。
 
 10. 同じPR番号でもrepositoryが異なるidentityをcanonical producerへ採用しない。
+
+11. canonical selectorのownerは`scripts/program/reconcile-external-delivery.mjs`、triggerはexternal delivery readback完了後かつProgram status評価前、failure surfaceは例外を投げるfail-closedとする。呼び出し側は失敗時にreconciliation Gateを`needs_review`として扱い、候補を黙って除外したりProgram statusを昇格したりしない。
 
 ## live readback境界
 

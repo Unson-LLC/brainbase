@@ -14,8 +14,10 @@
     "pull_request": 1302,
     "role": "producer_contract_delivery",
     "state": "MERGED_EXTERNALLY",
-    "mergeable": "MERGEABLE",
-    "merge_state_status": "CLEAN",
+    "pre_merge_health": {
+      "mergeable": "UNKNOWN",
+      "merge_state_status": "UNKNOWN"
+    },
     "merge": {
       "sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
       "merged_at": "2026-08-21T19:09:27Z",
@@ -24,14 +26,19 @@
     "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1302"
   },
   "negative_patches": [
-    { "id": "missing-mergeable", "omit": ["mergeable"], "patch": {}, "invalid": "mergeable" },
-    { "id": "missing-merge-state-status", "omit": ["merge_state_status"], "patch": {}, "invalid": "merge_state_status" },
     { "id": "open", "patch": { "state": "OPEN" }, "invalid": "state" },
     { "id": "unknown-state", "patch": { "state": "UNKNOWN" }, "invalid": "state" },
     { "id": "nonmerged", "patch": { "state": "CLOSED" }, "invalid": "state" },
-    { "id": "conflicting", "patch": { "mergeable": "CONFLICTING" }, "invalid": "mergeable" },
-    { "id": "dirty", "patch": { "merge_state_status": "DIRTY" }, "invalid": "merge_state_status" },
-    { "id": "unknown-mergeability", "patch": { "mergeable": "UNKNOWN" }, "invalid": "mergeable" },
+    {
+      "id": "invalid-pre-mergeability",
+      "patch": { "pre_merge_health": { "mergeable": "BROKEN" } },
+      "invalid": "pre_merge_health.mergeable"
+    },
+    {
+      "id": "invalid-pre-merge-state",
+      "patch": { "pre_merge_health": { "merge_state_status": "BROKEN" } },
+      "invalid": "pre_merge_health.merge_state_status"
+    },
     { "id": "missing-merged-at", "patch": { "merge": { "merged_at": null } }, "invalid": "merge.merged_at" },
     { "id": "missing-merged-by", "patch": { "merge": { "merged_by": " " } }, "invalid": "merge.merged_by" },
     { "id": "wrong-source", "patch": { "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1283" }, "invalid": "source_url" },
