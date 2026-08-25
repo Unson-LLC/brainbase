@@ -12,8 +12,7 @@ import {
 import {
     decideOwnerPromotionRequest,
     listOrganizationPromotionReviews,
-    reviewOrganizationPromotionRequest,
-    saveNormalizedPromotionPayload
+    reviewOrganizationPromotionRequest
 } from './two-stage-promotion-repository.js';
 
 const SECRET_OR_PRIVATE = /(secret\s*=|password\s*=|api[_-]?key\s*=|\/Users\/|\/home\/|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i;
@@ -95,6 +94,53 @@ function requireOrganizationReviewer(request, access) {
     }
 }
 
+function requirePromotionAuthority(authority, access, projectCode, capabilityId) {
+    if (!authority) return;
+    if (authority.capabilityId !== capabilityId
+        || authority.actorPersonId !== (access.actorPersonId || access.personId)
+        || authority.organizationIds?.length !== 1
+        || authority.organizationIds[0] !== access.organizationId
+        || authority.projectIds?.length !== 1
+        || authority.projectIds[0] !== projectCode
+        || !authority.operationId
+        || !authority.idempotencyKey) {
+        throw promotionError('personal_knowledge_promotion_authority_scope_mismatch', 403);
+    }
+}
+
+async function claimPromotionAuthorityUse(repository, authority, requestId, action, options) {
+    if (!authority) return;
+    if (typeof repository.claimPromotionAuthorityUse === 'function') {
+        await repository.claimPromotionAuthorityUse({
+            operation_id: authority.operationId,
+            idempotency_key: authority.idempotencyKey,
+            request_id: requestId,
+            action,
+            actor_person_id: authority.actorPersonId,
+            organization_id: options.access.organizationId,
+            project_code: authority.projectIds[0]
+        }, options);
+        return;
+    }
+    const client = options.client;
+    if (!client?.query) throw promotionError('personal_knowledge_transaction_required', 500);
+    try {
+        await client.query(
+            `INSERT INTO knowledge_promotion_authority_uses
+             (operation_id, idempotency_key, request_id, action, actor_person_id,
+              organization_id, project_code)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+            [authority.operationId, authority.idempotencyKey, requestId, action,
+                authority.actorPersonId, options.access.organizationId, authority.projectIds[0]]
+        );
+    } catch (error) {
+        if (error?.code === '23505') {
+            throw promotionError('personal_knowledge_promotion_authority_replayed', 409);
+        }
+        throw error;
+    }
+}
+
 async function ingestWithinTransaction(service, event, { client, access }) {
     if (!service) throw promotionError('personal_knowledge_knowledge_event_service_unavailable', 503);
     if (typeof service.ingestInTransaction === 'function') {
@@ -127,7 +173,7 @@ export class PersonalKnowledgePromotionService {
         this.now = now;
     }
 
-    async requestPromotion(personalEventId, input, { access } = {}) {
+    async requestPromotion(personalEventId, input, { access, promotionAuthority } = {}) {
         requireAccess(access);
         const run = async ({ client } = {}) => {
             const options = { access, client };
@@ -136,9 +182,17 @@ export class PersonalKnowledgePromotionService {
                 throw promotionError('personal_knowledge_event_not_found', 404);
             }
             requireProject(access, input.project_code);
+            requirePromotionAuthority(
+                promotionAuthority,
+                access,
+                input.project_code,
+                'personal_knowledge_promotion:request'
+            );
             const preview = sanitize(input.summary);
+            const normalizedResult = normalizePromotionPayload(input.normalized_payload);
+            const createdAt = this.now().toISOString();
             const request = {
-                request_id: `kpr_${hash(`${personalEventId}:${input.project_code}:${preview}`).slice(0, 24)}`,
+                request_id: `kpr_${hash(`${personalEventId}:${input.project_code}:${normalizedResult.normalized_payload_hash}`).slice(0, 24)}`,
                 personal_event_id: personalEventId,
                 owner_person_id: access.personId,
                 organization_id: access.organizationId,
@@ -147,14 +201,28 @@ export class PersonalKnowledgePromotionService {
                 sanitized_preview: preview,
                 subject: sanitizeSubject(input.subject, personalEventId),
                 body_hash: `sha256:${hash(preview)}`,
-                created_at: this.now().toISOString()
+                normalized_payload: normalizedResult.normalized,
+                normalized_payload_hash: normalizedResult.normalized_payload_hash,
+                normalized_by_person_id: access.actorPersonId || access.personId,
+                normalized_at: createdAt,
+                owner_consent_receipt_id: null,
+                normalization_contract_version: NORMALIZED_PROMOTION_SCHEMA_VERSION,
+                created_at: createdAt
             };
-            return this.repository.createPromotionRequest(request, options);
+            const created = await this.repository.createPromotionRequest(request, options);
+            await claimPromotionAuthorityUse(
+                this.repository,
+                promotionAuthority,
+                request.request_id,
+                'request',
+                options
+            );
+            return created;
         };
         return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
     }
 
-    async decideOwnerPromotion(requestId, input, { access } = {}) {
+    async decideOwnerPromotion(requestId, input, { access, promotionAuthority } = {}) {
         requireAccess(access);
         if (!OWNER_DECISIONS.has(input?.decision)) {
             throw promotionError('personal_knowledge_promotion_decision_invalid');
@@ -163,6 +231,19 @@ export class PersonalKnowledgePromotionService {
             const options = { access, client };
             const request = await this.repository.findPromotionRequest(requestId, options);
             requireOwner(request, access);
+            requirePromotionAuthority(
+                promotionAuthority,
+                access,
+                request.project_code,
+                'personal_knowledge_promotion:owner_consent'
+            );
+            await claimPromotionAuthorityUse(
+                this.repository,
+                promotionAuthority,
+                requestId,
+                'owner_consent',
+                options
+            );
 
             if (request.status === 'pending_org_review' && input.decision === 'approve') return request;
             if (request.status === 'owner_rejected' && input.decision === 'reject') return request;
@@ -172,9 +253,25 @@ export class PersonalKnowledgePromotionService {
 
             const decidedAt = this.now().toISOString();
             const status = input.decision === 'approve' ? 'pending_org_review' : 'owner_rejected';
+            let consentReceiptId = null;
+            if (input.decision === 'approve') {
+                if (!request.normalized_payload || !request.normalized_payload_hash) {
+                    throw promotionError('personal_knowledge_normalized_payload_required', 409);
+                }
+                if (input.normalized_payload_hash !== request.normalized_payload_hash) {
+                    throw promotionError('personal_knowledge_normalized_payload_hash_mismatch', 409);
+                }
+                consentReceiptId = ownerConsentReceipt({
+                    ...request,
+                    status,
+                    owner_decided_by: access.actorPersonId || access.personId,
+                    owner_decided_at: decidedAt
+                });
+            }
             const updated = await decideOwnerPromotionRequest(this.repository, requestId, {
                 status,
-                decided_at: decidedAt
+                decided_at: decidedAt,
+                owner_consent_receipt_id: consentReceiptId
             }, options);
             if (!updated) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
             return updated;
@@ -208,30 +305,20 @@ export class PersonalKnowledgePromotionService {
         const run = async ({ client } = {}) => {
             const options = { access, client };
             const request = await this.repository.findPromotionRequest(requestId, options);
-            requireOrganizationReviewer(request, access);
-            if (request.status !== 'pending_org_review') {
+            requireOwner(request, access);
+            if (request.status !== 'pending_owner_approval') {
                 throw promotionError('personal_knowledge_promotion_already_decided', 409);
             }
             const normalizedResult = normalizePromotionPayload(input?.normalized_payload || input);
-            const consentReceiptId = request.owner_consent_receipt_id || ownerConsentReceipt(request);
-            if (request.normalized_payload_hash === normalizedResult.normalized_payload_hash
-                && request.owner_consent_receipt_id === consentReceiptId) {
+            if (request.normalized_payload_hash === normalizedResult.normalized_payload_hash) {
                 return { ...request, idempotent: true };
             }
-            const updated = await saveNormalizedPromotionPayload(this.repository, requestId, {
-                normalized_payload: normalizedResult.normalized,
-                normalized_payload_hash: normalizedResult.normalized_payload_hash,
-                normalized_at: this.now().toISOString(),
-                owner_consent_receipt_id: consentReceiptId,
-                contract_version: NORMALIZED_PROMOTION_SCHEMA_VERSION
-            }, options);
-            if (!updated) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
-            return updated;
+            throw promotionError('personal_knowledge_normalized_payload_immutable', 409);
         };
         return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
     }
 
-    async reviewOrganizationPromotion(requestId, input, { access } = {}) {
+    async reviewOrganizationPromotion(requestId, input, { access, promotionAuthority } = {}) {
         requireAccess(access);
         if (!ORGANIZATION_DECISIONS.has(input?.decision)) {
             throw promotionError('personal_knowledge_organization_decision_invalid');
@@ -240,6 +327,19 @@ export class PersonalKnowledgePromotionService {
             const options = { access, client };
             const request = await this.repository.findPromotionRequest(requestId, options);
             requireOrganizationReviewer(request, access);
+            requirePromotionAuthority(
+                promotionAuthority,
+                access,
+                request.project_code,
+                'personal_knowledge_promotion:organization_review'
+            );
+            await claimPromotionAuthorityUse(
+                this.repository,
+                promotionAuthority,
+                requestId,
+                'organization_review',
+                options
+            );
 
             if (request.status === 'org_rejected' && input.decision === 'reject') return request;
             if (request.status === 'org_accepted' && input.decision === 'approve') return request;

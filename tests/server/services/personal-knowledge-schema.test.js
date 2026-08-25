@@ -12,6 +12,8 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toContain('CREATE TABLE IF NOT EXISTS personal_knowledge_event_transitions');
         expect(sql).toContain('CREATE TABLE IF NOT EXISTS knowledge_event_transitions');
         expect(sql).toContain('CREATE TABLE IF NOT EXISTS knowledge_promotion_requests');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS knowledge_promotion_authority_uses');
+        expect(sql).toContain('idempotency_key TEXT NOT NULL UNIQUE');
         expect(sql).toContain('CREATE TABLE IF NOT EXISTS knowledge_promotion_lineage');
         expect(sql).toContain('CREATE TABLE IF NOT EXISTS episode_compaction_artifacts');
         expect(sql).toMatch(/personal_knowledge_events ENABLE ROW LEVEL SECURITY/);
@@ -92,6 +94,10 @@ describe('personal and organization knowledge schema', () => {
     it('requires normalized hashes, both receipts, Knowledge Event, and Graph readback for new acceptance', () => {
         const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
 
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS knowledge_promotion_authority_uses');
+        expect(sql).toContain('idempotency_key TEXT NOT NULL UNIQUE');
+        expect(sql).toMatch(/knowledge_promotion_authority_uses ENABLE ROW LEVEL SECURITY/);
+        expect(sql).toMatch(/knowledge_promotion_authority_uses FORCE ROW LEVEL SECURITY/);
         expect(sql).toContain('normalization_contract_version TEXT');
         expect(sql).toContain('normalized_payload JSONB');
         expect(sql).toContain('normalized_payload_hash TEXT');
@@ -101,6 +107,9 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toContain('graph_entity_id TEXT');
         expect(sql).toContain("normalized_payload->>'schema_version' = 'personal_knowledge_normalized.v1'");
         expect(sql).toContain("normalized_payload_hash ~ '^sha256:[a-f0-9]{64}$'");
+        expect(sql).toContain("status = 'pending_owner_approval'");
+        expect(sql).toContain("WHERE status = 'pending_org_review'");
+        expect(sql).toContain('knowledge_promotion_owner_consent_evidence_check');
         expect(sql).toMatch(/status <> 'org_accepted'[\s\S]*organization_event_id IS NOT NULL[\s\S]*graph_entity_id IS NOT NULL/);
     });
 

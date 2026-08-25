@@ -30,12 +30,28 @@ ALTER TABLE knowledge_promotion_requests
 ALTER TABLE knowledge_promotion_requests
   ADD COLUMN IF NOT EXISTS legacy_without_normalized_evidence BOOLEAN NOT NULL DEFAULT FALSE;
 
+CREATE TABLE IF NOT EXISTS knowledge_promotion_authority_uses (
+  operation_id TEXT PRIMARY KEY,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  request_id TEXT NOT NULL REFERENCES knowledge_promotion_requests(request_id) ON DELETE RESTRICT,
+  action TEXT NOT NULL CHECK (action IN ('request', 'owner_consent', 'organization_review')),
+  actor_person_id TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  project_code TEXT NOT NULL,
+  used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_promotion_authority_request
+  ON knowledge_promotion_authority_uses(request_id, action);
+
 ALTER TABLE knowledge_promotion_requests
   DROP CONSTRAINT IF EXISTS knowledge_promotion_requests_status_check;
 ALTER TABLE knowledge_promotion_requests
   DROP CONSTRAINT IF EXISTS knowledge_promotion_normalized_payload_check;
 ALTER TABLE knowledge_promotion_requests
   DROP CONSTRAINT IF EXISTS knowledge_promotion_org_acceptance_evidence_check;
+ALTER TABLE knowledge_promotion_requests
+  DROP CONSTRAINT IF EXISTS knowledge_promotion_owner_consent_evidence_check;
 
 UPDATE knowledge_promotion_requests
 SET status = CASE status
@@ -54,6 +70,17 @@ UPDATE knowledge_promotion_requests
 SET organization_reviewed_at = COALESCE(organization_reviewed_at, decided_at)
 WHERE status IN ('org_accepted', 'org_rejected')
   AND organization_reviewed_at IS NULL;
+
+-- Preview-only approvals cannot be carried into the exact-payload contract.
+-- Fail closed and require the owner to review the normalized payload again.
+UPDATE knowledge_promotion_requests
+SET status = 'pending_owner_approval',
+    owner_decided_by = NULL,
+    owner_decided_at = NULL,
+    owner_consent_receipt_id = NULL,
+    decided_at = NULL
+WHERE status = 'pending_org_review'
+  AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL);
 
 -- Only rows that already existed before M1-C may lack the new evidence contract.
 -- The trigger below prevents any new row or later update from opting into this flag.
@@ -88,8 +115,18 @@ ALTER TABLE knowledge_promotion_requests
       AND normalized_payload_hash ~ '^sha256:[a-f0-9]{64}$'
       AND normalized_by_person_id IS NOT NULL
       AND normalized_at IS NOT NULL
-      AND owner_consent_receipt_id ~ '^pkoc_[a-f0-9]{24}$'
       AND legacy_without_normalized_evidence = FALSE
+    )
+  );
+
+ALTER TABLE knowledge_promotion_requests
+  ADD CONSTRAINT knowledge_promotion_owner_consent_evidence_check CHECK (
+    status NOT IN ('pending_org_review', 'org_accepted', 'org_rejected')
+    OR legacy_without_normalized_evidence = TRUE
+    OR (
+      normalized_payload IS NOT NULL
+      AND normalized_payload_hash ~ '^sha256:[a-f0-9]{64}$'
+      AND owner_consent_receipt_id ~ '^pkoc_[a-f0-9]{24}$'
     )
   );
 
@@ -152,10 +189,14 @@ BEGIN
        OR NEW.normalized_payload_hash IS DISTINCT FROM OLD.normalized_payload_hash
        OR NEW.normalized_by_person_id IS DISTINCT FROM OLD.normalized_by_person_id
        OR NEW.normalized_at IS DISTINCT FROM OLD.normalized_at
-       OR NEW.owner_consent_receipt_id IS DISTINCT FROM OLD.owner_consent_receipt_id
        OR NEW.normalization_contract_version IS DISTINCT FROM OLD.normalization_contract_version
      ) THEN
     RAISE EXCEPTION 'Normalized promotion evidence is immutable; create a new promotion request';
+  END IF;
+  IF TG_OP = 'UPDATE'
+     AND OLD.owner_consent_receipt_id IS NOT NULL
+     AND NEW.owner_consent_receipt_id IS DISTINCT FROM OLD.owner_consent_receipt_id THEN
+    RAISE EXCEPTION 'Owner consent receipt is immutable';
   END IF;
   RETURN NEW;
 END $$;
@@ -198,6 +239,20 @@ CREATE POLICY personal_promotion_two_stage_scope ON knowledge_promotion_requests
         AND status IN ('pending_org_review', 'org_accepted', 'org_rejected')
       )
     )
+  );
+
+ALTER TABLE knowledge_promotion_authority_uses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_promotion_authority_uses FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS personal_promotion_authority_scope ON knowledge_promotion_authority_uses;
+CREATE POLICY personal_promotion_authority_scope ON knowledge_promotion_authority_uses
+  USING (
+    organization_id = app_organization_id_required()
+    AND project_code = ANY(string_to_array(current_setting('app.project_codes', true), ','))
+  )
+  WITH CHECK (
+    organization_id = app_organization_id_required()
+    AND project_code = ANY(string_to_array(current_setting('app.project_codes', true), ','))
+    AND actor_person_id = app_person_id_required()
   );
 
 -- The private Personal event foreign key remains owner-visible. A distinct GM/CEO

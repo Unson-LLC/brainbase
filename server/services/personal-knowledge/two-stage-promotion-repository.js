@@ -17,11 +17,13 @@ export async function decideOwnerPromotionRequest(repository, requestId, decisio
          SET status = $2,
              owner_decided_by = $3,
              owner_decided_at = $4,
+             owner_consent_receipt_id = $5,
              decided_at = $4
          WHERE request_id = $1
            AND status = 'pending_owner_approval'
          RETURNING *`,
-        [requestId, decision.status, actorPersonId(options), decision.decided_at]
+        [requestId, decision.status, actorPersonId(options), decision.decided_at,
+            decision.owner_consent_receipt_id || null]
     );
     return rows[0] || null;
 }

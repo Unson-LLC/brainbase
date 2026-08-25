@@ -1,0 +1,188 @@
+import { generateKeyPairSync } from 'node:crypto';
+import express from 'express';
+import request from 'supertest';
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+    createPersonalKnowledgePromotionAuthorityGuard,
+    createUnavailablePersonalKnowledgePromotionAuthorityGuard
+} from '../../../server/middleware/personal-knowledge-promotion-authority.js';
+import { createPersonalKnowledgeRouter } from '../../../server/routes/personal-knowledge.js';
+import {
+    normalizePromotionPayload,
+    ownerConsentReceipt
+} from '../../../server/services/personal-knowledge/personal-knowledge-normalization.js';
+import { PersonalKnowledgePromotionService } from '../../../server/services/personal-knowledge/personal-knowledge-promotion-service.js';
+import { computeBusinessIdempotencyKey } from '../../../server/services/multitenant/contract-usage-ledger.js';
+import { createSignedTenantContext, verifyTenantContext } from '../../../server/services/multitenant/tenant-context.js';
+
+const CAPABILITY = 'personal_knowledge_promotion:owner_consent';
+const NOW = new Date('2026-08-25T00:01:00.000Z');
+
+function envelope() {
+    const value = {
+        schema_version: '1.0', protocol_id: 'mana-brainbase-tenant-context', protocol_version: '1.0',
+        issuer: 'brainbase', audience: ['brainbase-api'],
+        tenant: { tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV', tenant_revision: '1' },
+        workspace_connection: { connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV', connection_revision: '1', status: 'active', provider: 'slack', installation_id: 'i', workspace_id: 'w', app_id: 'a' },
+        actor: { principal_id: 'person_a_auth', principal_type: 'person', authenticated_subject_id: 'subject_a' },
+        authorization: { organization_ids: ['org_a'], project_ids: ['brainbase'], data_scopes: ['company'], capability_ids: [CAPABILITY] },
+        placement: { deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', profile: 'shared_cloud' },
+        slack: { event_id: 'evt_p0_owner_1', channel_id: 'channel_a' },
+        correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAV', operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        idempotency_key: '', contract_revision: '1',
+        credential: { mode: 'cloud_standard', credential_ref: 'credref:a', billing_principal_id: 'billing_a' },
+        issued_at: '2026-08-25T00:00:00.000Z', expires_at: '2026-08-25T00:05:00.000Z'
+    };
+    value.idempotency_key = computeBusinessIdempotencyKey({
+        protocol_id: value.protocol_id, protocol_major: '1', tenant_id: value.tenant.tenant_id,
+        connection_id: value.workspace_connection.connection_id,
+        slack_event_id: value.slack.event_id, operation_id: value.operation_id
+    });
+    return value;
+}
+
+function harness({ now = NOW, tamper = false } = {}) {
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const signed = createSignedTenantContext(envelope(), { key_id: 'p0-key', private_key: privateKey });
+    const supplied = tamper ? { ...signed, actor: { ...signed.actor, principal_id: 'attacker' } } : signed;
+    const effect = vi.fn((_req, res) => res.status(204).end());
+    const services = {
+        tenantContextVerifier: (input) => verifyTenantContext(input, {
+            keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
+            audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now
+        })
+    };
+    const app = express();
+    app.post('/promotion', createPersonalKnowledgePromotionAuthorityGuard(services, CAPABILITY), effect);
+    return { app, supplied, effect };
+}
+
+function header(value) {
+    return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+describe('Personal KG promotion A0 signed authority boundary', () => {
+    it('returns unavailable_connection and leaves downstream effects at zero', async () => {
+        const effect = vi.fn((_req, res) => res.status(204).end());
+        const app = express();
+        app.post('/promotion', createUnavailablePersonalKnowledgePromotionAuthorityGuard(), effect);
+        await request(app).post('/promotion').expect(503, {
+            error: 'personal_knowledge_promotion_authority_unavailable'
+        });
+        expect(effect).not.toHaveBeenCalled();
+    });
+
+    it('accepts a valid exact-capability signed context', async () => {
+        const { app, supplied, effect } = harness();
+        await request(app).post('/promotion').set('Brainbase-Tenant-Context', header(supplied)).expect(204);
+        expect(effect).toHaveBeenCalledOnce();
+    });
+
+    it('rejects an expired context with downstream effects at zero', async () => {
+        const { app, supplied, effect } = harness({ now: new Date('2026-08-25T00:05:31.000Z') });
+        await request(app).post('/promotion').set('Brainbase-Tenant-Context', header(supplied)).expect(403);
+        expect(effect).not.toHaveBeenCalled();
+    });
+
+    it('rejects a tampered signature with downstream effects at zero', async () => {
+        const { app, supplied, effect } = harness({ tamper: true });
+        await request(app).post('/promotion').set('Brainbase-Tenant-Context', header(supplied)).expect(403);
+        expect(effect).not.toHaveBeenCalled();
+    });
+
+    it('rejects replay through the HTTP runtime before a second Graph effect', async () => {
+        const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+        const unsigned = envelope();
+        unsigned.authorization.capability_ids = ['personal_knowledge_promotion:organization_review'];
+        unsigned.actor.principal_id = 'person_reviewer_auth';
+        const signed = createSignedTenantContext(unsigned, { key_id: 'p0-key', private_key: privateKey });
+        const normalized = normalizePromotionPayload({
+            schema_version: 'personal_knowledge_normalized.v1',
+            kind: 'decision',
+            entity: {
+                id: 'decision_runtime_replay', type: 'decision',
+                payload: { statement: '同一署名authorityの再送を拒否する' }
+            },
+            edges: [], context_entities: [], decision_domain: 'brainbase_architecture',
+            sensitivity: 'internal', role_min: 'member'
+        });
+        const promotionRequest = {
+            request_id: 'kpr_runtime_replay', personal_event_id: 'pke_private_runtime',
+            owner_person_id: 'person_owner', organization_id: 'org_a', project_code: 'brainbase',
+            status: 'pending_org_review', sanitized_preview: 'private preview',
+            subject: { type: 'decision', id: 'decision_runtime_replay' },
+            body_hash: 'sha256:private', normalized_payload: normalized.normalized,
+            normalized_payload_hash: normalized.normalized_payload_hash,
+            normalized_by_person_id: 'person_owner_auth', normalized_at: '2026-08-25T00:00:00.000Z',
+            normalization_contract_version: 'personal_knowledge_normalized.v1',
+            owner_decided_by: 'person_owner_auth', owner_decided_at: '2026-08-25T00:00:00.000Z'
+        };
+        promotionRequest.owner_consent_receipt_id = ownerConsentReceipt(promotionRequest);
+        const claimed = new Set();
+        const repository = {
+            transaction: (work) => work({ client: { query: vi.fn() } }),
+            findPromotionRequest: vi.fn(async () => promotionRequest),
+            claimPromotionAuthorityUse: vi.fn(async (use) => {
+                if (claimed.has(use.operation_id)) {
+                    throw Object.assign(new Error('personal_knowledge_promotion_authority_replayed'), { status: 409 });
+                }
+                claimed.add(use.operation_id);
+            }),
+            reviewOrganizationPromotionRequest: vi.fn(async (_id, decision) => {
+                Object.assign(promotionRequest, { status: decision.status });
+                return promotionRequest;
+            }),
+            createLineage: vi.fn(async (lineage) => lineage)
+        };
+        const graphRepository = {
+            commitNormalizedPromotion: vi.fn(async (mutation) => ({ id: mutation.entity.id, edge_count: 0 }))
+        };
+        const promotionService = new PersonalKnowledgePromotionService({
+            repository,
+            knowledgeGraphRepository: graphRepository,
+            knowledgeEventService: {
+                graphRepository,
+                ingestInTransaction: vi.fn(async (event) => ({
+                    event_id: event.event_id, candidate_id: 'candidate_runtime', semantic_state: 'active'
+                }))
+            },
+            now: () => NOW
+        });
+        const services = {
+            tenantContextVerifier: (input) => verifyTenantContext(input, {
+                keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
+                audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now: NOW
+            })
+        };
+        const app = express();
+        app.use(express.json());
+        app.use((_req, _res, next) => {
+            _req.personalKnowledgeAccess = {
+                personId: 'person_reviewer', actorPersonId: 'person_reviewer_auth',
+                organizationId: 'org_a', projectCodes: ['brainbase'], role: 'gm', clearance: ['internal']
+            };
+            next();
+        });
+        app.use(createPersonalKnowledgeRouter({
+            personalKnowledgeService: {},
+            promotionService,
+            promotionAuthorityGuards: {
+                organization: createPersonalKnowledgePromotionAuthorityGuard(
+                    services,
+                    'personal_knowledge_promotion:organization_review'
+                )
+            }
+        }));
+        const mutation = () => request(app)
+            .post('/promotions/kpr_runtime_replay/organization-decision')
+            .set('Brainbase-Tenant-Context', header(signed))
+            .send({ decision: 'approve' });
+
+        await mutation().expect(200);
+        await mutation().expect(409, { error: 'personal_knowledge_promotion_authority_replayed' });
+        expect(graphRepository.commitNormalizedPromotion).toHaveBeenCalledOnce();
+        expect(repository.reviewOrganizationPromotionRequest).toHaveBeenCalledOnce();
+        expect(repository.createLineage).toHaveBeenCalledOnce();
+    });
+});

@@ -118,6 +118,34 @@ CREATE TABLE IF NOT EXISTS knowledge_promotion_lineage (
   UNIQUE (personal_event_id, organization_event_id)
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_promotion_authority_uses (
+  operation_id TEXT PRIMARY KEY,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  request_id TEXT NOT NULL REFERENCES knowledge_promotion_requests(request_id) ON DELETE RESTRICT,
+  action TEXT NOT NULL CHECK (action IN ('request', 'owner_consent', 'organization_review')),
+  actor_person_id TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  project_code TEXT NOT NULL,
+  used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_promotion_authority_request
+  ON knowledge_promotion_authority_uses(request_id, action);
+
+ALTER TABLE knowledge_promotion_authority_uses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_promotion_authority_uses FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS personal_promotion_authority_scope ON knowledge_promotion_authority_uses;
+CREATE POLICY personal_promotion_authority_scope ON knowledge_promotion_authority_uses
+  USING (
+    organization_id = app_organization_id_required()
+    AND project_code = ANY(string_to_array(current_setting('app.project_codes', true), ','))
+  )
+  WITH CHECK (
+    organization_id = app_organization_id_required()
+    AND project_code = ANY(string_to_array(current_setting('app.project_codes', true), ','))
+    AND actor_person_id = app_person_id_required()
+  );
+
 CREATE TABLE IF NOT EXISTS episode_compaction_artifacts (
   artifact_id TEXT PRIMARY KEY,
   scope TEXT NOT NULL CHECK (scope IN ('personal', 'organization')),

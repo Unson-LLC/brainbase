@@ -210,14 +210,18 @@ export function normalizePromotionPayload(input) {
 }
 
 export function ownerConsentReceipt(request) {
-    if (!request?.owner_decided_by || !request?.owner_decided_at || request.status !== 'pending_org_review') {
+    if (!request?.owner_decided_by
+        || !request?.owner_decided_at
+        || !request?.normalized_payload_hash
+        || request.status !== 'pending_org_review') {
         throw promotionError('personal_knowledge_owner_consent_receipt_unavailable', 409);
     }
     return `pkoc_${sha256({
         request_id: request.request_id,
         owner_person_id: request.owner_person_id,
         owner_decided_by: request.owner_decided_by,
-        owner_decided_at: request.owner_decided_at
+        owner_decided_at: request.owner_decided_at,
+        normalized_payload_hash: request.normalized_payload_hash
     }).slice(0, 24)}`;
 }
 
@@ -235,7 +239,11 @@ export function buildPromotionEvidence(request, reviewerPersonId, reviewedAt) {
     if (normalizedPayload.normalized_payload_hash !== request.normalized_payload_hash) {
         throw promotionError('personal_knowledge_normalized_payload_hash_mismatch', 409);
     }
-    const ownerReceipt = request.owner_consent_receipt_id || ownerConsentReceipt(request);
+    const expectedOwnerReceipt = ownerConsentReceipt(request);
+    if (request.owner_consent_receipt_id !== expectedOwnerReceipt) {
+        throw promotionError('personal_knowledge_owner_consent_receipt_mismatch', 409);
+    }
+    const ownerReceipt = expectedOwnerReceipt;
     const organizationReceipt = organizationReviewReceipt(
         request,
         request.normalized_payload_hash,
