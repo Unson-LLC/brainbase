@@ -51,6 +51,9 @@ describe('personal knowledge migration release gate', () => {
 
   it.each([
     ['database identity mismatch', { ...after, database: { ...identity, database: 'other' } }, rows, rls, 'database identity database changed'],
+    ['database role mismatch', { ...after, database: { ...identity, role: 'other' } }, rows, rls, 'database identity role changed'],
+    ['database host mismatch', { ...after, database: { ...identity, host: '10.0.0.2' } }, rows, rls, 'database identity host changed'],
+    ['database port mismatch', { ...after, database: { ...identity, port: 6432 } }, rows, rls, 'database identity port changed'],
     ['missing target row', after, rows.slice(1), rls, 'target rows'],
     ['wrong target status', after, [{ ...rows[0], status: 'org_rejected' }, rows[1]], rls, 'did not fail closed exactly'],
     ['owner evidence remains', after, [{ ...rows[0], owner_decided_by: 'per_1' }, rows[1]], rls, 'did not fail closed exactly'],

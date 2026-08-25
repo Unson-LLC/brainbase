@@ -134,5 +134,46 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
         expect(receipt).toMatchObject({ status: 'passed', target_sha: targetSha });
         expect(receipt.before.target_request_ids).toEqual(['kpr_upgrade_1']);
         expect(fs.statSync(receiptPath).mode & 0o777).toBe(0o600);
+
+        // Also preserve the upgrade contract for rows left partially normalized
+        // by an interrupted earlier release.
+        await pool.query(`
+          ALTER TABLE knowledge_promotion_requests
+            DROP CONSTRAINT knowledge_promotion_normalized_payload_check,
+            DROP CONSTRAINT knowledge_promotion_owner_consent_evidence_check,
+            DROP CONSTRAINT knowledge_promotion_org_acceptance_evidence_check;
+          DROP TRIGGER IF EXISTS knowledge_promotion_status_guard ON knowledge_promotion_requests;
+          DROP TRIGGER IF EXISTS knowledge_promotion_evidence_guard ON knowledge_promotion_requests;
+          UPDATE knowledge_promotion_requests
+          SET status = 'pending_org_review',
+              normalized_payload_hash = 'sha256:${'b'.repeat(64)}',
+              normalization_contract_version = 'personal_knowledge_normalized.v1',
+              normalized_by_person_id = 'person_owner',
+              normalized_at = NOW(),
+              owner_decided_at = NOW()
+          WHERE request_id = 'kpr_upgrade_1';
+        `);
+        const partialReceiptPath = path.join(receiptDirectory, 'partial-receipt.json');
+        execFileSync(process.execPath, [gate, 'preflight', partialReceiptPath], { env, stdio: 'pipe' });
+        await pool.query(`BEGIN; ${migration}; COMMIT;`);
+        execFileSync(process.execPath, [gate, 'postflight', partialReceiptPath], { env, stdio: 'pipe' });
+        const partial = (await pool.query(`
+          SELECT status, owner_decided_at, normalization_contract_version,
+                 normalized_payload, normalized_payload_hash,
+                 normalized_by_person_id, normalized_at
+          FROM knowledge_promotion_requests WHERE request_id = 'kpr_upgrade_1'
+        `)).rows[0];
+        expect(partial).toEqual({
+            status: 'pending_owner_approval',
+            owner_decided_at: null,
+            normalization_contract_version: null,
+            normalized_payload: null,
+            normalized_payload_hash: null,
+            normalized_by_person_id: null,
+            normalized_at: null
+        });
+        expect(JSON.parse(fs.readFileSync(partialReceiptPath, 'utf8'))).toMatchObject({
+            status: 'passed', target_sha: targetSha
+        });
     }, 30_000);
 });
