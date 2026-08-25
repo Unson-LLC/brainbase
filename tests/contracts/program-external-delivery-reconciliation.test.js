@@ -10,6 +10,8 @@ const storyPath = 'docs/management/stories/active/story-program-external-deliver
 const architecturePath = 'docs/architecture/story-program-external-delivery-reconciliation-v1.md';
 const specPath = 'docs/specs/program-external-delivery-reconciliation-v1.md';
 const taskPath = 'docs/management/tasks/program-external-delivery-reconciliation-v1.json';
+const acceptedSpecInputPath = 'docs/specs/program-external-delivery-reconciliation-v1.json';
+const acceptedTaskInputPath = 'docs/management/tasks/program-external-delivery-reconciliation-v1.vibepro.json';
 const sourceLockPath = 'contracts/p0-negative-boundary-contract-v1/source-lock.json';
 const companionLockPath = 'docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json';
 const crossRepoFixturePath = 'tests/fixtures/program-external-delivery-reconciliation/same-pr-number-different-repo.json';
@@ -170,7 +172,60 @@ describe('Program external delivery reconciliation contract', () => {
     assert.equal(task.scope.allowed.includes(companionLockPath), true);
     assert.equal(task.scope.allowed.includes(crossRepoFixturePath), true);
   });
+
+  it('binds accepted Spec and Task inputs to every Story acceptance criterion', async () => {
+    const [acceptedSpec, acceptedTasks] = await Promise.all([
+      readJson(acceptedSpecInputPath),
+      readJson(acceptedTaskInputPath),
+    ]);
+    assert.equal(acceptedSpec.story_id, 'story-program-external-delivery-reconciliation-v1');
+    assert.deepEqual(
+      acceptedSpec.clauses.flatMap((clause) => clause.origin.story_refs.map((ref) => ref.ac_id)),
+      ['AC-001', 'AC-002', 'AC-003', 'AC-004', 'AC-005', 'AC-006', 'AC-007', 'AC-008'],
+    );
+    for (const clause of acceptedSpec.clauses) {
+      assert.ok(clause.origin.code_refs.length > 0);
+      assert.ok(clause.origin.test_refs.length > 0);
+    }
+    assert.equal(acceptedTasks.story_id, acceptedSpec.story_id);
+    assert.deepEqual(acceptedTasks.tasks[0].acceptance_criteria, ['AC-001', 'AC-006', 'AC-008']);
+  });
+
+  it('rejects contradictory generated PR, traceability, summary and gate surfaces', () => {
+    const contradictory = {
+      preparation: { spec: { present: false }, task_authorities: { accepted: { present: false } } },
+      traceability: {
+        acceptance_criteria: [
+          { id: 'AC-001', status: 'unmapped' },
+          { id: 'AC-006', status: 'unmapped' },
+          { id: 'AC-008', status: 'weakly_mapped' },
+        ],
+        summary: { mapped_count: 5, weakly_mapped_count: 1, unmapped_count: 2 },
+      },
+      prBody: '- no accepted spec found for this story',
+      gate: { blocking_reasons: ['accepted_spec:missing'] },
+    };
+    assert.throws(() => assertGeneratedAuthoritySurfaces(contradictory), /accepted spec|accepted task|AC-001|PR body/);
+  });
 });
+
+function assertGeneratedAuthoritySurfaces({ preparation, traceability, prBody, gate }) {
+  const failures = [];
+  if (!preparation.spec?.present) failures.push('accepted spec missing');
+  if (!preparation.task_authorities?.accepted?.present) failures.push('accepted task missing');
+  for (const id of ['AC-001', 'AC-006', 'AC-008']) {
+    const clause = traceability.acceptance_criteria.find((item) => item.id === id);
+    if (clause?.status !== 'mapped') failures.push(`${id} is not mapped`);
+  }
+  if (traceability.summary?.weakly_mapped_count !== 0 || traceability.summary?.unmapped_count !== 0) {
+    failures.push('traceability summary is incomplete');
+  }
+  if (/no accepted spec found/i.test(prBody)) failures.push('PR body rejects accepted spec');
+  if ((gate.blocking_reasons ?? []).some((reason) => /accepted_spec|accepted_task|traceability/i.test(reason))) {
+    failures.push('gate contradicts accepted authority');
+  }
+  assert.deepEqual(failures, []);
+}
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));

@@ -1,0 +1,234 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-program-external-delivery-reconciliation-v1",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "provenance identityはrepository、pull request、role、merge SHAの四要素で固定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/program/reconcile-external-delivery.mjs",
+            "anchor": "deliveryIdentity"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-reconciliation.test.js",
+            "case": "identifies the canonical A0 producer by repository, PR, role and merge SHA"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T16:34:03.704Z",
+      "last_revised_at": "2026-08-25T16:34:03.704Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "canonical producerはmerged PR 1302でありstale open PR 1283ではない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/milestones/brainbase-program-master-roadmap.json",
+            "anchor": "stale_title_matched_candidate"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-reconciliation.test.js",
+            "case": "does not promote the stale title-matched open PR to canonical A0 producer"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T16:34:03.704Z",
+      "last_revised_at": "2026-08-25T16:34:03.704Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "source-lockとcompanion lockを直接読み四要素を機械的に一致させる。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json",
+            "anchor": "program_owned_reconciliation_companion"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-reconciliation.test.js",
+            "case": "binds P0 lineage to the repo-qualified A0 producer without status promotion"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T16:34:03.704Z",
+      "last_revised_at": "2026-08-25T16:34:03.704Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "external delivery stateとProgram statusは別fieldと別判定に保つ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/milestones/brainbase-program-master-roadmap.json",
+            "anchor": "program_effect"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-reconciliation.test.js",
+            "case": "keeps the Program status vocabulary exact and the reconciliation contract incomplete"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T16:34:03.704Z",
+      "last_revised_at": "2026-08-25T16:34:03.704Z"
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "Program status語彙は定義済み六値だけを許容する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/milestones/brainbase-program-master-roadmap.json",
+            "anchor": "status_vocabulary"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-reconciliation.test.js",
+            "case": "keeps the Program status vocabulary exact and the reconciliation contract incomplete"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T16:34:03.704Z",
+      "last_revised_at": "2026-08-25T16:34:03.704Z"
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "merge、release、docs、open PRだけではProgram statusを昇格しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/prompts/codex-brainbase-program-orchestrator.md",
+            "anchor": "docs merge"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-reconciliation.test.js",
+            "case": "keeps the Program status vocabulary exact and the reconciliation contract incomplete"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T16:34:03.704Z",
+      "last_revised_at": "2026-08-25T16:34:03.704Z"
+    },
+    {
+      "id": "C-007",
+      "type": "contract",
+      "statement": "reconciliation責務は専用Story配下へ閉じP0契約を変更しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/tasks/program-external-delivery-reconciliation-v1.json",
+            "anchor": "P0 Story"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-reconciliation.test.js",
+            "case": "keeps Markdown, orchestrator, Story, Architecture, Spec and Task aligned"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T16:34:03.704Z",
+      "last_revised_at": "2026-08-25T16:34:03.704Z"
+    },
+    {
+      "id": "C-008",
+      "type": "contract",
+      "statement": "production evidenceはnot_collected、doneはfalseのまま保持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/tasks/program-external-delivery-reconciliation-v1.json",
+            "anchor": "not_collected"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-reconciliation.test.js",
+            "case": "keeps the Program status vocabulary exact and the reconciliation contract incomplete"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-25T16:34:03.704Z",
+      "last_revised_at": "2026-08-25T16:34:03.704Z"
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "OQ-001",
+      "question": "production evidenceは未収集"
+    }
+  ],
+  "generated_at": "2026-08-25T16:34:03.703Z",
+  "generated_by": {
+    "caller": "codex-program-reconcile-owner",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": null
+}
