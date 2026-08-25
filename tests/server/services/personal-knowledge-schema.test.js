@@ -25,7 +25,7 @@ describe('personal and organization knowledge schema', () => {
         const sql = read('server/sql/personal-knowledge-schema.sql');
         const infoSsotRls = read('server/sql/info-ssot-rls.sql');
         const edgeScopeFunction = infoSsotRls.match(
-            /CREATE OR REPLACE FUNCTION app_graph_edge_scope_visible\([\s\S]*?\n\$\$;/
+            /CREATE OR REPLACE FUNCTION app_graph_edge_scope_visible\([\s\S]*?\n(?:\$\$;|\s*\$function\$;)/
         )?.[0] || '';
         expect(infoSsotRls).toContain('app_graph_edge_scope_visible');
         expect(infoSsotRls).toContain('app_graph_entity_organization_id');
@@ -41,7 +41,7 @@ describe('personal and organization knowledge schema', () => {
         expect(edgeScopeFunction).not.toMatch(/app_current_role_rank\(\) >= app_role_rank\('gm'\)/);
         expect(edgeScopeFunction).toContain('SECURITY DEFINER');
         expect(edgeScopeFunction).toContain('SET search_path FROM CURRENT');
-        expect(infoSsotRls.match(/CREATE OR REPLACE FUNCTION app_setting_array\([\s\S]*?\n\$\$;/)?.[0])
+        expect(infoSsotRls.match(/CREATE OR REPLACE FUNCTION app_setting_array\([\s\S]*?\n(?:\$\$;|\s*\$function\$;)/)?.[0])
             .not.toContain('COALESCE((');
 
         expect(sql).toContain('ADD COLUMN IF NOT EXISTS organization_id');
