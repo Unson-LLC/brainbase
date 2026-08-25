@@ -233,7 +233,8 @@ describe('personal knowledge promotion Graph write boundary', () => {
             { client, access: ACCESS }
         );
         expect(candidateRepository.transitionWithAudit.mock.calls[0][2]).toEqual(expect.objectContaining({
-            actor_person_id: request.owner_person_id,
+            actor_person_id: ACCESS.actorPersonId,
+            decision_owner_person_id: request.owner_person_id,
             evidence_ids: [organizationEventId]
         }));
         expect(candidateRepository.transitionWithAudit.mock.invocationCallOrder[0])

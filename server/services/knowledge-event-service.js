@@ -450,6 +450,7 @@ export class KnowledgeEventService {
         client,
         eventId,
         actorPersonId,
+        decisionOwnerPersonId,
         access = null
     } = {}) {
         if (!client) {
@@ -457,7 +458,7 @@ export class KnowledgeEventService {
             error.code = 'knowledge_event_transaction_required';
             throw error;
         }
-        if (!candidateId || !graphEntityId || !eventId || !actorPersonId) {
+        if (!candidateId || !graphEntityId || !eventId || !actorPersonId || !decisionOwnerPersonId) {
             const error = new Error('knowledge_event_graph_projection_reconciliation_invalid');
             error.code = 'knowledge_event_graph_projection_reconciliation_invalid';
             throw error;
@@ -477,7 +478,7 @@ export class KnowledgeEventService {
             'promoted_to_graph',
             {
                 actor_person_id: actorPersonId,
-                decision_owner_person_id: actorPersonId,
+                decision_owner_person_id: decisionOwnerPersonId,
                 decision_reason: 'knowledge_event_graph_promotion',
                 evidence_ids: eventId ? [eventId] : null
             },

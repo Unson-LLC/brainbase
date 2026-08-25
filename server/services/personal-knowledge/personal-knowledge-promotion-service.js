@@ -516,7 +516,8 @@ export class PersonalKnowledgePromotionService {
                 {
                     client,
                     eventId: organizationEvent.event_id,
-                    actorPersonId: organizationEvent.decision_authority.decider_id,
+                    actorPersonId: reviewerPersonId,
+                    decisionOwnerPersonId: organizationEvent.decision_authority.decider_id,
                     access
                 }
             );
