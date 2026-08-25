@@ -71,26 +71,23 @@ The command must return successfully and produce a Receipt with `readback.status
 TARGET_SHA="$(git rev-parse HEAD)"
 grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
 
-# 1. read-only preflight。出力件数をrelease Receiptへ保存する。
-psql "$INFO_SSOT_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "
-SELECT count(*) FROM knowledge_promotion_requests
-WHERE status = 'pending_org_review'
-  AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL);"
-
-# 2. writeを排水して停止し、対応checkoutのmigrationを適用する。
+# 1. writeを排水して停止する。authoritative preflightは停止後に採取する。
 sudo systemctl stop brainbase-ssot.service
+
+# 2. DB identity、status別件数、総件数、移行対象request_id集合を0600のReceiptへ固定する。
+PERSONAL_KG_RELEASE_RECEIPT="var/personal-knowledge-migration-release-receipt.json"
+TARGET_SHA="$TARGET_SHA" node scripts/personal-knowledge-migration-release-gate.mjs \
+  preflight "$PERSONAL_KG_RELEASE_RECEIPT"
+
+# 3. 対応checkoutのmigrationを適用する。
 npm run migrate:m5a -- --only personal-knowledge
 
-# 3. fail-closed移行とRLSをreadbackする。1行でも違反があれば停止したままにする。
-psql "$INFO_SSOT_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "
-SELECT count(*) FROM knowledge_promotion_requests
-WHERE status = 'pending_org_review'
-  AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL);
-SELECT relrowsecurity::int, relforcerowsecurity::int
-FROM pg_class WHERE oid = 'knowledge_promotion_authority_uses'::regclass;"
+# 4. 同一対象集合のfail-closed移行、総件数・対象外status不変、RLSを機械判定する。
+TARGET_SHA="$TARGET_SHA" node scripts/personal-knowledge-migration-release-gate.mjs \
+  postflight "$PERSONAL_KG_RELEASE_RECEIPT"
 ```
 
-最初のreadbackは`0`、RLSは`1|1`が必須である。満たさない場合はserviceを起動しない。満たした場合だけsection 3で同じ`TARGET_SHA`のserviceを起動し、Personal KG本番スモークのDB/API/Graph/Receipt readbackまで実行する。
+postflightは、移行対象request ID集合が全件`pending_owner_approval`へ移りowner同意証跡がNULLへ戻ったこと、総行数不変、対象外status件数不変、RLSがENABLE/FORCEであることをすべて満たす場合だけ`status=passed`を同じReceiptへ保存する。失敗時は非zero終了し、serviceを起動しない。成功時だけsection 3で同じ`TARGET_SHA`のserviceを起動し、Personal KG本番スモークのDB/API/Graph/Receipt readbackまで実行する。
 
 このmigration適用後は、A0署名昇格対応前のSHAへ通常rollbackしてはならない。対応SHAが起動できない場合は`brainbase-ssot.service`を停止したままpromotion writeを全面停止し、readback済みのA0対応SHAへforward fixする。DB down migrationや旧writerの再公開はしない。
 
@@ -152,6 +149,8 @@ Expected:
 ## 5. Roll back the service to the recorded SHA
 
 Use only the SHA recorded in the pre-check. A branch reset is unnecessary and prohibited. Preserve server logs and `~/.codex/var/judgment-resolver` journals. The database is forward-only: reapply and verify the current safe RLS bundle before switching only the service code to the recorded SHA.
+
+**Personal KG migrationを適用したreleaseでは、以下の一般rollbackをそのまま実行しない。** `var/personal-knowledge-migration-release-receipt.json`が`status=passed`なら、`ROLLBACK_SHA`がA0署名昇格対応済みであることを別のexact-HEAD Gate Receiptで証明できる場合だけservice rollbackを許可する。証明できない場合はserviceを停止したまま、A0対応SHAへforward fixする。
 
 ```bash
 ROLLBACK_SHA="<40-character SHA printed during pre-check>"
