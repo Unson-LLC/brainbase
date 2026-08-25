@@ -25,7 +25,7 @@
 - Graph payloadは`personal_knowledge_normalized.v1`のallowlistだけを受け入れる。
 - `body`、`raw`、`content`、`preview`、`personal_event_id`、local path、secret、credentialを拒否する。
 - Personal eventとの対応は組織Graph payloadではなくpromotion台帳のhashとReceiptで監査する。
-- mutationはrequest単位で冪等にし、同一hashの再送は既存結果を返す。別hashへの差し替えは競合として停止する。
+- mutation結果はrequest単位で一意にし、同じrequestから二重Entity・Edge・Receiptを生成しない。同一の署名authorityを再送した場合は、使用済みauthorityとしてHTTP 409で拒否し、authority使用台帳を含む全更新差分を0にする。別hashへの差し替えも競合として停止する。
 
 ## Transactionと副作用
 
