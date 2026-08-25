@@ -16,12 +16,13 @@ function sendError(res, error) {
 }
 
 function projectOrganizationReview(value = {}) {
+    const normalizedEntity = value.normalized_payload?.entity;
     return {
         request_id: value.request_id,
         organization_id: value.organization_id,
         project_code: value.project_code,
         status: value.status,
-        subject: value.subject,
+        subject: normalizedEntity ? { type: normalizedEntity.type, id: normalizedEntity.id } : undefined,
         normalized_payload: value.normalized_payload,
         normalized_payload_hash: value.normalized_payload_hash,
         normalization_contract_version: value.normalization_contract_version,

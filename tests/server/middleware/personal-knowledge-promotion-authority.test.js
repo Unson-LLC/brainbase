@@ -295,12 +295,18 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
 
     it('rejects a valid signed authority for a different authenticated actor before every promotion effect', async () => {
         const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+        const normalized = normalizePromotionPayload({
+            schema_version: 'personal_knowledge_normalized.v1', kind: 'decision',
+            entity: { id: 'decision_runtime_cross_person', type: 'decision', payload: { statement: 'actor境界を拒否する' } },
+            edges: [], context_entities: [], decision_domain: 'brainbase_architecture',
+            sensitivity: 'internal', role_min: 'member'
+        });
         const unsigned = envelope();
         unsigned.authorization.capability_ids = ['personal_knowledge_promotion:organization_review'];
         unsigned.actor.principal_id = 'person_other_auth';
         unsigned.authority = buildPersonalKnowledgePromotionAuthority({
             action: 'organization_review', requestId: 'kpr_runtime_cross_person',
-            normalizedPayloadHash: `sha256:${'3'.repeat(64)}`
+            normalizedPayloadHash: normalized.normalized_payload_hash
         });
         const signed = createSignedTenantContext(unsigned, { key_id: 'p0-key', private_key: privateKey });
         const promotionRequest = {
@@ -308,8 +314,8 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
             owner_person_id: 'person_owner', organization_id: 'org_a', project_code: 'brainbase',
             status: 'pending_org_review', sanitized_preview: 'private preview',
             subject: { type: 'decision', id: 'decision_runtime_cross_person' },
-            body_hash: 'sha256:private', normalized_payload: { schema_version: 'personal_knowledge_normalized.v1' },
-            normalized_payload_hash: 'sha256:normalized', owner_consent_receipt_id: 'pkoc_owner_cross_person'
+            body_hash: 'sha256:private', normalized_payload: normalized.normalized,
+            normalized_payload_hash: normalized.normalized_payload_hash, owner_consent_receipt_id: 'pkoc_owner_cross_person'
         };
         const repository = {
             transaction: (work) => work({ client: { query: vi.fn() } }),

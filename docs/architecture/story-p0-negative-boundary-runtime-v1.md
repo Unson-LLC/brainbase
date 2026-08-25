@@ -37,4 +37,10 @@
 
 ## 本番検証
 
-migration適用後にsynthetic fixtureで正常系、owner=reviewer、cross-person、cross-tenant、期限切れ、署名改ざん、replay、payload差し替えを確認する。成功判定はHTTP 200だけでなく、Receipt、DB/Graph readback、Personal本文不在、重複0、再送時の更新差分0までを必要とする。
+実Express runtimeのCIではsynthetic fixtureを使い、owner=reviewer、cross-person、cross-tenant、期限切れ、署名改ざん、replay、payload差し替えを、副作用0まで確認する。本番では安全な新規synthetic fixtureによる正常系と同一署名replayだけを実行する。成功判定はHTTP 200だけでなく、Receipt、DB/Graph readback、Personal本文不在、重複0、再送時の更新差分0までを必要とする。
+
+## 移行とリリース境界
+
+DDLは再適用可能な追加変更だが、状態移行は完全な後方互換ではない。署名・正規化証跡のない旧`pending_org_review`はfail closedで`pending_owner_approval`へ戻し、以後のwriteはA0署名contextを必須にする。適用前後に対象件数を読み戻し、旧行の取りこぼしと意図しない状態変化がないことを確認する。
+
+本変更は、台帳・RLSだけを先行するとAPIが署名証跡を書けず、APIだけを先行すると必要な台帳へ書けない。そのためmigration、runtime/API、Graph transaction、production smokeを同一PRでレビューし、migrationと対応serviceを同一release単位で反映する。部分導入はfail closedの503を生むため、独立PRへの分割は行わない。rollbackはDBをdown migrationせず、記録済みservice SHAへ戻すforward-only方針とする。

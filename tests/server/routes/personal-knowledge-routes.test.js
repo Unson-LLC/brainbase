@@ -15,7 +15,8 @@ function createApp() {
         decideOwnerPromotion: vi.fn(async () => ({ request_id: 'kpr_1', status: 'pending_org_review' })),
         listOrganizationReviews: vi.fn(async () => [{
             request_id: 'kpr_1', status: 'pending_org_review', organization_id: 'org_a',
-            project_code: 'brainbase', normalized_payload: { kind: 'decision' },
+            project_code: 'brainbase', subject: { type: 'note', id: 'pke_private' },
+            normalized_payload: { kind: 'decision', entity: { type: 'decision', id: 'decision_1' } },
             personal_event_id: 'pke_private', sanitized_preview: 'private preview', body_hash: 'sha256:private'
         }]),
         saveNormalizedPromotion: vi.fn(async () => ({
@@ -124,6 +125,8 @@ describe('personal knowledge routes', () => {
         expect(queue.body.reviews[0]).not.toHaveProperty('personal_event_id');
         expect(queue.body.reviews[0]).not.toHaveProperty('sanitized_preview');
         expect(queue.body.reviews[0]).not.toHaveProperty('body_hash');
+        expect(queue.body.reviews[0].subject).toEqual({ type: 'decision', id: 'decision_1' });
+        expect(JSON.stringify(queue.body)).not.toContain('pke_private');
         expect(normalization.body.normalized_payload_hash).toBe('sha256:abc');
         expect(decision.body.status).toBe('org_rejected');
         expect(decision.body.organization_review_receipt_id).toBe('pkor_1');

@@ -24,7 +24,7 @@ const SYNTHETIC_RUN_ID = /^p0_smoke_[a-z0-9][a-z0-9_-]{5,127}$/iu;
 const SYNTHETIC_EVENT_ID = /^pke_smoke_[a-z0-9][a-z0-9_-]{5,127}$/iu;
 const SYNTHETIC_ENTITY_ID = /^smoke_[a-z0-9][a-z0-9_-]{2,127}$/iu;
 const SAFE_FAILURE_CODE = /^[a-z][a-z0-9_]{2,80}$/u;
-const FORBIDDEN_OUTPUT_KEY = /^(?:body|raw|transcript|conversation|message|prompt|private|personal|excerpt|preview|content|note|token|authorization|signed_context|normalized_payload|subject|reason)$/iu;
+const FORBIDDEN_OUTPUT_KEY = /^(?:body|body_hash|raw|transcript|conversation|message|prompt|private|personal|personal_event_id|excerpt|preview|sanitized_preview|content|note|token|authorization|signed_context|normalized_payload|subject|reason)$/iu;
 
 class SmokeFailure extends Error {
     constructor(code) {

@@ -11,6 +11,19 @@
 - Tenant Runtimeへ接続できるfixture発行専用service token。署名はTenant Runtime内の`TenantContextProducer`が行い、秘密鍵はfixture発行プロセスへ渡さない。
 - 本番データを検索・削除して再利用しない。synthetic IDが既に存在した場合、スクリプトは開始前に停止する。
 
+## Migration preflightとreadback
+
+このmigrationのDDLは再適用可能だが、署名・正規化証跡のない旧`pending_org_review`をfail closedで`pending_owner_approval`へ戻す。適用前に次のread-only集計を保存し、影響対象を未確認のまま進めない。
+
+```sql
+SELECT count(*) AS legacy_pending_org_review
+FROM knowledge_promotion_requests
+WHERE status = 'pending_org_review'
+  AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL);
+```
+
+対応する署名producerとAPI serviceを同じrelease単位で反映する。migration後は上の集計が`0`であること、`knowledge_promotion_authority_uses`でRLSが有効かつ強制されていること、移行前件数と同数が`pending_owner_approval`へ戻ったことをreadbackする。対象者への再同意通知は自動送信せず、影響件数を運用Receiptへ記録して別途判断する。旧clientからのwriteは503でfail closedするため、producer未反映の状態でserviceだけを公開しない。
+
 ## Fixture
 
 `personal_knowledge_promotion_production_smoke.v1` を正本とする。最小構造は次のとおり。`body` は実行IDを含む合成文字列だけにする。
