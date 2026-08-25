@@ -2,6 +2,7 @@
 title: Brainbase Program Master Roadmap
 status: active
 date: 2026-08-20
+updated_at: 2026-08-25
 scope:
   - Unson-LLC/brainbase
   - Unson-LLC/brainbase-unson
@@ -589,7 +590,29 @@ Company Brainを複数組織で継続運用できるenterprise productにする�
 - C0: OSS superset inventoryとCLI/MCP compatibilityのstackが存在するが、完全上位互換の完成宣言は禁止。
 - D0以降: 上流contractを使った実運用証拠を作る段階。
 
-## 10. Program metrics
+## 10. Live external delivery reconciliation — 2026-08-25
+
+この節は、外部リポジトリで発生したマージ・リリースのprovenanceだけを記録する。取得時刻は`2026-08-25T14:10:02Z`で、GitHubのPRメタデータ、GitHubのrelease/tag、npm packageメタデータをreadbackした。
+
+`MERGED`、`published`、npmへの公開は外部deliveryの事実であり、Master Roadmapのwork packageを`verified`、`production_proven`、`done`へ昇格する証拠ではない。この節では独立reviewの判定結果を自己記録しない。特に、外部マージはT0、A0、G0、Gate、productionの完了を満たさない。
+
+| 対象 | 外部deliveryのprovenance | Program上の扱い |
+|---|---|---|
+| P0 / `Unson-LLC/brainbase-unson#1304` | `base develop@3ff5b0766d3414051b4fd15da7617896ea534eed` → `head codex/p0-negative-boundary-contract-v1@3f9e06373831485fa48175487515fd746c69a590`、merge `27b37cdaac50967edff095b696c540322feb75c2`、`mergedAt 2026-08-25T12:29:25Z`。 [PR #1304](https://github.com/Unson-LLC/brainbase-unson/pull/1304) | 外部マージのみ。A0/T0のexit evidence、Gate、productionを満たさず、P0のstatusは昇格しない。 |
+| J0 / `Unson-LLC/brainbase#479` | `base develop@7e5d5693f988f4ba84072c5910ef32f0e70871e1` → `head codex/j0/judgment-dag-core-contract@44a0e53f0b664c1a647fac1fd7eaeea700315ca4`、merge `0ee5db39ac8f91a484628cc07a2df21cdfb149b7`、`mergedAt 2026-08-20T22:44:52Z`。 [PR #479](https://github.com/Unson-LLC/brainbase/pull/479) | commit lineageの事実のみ。J0の`verified`/`done`、R1、Gate、productionの完了は推論しない。独立review判定はここへ記録しない。 |
+| J0 / `Unson-LLC/brainbase#481` | `base develop@3db3218107845cac051d7a433ad5e0c8a398ea16` → `head codex/j0/local-deterministic-runner@3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde`、merge `f8e7ac61349b326863feae5d7d3d8ae68e2b9d10`、`mergedAt 2026-08-21T19:08:44Z`。 [PR #481](https://github.com/Unson-LLC/brainbase/pull/481) | commit lineageの事実のみ。J0のexit gateと下流R1の完了は、現在のexact HEADと別途取得した証拠で判定する。 |
+| VibePro外部delivery / `Unson-LLC/vibepro#493` | `base main@3db04f430fe017aef42a456ef6c18434ad8b4407` → `head codex/vibepro-beta16-release@5dc2c8e0964167a79fe08fac97d6c8c800580d4e`、merge `8b9fd24b6614f8d55b4e6c42d1179a68e6f92f85`、`mergedAt 2026-08-25T12:43:06Z`。 [PR #493](https://github.com/Unson-LLC/vibepro/pull/493) | 外部マージのみ。VibeProのGate、R1、T0、A0、G0、productionの完了へ変換しない。 |
+| VibePro `v0.2.0-beta.16` | tag `v0.2.0-beta.16`はmerge `8b9fd24b6614f8d55b4e6c42d1179a68e6f92f85`を指し、`publishedAt 2026-08-25T12:44:26Z`。npm `vibepro@0.2.0-beta.16`は`latest`/`beta`へ公開済み。 [release](https://github.com/Unson-LLC/vibepro/releases/tag/v0.2.0-beta.16) | package/releaseの外部事実のみ。ProgramのGateやproduction evidenceの代替にしない。 |
+
+### 10.1 依存 debt と順序違反
+
+- Master Roadmapのhard dependencyは`T0 → A0 → P0`である。P0 #1304は2026-08-25に外部マージされたが、現在のA0候補#1283は`OPEN`であり、T0のproduction exit evidenceもこのProgram記録上は確定していない。したがって、P0を完了扱いにせず、依存順を満たさない外部deliveryとしてdebtに残す。
+- J0 #479/#481とVibePro #493/beta16は、各リポジトリの外部deliveryを証明するだけである。J0/R1やVibePro Gateの独立review、T0/A0/G0、production readbackを代替しない。
+- `docs/session: archive gog`の`Unson-LLC/brainbase-unson#338`は、handoffでA0のopen PRとされた識別子と一致しない。GitHub上の#338は別件として`MERGED`（merge `8274ec7be148ca545669f4e9f2a54cce5818ad82`、`mergedAt 2026-04-25T11:07:50Z`）である。タイトル上A0候補の#1283は`OPEN`（`base develop@135dd778eb2c94b29ccbe9be364548a53d428464`、`head codex/a0/company-authority-producer-contract-v1@fb98642b0f2268369ad61224124794cabbd29a04`）であり、A0完了の証拠はない。
+
+このreconciliationは外部事実と依存debtを正本へ反映したもので、独立reviewの判定、Gateの合否、production成功を自己記録していない。
+
+## 11. Program metrics
 
 優先順位は次の通り。
 
