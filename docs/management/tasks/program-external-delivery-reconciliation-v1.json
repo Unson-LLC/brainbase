@@ -1,0 +1,33 @@
+{
+  "task_id": "program-external-delivery-reconciliation-v1",
+  "story_id": "story-program-external-delivery-reconciliation-v1",
+  "status": "contract_ready",
+  "done": false,
+  "scope": {
+    "allowed": [
+      "docs/management/milestones/brainbase-program-master-roadmap.md",
+      "docs/management/milestones/brainbase-program-master-roadmap.json",
+      "docs/management/prompts/codex-brainbase-program-orchestrator.md",
+      "docs/management/stories/active/story-program-external-delivery-reconciliation-v1.md",
+      "docs/architecture/story-program-external-delivery-reconciliation-v1.md",
+      "docs/specs/program-external-delivery-reconciliation-v1.md",
+      "docs/management/tasks/program-external-delivery-reconciliation-v1.json",
+      "tests/contracts/program-external-delivery-reconciliation.test.js",
+      ".vibepro/** story-scoped artifacts"
+    ],
+    "forbidden": [
+      "P0 Story, Architecture, Spec, Task, contract or Gate changes",
+      "runtime changes",
+      "external PR mutation",
+      "deploy, release, publish, migration, secret or customer data"
+    ]
+  },
+  "acceptance": [
+    "repository-qualified external delivery identity",
+    "A0 canonical producer #1302 separated from stale open #1283",
+    "P0 source-lock lineage binds repository, PR, role and SHA",
+    "external delivery does not promote Program status",
+    "only the six Master Roadmap Program status values are allowed"
+  ],
+  "production_evidence": "not_collected"
+}

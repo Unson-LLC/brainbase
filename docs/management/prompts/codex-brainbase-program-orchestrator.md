@@ -179,6 +179,12 @@ GitHubとlocal checkoutの両方から、現在状態を再構成する。
 
 既存PRをタイトルだけで分類しない。diff、Story、Spec、acceptance criteria、test evidenceを読む。
 
+### External delivery reconciliation
+
+外部merge/releaseの観測はProgram status判定と分離する。PR identityは必ず`repository + pull_request + role`で扱い、merge済みならmerge SHAも束縛する。同名のopen PR、別repositoryの同番号PR、consumer PRをcanonical producerへ代入しない。source-lock lineageはupstream repository、PR、role、SHAを全て照合する。
+
+外部merge、release、package publish、docs mergeはdelivery provenanceであり、それだけで`verified`、`production_proven`、`done`へ昇格させない。reconciliation自体の責務は専用Storyへ置き、照合対象のP0等のpurpose、AC、Gateへ混ぜない。
+
 特にOSS compatibility stack、multi-tenant stack、company authority stack、Personal promotion stackは、現在のMaster IDへ再マッピングする。重複PR、古いbase、invalid Spec、別semantic実装を発見したら、そのままmerge対象にしない。
 
 ### Phase B — Build the program state

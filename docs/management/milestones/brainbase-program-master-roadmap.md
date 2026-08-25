@@ -592,24 +592,42 @@ Company Brainを複数組織で継続運用できるenterprise productにする�
 
 ## 10. Live external delivery reconciliation — 2026-08-25
 
-この節は、外部リポジトリで発生したマージ・リリースのprovenanceだけを記録する。取得時刻は`2026-08-25T14:10:02Z`で、GitHubのPRメタデータ、GitHubのrelease/tag、npm packageメタデータをreadbackした。A0識別子の再照合は`2026-08-25T14:20:41Z`にGitHub PRメタデータを再取得した。
+この節は、外部リポジトリで発生したマージ・リリースと、P0 source-lockが参照するA0 producer lineageのprovenanceだけを記録する。取得時刻は`2026-08-25T14:10:02Z`で、GitHubのPRメタデータ、GitHubのrelease/tag、npm packageメタデータをreadbackした。A0識別子とP0 source-lock lineageの再照合は`2026-08-25T14:36:32Z`にGitHub PRメタデータとancestor関係を再取得した。
+
+このreconciliationの契約は専用Story [`story-program-external-delivery-reconciliation-v1`](../stories/active/story-program-external-delivery-reconciliation-v1.md) → [Architecture](../../architecture/story-program-external-delivery-reconciliation-v1.md) → [Spec](../../specs/program-external-delivery-reconciliation-v1.md) → [Task](../tasks/program-external-delivery-reconciliation-v1.json) → [契約テスト](../../../tests/contracts/program-external-delivery-reconciliation.test.js) に分離する。P0 Storyのpurpose/ACやP0 Gateへ、roadmap照合の責務を追加しない。
 
 `MERGED`、`published`、npmへの公開は外部deliveryの事実であり、Master Roadmapのwork packageを`verified`、`production_proven`、`done`へ昇格する証拠ではない。この節では独立reviewの判定結果を自己記録しない。特に、外部マージはT0、A0、G0、Gate、productionの完了を満たさない。
 
 | 対象 | 外部deliveryのprovenance | Program上の扱い |
 |---|---|---|
-| P0 / `Unson-LLC/brainbase-unson#1304` | `base develop@3ff5b0766d3414051b4fd15da7617896ea534eed` → `head codex/p0-negative-boundary-contract-v1@3f9e06373831485fa48175487515fd746c69a590`、merge `27b37cdaac50967edff095b696c540322feb75c2`、`mergedAt 2026-08-25T12:29:25Z`。 [PR #1304](https://github.com/Unson-LLC/brainbase-unson/pull/1304) | 外部マージのみ。A0/T0のexit evidence、Gate、productionを満たさず、P0のstatusは昇格しない。 |
-| J0 / `Unson-LLC/brainbase#479` | `base develop@7e5d5693f988f4ba84072c5910ef32f0e70871e1` → `head codex/j0/judgment-dag-core-contract@44a0e53f0b664c1a647fac1fd7eaeea700315ca4`、merge `0ee5db39ac8f91a484628cc07a2df21cdfb149b7`、`mergedAt 2026-08-20T22:44:52Z`。 [PR #479](https://github.com/Unson-LLC/brainbase/pull/479) | commit lineageの事実のみ。J0の`verified`/`done`、R1、Gate、productionの完了は推論しない。独立review判定はここへ記録しない。 |
-| J0 / `Unson-LLC/brainbase#481` | `base develop@3db3218107845cac051d7a433ad5e0c8a398ea16` → `head codex/j0/local-deterministic-runner@3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde`、merge `f8e7ac61349b326863feae5d7d3d8ae68e2b9d10`、`mergedAt 2026-08-21T19:08:44Z`。 [PR #481](https://github.com/Unson-LLC/brainbase/pull/481) | commit lineageの事実のみ。J0のexit gateと下流R1の完了は、現在のexact HEADと別途取得した証拠で判定する。 |
-| VibePro外部delivery / `Unson-LLC/vibepro#493` | `base main@3db04f430fe017aef42a456ef6c18434ad8b4407` → `head codex/vibepro-beta16-release@5dc2c8e0964167a79fe08fac97d6c8c800580d4e`、merge `8b9fd24b6614f8d55b4e6c42d1179a68e6f92f85`、`mergedAt 2026-08-25T12:43:06Z`。 [PR #493](https://github.com/Unson-LLC/vibepro/pull/493) | 外部マージのみ。VibeProのGate、R1、T0、A0、G0、productionの完了へ変換しない。 |
+| A0 producer contract delivery / `Unson-LLC/brainbase-unson#1302` | `base develop@0ed0cc9828018a893bb4bbc426b5d0639f68e732` → `head codex/a0/company-authority-producer-contract-v1-r2@7bc849da01dedabfced2eeca8943534cf3dee78e`、merge `ad908bce7b90678f9ed7f1c570f808bdf1a500ad`、`mergedAt 2026-08-21T19:09:27Z`。タイトルは`Canonical Company Authority Producer Contract v1 (completed)`。 [PR #1302](https://github.com/Unson-LLC/brainbase-unson/pull/1302) | source-lockが固定するA0の**契約delivery**のみ。A0 work-package、consumer、独立review、Gate、productionの完了へ昇格しない。 |
+| P0 / `Unson-LLC/brainbase-unson#1304` | title=`story-p0-negative-boundary-contract-v1`; `base develop@3ff5b0766d3414051b4fd15da7617896ea534eed` → `head codex/p0-negative-boundary-contract-v1@3f9e06373831485fa48175487515fd746c69a590`、merge `27b37cdaac50967edff095b696c540322feb75c2`、`mergedAt 2026-08-25T12:29:25Z`。 [PR #1304](https://github.com/Unson-LLC/brainbase-unson/pull/1304) | 外部マージのみ。A0/T0のexit evidence、Gate、productionを満たさず、P0のstatusは昇格しない。 |
+| J0 / `Unson-LLC/brainbase#479` | title=`J0 typed DAG contract and preflight validation`; `base develop@7e5d5693f988f4ba84072c5910ef32f0e70871e1` → `head codex/j0/judgment-dag-core-contract@44a0e53f0b664c1a647fac1fd7eaeea700315ca4`、merge `0ee5db39ac8f91a484628cc07a2df21cdfb149b7`、`mergedAt 2026-08-20T22:44:52Z`。 [PR #479](https://github.com/Unson-LLC/brainbase/pull/479) | commit lineageの事実のみ。J0の`verified`/`done`、R1、Gate、productionの完了は推論しない。独立review判定はここへ記録しない。 |
+| J0 / `Unson-LLC/brainbase#481` | title=`J0 ローカル決定論的ランナーと不変run記録`; `base develop@3db3218107845cac051d7a433ad5e0c8a398ea16` → `head codex/j0/local-deterministic-runner@3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde`、merge `f8e7ac61349b326863feae5d7d3d8ae68e2b9d10`、`mergedAt 2026-08-21T19:08:44Z`。 [PR #481](https://github.com/Unson-LLC/brainbase/pull/481) | commit lineageの事実のみ。J0のexit gateと下流R1の完了は、現在のexact HEADと別途取得した証拠で判定する。 |
+| VibePro外部delivery / `Unson-LLC/vibepro#493` | title=`chore: prepare 0.2.0-beta.16 release`; `base main@3db04f430fe017aef42a456ef6c18434ad8b4407` → `head codex/vibepro-beta16-release@5dc2c8e0964167a79fe08fac97d6c8c800580d4e`、merge `8b9fd24b6614f8d55b4e6c42d1179a68e6f92f85`、`mergedAt 2026-08-25T12:43:06Z`。 [PR #493](https://github.com/Unson-LLC/vibepro/pull/493) | 外部マージのみ。VibeProのGate、R1、T0、A0、G0、productionの完了へ変換しない。 |
 | VibePro `v0.2.0-beta.16` | tag `v0.2.0-beta.16`はmerge `8b9fd24b6614f8d55b4e6c42d1179a68e6f92f85`を指し、`publishedAt 2026-08-25T12:44:26Z`。npm `vibepro@0.2.0-beta.16`は`latest`/`beta`へ公開済み。 [release](https://github.com/Unson-LLC/vibepro/releases/tag/v0.2.0-beta.16) | package/releaseの外部事実のみ。ProgramのGateやproduction evidenceの代替にしない。 |
+
+### 10.0.1 P0 source-lock lineage
+
+P0のmachine source-lock [`contracts/p0-negative-boundary-contract-v1/source-lock.json`](../../../contracts/p0-negative-boundary-contract-v1/source-lock.json) は、A0 producerをmerged SHA `ad908bce7b90678f9ed7f1c570f808bdf1a500ad`へ固定する。このSHAは、`Unson-LLC/brainbase-unson#1302`のmerge commitであり、P0 #1304のmerge SHA `27b37cdaac50967edff095b696c540322feb75c2`の祖先であることを`git merge-base --is-ancestor`で確認した。これは契約の入力系譜であり、A0 work-packageのexit、consumer conformance、独立review、Gate、production evidenceを表さない。
+
+| lineage項目 | 固定値 |
+|---|---|
+| source-lock | `contracts/p0-negative-boundary-contract-v1/source-lock.json` |
+| upstream | `Unson-LLC/brainbase-unson#1302`, role=`A0 producer`, state=`MERGED` |
+| upstream merge | `ad908bce7b90678f9ed7f1c570f808bdf1a500ad` at `2026-08-21T19:09:27Z` |
+| downstream | `Unson-LLC/brainbase-unson#1304`, role=`P0 contract`, state=`MERGED` |
+| downstream merge | `27b37cdaac50967edff095b696c540322feb75c2` at `2026-08-25T12:29:25Z` |
+| ancestor check | `ad908bce...` is an ancestor of `27b37cda...`: confirmed |
+
+このlineageは、契約deliveryとProgram exitを分離するための監査情報である。P0 Storyのpurpose/ACやGateの合否をこのreconciliationへ追加しない。
 
 ### 10.1 依存 debt と順序違反
 
-- Master Roadmapのhard dependencyは`T0 → A0 → P0`である。P0 #1304は2026-08-25に外部マージされたが、現在のA0候補#1283は`OPEN`であり、T0のproduction exit evidenceもこのProgram記録上は確定していない。したがって、P0を完了扱いにせず、依存順を満たさない外部deliveryとしてdebtに残す。
+- Master Roadmapのhard dependencyは`T0 → A0 → P0`である。A0のsource-lock契約deliveryは#1302で`MERGED`だが、A0 work-package、consumer、独立review、Gate、productionのexit evidenceとT0のproduction exit evidenceはこのProgram記録上確定していない。その状態でP0 #1304が2026-08-25に外部マージされたため、P0を完了扱いにせず、契約delivery後もexit順を満たさない外部deliveryとしてdebtに残す。
 - J0 #479/#481とVibePro #493/beta16は、各リポジトリの外部deliveryを証明するだけである。J0/R1やVibePro Gateの独立review、T0/A0/G0、production readbackを代替しない。
-- `docs/session: archive gog`の`Unson-LLC/brainbase-unson#338`は、handoffでA0のopen PRとされた識別子と一致しない。GitHub上の#338は別件として`MERGED`（merge `8274ec7be148ca545669f4e9f2a54cce5818ad82`、`mergedAt 2026-04-25T11:07:50Z`）である。タイトル上A0候補の#1283は`OPEN`（`base develop@135dd778eb2c94b29ccbe9be364548a53d428464`、`head codex/a0/company-authority-producer-contract-v1@fb98642b0f2268369ad61224124794cabbd29a04`）であり、A0完了の証拠はない。
-- 監査で参照された`Unson-LLC/mana-runtime#338`（[PR #338](https://github.com/Unson-LLC/mana-runtime/pull/338)）は、`MANAがBrainbase署名済み会社権限だけを実行する`というconsumer側の`OPEN` PRである。`base main@da9a1d1ecfd67d34113ab3894d1a77c18460fe81` → `head codex/a0-company-authority-consumer@487371328b70b466e0f6bec9a7dc54c475a029d1`、merge SHA/timeはGitHub metadata上`null`（未マージ）である。RoadmapはA0の正本repoを`brainbase-unson`、`mana-runtime`をconsumerと定義しているため、この#338はA0 producerの識別子ではなく、`Unson-LLC/brainbase-unson#1283`（`OPEN`）を置き換えない。
+- `docs/session: archive gog`の`Unson-LLC/brainbase-unson#338`は、handoffでA0のopen PRとされた識別子と一致しない。GitHub上の#338は別件として`MERGED`（merge `8274ec7be148ca545669f4e9f2a54cce5818ad82`、`mergedAt 2026-04-25T11:07:50Z`）である。タイトル上A0候補の#1283は`OPEN`かつ`CONFLICTING`/`DIRTY`（`base develop@135dd778eb2c94b29ccbe9be364548a53d428464`、`head codex/a0/company-authority-producer-contract-v1@fb98642b0f2268369ad61224124794cabbd29a04`）の古い候補であり、source-lockのcanonical producerではない。#1302を上書きするsupersession evidenceは未収集である。
+- 監査で参照された`Unson-LLC/mana-runtime#338`（[PR #338](https://github.com/Unson-LLC/mana-runtime/pull/338)）は、`MANAがBrainbase署名済み会社権限だけを実行する`というconsumer側の`OPEN` PRである。`base main@da9a1d1ecfd67d34113ab3894d1a77c18460fe81` → `head codex/a0-company-authority-consumer@487371328b70b466e0f6bec9a7dc54c475a029d1`、merge SHA/timeはGitHub metadata上`null`（未マージ）である。RoadmapはA0の正本repoを`brainbase-unson`、`mana-runtime`をconsumerと定義しているため、この#338はA0 producerの識別子ではなく、merged #1302の契約deliveryやA0 exitを置き換えない。
 
 このreconciliationは外部事実と依存debtを正本へ反映したもので、独立reviewの判定、Gateの合否、production成功を自己記録していない。
 

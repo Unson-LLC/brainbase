@@ -23,8 +23,27 @@
   },
   "live_reconciliation": {
     "captured_at": "2026-08-25T14:10:02Z",
-    "revalidated_at": "2026-08-25T14:20:41Z",
-    "scope": "external_delivery_provenance_only",
+    "revalidated_at": "2026-08-25T14:36:32Z",
+    "scope": "external_delivery_provenance_and_source_lock_lineage_only",
+    "freshness": {
+      "scope": "A0 producer #1302 -> P0 #1304 source-lock lineage and external delivery identity",
+      "revalidated_at": "2026-08-25T14:36:32Z",
+      "evidence_sources": [
+        "gh pr view Unson-LLC/brainbase-unson#1302",
+        "gh pr view Unson-LLC/brainbase-unson#1304",
+        "git merge-base --is-ancestor ad908bce7b90678f9ed7f1c570f808bdf1a500ad 27b37cdaac50967edff095b696c540322feb75c2"
+      ]
+    },
+    "reconciliation_contract": {
+      "story_id": "story-program-external-delivery-reconciliation-v1",
+      "status": "contract_ready",
+      "story_path": "docs/management/stories/active/story-program-external-delivery-reconciliation-v1.md",
+      "architecture_path": "docs/architecture/story-program-external-delivery-reconciliation-v1.md",
+      "spec_path": "docs/specs/program-external-delivery-reconciliation-v1.md",
+      "task_path": "docs/management/tasks/program-external-delivery-reconciliation-v1.json",
+      "test_path": "tests/contracts/program-external-delivery-reconciliation.test.js",
+      "production_evidence": "not_collected"
+    },
     "sources": [
       "GitHub PR metadata via gh pr view",
       "GitHub release and tag metadata",
@@ -33,13 +52,46 @@
     "guardrails": [
       "external merge or release does not satisfy T0, A0, G0, Gate or production_proven",
       "no independent review verdict is recorded here",
-      "an open PR is not implementation completion"
+      "an open PR is not implementation completion",
+      "source-lock contract delivery is distinct from work-package exit, consumer review, Gate and production completion"
     ],
     "artifacts": [
       {
+        "program_id": "A0",
+        "role": "producer_contract_delivery",
+        "repository": "Unson-LLC/brainbase-unson",
+        "pull_request": 1302,
+        "title": "Canonical Company Authority Producer Contract v1 (completed)",
+        "state": "MERGED_EXTERNALLY",
+        "base": {
+          "branch": "develop",
+          "sha": "0ed0cc9828018a893bb4bbc426b5d0639f68e732"
+        },
+        "head": {
+          "branch": "codex/a0/company-authority-producer-contract-v1-r2",
+          "sha": "7bc849da01dedabfced2eeca8943534cf3dee78e"
+        },
+        "merge": {
+          "sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
+          "merged_at": "2026-08-21T19:09:27Z",
+          "merged_by": "sintariran"
+        },
+        "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1302",
+        "program_effect": "contract_delivery_only",
+        "exit_evidence": {
+          "work_package": "not_established",
+          "consumer": "not_established",
+          "independent_review": "not_recorded_here",
+          "gate": "not_established",
+          "production": "not_collected"
+        }
+      },
+      {
         "program_id": "P0",
+        "role": "negative_boundary_contract_delivery",
         "repository": "Unson-LLC/brainbase-unson",
         "pull_request": 1304,
+        "title": "story-p0-negative-boundary-contract-v1",
         "state": "MERGED_EXTERNALLY",
         "base": {
           "branch": "develop",
@@ -56,15 +108,32 @@
         },
         "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1304",
         "program_effect": "no_status_promotion",
+        "source_lock_lineage": {
+          "source_lock_path": "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+          "upstream_contract_id": "mana-brainbase-company-authority/v1",
+          "upstream_repository": "Unson-LLC/brainbase-unson",
+          "upstream_pull_request": 1302,
+          "upstream_role": "A0 producer",
+          "upstream_state": "MERGED",
+          "upstream_merged_sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
+          "downstream_pull_request": 1304,
+          "downstream_role": "P0 contract",
+          "downstream_state": "MERGED",
+          "downstream_merge_sha": "27b37cdaac50967edff095b696c540322feb75c2",
+          "ancestor_verified": true
+        },
         "dependency_debt": [
-          "P0 was externally merged while the T0 and A0 exit evidence is not established",
-          "observed delivery does not satisfy the required T0 -> A0 -> P0 order"
+          "P0 was externally merged after source-locked A0 contract delivery #1302, but while T0 and A0 work-package exit evidence was not established",
+          "A0 contract delivery #1302 does not satisfy A0 work-package, consumer, independent review, Gate or production completion",
+          "observed delivery does not satisfy the required T0 -> A0 -> P0 exit order"
         ]
       },
       {
         "program_id": "J0",
         "repository": "Unson-LLC/brainbase",
         "pull_request": 479,
+        "title": "J0 typed DAG contract and preflight validation",
+        "role": "judgment_contract_delivery",
         "state": "MERGED_EXTERNALLY",
         "base": {
           "branch": "develop",
@@ -90,6 +159,8 @@
         "program_id": "J0",
         "repository": "Unson-LLC/brainbase",
         "pull_request": 481,
+        "title": "J0 ローカル決定論的ランナーと不変run記録",
+        "role": "judgment_runner_delivery",
         "state": "MERGED_EXTERNALLY",
         "base": {
           "branch": "develop",
@@ -115,6 +186,8 @@
         "program_area": "VibePro external gate dependency",
         "repository": "Unson-LLC/vibepro",
         "pull_request": 493,
+        "title": "chore: prepare 0.2.0-beta.16 release",
+        "role": "release_dependency_delivery",
         "state": "MERGED_EXTERNALLY",
         "base": {
           "branch": "main",
@@ -178,6 +251,9 @@
         "repository": "Unson-LLC/brainbase-unson",
         "pull_request": 1283,
         "state": "OPEN",
+        "role": "stale_title_matched_candidate",
+        "mergeable": "CONFLICTING",
+        "merge_state_status": "DIRTY",
         "title": "Canonical Company Authority Producer Contract v1",
         "base": {
           "branch": "develop",
@@ -188,7 +264,8 @@
           "sha": "fb98642b0f2268369ad61224124794cabbd29a04"
         },
         "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1283",
-        "conclusion": "A0 remains open or otherwise unverified; no completion is inferred from this PR"
+        "supersession_evidence": "not_collected",
+        "conclusion": "This older title-matched candidate is OPEN/CONFLICTING and is not the canonical source-lock producer; no supersession evidence promotes it over merged #1302"
       },
       {
         "claimed_program_item": "A0 #338 from merge audit",
@@ -207,14 +284,14 @@
         "merge": null,
         "source_url": "https://github.com/Unson-LLC/mana-runtime/pull/338",
         "roadmap_role": "A0 consumer; canonical source is brainbase-unson",
-        "conclusion": "This consumer-side PR does not identify or complete the A0 producer source; the brainbase-unson candidate #1283 remains open or otherwise unverified"
+        "conclusion": "This consumer-side PR does not identify or complete the A0 producer source; its OPEN state is separate from the merged producer #1302 and does not establish A0 exit"
       }
     ],
     "non_compliant_order": [
       {
         "required_order": "T0 -> A0 -> P0",
-        "observed": "P0 #1304 externally merged at 2026-08-25T12:29:25Z while A0 candidate #1283 was OPEN",
-        "debt": "retain dependency debt and do not promote P0 or any downstream Gate/production status"
+        "observed": "P0 #1304 externally merged at 2026-08-25T12:29:25Z after A0 contract delivery #1302 at 2026-08-21T19:09:27Z, while T0 exit and A0 work-package, consumer, review, Gate and production evidence remained incomplete",
+        "debt": "retain dependency debt and do not promote P0 or any downstream Gate/production status; #1302 is contract delivery only and #1283 remains an older OPEN/CONFLICTING candidate without supersession evidence"
       }
     ]
   },
