@@ -29,3 +29,12 @@
 ## live readback境界
 
 Roadmap更新時はGitHub等をreadbackし、取得時刻とsourceを保存する。ただしtestはlive APIの一時状態ではなく、commitされたsnapshot内部のidentity・lineage・status separationを決定論的に検証する。
+
+## 後継Storyとの依存境界
+
+- successor Story: `story-program-external-delivery-selector-runtime-integration-v1`
+- successor status: `planned`
+- successor lifecycle: `planning_only`
+- successor blocked: `true`。本v1はcontract-onlyであり、runtime owner、実装Task、独立review/GateをこのStoryへ追加しない。
+- successor contractの処理順序はactual external delivery readback → selector → Program status評価前で、失敗はfail-closedの`needs_review`とする。selector成功やexternal deliveryから自動promotionしない。
+- 本v1と後継Storyのproduction evidenceはそれぞれ`not_collected`であり、後継依存の記録を本番証跡や完了へ昇格させない。

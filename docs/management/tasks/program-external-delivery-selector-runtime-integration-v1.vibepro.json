@@ -1,0 +1,38 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-program-external-delivery-selector-runtime-integration-v1",
+  "predecessor_story_id": "story-program-external-delivery-reconciliation-v1",
+  "planning_only": true,
+  "blocked": true,
+  "production_evidence": "not_collected",
+  "tasks": [
+    {
+      "task_id": "program-external-delivery-selector-runtime-integration-v1",
+      "story_id": "story-program-external-delivery-selector-runtime-integration-v1",
+      "title": "Program external delivery selector runtime integration v1",
+      "allowed_paths": [
+        "docs/management/stories/active/story-program-external-delivery-selector-runtime-integration-v1.md",
+        "docs/architecture/story-program-external-delivery-selector-runtime-integration-v1.md",
+        "docs/specs/program-external-delivery-selector-runtime-integration-v1.md",
+        "docs/specs/program-external-delivery-selector-runtime-integration-v1.json",
+        "docs/management/tasks/program-external-delivery-selector-runtime-integration-v1.json",
+        "docs/management/tasks/program-external-delivery-selector-runtime-integration-v1.vibepro.json",
+        "docs/specs/program-external-delivery-reconciliation-v1.md",
+        "docs/specs/program-external-delivery-reconciliation-v1.json",
+        "docs/management/tasks/program-external-delivery-reconciliation-v1.json",
+        "tests/fixtures/program-external-delivery-reconciliation/generated-surfaces/current/traceability.json",
+        "tests/contracts/program-external-delivery-selector-runtime-integration-planning.test.js"
+      ],
+      "acceptance_criteria": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005"
+      ],
+      "execution_policy": "planning_only",
+      "mutates_repository": false,
+      "status": "blocked"
+    }
+  ]
+}

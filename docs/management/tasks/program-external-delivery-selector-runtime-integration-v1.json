@@ -1,0 +1,63 @@
+{
+  "task_id": "program-external-delivery-selector-runtime-integration-v1",
+  "story_id": "story-program-external-delivery-selector-runtime-integration-v1",
+  "predecessor_story_id": "story-program-external-delivery-reconciliation-v1",
+  "status": "blocked",
+  "planning_only": true,
+  "blocked": true,
+  "blocked_by": [
+    {
+      "story_id": "story-program-external-delivery-reconciliation-v1",
+      "reason": "predecessor remains contract-only; runtime owner, implementation Task and independent Gate are not assigned"
+    }
+  ],
+  "done": false,
+  "scope": {
+    "allowed": [
+      "docs/management/stories/active/story-program-external-delivery-selector-runtime-integration-v1.md",
+      "docs/architecture/story-program-external-delivery-selector-runtime-integration-v1.md",
+      "docs/specs/program-external-delivery-selector-runtime-integration-v1.md",
+      "docs/specs/program-external-delivery-selector-runtime-integration-v1.json",
+      "docs/management/tasks/program-external-delivery-selector-runtime-integration-v1.json",
+      "docs/management/tasks/program-external-delivery-selector-runtime-integration-v1.vibepro.json",
+      "docs/specs/program-external-delivery-reconciliation-v1.md",
+      "docs/specs/program-external-delivery-reconciliation-v1.json",
+      "docs/management/tasks/program-external-delivery-reconciliation-v1.json",
+      "tests/fixtures/program-external-delivery-reconciliation/generated-surfaces/current/traceability.json",
+      "tests/contracts/program-external-delivery-selector-runtime-integration-planning.test.js"
+    ],
+    "forbidden": [
+      "selector runtime implementation",
+      "changes to scripts/program/reconcile-external-delivery.mjs",
+      "P0, A0 or J0 runtime changes",
+      "external PR mutation, close or merge",
+      "deploy, release, publish, migration, secret or customer data",
+      "production readback or automatic Program status promotion"
+    ]
+  },
+  "acceptance": [
+    "actual external delivery readback precedes selector in the same run",
+    "selector runs before Program status evaluation and consumes that readback",
+    "readback, identity or selector failure is fail-closed needs_review",
+    "selector success and external delivery never automatically promote Program status",
+    "predecessor remains contract-only and all runtime/production evidence stays uncollected"
+  ],
+  "selector_contract": {
+    "sequence": [
+      "actual_external_delivery_readback",
+      "selector",
+      "before_program_status_evaluation"
+    ],
+    "failure_surface": "fail_closed_reconciliation_gate_needs_review",
+    "automatic_promotion": false
+  },
+  "runtime_evidence": "not_collected",
+  "production_evidence": "not_collected",
+  "forbidden_claims": [
+    "verified",
+    "production_proven",
+    "done",
+    "runtime_implemented",
+    "automatic_promotion"
+  ]
+}

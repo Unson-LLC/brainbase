@@ -3,6 +3,16 @@
   "story_id": "story-program-external-delivery-reconciliation-v1",
   "status": "contract_ready",
   "done": false,
+  "successor_dependency": {
+    "story_id": "story-program-external-delivery-selector-runtime-integration-v1",
+    "predecessor_story_id": "story-program-external-delivery-reconciliation-v1",
+    "status": "planned",
+    "planning_only": true,
+    "blocked": true,
+    "blocked_by": "predecessor remains contract-only; runtime owner, implementation Task and independent Gate are not assigned",
+    "production_evidence": "not_collected",
+    "done": false
+  },
   "scope": {
     "allowed": [
       "docs/management/milestones/brainbase-program-master-roadmap.md",
