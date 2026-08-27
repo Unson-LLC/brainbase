@@ -17,6 +17,8 @@ function requireText(text, expected, path) {
 
 const index = await read('index.html');
 const grandDesign = await read('guide/grand-design.html');
+const architecture = await read('guide/architecture.html');
+const ontology = await read('guide/ontology.html');
 const judgmentSystem = await read('guide/judgment-system.html');
 const status = await read('guide/status.html');
 const mcpTools = await read('reference/mcp-tools.html');
@@ -24,6 +26,12 @@ const mcpTools = await read('reference/mcp-tools.html');
 requireText(index, '会社の判断を、属人化させない。', 'index.html');
 requireText(index, 'Brainbaseを理解する', 'index.html');
 requireText(grandDesign, 'Brainbaseがある場合', 'guide/grand-design.html');
+requireText(grandDesign, '/assets/brainbase-grand-design.svg', 'guide/grand-design.html');
+requireText(architecture, '意味と事実の中核', 'guide/architecture.html');
+requireText(architecture, 'resolve_entity', 'guide/architecture.html');
+requireText(ontology, 'オントロジー、Graph、Judgment DAGの違い', 'guide/ontology.html');
+requireText(ontology, '/assets/brainbase-ontology.svg', 'guide/ontology.html');
+requireText(judgmentSystem, 'オントロジーとGraphとの関係', 'guide/judgment-system.html');
 requireText(judgmentSystem, '重要なのは反証できること', 'guide/judgment-system.html');
 requireText(status, 'Released — v0.4.0', 'guide/status.html');
 requireText(status, 'Planned — 未実装または未完成', 'guide/status.html');
@@ -44,6 +52,8 @@ process.stdout.write(`${JSON.stringify({
   pages: [
     'index.html',
     'guide/grand-design.html',
+    'guide/architecture.html',
+    'guide/ontology.html',
     'guide/judgment-system.html',
     'guide/status.html',
     'reference/mcp-tools.html'

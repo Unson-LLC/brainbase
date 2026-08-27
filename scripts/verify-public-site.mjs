@@ -6,8 +6,12 @@ const delayMs = Number(process.env.PUBLIC_READBACK_DELAY_MS ?? 5000);
 
 const checks = [
   { path: '/', required: ['会社の判断を、属人化させない。', 'Brainbaseを理解する'] },
+  { path: '/guide/architecture', required: ['仕組みとシステム構成', '意味と事実の中核', 'resolve_entity'] },
+  { path: '/guide/ontology', required: ['オントロジーとは', 'オントロジー、Graph、Judgment DAGの違い'] },
   { path: '/guide/status', required: ['Released — v0.4.0', 'Planned — 未実装または未完成'] },
-  { path: '/reference/mcp-tools', required: ['Ontology 2.0.0', 'resolve_entity'] }
+  { path: '/reference/mcp-tools', required: ['Ontology 2.0.0', 'resolve_entity'] },
+  { path: '/assets/brainbase-grand-design.svg', required: ['Brainbaseのシステム構成', '意味と事実の中核'] },
+  { path: '/assets/brainbase-ontology.svg', required: ['Brainbaseのオントロジー概念図', 'supersedes'] }
 ];
 
 function sleep(ms) {

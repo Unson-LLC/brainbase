@@ -20,6 +20,14 @@ export default {
     siteTitle: 'Brainbase',
     nav: [
       { text: 'Brainbaseとは', link: '/guide/grand-design' },
+      {
+        text: '仕組み',
+        items: [
+          { text: 'システム構成', link: '/guide/architecture' },
+          { text: 'オントロジーとは', link: '/guide/ontology' },
+          { text: 'Judgment DAG', link: '/guide/judgment-system' }
+        ]
+      },
       { text: '10分で試す', link: '/guide/quick-start' },
       { text: '現在の状態', link: '/guide/status' },
       { text: 'リファレンス', link: '/reference/mcp-tools' },
@@ -32,6 +40,8 @@ export default {
           items: [
             { text: '概要', link: '/' },
             { text: 'Brainbaseの全体像', link: '/guide/grand-design' },
+            { text: '仕組みとシステム構成', link: '/guide/architecture' },
+            { text: 'オントロジーとは', link: '/guide/ontology' },
             { text: 'Judgment DAGの考え方', link: '/guide/judgment-system' },
             { text: '現在の状態', link: '/guide/status' }
           ]
@@ -53,7 +63,6 @@ export default {
           items: [
             { text: 'MCPを登録する', link: '/guide/mcp-install' },
             { text: 'Judgment Hostを登録する', link: '/guide/judgment-audit' },
-            { text: 'Ontology 2.0.0と正規Graph', link: '/guide/ontology' },
             { text: '毎日と毎週の見直し', link: '/guide/daily-routines' }
           ]
         }

@@ -72,6 +72,8 @@ const agents = await read('AGENTS.md');
 const claude = await read('CLAUDE.md');
 const home = await read('docs/manual/index.md');
 const grandDesign = await read('docs/manual/guide/grand-design.md');
+const architecture = await read('docs/manual/guide/architecture.md');
+const ontology = await read('docs/manual/guide/ontology.md');
 const judgmentSystem = await read('docs/manual/guide/judgment-system.md');
 const status = await read('docs/manual/guide/status.md');
 const mcpTools = await read('docs/manual/reference/mcp-tools.md');
@@ -82,6 +84,7 @@ const packageJson = JSON.parse(await read('package.json'));
 const candidateSchema = JSON.parse(await read('contracts/public-message-candidate.schema.json'));
 const docsWorkflow = await read('.github/workflows/docs-cloudflare-pages.yml');
 const promotionWorkflow = await read('.github/workflows/public-message-promotion.yml');
+const publicVerifier = await read('scripts/verify-public-site.mjs');
 
 for (const [path, text] of [
   ['README.md', readme],
@@ -110,6 +113,11 @@ requireText(home, '現在の実装を見る', 'docs/manual/index.md');
 requireText(grandDesign, 'Brainbaseがない場合', 'docs/manual/guide/grand-design.md');
 requireText(grandDesign, 'Brainbaseがある場合', 'docs/manual/guide/grand-design.md');
 requireText(grandDesign, 'Personal Judgment', 'docs/manual/guide/grand-design.md');
+requireText(architecture, '意味と事実の中核', 'docs/manual/guide/architecture.md');
+requireText(architecture, 'resolve_entity', 'docs/manual/guide/architecture.md');
+requireText(ontology, '会社の中にある人、組織、プロジェクト、判断', 'docs/manual/guide/ontology.md');
+requireText(ontology, 'オントロジー、Graph、Judgment DAGの違い', 'docs/manual/guide/ontology.md');
+requireText(judgmentSystem, 'オントロジーとGraphとの関係', 'docs/manual/guide/judgment-system.md');
 requireText(judgmentSystem, 'Context / Observation', 'docs/manual/guide/judgment-system.md');
 requireText(judgmentSystem, '重要なのは反証できること', 'docs/manual/guide/judgment-system.md');
 requireText(status, 'Released — v0.4.0', 'docs/manual/guide/status.md');
@@ -125,6 +133,8 @@ requireText(cloudflare, 'CLOUDFLARE_ACCOUNT_ID', 'docs/manual/reference/cloudfla
 requireText(cloudflare, 'Brainbase Graphから公開説明を昇格する', 'docs/manual/reference/cloudflare-pages.md');
 requireText(config, "{ text: '現在の状態', link: '/guide/status' }", 'docs/.vitepress/config.mjs');
 requireText(config, 'Build ${shortBuildSha}', 'docs/.vitepress/config.mjs');
+await assertExists('docs/manual/public/assets/brainbase-grand-design.svg');
+await assertExists('docs/manual/public/assets/brainbase-ontology.svg');
 
 forbidText(readme, '# Brainbase 個人オンボーディングキット', 'README.md');
 forbidText(home, '自分の仕事文脈をAIに渡すためのMCPマニュアル', 'docs/manual/index.md');
@@ -155,10 +165,16 @@ requireText(docsWorkflow, 'npm run docs:verify-public', '.github/workflows/docs-
 requireText(promotionWorkflow, 'brainbase-public-message-candidate', '.github/workflows/public-message-promotion.yml');
 requireText(promotionWorkflow, 'npm run docs:promotion:plan', '.github/workflows/public-message-promotion.yml');
 requireText(promotionWorkflow, 'gh pr create', '.github/workflows/public-message-promotion.yml');
+requireText(publicVerifier, "path: '/guide/architecture'", 'scripts/verify-public-site.mjs');
+requireText(publicVerifier, "path: '/guide/ontology'", 'scripts/verify-public-site.mjs');
+requireText(publicVerifier, "path: '/assets/brainbase-grand-design.svg'", 'scripts/verify-public-site.mjs');
+requireText(publicVerifier, "path: '/assets/brainbase-ontology.svg'", 'scripts/verify-public-site.mjs');
 
 for (const path of [
   'docs/manual/index.md',
   'docs/manual/guide/grand-design.md',
+  'docs/manual/guide/architecture.md',
+  'docs/manual/guide/ontology.md',
   'docs/manual/guide/judgment-system.md',
   'docs/manual/guide/status.md',
   'docs/manual/reference/cloudflare-pages.md',
@@ -170,6 +186,6 @@ for (const path of [
 process.stdout.write(`${JSON.stringify({
   status: 'public_docs_valid',
   candidate_id: publicMessage.candidate_id,
-  checked_pages: 6,
+  checked_pages: 8,
   checked_workflows: 2
 }, null, 2)}\n`);
