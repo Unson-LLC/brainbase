@@ -802,18 +802,20 @@ function responseCount(response) {
 function retrievalOutcome(response) {
     for (const item of nestedRecords(response, 0, { parseContent: false })) {
         if (!Array.isArray(item.content)) continue;
-        for (const block of item.content) {
-            const text = record(block)?.text;
-            if (typeof text !== 'string') continue;
-            const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
-            if (!lines.some((line) => line.startsWith('Brainbase retrieval audit:'))) continue;
-            const terminalLine = lines.at(-1) ?? '';
-            if (/^📚 Brainbase(?:検索|取得): [^\r\n]* → 該当なし（不在確定ではない）$/u.test(terminalLine)) {
-                return 'no_result';
-            }
-            if (/^📚 Brainbase(?:検索|取得): [^\r\n]* → 結果を取得 ✓$/u.test(terminalLine)) {
-                return 'result';
-            }
+        const text = record(item.content.at(-1))?.text;
+        if (typeof text !== 'string') continue;
+        const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+        if (lines.length !== 3
+            || lines[0] !== 'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.'
+            || lines[1] !== 'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.') {
+            continue;
+        }
+        const terminalLine = lines[2];
+        if (/^📚 Brainbase(?:検索|取得): [^\r\n]* → 該当なし（不在確定ではない）$/u.test(terminalLine)) {
+            return 'no_result';
+        }
+        if (/^📚 Brainbase(?:検索|取得): [^\r\n]* → 結果を取得 ✓$/u.test(terminalLine)) {
+            return 'result';
         }
     }
     return null;

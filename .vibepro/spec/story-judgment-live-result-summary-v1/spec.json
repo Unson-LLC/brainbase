@@ -38,7 +38,7 @@
         "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "toolCallScope" }],
         "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "検索・取得の実結果をHost生成の監査行へ安全に要約する" }]
       },
-      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "応答本文を転載" }] }
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "response-controlled" }] }
     },
     {
       "id": "INV-002",

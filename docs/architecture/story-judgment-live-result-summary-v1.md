@@ -19,7 +19,7 @@ query_excerpt + outcome ──> Host生成display_line
 
 ## 安全契約
 
-- `該当なし（不在確定ではない）` と `結果を取得` は、Brainbase toolが返す改行単位のretrieval audit終端だけから認識する。
+- `該当なし（不在確定ではない）` と `結果を取得` は、Brainbase tool responseの最終content blockにある固定3行のretrieval audit envelopeだけから認識する。
 - 応答中のquery、件数、識別子、本文は保存displayへ転載しない。
 - 既知終端がない場合は従来の構造化count、または「正常応答を確認」へfail closedする。
 - route、write、failure、episode lifecycleには分岐を追加しない。
