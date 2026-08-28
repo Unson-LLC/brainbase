@@ -24,7 +24,19 @@
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
         "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
         "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "recordBrainbaseToolUse" }],
-        "test_refs": [{ "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "case": "live retrieval audit semantics" }]
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "検索・取得の実結果をHost生成の監査行へ安全に要約する" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "結果を取得" }] }
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "A fresh Codex task proves the installed global Hook lifecycle and live retrieval audit semantics against the exact implementation HEAD.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-005" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "検証" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "recordBrainbaseToolUse" }],
+        "test_refs": [{ "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する" }]
       },
       "verifiable_by": { "test_pattern": [{ "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "must_cover": "結果を取得" }] }
     },
@@ -48,7 +60,7 @@
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004" }],
         "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
         "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "eventKind" }],
-        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "PostToolUseを複数回記録し、routingを取得済みと誤表示せずraw payloadも保存しない" }]
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない" }]
       },
       "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "正常応答を確認" }] }
     }
