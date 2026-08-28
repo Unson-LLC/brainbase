@@ -1,0 +1,211 @@
+name: Mana autonomy authority operation
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Operation mode
+        required: true
+        type: choice
+        options:
+          - readback
+          - dry-run
+          - apply
+      tenant_key:
+        description: Canonical Brainbase tenant key
+        required: true
+        default: unson-business
+        type: string
+      organization_id:
+        description: Canonical organization ID
+        required: true
+        default: unson
+        type: string
+      project_code:
+        description: Canonical project code
+        required: true
+        default: brainbase
+        type: string
+      service_actor_id:
+        description: Canonical service actor ID
+        required: true
+        default: mana_autonomy_v0
+        type: string
+      workspace_id:
+        description: Exact Slack workspace ID; leave blank only when exactly one active connection exists
+        required: false
+        type: string
+      app_id:
+        description: Exact Slack app ID; leave blank only when exactly one active connection exists
+        required: false
+        type: string
+      placement_id:
+        description: Canonical service placement ID
+        required: false
+        default: mana-autonomy
+        type: string
+      accountable_person_id:
+        description: Canonical human person ID accountable for this delegation
+        required: false
+        type: string
+      delegated_by_person_id:
+        description: Canonical human person ID granting this delegation
+        required: false
+        type: string
+      valid_from:
+        description: RFC3339 UTC authority start; required for dry-run/apply
+        required: false
+        type: string
+      valid_until:
+        description: RFC3339 UTC authority end, max 26h; required for dry-run/apply
+        required: false
+        type: string
+      resource_revision:
+        description: Reviewed positive resource revision
+        required: false
+        default: "1"
+        type: string
+      policy_revision:
+        description: Reviewed positive policy revision
+        required: false
+        default: "1"
+        type: string
+      raci_revision:
+        description: Reviewed positive RACI revision
+        required: false
+        default: "1"
+        type: string
+      confirmation:
+        description: Apply only - enter APPLY_MANA_AUTONOMY_AUTHORITY
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mana-autonomy-authority-production
+  cancel-in-progress: false
+
+env:
+  INFO_SSOT_DATABASE_URL: ${{ secrets.INFO_SSOT_DATABASE_URL }}
+  INFO_SSOT_DB_URL: ${{ secrets.INFO_SSOT_DB_URL }}
+  BRAINBASE_TENANT_KEY: ${{ inputs.tenant_key }}
+  BRAINBASE_ORGANIZATION_ID: ${{ inputs.organization_id }}
+  BRAINBASE_PROJECT_CODE: ${{ inputs.project_code }}
+  BRAINBASE_SERVICE_ACTOR_ID: ${{ inputs.service_actor_id }}
+  BRAINBASE_WORKSPACE_ID: ${{ inputs.workspace_id }}
+  BRAINBASE_APP_ID: ${{ inputs.app_id }}
+  BRAINBASE_SERVICE_PLACEMENT_ID: ${{ inputs.placement_id }}
+  BRAINBASE_ACCOUNTABLE_PERSON_ID: ${{ inputs.accountable_person_id }}
+  BRAINBASE_DELEGATED_BY_PERSON_ID: ${{ inputs.delegated_by_person_id }}
+  MANA_AUTONOMY_VALID_FROM: ${{ inputs.valid_from }}
+  MANA_AUTONOMY_VALID_UNTIL: ${{ inputs.valid_until }}
+  BRAINBASE_RESOURCE_REVISION: ${{ inputs.resource_revision }}
+  BRAINBASE_POLICY_REVISION: ${{ inputs.policy_revision }}
+  BRAINBASE_RACI_REVISION: ${{ inputs.raci_revision }}
+
+jobs:
+  readback:
+    if: inputs.mode == 'readback'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Read canonical foundation
+        run: node scripts/read-service-company-authority-foundation.js > mana-autonomy-foundation.json
+      - name: Publish non-secret readback
+        run: |
+          {
+            echo '## Mana autonomy canonical foundation'
+            echo '```json'
+            jq '.' mana-autonomy-foundation.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mana-autonomy-foundation-${{ github.run_id }}
+          path: mana-autonomy-foundation.json
+          if-no-files-found: error
+          retention-days: 14
+
+  dry_run:
+    if: inputs.mode == 'dry-run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate dry-run human delegation inputs
+        run: |
+          test -n "$BRAINBASE_ACCOUNTABLE_PERSON_ID"
+          test -n "$BRAINBASE_DELEGATED_BY_PERSON_ID"
+          test -n "$MANA_AUTONOMY_VALID_FROM"
+          test -n "$MANA_AUTONOMY_VALID_UNTIL"
+      - name: Execute transactional dry-run
+        run: node scripts/rollout-mana-autonomy-service-authority.js --dry-run > mana-autonomy-authority-dry-run.json
+      - name: Publish non-secret plan
+        run: |
+          {
+            echo '## Mana autonomy authority dry-run'
+            echo '```json'
+            jq '.' mana-autonomy-authority-dry-run.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mana-autonomy-authority-dry-run-${{ github.run_id }}
+          path: mana-autonomy-authority-dry-run.json
+          if-no-files-found: error
+          retention-days: 14
+
+  apply:
+    if: inputs.mode == 'apply'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: brainbase-production
+    env:
+      BRAINBASE_PROVISIONING_ACTOR: github-actions:${{ github.actor }}
+    steps:
+      - name: Require explicit production confirmation
+        run: test "${{ inputs.confirmation }}" = "APPLY_MANA_AUTONOMY_AUTHORITY"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate apply human delegation inputs
+        run: |
+          test -n "$BRAINBASE_ACCOUNTABLE_PERSON_ID"
+          test -n "$BRAINBASE_DELEGATED_BY_PERSON_ID"
+          test -n "$MANA_AUTONOMY_VALID_FROM"
+          test -n "$MANA_AUTONOMY_VALID_UNTIL"
+      - name: Apply and prove exact persisted replay
+        run: >-
+          node scripts/rollout-mana-autonomy-service-authority.js
+          --apply --approve-apply
+          > mana-autonomy-authority-apply.json
+      - name: Publish non-secret apply receipt
+        run: |
+          {
+            echo '## Mana autonomy authority apply receipt'
+            echo '```json'
+            jq '.' mana-autonomy-authority-apply.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mana-autonomy-authority-apply-${{ github.run_id }}
+          path: mana-autonomy-authority-apply.json
+          if-no-files-found: error
+          retention-days: 30
