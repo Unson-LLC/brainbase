@@ -799,6 +799,26 @@ function responseCount(response) {
         .find((count) => Number.isSafeInteger(count) && count >= 0) ?? null;
 }
 
+function retrievalOutcome(response) {
+    for (const item of nestedRecords(response, 0, { parseContent: false })) {
+        if (!Array.isArray(item.content)) continue;
+        for (const block of item.content) {
+            const text = record(block)?.text;
+            if (typeof text !== 'string') continue;
+            const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+            if (!lines.some((line) => line.startsWith('Brainbase retrieval audit:'))) continue;
+            const terminalLine = lines.at(-1) ?? '';
+            if (/^📚 Brainbase(?:検索|取得): [^\r\n]* → 該当なし（不在確定ではない）$/u.test(terminalLine)) {
+                return 'no_result';
+            }
+            if (/^📚 Brainbase(?:検索|取得): [^\r\n]* → 結果を取得 ✓$/u.test(terminalLine)) {
+                return 'result';
+            }
+        }
+    }
+    return null;
+}
+
 function knowledgeResolutionData(response) {
     return nestedRecords(response).find((item) => (
         typeof item.resolution_id === 'string'
@@ -900,6 +920,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         semanticSuccess: Boolean(resolution || taskResult)
     });
     const qualifies = kind === 'route' && success && Boolean(resolution);
+    const retrievalResult = success && resultCount === null && ['search', 'retrieve'].includes(kind)
+        ? retrievalOutcome(responseValue)
+        : null;
     const safeMetadata = resolution ? {
         resolution_id: resolution.resolution_id,
         status: resolution.status,
@@ -919,7 +942,13 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                 : '呼出';
     const displayLine = kind === 'route'
         ? routeDisplayLine(inputValue, resolution, success)
-        : `${success ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success ? `${resultCount === null ? '' : `${resultCount}件・`}正常応答を確認 ✓` : '失敗または結果不明'}`;
+        : `${success ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success
+            ? retrievalResult === 'no_result'
+                ? '該当なし（不在確定ではない）'
+                : retrievalResult === 'result'
+                    ? '結果を取得 ✓'
+                    : `${resultCount === null ? '' : `${resultCount}件・`}正常応答を確認 ✓`
+            : '失敗または結果不明'}`;
     return withEpisodeTransitionLock(paths, () => {
         const episode = existingEpisode(payload, env);
         if (!episode) {

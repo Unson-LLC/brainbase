@@ -1,0 +1,59 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-judgment-live-result-summary-v1",
+  "generated_by": { "caller": "codex", "stage": "architecture" },
+  "lifecycle": "final",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "A successful Brainbase search that explicitly reports no result is stored as 該当なし（不在確定ではない）.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "recordBrainbaseToolUse" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "検索・取得の実結果をHost生成の監査行へ安全に要約する" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "該当なし（不在確定ではない）" }] }
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "A successful Brainbase search or retrieval that explicitly reports a result is stored as 結果を取得.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "recordBrainbaseToolUse" }],
+        "test_refs": [{ "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "case": "live retrieval audit semantics" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "must_cover": "結果を取得" }] }
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "The Host derives query scope only from tool input and never copies response query, count, secrets, or arbitrary audit text into display_line.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }, { "kind": "acceptance_criteria", "ac_id": "AC-004" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "境界" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "toolCallScope" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "検索・取得の実結果をHost生成の監査行へ安全に要約する" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "応答本文を転載" }] }
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Route, write, failure, structured count, unknown response, required capability, owner audit, and Stop lifecycle contracts remain unchanged.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "eventKind" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "PostToolUseを複数回記録し、routingを取得済みと誤表示せずraw payloadも保存しない" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "正常応答を確認" }] }
+    }
+  ],
+  "diagrams": [],
+  "open_questions": [],
+  "generated_at": "2026-08-29T01:15:00.000Z"
+}

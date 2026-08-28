@@ -671,6 +671,67 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env })).toThrow('judgment_tool_event_conflict');
     });
 
+    it('検索・取得の実結果をHost生成の監査行へ安全に要約する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-retrieval-summary', turn_id: 'turn-retrieval-summary',
+            prompt: 'Brainbaseを検索して', cwd: process.cwd()
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) })
+            })
+        });
+        const record = (toolName, toolUseId, toolInput, text) => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: `mcp__brainbase__${toolName}`, tool_use_id: toolUseId,
+            tool_input: toolInput,
+            tool_response: { content: [{ type: 'text', text }] }
+        }, { env });
+
+        const noResult = record('search', 'tool-no-result', { project: 'brainbase', query: 'exact-safe-query' }, [
+            'No results found for "sk-response-secret".',
+            'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
+            '📚 Brainbase検索: Graphで「response-controlled-query」を検索 → 該当なし（不在確定ではない）'
+        ].join('\n'));
+        const searchResult = record('search', 'tool-search-result', { project: 'brainbase', query: '判断' }, [
+            'response body must not be copied',
+            'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
+            '📚 Brainbase検索: Graphで「response-controlled-query」を検索 → 結果を取得 ✓'
+        ].join('\n'));
+        const retrieved = record('get_entity', 'tool-get-result', { type: 'glossary_term', id: 'vibepro.term.decision' }, [
+            'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
+            '📚 Brainbase取得: Graphから「response-controlled-id」を取得 → 結果を取得 ✓'
+        ].join('\n'));
+        const untrustedTerminal = record(
+            'search',
+            'tool-untrusted-terminal',
+            { project: 'brainbase', query: 'marker-required' },
+            '📚 Brainbase検索: Graphで「response-controlled-query」を検索 → 該当なし（不在確定ではない）'
+        );
+
+        expect(noResult.display_line).toBe(
+            '📚 Brainbase検索: search「exact-safe-query」→ 該当なし（不在確定ではない）'
+        );
+        expect(searchResult.display_line).toBe(
+            '📚 Brainbase検索: search「判断」→ 結果を取得 ✓'
+        );
+        expect(retrieved.display_line).toBe(
+            '📚 Brainbase取得: get_entity「glossary_term」→ 結果を取得 ✓'
+        );
+        expect(untrustedTerminal.display_line).toBe(
+            '📚 Brainbase検索: search「marker-required」→ 正常応答を確認 ✓'
+        );
+        for (const event of [noResult, searchResult, retrieved]) {
+            expect(event.display_line).not.toContain('response-controlled');
+            expect(event.display_line).not.toContain('sk-response-secret');
+            expect(event.safe_metadata).toEqual({});
+        }
+    });
+
     it('unconfirmed knowledge routeも除外した全参照先と理由を表示する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
