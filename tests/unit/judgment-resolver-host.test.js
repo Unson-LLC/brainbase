@@ -1122,14 +1122,30 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
-    it('Brainbase capabilityが不要なtool call 0件を明示してcompleteにし、orphan Stopはfail-closedにする', async () => {
+    it('Brainbase capability不要時は0件completeにし、orphan toolはmarker、orphan Stopはfail-closedにする', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        expect(recordBrainbaseToolUse({
+            tool_name: 'unrelated_tool', tool_use_id: 'unrelated-tool'
+        }, { env })).toBeNull();
+        expect(() => recordBrainbaseToolUse({
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'identity-missing-tool'
+        }, { env })).toThrow('judgment_episode_identity_missing');
+        expect(() => recordBrainbaseToolUse({
+            session_id: 'metadata-session', turn_id: 'metadata-turn',
+            tool_name: 'mcp__brainbase__search'
+        }, { env })).toThrow('judgment_tool_use_id_missing');
         expect(recordBrainbaseToolUse({
             session_id: 'orphan-session', turn_id: 'orphan-turn',
             tool_name: 'mcp__brainbase__search', tool_use_id: 'orphan-tool',
             tool_input: { query: 'orphan' }, tool_response: { status: 'ok' }
-        }, { env })).toBeNull();
+        }, { env })).toMatchObject({
+            schema_version: 'brainbase-judgment-orphan-tool-event-v1',
+            reason: 'judgment_episode_not_found',
+            session_ref: hash('orphan-session'),
+            turn_ref: hash('orphan-turn'),
+            tool_use_ref: hash('orphan-tool')
+        });
         expect(() => finalizeEpisode({
             session_id: 'orphan-session', turn_id: 'orphan-turn', stop_hook_active: false
         }, { env })).toThrow('judgment_episode_not_found');
@@ -1564,6 +1580,30 @@ describe('Codex Judgment Resolver Host', () => {
         expect(next.conversation_context.prior_receipts).toEqual([
             expect.objectContaining({ turn_id: 'turn-first', resolution_id: 'jr_host_test' })
         ]);
+    });
+
+    // Traceability: story-judgment-audit-continuity-v1:ac:5
+    it('audit_degraded receiptをprior finalized judgmentとして採用しない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const identity = { session_id: 'session-degraded-prior', turn_id: 'turn-degraded-prior' };
+        const first = await processHookPayload({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: false,
+            last_assistant_message: '元の回答'
+        }, { env });
+        expect(first).toMatchObject({ decision: 'block' });
+        await expect(processHookPayload({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+            last_assistant_message: '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。\n元の回答'
+        }, { env })).resolves.toMatchObject({ systemMessage: expect.stringContaining('監査未完了') });
+
+        const next = buildJudgmentRequest({
+            session_id: identity.session_id,
+            turn_id: 'turn-after-degraded',
+            prompt: '続けて',
+            cwd: process.cwd()
+        }, { env });
+        expect(next.conversation_context.prior_receipts).toEqual([]);
     });
 
     it('requestに束縛されないreceiptを採用しない', async () => {

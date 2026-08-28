@@ -47,7 +47,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - 並列な候補生成と候補採用の制御を分離し、探索速度を不要に落とさない。
 - 根拠のない数値閾値、対象以上に重いガバナンス、判断と強制の混同、内部高度化だけを成果とみなす判断を防ぐ。
 - 選択された判断経路、各active nodeの実行指示、適用基準、後続capability、その入力、未確認事項、host binding状態を監査可能なreceiptとして返す。
-- model生成前に1つのjudgment episodeを開始し、実際に完了したdirect `mcp__brainbase__*` callを`PostToolUse`で0..N件記録する。同一turnの並列callはHostが原子的にjournal commit順へ直列化する。`Stop`は最終回答が保存済み`🧠`行と全`📚`/`⚠️`行でその順序どおりに始まることを検証し、契約を満たすcomplete final receiptだけを1件確定する。監査不足の最初の修復可能なStopは`decision:block`で継続し、なお不完全なactive再Stopは`judgment_stop_repair_exhausted`で非zero終了する。orphan Stopなど回答修正で回復できない状態も非zeroで失敗する。いずれもfinalを作らない。参照必須でなくBrainbase callが0件なら、その事実をowner監査行として明示する。local file readや別connectorは現行event matcherの対象外とする。
+- model生成前に1つのjudgment episodeを開始し、実際に完了したdirect `mcp__brainbase__*` callを`PostToolUse`で0..N件記録する。同一turnの並列callはHostが原子的にjournal commit順へ直列化する。`Stop`は最終回答が保存済み`🧠`行と全`📚`/`⚠️`行でその順序どおりに始まることを検証し、契約を満たすcomplete final receiptだけを1件確定する。正常episodeの監査不足は最初の修復可能なStopで`decision:block`となり、なお不完全なactive再Stopは`judgment_stop_repair_exhausted`で非zero終了する。episode開始event自体がないorphan Stopは完全監査へ偽装せず、警告と本文保持を1回だけ要求した後、非finalの`audit_degraded` receiptへ有限収束する。identity・integrity矛盾は従来どおり非zeroで失敗する。参照必須でなくBrainbase callが0件なら、その事実をowner監査行として明示する。local file readや別connectorは現行event matcherの対象外とする。
 - initial/final receiptは判断と監査の証拠であり、writeや外部作用をauthorizeしない。既存の権限、承認、executor境界を置き換えない。
 - project bindingは判断文脈であり、action authorityではない。project access不能時は該当project policyだけを適用対象から外し、一般判断を停止しない。
 - 現行episode lifecycle integrationはCodex Host hookだけを対象とする。Claude Codeは同じ責務分割を適用できる将来のHost adapter候補だが、現行対応として扱わない。
@@ -78,7 +78,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 
 ## Release operation
 
-- `release_note`: Codexのjudgment lifecycle Hostは、現在のHook trustを`hooks/list`で検査し、監査不足のactive再Stopまたはorphan Stopをfinalなしの明示failureにする。Resolverの公開request schemaと「内部Resolver LLMなし」の境界は変えない。
+- `release_note`: Codexのjudgment lifecycle Hostは、現在のHook trustを`hooks/list`で検査し、正常episodeの監査不足active再Stopをfinalなしの明示failureにする。episode開始eventがないorphan Stopは、完全監査へ偽装せず`audit_degraded`へ有限収束し、長時間taskへ新規task作成を要求しない。Resolverの公開request schemaと「内部Resolver LLMなし」の境界は変えない。
 - `rollout_plan`: merge SHAを正本としてglobal Hook checkout、local `:31013`、persistent MCP runtime、Lightsail `brainbase-ssot.service`の4面を同じSHAへ揃える。次にCodex Hostの`hooks/list`をreadiness checkerで照会し、`trust_required`ならownerが`/hooks`で承認する。承認後に作成したfresh Codex taskで実動確認する。
 - `observability_evidence`: local/public `/api/version`のtarget SHAと`dirty=false`、health、MCP runtime check、`ready_for_fresh_task`、承認後に作成したfresh transcript、actual Brainbase event、`owner_audit_complete=true`、final answer digest一致を成功条件とし、その時だけ`proven_active`とする。
 - `rollback_instruction`: 変更前のHook fileと4面のSHAを保存し、失敗時は`docs/brainbase-capabilities/runbooks/judgment-resolve.md#rollback`の順序でHook/UI checkout、MCP runtime、Lightsail、最後に元のHook fileを復元する。journalは削除しない。

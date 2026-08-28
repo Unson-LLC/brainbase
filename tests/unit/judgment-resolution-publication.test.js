@@ -48,7 +48,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('judgment_episode_identity_missing');
         expect(host).toContain('judgment_episode_not_found');
         expect(host).toContain('NO_BRAINBASE_REFERENCE_LINE');
-        expect(host).toContain('新しいCodex taskを作り、同じ依頼を送ってください');
+        expect(host).toContain('ORPHAN_AUDIT_WARNING');
+        expect(host).toContain("completion_status: 'audit_degraded'");
+        expect(host).not.toContain('新しいCodex taskを作り、同じ依頼を送ってください');
         expect(host).toContain('Settings → Hooks');
         expect(host).toContain("completion_status: 'complete'");
         expect(host).toContain('owner.audit.display');
@@ -108,9 +110,12 @@ describe('judgment resolver publication surfaces', () => {
         expect(skill).toContain('Claude Codeは同じ責務分割を適用できる将来のHost adapter候補');
         expect(skill).toContain('SQLite');
         expect(skill).toContain('非zero exit');
+        expect(capability).toContain('non-final `audit_degraded` receipt');
+        expect(capability).toContain('rejects a late Start for the same identity');
+        expect(spec).toContain('rejects a late Start for the same identity');
         expect(architecture).toContain('Codex lifecycle Host adapter');
         expect(architecture).toContain('BEGIN IMMEDIATE');
-        expect(architecture).toContain('silently returning `{}`');
+        expect(architecture).toContain('non-final `audit_degraded` receipt');
         expect(architecture).toContain('Persistent Brainbase Host bridge');
         expect(architecture).toContain('Resolver API/server');
         expect(architecture).toContain('Resolver API/server owns the verifier copy');
@@ -122,7 +127,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
         expect(runbook).toContain('SQLite');
         expect(runbook).toContain('active repeated Stop exits non-zero with `judgment_stop_repair_exhausted`');
-        expect(runbook).toContain('create a new Codex task and resend the same request');
+        expect(runbook).toContain('never fabricates `.final.json` or asks the operator to create a new task');
         expect(runbook).toContain('official `hooks/list` RPC');
         expect(runbook).toContain('Open `/hooks`');
         expect(runbook).toContain('must never calculate or write Codex `trusted_hash`');
@@ -151,6 +156,25 @@ describe('judgment resolver publication surfaces', () => {
         expect(architecture).toContain('judgment_episode_not_found');
         expect(spec).toContain('Open /hooks and approve the three current Resolver hooks.');
         expect(story).toContain('Brainbaseはtrust hashを計算・書換しない');
+    });
+
+    // Traceability: story-judgment-audit-continuity-v1:ac:3-9
+    it('audit continuity Story・Architecture・Spec・Taskがdegradedとcompleteを分離する', () => {
+        const story = read('docs/management/stories/active/story-judgment-audit-continuity-v1.md');
+        const architecture = read('docs/architecture/story-judgment-audit-continuity-v1.md');
+        const spec = read('docs/specs/story-judgment-audit-continuity-v1.md');
+        const task = read('docs/management/tasks/TASK-judgment-audit-continuity-v1.md');
+        const surfaces = [story, architecture, spec, task];
+
+        for (const surface of surfaces) {
+            expect(surface).toContain('audit_degraded');
+            expect(surface).toMatch(/complete/iu);
+            expect(surface).toMatch(/transition lock|transition\.sqlite|BEGIN IMMEDIATE/iu);
+        }
+        expect(story).toContain('新しいtaskを作る作業を求められたくない');
+        expect(architecture).toContain('audit_degraded != complete');
+        expect(spec).toContain('does not instruct the user to create a new task');
+        expect(task).toContain('global Hook切替とDesktop E2Eは未承認');
     });
 
     it('capability README indexが現行integrationと将来候補を区別する', () => {

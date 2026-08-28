@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -261,34 +261,214 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
     }, 20_000);
 
-    // Traceability: story-brainbase-judgment-audit-fail-closed:ac:4
-    // Traceability: story-brainbase-judgment-audit-fail-closed:ac:5
-    it('orphan Stopは明示失敗にし、監査不足のactive再Stopは有限回で明示終了する', async () => {
+    // Traceability: story-judgment-audit-continuity-v1:ac:3
+    // Traceability: story-judgment-audit-continuity-v1:ac:4
+    it('orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
         const env = { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
         const orphanIdentity = { session_id: 'session-orphan-stop', turn_id: 'turn-orphan-stop' };
+        const originalBody = '長時間taskの作業結果';
+        const warning = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。';
 
         const orphanFirst = await run('bash', [wrapper], {
             env,
-            input: JSON.stringify({ hook_event_name: 'Stop', ...orphanIdentity, stop_hook_active: false })
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...orphanIdentity, stop_hook_active: false,
+                last_assistant_message: originalBody
+            })
         });
         expect(orphanFirst).toMatchObject({ code: 0, stderr: '' });
         expect(JSON.parse(orphanFirst.stdout)).toMatchObject({
             decision: 'block',
             reason: expect.stringContaining('judgment_episode_not_found')
         });
-        expect(JSON.parse(orphanFirst.stdout).reason).toContain('新しいCodex taskを作り、同じ依頼を送ってください');
+        expect(JSON.parse(orphanFirst.stdout).reason).toContain(warning);
+        expect(JSON.parse(orphanFirst.stdout).reason).toContain('元の回答本文を削除・要約・置換せず');
+        expect(JSON.parse(orphanFirst.stdout).reason).not.toContain('新しいCodex task');
+
+        const orphanDirectory = join(journal, hash(orphanIdentity.session_id));
+        const diagnosticPath = join(orphanDirectory, `${hash(orphanIdentity.turn_id)}.audit-failure.json`);
+        const diagnostic = JSON.parse(readFileSync(diagnosticPath, 'utf8'));
+        expect(diagnostic).toMatchObject({
+            schema_version: 'brainbase-judgment-audit-failure-v1',
+            reason: 'judgment_episode_not_found',
+            session_ref: hash(orphanIdentity.session_id),
+            turn_ref: hash(orphanIdentity.turn_id),
+            episode_candidate_count: 0,
+            repair_requested: true,
+            stop_hook_active: false,
+            answer_body_binding: {
+                schema_version: 'brainbase-orphan-answer-body-binding-v1',
+                body_digest: hash(originalBody),
+                character_count: originalBody.length
+            }
+        });
+        expect(diagnostic.journal_root_digest).toMatch(/^[a-f0-9]{64}$/u);
+        expect(diagnostic.host_digest).toMatch(/^[a-f0-9]{64}$/u);
+        expect(diagnostic.warning_line_digest).toBe(hash(warning));
+        expect(JSON.stringify(diagnostic)).not.toContain(orphanIdentity.session_id);
+        expect(JSON.stringify(diagnostic)).not.toContain(orphanIdentity.turn_id);
+        expect(JSON.stringify(diagnostic)).not.toContain(originalBody);
 
         const orphanActive = await run('bash', [wrapper], {
             env,
-            input: JSON.stringify({ hook_event_name: 'Stop', ...orphanIdentity, stop_hook_active: true })
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...orphanIdentity, stop_hook_active: true,
+                last_assistant_message: `${warning}\n${originalBody}`
+            })
         });
-        expect(orphanActive.code).not.toBe(0);
-        expect(orphanActive.stdout).toBe('');
-        expect(orphanActive.stderr).toContain('judgment_episode_not_found');
-        expect(orphanActive.stderr).toContain('新しいCodex taskを作り、同じ依頼を送ってください');
+        expect(orphanActive).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(orphanActive.stdout)).toEqual({ systemMessage: warning });
+        const degradedPath = join(orphanDirectory, `${hash(orphanIdentity.turn_id)}.audit-degraded.json`);
+        expect(JSON.parse(readFileSync(degradedPath, 'utf8'))).toMatchObject({
+            schema_version: 'brainbase-judgment-audit-degraded-v1',
+            completion_status: 'audit_degraded',
+            reason: 'judgment_episode_not_found',
+            stop_hook_active: true,
+            owner_warning_displayed: true,
+            answer_body_preserved: true
+        });
+        expect(existsSync(join(orphanDirectory, `${hash(orphanIdentity.turn_id)}.final.json`))).toBe(false);
+
+        const lateStart = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...orphanIdentity,
+                prompt: '遅れて到着した開始イベント'
+            })
+        });
+        expect(lateStart).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(lateStart.stdout)).toMatchObject({
+            continue: false,
+            suppressOutput: false,
+            stopReason: expect.stringContaining('judgment_audit_degraded_start_conflict')
+        });
+        expect(existsSync(join(orphanDirectory, `${hash(orphanIdentity.turn_id)}.episode.json`))).toBe(false);
+
+        const orphanReplay = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...orphanIdentity, stop_hook_active: true,
+                last_assistant_message: `${warning}\n${originalBody}`
+            })
+        });
+        expect(orphanReplay).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(orphanReplay.stdout)).toEqual({ systemMessage: warning });
+
+        const degradedReceipt = JSON.parse(readFileSync(degradedPath, 'utf8'));
+        delete degradedReceipt.finalized_at;
+        writeFileSync(degradedPath, `${JSON.stringify(degradedReceipt, null, 2)}\n`);
+        const malformedDegradedReplay = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...orphanIdentity, stop_hook_active: true,
+                last_assistant_message: `${warning}\n${originalBody}`
+            })
+        });
+        expect(malformedDegradedReplay.code).not.toBe(0);
+        expect(malformedDegradedReplay.stderr).toContain('judgment_audit_degraded_integrity_invalid');
+
+        const falseRetryIdentity = { session_id: 'session-orphan-false-retry', turn_id: 'turn-orphan-false-retry' };
+        const falseRetryPayload = {
+            hook_event_name: 'Stop', ...falseRetryIdentity, stop_hook_active: false,
+            last_assistant_message: originalBody
+        };
+        expect(JSON.parse((await run('bash', [wrapper], {
+            env, input: JSON.stringify(falseRetryPayload)
+        })).stdout)).toMatchObject({ decision: 'block' });
+        const falseRetry = await run('bash', [wrapper], {
+            env, input: JSON.stringify(falseRetryPayload)
+        });
+        expect(falseRetry).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(falseRetry.stdout)).toEqual({ systemMessage: warning });
+        expect(JSON.parse(readFileSync(join(
+            journal,
+            hash(falseRetryIdentity.session_id),
+            `${hash(falseRetryIdentity.turn_id)}.audit-degraded.json`
+        ), 'utf8'))).toMatchObject({
+            completion_status: 'audit_degraded',
+            owner_warning_displayed: false,
+            answer_body_preserved: false
+        });
+
+        const tamperedIdentity = { session_id: 'session-orphan-tampered', turn_id: 'turn-orphan-tampered' };
+        const tamperedPayload = {
+            hook_event_name: 'Stop', ...tamperedIdentity, stop_hook_active: false,
+            last_assistant_message: originalBody
+        };
+        expect(JSON.parse((await run('bash', [wrapper], {
+            env, input: JSON.stringify(tamperedPayload)
+        })).stdout)).toMatchObject({ decision: 'block' });
+        const tamperedPath = join(
+            journal,
+            hash(tamperedIdentity.session_id),
+            `${hash(tamperedIdentity.turn_id)}.audit-failure.json`
+        );
+        const tamperedDiagnostic = JSON.parse(readFileSync(tamperedPath, 'utf8'));
+        writeFileSync(tamperedPath, `${JSON.stringify({ ...tamperedDiagnostic, episode_candidate_count: -1 }, null, 2)}\n`);
+        const tamperedActive = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({ ...tamperedPayload, stop_hook_active: true })
+        });
+        expect(tamperedActive.code).not.toBe(0);
+        expect(tamperedActive.stderr).toContain('judgment_audit_failure_integrity_invalid');
+        expect(existsSync(join(
+            journal,
+            hash(tamperedIdentity.session_id),
+            `${hash(tamperedIdentity.turn_id)}.audit-degraded.json`
+        ))).toBe(false);
+
+        const timestampIdentity = { session_id: 'session-orphan-timestamp', turn_id: 'turn-orphan-timestamp' };
+        const timestampPayload = {
+            hook_event_name: 'Stop', ...timestampIdentity, stop_hook_active: false,
+            last_assistant_message: originalBody
+        };
+        expect(JSON.parse((await run('bash', [wrapper], {
+            env, input: JSON.stringify(timestampPayload)
+        })).stdout)).toMatchObject({ decision: 'block' });
+        const timestampPath = join(
+            journal,
+            hash(timestampIdentity.session_id),
+            `${hash(timestampIdentity.turn_id)}.audit-failure.json`
+        );
+        const timestampDiagnostic = JSON.parse(readFileSync(timestampPath, 'utf8'));
+        writeFileSync(timestampPath, `${JSON.stringify({ ...timestampDiagnostic, recorded_at: 'not-a-timestamp' }, null, 2)}\n`);
+        const timestampActive = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({ ...timestampPayload, stop_hook_active: true })
+        });
+        expect(timestampActive.code).not.toBe(0);
+        expect(timestampActive.stderr).toContain('judgment_audit_failure_integrity_invalid');
+
+        const damagedIdentity = { session_id: 'session-orphan-damaged', turn_id: 'turn-orphan-damaged' };
+        const damagedFirst = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...damagedIdentity, stop_hook_active: false,
+                last_assistant_message: originalBody
+            })
+        });
+        expect(JSON.parse(damagedFirst.stdout)).toMatchObject({ decision: 'block' });
+        const damagedActive = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...damagedIdentity, stop_hook_active: true,
+                last_assistant_message: '警告と本文を改変した回答'
+            })
+        });
+        expect(damagedActive).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(damagedActive.stdout)).toEqual({ systemMessage: warning });
+        expect(JSON.parse(readFileSync(join(
+            journal,
+            hash(damagedIdentity.session_id),
+            `${hash(damagedIdentity.turn_id)}.audit-degraded.json`
+        ), 'utf8'))).toMatchObject({
+            completion_status: 'audit_degraded',
+            owner_warning_displayed: false,
+            answer_body_preserved: false
+        });
 
         const invalidActive = await run('bash', [wrapper], {
             env,
@@ -298,6 +478,24 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(invalidActive.stdout).toBe('');
         expect(invalidActive.stderr).toContain('judgment_episode_identity_missing');
         expect(invalidActive.stderr).toContain('Settings → Hooks');
+
+        const activeFirstIdentity = { session_id: 'session-orphan-active-first', turn_id: 'turn-orphan-active-first' };
+        const activeFirst = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...activeFirstIdentity, stop_hook_active: true,
+                last_assistant_message: `${warning}\n${originalBody}`
+            })
+        });
+        expect(activeFirst).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(readFileSync(join(
+            journal,
+            hash(activeFirstIdentity.session_id),
+            `${hash(activeFirstIdentity.turn_id)}.audit-failure.json`
+        ), 'utf8'))).toMatchObject({
+            repair_requested: false,
+            stop_hook_active: true
+        });
 
         const hostUrl = await listen((request, response) => {
             let body = '';
@@ -352,6 +550,222 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(false);
     }, 20_000);
+
+    // Traceability: story-judgment-audit-continuity-v1:ac:8
+    // Traceability: story-judgment-audit-continuity-v1:ac:10
+    it('Brainbase PostToolUseのidentityまたはtool_use_id欠損を無音成功にしない', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const env = { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+
+        const missingIdentity = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'PostToolUse',
+                tool_name: 'mcp__brainbase__brainbase_knowledge_resolve',
+                tool_use_id: 'identity-missing-tool'
+            })
+        });
+        expect(missingIdentity.code).not.toBe(0);
+        expect(missingIdentity.stdout).toBe('');
+        expect(missingIdentity.stderr).toContain('judgment_episode_identity_missing');
+
+        const missingToolUseId = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'PostToolUse',
+                session_id: 'metadata-session', turn_id: 'metadata-turn',
+                tool_name: 'mcp__brainbase__brainbase_knowledge_resolve'
+            })
+        });
+        expect(missingToolUseId.code).not.toBe(0);
+        expect(missingToolUseId.stdout).toBe('');
+        expect(missingToolUseId.stderr).toContain('judgment_tool_use_id_missing');
+
+        const unrelated = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'unrelated_tool' })
+        });
+        expect(unrelated).toMatchObject({ code: 0, stderr: '', stdout: '{}\n' });
+        expect(existsSync(journal)).toBe(false);
+    });
+
+    // Traceability: story-judgment-audit-continuity-v1:ac:8
+    it('orphan PostToolUseはdigest-only markerと可視警告を残し、Stopのone-shot状態を消費しない', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const env = { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+        const identity = { session_id: 'session-orphan-tool', turn_id: 'turn-orphan-tool' };
+        const toolPayload = {
+            hook_event_name: 'PostToolUse', ...identity,
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve',
+            tool_use_id: 'tool-use-orphan',
+            tool_input: { query: '秘密を含まない入力' },
+            tool_response: { status: 'ok' }
+        };
+        const recorded = await run('bash', [wrapper], { env, input: JSON.stringify(toolPayload) });
+        expect(recorded).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(recorded.stdout)).toEqual({
+            systemMessage: '⚠️ Brainbase監査未完了: Brainbase tool eventを開始episodeへ結合できませんでした。'
+        });
+        const markerDirectory = join(
+            journal, hash(identity.session_id), `${hash(identity.turn_id)}.audit-orphan-events`
+        );
+        const marker = JSON.parse(readFileSync(join(markerDirectory, `${hash(toolPayload.tool_use_id)}.json`), 'utf8'));
+        expect(Object.keys(marker).sort()).toEqual([
+            'event_fingerprint', 'input_digest', 'reason', 'recorded_at', 'response_digest',
+            'schema_version', 'session_ref', 'tool_name_digest', 'tool_use_ref', 'turn_ref'
+        ].sort());
+        expect(marker).toMatchObject({
+            schema_version: 'brainbase-judgment-orphan-tool-event-v1',
+            reason: 'judgment_episode_not_found',
+            session_ref: hash(identity.session_id),
+            turn_ref: hash(identity.turn_id),
+            tool_name_digest: hash(toolPayload.tool_name),
+            tool_use_ref: hash(toolPayload.tool_use_id)
+        });
+        expect(JSON.stringify(marker)).not.toContain(toolPayload.tool_name);
+        expect(JSON.stringify(marker)).not.toContain(toolPayload.tool_use_id);
+        expect(JSON.stringify(marker)).not.toContain('秘密を含まない入力');
+        expect(JSON.stringify(marker)).not.toContain('display_line');
+
+        const lateStart = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...identity,
+                cwd: REPO_ROOT, prompt: 'orphan marker後の開始を検証して'
+            })
+        });
+        expect(lateStart).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(lateStart.stdout)).toMatchObject({
+            continue: false,
+            stopReason: expect.stringContaining('judgment_orphan_tool_event_start_conflict')
+        });
+        expect(existsSync(join(
+            journal, hash(identity.session_id), `${hash(identity.turn_id)}.episode.json`
+        ))).toBe(false);
+
+        writeFileSync(
+            join(markerDirectory, `${hash(toolPayload.tool_use_id)}.json`),
+            `${JSON.stringify({ ...marker, recorded_at: 'not-a-timestamp' }, null, 2)}\n`
+        );
+        const tamperedReplay = await run('bash', [wrapper], { env, input: JSON.stringify(toolPayload) });
+        expect(tamperedReplay.code).not.toBe(0);
+        expect(tamperedReplay.stderr).toContain('judgment_orphan_tool_event_conflict');
+
+        const firstStop = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: false,
+                last_assistant_message: '継続結果'
+            })
+        });
+        expect(JSON.parse(firstStop.stdout)).toMatchObject({ decision: 'block' });
+    });
+
+    // Traceability: story-judgment-audit-continuity-v1:ac:1
+    // Traceability: story-judgment-audit-continuity-v1:ac:2
+    it('episode開始中のPostToolUseとStopはcommitを待ち、誤ったorphan判定やevent欠落を起こさない', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                setTimeout(() => {
+                    response.setHeader('content-type', 'application/json');
+                    response.end(JSON.stringify({
+                        management_status: 'managed',
+                        receipt: {
+                            resolution_id: 'jr_start_race_entrypoint',
+                            turn_id: args.turn_id,
+                            request_digest: hash(canonicalJson(args)),
+                            context_digest: hash(canonicalJson(args.conversation_context)),
+                            status: 'resolved',
+                            host_binding: { status: 'managed' },
+                            classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                            classification: { intent: 'answer', domains: ['general'], action_kind: 'none' },
+                            selected_dag_ids: ['general.v1'],
+                            required_capabilities: [],
+                            active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Answer.' }]
+                        }
+                    }));
+                }, 3200);
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-start-race', turn_id: 'turn-start-race' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal
+        };
+        const startPromise = run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '開始競合を検証して'
+            })
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const toolPromise = run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'PostToolUse', ...identity,
+                tool_name: 'mcp__brainbase__search', tool_use_id: 'race-tool',
+                tool_input: { query: 'race' },
+                tool_response: { content: [{ type: 'text', text: 'race-result' }] }
+            })
+        });
+        const [started, tool] = await Promise.all([startPromise, toolPromise]);
+        expect(started.code).toBe(0);
+        expect(tool).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(tool.stdout).systemMessage).toContain('Brainbase検索');
+
+        const ownerLine = JSON.parse(started.stdout).hookSpecificOutput.additionalContext
+            .split('\n').find((line) => line.startsWith('🧠 判断参照:'));
+        const toolLine = JSON.parse(tool.stdout).systemMessage;
+        const stopped = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: false,
+                last_assistant_message: `${ownerLine}\n${toolLine}\n回答`
+            })
+        });
+        expect(stopped).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(stopped.stdout).systemMessage).toContain(ownerLine);
+        const eventsDirectory = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.events`);
+        expect(readdirSync(eventsDirectory).filter((name) => name.endsWith('.json'))).toHaveLength(1);
+
+        const stopRaceIdentity = { session_id: 'session-start-stop-race', turn_id: 'turn-start-stop-race' };
+        const stopRaceStart = run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...stopRaceIdentity,
+                cwd: REPO_ROOT, prompt: '開始中のStop競合を検証して'
+            })
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const stopRaceStop = run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...stopRaceIdentity,
+                stop_hook_active: false, last_assistant_message: '回答'
+            })
+        });
+        const [stopRaceStarted, stopRaceStopped] = await Promise.all([stopRaceStart, stopRaceStop]);
+        expect(stopRaceStarted.code).toBe(0);
+        expect(stopRaceStopped).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(stopRaceStopped.stdout)).toMatchObject({ decision: 'block' });
+        expect(JSON.parse(stopRaceStopped.stdout).reason).not.toContain('judgment_episode_not_found');
+        expect(existsSync(join(
+            journal,
+            hash(stopRaceIdentity.session_id),
+            `${hash(stopRaceIdentity.turn_id)}.episode.json`
+        ))).toBe(true);
+    }, 30_000);
 
     it('本文を短縮したactive Stopは再blockせず明示終了してfinalを作らない', async () => {
         const root = temporaryDirectory();

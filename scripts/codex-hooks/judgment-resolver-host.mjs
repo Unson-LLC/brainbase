@@ -53,9 +53,13 @@ const TRANSIENT_REASONS = new Set([
     'judgment_host_bridge_failed',
     'judgment_host_transport_failed'
 ]);
-const DEFAULT_LOCK_WAIT_ATTEMPTS = 300;
+// A start transition may include three bounded 15-second Resolver attempts.
+// Other lifecycle processes must wait through that authorized start budget.
+const DEFAULT_LOCK_WAIT_ATTEMPTS = 5000;
 const DEFAULT_LOCK_WAIT_MS = 10;
 const NO_BRAINBASE_REFERENCE_LINE = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
+const ORPHAN_AUDIT_WARNING = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。';
+const ORPHAN_TOOL_EVENT_WARNING = '⚠️ Brainbase監査未完了: Brainbase tool eventを開始episodeへ結合できませんでした。';
 const CAPABILITY_ACTION_CONTRACTS = Object.freeze({
     'knowledge.resolve': Object.freeze({
         capability: 'knowledge.resolve',
@@ -236,6 +240,9 @@ function journalPaths(sessionRef, turnId, env) {
         episode: join(directory, `${turnRef}.episode.json`),
         events: join(directory, `${turnRef}.events`),
         continuation: join(directory, `${turnRef}.continuation.json`),
+        auditFailure: join(directory, `${turnRef}.audit-failure.json`),
+        auditDegraded: join(directory, `${turnRef}.audit-degraded.json`),
+        auditOrphanEvents: join(directory, `${turnRef}.audit-orphan-events`),
         final: join(directory, `${turnRef}.final.json`),
         transitionDatabase: join(directory, `${turnRef}.transition.sqlite`)
     };
@@ -602,13 +609,9 @@ async function resolveInitialRoute(args, { env, fetchImpl }) {
 export async function startEpisode(payload, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new TypeError('UserPromptSubmit requires session_id and turn_id');
-    const existing = withJudgmentStage(
-        'judgment_episode_existing_read_failed',
-        () => existingEpisode(payload, env)
-    );
-    if (existing) return existing;
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     return withJudgmentStage('judgment_episode_transition_failed', () => withEpisodeTransitionLock(paths, async () => {
+        assertNoOrphanAuditBarrier(identity, paths, env);
         const afterLock = withJudgmentStage(
             'judgment_episode_existing_read_failed',
             () => existingEpisode(payload, env)
@@ -877,8 +880,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
     const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : '';
     const toolUseId = typeof payload?.tool_use_id === 'string' ? payload.tool_use_id : '';
-    if (!identity || !toolUseId || !/^mcp__brainbase__/u.test(toolName)) return null;
-    if (!existingEpisode(payload, env)) return null;
+    if (!/^mcp__brainbase__/u.test(toolName)) return null;
+    if (!identity) throw new Error('judgment_episode_identity_missing');
+    if (!toolUseId) throw new Error('judgment_tool_use_id_missing');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     const inputValue = payload.tool_input === undefined ? null : payload.tool_input;
     const responseValue = payload.tool_response === undefined ? null : payload.tool_response;
@@ -918,7 +922,35 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         : `${success ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success ? `${resultCount === null ? '' : `${resultCount}件・`}正常応答を確認 ✓` : '失敗または結果不明'}`;
     return withEpisodeTransitionLock(paths, () => {
         const episode = existingEpisode(payload, env);
-        if (!episode) return null;
+        if (!episode) {
+            mkdirSync(paths.auditOrphanEvents, { recursive: true, mode: 0o700 });
+            const target = join(paths.auditOrphanEvents, `${sha256(toolUseId)}.json`);
+            const marker = {
+                schema_version: 'brainbase-judgment-orphan-tool-event-v1',
+                recorded_at: new Date().toISOString(),
+                reason: 'judgment_episode_not_found',
+                session_ref: identity.sessionRef,
+                turn_ref: paths.turnRef,
+                tool_name_digest: sha256(toolName),
+                tool_use_ref: sha256(toolUseId),
+                input_digest: inputDigest,
+                response_digest: responseDigest,
+                event_fingerprint: fingerprint
+            };
+            try {
+                const existing = readJson(target);
+                const replayProjection = { ...existing };
+                delete replayProjection.recorded_at;
+                const markerProjection = { ...marker };
+                delete markerProjection.recorded_at;
+                if (canonicalJson(replayProjection) === canonicalJson(markerProjection)
+                    && validIsoTimestamp(existing.recorded_at)) return existing;
+                throw new Error('judgment_orphan_tool_event_conflict');
+            } catch (error) {
+                if (error?.code !== 'ENOENT') throw error;
+            }
+            return createImmutableJson(target, marker, 'judgment_orphan_tool_event_conflict');
+        }
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
         const finalized = existingFinal(paths, episode);
@@ -1114,10 +1146,218 @@ function existingFinal(paths, episode) {
 export function finalizeEpisode(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new Error('judgment_episode_identity_missing');
-    const episode = existingEpisode(payload, env);
-    if (!episode) throw new Error('judgment_episode_not_found');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
-    return withEpisodeTransitionLock(paths, () => finalizeEpisodeLocked(payload, episode, paths, env), env);
+    return withEpisodeTransitionLock(paths, () => {
+        const episode = existingEpisode(payload, env);
+        if (!episode) throw new Error('judgment_episode_not_found');
+        return finalizeEpisodeLocked(payload, episode, paths, env);
+    }, env);
+}
+
+function orphanEpisodeCandidateCount(paths) {
+    try {
+        return readdirSync(paths.directory).filter((name) => name.endsWith('.episode.json')).length;
+    } catch (error) {
+        if (error?.code === 'ENOENT') return 0;
+        throw error;
+    }
+}
+
+function orphanAnswerBodyBinding(answer) {
+    return typeof answer === 'string' ? {
+        schema_version: 'brainbase-orphan-answer-body-binding-v1',
+        body_digest: sha256(answer),
+        character_count: answer.length
+    } : null;
+}
+
+function validSha256(value) {
+    return typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+}
+
+function validIsoTimestamp(value) {
+    if (typeof value !== 'string') return false;
+    const timestamp = Date.parse(value);
+    return !Number.isNaN(timestamp) && new Date(timestamp).toISOString() === value;
+}
+
+function validateAuditFailure(entry, identity, paths, env) {
+    const expectedKeys = [
+        'answer_body_binding', 'episode_candidate_count', 'host_digest', 'journal_root_digest',
+        'reason', 'recorded_at', 'repair_requested', 'schema_version', 'session_ref',
+        'stop_hook_active', 'turn_ref', 'warning_line_digest'
+    ];
+    const binding = entry?.answer_body_binding;
+    const bindingValid = binding === null || (
+        record(binding)
+        && Object.keys(binding).sort().join(',') === 'body_digest,character_count,schema_version'
+        && binding.schema_version === 'brainbase-orphan-answer-body-binding-v1'
+        && validSha256(binding.body_digest)
+        && Number.isSafeInteger(binding.character_count)
+        && binding.character_count >= 0
+    );
+    if (!record(entry)
+        || Object.keys(entry).sort().join(',') !== expectedKeys.sort().join(',')
+        || entry.schema_version !== 'brainbase-judgment-audit-failure-v1'
+        || entry.reason !== 'judgment_episode_not_found'
+        || entry.session_ref !== identity.sessionRef
+        || entry.turn_ref !== paths.turnRef
+        || entry.journal_root_digest !== sha256(journalRoot(env))
+        || entry.host_digest !== sha256(readFileSync(SCRIPT_PATH))
+        || entry.warning_line_digest !== sha256(ORPHAN_AUDIT_WARNING)
+        || !Number.isSafeInteger(entry.episode_candidate_count)
+        || entry.episode_candidate_count < 0
+        || typeof entry.repair_requested !== 'boolean'
+        || typeof entry.stop_hook_active !== 'boolean'
+        || entry.repair_requested === entry.stop_hook_active
+        || !validIsoTimestamp(entry.recorded_at)
+        || !bindingValid) {
+        throw new Error('judgment_audit_failure_integrity_invalid');
+    }
+    return entry;
+}
+
+function existingOrCreateAuditFailure(payload, identity, paths, env) {
+    const answer = typeof payload.last_assistant_message === 'string'
+        ? payload.last_assistant_message
+        : null;
+    try {
+        const entry = readJson(paths.auditFailure);
+        return { entry: validateAuditFailure(entry, identity, paths, env), created: false };
+    } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+    }
+    const entry = createImmutableJson(paths.auditFailure, {
+        schema_version: 'brainbase-judgment-audit-failure-v1',
+        recorded_at: new Date().toISOString(),
+        reason: 'judgment_episode_not_found',
+        session_ref: identity.sessionRef,
+        turn_ref: paths.turnRef,
+        journal_root_digest: sha256(journalRoot(env)),
+        host_digest: sha256(readFileSync(SCRIPT_PATH)),
+        episode_candidate_count: orphanEpisodeCandidateCount(paths),
+        repair_requested: payload.stop_hook_active !== true,
+        stop_hook_active: payload.stop_hook_active === true,
+        warning_line_digest: sha256(ORPHAN_AUDIT_WARNING),
+        answer_body_binding: orphanAnswerBodyBinding(answer)
+    }, 'judgment_audit_failure_conflict');
+    return { entry, created: true };
+}
+
+function strippedOrphanWarning(answer) {
+    if (typeof answer !== 'string') return null;
+    const prefix = `${ORPHAN_AUDIT_WARNING}\n`;
+    return answer.startsWith(prefix) ? answer.slice(prefix.length) : null;
+}
+
+function createAuditDegraded(payload, paths, diagnostic) {
+    const answer = typeof payload.last_assistant_message === 'string'
+        ? payload.last_assistant_message
+        : null;
+    const body = strippedOrphanWarning(answer);
+    const binding = record(diagnostic.answer_body_binding);
+    const ownerWarningDisplayed = body !== null;
+    const answerBodyPreserved = Boolean(binding)
+        && body !== null
+        && body.length === binding.character_count
+        && sha256(body) === binding.body_digest;
+    const projection = {
+        schema_version: 'brainbase-judgment-audit-degraded-v1',
+        completion_status: 'audit_degraded',
+        reason: 'judgment_episode_not_found',
+        session_ref: diagnostic.session_ref,
+        turn_ref: diagnostic.turn_ref,
+        diagnostic_digest: sha256(canonicalJson(diagnostic)),
+        stop_hook_active: true,
+        owner_warning_displayed: ownerWarningDisplayed,
+        answer_body_preserved: answerBodyPreserved,
+        answer_digest: answer === null ? null : sha256(answer)
+    };
+    try {
+        const existing = readJson(paths.auditDegraded);
+        const validated = validateAuditDegraded(existing, diagnostic);
+        const existingProjection = { ...validated };
+        delete existingProjection.finalized_at;
+        if (canonicalJson(existingProjection) !== canonicalJson(projection)) {
+            throw new Error('judgment_audit_degraded_conflict');
+        }
+        return validated;
+    } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+    }
+    return createImmutableJson(paths.auditDegraded, {
+        ...projection,
+        finalized_at: new Date().toISOString()
+    }, 'judgment_audit_degraded_conflict');
+}
+
+function validateAuditDegraded(entry, diagnostic) {
+    const expectedKeys = [
+        'answer_body_preserved', 'answer_digest', 'completion_status', 'diagnostic_digest',
+        'finalized_at', 'owner_warning_displayed', 'reason', 'schema_version', 'session_ref',
+        'stop_hook_active', 'turn_ref'
+    ];
+    if (!record(entry)
+        || Object.keys(entry).sort().join(',') !== expectedKeys.sort().join(',')
+        || entry.schema_version !== 'brainbase-judgment-audit-degraded-v1'
+        || entry.completion_status !== 'audit_degraded'
+        || entry.reason !== 'judgment_episode_not_found'
+        || entry.session_ref !== diagnostic.session_ref
+        || entry.turn_ref !== diagnostic.turn_ref
+        || entry.diagnostic_digest !== sha256(canonicalJson(diagnostic))
+        || entry.stop_hook_active !== true
+        || typeof entry.owner_warning_displayed !== 'boolean'
+        || typeof entry.answer_body_preserved !== 'boolean'
+        || !(entry.answer_digest === null || validSha256(entry.answer_digest))
+        || !validIsoTimestamp(entry.finalized_at)) {
+        throw new Error('judgment_audit_degraded_integrity_invalid');
+    }
+    return entry;
+}
+
+function assertNoOrphanAuditBarrier(identity, paths, env) {
+    try {
+        if (readdirSync(paths.auditOrphanEvents).some((name) => name.endsWith('.json'))) {
+            throw new Error('judgment_orphan_tool_event_start_conflict');
+        }
+    } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+    }
+    let diagnostic;
+    try {
+        diagnostic = validateAuditFailure(readJson(paths.auditFailure), identity, paths, env);
+    } catch (error) {
+        if (error?.code === 'ENOENT') return;
+        throw error;
+    }
+    let degraded;
+    try {
+        degraded = readJson(paths.auditDegraded);
+    } catch (error) {
+        if (error?.code === 'ENOENT') throw new Error('judgment_audit_failure_start_conflict');
+        throw error;
+    }
+    validateAuditDegraded(degraded, diagnostic);
+    throw new Error('judgment_audit_degraded_start_conflict');
+}
+
+function handleOrphanStop(payload, { env = process.env } = {}) {
+    const identity = payloadIdentity(payload);
+    if (!identity) throw new Error('judgment_episode_identity_missing');
+    const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+    return withEpisodeTransitionLock(paths, () => {
+        const episode = existingEpisode(payload, env);
+        if (episode) return finalizeEpisodeLocked(payload, episode, paths, env).output;
+        const diagnosticState = existingOrCreateAuditFailure(payload, identity, paths, env);
+        if (payload.stop_hook_active !== true && diagnosticState.created) {
+            return {
+                decision: 'block',
+                reason: `judgment_episode_not_found。${ORPHAN_AUDIT_WARNING}\n最終回答の先頭に上の監査行をそのまま1回追加し、その後に元の回答本文を削除・要約・置換せずそのまま続けてください。`
+            };
+        }
+        createAuditDegraded(payload, paths, diagnosticState.entry);
+        return { systemMessage: ORPHAN_AUDIT_WARNING };
+    }, env);
 }
 
 function finalizeEpisodeLocked(payload, episode, paths, env) {
@@ -1428,7 +1668,7 @@ function blockedOutput(reason) {
 
 function stopFailureMessage(reason) {
     if (reason === 'judgment_episode_not_found') {
-        return `⚠️ Brainbase監査を確定できませんでした。このtaskはBrainbase Hookを有効にする前に始まった可能性があります。新しいCodex taskを作り、同じ依頼を送ってください。（詳細: ${reason}）`;
+        return `${ORPHAN_AUDIT_WARNING}（詳細: ${reason}）`;
     }
     return `⚠️ Brainbase監査を確定できませんでした。新しいCodex taskで同じ依頼を再送してください。再発する場合は、Settings → HooksでBrainbaseのユーザーHookを信頼し直してください。（詳細: ${reason}）`;
 }
@@ -1444,10 +1684,19 @@ export async function processHookPayload(payload, dependencies = {}) {
     }
     if (eventName === 'PostToolUse') {
         const event = recordBrainbaseToolUse(payload, dependencies);
+        if (event?.schema_version === 'brainbase-judgment-orphan-tool-event-v1') {
+            return { systemMessage: ORPHAN_TOOL_EVENT_WARNING };
+        }
         return event ? { systemMessage: event.display_line } : {};
     }
     if (eventName === 'Stop') {
-        const output = finalizeEpisode(payload, dependencies).output;
+        let output;
+        try {
+            output = finalizeEpisode(payload, dependencies).output;
+        } catch (error) {
+            if (error?.message !== 'judgment_episode_not_found') throw error;
+            output = handleOrphanStop(payload, dependencies);
+        }
         if (payload.stop_hook_active === true && output?.decision === 'block') {
             throw new Error('judgment_stop_repair_exhausted');
         }
@@ -1468,7 +1717,8 @@ async function main() {
         if (eventName === 'UserPromptSubmit') {
             process.stdout.write(`${JSON.stringify(blockedOutput(reason))}\n`);
         } else if (eventName === 'PostToolUse') {
-            process.stdout.write(`${JSON.stringify({ systemMessage: `⚠️ Brainbase監査記録に失敗: ${reason}` })}\n`);
+            process.stderr.write(`⚠️ Brainbase監査記録に失敗: ${reason}\n`);
+            process.exitCode = 1;
         } else if (eventName === 'Stop') {
             const message = stopFailureMessage(reason);
             if (payload.stop_hook_active === true) {

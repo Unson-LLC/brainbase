@@ -1,0 +1,1086 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-judgment-audit-continuity-v1",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "final",
+  "clauses": [
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "episode existence is read only after acquiring the identity-scoped transition lock for event recording and Stop finalization.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Serialized episode transition"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "startEpisode"
+          },
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "recordBrainbaseToolUse"
+          },
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "finalizeEpisode"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "episode開始中のPostToolUseとStopはcommitを待ち、誤ったorphan判定やevent欠落を起こさない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "episode開始中"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "INV-005",
+      "type": "invariant",
+      "statement": "A missing episode is never converted into a complete judgment episode or fabricated initial route receipt.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-012"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Authority boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "handleOrphanStop"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "final.json"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "INV-006",
+      "type": "invariant",
+      "statement": "An orphan turn gets at most one answer regeneration request; the retry terminates with process success and an immutable audit_degraded receipt that rejects a late Start for the same identity.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Orphan diagnostic and degraded receipt"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "handleOrphanStop"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない"
+          },
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "本文を短縮したactive Stopは再blockせず明示終了してfinalを作らない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "audit_degraded"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "INV-007",
+      "type": "invariant",
+      "statement": "audit_degraded is not a complete final, task completion proof, prior finalized judgment, retrieval success, or action authorization.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-012"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Authority boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "priorReceipts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "audit_degraded receiptをprior finalized judgmentとして採用しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "audit_degraded receipt"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Missing identity, missing tool_use_id on a Brainbase PostToolUse, and integrity conflicts remain terminal failures; a late UserPromptSubmit Start fails closed through blockedOutput.continue false with process exit 0 as required by that Hook protocol, while Brainbase PostToolUse and Stop conflicts remain process-nonzero; unrelated tools remain outside this audit.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Integrity boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "recordBrainbaseToolUse"
+          },
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "validateAuditFailure"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "Brainbase PostToolUseのidentityまたはtool_use_id欠損を無音成功にしない"
+          },
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "identityまたはtool_use_id欠損"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T03:00:35.880Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "INV-009",
+      "type": "invariant",
+      "statement": "Normal episode repair, owner audit prefix, answer body binding, required capability, and exactly-one final contracts remain unchanged.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-010"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Regression boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "finalizeEpisodeLocked"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "symlink経由でepisode開始・複数Brainbase参照・Stop確定を1つのturnへ束縛し、Knowledge Resolverの採用・除外理由をsystemMessageへ返す"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "Stop確定"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "recordBrainbaseToolUse ignores unrelated tools, but for Brainbase PostToolUse validates identity and tool metadata, acquires the transition lock, then reads the episode and records the event.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Serialized episode transition"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "recordBrainbaseToolUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "episode開始中のPostToolUseとStopはcommitを待ち、誤ったorphan判定やevent欠落を起こさない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "PostToolUse"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:24:13.312Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "finalizeEpisode validates identity, acquires the transition lock, then reads and finalizes the episode.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Serialized episode transition"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "finalizeEpisode"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "episode開始中のPostToolUseとStopはcommitを待ち、誤ったorphan判定やevent欠落を起こさない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "Stopはcommitを待ち"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "First orphan Stop writes one diagnostic and returns decision:block with the exact warning and answer-body preservation instruction; it creates no final.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Orphan diagnostic and degraded receipt"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "existingOrCreateAuditFailure"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "1回だけ本文保持"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "A subsequent orphan Stop writes one degraded receipt and exits non-blocking without instructing the user to create a new task; a later Start for the same identity creates no episode and returns blockedOutput.continue false with process exit 0, which is neither audit success nor audit_degraded.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Orphan diagnostic and degraded receipt"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "createAuditDegraded"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "人手待ちにしない"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T03:00:35.880Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "Diagnostic, degraded, and orphan tool artifacts contain only digests, counts, canonical ISO timestamps, reason, and display/body verification booleans.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-009"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Privacy and evidence"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "existingOrCreateAuditFailure"
+          },
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "createAuditDegraded"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "session_id"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "C-011",
+      "type": "contract",
+      "statement": "Replay validates exact schemas, digests, booleans, and canonical ISO timestamps; identical evidence is idempotent and any mismatch conflicts loudly.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-009"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Immutable receipts"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "createAuditDegraded"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "orphanReplay"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:24:13.312Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "C-008",
+      "type": "contract",
+      "statement": "priorReceipts considers only accepted complete schemas and excludes degraded receipts.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Authority boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "priorReceipts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "audit_degraded receiptをprior finalized judgmentとして採用しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "prior finalized judgment"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "C-009",
+      "type": "contract",
+      "statement": "The default transition wait covers the bounded initial Resolver retry budget; an explicit shorter override remains a visible terminal timeout.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Lock wait budget"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "DEFAULT_LOCK_WAIT_ATTEMPTS"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "episode開始中のPostToolUseとStopはcommitを待ち、誤ったorphan判定やevent欠落を起こさない"
+          },
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "live transition transactionとの競合をactive Stopで無音成功に変換しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "3200"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "A delayed UserPromptSubmit holds the transition lock while Stop starts; Stop waits for the committed episode instead of returning not_found.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Race scenarios"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "finalizeEpisode"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "episode開始中のPostToolUseとStopはcommitを待ち、誤ったorphan判定やevent欠落を起こさない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "Stopはcommitを待ち"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "A delayed UserPromptSubmit holds the transition lock while PostToolUse starts; event recording waits and persists exactly one event after commit.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Race scenarios"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "recordBrainbaseToolUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "episode開始中のPostToolUseとStopはcommitを待ち、誤ったorphan判定やevent欠落を起こさない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "event欠落"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "An automatic Goal-like turn without UserPromptSubmit reaches first Stop; Host requests one warning-prefix repair and stores a digest-only diagnostic without a final.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Orphan scenarios"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "existingOrCreateAuditFailure"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "audit-failure"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "The same orphan turn reaches a subsequent Stop; Host exits 0, stores audit_degraded, and emits no new-task instruction.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Orphan scenarios"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "handleOrphanStop"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "新しいCodex task"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "S-005",
+      "type": "scenario",
+      "statement": "Warning or answer-body verification failure is stored as false but does not trigger a third generation.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Orphan scenarios"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "createAuditDegraded"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "本文を短縮したactive Stopは再blockせず明示終了してfinalを作らない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "本文を短縮"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "S-009",
+      "type": "scenario",
+      "statement": "A Brainbase PostToolUse missing identity or tool_use_id fails visibly without creating an ambiguous artifact, while an unrelated tool remains ignored.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Terminal failures"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "payloadIdentity"
+          },
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "recordBrainbaseToolUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "Brainbase PostToolUseのidentityまたはtool_use_id欠損を無音成功にしない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "identityまたはtool_use_id欠損"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:24:13.312Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "S-007",
+      "type": "scenario",
+      "statement": "A Resolver response delayed beyond the former three-second wait still lets concurrent PostToolUse and Stop continue after the start commit.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-010"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Lock wait budget"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "DEFAULT_LOCK_WAIT_ATTEMPTS"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "episode開始中のPostToolUseとStopはcommitを待ち、誤ったorphan判定やevent欠落を起こさない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "3200"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:01:15.308Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "S-006",
+      "type": "scenario",
+      "statement": "An orphan Brainbase PostToolUse leaves a digest-only marker and visible warning, then the first Stop still receives its one repair request; a late Start after that marker returns process exit 0 with blockedOutput.continue false and creates no episode because the raw event cannot be reconstructed into a complete audit.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-009"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Serialized episode transition"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "recordBrainbaseToolUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan PostToolUseはdigest-only markerと可視警告を残し、Stopのone-shot状態を消費しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "orphan PostToolUse"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T02:39:32.052Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "Local PR readiness requires separate-session VibePro review evidence that independently verifies both the absence of complete-audit masquerading and the absence of action-authorization expansion; passing tests alone is insufficient.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-012"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-audit-continuity-v1.md",
+            "section": "Independent review Gate"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "audit_degraded receiptをprior finalized judgmentとして採用しない"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-28T03:00:35.880Z",
+      "last_revised_at": "2026-08-28T03:03:06.311Z"
+    }
+  ],
+  "generated_at": "2026-08-28T03:03:06.310Z",
+  "previous_spec_id": "2026-08-28T03:00:35.879Z"
+}
