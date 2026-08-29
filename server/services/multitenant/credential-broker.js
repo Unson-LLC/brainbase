@@ -238,7 +238,21 @@ export class CredentialBroker {
         const forwarder = this.providerForwarders[binding.audience];
         if (!forwarder || typeof forwarder.forward !== 'function'
             || (binding.provider && forwarder.provider !== binding.provider)) {
-            throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+            const scopeReason = !forwarder || typeof forwarder.forward !== 'function'
+                ? 'provider_forwarder_unavailable'
+                : 'provider_forwarder_mismatch';
+            console.error(JSON.stringify({
+                event: 'credential_lease_scope_mismatch',
+                scope_reason: scopeReason,
+                audience: binding.audience,
+                binding_provider: binding.provider ?? null,
+                forwarder_provider: forwarder?.provider ?? null,
+                provider_operation: input.provider_operation
+            }));
+            throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', {
+                status: 403,
+                details: { scope_reason: scopeReason }
+            });
         }
         const requiresCredential = forwarder.requiresCredential?.(input.provider_operation) !== false;
         const materialize = typeof this.credentialMaterializer === 'function'

@@ -24,8 +24,16 @@ function failSchema() {
     throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
 }
 
-function failScope() {
-    throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+function failScope(reason, context = {}) {
+    console.error(JSON.stringify({
+        event: 'credential_lease_scope_mismatch',
+        scope_reason: reason,
+        ...context
+    }));
+    throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', {
+        status: 403,
+        details: { scope_reason: reason }
+    });
 }
 
 function isObject(value) {
@@ -255,7 +263,7 @@ function validateQuery(query, definitions) {
 function validateExistingQuery(url, definitions) {
     for (const [name, value] of url.searchParams.entries()) {
         const spec = definitions[name];
-        if (!spec) failScope();
+        if (!spec) failScope('path_parameter_not_allowed');
         validateQueryValue(value, { ...spec, type: 'string' });
     }
 }
@@ -288,7 +296,9 @@ function encodeRequestBody(body, operation) {
 
 function validateTargetUrl(rawUrl, hosts, pathPattern, { allowInsecureLocalhost }) {
     const url = parseEndpoint(rawUrl, { allowInsecureLocalhost, name: 'Trusted target URL' });
-    if (!hosts.includes(url.hostname.toLowerCase()) || (pathPattern && !pathPattern.test(url.pathname))) failScope();
+    if (!hosts.includes(url.hostname.toLowerCase()) || (pathPattern && !pathPattern.test(url.pathname))) {
+        failScope('target_url_not_allowed');
+    }
     return url;
 }
 
@@ -311,7 +321,7 @@ function buildTargetUrl({ baseUrl, operation, request, credential, allowInsecure
             { allowInsecureLocalhost }
         );
     } else {
-        if (!baseUrl) failScope();
+        if (!baseUrl) failScope('provider_base_url_unavailable');
         url = new URL(baseUrl.toString());
         const supplied = request.path_params ?? {};
         if (!isObject(supplied)
@@ -403,11 +413,17 @@ export function createTrustedHttpProviderForwarder({
         },
         async forward({ credential, operation, request }) {
             const definition = operationAllowlist[operation];
-            if (!definition) failScope();
+            if (!definition) failScope('provider_operation_not_allowed', {
+                provider,
+                provider_operation: operation
+            });
             assertTrustedProviderForwardRequest(request);
             if ((!Buffer.isBuffer(credential) || credential.length === 0)
                 && definition.credential_placement !== 'none') {
-                failScope();
+                failScope('credential_material_empty', {
+                    provider,
+                    provider_operation: operation
+                });
             }
             const body = encodeRequestBody(request.body, definition);
             const targetUrl = buildTargetUrl({
