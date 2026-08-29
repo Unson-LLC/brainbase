@@ -395,8 +395,11 @@ describe('managed launchd runtime contract', () => {
     expect(publicProbe).toContain('--max-time');
     expect(rollback).toContain('BRAINBASE_LIGHTSAIL_READINESS_CONNECT_TIMEOUT_SECONDS');
     expect(rollback).toContain('BRAINBASE_LIGHTSAIL_READINESS_MAX_TIMEOUT_SECONDS');
+    expect(runbook).toMatch(/CAPTURE_CONNECT_TIMEOUT_SECONDS[\s\S]*curl -fsS \\\n\s+--connect-timeout "\$CAPTURE_CONNECT_TIMEOUT_SECONDS" \\\n\s+--max-time "\$CAPTURE_MAX_TIMEOUT_SECONDS"/);
+    expect(rollback).toMatch(/curl -fsS \\\n\s+--connect-timeout "\$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" \\\n\s+--max-time "\$LIGHTSAIL_MAX_TIMEOUT_SECONDS" \\\n\s+-o \/dev\/null/);
     expect(restartRunbook).toContain('BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS');
     expect(restartRunbook).toContain('BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS');
+    expect(restartRunbook).toMatch(/## Verify[\s\S]*curl -fsS \\\n\s+--connect-timeout "\$CONNECT_TIMEOUT_SECONDS" \\\n\s+--max-time "\$MAX_TIMEOUT_SECONDS"/);
   });
 
   it('runs UI and MCP from the exact same runtime checkout', () => {

@@ -52,8 +52,18 @@ It may already be loaded or restarting.
 ## Verify
 
 ```bash
+set -euo pipefail
+SOURCE_REPO=/Users/ksato/workspace/repos/brainbase
+source "$SOURCE_REPO/scripts/launchd/brainbase-runtime-readiness.sh"
+CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
+MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+brainbase_runtime_readiness_validate_positive_seconds "$CONNECT_TIMEOUT_SECONDS" 'connect timeout'
+brainbase_runtime_readiness_validate_positive_seconds "$MAX_TIMEOUT_SECONDS" 'maximum request time'
 lsof -nP -iTCP:31013 -sTCP:LISTEN
-curl -s http://127.0.0.1:31013/api/version | jq '.runtime.git'
+curl -fsS \
+  --connect-timeout "$CONNECT_TIMEOUT_SECONDS" \
+  --max-time "$MAX_TIMEOUT_SECONDS" \
+  -- http://127.0.0.1:31013/api/version | jq '.runtime.git'
 cat /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
 ```
 

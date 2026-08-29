@@ -139,6 +139,11 @@ export BRAINBASE_MCP_RUNTIME_ROOT="$BRAINBASE_UI_RUNTIME_ROOT"
 export BRAINBASE_RUNTIME_PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-pinned.sha
 export BRAINBASE_ROLLBACK_STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/brainbase-judgment-rollback.XXXXXX")"
 chmod 700 "$BRAINBASE_ROLLBACK_STATE_DIR"
+source "$BRAINBASE_SOURCE_ROOT/scripts/launchd/brainbase-runtime-readiness.sh"
+CAPTURE_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
+CAPTURE_MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+brainbase_runtime_readiness_validate_positive_seconds "$CAPTURE_CONNECT_TIMEOUT_SECONDS" 'connect timeout'
+brainbase_runtime_readiness_validate_positive_seconds "$CAPTURE_MAX_TIMEOUT_SECONDS" 'maximum request time'
 
 require_git_root() {
   local root="$1" actual
@@ -186,7 +191,10 @@ BRAINBASE_HOOK_ROOT="$(git -C "$(dirname "$BRAINBASE_HOOK_ENTRYPOINT")" rev-pars
 require_clean_tracked_root "$BRAINBASE_HOOK_ROOT"
 printf '%s\n' "$BRAINBASE_HOOK_ROOT" > "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.root"
 git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD > "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha"
-curl -fsS http://127.0.0.1:31013/api/version | node -e '
+curl -fsS \
+  --connect-timeout "$CAPTURE_CONNECT_TIMEOUT_SECONDS" \
+  --max-time "$CAPTURE_MAX_TIMEOUT_SECONDS" \
+  -- http://127.0.0.1:31013/api/version | node -e '
 const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
 const git=value.runtime?.git;
 if (!/^[0-9a-f]{40}$/.test(git?.sha||"") || git?.dirty !== false) process.exit(1);
@@ -440,7 +448,11 @@ require_clean_tracked_root "$BRAINBASE_HOOK_ROOT"
 require_git_root "$BRAINBASE_SOURCE_ROOT"
 (cd "$BRAINBASE_MCP_RUNTIME_ROOT" && scripts/run-brainbase-mcp.sh --check)
 npm --prefix "$BRAINBASE_HOOK_ROOT" run check:judgment-hook-readiness -- --cwd "$BRAINBASE_HOOK_ROOT"
-curl -fsS -o /dev/null https://bb.unson.jp/api/health
+curl -fsS \
+  --connect-timeout "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" \
+  --max-time "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" \
+  -o /dev/null \
+  -- https://bb.unson.jp/api/health
 ```
 
 Keep the runtime pin in place after rollback; removing it would allow the periodic updater to reapply the failed `origin/develop`. Clear it only as part of a separately verified forward deployment. After these commands, run one fresh Codex turn and the live transcript verification above. Until `UserPromptSubmit` opens a valid episode and the final transcript shows the exact audit prefix, report the rollback as incomplete. Never remove `~/.codex/var/judgment-resolver`; its existing episode/event/final files remain audit evidence.
