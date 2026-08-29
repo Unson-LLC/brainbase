@@ -90,7 +90,7 @@ Legacy v1/v2 adopted receipt journals, including historical incomplete finals, r
 
 ## 7. Capability satisfaction
 
-Required `knowledge.resolve` is satisfied only by a successful exact `mcp__brainbase__brainbase_knowledge_resolve` event with a resolved or unconfirmed route status. Unrelated Brainbase calls, failed route calls, search calls, Graph reads, and retrievals do not substitute for choosing the source route.
+Required `knowledge.resolve` execution is satisfied by one authentic exact `mcp__brainbase__brainbase_knowledge_resolve` `PostToolUse` event regardless of response outcome, because repeating an already executed route call would duplicate the tool action. Only `resolved` is a successful routing result. `unconfirmed` and tool failure remain non-qualifying warning results with `success=false`; they do not claim a selected source or retrieval success. Unrelated Brainbase calls, search calls, Graph reads, and retrievals do not substitute for executing the routing tool.
 
 `brainbase_knowledge_resolve` means reference-destination routing, not retrieval. Its visible event line uses `📚 Brainbase参照先:`. Search, retrieval, and write tools use distinct wording based on the actual tool event.
 

@@ -91,10 +91,11 @@ describe('judgment resolver publication surfaces', () => {
         expect(capability).toContain('POST http://127.0.0.1:39002/host/judgment/resolve');
         expect(runbook).toContain('structural filtering');
         expect(runbook).toContain('records only direct `mcp__brainbase__*` outcomes');
-        expect(runbook).toContain('successful `unconfirmed` result does satisfy the routing capability');
-        expect(runbook).not.toContain('A failed or unconfirmed call');
+        expect(runbook).toContain('satisfies the execution requirement even when the result is `unconfirmed` or the tool fails');
+        expect(runbook).toContain('Only `resolved` qualifies as successful');
         expect(spec).toContain('Resolver determines classification');
         expect(spec).toContain('Plain non-follow-up matcher misses use the `general/answer` fallback instead');
+        expect(spec).toContain('one authentic exact `mcp__brainbase__brainbase_knowledge_resolve` `PostToolUse` event regardless of response outcome');
         expect(architecture).toContain('trust-boundary defect');
         expect(architecture).toContain('local file reads and other connectors are not yet covered');
         expect(story).toContain('model-callable toolとして公開しない');

@@ -71,7 +71,7 @@ Each actual Brainbase call gets its own `PostToolUse` trace. The wording must ma
 📚 Brainbase取得: decision:abc123を取得 ✓
 ```
 
-Never show `検索` or `取得` for `brainbase_knowledge_resolve`; it only selects a route. A failed call uses a warning form and cannot satisfy a required capability. A successful `unconfirmed` result does satisfy the routing capability because the route decision ran and correctly preserved that no canonical source could be confirmed; display that uncertainty instead of claiming retrieval success.
+Never show `検索` or `取得` for `brainbase_knowledge_resolve`; it only selects a route. An authentic canonical route `PostToolUse` event satisfies the execution requirement even when the result is `unconfirmed` or the tool fails, because the route was already invoked and must not be duplicated. Only `resolved` is a successful routing result; `unconfirmed` and tool failure remain warning outcomes with `success=false` and must not claim a selected source or retrieval success.
 
 The additional context and `PostToolUse.systemMessage` guide the model, but they are not accepted as owner-visible evidence by themselves. `Stop` checks the final answer and requests one corrected rendering when the stored lines are missing, duplicated, or out of journal-commit order. For an audit-only retry, it also requires the first rejected answer's business body to remain unchanged after presentation normalization. A leading reserved line beginning with `🧠 判断参照:`, `📚 Brainbase`, or `⚠️ Brainbase` is presentation metadata even when malformed; the same text after the business body starts remains body content. A short acknowledgement cannot replace the detailed implementation report. Trailing spaces or tabs at line ends are presentation-equivalent; the audit text, order, and multiplicity remain exact. An active repeated Stop exits non-zero with `judgment_stop_repair_exhausted` when the repair is still incomplete.
 
@@ -79,7 +79,7 @@ The additional context and `PostToolUse.systemMessage` guide the model, but they
 
 The invariant is exactly one episode per managed turn and at most one complete final receipt, not one Resolver network attempt and not one Brainbase tool call. Before episode creation, recognized transient failures may be retried within the Host limit. After creation, the same turn reuses the initial route. Tool calls may occur 0..N times. Replayed `PostToolUse` and complete `Stop` events reuse their immutable records.
 
-If `required_capabilities` contains `knowledge.resolve`, only a successful exact `mcp__brainbase__brainbase_knowledge_resolve` event with resolved/unconfirmed status satisfies it. Search, Graph reads, Personal KG reads, unrelated Brainbase calls, and failed route calls do not substitute for the routing decision.
+If `required_capabilities` contains `knowledge.resolve`, one authentic exact `mcp__brainbase__brainbase_knowledge_resolve` `PostToolUse` event satisfies the execution requirement regardless of response outcome. Only `resolved` qualifies as successful; `unconfirmed` and tool failure remain non-qualifying warning results. Search, Graph reads, Personal KG reads, unrelated Brainbase calls, and retrievals do not substitute for executing the routing tool.
 
 ## Authorization boundary
 
