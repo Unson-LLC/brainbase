@@ -67,7 +67,7 @@
     {
       "id": "C-004",
       "type": "contract",
-      "statement": "For every canonical MCP retrieval target, the Host uses the search or retrieve operation from the validated final retrieval audit envelope; resolve_entity and queried list_extension_entities are recorded as retrieve.",
+      "statement": "For every canonical MCP retrieval target, the Host uses the search or retrieve operation from the validated final retrieval audit envelope; resolve_entity and queried list_extension_entities are recorded as search.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
         "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
