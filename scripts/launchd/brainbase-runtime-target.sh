@@ -37,8 +37,13 @@ brainbase_resolve_runtime_target() {
       printf '[brainbase-runtime] FAILED: runtime pin must contain one full commit SHA: %s\n' "$pin_file" >&2
       return 1
     }
-    git -C "$source_repo" cat-file -e "${pinned_sha}^{commit}" 2>/dev/null || {
+    local pinned_object_type
+    pinned_object_type="$(git -C "$source_repo" cat-file -t "$pinned_sha" 2>/dev/null)" || {
       printf '[brainbase-runtime] FAILED: pinned runtime commit is unavailable: %s\n' "$pinned_sha" >&2
+      return 1
+    }
+    [[ "$pinned_object_type" == "commit" ]] || {
+      printf '[brainbase-runtime] FAILED: runtime pin must identify a commit object: %s\n' "$pinned_sha" >&2
       return 1
     }
     printf '%s\n' "$pinned_sha"

@@ -55,6 +55,13 @@ describe('managed launchd runtime contract', () => {
       const command = `source "$1"; brainbase_resolve_runtime_target "$2" origin develop refs/test "$3"`;
       expect(execFileSync('bash', ['-c', command, '--', helper, repo, pin], { encoding: 'utf8' }).trim()).toBe(sha);
 
+      execFileSync('git', ['-C', repo, 'tag', '-a', 'annotated-runtime', '-m', 'annotated runtime']);
+      const annotatedTagSha = execFileSync('git', ['-C', repo, 'rev-parse', 'annotated-runtime'], {
+        encoding: 'utf8',
+      }).trim();
+      writeFileSync(pin, `${annotatedTagSha}\n`);
+      expect(spawnSync('bash', ['-c', command, '--', helper, repo, pin]).status).not.toBe(0);
+
       writeFileSync(pin, 'not-a-sha\n');
       expect(spawnSync('bash', ['-c', command, '--', helper, repo, pin]).status).not.toBe(0);
       rmSync(pin);
