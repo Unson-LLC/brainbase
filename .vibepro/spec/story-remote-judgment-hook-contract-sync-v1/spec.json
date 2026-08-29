@@ -1,0 +1,185 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-remote-judgment-hook-contract-sync-v1",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "final",
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "An orphan Stop repair block is transported as an accepted HTTP response without being represented as a completed audit.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-remote-judgment-hook-contract-sync-v1.md",
+            "section": "Contract mapping"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/remote-judgment-hook-http.ts",
+            "anchor": "handleRemoteJudgmentHookRequest"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "story-remote-judgment-hook-contract-sync:ac:1 returns the canonical one-shot repair block for an orphan Stop"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "canonical one-shot repair block"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-29T02:25:26.864Z",
+      "last_revised_at": "2026-08-29T02:25:26.864Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "A Brainbase PostToolUse without tool_use_id remains a terminal failure with reason judgment_tool_use_id_missing.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-remote-judgment-hook-contract-sync-v1.md",
+            "section": "Contract mapping"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "recordBrainbaseToolUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "story-remote-judgment-hook-contract-sync:ac:2 preserves the precise missing tool-use identity failure"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "judgment_tool_use_id_missing"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-29T02:25:26.864Z",
+      "last_revised_at": "2026-08-29T02:25:26.864Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "An empty PostToolUse dispatcher result remains judgment_hook_audit_not_recorded, and production code is unchanged by this Story.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-remote-judgment-hook-contract-sync-v1.md",
+            "section": "Safety boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/remote-judgment-hook-http.ts",
+            "anchor": "handleRemoteJudgmentHookRequest"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "rejects an empty PostToolUse audit result"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "judgment_hook_audit_not_recorded"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-29T02:25:26.864Z",
+      "last_revised_at": "2026-08-29T02:25:26.864Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "The focused remote HTTP contract and the complete judgment-resolution regression suite both pass on the exact implementation HEAD.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-remote-judgment-hook-contract-sync-v1.md",
+            "section": "Verification"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "anchor": "remote judgment Hook HTTP boundary"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "story-remote-judgment-hook-contract-sync:ac:1 returns the canonical one-shot repair block for an orphan Stop"
+          },
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "story-remote-judgment-hook-contract-sync:ac:2 preserves the precise missing tool-use identity failure"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "story-remote-judgment-hook-contract-sync:ac:"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-29T02:25:26.864Z",
+      "last_revised_at": "2026-08-29T02:40:00.000Z"
+    }
+  ],
+  "generated_at": "2026-08-29T02:25:26.863Z",
+  "previous_spec_id": null
+}
