@@ -34,6 +34,8 @@ query_excerpt + operation + outcome ──> Host生成event_kind / display_line
 
 ## rollback runtime境界
 
+この境界は独立したruntime機能ではなく、上記Host契約をglobal Hook、共有local UI/MCP、Lightsailへ同一commitで反映するためのrelease safety境界である。Host変更と分離すると、修正済み監査契約を安全に配備・復元できないSHA分岐が生じるため、同一PR・同一merge SHA・同一fresh-task readbackで検証する。
+
 - `/Users/ksato/workspace/repos/brainbase`はsource repositoryとしてのみ扱い、dirtyな利用者checkoutをswitch、reset、clean、stashしない。
 - local UIとMCPは共有するdisposable runtime `/Users/ksato/workspace/repos/.runtime/brainbase-31013`だけを更新する。
 - 通常時は`origin/develop`の取得済みcommitをtargetにする。rollback時はowner-only pin file `/Users/ksato/workspace/var/brainbase-runtime-pinned.sha`のfull SHAを優先し、launchd start/updateの両方が同じresolverを使う。

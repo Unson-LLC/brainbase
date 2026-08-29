@@ -22,6 +22,10 @@ Brainbase監査を長時間taskの継続証跡として使うownerとして、fr
 
 fresh task E2EではHook lifecycle、4件のBrainbase call、Stop修復、complete finalまで到達した。一方、Graph検索が返した「該当なし（不在確定ではない）」と取得結果の意味をHostが捨て、すべて「正常応答を確認」と保存したため、live-session Gateが11/12で失敗した。
 
+## 単一リリース境界
+
+AC-001〜AC-007のHost修正は、global Hook、共有local UI/MCP runtime、Lightsailへ同一commitを反映して初めて利用者価値になる。AC-008は別機能ではなく、その同一commitをdirtyな正本checkoutへ触れずに反映し、失敗時にも既知正常SHAへ有限時間で戻すためのrelease safety契約である。これらを別PRにすると、監査修正だけがmergeされ安全に反映・復元できない中間状態、またはrollback基盤だけが先行して対象修正と証跡のSHAが分離する中間状態を許す。そのため本StoryはHost結果契約、fresh-task証跡、exact-SHA反映・rollbackを1つのatomic release unitとして扱う。
+
 ## 受け入れ基準
 
 - [ ] AC-001: 成功した検索応答が明示する0件は、構造化件数が併存しても「該当なし（不在確定ではない）」として保存する。
