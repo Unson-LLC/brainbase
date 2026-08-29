@@ -38,6 +38,7 @@ query_excerpt + operation + outcome ──> Host生成event_kind / display_line
 - local UIとMCPは共有するdisposable runtime `/Users/ksato/workspace/repos/.runtime/brainbase-31013`だけを更新する。
 - 通常時は`origin/develop`の取得済みcommitをtargetにする。rollback時はowner-only pin file `/Users/ksato/workspace/var/brainbase-runtime-pinned.sha`のfull SHAを優先し、launchd start/updateの両方が同じresolverを使う。
 - source root欠損、Git root不一致、pinの非regular file、full SHA以外、commit未取得はfail closedし、欠損rootをcleanとみなさない。
+- launchd再起動後のreadinessは固定sleepや単発probeを使わず、bounded pollingでAPIが対象full SHAかつ`dirty=false`を返し、runtime worktreeのHEADが対象SHAと一致しcleanであることを同一runで確認する。上限到達、SHA不一致、dirty、未応答は明示non-zeroで終了し、MCP・Lightsail・Hook復元など後続面へ進まない。
 - global Hookは独立したclean deployment checkoutを使い、rollbackは保存済みHook設定を最後に復元する。dirtyな正本checkoutをHook checkoutとして切り替えない。
 
 ## 検証

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -6,6 +6,70 @@ import { describe, expect, it } from 'vitest';
 
 const root = resolve(import.meta.dirname, '../..');
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
+const readinessHelper = resolve(root, 'scripts/launchd/brainbase-runtime-readiness.sh');
+
+const versionResponse = (sha, dirty) => JSON.stringify({ runtime: { git: { sha, dirty } } });
+
+function createRuntimeFixture() {
+  const sandbox = mkdtempSync(resolve(tmpdir(), 'brainbase-runtime-readiness-'));
+  const source = resolve(sandbox, 'source');
+  const runtime = resolve(sandbox, 'runtime');
+  execFileSync('git', ['init', '-q', source]);
+  execFileSync('git', ['-C', source, 'config', 'user.email', 'test@example.com']);
+  execFileSync('git', ['-C', source, 'config', 'user.name', 'Test']);
+  writeFileSync(resolve(source, 'fixture.txt'), 'old-runtime\n');
+  execFileSync('git', ['-C', source, 'add', 'fixture.txt']);
+  execFileSync('git', ['-C', source, 'commit', '-qm', 'old runtime']);
+  const oldSha = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  writeFileSync(resolve(source, 'fixture.txt'), 'known-good-runtime\n');
+  execFileSync('git', ['-C', source, 'add', 'fixture.txt']);
+  execFileSync('git', ['-C', source, 'commit', '-qm', 'known good runtime']);
+  const expectedSha = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  execFileSync('git', ['-C', source, 'worktree', 'add', '--detach', '--quiet', runtime, expectedSha]);
+  return { sandbox, source, runtime, oldSha, expectedSha };
+}
+
+function createProbe(sandbox, responses) {
+  const bin = resolve(sandbox, 'bin');
+  const counter = resolve(sandbox, 'curl.count');
+  const responseFile = resolve(sandbox, 'curl.responses');
+  mkdirSync(bin);
+  writeFileSync(counter, '0\n');
+  writeFileSync(responseFile, `${responses.join('\n')}\n`);
+  const quote = (value) => JSON.stringify(value);
+  const curl = resolve(bin, 'curl');
+  writeFileSync(
+    curl,
+    `#!/bin/bash
+set -euo pipefail
+count="$(cat ${quote(counter)})"
+count=$((count + 1))
+printf '%s\\n' "$count" > ${quote(counter)}
+response="$(sed -n "\${count}p" ${quote(responseFile)})"
+[[ "$response" != "__FAIL__" && -n "$response" ]] || exit 7
+printf '%s\\n' "$response"
+`,
+  );
+  chmodSync(curl, 0o755);
+  const sleep = resolve(bin, 'sleep');
+  writeFileSync(sleep, '#!/bin/bash\nexit 0\n');
+  chmodSync(sleep, 0o755);
+  return {
+    counter,
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH || ''}` },
+  };
+}
+
+function runReadiness({ runtime, expectedSha, url, attempts, delay, probe }) {
+  const command = 'set -euo pipefail; source "$1"; brainbase_wait_for_runtime_ready "$2" "$3" "$4" "$5" "$6"';
+  return spawnSync(
+    'bash',
+    ['-c', command, '--', readinessHelper, runtime, expectedSha, url, String(attempts), String(delay)],
+    { encoding: 'utf8', env: probe.env },
+  );
+}
+
+const probeCount = (probe) => Number(readFileSync(probe.counter, 'utf8').trim());
 
 describe('managed launchd runtime contract', () => {
   it('uses a linked worktree owned by workspace/repos and never the retired clone', () => {
@@ -68,6 +132,114 @@ describe('managed launchd runtime contract', () => {
       expect(spawnSync('bash', ['-c', command, '--', helper, resolve(sandbox, 'missing'), pin]).status).not.toBe(0);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('polls past a transient probe failure before accepting exact clean runtime readiness', () => {
+    const fixture = createRuntimeFixture();
+    const probe = createProbe(fixture.sandbox, ['__FAIL__', versionResponse(fixture.expectedSha, false)]);
+    try {
+      const result = runReadiness({
+        runtime: fixture.runtime,
+        expectedSha: fixture.expectedSha,
+        url: 'http://127.0.0.1:31013/api/version',
+        attempts: 3,
+        delay: 0,
+        probe,
+      });
+      expect(result.status).toBe(0);
+      expect(probeCount(probe)).toBe(2);
+    } finally {
+      rmSync(fixture.sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects an old API SHA and dirty API response before accepting the exact clean SHA', () => {
+    const fixture = createRuntimeFixture();
+    const probe = createProbe(fixture.sandbox, [
+      versionResponse(fixture.oldSha, false),
+      versionResponse(fixture.expectedSha, true),
+      versionResponse(fixture.expectedSha, false),
+    ]);
+    try {
+      const result = runReadiness({
+        runtime: fixture.runtime,
+        expectedSha: fixture.expectedSha,
+        url: 'http://127.0.0.1:31013/api/version',
+        attempts: 3,
+        delay: 0,
+        probe,
+      });
+      expect(result.status).toBe(0);
+      expect(probeCount(probe)).toBe(3);
+    } finally {
+      rmSync(fixture.sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects runtime worktree HEAD mismatch and tracked or untracked dirtiness', () => {
+    const fixture = createRuntimeFixture();
+    const probe = createProbe(fixture.sandbox, Array.from({ length: 6 }, () => versionResponse(fixture.expectedSha, false)));
+    try {
+      execFileSync('git', ['-C', fixture.runtime, 'checkout', '--detach', '--quiet', fixture.oldSha]);
+      const mismatched = runReadiness({
+        runtime: fixture.runtime,
+        expectedSha: fixture.expectedSha,
+        url: 'http://127.0.0.1:31013/api/version',
+        attempts: 2,
+        delay: 0,
+        probe,
+      });
+      expect(mismatched.status).not.toBe(0);
+      expect(`${mismatched.stdout}\n${mismatched.stderr}`).toMatch(/HEAD|runtime worktree/i);
+
+      execFileSync('git', ['-C', fixture.runtime, 'checkout', '--detach', '--quiet', fixture.expectedSha]);
+      writeFileSync(resolve(fixture.runtime, 'fixture.txt'), 'dirty-runtime\n');
+      const dirty = runReadiness({
+        runtime: fixture.runtime,
+        expectedSha: fixture.expectedSha,
+        url: 'http://127.0.0.1:31013/api/version',
+        attempts: 2,
+        delay: 0,
+        probe,
+      });
+      expect(dirty.status).not.toBe(0);
+      expect(`${dirty.stdout}\n${dirty.stderr}`).toMatch(/dirty|worktree/i);
+
+      execFileSync('git', ['-C', fixture.runtime, 'checkout', '--detach', '--quiet', '--force', fixture.expectedSha]);
+      writeFileSync(resolve(fixture.runtime, 'untracked.txt'), 'untracked-runtime\n');
+      const untracked = runReadiness({
+        runtime: fixture.runtime,
+        expectedSha: fixture.expectedSha,
+        url: 'http://127.0.0.1:31013/api/version',
+        attempts: 2,
+        delay: 0,
+        probe,
+      });
+      expect(untracked.status).not.toBe(0);
+      expect(`${untracked.stdout}\n${untracked.stderr}`).toMatch(/dirty|worktree/i);
+    } finally {
+      rmSync(fixture.sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('returns a non-zero timeout after the bounded readiness attempts are exhausted', () => {
+    const fixture = createRuntimeFixture();
+    const probe = createProbe(fixture.sandbox, ['__FAIL__', '__FAIL__', '__FAIL__']);
+    try {
+      const result = runReadiness({
+        runtime: fixture.runtime,
+        expectedSha: fixture.expectedSha,
+        url: 'http://127.0.0.1:31013/api/version',
+        attempts: 3,
+        delay: 0,
+        probe,
+      });
+      expect(result.status).not.toBe(0);
+      expect(probeCount(probe)).toBe(3);
+      expect(`${result.stdout}\n${result.stderr}`).toMatch(/timed out|timeout/i);
+    } finally {
+      rmSync(fixture.sandbox, { recursive: true, force: true });
     }
   });
 

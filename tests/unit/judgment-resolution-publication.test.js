@@ -247,6 +247,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('git rev-parse --is-inside-work-tree');
         expect(runbook).toContain('PIN_TMP="$(mktemp "${BRAINBASE_RUNTIME_PIN_FILE}.XXXXXX")"');
         expect(runbook).toContain('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"');
+        expect(runbook).toContain('brainbase_wait_for_runtime_ready');
+        expect(runbook).not.toMatch(/launchctl kickstart[^\n]*\n(?:sleep )/u);
         expect(runbook.indexOf('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"')).toBeLessThan(
             runbook.indexOf('launchctl kickstart -k "gui/$(id -u)/com.brainbase.ui"')
         );
@@ -268,6 +270,11 @@ describe('judgment resolver publication surfaces', () => {
         expect(story).toContain('Lightsailを別面として復元');
         expect(story).toContain('最後に元の`hooks.json`を復元');
         expect(story).toContain('dirtyな正本source checkout');
+
+        const restartRunbook = read('docs/brainbase-capabilities/runbooks/restart-31013-launchd.md');
+        expect(restartRunbook).toContain('brainbase_resolve_runtime_target');
+        expect(restartRunbook).toContain('brainbase_wait_for_runtime_ready');
+        expect(restartRunbook).not.toContain('sleep 5');
 
         const lightsailRunbook = read('docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md');
         expect(lightsailRunbook).toContain('TARGET_SHA="$(git rev-parse HEAD)"');

@@ -321,13 +321,15 @@ chmod 600 "$PIN_TMP"
 printf '%s\n' "$LOCAL_ROLLBACK_SHA" > "$PIN_TMP"
 mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"
 launchctl kickstart -k "gui/$(id -u)/com.brainbase.ui"
-sleep 5
-test "$(curl -fsS http://127.0.0.1:31013/api/version | node -e '
-const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
-process.stdout.write(value.runtime?.git?.dirty===false ? value.runtime.git.sha : "");
-')" = "$LOCAL_ROLLBACK_SHA"
-test "$(git -C "$BRAINBASE_UI_RUNTIME_ROOT" rev-parse HEAD)" = "$LOCAL_ROLLBACK_SHA"
-require_clean_tracked_root "$BRAINBASE_UI_RUNTIME_ROOT"
+READINESS_HELPER="$BRAINBASE_SOURCE_ROOT/scripts/launchd/brainbase-runtime-readiness.sh"
+test -r "$READINESS_HELPER"
+source "$READINESS_HELPER"
+brainbase_wait_for_runtime_ready \
+  "$BRAINBASE_UI_RUNTIME_ROOT" \
+  "$LOCAL_ROLLBACK_SHA" \
+  http://127.0.0.1:31013/api/version \
+  "${BRAINBASE_RUNTIME_READINESS_ATTEMPTS:-30}" \
+  "${BRAINBASE_RUNTIME_READINESS_DELAY_SECONDS:-2}"
 (cd "$BRAINBASE_MCP_RUNTIME_ROOT" && scripts/reconcile-brainbase-mcp-runtime.sh "$MCP_ROLLBACK_SHA")
 (cd "$BRAINBASE_MCP_RUNTIME_ROOT" && scripts/run-brainbase-mcp.sh --check)
 launchctl print "gui/$(id -u)/com.brainbase.mcp-brainbase" | grep -q 'state = running'
@@ -335,9 +337,15 @@ launchctl print "gui/$(id -u)/com.brainbase.mcp-brainbase" | grep -q 'state = ru
 # 2. Restore Lightsail, reinstall dependencies only when its manifest changed,
 # and prove both the instance and public proxy report the captured SHA.
 ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
-  "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")" <<'REMOTE'
+  "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")" \
+  "${BRAINBASE_LIGHTSAIL_READINESS_ATTEMPTS:-30}" \
+  "${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}" <<'REMOTE'
 set -euo pipefail
 ROLLBACK_SHA="$1"
+MAX_ATTEMPTS="$2"
+DELAY_SECONDS="$3"
+[[ "$MAX_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]
+[[ "$DELAY_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]
 cd /home/ubuntu/brainbase
 test "$(git rev-parse --is-inside-work-tree)" = true
 test "$(git rev-parse --show-toplevel)" = /home/ubuntu/brainbase
@@ -350,19 +358,42 @@ if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock
   npm ci --omit=dev
 fi
 sudo systemctl restart brainbase-ssot.service
-sleep 3
-curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
+local_ready=0
+for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt+=1)); do
+  if curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
 const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
 const git=value.runtime?.git;
 if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
-'
+'; then
+    local_ready=1
+    break
+  fi
+  if (( attempt < MAX_ATTEMPTS )); then sleep "$DELAY_SECONDS"; fi
+done
+if (( local_ready != 1 )); then
+  printf '[brainbase-runtime] Lightsail local readiness timed out after %s attempts\n' "$MAX_ATTEMPTS" >&2
+  exit 1
+fi
 REMOTE
 TARGET_SHA="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")"
-curl -fsS https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
+PUBLIC_ATTEMPTS="${BRAINBASE_LIGHTSAIL_READINESS_ATTEMPTS:-30}"
+PUBLIC_DELAY_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}"
+public_ready=0
+for ((attempt=1; attempt<=PUBLIC_ATTEMPTS; attempt+=1)); do
+  if curl -fsS https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
 const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
 const git=value.runtime?.git;
 if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
-'
+'; then
+    public_ready=1
+    break
+  fi
+  if (( attempt < PUBLIC_ATTEMPTS )); then sleep "$PUBLIC_DELAY_SECONDS"; fi
+done
+if (( public_ready != 1 )); then
+  printf '[brainbase-runtime] Lightsail public readiness timed out after %s attempts\n' "$PUBLIC_ATTEMPTS" >&2
+  exit 1
+fi
 
 # 3. Restore the exact previous Hook config last. The captured clean Hook
 # checkout was never mutated, so restoring hooks.json is sufficient.
