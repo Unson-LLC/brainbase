@@ -191,6 +191,7 @@ describe('judgment resolver publication surfaces', () => {
         const envExample = read('.env.example');
         const infisicalTargets = JSON.parse(read('config/infisical-targets.json'));
         const launcher = read('scripts/run-brainbase-mcp.sh');
+        const capability = read('docs/brainbase-capabilities/capabilities/judgment.resolve.yml');
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
 
         expect(envExample).toContain('BRAINBASE_JUDGMENT_BINDING_SECRET');
@@ -214,6 +215,14 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_RUN_QUERY');
         expect(runbook).toContain('query-embedded source HEAD differs');
         expect(runbook).toContain('final receipt is at most one hour old');
+        expect(capability).toContain('exact Stop Hook-visible answer body');
+        expect(runbook).toContain('exact Stop Hook-visible answer body');
+        for (const surface of [capability, runbook]) {
+            expect(surface).toContain('only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block');
+            expect(surface).toMatch(/incomplete or embedded citation block.*fails closed/iu);
+            expect(surface).not.toContain('answer digest binds that rendered message');
+            expect(surface).not.toContain('answer digest must match that rendered message');
+        }
         expect(runbook).toContain('scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"');
         expect(runbook).toContain('brainbase-mcp-reconcile.last');
         expect(runbook).toContain('deploy-lightsail-production.md');

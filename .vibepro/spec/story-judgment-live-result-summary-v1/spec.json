@@ -83,10 +83,17 @@
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-007" }],
         "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "Stop Hookとアプリ後段メタデータの境界" }],
-        "code_refs": [{ "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "anchor": "hookVisibleFinalAnswer" }],
-        "test_refs": [{ "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する" }]
+        "code_refs": [
+          { "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "anchor": "hookVisibleFinalAnswer" },
+          { "file": "docs/brainbase-capabilities/capabilities/judgment.resolve.yml", "anchor": "exact Stop Hook-visible answer body" },
+          { "file": "docs/brainbase-capabilities/runbooks/judgment-resolve.md", "anchor": "exact Stop Hook-visible answer body" }
+        ],
+        "test_refs": [
+          { "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する" },
+          { "file": "tests/unit/judgment-resolution-publication.test.js", "case": "binding secret・preflight・deployment boundaryを維持する" }
+        ]
       },
-      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "must_cover": "oai-mem-citation" }] }
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "must_cover": "oai-mem-citation" }, { "file_glob": "tests/unit/judgment-resolution-publication.test.js", "must_cover": "exact Stop Hook-visible answer body" }] }
     }
   ],
   "diagrams": [],
