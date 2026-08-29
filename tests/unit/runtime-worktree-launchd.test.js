@@ -468,7 +468,7 @@ describe('managed launchd runtime contract', () => {
       expect(result.status).not.toBe(0);
       expect(`${result.stdout}\n${result.stderr}`).toMatch(/already running/i);
       expect(probeCount(probe)).toBe(0);
-      expect(existsSync(receipt)).toBe(false);
+      expect(existsSync(receipt)).toBe(true);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }

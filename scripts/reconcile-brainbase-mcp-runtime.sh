@@ -34,17 +34,16 @@ is_finite_positive_timeout() {
 
 [[ "$TARGET_SHA" =~ ^[0-9a-f]{7,40}$ ]] || fail "target SHA is missing or invalid"
 mkdir -p "$(dirname "$RECEIPT")"
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  fail "another reconciliation is already running"
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 rm -f -- "$RECEIPT"
 [[ "$WAIT_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || fail "wait attempts must be a positive integer"
 is_finite_positive_timeout "$CONNECT_TIMEOUT_SECONDS" || \
   fail "connect timeout must be finite positive seconds"
 is_finite_positive_timeout "$MAX_TIMEOUT_SECONDS" || \
   fail "maximum timeout must be finite positive seconds"
-
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  fail "another reconciliation is already running"
-fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 ui_sha=""
 for ((attempt = 1; attempt <= WAIT_ATTEMPTS; attempt += 1)); do
