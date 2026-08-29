@@ -882,11 +882,12 @@ function knowledgeExclusionDisplay(data) {
 
 function routeDisplayLine(input, data, success) {
     const query = toolQuery(input);
-    if (!success || !data) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
+    if (!data) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
     const exclusions = knowledgeExclusionDisplay(data);
     if (data.status === 'unconfirmed') {
         return `⚠️ Brainbase参照先: 「${query}」→ 参照先を確定できず${exclusions ? `／除外: ${exclusions}` : ''}`;
     }
+    if (!success) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
     const source = sanitizeToolExcerpt(data.source_class ?? '参照先');
     const location = knowledgeCanonicalLocation(data.canonical_location);
     const contentType = record(input)?.content_type;
@@ -921,7 +922,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const success = responseSucceeded(responseValue, {
         allowTransportSuccess: ['search', 'retrieve'].includes(kind),
         allowExplicitSuccess: !['write', 'route'].includes(kind),
-        semanticSuccess: Boolean(resolution || taskResult)
+        semanticSuccess: kind === 'route'
+            ? resolution?.status === 'resolved'
+            : Boolean(taskResult)
     });
     const satisfiesKnowledgeExecution = kind === 'route';
     const retrievalResult = success && ['search', 'retrieve'].includes(kind)

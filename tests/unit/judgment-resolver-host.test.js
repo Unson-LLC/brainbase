@@ -863,6 +863,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(routed.display_line).not.toContain('採用:');
         expect(routed.display_line).not.toContain('✓');
         expect(routed.display_line.split('\n')).toHaveLength(1);
+        expect(routed).toMatchObject({ success: false, satisfies: ['knowledge.resolve'] });
     });
 
     it('汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない', async () => {
@@ -1148,7 +1149,7 @@ describe('Codex Judgment Resolver Host', () => {
         ].join('\n'));
         expect(result.final).toMatchObject({
             schema_version: 'brainbase-judgment-episode-final-v2',
-            completion_status: 'complete', event_count: 1, qualifying_event_count: 1
+            completion_status: 'complete', event_count: 1, qualifying_event_count: 0
         });
         expect(recordBrainbaseToolUse(routePayload, { env })).toEqual(routed);
         expect(() => recordBrainbaseToolUse({
