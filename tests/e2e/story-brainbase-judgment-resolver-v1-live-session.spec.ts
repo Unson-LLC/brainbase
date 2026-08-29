@@ -454,7 +454,11 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         'Live evidence must use the Resolver manifest declared by current HEAD'
     );
     assert.deepEqual(candidate.events.map((event) => event.tool_name), EXPECTED_TOOLS);
-    assert.ok(candidate.events.every((event) => event.success === true));
+    assert.deepEqual(
+        candidate.events.map((event) => event.success),
+        [false, true, true, true],
+        'Unconfirmed routing is executed once but must not be promoted to a successful result'
+    );
     for (const [index, expected] of EXPECTED_QUERY_EXCERPTS.entries()) {
         const excerpt = candidate.events[index].query_excerpt || '';
         assert.ok(expected.includes().every((token) => excerpt.includes(token)));
@@ -482,7 +486,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.equal(candidate.final.owner_audit_complete, true);
     assert.equal(candidate.final.owner_audit_line_count, 5);
     assert.equal(candidate.final.event_count, 4);
-    assert.equal(candidate.final.qualifying_event_count, 1);
+    assert.equal(candidate.final.qualifying_event_count, 0);
     assert.match(candidate.final.answer_digest, /^[0-9a-f]{64}$/u);
     const renderedAnswer = readFinalAssistantMessage(
         EVIDENCE_TRANSCRIPT_PATH,
