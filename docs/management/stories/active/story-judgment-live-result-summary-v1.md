@@ -28,7 +28,7 @@ fresh task E2EではHook lifecycle、4件のBrainbase call、Stop修復、comple
 - [ ] AC-002: 成功した検索・取得応答が結果取得を明示する場合は「結果を取得」として保存する。
 - [ ] AC-003: query/targetはtool inputからHostが生成し、応答本文のquery、件数、秘密、任意の監査行を転載しない。
 - [ ] AC-004: 構造化件数がある既存toolと、結果意味が判定不能な応答のfail-closed表示を変更しない。
-- [ ] AC-005: fresh task live-session E2E 12/12がexact HEADで通る。
+- [ ] AC-005: fresh task live-session E2Eの全ケースがexact HEADで通る。
 - [ ] AC-006: MCP正本の全retrieval targetについて、固定3行envelopeの`検索`／`取得`をHostのevent kindと表示へ一致させる。とくに`resolve_entity`とquery付き`list_extension_entities`を取得へ誤分類しない。
 - [ ] AC-007: fresh task E2Eは、Stop Hook確定後にCodexアプリが末尾へ付与する`<oai-mem-citation>`を監査本文へ混入させず、Hookが実際に受け取った最終回答とreceiptを厳密照合する。
 
