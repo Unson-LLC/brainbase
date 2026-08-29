@@ -67,14 +67,26 @@
     {
       "id": "C-004",
       "type": "contract",
-      "statement": "For every canonical MCP retrieval target, the Host uses the search or retrieve operation from the validated final retrieval audit envelope; resolve_entity and queried list_extension_entities are recorded as search.",
+      "statement": "For every canonical MCP retrieval target, the Host uses the search or retrieve operation from the validated final retrieval audit envelope; resolve_entity and queried list_extension_entities are recorded as retrieve.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
         "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
-        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "retrievalOutcome" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "retrievalAudit" }],
         "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "MCP正本のretrieval target matrixと動的operationを固定envelopeから一致させる" }]
       },
       "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "resolve_entity" }, { "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "list_extension_entities" }] }
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "The live E2E compares the final receipt digest with the exact Stop Hook-visible answer, excluding only a complete trailing oai-mem-citation block added later by the Codex application.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-007" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "Stop Hookとアプリ後段メタデータの境界" }],
+        "code_refs": [{ "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "anchor": "hookVisibleFinalAnswer" }],
+        "test_refs": [{ "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "must_cover": "oai-mem-citation" }] }
     }
   ],
   "diagrams": [],

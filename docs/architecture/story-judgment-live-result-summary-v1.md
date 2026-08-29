@@ -25,6 +25,13 @@ query_excerpt + operation + outcome ──> Host生成event_kind / display_line
 - 固定envelopeを認識できない場合だけ、従来のtool名によるevent kind、構造化count、または「正常応答を確認」へfail closedする。
 - route、write、failure、episode lifecycleには分岐を追加しない。
 
+## Stop Hookとアプリ後段メタデータの境界
+
+- `answer_digest`はStop Hookが実際に受け取った最終回答を結合する。
+- Codex transcriptには、Stop Hook確定後にアプリが末尾へ`<oai-mem-citation>...</oai-mem-citation>`を付与した最終回答が保存される場合がある。
+- live E2Eは監査行を含むtranscript本文を先に検証し、末尾にある完全なmemory citation blockだけを除外してHook可視本文を復元する。途中の同名文字列や不完全blockは除外しない。
+- Host runtime、保存済みepisode、memory citation本文は変更しない。
+
 ## 検証
 
-単体テストでMCP正本の9 retrieval target、動的operation、0件、結果取得、偽の件数・queryを固定し、live-session E2Eで実MCP応答と保存eventの意味一致を検証する。
+単体テストでMCP正本の9 retrieval target、動的operation、0件、結果取得、偽の件数・queryを固定し、live-session E2Eで実MCP応答と保存eventの意味一致、およびアプリ後段メタデータを除いたHook可視本文とreceiptの結合を検証する。

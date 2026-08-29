@@ -110,6 +110,17 @@ function readFinalAssistantMessage(path, turnId) {
     return messages.at(-1).text;
 }
 
+function hookVisibleFinalAnswer(renderedAnswer) {
+    const marker = '\n\n<oai-mem-citation>';
+    const markerIndex = renderedAnswer.lastIndexOf(marker);
+    if (markerIndex === -1) return renderedAnswer;
+    const citationBlock = renderedAnswer.slice(markerIndex + 2);
+    if (!/^<oai-mem-citation>\n[\s\S]*\n<\/oai-mem-citation>$/u.test(citationBlock)) {
+        return renderedAnswer;
+    }
+    return renderedAnswer.slice(0, markerIndex + 2);
+}
+
 function assertRenderedAuditTrace(answer, expectedLines) {
     const lines = answer.replaceAll('\r\n', '\n').split('\n');
     assert.deepEqual(
@@ -440,8 +451,8 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assertRenderedAuditTrace(renderedAnswer, expectedAuditLines);
     assert.equal(
         candidate.final.answer_digest,
-        createHash('sha256').update(renderedAnswer).digest('hex'),
-        'Final receipt must bind the exact user-visible final answer'
+        createHash('sha256').update(hookVisibleFinalAnswer(renderedAnswer)).digest('hex'),
+        'Final receipt must bind the exact Stop Hook-visible final answer before app-added memory citation metadata'
     );
     const finalizedAt = Date.parse(candidate.final.finalized_at);
     const evidenceAgeMs = Date.now() - finalizedAt;
