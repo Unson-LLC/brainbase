@@ -136,14 +136,15 @@ function upstreamHeaders(request, env) {
     return headers;
 }
 
-function downstreamResponse(upstream) {
+async function downstreamResponse(upstream) {
     const headers = new Headers();
     for (const name of RESPONSE_HEADERS) {
         const value = upstream.headers.get(name);
         if (value !== null) headers.set(name, value);
     }
     headers.set('cache-control', 'no-store');
-    return new Response(upstream.body, {
+    const body = await upstream.arrayBuffer();
+    return new Response(body, {
         status: upstream.status,
         statusText: upstream.statusText,
         headers
@@ -181,7 +182,7 @@ export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl
         redirect: 'manual'
     });
     try {
-        return downstreamResponse(await fetchImpl(upstreamRequest));
+        return await downstreamResponse(await fetchImpl(upstreamRequest));
     } catch {
         return problem(502, 'BRIDGE_UPSTREAM_UNAVAILABLE', true);
     }
