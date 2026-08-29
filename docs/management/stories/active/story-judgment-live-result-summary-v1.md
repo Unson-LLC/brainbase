@@ -36,11 +36,12 @@ AC-001〜AC-007のHost修正は、global Hook、共有local UI/MCP runtime、Lig
 - [ ] AC-006: MCP正本の全retrieval targetについて、固定3行envelopeの`検索`／`取得`をHostのevent kindと表示へ一致させる。とくに`resolve_entity`とquery付き`list_extension_entities`を取得へ誤分類しない。
 - [ ] AC-007: fresh task E2Eは、Stop Hook確定後にCodexアプリが末尾へ付与する`<oai-mem-citation>`を監査本文へ混入させず、Hookが実際に受け取った最終回答とreceiptを厳密照合する。
 - [ ] AC-008: local UI/MCP rollbackは、dirtyな正本checkoutを変更せず、明示したknown-good SHAをlaunchd再起動後も保持する。再起動後は固定sleepや単発probeで成功扱いせず、bounded pollingでAPIの対象SHA・`dirty=false`とruntime worktreeのexact HEAD・cleanを確認する。各HTTP probeには検証済みの有限正数`--connect-timeout`と`--max-time`を適用し、1回のcurl停止でもpolling全体が無期限停止しないようにする。timeout・不一致・未応答は明示non-zeroで後続面へ進めない。欠損・非Git・root不一致・不正pinはcleanとして扱わずfail closedする。
+- [ ] AC-009: required `knowledge.resolve`は、正規toolの真正なPostToolUse eventを1件記録した時点で「実行済み」とする。参照先を確定できない応答やtool errorは`success=false`と警告表示を維持し、検索・取得成功や不在確定へ昇格しない一方、同じcapabilityのStop修復を重複要求しない。owner監査行と回答本文の修復は、event setが変わらない状態で1回だけ行える。
 
 ## スコープ外
 
 - Brainbase MCP自体の検索・取得schema変更
 - 保存済みepisodeの書き換え
-- Judgment episode lifecycle、required capability、owner監査、Stop修復の変更
+- required capabilityの種類追加、owner監査行の内容緩和、Stop修復回数の増加
 - Codexアプリが付与するmemory citation本文の内容検証
 - production Lightsailの配置方式変更

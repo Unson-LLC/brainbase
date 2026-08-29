@@ -551,6 +551,79 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(existsSync(finalPath)).toBe(false);
     }, 20_000);
 
+    it('失敗したrequired routeを重複実行せずowner監査だけを修復できる', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({
+                    management_status: 'managed',
+                    receipt: {
+                        resolution_id: 'jr_failed_route_entrypoint',
+                        turn_id: args.turn_id,
+                        request_digest: hash(canonicalJson(args)),
+                        context_digest: hash(canonicalJson(args.conversation_context)),
+                        status: 'resolved',
+                        host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                        classification: { intent: 'answer', domains: ['knowledge'], action_kind: 'read' },
+                        selected_dag_ids: ['knowledge.v1'],
+                        required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }],
+                        active_node_definitions: [{ id: 'knowledge', kind: 'domain', instruction: 'Resolve knowledge.' }]
+                    }
+                }));
+            });
+        });
+        const identity = { session_id: 'session-failed-route', turn_id: 'turn-failed-route' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal
+        };
+        const started = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '正本を確認して'
+        }) });
+        expect(started.code).toBe(0);
+
+        const recorded = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'PostToolUse', ...identity,
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-failed-route',
+            tool_input: { intent: '正本を確認して' },
+            tool_response: { status: 'error', error: { code: 'unavailable' } }
+        }) });
+        expect(recorded.code).toBe(0);
+        const routeLine = JSON.parse(recorded.stdout).systemMessage;
+
+        const firstStop = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: false,
+            last_assistant_message: '参照先を確定できなかった回答'
+        }) });
+        expect(firstStop.code).toBe(0);
+        expect(JSON.parse(firstStop.stdout)).toMatchObject({ decision: 'block' });
+        expect(JSON.parse(firstStop.stdout).reason)
+            .not.toContain('`mcp__brainbase__brainbase_knowledge_resolve` を今実行してください');
+
+        const finalStop = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+            last_assistant_message: [
+                '🧠 判断参照: 「正本を確認して」を参照 → Brainbase参照先の判断が必要 ✓',
+                routeLine,
+                '参照先を確定できなかった回答'
+            ].join('\n')
+        }) });
+        expect(finalStop).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(finalStop.stdout).systemMessage).toContain(routeLine);
+        const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
+        expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
+            completion_status: 'complete', event_count: 1, qualifying_event_count: 0
+        });
+    }, 20_000);
+
     // Traceability: story-judgment-audit-continuity-v1:ac:8
     // Traceability: story-judgment-audit-continuity-v1:ac:10
     it('Brainbase PostToolUseのidentityまたはtool_use_id欠損を無音成功にしない', async () => {

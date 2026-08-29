@@ -55,7 +55,7 @@
     {
       "id": "INV-002",
       "type": "invariant",
-      "statement": "Route, write, failure, structured count, unknown response, required capability, owner audit, and Stop lifecycle contracts remain unchanged.",
+      "statement": "Route, write, structured count, unknown response, owner audit, and one-shot Stop lifecycle contracts remain unchanged. For required knowledge.resolve only, an authentic recorded invocation satisfies execution independently of response success; failure remains success=false with a warning and never becomes a successful selection or retrieval.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004" }],
         "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
@@ -63,8 +63,59 @@
         "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない" }]
       },
       "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "正常応答を確認" }] }
+  },
+  {
+    "id": "C-007",
+    "type": "contract",
+    "statement": "A required knowledge.resolve capability is executed when an authentic PostToolUse event for the exact canonical tool is recorded, regardless of response success. Failed or unconfirmed resolution remains visibly unsuccessful, but Stop must not request a duplicate knowledge.resolve call; owner-audit repair proceeds against the stable event set.",
+    "origin": {
+      "story_refs": [
+        {
+          "kind": "acceptance_criteria",
+          "ac_id": "AC-009"
+        }
+      ],
+      "architecture_refs": [
+        {
+          "file": "docs/architecture/story-judgment-live-result-summary-v1.md",
+          "section": "required capabilityの実行結果境界"
+        }
+      ],
+      "code_refs": [
+        {
+          "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+          "anchor": "recordBrainbaseToolUse"
+        },
+        {
+          "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+          "anchor": "finalizeEpisodeLocked"
+        }
+      ],
+      "test_refs": [
+        {
+          "file": "tests/unit/judgment-resolver-host.test.js",
+          "case": "失敗したknowledge routeも実行済みとして安定した監査修復へ進む"
+        },
+        {
+          "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+          "case": "失敗したrequired routeを重複実行せずowner監査だけを修復できる"
+        }
+      ]
     },
-    {
+    "verifiable_by": {
+      "test_pattern": [
+        {
+          "file_glob": "tests/unit/judgment-resolver-host.test.js",
+          "must_cover": "実行済みとして安定した監査修復"
+        },
+        {
+          "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+          "must_cover": "重複実行せずowner監査だけ"
+        }
+      ]
+    }
+  },
+  {
       "id": "C-004",
       "type": "contract",
       "statement": "For every canonical MCP retrieval target, the Host uses the search or retrieve operation from the validated final retrieval audit envelope; resolve_entity and queried list_extension_entities are recorded as search.",

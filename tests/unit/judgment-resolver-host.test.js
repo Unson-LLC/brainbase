@@ -1664,7 +1664,7 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
-    it('失敗したknowledge routeはrequired capabilityを満たさず、complete finalだけを次turnへ渡す', async () => {
+    it('失敗したknowledge routeも実行済みとして安定した監査修復へ進む', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-prior', turn_id: 'turn-first', prompt: '正本を確認して', cwd: process.cwd() };
@@ -1689,29 +1689,26 @@ describe('Codex Judgment Resolver Host', () => {
             tool_input: { intent: '正本を確認して' },
             tool_response: { status: 'error', error: { code: 'unavailable' } }
         }, { env });
-        expect(failed).toMatchObject({ success: false, satisfies: [] });
-        expect(finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false
-        }, { env }).output).toMatchObject({ decision: 'block' });
-
-        const routed = recordBrainbaseToolUse({
-            session_id: payload.session_id, turn_id: payload.turn_id,
-            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-good-route',
-            tool_input: { intent: '正本を確認して' },
-            tool_response: { status: 'ok', data: {
-                resolution_id: 'kr_prior', status: 'resolved', source_class: 'owning_repo',
-                canonical_location: { repository: 'project:brainbase', path: 'docs/' }
-            } }
+        expect(failed).toMatchObject({ success: false, satisfies: ['knowledge.resolve'] });
+        const repair = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: '参照先を確定できなかった回答'
         }, { env });
-        expect(finalizeEpisode({
+        expect(repair.output).toMatchObject({ decision: 'block' });
+        expect(repair.output.reason).not.toContain('`mcp__brainbase__brainbase_knowledge_resolve` を今実行してください');
+        expect(repair.continuation.missing_capabilities).toEqual(['owner.audit.display']);
+
+        const completed = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 failed.display_line,
-                routed.display_line,
-                '参照結果'
+                '参照先を確定できなかった回答'
             ].join('\n')
-        }, { env }).final).toMatchObject({ completion_status: 'complete', qualifying_event_count: 1 });
+        }, { env });
+        expect(completed.final).toMatchObject({
+            completion_status: 'complete', qualifying_event_count: 0, event_count: 1
+        });
 
         const next = buildJudgmentRequest({
             session_id: payload.session_id, turn_id: 'turn-next', prompt: '続けて', cwd: process.cwd()

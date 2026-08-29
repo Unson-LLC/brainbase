@@ -923,7 +923,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         allowExplicitSuccess: !['write', 'route'].includes(kind),
         semanticSuccess: Boolean(resolution || taskResult)
     });
-    const qualifies = kind === 'route' && success && Boolean(resolution);
+    const satisfiesKnowledgeExecution = kind === 'route';
     const retrievalResult = success && ['search', 'retrieve'].includes(kind)
         ? retrieval?.outcome ?? null
         : null;
@@ -1018,7 +1018,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             tool_use_id: toolUseId,
             event_kind: kind,
             success,
-            satisfies: qualifies ? ['knowledge.resolve'] : [],
+            satisfies: satisfiesKnowledgeExecution ? ['knowledge.resolve'] : [],
             input_digest: inputDigest,
             response_digest: responseDigest,
             event_fingerprint: fingerprint,
@@ -1413,8 +1413,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         return { output: completedAuditOutput(), final: finalized };
     }
     const requiredKnowledge = requiredKnowledgeResolution(episode.initial_route_receipt);
-    const qualifyingEvents = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve'));
-    const missingKnowledge = requiredKnowledge && qualifyingEvents.length === 0;
+    const knowledgeExecutionEvents = events.filter((entry) => entry.satisfies.includes('knowledge.resolve'));
+    const qualifyingEvents = knowledgeExecutionEvents.filter((entry) => entry.success);
+    const missingKnowledge = requiredKnowledge && knowledgeExecutionEvents.length === 0;
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
     const expectedAuditLines = requiredAuditLines(episode, events);
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);

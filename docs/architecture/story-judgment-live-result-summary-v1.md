@@ -32,6 +32,13 @@ query_excerpt + operation + outcome ──> Host生成event_kind / display_line
 - live E2Eは監査行を含むtranscript本文を先に検証し、末尾にある完全なmemory citation blockだけを除外してHook可視本文を復元する。途中の同名文字列や不完全blockは除外しない。
 - Host runtime、保存済みepisode、memory citation本文は変更しない。
 
+## required capabilityの実行結果境界
+
+- `required_capabilities`が要求するのは、許可された正規toolをそのturnで実行し、真正なPostToolUse eventへ結合することである。参照先の選定成功そのものではない。
+- `knowledge.resolve`のeventは、応答の成功・失敗と独立に`knowledge.resolve`を実行済みとして記録する。`success`、`safe_metadata`、`display_line`は実応答の意味を保持し、失敗・unconfirmed・参照先なしを成功や取得済みへ変換しない。
+- Stopは実行済みeventがあるcapabilityを再要求しない。これにより、修復tool callでevent setが変化し、ownerが提示すべき監査prefixも後から変わる循環を防ぐ。
+- owner監査行または回答本文が不足する場合だけ、確定済みevent setを前提に既存のone-shot修復を使う。active再Stopをさらに修復する回数は増やさない。
+
 ## rollback runtime境界
 
 この境界は独立したruntime機能ではなく、上記Host契約をglobal Hook、共有local UI/MCP、Lightsailへ同一commitで反映するためのrelease safety境界である。Host変更と分離すると、修正済み監査契約を安全に配備・復元できないSHA分岐が生じるため、同一PR・同一merge SHA・同一fresh-task readbackで検証する。
