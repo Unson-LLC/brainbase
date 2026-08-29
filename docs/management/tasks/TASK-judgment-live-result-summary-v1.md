@@ -15,3 +15,4 @@ updated_at: 2026-08-29
 6. MCP正本のretrieval target matrixを契約化し、`resolve_entity`とquery付き`list_extension_entities`のoperation誤分類をRED/GREENで修正する。
 7. fresh transcriptに後段付与されたmemory citationを再現し、Hook可視本文とreceiptのexact digest照合をRED/GREENで修正する。
 8. 固定retrieval envelopeと構造化件数が併存する応答をREDで再現し、認識済みenvelopeの結果意味を優先する。
+9. 現行UI/MCP topologyに合うknown-good SHA pinをlaunchd start/updateへ結合し、欠損rootと不正pinをfail closedにしてrollback runbookを更新する。

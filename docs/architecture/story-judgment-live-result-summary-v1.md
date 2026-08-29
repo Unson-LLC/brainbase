@@ -32,6 +32,14 @@ query_excerpt + operation + outcome ──> Host生成event_kind / display_line
 - live E2Eは監査行を含むtranscript本文を先に検証し、末尾にある完全なmemory citation blockだけを除外してHook可視本文を復元する。途中の同名文字列や不完全blockは除外しない。
 - Host runtime、保存済みepisode、memory citation本文は変更しない。
 
+## rollback runtime境界
+
+- `/Users/ksato/workspace/repos/brainbase`はsource repositoryとしてのみ扱い、dirtyな利用者checkoutをswitch、reset、clean、stashしない。
+- local UIとMCPは共有するdisposable runtime `/Users/ksato/workspace/repos/.runtime/brainbase-31013`だけを更新する。
+- 通常時は`origin/develop`の取得済みcommitをtargetにする。rollback時はowner-only pin file `/Users/ksato/workspace/var/brainbase-runtime-pinned.sha`のfull SHAを優先し、launchd start/updateの両方が同じresolverを使う。
+- source root欠損、Git root不一致、pinの非regular file、full SHA以外、commit未取得はfail closedし、欠損rootをcleanとみなさない。
+- global Hookは独立したclean deployment checkoutを使い、rollbackは保存済みHook設定を最後に復元する。dirtyな正本checkoutをHook checkoutとして切り替えない。
+
 ## 検証
 
-単体テストでMCP正本の9 retrieval target、動的operation、0件、結果取得、偽の件数・queryを固定し、live-session E2Eで実MCP応答と保存eventの意味一致、およびアプリ後段メタデータを除いたHook可視本文とreceiptの結合を検証する。
+単体テストでMCP正本の9 retrieval target、動的operation、0件、結果取得、偽の件数・queryを固定し、live-session E2Eで実MCP応答と保存eventの意味一致、およびアプリ後段メタデータを除いたHook可視本文とreceiptの結合を検証する。rollback resolverは一時Git repositoryを使い、valid pinの保持、不正pin、欠損rootを実行テストする。

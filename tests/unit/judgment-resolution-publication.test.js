@@ -241,8 +241,18 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('local-ui.sha');
         expect(runbook).toContain('mcp-runtime.sha');
         expect(runbook).toContain('lightsail.sha');
-        expect(runbook).toContain('git -C "$BRAINBASE_CANONICAL_ROOT" switch --detach "$CANONICAL_ROLLBACK_SHA"');
-        expect(runbook).toContain('git -C "$BRAINBASE_MCP_RUNTIME_ROOT" switch --detach "$MCP_ROLLBACK_SHA"');
+        expect(runbook).toContain('/Users/ksato/workspace/repos/.runtime/brainbase-31013');
+        expect(runbook).toContain('/Users/ksato/workspace/var/brainbase-runtime-pinned.sha');
+        expect(runbook).toContain('git rev-parse --is-inside-work-tree');
+        expect(runbook).toContain('PIN_TMP="$(mktemp "${BRAINBASE_RUNTIME_PIN_FILE}.XXXXXX")"');
+        expect(runbook).toContain('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"');
+        expect(runbook.indexOf('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"')).toBeLessThan(
+            runbook.indexOf('launchctl kickstart -k "gui/$(id -u)/com.brainbase.ui"')
+        );
+        expect(runbook).not.toContain('/Users/ksato/workspace/code/brainbase');
+        expect(runbook).not.toContain('test -z "$(git -C "$BRAINBASE_CANONICAL_ROOT"');
+        expect(runbook).not.toContain('switch --detach "$CANONICAL_ROLLBACK_SHA"');
+        expect(runbook).not.toContain('switch --detach "$MCP_ROLLBACK_SHA"');
         expect(runbook).toContain('install -m 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" "$HOME/.codex/hooks.json"');
         expect(runbook).toContain('Never remove `~/.codex/var/judgment-resolver`');
 

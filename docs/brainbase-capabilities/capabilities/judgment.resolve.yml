@@ -14,6 +14,9 @@ surfaces:
     - scripts/codex-hooks/judgment-resolver-entry.sh
     - scripts/codex-hooks/judgment-resolver-host.mjs
     - scripts/check-codex-judgment-hook-readiness.mjs
+    - scripts/launchd/brainbase-runtime-target.sh
+    - scripts/launchd/brainbase-ui-start.sh
+    - scripts/launchd/brainbase-runtime-update.sh
     - mcp/brainbase/src/server.ts
     - mcp/brainbase/src/tools/judgment-resolution-tools.ts
     - mcp/brainbase/src/tools/judgment-host-contract.ts
@@ -69,6 +72,7 @@ verification:
     - Required `knowledge.resolve` is complete only after a successful exact route call.
     - A replayed complete Stop reuses the same final receipt; an evidence-incomplete active repeated Stop for an existing episode exits non-zero with `judgment_stop_repair_exhausted`, while a true orphan Stop converges to non-final `audit_degraded` with exit 0 and rejects a late Start for the same identity. Neither writes a fabricated final.
     - Current Codex Hook trust is ready_for_fresh_task before live verification, and proven_active evidence comes from a task created after owner trust approval.
+    - Local UI/MCP rollback uses the shared disposable runtime and a validated full-SHA pin that launchd start and periodic update both honor; missing roots, root mismatches, invalid pins, and unavailable commits fail closed without modifying the canonical checkout.
 common_failures:
   - Asking the model to call Resolver after generation has already begun.
   - Describing an internal "Resolver LLM" even though the current Resolver is deterministic and the Codex model owns open-ended investigation.

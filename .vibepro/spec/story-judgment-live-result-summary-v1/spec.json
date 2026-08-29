@@ -94,6 +94,22 @@
         ]
       },
       "verifiable_by": { "test_pattern": [{ "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "must_cover": "oai-mem-citation" }, { "file_glob": "tests/unit/judgment-resolution-publication.test.js", "must_cover": "exact Stop Hook-visible answer body" }] }
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "Local UI and MCP rollback uses one validated full-SHA pin that survives launchd start and update, never mutates the dirty canonical checkout, and fails closed for a missing or mismatched Git root or invalid pin.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-008" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "rollback runtime境界" }],
+        "code_refs": [
+          { "file": "scripts/launchd/brainbase-runtime-target.sh", "anchor": "brainbase_resolve_runtime_target" },
+          { "file": "scripts/launchd/brainbase-ui-start.sh", "anchor": "BRAINBASE_RUNTIME_PIN_FILE" },
+          { "file": "scripts/launchd/brainbase-runtime-update.sh", "anchor": "BRAINBASE_RUNTIME_PIN_FILE" }
+        ],
+        "test_refs": [{ "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "keeps an explicit known-good SHA pinned across launchd restarts and fails closed on invalid roots or pins" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/runtime-worktree-launchd.test.js", "must_cover": "known-good SHA pinned" }] }
     }
   ],
   "diagrams": [],

@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -16,7 +18,9 @@ describe('managed launchd runtime contract', () => {
 
   it('fails when fetch fails and updates only the disposable runtime', () => {
     const start = read('scripts/launchd/brainbase-ui-start.sh');
-    expect(start).toContain('fetch --quiet "$REMOTE" "$BRANCH:$TARGET_REF" || fail');
+    const target = read('scripts/launchd/brainbase-runtime-target.sh');
+    expect(target).toContain('fetch --quiet "$remote" "$branch:$target_ref"');
+    expect(target).toContain('rev-parse --show-toplevel');
     expect(start).toContain('refs/brainbase-runtime/origin-develop');
     expect(start).toContain('git -C "$RUNTIME_ROOT" reset --hard');
     expect(start).toContain('rmdir "$LOCK_DIR"');
@@ -33,8 +37,38 @@ describe('managed launchd runtime contract', () => {
     expect(plist).toContain('<integer>60</integer>');
   });
 
+  it('keeps an explicit known-good SHA pinned across launchd restarts and fails closed on invalid roots or pins', () => {
+    const helper = resolve(root, 'scripts/launchd/brainbase-runtime-target.sh');
+    const sandbox = mkdtempSync(resolve(tmpdir(), 'brainbase-runtime-target-'));
+    const repo = resolve(sandbox, 'source');
+    const pin = resolve(sandbox, 'runtime.sha');
+    try {
+      execFileSync('git', ['init', '-q', repo]);
+      execFileSync('git', ['-C', repo, 'config', 'user.email', 'test@example.com']);
+      execFileSync('git', ['-C', repo, 'config', 'user.name', 'Test']);
+      writeFileSync(resolve(repo, 'fixture.txt'), 'known-good\n');
+      execFileSync('git', ['-C', repo, 'add', 'fixture.txt']);
+      execFileSync('git', ['-C', repo, 'commit', '-qm', 'fixture']);
+      const sha = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+      writeFileSync(pin, `${sha}\n`);
+
+      const command = `source "$1"; brainbase_resolve_runtime_target "$2" origin develop refs/test "$3"`;
+      expect(execFileSync('bash', ['-c', command, '--', helper, repo, pin], { encoding: 'utf8' }).trim()).toBe(sha);
+
+      writeFileSync(pin, 'not-a-sha\n');
+      expect(spawnSync('bash', ['-c', command, '--', helper, repo, pin]).status).not.toBe(0);
+      rmSync(pin);
+      expect(spawnSync('bash', ['-c', command, '--', helper, resolve(sandbox, 'missing'), pin]).status).not.toBe(0);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
   it('runs UI and MCP from the exact same runtime checkout', () => {
     const start = read('scripts/launchd/brainbase-ui-start.sh');
+    expect(start).toContain('brainbase_resolve_runtime_target');
+    expect(start).toContain('brainbase-runtime-pinned.sha');
+    expect(read('scripts/launchd/brainbase-runtime-update.sh')).toContain('brainbase_resolve_runtime_target');
     expect(start).toContain('npm --prefix "$RUNTIME_ROOT/mcp/brainbase" ci --ignore-scripts');
     expect(read('scripts/reconcile-brainbase-mcp-runtime.sh')).toContain('MCP_RUNTIME="${BRAINBASE_MCP_RUNTIME_ROOT:-$UI_RUNTIME}"');
     expect(read('config/com.brainbase.mcp-brainbase.plist')).toContain('/Users/ksato/workspace/repos/.runtime/brainbase-31013');

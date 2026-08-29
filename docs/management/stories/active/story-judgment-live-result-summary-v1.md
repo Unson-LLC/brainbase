@@ -31,6 +31,7 @@ fresh task E2EではHook lifecycle、4件のBrainbase call、Stop修復、comple
 - [ ] AC-005: fresh task live-session E2Eの全ケースがexact HEADで通る。
 - [ ] AC-006: MCP正本の全retrieval targetについて、固定3行envelopeの`検索`／`取得`をHostのevent kindと表示へ一致させる。とくに`resolve_entity`とquery付き`list_extension_entities`を取得へ誤分類しない。
 - [ ] AC-007: fresh task E2Eは、Stop Hook確定後にCodexアプリが末尾へ付与する`<oai-mem-citation>`を監査本文へ混入させず、Hookが実際に受け取った最終回答とreceiptを厳密照合する。
+- [ ] AC-008: local UI/MCP rollbackは、dirtyな正本checkoutを変更せず、明示したknown-good SHAをlaunchd再起動後も保持する。欠損・非Git・root不一致・不正pinはcleanとして扱わずfail closedする。
 
 ## スコープ外
 
@@ -38,3 +39,4 @@ fresh task E2EではHook lifecycle、4件のBrainbase call、Stop修復、comple
 - 保存済みepisodeの書き換え
 - Judgment episode lifecycle、required capability、owner監査、Stop修復の変更
 - Codexアプリが付与するmemory citation本文の内容検証
+- production Lightsailの配置方式変更
