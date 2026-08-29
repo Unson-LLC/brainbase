@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(import.meta.dirname, '../..');
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
 const readinessHelper = resolve(root, 'scripts/launchd/brainbase-runtime-readiness.sh');
+const reconcileScript = resolve(root, 'scripts/reconcile-brainbase-mcp-runtime.sh');
 
 const versionResponse = (sha, dirty) => JSON.stringify({ runtime: { git: { sha, dirty } } });
 
@@ -118,6 +119,19 @@ function runReadiness({ runtime, expectedSha, url, attempts, delay, connectTimeo
 }
 
 const probeCount = (probe) => Number(readFileSync(probe.counter, 'utf8').trim());
+
+function runReconcile({ sandbox, targetSha = 'a'.repeat(40), probe, extraEnv = {} }) {
+  return spawnSync('bash', [reconcileScript, targetSha], {
+    encoding: 'utf8',
+    env: {
+      ...probe.env,
+      BRAINBASE_MCP_RECONCILE_LOCK: resolve(sandbox, 'reconcile.lock'),
+      BRAINBASE_MCP_RECONCILE_RECEIPT: resolve(sandbox, 'reconcile.receipt'),
+      BRAINBASE_MCP_RECONCILE_WAIT_ATTEMPTS: '1',
+      ...extraEnv,
+    },
+  });
+}
 
 describe('managed launchd runtime contract', () => {
   it('uses a linked worktree owned by workspace/repos and never the retired clone', () => {
@@ -400,6 +414,58 @@ describe('managed launchd runtime contract', () => {
     expect(restartRunbook).toContain('BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS');
     expect(restartRunbook).toContain('BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS');
     expect(restartRunbook).toMatch(/## Verify[\s\S]*curl -fsS \\\n\s+--connect-timeout "\$CONNECT_TIMEOUT_SECONDS" \\\n\s+--max-time "\$MAX_TIMEOUT_SECONDS"/);
+  });
+
+  it('bounds the MCP reconcile UI probe with finite positive curl timeouts', () => {
+    const sandbox = mkdtempSync(resolve(tmpdir(), 'brainbase-mcp-reconcile-timeout-'));
+    const probe = createTimeoutProbe(sandbox, versionResponse('b'.repeat(40), false));
+    try {
+      const result = runReconcile({
+        sandbox,
+        probe,
+        extraEnv: {
+          BRAINBASE_MCP_RECONCILE_CONNECT_TIMEOUT_SECONDS: '0.05',
+          BRAINBASE_MCP_RECONCILE_MAX_TIMEOUT_SECONDS: '0.2',
+        },
+      });
+      expect(result.status).not.toBe(0);
+      const args = readFileSync(probe.argsFile, 'utf8');
+      expect(args).toContain('--connect-timeout 0.05');
+      expect(args).toContain('--max-time 0.2');
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed before probing when MCP reconcile timeout configuration is non-finite', () => {
+    const sandbox = mkdtempSync(resolve(tmpdir(), 'brainbase-mcp-reconcile-invalid-timeout-'));
+    const probe = createProbe(sandbox, [versionResponse('a'.repeat(40), false)]);
+    try {
+      const result = runReconcile({
+        sandbox,
+        probe,
+        extraEnv: { BRAINBASE_MCP_RECONCILE_MAX_TIMEOUT_SECONDS: 'Infinity' },
+      });
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}\n${result.stderr}`).toMatch(/timeout|finite positive/i);
+      expect(probeCount(probe)).toBe(0);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed when another MCP reconciliation owns the lock', () => {
+    const sandbox = mkdtempSync(resolve(tmpdir(), 'brainbase-mcp-reconcile-lock-'));
+    const probe = createProbe(sandbox, [versionResponse('a'.repeat(40), false)]);
+    mkdirSync(resolve(sandbox, 'reconcile.lock'));
+    try {
+      const result = runReconcile({ sandbox, probe });
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}\n${result.stderr}`).toMatch(/already running/i);
+      expect(probeCount(probe)).toBe(0);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
   });
 
   it('runs UI and MCP from the exact same runtime checkout', () => {
