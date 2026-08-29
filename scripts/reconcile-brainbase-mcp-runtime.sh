@@ -33,6 +33,8 @@ is_finite_positive_timeout() {
 }
 
 [[ "$TARGET_SHA" =~ ^[0-9a-f]{7,40}$ ]] || fail "target SHA is missing or invalid"
+mkdir -p "$(dirname "$RECEIPT")"
+rm -f -- "$RECEIPT"
 [[ "$WAIT_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || fail "wait attempts must be a positive integer"
 is_finite_positive_timeout "$CONNECT_TIMEOUT_SECONDS" || \
   fail "connect timeout must be finite positive seconds"
@@ -135,7 +137,6 @@ if launchctl print "gui/$(id -u)/${CHATGPT_TUNNEL_LABEL}" >/dev/null 2>&1; then
   fi
 fi
 
-mkdir -p "$(dirname "$RECEIPT")"
 printf 'sha=%s\ncompleted_at=%s\nchatgpt_tunnel=%s\n' \
   "$TARGET_SHA" \
   "$(date -u +%FT%TZ)" \

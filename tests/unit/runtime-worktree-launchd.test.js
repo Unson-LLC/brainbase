@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
@@ -440,6 +440,8 @@ describe('managed launchd runtime contract', () => {
   it('fails closed before probing when MCP reconcile timeout configuration is non-finite', () => {
     const sandbox = mkdtempSync(resolve(tmpdir(), 'brainbase-mcp-reconcile-invalid-timeout-'));
     const probe = createProbe(sandbox, [versionResponse('a'.repeat(40), false)]);
+    const receipt = resolve(sandbox, 'reconcile.receipt');
+    writeFileSync(receipt, 'sha=stale\n');
     try {
       const result = runReconcile({
         sandbox,
@@ -449,6 +451,7 @@ describe('managed launchd runtime contract', () => {
       expect(result.status).not.toBe(0);
       expect(`${result.stdout}\n${result.stderr}`).toMatch(/timeout|finite positive/i);
       expect(probeCount(probe)).toBe(0);
+      expect(existsSync(receipt)).toBe(false);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }
@@ -457,12 +460,15 @@ describe('managed launchd runtime contract', () => {
   it('fails closed when another MCP reconciliation owns the lock', () => {
     const sandbox = mkdtempSync(resolve(tmpdir(), 'brainbase-mcp-reconcile-lock-'));
     const probe = createProbe(sandbox, [versionResponse('a'.repeat(40), false)]);
+    const receipt = resolve(sandbox, 'reconcile.receipt');
+    writeFileSync(receipt, 'sha=stale\n');
     mkdirSync(resolve(sandbox, 'reconcile.lock'));
     try {
       const result = runReconcile({ sandbox, probe });
       expect(result.status).not.toBe(0);
       expect(`${result.stdout}\n${result.stderr}`).toMatch(/already running/i);
       expect(probeCount(probe)).toBe(0);
+      expect(existsSync(receipt)).toBe(false);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }
@@ -474,6 +480,9 @@ describe('managed launchd runtime contract', () => {
     expect(start).toContain('brainbase-runtime-pinned.sha');
     expect(read('scripts/launchd/brainbase-runtime-update.sh')).toContain('brainbase_resolve_runtime_target');
     expect(start).toContain('npm --prefix "$RUNTIME_ROOT/mcp/brainbase" ci --ignore-scripts');
+    expect(start).toContain('BRAINBASE_MCP_RECONCILE_LOG');
+    expect(start).toContain('>> "$RECONCILE_LOG" 2>&1');
+    expect(start).not.toMatch(/reconcile-brainbase-mcp-runtime\.sh[^\n]*\&\)[^\n]*\/dev\/null/);
     expect(read('scripts/reconcile-brainbase-mcp-runtime.sh')).toContain('MCP_RUNTIME="${BRAINBASE_MCP_RUNTIME_ROOT:-$UI_RUNTIME}"');
     expect(read('config/com.brainbase.mcp-brainbase.plist')).toContain('/Users/ksato/workspace/repos/.runtime/brainbase-31013');
     const install = read('scripts/install-brainbase-runtime-launchd.sh');

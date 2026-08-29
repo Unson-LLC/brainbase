@@ -9,11 +9,12 @@ TARGET_REF="${BRAINBASE_RUNTIME_TARGET_REF:-refs/brainbase-runtime/origin-develo
 PIN_FILE="${BRAINBASE_RUNTIME_PIN_FILE:-/Users/ksato/workspace/var/brainbase-runtime-pinned.sha}"
 NODE_BIN="${BRAINBASE_NODE_BIN:-/Users/ksato/.hermes/node/bin/node}"
 LOCK_DIR="${BRAINBASE_RUNTIME_LOCK:-/Users/ksato/workspace/var/brainbase-runtime-update.lock}"
+RECONCILE_LOG="${BRAINBASE_MCP_RECONCILE_LOG:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.log}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 fail() { printf '[brainbase-runtime] FAILED: %s\n' "$*" >&2; exit 1; }
 [[ -d "$SOURCE_REPO/.git" ]] || fail "source repository not found: $SOURCE_REPO"
-mkdir -p "$(dirname "$RUNTIME_ROOT")" "$(dirname "$LOCK_DIR")"
+mkdir -p "$(dirname "$RUNTIME_ROOT")" "$(dirname "$LOCK_DIR")" "$(dirname "$RECONCILE_LOG")"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   fail "another runtime update is active"
 fi
@@ -50,7 +51,7 @@ npm --prefix "$RUNTIME_ROOT/mcp/brainbase" run build
 export BRAINBASE_UI_RUNTIME_ROOT="$RUNTIME_ROOT"
 export BRAINBASE_REPO_ROOT="$RUNTIME_ROOT"
 export BRAINBASE_RUNTIME_EXPECTED_SHA="$TARGET_SHA"
-("$RUNTIME_ROOT/scripts/reconcile-brainbase-mcp-runtime.sh" "$TARGET_SHA" &) >/dev/null 2>&1
+"$RUNTIME_ROOT/scripts/reconcile-brainbase-mcp-runtime.sh" "$TARGET_SHA" >> "$RECONCILE_LOG" 2>&1 &
 cd "$RUNTIME_ROOT"
 rmdir "$LOCK_DIR"
 trap - EXIT
