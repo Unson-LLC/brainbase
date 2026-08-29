@@ -39,7 +39,7 @@
         "code_refs": [{ "file": "mcp/brainbase/src/tools/meeting-minutes-context-tools.ts" }],
         "test_refs": [
           { "file": "mcp/brainbase/tests/meeting-minutes-context-tools.test.ts", "case": "wrong receipt identity fails closed" },
-          { "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts", "case": "story-remote-judgment-hook:ac:5 fails closed when PostToolUse was not recorded by the canonical dispatcher" }
+          { "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts", "case": "story-remote-judgment-hook-contract-sync:ac:2 preserves the precise missing tool-use identity failure" }
         ]
       },
       "verifiable_by": { "test_pattern": [{ "file_glob": "mcp/brainbase/tests/meeting-minutes-context-tools.test.ts", "must_cover": "identity" }] },

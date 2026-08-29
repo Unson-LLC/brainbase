@@ -136,7 +136,7 @@ describe('remote judgment Hook HTTP boundary', () => {
     assert.equal(calls, 0);
   });
 
-  it('story-remote-judgment-hook:ac:5 fails closed when the canonical Stop dispatcher rejects an orphan episode', async () => {
+  it('story-remote-judgment-hook-contract-sync:ac:1 returns the canonical one-shot repair block for an orphan Stop', async () => {
     const journalRoot = await mkdtemp(join(tmpdir(), 'remote-judgment-hook-'));
     try {
       const { processHookPayload } = await import('../../../../scripts/codex-hooks/judgment-resolver-host.mjs');
@@ -151,13 +151,17 @@ describe('remote judgment Hook HTTP boundary', () => {
           }),
         }),
       }));
-      assert.deepEqual(result, { status: 503, body: { error: 'judgment_episode_not_found' } });
+      assert.equal(result?.status, 200);
+      assert.equal(result?.body.accepted, true);
+      assert.equal(result?.body.hook_event_name, 'Stop');
+      assert.equal(result?.body.output?.decision, 'block');
+      assert.match(result?.body.output?.reason ?? '', /judgment_episode_not_found/);
     } finally {
       await rm(journalRoot, { recursive: true, force: true });
     }
   });
 
-  it('story-remote-judgment-hook:ac:5 fails closed when PostToolUse was not recorded by the canonical dispatcher', async () => {
+  it('story-remote-judgment-hook-contract-sync:ac:2 preserves the precise missing tool-use identity failure', async () => {
     const journalRoot = await mkdtemp(join(tmpdir(), 'remote-judgment-hook-'));
     try {
       const { processHookPayload } = await import('../../../../scripts/codex-hooks/judgment-resolver-host.mjs');
@@ -173,7 +177,7 @@ describe('remote judgment Hook HTTP boundary', () => {
         }),
       }));
       assert.deepEqual(result, {
-        status: 503, body: { error: 'judgment_hook_audit_not_recorded' },
+        status: 503, body: { error: 'judgment_tool_use_id_missing' },
       });
     } finally {
       await rm(journalRoot, { recursive: true, force: true });
