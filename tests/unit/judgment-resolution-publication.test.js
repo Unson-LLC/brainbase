@@ -195,6 +195,7 @@ describe('judgment resolver publication surfaces', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
         const architecture = read('docs/architecture/story-brainbase-judgment-resolver-v1.md');
         const spec = read('docs/specs/story-brainbase-judgment-resolver-v1.md');
+        const story = read('docs/management/stories/active/story-brainbase-judgment-resolver-v1.md');
 
         expect(envExample).toContain('BRAINBASE_JUDGMENT_BINDING_SECRET');
         expect(envExample).toContain('BRAINBASE_JUDGMENT_ADAPTER_ID=brainbase-mcp');
@@ -255,6 +256,18 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).not.toContain('switch --detach "$MCP_ROLLBACK_SHA"');
         expect(runbook).toContain('install -m 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" "$HOME/.codex/hooks.json"');
         expect(runbook).toContain('Never remove `~/.codex/var/judgment-resolver`');
+        expect(spec).toContain('global Hook on its independent clean checkout');
+        expect(spec).toContain('shared local UI/MCP disposable runtime');
+        expect(spec).toContain('recorded pinned commit SHA');
+        expect(spec).toContain('restore Lightsail separately');
+        expect(spec).toMatch(/exact prior Hook file.*restored last/u);
+        expect(spec).toContain('dirty canonical source checkout');
+        expect(story).toContain('global Hookは独立したclean checkout');
+        expect(story).toContain('local UI/MCPは共有disposable runtime');
+        expect(story).toContain('記録済みcommit SHAへpin');
+        expect(story).toContain('Lightsailを別面として復元');
+        expect(story).toContain('最後に元の`hooks.json`を復元');
+        expect(story).toContain('dirtyな正本source checkout');
 
         const lightsailRunbook = read('docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md');
         expect(lightsailRunbook).toContain('TARGET_SHA="$(git rev-parse HEAD)"');
