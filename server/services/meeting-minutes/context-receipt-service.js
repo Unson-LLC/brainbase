@@ -218,7 +218,10 @@ export class MeetingMinutesContextReceiptService {
                 entityTypes: GRAPH_ENTITY_TYPES,
                 limit: MAX_ENTITIES,
                 humanReadable: false,
-                includeEdges: true,
+                // Meeting-minutes generation consumes canonical entities and tasks, not
+                // the workspace-wide edge set. Fetching every edge makes this endpoint
+                // scale with the whole Graph and can exceed the caller deadline.
+                includeEdges: false,
                 includePhilosophy: false,
                 scope: 'meeting_minutes_generation'
             });

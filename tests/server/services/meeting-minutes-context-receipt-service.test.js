@@ -72,6 +72,10 @@ describe('MeetingMinutesContextReceiptService', () => {
         ]);
         expect(receipt.checksum).toMatch(/^[a-f0-9]{64}$/);
         expect(Buffer.byteLength(JSON.stringify(receipt), 'utf8')).toBeLessThanOrEqual(128 * 1024);
+        expect(infoSSOTService.getContext).toHaveBeenCalledWith(
+            expect.any(Object),
+            expect.objectContaining({ includeEdges: false })
+        );
         expect(canonicalTaskService.listTasks).toHaveBeenCalledWith(
             expect.objectContaining({ project_code: 'mana' }),
             expect.objectContaining({
