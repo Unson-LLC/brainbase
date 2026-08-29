@@ -1,5 +1,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -60,11 +62,57 @@ printf '%s\\n' "$response"
   };
 }
 
-function runReadiness({ runtime, expectedSha, url, attempts, delay, probe }) {
-  const command = 'set -euo pipefail; source "$1"; brainbase_wait_for_runtime_ready "$2" "$3" "$4" "$5" "$6"';
+function createTimeoutProbe(sandbox, response) {
+  const bin = resolve(sandbox, 'timeout-bin');
+  const argsFile = resolve(sandbox, 'curl.args');
+  mkdirSync(bin);
+  const quote = (value) => JSON.stringify(value);
+  const curl = resolve(bin, 'curl');
+  writeFileSync(
+    curl,
+    `#!/bin/bash
+set -euo pipefail
+has_connect_timeout=0
+has_max_time=0
+for arg in "$@"; do
+  [[ "$arg" == "--connect-timeout" ]] && has_connect_timeout=1
+  [[ "$arg" == "--max-time" ]] && has_max_time=1
+done
+printf '%s\n' "$*" > ${quote(argsFile)}
+if (( has_connect_timeout != 1 || has_max_time != 1 )); then
+  sleep 0.1
+  exit 124
+fi
+printf '%s\n' ${quote(response)}
+`,
+  );
+  chmodSync(curl, 0o755);
+  const sleep = resolve(bin, 'sleep');
+  writeFileSync(sleep, '#!/bin/bash\nexit 0\n');
+  chmodSync(sleep, 0o755);
+  return {
+    argsFile,
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH || ''}` },
+  };
+}
+
+function runReadiness({ runtime, expectedSha, url, attempts, delay, connectTimeout = '5', maxTimeout = '10', probe }) {
+  const command = 'set -euo pipefail; source "$1"; brainbase_wait_for_runtime_ready "$2" "$3" "$4" "$5" "$6" "$7" "$8"';
   return spawnSync(
     'bash',
-    ['-c', command, '--', readinessHelper, runtime, expectedSha, url, String(attempts), String(delay)],
+    [
+      '-c',
+      command,
+      '--',
+      readinessHelper,
+      runtime,
+      expectedSha,
+      url,
+      String(attempts),
+      String(delay),
+      String(connectTimeout),
+      String(maxTimeout),
+    ],
     { encoding: 'utf8', env: probe.env },
   );
 }
@@ -241,6 +289,114 @@ describe('managed launchd runtime contract', () => {
     } finally {
       rmSync(fixture.sandbox, { recursive: true, force: true });
     }
+  });
+
+  it('passes finite connect and total timeout flags to a potentially hanging local API probe', () => {
+    const fixture = createRuntimeFixture();
+    const probe = createTimeoutProbe(fixture.sandbox, versionResponse(fixture.expectedSha, false));
+    try {
+      const result = runReadiness({
+        runtime: fixture.runtime,
+        expectedSha: fixture.expectedSha,
+        url: 'http://127.0.0.1:31013/api/version',
+        attempts: 1,
+        delay: 0,
+        connectTimeout: '0.05',
+        maxTimeout: '0.2',
+        probe,
+      });
+      expect(result.status).toBe(0);
+      const args = readFileSync(probe.argsFile, 'utf8');
+      expect(args).toContain('--connect-timeout');
+      expect(args).toContain('--max-time');
+      expect(args).toContain('0.05');
+      expect(args).toContain('0.2');
+    } finally {
+      rmSync(fixture.sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('returns non-zero within the configured maximum time when the API accepts a connection but never responds', async () => {
+    const fixture = createRuntimeFixture();
+    const server = createServer(() => {});
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('expected an ephemeral TCP port');
+    }
+
+    try {
+      const startedAt = performance.now();
+      const result = runReadiness({
+        runtime: fixture.runtime,
+        expectedSha: fixture.expectedSha,
+        url: `http://127.0.0.1:${address.port}/api/version`,
+        attempts: 1,
+        delay: 0,
+        connectTimeout: '0.1',
+        maxTimeout: '0.2',
+        probe: { env: process.env },
+      });
+      const elapsedMs = performance.now() - startedAt;
+
+      expect(result.status).not.toBe(0);
+      expect(elapsedMs).toBeLessThan(2_000);
+      expect(`${result.stdout}\n${result.stderr}`).toMatch(/unavailable|timed out/i);
+    } finally {
+      server.close();
+      await once(server, 'close');
+      rmSync(fixture.sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects missing, zero, and non-finite probe timeout values before invoking curl', () => {
+    const fixture = createRuntimeFixture();
+    const probe = createProbe(fixture.sandbox, [versionResponse(fixture.expectedSha, false)]);
+    try {
+      for (const timeout of [
+        { connectTimeout: '', maxTimeout: '10' },
+        { connectTimeout: '0', maxTimeout: '10' },
+        { connectTimeout: 'NaN', maxTimeout: '10' },
+        { connectTimeout: '5', maxTimeout: '0' },
+        { connectTimeout: '5', maxTimeout: 'Infinity' },
+      ]) {
+        const result = runReadiness({
+          runtime: fixture.runtime,
+          expectedSha: fixture.expectedSha,
+          url: 'http://127.0.0.1:31013/api/version',
+          attempts: 1,
+          delay: 0,
+          ...timeout,
+          probe,
+        });
+        expect(result.status).not.toBe(0);
+        expect(`${result.stdout}\n${result.stderr}`).toMatch(/timeout|finite positive/i);
+      }
+      expect(probeCount(probe)).toBe(0);
+    } finally {
+      rmSync(fixture.sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('requires finite curl timeouts on every rollback readiness surface', () => {
+    const helper = read('scripts/launchd/brainbase-runtime-readiness.sh');
+    const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+    const restartRunbook = read('docs/brainbase-capabilities/runbooks/restart-31013-launchd.md');
+    const rollback = runbook.slice(runbook.indexOf('### Rollback'));
+    const remoteProbe = rollback.slice(rollback.indexOf("<<'REMOTE'"), rollback.indexOf('REMOTE\nTARGET_SHA'));
+    const publicProbe = rollback.slice(rollback.indexOf('PUBLIC_ATTEMPTS'), rollback.indexOf('# 3. Restore'));
+
+    expect(helper).toContain('--connect-timeout');
+    expect(helper).toContain('--max-time');
+    expect(remoteProbe).toContain('--connect-timeout');
+    expect(remoteProbe).toContain('--max-time');
+    expect(publicProbe).toContain('--connect-timeout');
+    expect(publicProbe).toContain('--max-time');
+    expect(rollback).toContain('BRAINBASE_LIGHTSAIL_READINESS_CONNECT_TIMEOUT_SECONDS');
+    expect(rollback).toContain('BRAINBASE_LIGHTSAIL_READINESS_MAX_TIMEOUT_SECONDS');
+    expect(restartRunbook).toContain('BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS');
+    expect(restartRunbook).toContain('BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS');
   });
 
   it('runs UI and MCP from the exact same runtime checkout', () => {

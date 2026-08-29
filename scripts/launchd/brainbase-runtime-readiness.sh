@@ -4,13 +4,37 @@
 # Callers must provide the expected full commit SHA; readiness is accepted only
 # when the API and the runtime worktree agree on that SHA in the same attempt.
 
+brainbase_runtime_readiness_validate_positive_seconds() {
+  local value="$1"
+  local label="$2"
+
+  if [[ ! "$value" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
+    printf '[brainbase-runtime] %s must be a finite positive number\n' "$label" >&2
+    return 1
+  fi
+}
+
 brainbase_runtime_readiness_api() {
   local url="$1"
   local expected_sha="$2"
+  local connect_timeout_seconds="$3"
+  local max_timeout_seconds="$4"
   local response
   local api_sha
 
-  if ! response="$(curl -fsS -- "$url" 2>/dev/null)"; then
+  if ! brainbase_runtime_readiness_validate_positive_seconds \
+    "$connect_timeout_seconds" 'connect timeout'; then
+    return 2
+  fi
+  if ! brainbase_runtime_readiness_validate_positive_seconds \
+    "$max_timeout_seconds" 'maximum request time'; then
+    return 2
+  fi
+
+  if ! response="$(curl -fsS \
+    --connect-timeout "$connect_timeout_seconds" \
+    --max-time "$max_timeout_seconds" \
+    -- "$url" 2>/dev/null)"; then
     printf '[brainbase-runtime] readiness API probe unavailable: %s\n' "$url" >&2
     return 1
   fi
@@ -65,8 +89,8 @@ brainbase_runtime_readiness_worktree() {
 }
 
 brainbase_wait_for_runtime_ready() {
-  if [[ "$#" -ne 5 ]]; then
-    printf '[brainbase-runtime] usage: brainbase_wait_for_runtime_ready <runtime-root> <expected-sha> <url> <attempts> <delay-seconds>\n' >&2
+  if [[ "$#" -ne 7 ]]; then
+    printf '[brainbase-runtime] usage: brainbase_wait_for_runtime_ready <runtime-root> <expected-sha> <url> <attempts> <delay-seconds> <connect-timeout-seconds> <max-time-seconds>\n' >&2
     return 2
   fi
 
@@ -75,6 +99,8 @@ brainbase_wait_for_runtime_ready() {
   local url="$3"
   local max_attempts="$4"
   local delay_seconds="$5"
+  local connect_timeout_seconds="$6"
+  local max_timeout_seconds="$7"
   local resolved_runtime_root
   local git_root
   local attempt
@@ -97,6 +123,14 @@ brainbase_wait_for_runtime_ready() {
     printf '[brainbase-runtime] readiness delay must be a finite non-negative number\n' >&2
     return 2
   }
+  if ! brainbase_runtime_readiness_validate_positive_seconds \
+    "$connect_timeout_seconds" 'connect timeout'; then
+    return 2
+  fi
+  if ! brainbase_runtime_readiness_validate_positive_seconds \
+    "$max_timeout_seconds" 'maximum request time'; then
+    return 2
+  fi
   [[ -d "$runtime_root" ]] || {
     printf '[brainbase-runtime] runtime worktree is missing: %s\n' "$runtime_root" >&2
     return 1
@@ -126,7 +160,11 @@ brainbase_wait_for_runtime_ready() {
   for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do
     api_ready=0
     worktree_ready=0
-    if brainbase_runtime_readiness_api "$url" "$expected_sha"; then
+    if brainbase_runtime_readiness_api \
+      "$url" \
+      "$expected_sha" \
+      "$connect_timeout_seconds" \
+      "$max_timeout_seconds"; then
       api_ready=1
     fi
     if brainbase_runtime_readiness_worktree "$runtime_root" "$expected_sha"; then

@@ -15,18 +15,25 @@ source "$SOURCE_REPO/scripts/launchd/brainbase-runtime-target.sh"
 source "$SOURCE_REPO/scripts/launchd/brainbase-runtime-readiness.sh"
 TARGET_SHA="$(brainbase_resolve_runtime_target \
   "$SOURCE_REPO" origin develop refs/brainbase-runtime/origin-develop "$PIN_FILE")"
+CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
+MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+brainbase_runtime_readiness_validate_positive_seconds "$CONNECT_TIMEOUT_SECONDS" 'connect timeout'
+brainbase_runtime_readiness_validate_positive_seconds "$MAX_TIMEOUT_SECONDS" 'maximum request time'
 launchctl kickstart -k gui/$(id -u)/com.brainbase.ui
 brainbase_wait_for_runtime_ready \
   "$RUNTIME_ROOT" \
   "$TARGET_SHA" \
   http://127.0.0.1:31013/api/version \
   "${BRAINBASE_RUNTIME_READINESS_ATTEMPTS:-30}" \
-  "${BRAINBASE_RUNTIME_READINESS_DELAY_SECONDS:-2}"
+  "${BRAINBASE_RUNTIME_READINESS_DELAY_SECONDS:-2}" \
+  "$CONNECT_TIMEOUT_SECONDS" \
+  "$MAX_TIMEOUT_SECONDS"
 ```
 
 The bounded wait accepts the restart only when the API and disposable runtime
 worktree both report the exact target commit and a clean state. A timeout exits
-non-zero; do not continue to MCP or Hook restoration until it passes.
+non-zero; every API probe has a finite positive connect and total request
+timeout, and do not continue to MCP or Hook restoration until it passes.
 
 ## If The Job Is Not Loaded
 

@@ -98,7 +98,7 @@
     {
       "id": "C-006",
       "type": "contract",
-      "statement": "Local UI and MCP rollback uses one validated full-SHA pin that survives launchd start and update, never mutates the dirty canonical checkout, and fails closed for a missing or mismatched Git root or invalid pin. After launchd restart, bounded polling (not fixed sleep or a single probe) must confirm the API reports the target SHA with dirty=false and the runtime worktree has the exact target HEAD and is clean; timeout, mismatch, dirty, or unavailable readiness returns non-zero and does not advance to downstream surface restoration.",
+      "statement": "Local UI and MCP rollback uses one validated full-SHA pin that survives launchd start and update, never mutates the dirty canonical checkout, and fails closed for a missing or mismatched Git root or invalid pin. After launchd restart, bounded polling (not fixed sleep or a single probe) must confirm the API reports the target SHA with dirty=false and the runtime worktree has the exact target HEAD and is clean. Every local, Lightsail-local, and public HTTP readiness request must use validated finite positive connect and total timeouts; missing, zero, or non-finite timeout values fail closed before the request. Timeout, mismatch, dirty, or unavailable readiness returns non-zero and does not advance to downstream surface restoration.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-008" }],
         "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "rollback runtime境界" }],
@@ -112,7 +112,10 @@
           { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "polls past a transient probe failure before accepting exact clean runtime readiness" },
           { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "rejects an old API SHA and dirty API response before accepting the exact clean SHA" },
           { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "rejects runtime worktree HEAD mismatch and tracked or untracked dirtiness" },
-          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "returns a non-zero timeout after the bounded readiness attempts are exhausted" }
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "returns a non-zero timeout after the bounded readiness attempts are exhausted" },
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "returns non-zero within the configured maximum time when the API accepts a connection but never responds" },
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "rejects missing, zero, and non-finite probe timeout values before invoking curl" },
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "requires finite curl timeouts on every rollback readiness surface" }
         ]
       },
       "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/runtime-worktree-launchd.test.js", "must_cover": "known-good SHA pinned" }] }

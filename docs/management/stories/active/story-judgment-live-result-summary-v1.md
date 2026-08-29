@@ -31,7 +31,7 @@ fresh task E2EではHook lifecycle、4件のBrainbase call、Stop修復、comple
 - [ ] AC-005: fresh task live-session E2Eの全ケースがexact HEADで通る。
 - [ ] AC-006: MCP正本の全retrieval targetについて、固定3行envelopeの`検索`／`取得`をHostのevent kindと表示へ一致させる。とくに`resolve_entity`とquery付き`list_extension_entities`を取得へ誤分類しない。
 - [ ] AC-007: fresh task E2Eは、Stop Hook確定後にCodexアプリが末尾へ付与する`<oai-mem-citation>`を監査本文へ混入させず、Hookが実際に受け取った最終回答とreceiptを厳密照合する。
-- [ ] AC-008: local UI/MCP rollbackは、dirtyな正本checkoutを変更せず、明示したknown-good SHAをlaunchd再起動後も保持する。再起動後は固定sleepや単発probeで成功扱いせず、bounded pollingでAPIの対象SHA・`dirty=false`とruntime worktreeのexact HEAD・cleanを確認し、timeout・不一致・未応答は明示non-zeroで後続面へ進めない。欠損・非Git・root不一致・不正pinはcleanとして扱わずfail closedする。
+- [ ] AC-008: local UI/MCP rollbackは、dirtyな正本checkoutを変更せず、明示したknown-good SHAをlaunchd再起動後も保持する。再起動後は固定sleepや単発probeで成功扱いせず、bounded pollingでAPIの対象SHA・`dirty=false`とruntime worktreeのexact HEAD・cleanを確認する。各HTTP probeには検証済みの有限正数`--connect-timeout`と`--max-time`を適用し、1回のcurl停止でもpolling全体が無期限停止しないようにする。timeout・不一致・未応答は明示non-zeroで後続面へ進めない。欠損・非Git・root不一致・不正pinはcleanとして扱わずfail closedする。
 
 ## スコープ外
 

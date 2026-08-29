@@ -320,32 +320,60 @@ PIN_TMP="$(mktemp "${BRAINBASE_RUNTIME_PIN_FILE}.XXXXXX")"
 chmod 600 "$PIN_TMP"
 printf '%s\n' "$LOCAL_ROLLBACK_SHA" > "$PIN_TMP"
 mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"
-launchctl kickstart -k "gui/$(id -u)/com.brainbase.ui"
 READINESS_HELPER="$BRAINBASE_SOURCE_ROOT/scripts/launchd/brainbase-runtime-readiness.sh"
 test -r "$READINESS_HELPER"
 source "$READINESS_HELPER"
+RUNTIME_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
+RUNTIME_MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+brainbase_runtime_readiness_validate_positive_seconds "$RUNTIME_CONNECT_TIMEOUT_SECONDS" 'connect timeout'
+brainbase_runtime_readiness_validate_positive_seconds "$RUNTIME_MAX_TIMEOUT_SECONDS" 'maximum request time'
+launchctl kickstart -k "gui/$(id -u)/com.brainbase.ui"
 brainbase_wait_for_runtime_ready \
   "$BRAINBASE_UI_RUNTIME_ROOT" \
   "$LOCAL_ROLLBACK_SHA" \
   http://127.0.0.1:31013/api/version \
   "${BRAINBASE_RUNTIME_READINESS_ATTEMPTS:-30}" \
-  "${BRAINBASE_RUNTIME_READINESS_DELAY_SECONDS:-2}"
+  "${BRAINBASE_RUNTIME_READINESS_DELAY_SECONDS:-2}" \
+  "$RUNTIME_CONNECT_TIMEOUT_SECONDS" \
+  "$RUNTIME_MAX_TIMEOUT_SECONDS"
 (cd "$BRAINBASE_MCP_RUNTIME_ROOT" && scripts/reconcile-brainbase-mcp-runtime.sh "$MCP_ROLLBACK_SHA")
 (cd "$BRAINBASE_MCP_RUNTIME_ROOT" && scripts/run-brainbase-mcp.sh --check)
 launchctl print "gui/$(id -u)/com.brainbase.mcp-brainbase" | grep -q 'state = running'
 
 # 2. Restore Lightsail, reinstall dependencies only when its manifest changed,
 # and prove both the instance and public proxy report the captured SHA.
+LIGHTSAIL_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
+LIGHTSAIL_MAX_TIMEOUT_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+if ! [[ "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
+  printf '[brainbase-runtime] Lightsail connect timeout must be a finite positive number\n' >&2
+  exit 2
+fi
+if ! [[ "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
+  printf '[brainbase-runtime] Lightsail maximum request time must be a finite positive number\n' >&2
+  exit 2
+fi
 ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
   "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")" \
   "${BRAINBASE_LIGHTSAIL_READINESS_ATTEMPTS:-30}" \
-  "${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}" <<'REMOTE'
+  "${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}" \
+  "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" \
+  "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" <<'REMOTE'
 set -euo pipefail
 ROLLBACK_SHA="$1"
 MAX_ATTEMPTS="$2"
 DELAY_SECONDS="$3"
+CONNECT_TIMEOUT_SECONDS="$4"
+MAX_TIMEOUT_SECONDS="$5"
 [[ "$MAX_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]
 [[ "$DELAY_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]
+if ! [[ "$CONNECT_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
+  printf '[brainbase-runtime] Lightsail connect timeout must be a finite positive number\n' >&2
+  exit 2
+fi
+if ! [[ "$MAX_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
+  printf '[brainbase-runtime] Lightsail maximum request time must be a finite positive number\n' >&2
+  exit 2
+fi
 cd /home/ubuntu/brainbase
 test "$(git rev-parse --is-inside-work-tree)" = true
 test "$(git rev-parse --show-toplevel)" = /home/ubuntu/brainbase
@@ -360,7 +388,10 @@ fi
 sudo systemctl restart brainbase-ssot.service
 local_ready=0
 for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt+=1)); do
-  if curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
+  if curl -fsS \
+    --connect-timeout "$CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$MAX_TIMEOUT_SECONDS" \
+    -- http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
 const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
 const git=value.runtime?.git;
 if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
@@ -378,9 +409,14 @@ REMOTE
 TARGET_SHA="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")"
 PUBLIC_ATTEMPTS="${BRAINBASE_LIGHTSAIL_READINESS_ATTEMPTS:-30}"
 PUBLIC_DELAY_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}"
+PUBLIC_CONNECT_TIMEOUT_SECONDS="$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS"
+PUBLIC_MAX_TIMEOUT_SECONDS="$LIGHTSAIL_MAX_TIMEOUT_SECONDS"
 public_ready=0
 for ((attempt=1; attempt<=PUBLIC_ATTEMPTS; attempt+=1)); do
-  if curl -fsS https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
+  if curl -fsS \
+    --connect-timeout "$PUBLIC_CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$PUBLIC_MAX_TIMEOUT_SECONDS" \
+    -- https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
 const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
 const git=value.runtime?.git;
 if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
