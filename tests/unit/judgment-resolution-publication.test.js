@@ -193,6 +193,8 @@ describe('judgment resolver publication surfaces', () => {
         const launcher = read('scripts/run-brainbase-mcp.sh');
         const capability = read('docs/brainbase-capabilities/capabilities/judgment.resolve.yml');
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const architecture = read('docs/architecture/story-brainbase-judgment-resolver-v1.md');
+        const spec = read('docs/specs/story-brainbase-judgment-resolver-v1.md');
 
         expect(envExample).toContain('BRAINBASE_JUDGMENT_BINDING_SECRET');
         expect(envExample).toContain('BRAINBASE_JUDGMENT_ADAPTER_ID=brainbase-mcp');
@@ -222,6 +224,14 @@ describe('judgment resolver publication surfaces', () => {
             expect(surface).toMatch(/incomplete or embedded citation block.*fails closed/iu);
             expect(surface).not.toContain('answer digest binds that rendered message');
             expect(surface).not.toContain('answer digest must match that rendered message');
+        }
+        for (const surface of [architecture, spec]) {
+            expect(surface).toContain('exact Stop Hook-visible answer body');
+            expect(surface).toContain('only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block');
+            expect(surface).toMatch(/incomplete, embedded, or multiple citation blocks.*fail(?:s)? closed/iu);
+            expect(surface).not.toMatch(/answer digest.*final assistant (?:message|`response_item`).*canonical JSONL transcript/iu);
+            expect(surface).not.toContain('that its digest matches the final receipt');
+            expect(surface).not.toContain('answer digest matching the final assistant message');
         }
         expect(runbook).toContain('scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"');
         expect(runbook).toContain('brainbase-mcp-reconcile.last');

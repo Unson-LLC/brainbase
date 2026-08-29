@@ -111,15 +111,59 @@ function readFinalAssistantMessage(path, turnId) {
 }
 
 function hookVisibleFinalAnswer(renderedAnswer) {
-    const marker = '\n\n<oai-mem-citation>';
-    const markerIndex = renderedAnswer.lastIndexOf(marker);
-    if (markerIndex === -1) return renderedAnswer;
-    const citationBlock = renderedAnswer.slice(markerIndex + 2);
-    if (!/^<oai-mem-citation>\n[\s\S]*\n<\/oai-mem-citation>$/u.test(citationBlock)) {
+    const openingTag = '<oai-mem-citation>';
+    const closingTag = '</oai-mem-citation>';
+    const openingTags = [...renderedAnswer.matchAll(/<oai-mem-citation>/gu)];
+    const closingTags = [...renderedAnswer.matchAll(/<\/oai-mem-citation>/gu)];
+    if (openingTags.length !== 1 || closingTags.length !== 1) return renderedAnswer;
+
+    const markerIndex = openingTags[0].index;
+    const closingIndex = closingTags[0].index;
+    if (markerIndex === undefined || closingIndex === undefined || closingIndex <= markerIndex) {
         return renderedAnswer;
     }
-    return renderedAnswer.slice(0, markerIndex + 2);
+
+    const prefix = renderedAnswer.slice(0, markerIndex);
+    const citationBlock = renderedAnswer.slice(markerIndex);
+    if (!/(?:\r?\n)+$/u.test(prefix)
+        || !new RegExp(`^${openingTag}\\r?\\n[\\s\\S]*\\r?\\n${closingTag}$`, 'u').test(citationBlock)
+        || closingIndex + closingTag.length !== renderedAnswer.length) {
+        return renderedAnswer;
+    }
+    return prefix;
 }
+
+test('hookVisibleFinalAnswer preserves an answer without a citation block', () => {
+    const renderedAnswer = '本文のみ';
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+});
+
+test('hookVisibleFinalAnswer removes one complete trailing citation block', () => {
+    const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource\n</oai-mem-citation>';
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), '本文\n\n');
+});
+
+test('hookVisibleFinalAnswer preserves an incomplete citation block', () => {
+    const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource';
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+});
+
+test('hookVisibleFinalAnswer preserves an embedded citation block', () => {
+    const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource\n</oai-mem-citation>\n\n続き';
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+});
+
+test('hookVisibleFinalAnswer preserves multiple citation blocks joined by one newline', () => {
+    const citation = '<oai-mem-citation>\nsource\n</oai-mem-citation>';
+    const renderedAnswer = `本文\n${citation}\n${citation}`;
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+});
+
+test('hookVisibleFinalAnswer preserves multiple citation blocks joined by a blank line', () => {
+    const citation = '<oai-mem-citation>\nsource\n</oai-mem-citation>';
+    const renderedAnswer = `本文\n\n${citation}\n\n${citation}`;
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+});
 
 function assertRenderedAuditTrace(answer, expectedLines) {
     const lines = answer.replaceAll('\r\n', '\n').split('\n');
