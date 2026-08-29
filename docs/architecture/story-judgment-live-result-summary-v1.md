@@ -13,17 +13,18 @@ PostToolUse Hostは、query/targetを従来どおりtool inputから生成する
 
 ```text
 tool input ──> Host生成query_excerpt
-tool response ──> bounded outcome classifier ──> no_result | result | unknown
-query_excerpt + outcome ──> Host生成display_line
+tool response ──> validated final envelope classifier ──> search|retrieve + no_result|result | unknown
+query_excerpt + operation + outcome ──> Host生成event_kind / display_line
 ```
 
 ## 安全契約
 
-- `該当なし（不在確定ではない）` と `結果を取得` は、Brainbase tool responseの最終content blockにある固定3行のretrieval audit envelopeだけから認識する。
+- `検索`／`取得`、`該当なし（不在確定ではない）`、`結果を取得` は、Brainbase tool responseの最終content blockにある固定3行のretrieval audit envelopeだけから一体で認識する。
+- 固定envelopeを認識できた場合は、そのoperationをevent kindへ採用する。これにより`resolve_entity`とquery付き`list_extension_entities`を含むMCP正本の全retrieval targetをproducer契約と一致させる。
 - 応答中のquery、件数、識別子、本文は保存displayへ転載しない。
-- 既知終端がない場合は従来の構造化count、または「正常応答を確認」へfail closedする。
+- 固定envelopeを認識できない場合だけ、従来のtool名によるevent kind、構造化count、または「正常応答を確認」へfail closedする。
 - route、write、failure、episode lifecycleには分岐を追加しない。
 
 ## 検証
 
-単体テストで0件、結果取得、偽の件数・queryを固定し、live-session E2Eで実MCP応答と保存eventの意味一致を検証する。
+単体テストでMCP正本の9 retrieval target、動的operation、0件、結果取得、偽の件数・queryを固定し、live-session E2Eで実MCP応答と保存eventの意味一致を検証する。

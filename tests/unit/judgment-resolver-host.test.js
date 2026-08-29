@@ -746,6 +746,54 @@ describe('Codex Judgment Resolver Host', () => {
         }
     });
 
+    it('MCP正本のretrieval target matrixと動的operationを固定envelopeから一致させる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-retrieval-operation', turn_id: 'turn-retrieval-operation',
+            prompt: 'Brainbaseの検索・取得operationを確認', cwd: process.cwd()
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) })
+            })
+        });
+        const auditEnvelope = (operation) => [
+            'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
+            'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
+            `📚 Brainbase${operation}: Graphで「response-controlled-query」を${operation} → 結果を取得 ✓`
+        ].join('\n');
+        const record = (toolName, toolUseId, toolInput, operation) => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: `mcp__brainbase__${toolName}`, tool_use_id: toolUseId,
+            tool_input: toolInput,
+            tool_response: { content: [{ type: 'text', text: auditEnvelope(operation) }] }
+        }, { env });
+
+        const matrix = [
+            ['get_context', { topic: 'judgment' }, '取得', 'retrieve'],
+            ['list_entities', { type: 'decision' }, '取得', 'retrieve'],
+            ['get_entity', { type: 'decision', id: 'd1' }, '取得', 'retrieve'],
+            ['list_extension_entities', { type: 'project' }, '取得', 'retrieve'],
+            ['list_extension_entities', { type: 'project', query: 'brainbase' }, '検索', 'search'],
+            ['search', { query: 'brainbase' }, '検索', 'search'],
+            ['resolve_entity', { query: 'Brainbase' }, '検索', 'search'],
+            ['search_personal_kg', { query: '判断' }, '検索', 'search'],
+            ['search_wiki', { query: '移行' }, '検索', 'search'],
+            ['get_wiki_page', { path: 'docs/index.md' }, '取得', 'retrieve']
+        ];
+
+        for (const [toolName, toolInput, operation, eventKind] of matrix) {
+            const event = record(toolName, `tool-${toolName}-${eventKind}-${JSON.stringify(toolInput)}`, toolInput, operation);
+            expect(event.event_kind).toBe(eventKind);
+            expect(event.display_line).toMatch(new RegExp(`^📚 Brainbase${operation}:`));
+            expect(event.display_line).toContain('→ 結果を取得 ✓');
+            expect(event.display_line).not.toContain('response-controlled-query');
+        }
+    });
+
     it('unconfirmed knowledge routeも除外した全参照先と理由を表示する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };

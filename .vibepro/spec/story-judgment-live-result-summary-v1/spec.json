@@ -63,6 +63,18 @@
         "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない" }]
       },
       "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "正常応答を確認" }] }
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "For every canonical MCP retrieval target, the Host uses the search or retrieve operation from the validated final retrieval audit envelope; resolve_entity and queried list_extension_entities are recorded as search.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "retrievalOutcome" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "MCP正本のretrieval target matrixと動的operationを固定envelopeから一致させる" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "resolve_entity" }, { "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "list_extension_entities" }] }
     }
   ],
   "diagrams": [],

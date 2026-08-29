@@ -799,7 +799,7 @@ function responseCount(response) {
         .find((count) => Number.isSafeInteger(count) && count >= 0) ?? null;
 }
 
-function retrievalOutcome(response) {
+function retrievalAudit(response) {
     for (const item of nestedRecords(response, 0, { parseContent: false })) {
         if (!Array.isArray(item.content)) continue;
         const text = record(item.content.at(-1))?.text;
@@ -811,12 +811,10 @@ function retrievalOutcome(response) {
             continue;
         }
         const terminalLine = lines[2];
-        if (/^📚 Brainbase(?:検索|取得): [^\r\n]* → 該当なし（不在確定ではない）$/u.test(terminalLine)) {
-            return 'no_result';
-        }
-        if (/^📚 Brainbase(?:検索|取得): [^\r\n]* → 結果を取得 ✓$/u.test(terminalLine)) {
-            return 'result';
-        }
+        const noResult = terminalLine.match(/^📚 Brainbase(検索|取得): [^\r\n]* → 該当なし（不在確定ではない）$/u);
+        if (noResult) return { kind: noResult[1] === '検索' ? 'search' : 'retrieve', outcome: 'no_result' };
+        const result = terminalLine.match(/^📚 Brainbase(検索|取得): [^\r\n]* → 結果を取得 ✓$/u);
+        if (result) return { kind: result[1] === '検索' ? 'search' : 'retrieve', outcome: 'result' };
     }
     return null;
 }
@@ -913,7 +911,11 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
     const callScope = toolCallScope(toolName, inputValue);
     const resultCount = responseCount(responseValue);
-    const kind = eventKind(toolName);
+    const fallbackKind = eventKind(toolName);
+    const retrieval = ['search', 'retrieve'].includes(fallbackKind)
+        ? retrievalAudit(responseValue)
+        : null;
+    const kind = retrieval?.kind ?? fallbackKind;
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
     const success = responseSucceeded(responseValue, {
@@ -923,7 +925,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     });
     const qualifies = kind === 'route' && success && Boolean(resolution);
     const retrievalResult = success && resultCount === null && ['search', 'retrieve'].includes(kind)
-        ? retrievalOutcome(responseValue)
+        ? retrieval?.outcome ?? null
         : null;
     const safeMetadata = resolution ? {
         resolution_id: resolution.resolution_id,

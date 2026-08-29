@@ -12,3 +12,4 @@ updated_at: 2026-08-29
 3. bounded outcome classifierとHost生成displayを実装する。
 4. 単体・統合・typecheck・fresh task live-session E2Eを実行する。
 5. 独立reviewとVibePro PR Gateを通す。
+6. MCP正本のretrieval target matrixを契約化し、`resolve_entity`とquery付き`list_extension_entities`のoperation誤分類をRED/GREENで修正する。
