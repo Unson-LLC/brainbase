@@ -7,7 +7,7 @@
     {
       "id": "C-001",
       "type": "contract",
-      "statement": "A successful Brainbase search that explicitly reports no result is stored as 該当なし（不在確定ではない）.",
+      "statement": "A successful Brainbase search that explicitly reports no result is stored as 該当なし（不在確定ではない）, even when a structured count is also present.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
         "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
@@ -19,7 +19,7 @@
     {
       "id": "C-002",
       "type": "contract",
-      "statement": "A successful Brainbase search or retrieval that explicitly reports a result is stored as 結果を取得.",
+      "statement": "A successful Brainbase search or retrieval that explicitly reports a result is stored as 結果を取得, even when a structured count is also present.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
         "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],

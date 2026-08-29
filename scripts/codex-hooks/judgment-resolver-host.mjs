@@ -924,7 +924,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         semanticSuccess: Boolean(resolution || taskResult)
     });
     const qualifies = kind === 'route' && success && Boolean(resolution);
-    const retrievalResult = success && resultCount === null && ['search', 'retrieve'].includes(kind)
+    const retrievalResult = success && ['search', 'retrieve'].includes(kind)
         ? retrieval?.outcome ?? null
         : null;
     const safeMetadata = resolution ? {

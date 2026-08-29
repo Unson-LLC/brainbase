@@ -221,7 +221,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('exact Stop Hook-visible answer body');
         for (const surface of [capability, runbook]) {
             expect(surface).toContain('only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block');
-            expect(surface).toMatch(/incomplete or embedded citation block.*fails closed/iu);
+            expect(surface).toMatch(/incomplete, embedded, or multiple citation block.*fails closed/iu);
             expect(surface).not.toContain('answer digest binds that rendered message');
             expect(surface).not.toContain('answer digest must match that rendered message');
         }

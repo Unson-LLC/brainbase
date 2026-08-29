@@ -62,7 +62,7 @@ verification:
     - Host preserves exact ordered user/assistant text and removes host envelopes and tool internals structurally.
     - The same turn reuses its initial route without another Resolver request.
     - Multiple distinct Brainbase calls create multiple immutable events; replay creates no duplicate.
-    - The final user-visible answer starts with the stored owner judgment and tool-event lines exactly in journal-commit order. The final receipt answer digest binds the exact Stop Hook-visible answer body; transcript comparison may exclude only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block added later by the Codex application. An incomplete or embedded citation block remains part of the digest comparison and fails closed on mismatch.
+    - The final user-visible answer starts with the stored owner judgment and tool-event lines exactly in journal-commit order. The final receipt answer digest binds the exact Stop Hook-visible answer body; transcript comparison may exclude only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block added later by the Codex application. An incomplete, embedded, or multiple citation block remains part of the digest comparison and fails closed on mismatch.
     - The Stop audit contract is bound at episode start, and an audit-only continuation cannot complete after shortening the original non-audit answer body.
     - Raw tool input/output and secret-like values are absent from journals and owner-visible lines.
     - Zero Brainbase calls is complete when no Brainbase capability is required.
