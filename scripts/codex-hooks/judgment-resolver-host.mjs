@@ -799,6 +799,26 @@ function responseCount(response) {
         .find((count) => Number.isSafeInteger(count) && count >= 0) ?? null;
 }
 
+function retrievalAudit(response) {
+    for (const item of nestedRecords(response, 0, { parseContent: false })) {
+        if (!Array.isArray(item.content)) continue;
+        const text = record(item.content.at(-1))?.text;
+        if (typeof text !== 'string') continue;
+        const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+        if (lines.length !== 3
+            || lines[0] !== 'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.'
+            || lines[1] !== 'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.') {
+            continue;
+        }
+        const terminalLine = lines[2];
+        const noResult = terminalLine.match(/^📚 Brainbase(検索|取得): [^\r\n]* → 該当なし（不在確定ではない）$/u);
+        if (noResult) return { kind: noResult[1] === '検索' ? 'search' : 'retrieve', outcome: 'no_result' };
+        const result = terminalLine.match(/^📚 Brainbase(検索|取得): [^\r\n]* → 結果を取得 ✓$/u);
+        if (result) return { kind: result[1] === '検索' ? 'search' : 'retrieve', outcome: 'result' };
+    }
+    return null;
+}
+
 function knowledgeResolutionData(response) {
     return nestedRecords(response).find((item) => (
         typeof item.resolution_id === 'string'
@@ -862,11 +882,12 @@ function knowledgeExclusionDisplay(data) {
 
 function routeDisplayLine(input, data, success) {
     const query = toolQuery(input);
-    if (!success || !data) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
+    if (!data) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
     const exclusions = knowledgeExclusionDisplay(data);
     if (data.status === 'unconfirmed') {
         return `⚠️ Brainbase参照先: 「${query}」→ 参照先を確定できず${exclusions ? `／除外: ${exclusions}` : ''}`;
     }
+    if (!success) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
     const source = sanitizeToolExcerpt(data.source_class ?? '参照先');
     const location = knowledgeCanonicalLocation(data.canonical_location);
     const contentType = record(input)?.content_type;
@@ -891,15 +912,24 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
     const callScope = toolCallScope(toolName, inputValue);
     const resultCount = responseCount(responseValue);
-    const kind = eventKind(toolName);
+    const fallbackKind = eventKind(toolName);
+    const retrieval = ['search', 'retrieve'].includes(fallbackKind)
+        ? retrievalAudit(responseValue)
+        : null;
+    const kind = retrieval?.kind ?? fallbackKind;
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
     const success = responseSucceeded(responseValue, {
         allowTransportSuccess: ['search', 'retrieve'].includes(kind),
         allowExplicitSuccess: !['write', 'route'].includes(kind),
-        semanticSuccess: Boolean(resolution || taskResult)
+        semanticSuccess: kind === 'route'
+            ? resolution?.status === 'resolved'
+            : Boolean(taskResult)
     });
-    const qualifies = kind === 'route' && success && Boolean(resolution);
+    const satisfiesKnowledgeExecution = kind === 'route';
+    const retrievalResult = success && ['search', 'retrieve'].includes(kind)
+        ? retrieval?.outcome ?? null
+        : null;
     const safeMetadata = resolution ? {
         resolution_id: resolution.resolution_id,
         status: resolution.status,
@@ -919,7 +949,13 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                 : '呼出';
     const displayLine = kind === 'route'
         ? routeDisplayLine(inputValue, resolution, success)
-        : `${success ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success ? `${resultCount === null ? '' : `${resultCount}件・`}正常応答を確認 ✓` : '失敗または結果不明'}`;
+        : `${success ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success
+            ? retrievalResult === 'no_result'
+                ? '該当なし（不在確定ではない）'
+                : retrievalResult === 'result'
+                    ? '結果を取得 ✓'
+                    : `${resultCount === null ? '' : `${resultCount}件・`}正常応答を確認 ✓`
+            : '失敗または結果不明'}`;
     return withEpisodeTransitionLock(paths, () => {
         const episode = existingEpisode(payload, env);
         if (!episode) {
@@ -985,7 +1021,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             tool_use_id: toolUseId,
             event_kind: kind,
             success,
-            satisfies: qualifies ? ['knowledge.resolve'] : [],
+            satisfies: satisfiesKnowledgeExecution ? ['knowledge.resolve'] : [],
             input_digest: inputDigest,
             response_digest: responseDigest,
             event_fingerprint: fingerprint,
@@ -1380,8 +1416,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         return { output: completedAuditOutput(), final: finalized };
     }
     const requiredKnowledge = requiredKnowledgeResolution(episode.initial_route_receipt);
-    const qualifyingEvents = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve'));
-    const missingKnowledge = requiredKnowledge && qualifyingEvents.length === 0;
+    const knowledgeExecutionEvents = events.filter((entry) => entry.satisfies.includes('knowledge.resolve'));
+    const qualifyingEvents = knowledgeExecutionEvents.filter((entry) => entry.success);
+    const missingKnowledge = requiredKnowledge && knowledgeExecutionEvents.length === 0;
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
     const expectedAuditLines = requiredAuditLines(episode, events);
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);

@@ -81,7 +81,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - `release_note`: Codexのjudgment lifecycle Hostは、現在のHook trustを`hooks/list`で検査し、正常episodeの監査不足active再Stopをfinalなしの明示failureにする。episode開始eventがないorphan Stopは、完全監査へ偽装せず`audit_degraded`へ有限収束し、長時間taskへ新規task作成を要求しない。Resolverの公開request schemaと「内部Resolver LLMなし」の境界は変えない。
 - `rollout_plan`: merge SHAを正本としてglobal Hook checkout、local `:31013`、persistent MCP runtime、Lightsail `brainbase-ssot.service`の4面を同じSHAへ揃える。次にCodex Hostの`hooks/list`をreadiness checkerで照会し、`trust_required`ならownerが`/hooks`で承認する。承認後に作成したfresh Codex taskで実動確認する。
 - `observability_evidence`: local/public `/api/version`のtarget SHAと`dirty=false`、health、MCP runtime check、`ready_for_fresh_task`、承認後に作成したfresh transcript、actual Brainbase event、`owner_audit_complete=true`、final answer digest一致を成功条件とし、その時だけ`proven_active`とする。
-- `rollback_instruction`: 変更前のHook fileと4面のSHAを保存し、失敗時は`docs/brainbase-capabilities/runbooks/judgment-resolve.md#rollback`の順序でHook/UI checkout、MCP runtime、Lightsail、最後に元のHook fileを復元する。journalは削除しない。
+- `rollback_instruction`: 変更前のHook fileと4面のSHAを保存する。失敗時は`docs/brainbase-capabilities/runbooks/judgment-resolve.md#rollback`の順序で、global Hookは独立したclean checkoutのまま保ち、local UI/MCPは共有disposable runtimeを記録済みcommit SHAへpinして復元し、Lightsailを別面として復元し、最後に元の`hooks.json`を復元する。dirtyな正本source checkoutはswitch/reset/clean/stashせず、journalも削除しない。
 
 実コマンドの正本は`docs/brainbase-capabilities/runbooks/judgment-resolve.md`と`docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md`である。
 

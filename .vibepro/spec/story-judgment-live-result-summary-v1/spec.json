@@ -1,0 +1,178 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-judgment-live-result-summary-v1",
+  "generated_by": { "caller": "codex", "stage": "architecture" },
+  "lifecycle": "final",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "A successful Brainbase search that explicitly reports no result is stored as 該当なし（不在確定ではない）, even when a structured count is also present.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "recordBrainbaseToolUse" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "検索・取得の実結果をHost生成の監査行へ安全に要約する" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "該当なし（不在確定ではない）" }] }
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "A successful Brainbase search or retrieval that explicitly reports a result is stored as 結果を取得, even when a structured count is also present.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "recordBrainbaseToolUse" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "検索・取得の実結果をHost生成の監査行へ安全に要約する" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "結果を取得" }] }
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "A fresh Codex task proves the installed global Hook lifecycle and live retrieval audit semantics against the exact implementation HEAD.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-005" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "検証" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "recordBrainbaseToolUse" }],
+        "test_refs": [{ "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "must_cover": "結果を取得" }] }
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "The Host derives query scope only from tool input and never copies response query, count, secrets, or arbitrary audit text into display_line.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }, { "kind": "acceptance_criteria", "ac_id": "AC-004" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "境界" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "toolCallScope" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "検索・取得の実結果をHost生成の監査行へ安全に要約する" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "response-controlled" }] }
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Route, write, structured count, unknown response, owner audit, and one-shot Stop lifecycle contracts remain unchanged. For required knowledge.resolve only, an authentic recorded invocation satisfies execution independently of response success; failure remains success=false with a warning and never becomes a successful selection or retrieval.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "eventKind" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "正常応答を確認" }] }
+  },
+  {
+    "id": "C-007",
+    "type": "contract",
+    "statement": "A required knowledge.resolve capability is executed when an authentic PostToolUse event for the exact canonical tool is recorded, regardless of response success. Failed or unconfirmed resolution remains visibly unsuccessful, but Stop must not request a duplicate knowledge.resolve call; owner-audit repair proceeds against the stable event set.",
+    "origin": {
+      "story_refs": [
+        {
+          "kind": "acceptance_criteria",
+          "ac_id": "AC-009"
+        }
+      ],
+      "architecture_refs": [
+        {
+          "file": "docs/architecture/story-judgment-live-result-summary-v1.md",
+          "section": "required capabilityの実行結果境界"
+        }
+      ],
+      "code_refs": [
+        {
+          "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+          "anchor": "recordBrainbaseToolUse"
+        },
+        {
+          "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+          "anchor": "finalizeEpisodeLocked"
+        }
+      ],
+      "test_refs": [
+        {
+          "file": "tests/unit/judgment-resolver-host.test.js",
+          "case": "失敗したknowledge routeも実行済みとして安定した監査修復へ進む"
+        },
+        {
+          "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+          "case": "失敗したrequired routeを重複実行せずowner監査だけを修復できる"
+        }
+      ]
+    },
+    "verifiable_by": {
+      "test_pattern": [
+        {
+          "file_glob": "tests/unit/judgment-resolver-host.test.js",
+          "must_cover": "実行済みとして安定した監査修復"
+        },
+        {
+          "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+          "must_cover": "重複実行せずowner監査だけ"
+        }
+      ]
+    }
+  },
+  {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "For every canonical MCP retrieval target, the Host uses the search or retrieve operation from the validated final retrieval audit envelope; resolve_entity and queried list_extension_entities are recorded as search.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "安全契約" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "retrievalAudit" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "MCP正本のretrieval target matrixと動的operationを固定envelopeから一致させる" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "resolve_entity" }, { "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "list_extension_entities" }] }
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "The live E2E compares the final receipt digest with the exact Stop Hook-visible answer, excluding only a complete trailing oai-mem-citation block added later by the Codex application.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-007" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "Stop Hookとアプリ後段メタデータの境界" }],
+        "code_refs": [
+          { "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "anchor": "hookVisibleFinalAnswer" },
+          { "file": "docs/brainbase-capabilities/capabilities/judgment.resolve.yml", "anchor": "exact Stop Hook-visible answer body" },
+          { "file": "docs/brainbase-capabilities/runbooks/judgment-resolve.md", "anchor": "exact Stop Hook-visible answer body" }
+        ],
+        "test_refs": [
+          { "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する" },
+          { "file": "tests/unit/judgment-resolution-publication.test.js", "case": "binding secret・preflight・deployment boundaryを維持する" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "must_cover": "oai-mem-citation" }, { "file_glob": "tests/unit/judgment-resolution-publication.test.js", "must_cover": "exact Stop Hook-visible answer body" }] }
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "This is the release-safety boundary for deploying the C-001 through C-005 Host behavior to the global Hook, shared local UI/MCP runtime, and Lightsail as one atomic merge SHA, not an independent runtime feature. Local UI and MCP rollback uses one validated full-SHA pin that survives launchd start and update, never mutates the dirty canonical checkout, and fails closed for a missing or mismatched Git root or invalid pin. After launchd restart, bounded polling (not fixed sleep or a single probe) must confirm the API reports the target SHA with dirty=false and the runtime worktree has the exact target HEAD and is clean. Every local, Lightsail-local, and public HTTP readiness request must use validated finite positive connect and total timeouts; missing, zero, or non-finite timeout values fail closed before the request. Timeout, mismatch, dirty, or unavailable readiness returns non-zero and does not advance to downstream surface restoration. The Host result contract, fresh-task evidence, deployment, and rollback must remain in one PR because splitting them permits an intermediate state where the corrected audit behavior cannot be safely deployed or restored, or where the runtime safety evidence is bound to a different SHA.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-008" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-judgment-live-result-summary-v1.md", "section": "rollback runtime境界" }],
+        "code_refs": [
+          { "file": "scripts/launchd/brainbase-runtime-target.sh", "anchor": "brainbase_resolve_runtime_target" },
+          { "file": "scripts/launchd/brainbase-ui-start.sh", "anchor": "BRAINBASE_RUNTIME_PIN_FILE" },
+          { "file": "scripts/launchd/brainbase-runtime-update.sh", "anchor": "BRAINBASE_RUNTIME_PIN_FILE" }
+        ],
+        "test_refs": [
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "keeps an explicit known-good SHA pinned across launchd restarts and fails closed on invalid roots or pins" },
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "polls past a transient probe failure before accepting exact clean runtime readiness" },
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "rejects an old API SHA and dirty API response before accepting the exact clean SHA" },
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "rejects runtime worktree HEAD mismatch and tracked or untracked dirtiness" },
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "returns a non-zero timeout after the bounded readiness attempts are exhausted" },
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "returns non-zero within the configured maximum time when the API accepts a connection but never responds" },
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "rejects missing, zero, and non-finite probe timeout values before invoking curl" },
+          { "file": "tests/unit/runtime-worktree-launchd.test.js", "case": "requires finite curl timeouts on every rollback readiness surface" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/runtime-worktree-launchd.test.js", "must_cover": "known-good SHA pinned" }] }
+    }
+  ],
+  "diagrams": [],
+  "open_questions": [],
+  "generated_at": "2026-08-29T01:15:00.000Z"
+}

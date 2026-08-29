@@ -8,6 +8,7 @@ RUNTIME_ROOT="${BRAINBASE_UI_RUNTIME_ROOT:-/Users/ksato/workspace/repos/.runtime
 mkdir -p "$LOCAL_DIR" "$AGENTS_DIR"
 install -m 755 "$REPO_ROOT/scripts/launchd/brainbase-ui-start.sh" "$LOCAL_DIR/launchd-start.sh"
 install -m 755 "$REPO_ROOT/scripts/launchd/brainbase-runtime-update.sh" "$LOCAL_DIR/runtime-update.sh"
+install -m 755 "$REPO_ROOT/scripts/launchd/brainbase-runtime-target.sh" "$LOCAL_DIR/brainbase-runtime-target.sh"
 
 sed "s|__HOME__|$HOME|g" "$REPO_ROOT/config/com.brainbase.runtime-update.plist" > "$AGENTS_DIR/com.brainbase.runtime-update.plist"
 plutil -lint "$AGENTS_DIR/com.brainbase.runtime-update.plist"

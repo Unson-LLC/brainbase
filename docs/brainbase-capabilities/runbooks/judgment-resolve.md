@@ -71,7 +71,7 @@ Each actual Brainbase call gets its own `PostToolUse` trace. The wording must ma
 📚 Brainbase取得: decision:abc123を取得 ✓
 ```
 
-Never show `検索` or `取得` for `brainbase_knowledge_resolve`; it only selects a route. A failed call uses a warning form and cannot satisfy a required capability. A successful `unconfirmed` result does satisfy the routing capability because the route decision ran and correctly preserved that no canonical source could be confirmed; display that uncertainty instead of claiming retrieval success.
+Never show `検索` or `取得` for `brainbase_knowledge_resolve`; it only selects a route. An authentic canonical route `PostToolUse` event satisfies the execution requirement even when the result is `unconfirmed` or the tool fails, because the route was already invoked and must not be duplicated. Only `resolved` is a successful routing result; `unconfirmed` and tool failure remain warning outcomes with `success=false` and must not claim a selected source or retrieval success.
 
 The additional context and `PostToolUse.systemMessage` guide the model, but they are not accepted as owner-visible evidence by themselves. `Stop` checks the final answer and requests one corrected rendering when the stored lines are missing, duplicated, or out of journal-commit order. For an audit-only retry, it also requires the first rejected answer's business body to remain unchanged after presentation normalization. A leading reserved line beginning with `🧠 判断参照:`, `📚 Brainbase`, or `⚠️ Brainbase` is presentation metadata even when malformed; the same text after the business body starts remains body content. A short acknowledgement cannot replace the detailed implementation report. Trailing spaces or tabs at line ends are presentation-equivalent; the audit text, order, and multiplicity remain exact. An active repeated Stop exits non-zero with `judgment_stop_repair_exhausted` when the repair is still incomplete.
 
@@ -79,7 +79,7 @@ The additional context and `PostToolUse.systemMessage` guide the model, but they
 
 The invariant is exactly one episode per managed turn and at most one complete final receipt, not one Resolver network attempt and not one Brainbase tool call. Before episode creation, recognized transient failures may be retried within the Host limit. After creation, the same turn reuses the initial route. Tool calls may occur 0..N times. Replayed `PostToolUse` and complete `Stop` events reuse their immutable records.
 
-If `required_capabilities` contains `knowledge.resolve`, only a successful exact `mcp__brainbase__brainbase_knowledge_resolve` event with resolved/unconfirmed status satisfies it. Search, Graph reads, Personal KG reads, unrelated Brainbase calls, and failed route calls do not substitute for the routing decision.
+If `required_capabilities` contains `knowledge.resolve`, one authentic exact `mcp__brainbase__brainbase_knowledge_resolve` `PostToolUse` event satisfies the execution requirement regardless of response outcome. Only `resolved` qualifies as successful; `unconfirmed` and tool failure remain non-qualifying warning results. Search, Graph reads, Personal KG reads, unrelated Brainbase calls, and retrievals do not substitute for executing the routing tool.
 
 ## Authorization boundary
 
@@ -106,9 +106,9 @@ Register the canonical deployed wrapper for all three user-level hooks in `~/.co
 ```json
 {
   "hooks": {
-    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
-    "PostToolUse": [{"matcher": "^mcp__brainbase__.*$", "hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh"}]}]
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
+    "PostToolUse": [{"matcher": "^mcp__brainbase__.*$", "hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}]
   }
 }
 ```
@@ -120,7 +120,7 @@ The persistent Brainbase Host bridge defaults to `http://127.0.0.1:39002/host/ju
 Files in `hooks.json`, a `config.toml` trust section, matching source content, and direct entrypoint tests prove only installation. Query the current Codex Host before creating live evidence:
 
 ```bash
-npm run check:judgment-hook-readiness -- --cwd "$BRAINBASE_CANONICAL_ROOT"
+npm run check:judgment-hook-readiness -- --cwd "$BRAINBASE_CONTRACT_ROOT"
 ```
 
 The checker uses the official `hooks/list` RPC. On macOS it prefers the Codex Desktop bundled executable so a Rosetta Node process cannot accidentally route through an architecture-mismatched PATH wrapper; other environments fall back to `codex`, and `--codex-bin` remains available for an explicit override. It succeeds only when the canonical `UserPromptSubmit`, matching `PostToolUse`, and `Stop` definitions are enabled, matcher-correct, and currently trusted; the result is `ready_for_fresh_task`. `modified`, `untrusted`, missing, disabled, or matcher-mismatched state returns non-zero as `trust_required` or configuration error. Open `/hooks` and approve the three current Resolver Hooks, then rerun the checker. Repository scripts and deployment automation must never calculate or write Codex `trusted_hash`.
@@ -133,13 +133,38 @@ Before changing any of the four runtime surfaces, capture the exact working Hook
 
 ```bash
 set -euo pipefail
-export BRAINBASE_CANONICAL_ROOT=/Users/ksato/workspace/code/brainbase
-export BRAINBASE_MCP_RUNTIME_ROOT=/Users/ksato/workspace/code/.worktrees/brainbase-mcp-runtime-45ec989ba
+export BRAINBASE_SOURCE_ROOT=/Users/ksato/workspace/repos/brainbase
+export BRAINBASE_UI_RUNTIME_ROOT=/Users/ksato/workspace/repos/.runtime/brainbase-31013
+export BRAINBASE_MCP_RUNTIME_ROOT="$BRAINBASE_UI_RUNTIME_ROOT"
+export BRAINBASE_RUNTIME_PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-pinned.sha
 export BRAINBASE_ROLLBACK_STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/brainbase-judgment-rollback.XXXXXX")"
 chmod 700 "$BRAINBASE_ROLLBACK_STATE_DIR"
+source "$BRAINBASE_SOURCE_ROOT/scripts/launchd/brainbase-runtime-readiness.sh"
+CAPTURE_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
+CAPTURE_MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+brainbase_runtime_readiness_validate_positive_seconds "$CAPTURE_CONNECT_TIMEOUT_SECONDS" 'connect timeout'
+brainbase_runtime_readiness_validate_positive_seconds "$CAPTURE_MAX_TIMEOUT_SECONDS" 'maximum request time'
 
-test -z "$(git -C "$BRAINBASE_CANONICAL_ROOT" status --porcelain)"
-test -z "$(git -C "$BRAINBASE_MCP_RUNTIME_ROOT" status --porcelain --untracked-files=no)"
+require_git_root() {
+  local root="$1" actual
+  test -d "$root"
+  test -d "$root/.git" -o -f "$root/.git"
+  test "$(git -C "$root" rev-parse --is-inside-work-tree)" = true
+  actual="$(git -C "$root" rev-parse --show-toplevel)"
+  test "$(cd "$actual" && pwd -P)" = "$(cd "$root" && pwd -P)"
+  git -C "$root" rev-parse HEAD >/dev/null
+}
+require_clean_tracked_root() {
+  local root="$1" status
+  require_git_root "$root"
+  status="$(git -C "$root" status --porcelain --untracked-files=no)"
+  test -z "$status"
+}
+
+# The source checkout may contain unrelated user changes. Validate its identity,
+# but never require it to be clean and never switch/reset/clean/stash it.
+require_git_root "$BRAINBASE_SOURCE_ROOT"
+require_clean_tracked_root "$BRAINBASE_UI_RUNTIME_ROOT"
 cp "$HOME/.codex/hooks.json" "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json"
 chmod 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json"
 shasum -a 256 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" > "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.sha256"
@@ -163,18 +188,30 @@ process.stdout.write(resolved[0]);
 NODE
 BRAINBASE_HOOK_ENTRYPOINT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.entrypoint")"
 BRAINBASE_HOOK_ROOT="$(git -C "$(dirname "$BRAINBASE_HOOK_ENTRYPOINT")" rev-parse --show-toplevel)"
-test -z "$(git -C "$BRAINBASE_HOOK_ROOT" status --porcelain --untracked-files=no)"
+require_clean_tracked_root "$BRAINBASE_HOOK_ROOT"
 printf '%s\n' "$BRAINBASE_HOOK_ROOT" > "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.root"
 git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD > "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha"
-curl -fsS http://127.0.0.1:31013/api/version | node -e '
+curl -fsS \
+  --connect-timeout "$CAPTURE_CONNECT_TIMEOUT_SECONDS" \
+  --max-time "$CAPTURE_MAX_TIMEOUT_SECONDS" \
+  -- http://127.0.0.1:31013/api/version | node -e '
 const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
 const git=value.runtime?.git;
 if (!/^[0-9a-f]{40}$/.test(git?.sha||"") || git?.dirty !== false) process.exit(1);
 process.stdout.write(`${git.sha}\n`);
 ' > "$BRAINBASE_ROLLBACK_STATE_DIR/local-ui.sha"
 git -C "$BRAINBASE_MCP_RUNTIME_ROOT" rev-parse HEAD > "$BRAINBASE_ROLLBACK_STATE_DIR/mcp-runtime.sha"
+
+if test -e "$BRAINBASE_RUNTIME_PIN_FILE"; then
+  test -f "$BRAINBASE_RUNTIME_PIN_FILE"
+  cp "$BRAINBASE_RUNTIME_PIN_FILE" "$BRAINBASE_ROLLBACK_STATE_DIR/runtime-pin.sha"
+  grep -Eq '^[0-9a-f]{40}$' "$BRAINBASE_ROLLBACK_STATE_DIR/runtime-pin.sha"
+  printf 'present\n' > "$BRAINBASE_ROLLBACK_STATE_DIR/runtime-pin.state"
+else
+  printf 'absent\n' > "$BRAINBASE_ROLLBACK_STATE_DIR/runtime-pin.state"
+fi
 ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 \
-  'cd /home/ubuntu/brainbase && test -z "$(git status --porcelain)" && git rev-parse HEAD' \
+  'set -euo pipefail; cd /home/ubuntu/brainbase; test "$(git rev-parse --is-inside-work-tree)" = true; test "$(git rev-parse --show-toplevel)" = /home/ubuntu/brainbase; status="$(git status --porcelain)"; test -z "$status"; git rev-parse HEAD' \
   > "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha"
 
 for file in global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha; do
@@ -193,7 +230,7 @@ npm run test:judgment-resolution
 npm --prefix mcp/brainbase run typecheck
 npm run typecheck
 cmp -s CLAUDE.md AGENTS.md
-npm run check:judgment-hook-readiness -- --cwd "$BRAINBASE_CANONICAL_ROOT"
+npm run check:judgment-hook-readiness -- --cwd "$BRAINBASE_CONTRACT_ROOT"
 ```
 
 The bridge preflight is a signed read-only probe. It is not proof that the global hook or all lifecycle events use the new checkout. The readiness checker separately proves current Host trust and returns `ready_for_fresh_task`; it still does not prove that any task executed the Hooks. Verify the deployed commit, then create one new task after trust approval and inspect its PostToolUse event count, complete Stop final, and owner-visible wording.
@@ -229,7 +266,7 @@ export BRAINBASE_JUDGMENT_E2E_TRANSCRIPT_PATH="$JUDGMENT_E2E_TRANSCRIPTS"
 node --test tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts
 ```
 
-The command fails if the current `hooks/list` state is not `ready_for_fresh_task`, if the transcript task was created before the current Hook/trust files, if the nonce resolves to zero or multiple episodes/transcripts, or if the query-embedded source HEAD differs from `BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD`; it also requires that the final receipt is at most one hour old. It reads the installed global Hook bindings, the owner-only journal, and the exact Codex JSONL transcript. It passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` resolve to the same installed entrypoint, both lifecycle adapter files at every resolved Hook root are content-equivalent to the current contract checkout, the post-approval fresh episode has a verified initial route, the four successful Brainbase events preserve the result-dependent query sequence, and the final user-visible `response_item` starts with the stored `🧠` plus every stored `📚`/`⚠️` line exactly in journal-commit order. The final receipt answer digest must match that rendered message. This result is `proven_active`; it is not proof that the installed Hook checkout has the same Git SHA as the contract checkout. The check does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.
+The command fails if the current `hooks/list` state is not `ready_for_fresh_task`, if the transcript task was created before the current Hook/trust files, if the nonce resolves to zero or multiple episodes/transcripts, or if the query-embedded source HEAD differs from `BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD`; it also requires that the final receipt is at most one hour old. It reads the installed global Hook bindings, the owner-only journal, and the exact Codex JSONL transcript. It passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` resolve to the same installed entrypoint, both lifecycle adapter files at every resolved Hook root are content-equivalent to the current contract checkout, the post-approval fresh episode has a verified initial route, the four successful Brainbase events preserve the result-dependent query sequence, and the final user-visible `response_item` starts with the stored `🧠` plus every stored `📚`/`⚠️` line exactly in journal-commit order. The final receipt answer digest binds the exact Stop Hook-visible answer body. When comparing the transcript, the verifier may exclude only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block added later by the Codex application; an incomplete, embedded, or multiple citation block remains part of the comparison and fails closed on mismatch. This result is `proven_active`; it is not proof that the installed Hook checkout has the same Git SHA as the contract checkout. The check does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.
 
 Verify the merged/deployed checkout SHA separately after deployment. Use one target SHA and prove each deployment surface independently; do not infer complete deployment from only one row:
 
@@ -244,81 +281,112 @@ Set `TARGET_SHA` from the merge result, not from an unmerged review checkout. Co
 
 ### Rollback
 
-Use the captured directory; do not guess a previous tag or delete any episode journals. The order below restores the canonical Host/UI checkout, persistent MCP runtime, Lightsail Resolver, and finally the exact Hook configuration. It uses detached known-good commits and never resets a branch.
+Use the captured directory; do not guess a previous tag or delete any episode journals. The order below pins the disposable local UI/MCP runtime to the captured known-good commit, restores Lightsail, and finally restores the exact Hook configuration. The source checkout is identity-checked but never switched, reset, cleaned, or stashed.
 
 ```bash
 set -euo pipefail
 : "${BRAINBASE_ROLLBACK_STATE_DIR:?Set this to the captured rollback directory}"
-export BRAINBASE_CANONICAL_ROOT=/Users/ksato/workspace/code/brainbase
-export BRAINBASE_MCP_RUNTIME_ROOT=/Users/ksato/workspace/code/.worktrees/brainbase-mcp-runtime-45ec989ba
-for file in hooks.json hooks.sha256 global-hook.entrypoint global-hook.root global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha; do
+export BRAINBASE_SOURCE_ROOT=/Users/ksato/workspace/repos/brainbase
+export BRAINBASE_UI_RUNTIME_ROOT=/Users/ksato/workspace/repos/.runtime/brainbase-31013
+export BRAINBASE_MCP_RUNTIME_ROOT="$BRAINBASE_UI_RUNTIME_ROOT"
+export BRAINBASE_RUNTIME_PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-pinned.sha
+for file in hooks.json hooks.sha256 global-hook.entrypoint global-hook.root global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha runtime-pin.state; do
   test -s "$BRAINBASE_ROLLBACK_STATE_DIR/$file"
 done
-test -z "$(git -C "$BRAINBASE_CANONICAL_ROOT" status --porcelain)"
-test -z "$(git -C "$BRAINBASE_MCP_RUNTIME_ROOT" status --porcelain --untracked-files=no)"
+require_git_root() {
+  local root="$1" actual
+  test -d "$root"
+  test -d "$root/.git" -o -f "$root/.git"
+  test "$(git -C "$root" rev-parse --is-inside-work-tree)" = true
+  actual="$(git -C "$root" rev-parse --show-toplevel)"
+  test "$(cd "$actual" && pwd -P)" = "$(cd "$root" && pwd -P)"
+  git -C "$root" rev-parse HEAD >/dev/null
+}
+require_clean_tracked_root() {
+  local root="$1" status
+  require_git_root "$root"
+  status="$(git -C "$root" status --porcelain --untracked-files=no)"
+  test -z "$status"
+}
+require_git_root "$BRAINBASE_SOURCE_ROOT"
+require_clean_tracked_root "$BRAINBASE_UI_RUNTIME_ROOT"
 BRAINBASE_HOOK_ENTRYPOINT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.entrypoint")"
 BRAINBASE_HOOK_ROOT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.root")"
 test -f "$BRAINBASE_HOOK_ENTRYPOINT"
-test "$(git -C "$(dirname "$BRAINBASE_HOOK_ENTRYPOINT")" rev-parse --show-toplevel)" = "$BRAINBASE_HOOK_ROOT"
+require_clean_tracked_root "$BRAINBASE_HOOK_ROOT"
+test "$(cd "$(git -C "$(dirname "$BRAINBASE_HOOK_ENTRYPOINT")" rev-parse --show-toplevel)" && pwd -P)" = "$(cd "$BRAINBASE_HOOK_ROOT" && pwd -P)"
 
-# 1. Restore the checkout used by the local :31013 runtime.
-FAILED_CANONICAL_SHA="$(git -C "$BRAINBASE_CANONICAL_ROOT" rev-parse HEAD)"
-CANONICAL_ROLLBACK_SHA="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/local-ui.sha")"
-git -C "$BRAINBASE_CANONICAL_ROOT" cat-file -e "${CANONICAL_ROLLBACK_SHA}^{commit}"
-git -C "$BRAINBASE_CANONICAL_ROOT" switch --detach "$CANONICAL_ROLLBACK_SHA"
-if ! git -C "$BRAINBASE_CANONICAL_ROOT" diff --quiet \
-  "$CANONICAL_ROLLBACK_SHA" "$FAILED_CANONICAL_SHA" -- package.json package-lock.json; then
-  npm --prefix "$BRAINBASE_CANONICAL_ROOT" ci
-fi
-launchctl kickstart -k "gui/$(id -u)/com.brainbase.ui"
-sleep 5
-test "$(curl -fsS http://127.0.0.1:31013/api/version | node -e '
-const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
-process.stdout.write(value.runtime?.git?.dirty===false ? value.runtime.git.sha : "");
-')" = "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/local-ui.sha")"
-
-# 2. Restore and rebuild the persistent MCP checkout without using the
-# forward-only reconcile helper.
-FAILED_MCP_SHA="$(git -C "$BRAINBASE_MCP_RUNTIME_ROOT" rev-parse HEAD)"
+# 1. Pin the shared disposable :31013 UI/MCP runtime. The pin is installed
+# atomically before restart, so both launchd start and the 60-second updater
+# keep the known-good SHA instead of reapplying a failed origin/develop.
+LOCAL_ROLLBACK_SHA="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/local-ui.sha")"
 MCP_ROLLBACK_SHA="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/mcp-runtime.sha")"
-git -C "$BRAINBASE_MCP_RUNTIME_ROOT" cat-file -e "${MCP_ROLLBACK_SHA}^{commit}"
-git -C "$BRAINBASE_MCP_RUNTIME_ROOT" switch --detach "$MCP_ROLLBACK_SHA"
-if ! git -C "$BRAINBASE_MCP_RUNTIME_ROOT" diff --quiet \
-  "$MCP_ROLLBACK_SHA" "$FAILED_MCP_SHA" -- mcp/brainbase/package.json mcp/brainbase/package-lock.json; then
-  npm --prefix "$BRAINBASE_MCP_RUNTIME_ROOT/mcp/brainbase" ci
-fi
-npm --prefix "$BRAINBASE_MCP_RUNTIME_ROOT/mcp/brainbase" run build
+grep -Eq '^[0-9a-f]{40}$' <<<"$LOCAL_ROLLBACK_SHA"
+test "$MCP_ROLLBACK_SHA" = "$LOCAL_ROLLBACK_SHA"
+git -C "$BRAINBASE_SOURCE_ROOT" cat-file -e "${LOCAL_ROLLBACK_SHA}^{commit}"
+PIN_TMP="$(mktemp "${BRAINBASE_RUNTIME_PIN_FILE}.XXXXXX")"
+chmod 600 "$PIN_TMP"
+printf '%s\n' "$LOCAL_ROLLBACK_SHA" > "$PIN_TMP"
+mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"
+READINESS_HELPER="$BRAINBASE_SOURCE_ROOT/scripts/launchd/brainbase-runtime-readiness.sh"
+test -r "$READINESS_HELPER"
+source "$READINESS_HELPER"
+RUNTIME_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
+RUNTIME_MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+brainbase_runtime_readiness_validate_positive_seconds "$RUNTIME_CONNECT_TIMEOUT_SECONDS" 'connect timeout'
+brainbase_runtime_readiness_validate_positive_seconds "$RUNTIME_MAX_TIMEOUT_SECONDS" 'maximum request time'
+launchctl kickstart -k "gui/$(id -u)/com.brainbase.ui"
+brainbase_wait_for_runtime_ready \
+  "$BRAINBASE_UI_RUNTIME_ROOT" \
+  "$LOCAL_ROLLBACK_SHA" \
+  http://127.0.0.1:31013/api/version \
+  "${BRAINBASE_RUNTIME_READINESS_ATTEMPTS:-30}" \
+  "${BRAINBASE_RUNTIME_READINESS_DELAY_SECONDS:-2}" \
+  "$RUNTIME_CONNECT_TIMEOUT_SECONDS" \
+  "$RUNTIME_MAX_TIMEOUT_SECONDS"
+(cd "$BRAINBASE_MCP_RUNTIME_ROOT" && scripts/reconcile-brainbase-mcp-runtime.sh "$MCP_ROLLBACK_SHA")
 (cd "$BRAINBASE_MCP_RUNTIME_ROOT" && scripts/run-brainbase-mcp.sh --check)
-launchctl kickstart -k "gui/$(id -u)/com.brainbase.mcp-brainbase"
-sleep 3
 launchctl print "gui/$(id -u)/com.brainbase.mcp-brainbase" | grep -q 'state = running'
-printf 'sha=%s\ncompleted_at=%s\n' "$MCP_ROLLBACK_SHA" "$(date -u +%FT%TZ)" \
-  > /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
 
-# 3. Restore a separately installed global Hook checkout when it is neither the
-# local UI nor persistent MCP checkout. The current deployment may share either.
-HOOK_ROLLBACK_SHA="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha")"
-if [ "$BRAINBASE_HOOK_ROOT" != "$BRAINBASE_CANONICAL_ROOT" ] \
-  && [ "$BRAINBASE_HOOK_ROOT" != "$BRAINBASE_MCP_RUNTIME_ROOT" ]; then
-  test -z "$(git -C "$BRAINBASE_HOOK_ROOT" status --porcelain --untracked-files=no)"
-  FAILED_HOOK_SHA="$(git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD)"
-  git -C "$BRAINBASE_HOOK_ROOT" cat-file -e "${HOOK_ROLLBACK_SHA}^{commit}"
-  git -C "$BRAINBASE_HOOK_ROOT" switch --detach "$HOOK_ROLLBACK_SHA"
-  if ! git -C "$BRAINBASE_HOOK_ROOT" diff --quiet \
-    "$HOOK_ROLLBACK_SHA" "$FAILED_HOOK_SHA" -- package.json package-lock.json; then
-    npm --prefix "$BRAINBASE_HOOK_ROOT" ci
-  fi
-fi
-test "$(git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD)" = "$HOOK_ROLLBACK_SHA"
-
-# 4. Restore Lightsail, reinstall dependencies only when its manifest changed,
+# 2. Restore Lightsail, reinstall dependencies only when its manifest changed,
 # and prove both the instance and public proxy report the captured SHA.
+LIGHTSAIL_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
+LIGHTSAIL_MAX_TIMEOUT_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+if ! [[ "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
+  printf '[brainbase-runtime] Lightsail connect timeout must be a finite positive number\n' >&2
+  exit 2
+fi
+if ! [[ "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
+  printf '[brainbase-runtime] Lightsail maximum request time must be a finite positive number\n' >&2
+  exit 2
+fi
 ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
-  "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")" <<'REMOTE'
+  "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")" \
+  "${BRAINBASE_LIGHTSAIL_READINESS_ATTEMPTS:-30}" \
+  "${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}" \
+  "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" \
+  "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" <<'REMOTE'
 set -euo pipefail
 ROLLBACK_SHA="$1"
+MAX_ATTEMPTS="$2"
+DELAY_SECONDS="$3"
+CONNECT_TIMEOUT_SECONDS="$4"
+MAX_TIMEOUT_SECONDS="$5"
+[[ "$MAX_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]
+[[ "$DELAY_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]
+if ! [[ "$CONNECT_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
+  printf '[brainbase-runtime] Lightsail connect timeout must be a finite positive number\n' >&2
+  exit 2
+fi
+if ! [[ "$MAX_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
+  printf '[brainbase-runtime] Lightsail maximum request time must be a finite positive number\n' >&2
+  exit 2
+fi
 cd /home/ubuntu/brainbase
-test -z "$(git status --porcelain)"
+test "$(git rev-parse --is-inside-work-tree)" = true
+test "$(git rev-parse --show-toplevel)" = /home/ubuntu/brainbase
+status="$(git status --porcelain)"
+test -z "$status"
 FAILED_SHA="$(git rev-parse HEAD)"
 git cat-file -e "${ROLLBACK_SHA}^{commit}"
 git switch --detach "$ROLLBACK_SHA"
@@ -326,28 +394,65 @@ if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock
   npm ci --omit=dev
 fi
 sudo systemctl restart brainbase-ssot.service
-sleep 3
-curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
+local_ready=0
+for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt+=1)); do
+  if curl -fsS \
+    --connect-timeout "$CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$MAX_TIMEOUT_SECONDS" \
+    -- http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
 const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
 const git=value.runtime?.git;
 if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
-'
+'; then
+    local_ready=1
+    break
+  fi
+  if (( attempt < MAX_ATTEMPTS )); then sleep "$DELAY_SECONDS"; fi
+done
+if (( local_ready != 1 )); then
+  printf '[brainbase-runtime] Lightsail local readiness timed out after %s attempts\n' "$MAX_ATTEMPTS" >&2
+  exit 1
+fi
 REMOTE
 TARGET_SHA="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")"
-curl -fsS https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
+PUBLIC_ATTEMPTS="${BRAINBASE_LIGHTSAIL_READINESS_ATTEMPTS:-30}"
+PUBLIC_DELAY_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}"
+PUBLIC_CONNECT_TIMEOUT_SECONDS="$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS"
+PUBLIC_MAX_TIMEOUT_SECONDS="$LIGHTSAIL_MAX_TIMEOUT_SECONDS"
+public_ready=0
+for ((attempt=1; attempt<=PUBLIC_ATTEMPTS; attempt+=1)); do
+  if curl -fsS \
+    --connect-timeout "$PUBLIC_CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$PUBLIC_MAX_TIMEOUT_SECONDS" \
+    -- https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
 const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
 const git=value.runtime?.git;
 if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
-'
+'; then
+    public_ready=1
+    break
+  fi
+  if (( attempt < PUBLIC_ATTEMPTS )); then sleep "$PUBLIC_DELAY_SECONDS"; fi
+done
+if (( public_ready != 1 )); then
+  printf '[brainbase-runtime] Lightsail public readiness timed out after %s attempts\n' "$PUBLIC_ATTEMPTS" >&2
+  exit 1
+fi
 
-# 5. Restore the exact previous Hook config last, then verify every surface.
+# 3. Restore the exact previous Hook config last. The captured clean Hook
+# checkout was never mutated, so restoring hooks.json is sufficient.
 install -m 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" "$HOME/.codex/hooks.json"
 (cd "$BRAINBASE_ROLLBACK_STATE_DIR" && shasum -a 256 -c hooks.sha256)
 test "$(git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD)" = "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha")"
-test -z "$(git -C "$BRAINBASE_HOOK_ROOT" status --porcelain --untracked-files=no)"
-test -z "$(git -C "$BRAINBASE_CANONICAL_ROOT" status --porcelain)"
-(cd "$BRAINBASE_CANONICAL_ROOT" && scripts/run-brainbase-mcp.sh --check)
-curl -fsS -o /dev/null https://bb.unson.jp/api/health
+require_clean_tracked_root "$BRAINBASE_HOOK_ROOT"
+require_git_root "$BRAINBASE_SOURCE_ROOT"
+(cd "$BRAINBASE_MCP_RUNTIME_ROOT" && scripts/run-brainbase-mcp.sh --check)
+npm --prefix "$BRAINBASE_HOOK_ROOT" run check:judgment-hook-readiness -- --cwd "$BRAINBASE_HOOK_ROOT"
+curl -fsS \
+  --connect-timeout "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" \
+  --max-time "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" \
+  -o /dev/null \
+  -- https://bb.unson.jp/api/health
 ```
 
-After these commands, run one fresh Codex turn and the live transcript verification above. Until `UserPromptSubmit` opens a valid episode and the final transcript shows the exact audit prefix, report the rollback as incomplete. Never remove `~/.codex/var/judgment-resolver`; its existing episode/event/final files remain audit evidence.
+Keep the runtime pin in place after rollback; removing it would allow the periodic updater to reapply the failed `origin/develop`. Clear it only as part of a separately verified forward deployment. After these commands, run one fresh Codex turn and the live transcript verification above. Until `UserPromptSubmit` opens a valid episode and the final transcript shows the exact audit prefix, report the rollback as incomplete. Never remove `~/.codex/var/judgment-resolver`; its existing episode/event/final files remain audit evidence.
