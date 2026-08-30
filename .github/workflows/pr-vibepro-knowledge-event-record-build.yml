@@ -77,12 +77,18 @@ jobs:
           text = contract.read_text()
           inventory_tails = [
               (
-                  "      'resolve_entity'\n    ]);",
-                  "      'resolve_entity',\n      'brainbase_knowledge_event_record'\n    ]);"
+                  """      'resolve_entity'
+              ]);""",
+                  """      'resolve_entity',
+              'brainbase_knowledge_event_record'
+              ]);"""
               ),
               (
-                  "        'resolve_entity'\n      ]);",
-                  "        'resolve_entity',\n        'brainbase_knowledge_event_record'\n      ]);"
+                  """        'resolve_entity'
+              ]);""",
+                  """        'resolve_entity',
+                'brainbase_knowledge_event_record'
+              ]);"""
               )
           ]
           for old_inventory_tail, new_inventory_tail in inventory_tails:
