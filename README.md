@@ -51,6 +51,14 @@ Brainbaseの価値は、情報を多く保存することではありません�
 
 実装済み・develop・計画中の境界は、[現在の状態](https://brainbase.pages.dev/guide/status)を参照してください。
 
+<!-- brainbase:vibepro-knowledge-event:start -->
+## VibeProから検証済み学習を受け取る
+
+VibeProで同じGit状態に対するcomputed verificationが通ると、`knowledge_event.v1`の開発学習候補を生成できます。生成されたeventをMCP `brainbase_knowledge_event_record`の`event`へ渡すと、Brainbaseはhash、Story、HEAD、権限境界を再検証し、ローカルのappend-only候補ストアへ記録します。
+
+この操作はGraph昇格ではありません。`graph.json`は変更せず、外部操作も実行しません。候補を正式知識へ昇格する判断は、後続のreview/promotion境界に残ります。
+<!-- brainbase:vibepro-knowledge-event:end -->
+
 ## 10分で試す
 
 ```bash

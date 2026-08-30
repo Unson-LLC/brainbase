@@ -149,7 +149,8 @@ describe('story-brainbase-portable-ontology-kernel acceptance', () => {
       'audit_ontology',
       'infer_decisions',
       'ontology_impact',
-      'resolve_entity'
+      'resolve_entity',
+      'brainbase_knowledge_event_record'
     ]);
     expect(JSON.stringify(portableOntology), 'story-brainbase-portable-ontology-kernel ac:9 has no Infisical, bb.unson.jp, Lightsail, AWS, or hosted-runtime dependency').not.toMatch(/infisical|bb\.unson\.jp|lightsail|aws|hosted backend/i);
   });
