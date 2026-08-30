@@ -23,6 +23,12 @@ Judgment Resolver is a Host lifecycle boundary. Every Codex turn opens one judgm
 5. Every completed `mcp__brainbase__*` call triggers `PostToolUse`. The Host stores one immutable safe event and displays an accurate short line. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction, so concurrent calls receive a unique `event_sequence` in atomic journal-commit order. Process exit releases the transaction lock through SQLite and the OS; the Host never guesses that a lock path is stale and deletes it. `brainbase_knowledge_resolve` selects a reference destination; it is not itself a search or retrieval.
 6. `Stop` validates the event set and the actual `last_assistant_message`, then atomically creates one complete final episode receipt only when the episode-start contract is satisfied. The answer must begin with the stored `🧠` line followed by every stored `📚`/`⚠️` line in journal-commit order, with no extra copies. If required `knowledge.resolve` or that rendered audit prefix is missing, the first repairable Stop returns `decision:block` and writes no final receipt. If the `stop_hook_active=true` retry is still incomplete, it exits non-zero with `judgment_stop_repair_exhausted` instead of regenerating forever. When knowledge is optional and zero Brainbase calls were recorded, the episode-bound prefix includes `📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`. For an audit-only repair, the Host stores the normalized business-body digest and character count—not the answer text—after removing only the leading Host audit namespace block, including malformed variants. It refuses completion if the regenerated answer deleted, summarized, or replaced that body. A true orphan Stop cannot fabricate the model-generation-before route: it requests the exact degraded warning at most once, then records an immutable `audit_degraded` receipt and exits successfully so a long-running task does not require a new task. The warning explicitly says that work continues and that creating a new task or operating Hooks is unnecessary. `audit_degraded` is never a complete final, retrieval success, task completion, prior finalized judgment, or action authorization. Identity, diagnostic-integrity, episode-integrity, and transaction-acquisition failures remain terminal fail-closed errors.
 
+## Autonomy contract
+
+The initial receipt fixes `autonomy_decision` deterministically. Low/medium-risk in-scope work is `continue`; high/critical risk, external action, unresolved classification, or policy conflict is `escalate`. New runtime receipts supersede the legacy Stop-time model evaluator, which remains only for already-open legacy episodes during rollout.
+
+Stop does not ask another model to grade the answer. It mechanically checks that a `continue` turn did not hand routine work back as an unnecessary question. Runtime escalation is allowed only for `irreversible_action`, `missing_authority`, `owner_value_choice`, `required_input_unavailable`, or `evidenced_terminal_blocker`, using an exact `⚠️ 確認が必要[reason_code]:` line. An `escalate` turn must ask one necessary question with the Resolver reason. This contract never grants action permission.
+
 ## Canonical conversation context
 
 `conversation_context` uses schema `brainbase-conversation-context-v1` and contains:
@@ -54,6 +60,8 @@ For each hashed session/turn, the Host maintains owner-only append-only files:
 - `final.json` binds the immutable event-set digest, exact answer digest, owner-display status, and records `complete`. Historical incomplete journals remain readable but are not newly created.
 
 Initial route and final episode receipt are different facts. The initial route says what should guide the turn. The final receipt says what actually happened before Stop. Only complete finalized episodes become prior-receipt context; legacy v1/v2 adoption journals remain readable.
+
+`final.json` also records whether autonomy was `continued`, `runtime_escalated`, or `escalated`; this is answer-contract evidence, not semantic proof that every implementation claim is true.
 
 ## Owner-visible traces
 
@@ -98,6 +106,8 @@ Initial and final receipts constrain reasoning and provide audit evidence. They 
 - Preserve specific 4xx codes such as `judgment_resolution_input_invalid`; do not flatten them into a generic API error.
 - `brainbase_project_not_accessible` must not arise merely because project policy is outside the caller scope.
 - If a log or explanation refers to a "Resolver LLM", treat it as documentation drift unless a future architecture explicitly introduces and verifies such a provider.
+
+A `continue` receipt that ends in an unapproved decision request returns `decision:block` so the model continues. An `escalate` receipt without the exact reason marker and necessary input request is also blocked.
 
 ## Runtime and deployment
 

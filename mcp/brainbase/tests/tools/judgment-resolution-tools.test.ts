@@ -55,7 +55,13 @@ function receipt(overrides: Record<string, unknown> = {}) {
     request_digest: computeJudgmentRequestDigest(args),
     context_digest: createHash('sha256').update(canonicalJson(args.conversation_context)).digest('hex'),
     status: 'resolved',
-    runtime_version: 'judgment-runtime-2.0.0',
+    autonomy_decision: 'continue',
+    autonomy_reason_code: 'routine_in_scope',
+    allowed_runtime_escalation_reasons: [
+      'irreversible_action', 'missing_authority', 'owner_value_choice',
+      'required_input_unavailable', 'evidenced_terminal_blocker',
+    ],
+    runtime_version: 'judgment-runtime-2.1.0',
     manifest_digest: 'b'.repeat(64),
     host_binding: { adapter_id: 'brainbase-mcp', adapter_version: '1', status: 'managed', enforcement_level: 'host_contract' },
     project_code: 'brainbase',
@@ -164,6 +170,9 @@ describe('judgment resolver Host bridge', () => {
       receipt({ context_digest: '0'.repeat(64) }),
       receipt({ host_binding: { adapter_id: 'other', adapter_version: '1', status: 'managed', enforcement_level: 'host_contract' } }),
       receipt({ classification_evidence: null }),
+      receipt({ autonomy_decision: 'escalate' }),
+      receipt({ autonomy_reason_code: 'risk_or_external' }),
+      receipt({ allowed_runtime_escalation_reasons: ['missing_authority'] }),
     ]) {
       const result = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(invalid), { status: 200 })));
       assert.equal(result.error?.code, 'brainbase_api_response_invalid');

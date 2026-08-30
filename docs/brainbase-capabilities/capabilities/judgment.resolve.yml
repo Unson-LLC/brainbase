@@ -38,6 +38,8 @@ visibility_rules:
   - Non-follow-up input with no explicit specialist domain or intent match uses the server-owned `general/answer` fallback; unresolved follow-up references or knowledge routes missing required project context use the clarification DAG.
   - UserPromptSubmit adopts exactly one initial route receipt; retries are bounded before episode creation and no reclassification occurs afterwards.
   - The Host fixes the initial route and classification. When `knowledge.resolve` is required, UserPromptSubmit explicitly names the allowed exact tool `mcp__brainbase__brainbase_knowledge_resolve`, explains that it selects the canonical source and next retrieval path without retrieving the answer body, and distinguishes it from route reclassification. Stop repair uses the same capability-action contract.
+  - The Resolver deterministically fixes autonomy_decision as continue or escalate in the initial receipt. Stop verifies answer compliance without asking another model to re-grade the task; the legacy Stop-time model evaluator is used only for already-open legacy receipts during rollout.
+  - Continue completes low/medium-risk in-scope work without preference or just-in-case questions. It may escalate at runtime only for irreversible action, missing authority, an owner-only value choice, unavailable required input, or an evidenced terminal blocker. Escalate requires one exact reason-marked confirmation and never authorizes the action.
   - The current Codex model is the open-ended LLM in the execution loop. It decides how to answer inside the selected DAG and may formulate, refine, and call Brainbase knowledge/retrieval tools 0..N times as results create new questions; there is no one-call-per-turn limit.
   - Claude Code is a future Host-adapter candidate for the same responsibility split, but is not part of the current episode-lifecycle hook integration.
   - Knowledge Resolver deterministically chooses a canonical source route and required retrieval capability; it does not search or retrieve content.
@@ -69,6 +71,7 @@ verification:
     - The Stop audit contract is bound at episode start, and an audit-only continuation cannot complete after shortening the original non-audit answer body.
     - Raw tool input/output and secret-like values are absent from journals and owner-visible lines.
     - Zero Brainbase calls is complete when no Brainbase capability is required.
+    - A continue receipt rejects an unnecessary user decision request, accepts completion with an optional follow-up offer, and accepts only exact allowed runtime-escalation reasons. An escalate receipt requires the Resolver reason marker at the start of the answer body.
     - Required `knowledge.resolve` is complete only after a successful exact route call.
     - A replayed complete Stop reuses the same final receipt; an evidence-incomplete active repeated Stop for an existing episode exits non-zero with `judgment_stop_repair_exhausted`, while a true orphan Stop converges to non-final `audit_degraded` with exit 0 and rejects a late Start for the same identity. Neither writes a fabricated final.
     - Current Codex Hook trust is ready_for_fresh_task before live verification, and proven_active evidence comes from a task created after owner trust approval.
@@ -81,6 +84,7 @@ common_failures:
   - Treating one network attempt or one tool call as the per-turn invariant.
   - Treating brainbase_project_not_accessible as a reason judgment cannot run.
   - Adding a second Judgment-specific action guard that re-judges the receipt.
+  - Calling an LLM at Stop to decide again whether routine work should continue after a new Resolver receipt already fixed autonomy_decision.
 runbooks:
   - ../runbooks/judgment-resolve.md
 troubleshooting: []

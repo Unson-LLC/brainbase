@@ -72,6 +72,17 @@ const CAPABILITY_ACTION_CONTRACTS = Object.freeze({
         distinctFrom: 'Hostが確定したJudgment routeの再分類'
     })
 });
+const AUTONOMY_RUNTIME_ESCALATION_REASONS = Object.freeze([
+    'irreversible_action',
+    'missing_authority',
+    'owner_value_choice',
+    'required_input_unavailable',
+    'evidenced_terminal_blocker'
+]);
+const AUTONOMY_REASON_CODES = new Set([
+    'routine_in_scope', 'classification_missing', 'policy_conflict', 'risk_or_external'
+]);
+const AUTONOMY_MARKER_PATTERN = /^⚠️ 確認が必要\[([a-z_]+)\]:\s*\S/u;
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -466,7 +477,42 @@ function verifyReceipt(receipt, args) {
     if (receipt.context_digest !== contextDigest) throw new Error('judgment_receipt_context_mismatch');
     if (!record(receipt.host_binding) || receipt.host_binding.status !== 'managed') throw new Error('judgment_receipt_binding_unmanaged');
     if (!Array.isArray(receipt.active_node_definitions)) throw new Error('judgment_receipt_active_nodes_missing');
+    verifyAutonomyContract(receipt, { required: receipt.runtime_version === 'judgment-runtime-2.1.0' });
     return receipt;
+}
+
+function verifyAutonomyContract(receipt, { required = false } = {}) {
+    const fieldsPresent = ['autonomy_decision', 'autonomy_reason_code', 'allowed_runtime_escalation_reasons']
+        .some((field) => Object.hasOwn(receipt || {}, field));
+    if (!fieldsPresent && !required) return null;
+    if (!['continue', 'escalate'].includes(receipt?.autonomy_decision)
+        || !AUTONOMY_REASON_CODES.has(receipt?.autonomy_reason_code)
+        || !Array.isArray(receipt?.allowed_runtime_escalation_reasons)
+        || new Set(receipt.allowed_runtime_escalation_reasons).size !== receipt.allowed_runtime_escalation_reasons.length) {
+        throw new Error('judgment_receipt_autonomy_invalid');
+    }
+    const expectedReason = receipt.status === 'needs_classification'
+        ? 'classification_missing'
+        : receipt.status === 'needs_policy_resolution'
+            ? 'policy_conflict'
+            : ['high', 'critical'].includes(receipt?.classification?.risk)
+                || receipt?.classification?.action_kind === 'external'
+                ? 'risk_or_external'
+                : 'routine_in_scope';
+    const expectedDecision = expectedReason === 'routine_in_scope' ? 'continue' : 'escalate';
+    const expectedRuntimeReasons = expectedDecision === 'continue'
+        ? AUTONOMY_RUNTIME_ESCALATION_REASONS
+        : [];
+    if (receipt.autonomy_reason_code !== expectedReason
+        || receipt.autonomy_decision !== expectedDecision
+        || canonicalJson(receipt.allowed_runtime_escalation_reasons) !== canonicalJson(expectedRuntimeReasons)) {
+        throw new Error('judgment_receipt_autonomy_mismatch');
+    }
+    return {
+        decision: receipt.autonomy_decision,
+        reasonCode: receipt.autonomy_reason_code,
+        allowedRuntimeReasons: [...receipt.allowed_runtime_escalation_reasons]
+    };
 }
 
 function adoptReceipt(args, receipt, env) {
@@ -1137,6 +1183,46 @@ function normalizedAnswerBody(answer, expectedLines) {
     return bodyLines.join('\n');
 }
 
+function requestsUserInput(body) {
+    if (typeof body !== 'string' || !body.trim()) return false;
+    const relevant = body.split('\n').map((line) => line.trim()).filter(Boolean)
+        .filter((line) => !/^(?:必要なら|必要であれば|ご希望なら|希望があれば|必要に応じて)/u.test(line));
+    return relevant.some((line) => (
+        /(?:どちら|どれ|どうしますか|何を選びますか|よろしいですか|進めてもいいですか|進めてもよいですか)[^。]*[?？]?$/u.test(line)
+        || /(?:教えて|選んで|決めて|判断して|承認して|確認して|入力して|提示して|付与して)(?:ください|もらえますか|いただけますか)[。！!？?]?$/u.test(line)
+    ));
+}
+
+function autonomyAnswerCompliance(answer, expectedLines, receipt) {
+    const contract = verifyAutonomyContract(receipt);
+    if (!contract) return { status: 'legacy', violation: null };
+    const body = normalizedAnswerBody(answer, expectedLines) ?? '';
+    const bodyLines = body.split('\n').map((line) => line.trim()).filter(Boolean);
+    const markerMatch = bodyLines[0]?.match(AUTONOMY_MARKER_PATTERN) ?? null;
+    const markerReason = markerMatch?.[1] ?? null;
+    const asks = requestsUserInput(body);
+
+    if (contract.decision === 'continue') {
+        if (markerReason) {
+            if (!contract.allowedRuntimeReasons.includes(markerReason) || !asks) {
+                return { status: null, violation: '許可された実行時確認理由と、必要な入力要求を正確な確認行で示す' };
+            }
+            return { status: 'runtime_escalated', violation: null };
+        }
+        if (asks) {
+            return { status: null, violation: 'Brainbase自律判断はcontinueです。高リスク等の許可理由がないためユーザーへ判断を返さず、安全な範囲で作業を継続する' };
+        }
+        return { status: 'continued', violation: null };
+    }
+    if (markerReason !== contract.reasonCode || !asks) {
+        return {
+            status: null,
+            violation: `境界操作を実行せず、回答本文の先頭に「⚠️ 確認が必要[${contract.reasonCode}]:」を置いて必要な確認を一つだけ求める`
+        };
+    }
+    return { status: 'escalated', violation: null };
+}
+
 function buildAnswerBodyBinding(answer, expectedLines) {
     const body = normalizedAnswerBody(answer, expectedLines);
     if (body === null) return null;
@@ -1458,6 +1544,9 @@ export async function evaluateAutonomyStop(payload, {
     if (!identity) throw new Error('judgment_episode_identity_missing');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     const episode = existingEpisode(payload, env);
+    // Runtime 2.1 receipts already contain a deterministic autonomy decision.
+    // Keep the model evaluator only for in-flight legacy episodes during rollout.
+    if (episode && verifyAutonomyContract(episode.initial_route_receipt)) return null;
     if (!episode || !autonomyRolloutEnabled(episode, env)) return null;
     const answer = typeof payload.last_assistant_message === 'string'
         ? payload.last_assistant_message
@@ -1537,22 +1626,26 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
     const expectedAuditLines = requiredAuditLines(episode, events);
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);
+    const autonomyCompliance = autonomyAnswerCompliance(answer, expectedAuditLines, episode.initial_route_receipt);
+    const missingAutonomyCompliance = autonomyCompliance.violation !== null;
     let existingContinuation = null;
     try { existingContinuation = readJson(paths.continuation); } catch (error) {
         if (error?.code !== 'ENOENT') throw error;
     }
     const answerBodyBinding = activeAnswerBodyBinding(existingContinuation, expectedAuditLines);
     const missingAnswerBody = !answerBodyMatchesBinding(answer, expectedAuditLines, answerBodyBinding);
-    if (missingKnowledge || missingOwnerAudit || missingAnswerBody) {
+    if (missingKnowledge || missingOwnerAudit || missingAnswerBody || missingAutonomyCompliance) {
         const missingCapabilities = [
             ...(missingKnowledge ? ['knowledge.resolve'] : []),
             ...(missingOwnerAudit ? ['owner.audit.display'] : []),
-            ...(missingAnswerBody ? ['answer.body.preservation'] : [])
+            ...(missingAnswerBody ? ['answer.body.preservation'] : []),
+            ...(missingAutonomyCompliance ? ['autonomy.continuation'] : [])
         ];
         let marker = existingContinuation;
         if (!marker) {
             const shouldBindAnswerBody = !missingKnowledge
                 && missingOwnerAudit
+                && !missingAutonomyCompliance
                 && episodeAuditContract(episode)?.repair_body_policy === 'preserve';
             marker = createImmutableJson(paths.continuation, {
                 schema_version: 'brainbase-judgment-continuation-v2',
@@ -1573,7 +1666,8 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ] : []),
             ...((missingAnswerBody || (!missingKnowledge && missingOwnerAudit && marker.answer_body_binding)) ? [
                 '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
-            ] : [])
+            ] : []),
+            ...(missingAutonomyCompliance ? [autonomyCompliance.violation] : [])
         ];
         const reasonSequence = reasons
             .map((reason) => reason.replace(/。$/u, ''))
@@ -1600,6 +1694,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         event_set_digest: orderedEventSetDigest(events),
         owner_audit_complete: !missingOwnerAudit,
         owner_audit_line_count: expectedAuditLines.length,
+        autonomy_compliance_status: autonomyCompliance.status,
         answer_digest: answer === null ? null : sha256(answer),
         ...(safeAnswer?.sensitive
             ? { redaction_status: 'needs_redaction' }
@@ -1700,6 +1795,7 @@ function requiredKnowledgeResolution(receipt) {
 }
 
 function ownerDecision(receipt) {
+    if (receipt?.autonomy_decision === 'escalate') return '高リスク・外部作用または必須確認のため停止';
     if (requiredKnowledgeResolution(receipt)) return 'Brainbase参照先の判断が必要';
     const intent = receipt?.classification?.intent;
     const byIntent = {
@@ -1786,9 +1882,25 @@ export function successOutput(
     const ownerReferenceLine = ownerAudit.display_line;
     const requiredCapabilityInstructions = requiredCapabilityActionContracts(receipt)
         .map((contract) => capabilityActionInstruction(contract));
+    const autonomy = verifyAutonomyContract(receipt);
+    const autonomyInstructions = autonomy?.decision === 'continue'
+        ? [
+            'Autonomy decision: continue.',
+            '安全なスコープ内の読解、調査、テスト、可逆な実装はそのまま完了まで続ける。複雑さ、好みの確認、念のための確認だけを理由に停止しない。',
+            `実行中に確認が必須になった場合だけ、許可された理由コードの確認行「⚠️ 確認が必要[reason_code]:」を回答本文の先頭に置く。許可コード: ${autonomy.allowedRuntimeReasons.join(', ')}。例: ⚠️ 確認が必要[missing_authority]:`,
+            'この自律判断は通常の権限・承認を置き換えません。'
+        ]
+        : autonomy?.decision === 'escalate'
+            ? [
+                'Autonomy decision: escalate.',
+                `境界操作を実行せず、回答本文の先頭に「⚠️ 確認が必要[${autonomy.reasonCode}]:」を置き、必要な確認を一つだけ求める。`,
+                'この自律判断は通常の権限・承認を置き換えません。'
+            ]
+            : [];
     const context = [
         'Brainbase Judgment Resolver Host opened one judgment episode before model generation. The route receipt fixes the current intent and active DAG for this episode; it is not the final episode receipt.',
         'The Host-fixed initial route and classification are immutable for this episode; do not recalculate or change them.',
+        ...autonomyInstructions,
         ...requiredCapabilityInstructions,
         'Use Brainbase knowledge and retrieval tools repeatedly when later evidence makes another lookup useful; there is no one-call-per-turn limit.',
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
