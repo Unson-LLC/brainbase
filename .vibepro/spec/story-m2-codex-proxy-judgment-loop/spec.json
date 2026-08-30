@@ -1,0 +1,312 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-m2-codex-proxy-judgment-loop",
+  "generated_at": "2026-08-30T00:00:00.000Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "accepted_contract"
+  },
+  "previous_spec_id": null,
+  "clauses": [
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "監査行を除外した最終回答末尾から明示的な人間確認・選択・承認要求だけを抽出し、通常完了文とaccepted Judgment Receiptが選んだclarificationは既存Stopへ渡す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001",
+            "text_snippet": "監査行を除いた人間への確認"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-autonomy.ts",
+            "anchor": "extractHumanDecisionQuestion"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "strips owner audit lines before reading the final answer"
+          },
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "allows a clarification explicitly selected by the accepted Judgment Receipt"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "strips owner audit lines before reading the final answer"
+          },
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "allows a clarification explicitly selected by the accepted Judgment Receipt"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-30T00:00:00.000Z",
+      "last_revised_at": "2026-08-30T00:00:00.000Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "テスト・読取・調査・local reversible changeの確認をLLMなしでcontinueと判定し、同じCodexターンへ実行・検証・完了条件を返す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002",
+            "text_snippet": "明白な通常工程"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-autonomy.ts",
+            "anchor": "evaluateJudgmentAutonomy"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "blocks routine test approval and resumes the same Codex turn"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "blocks routine test approval and resumes the same Codex turn"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-30T00:00:00.000Z",
+      "last_revised_at": "2026-08-30T00:00:00.000Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "外部送信・本番操作・破壊・権限変更・機密情報・material commitment・missing authority/secret・new owner value choiceをfail-closedでhuman_requiredとし、元依頼が明示したレビュー済みrelease pipelineだけ重複確認を省く。外部message deliveryは常に人間境界へ残し、判断receiptから権限を増やさない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003",
+            "text_snippet": "human_required"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-autonomy.ts",
+            "anchor": "evaluateJudgmentAutonomy"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "allows a human question for an external action boundary"
+          },
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "does not ask again for a release action explicitly authorized by the task"
+          },
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "keeps external message delivery human-required even when requested"
+          },
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "routes an existing business-priority choice through Brainbase instead of escalating by keyword"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "allows a human question for an external action boundary"
+          },
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "does not ask again for a release action explicitly authorized by the task"
+          },
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "keeps external message delivery human-required even when requested"
+          },
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "routes an existing business-priority choice through Brainbase instead of escalating by keyword"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-30T00:00:00.000Z",
+      "last_revised_at": "2026-08-30T00:00:00.000Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "意味的グレーゾーンはProviderがあれば独立Resolverへ一度渡し、なければ現在のCodexをBrainbase判断適用へ戻してcontinueする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004",
+            "text_snippet": "差し替え可能なread-only Resolver Provider"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-autonomy.ts",
+            "anchor": "JudgmentAutonomyResolver"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "calls an independent resolver only for the semantic gray zone"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "calls an independent resolver only for the semantic gray zone"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-30T00:00:00.000Z",
+      "last_revised_at": "2026-08-30T00:00:00.000Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Resolver decisionをschema、case ID、verdict、basis、instruction patch/human questionでfail-closed検証する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005",
+            "text_snippet": "case ID、schema、verdict"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-autonomy.ts",
+            "anchor": "validateResolverDecision"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "rejects a resolver decision bound to another case"
+          },
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "rejects a resolver decision without a Brainbase basis"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "rejects a resolver decision bound to another case"
+          },
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "rejects a resolver decision without a Brainbase basis"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-30T00:00:00.000Z",
+      "last_revised_at": "2026-08-30T00:00:00.000Z"
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "Stopは既定off、明示project canary、全体onをHostで制御し、対象時だけAutonomy Gateを監査finalization前に実行する。判定をimmutable receiptへ保存し、continueをdecision:blockとして返し、再入時の同一エスカレーションはbounded failureにする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006",
+            "text_snippet": "既存の監査repairとは別理由"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-host.ts",
+            "anchor": "resolveAutonomyMode"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-host-autonomy.test.ts",
+            "case": "keeps the autonomy gate off by default"
+          },
+          {
+            "file": "tests/judgment-host-autonomy.test.ts",
+            "case": "enables canary mode only for the configured project"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-host-autonomy.test.ts",
+            "must_cover": "keeps the autonomy gate off by default"
+          },
+          {
+            "file_glob": "tests/judgment-host-autonomy.test.ts",
+            "must_cover": "enables canary mode only for the configured project"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-30T00:00:00.000Z",
+      "last_revised_at": "2026-08-30T00:00:00.000Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "既存episode/audit/final receipt schemaを変更せず、既定off・単一project canary・immutable autonomy receipt・adversarial fail-closed・追加unit・Host integration・build・typecheck・full regressionをexact HEADへ束縛し、実Codex再開と24時間readbackまではStoryをactiveに保つ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007",
+            "text_snippet": "現行judgment-host回帰"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/judgment-autonomy.ts",
+            "anchor": "evaluateJudgmentAutonomy"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-autonomy.test.ts",
+            "case": "does not intercept ordinary completed prose"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-autonomy.test.ts",
+            "must_cover": "does not intercept ordinary completed prose"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-30T00:00:00.000Z",
+      "last_revised_at": "2026-08-30T00:00:00.000Z"
+    }
+  ]
+}

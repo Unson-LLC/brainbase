@@ -23,7 +23,7 @@ describe('public Judgment DAG machine contract', () => {
   it('publishes a side-effect-free subpath and locked machine artifacts', async () => {
     const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
     const readme = await readFile(path.join(root, 'README.md'), 'utf8');
-    expect(manifest.version).toBe('0.4.0');
+    expect(manifest.version).toBe('0.4.1');
     expect(manifest.main).toBe('dist/index.js');
     expect(manifest.exports['.'].import).toBe('./dist/index.js');
     expect(manifest.exports['./judgment-dag']).toEqual({

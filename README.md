@@ -75,6 +75,36 @@ brainbase onboard:install --target codex --dry-run
 
 詳しい手順は[10分で試す](https://brainbase.pages.dev/guide/quick-start)にまとめています。
 
+## エージェントと始める
+
+Codex または Claude Code に、繰り返し説明したくない文脈を聞き取らせる場合は、最初に次を実行します。
+
+```bash
+brainbase onboard:agent
+brainbase onboard:demo --scenario "<Brainbaseを使って答えてほしい実際の依頼>"
+```
+
+最初の価値確認後に、必要なソースだけを段階的に追加します。エージェントは **diagnose the local source setup** を行い、候補をcanonical SSOTへ直接書き込みません。**Review candidates with the user, then promote only approved facts** を原則にします。
+
+```bash
+brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion
+brainbase onboard:candidates
+```
+
+**Register active projects** with `brainbase onboard:projects`; dry-runを確認してから、承認済みのプロジェクト文脈だけを`--write`で昇格します。
+
+### Google Workspace local-first adopter
+
+常時稼働のMac mini、Google Workspace、補助Gmail、許可したDrive/local folder、Calendar/notesに散在するタスクを対象にする例です。全Driveやhome directory全体は走査しません。
+
+```bash
+brainbase onboard:plan --profile google-workspace-local --host mac-mini --email google-workspace --secondary-email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --local-folder "/Users/owner/Notes" --tasks scattered-calendar-notes --inactive-task-tool notion
+```
+
+## 30 Minute Setup
+
+手動セットアップ、source allowlist、candidate reviewの詳細は[公開マニュアル](https://brainbase.pages.dev/guide/quick-start)を参照してください。
+
 ## Judgment DAG
 
 Brainbaseの内部では、判断を次の流れとして扱います。
@@ -132,6 +162,8 @@ console.log(checked.execution_order, record.execution_order);
 
 `node.depends_on`と`relation: "depends_on"` edgeは完全なmirrorです。missing、cycle、reverse-layer、scope不一致、不正runner登録は、最初のrunner呼び出し前にfail closedで拒否されます。
 
+`source-lock.sources`は入力契約の固定対象を列挙し、`digest.files`は配布物の各sha256を保持します。総合digestは、各行を`path + NUL + sha256 + LF`としてpath順に連結したcanonical bytesから計算します。
+
 ## BrainbaseとMana
 
 ```text
@@ -155,6 +187,16 @@ brainbase doctor
 After the demo, keep onboarding open. Confirm public skills placement, `ohayo` / `oyasumi` / `retro` registration, the real MCP config merge, source allowlist / import / candidate review decisions, and MCP `resolve_entity` / `get_context` / `search` verification.
 
 Do not treat those generated artifacts as installed until the user approves file writes, scheduler registration, and live configuration changes.
+
+### Autonomy Gate canary
+
+Autonomy Gateは既定で`off`です。最初は単一projectだけを明示してHook設定を生成し、出力を確認してからCodex設定へ反映します。
+
+```bash
+brainbase judgment:install --target codex --autonomy-mode canary --autonomy-project brainbase --dry-run
+```
+
+canaryは、テスト・読取・調査・ローカルで可逆な作業の不要な確認だけを同じCodexターンへ戻します。外部送信、本番操作、破壊、権限変更、機密/個人情報、契約、支払、新しい価値判断は人間境界のままです。判定はローカルjournalへcase-boundなimmutable receiptとして記録されます。
 
 ## 公開説明の更新
 
@@ -187,6 +229,19 @@ npm run docs:check
 npm run docs:build
 npm run docs:smoke
 ```
+
+### Maintainer release operation
+
+Publication is serialized by the GitHub workflow. Direct local `release:publish` is rejected; maintainers must not publish with a local npm token.
+
+Dispatch the reviewed ref once when automatic publication needs recovery:
+
+```bash
+RELEASE_REF="<reviewed-develop-commit>"
+gh workflow run npm-publish.yml --ref develop -f release_ref="$RELEASE_REF"
+```
+
+After the workflow succeeds, verify npm `gitHead`, `dist.integrity`, and dist-tag, and verify that the GitHub Release targets the reviewed release commit. If npm already contains the version, treat that version as immutable; fix the source, increment the version, and run the reviewed workflow again.
 
 ## ドキュメント
 

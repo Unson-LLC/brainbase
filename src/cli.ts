@@ -47,7 +47,7 @@ import {
   type ProjectRegistrationPlan
 } from './projects.js';
 import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js';
-import { blockedJudgmentOutput, processJudgmentHook, type JudgmentHookPayload } from './judgment-host.js';
+import { blockedJudgmentOutput, processJudgmentHook, type JudgmentAutonomyMode, type JudgmentHookPayload } from './judgment-host.js';
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
@@ -114,7 +114,7 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
       case 'ontology:migrate':
         return await ontologyMigrate(parsed, io);
       case 'judgment:hook':
-        return await judgmentHook(io);
+        return await judgmentHook(parsed, io);
       case 'judgment:install':
         return await judgmentInstall(parsed, io);
       case 'doctor':
@@ -132,12 +132,28 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
   }
 }
 
-async function judgmentHook(io: CliIo): Promise<number> {
+function judgmentAutonomyOptions(parsed: ParsedArgs): {
+  autonomyMode?: JudgmentAutonomyMode;
+  autonomyCanaryProjects?: string[];
+} {
+  const rawMode = first(parsed, 'autonomy-mode');
+  if (rawMode !== undefined && !['off', 'canary', 'on'].includes(rawMode)) {
+    throw new Error('judgment_autonomy_mode_invalid');
+  }
+  const project = first(parsed, 'autonomy-project')?.trim();
+  if (rawMode === 'canary' && !project) throw new Error('judgment_autonomy_canary_project_missing');
+  return {
+    ...(rawMode ? { autonomyMode: rawMode as JudgmentAutonomyMode } : {}),
+    ...(project ? { autonomyCanaryProjects: [project] } : {})
+  };
+}
+
+async function judgmentHook(parsed: ParsedArgs, io: CliIo): Promise<number> {
   let payload: JudgmentHookPayload = {};
   try {
     const input = await readHookStdin(io.stdin ?? process.stdin);
     payload = JSON.parse(input || '{}') as JudgmentHookPayload;
-    write(io, `${JSON.stringify(await processJudgmentHook(payload))}\n`);
+    write(io, `${JSON.stringify(await processJudgmentHook(payload, judgmentAutonomyOptions(parsed)))}\n`);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     const eventName = payload.hook_event_name ?? payload.hookEventName;
@@ -154,10 +170,20 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const target = first(parsed, 'target');
   if (target !== 'codex') throw new Error('judgment:install currently requires --target codex');
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
+  const autonomy = judgmentAutonomyOptions(parsed);
+  const hookArguments = [
+    process.execPath,
+    cliPath,
+    'judgment:hook',
+    ...(autonomy.autonomyMode ? ['--autonomy-mode', autonomy.autonomyMode] : []),
+    ...(autonomy.autonomyCanaryProjects?.[0]
+      ? ['--autonomy-project', autonomy.autonomyCanaryProjects[0]]
+      : [])
+  ];
   const hook = {
     hooks: [{
       type: 'command',
-      command: `${JSON.stringify(process.execPath)} ${JSON.stringify(cliPath)} judgment:hook`,
+      command: hookArguments.map((argument) => JSON.stringify(argument)).join(' '),
       statusMessage: 'brainbase judgment resolver'
     }]
   };
@@ -1180,8 +1206,8 @@ function usage(): string {
   brainbase ontology:show
   brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0|2.0.0]
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
-  brainbase judgment:install --target codex [--dry-run] [--output path]
-  brainbase judgment:hook
+  brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
+  brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase doctor [--dir path] [--judgment-hooks path]
 `;
 }

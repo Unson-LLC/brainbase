@@ -820,6 +820,20 @@ describe('portable Judgment Resolver Host contract', () => {
     expect(JSON.stringify(config)).not.toMatch(/https?:\/\/|Infisical|Lightsail|Unson/iu);
   });
 
+  it('generates an explicit one-project autonomy canary hook', async () => {
+    const output = capture();
+    const code = await runCli([
+      'judgment:install', '--target', 'codex', '--autonomy-mode', 'canary',
+      '--autonomy-project', 'brainbase', '--dry-run'
+    ], output.io);
+    expect(code).toBe(0);
+    const config = JSON.parse(output.stdout());
+    const commands = Object.values(config.hooks).map((bindings: any) => bindings[0].hooks[0].command);
+    expect(commands).toHaveLength(3);
+    expect(commands.every((command: string) => command.includes('"--autonomy-mode" "canary"'))).toBe(true);
+    expect(commands.every((command: string) => command.includes('"--autonomy-project" "brainbase"'))).toBe(true);
+  });
+
   it('lets doctor verify the three installed lifecycle hooks', async () => {
     const root = await tempDir();
     const dataDir = join(root, 'personal-os');
