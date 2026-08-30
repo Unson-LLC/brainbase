@@ -116,6 +116,10 @@ describe('managed judgment turn end to end', () => {
         const firstInput = input('認証APIの設計をレビューして', 'host-turn-e2e-1');
         const first = await runTurn(firstInput);
         expect(first.execution_status).toBe('continued');
+        expect(first.receipt).toMatchObject({
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope'
+        });
         expect(first.receipt.selected_dag_ids).toEqual(['engineering.v1']);
         expect(first.output).toContain('Fix the actual goal');
         expect(serviceCalls).toBe(1);
@@ -133,12 +137,17 @@ describe('managed judgment turn end to end', () => {
             intent: 'implement', domains: ['engineering'], action_kind: 'write'
         });
         expect(followUp.receipt.classification_evidence).toMatchObject({ source: 'prior_receipt' });
+        expect(followUp.receipt.autonomy_decision).toBe('continue');
         expect(followUp.receipt.context_digest).toMatch(/^[a-f0-9]{64}$/u);
         expect(serviceCalls).toBe(2);
 
         const clarification = await runTurn(input('それでいい', 'host-turn-e2e-3'));
         expect(clarification.execution_status).toBe('continued');
         expect(clarification.receipt.status).toBe('needs_classification');
+        expect(clarification.receipt).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'classification_missing'
+        });
         expect(clarification.receipt.active_nodes).toContain('clarification');
 
         const outsideProject = await runTurn(input('意味を説明して', 'host-turn-e2e-4', { projectCode: 'outside-project' }));

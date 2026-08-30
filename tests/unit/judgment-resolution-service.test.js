@@ -534,6 +534,11 @@ describe('JudgmentResolutionService', () => {
     it('現在の命令にあるPR公開は引き続きexternalとして分類する', () => {
         const receipt = service.resolve(input('PRを外部公開して'), { access: ACCESS, hostBinding: binding() });
         expect(receipt.classification).toMatchObject({ intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high' });
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'risk_or_external',
+            allowed_runtime_escalation_reasons: []
+        });
     });
 
     it('明示的な人材採用はorganizationとして分類する', () => {
@@ -558,6 +563,17 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification.action_kind).toBe('none');
         expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action',
+                'missing_authority',
+                'owner_value_choice',
+                'required_input_unavailable',
+                'evidenced_terminal_blocker'
+            ]
+        });
     });
 
     it('制約内の手動マージ言及をwrite命令と誤認せずVibeProの判断DAGを一度で解決する', () => {

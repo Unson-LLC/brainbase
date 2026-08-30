@@ -279,6 +279,25 @@ describe('Codex Judgment Resolver Host', () => {
         expect(context).toContain('The full route receipt stays in the per-session judgment journal');
     });
 
+    it('continue契約は不要な確認を禁止し、許可された実行時escalationだけを指示する', () => {
+        const output = successOutput({ request: '修正して', conversation_context: { messages: [] } }, {
+            classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium' },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        });
+        const context = output.hookSpecificOutput.additionalContext;
+
+        expect(context).toContain('Autonomy decision: continue.');
+        expect(context).toContain('複雑さ、好みの確認、念のための確認だけを理由に停止しない');
+        expect(context).toContain('⚠️ 確認が必要[missing_authority]:');
+        expect(context).toContain('通常の権限・承認を置き換えません');
+    });
+
     it('required capabilityの正確な実行契約を初期指示へ注入し、曖昧なResolver禁止文を使わない', () => {
         const args = { request: '正本を確認して', conversation_context: { messages: [] } };
         const requiredReceipt = {
@@ -1328,6 +1347,135 @@ describe('Codex Judgment Resolver Host', () => {
             completion_status: 'complete', event_count: 0, qualifying_event_count: 0,
             owner_audit_complete: true, owner_audit_line_count: 2
         });
+    });
+
+    it('continueなのに判断質問だけで終了した場合はStopが継続させる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-autonomy-continue', turn_id: 'turn-autonomy-continue', prompt: '修正して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                'どちらの実装にしますか？'
+            ].join('\n')
+        }, { env });
+
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.output.reason).toContain('安全な範囲で作業を継続');
+        expect(result.continuation.missing_capabilities).toContain('autonomy.continuation');
+    });
+
+    it('continueでも許可理由を明示した限定質問と、完了後の任意提案は通す', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const makeEpisode = async (suffix) => {
+            const payload = { session_id: `session-autonomy-${suffix}`, turn_id: `turn-autonomy-${suffix}`, prompt: '修正して', cwd: process.cwd() };
+            const args = buildJudgmentRequest(payload, { env });
+            const receipt = {
+                ...validReceipt(args),
+                classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+                selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                autonomy_decision: 'continue',
+                autonomy_reason_code: 'routine_in_scope',
+                allowed_runtime_escalation_reasons: [
+                    'irreversible_action', 'missing_authority', 'owner_value_choice',
+                    'required_input_unavailable', 'evidenced_terminal_blocker'
+                ]
+            };
+            const episode = await startEpisode(payload, {
+                env,
+                fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+            });
+            return { payload, episode };
+        };
+        const blocked = await makeEpisode('authority');
+        const escalated = finalizeEpisode({
+            session_id: blocked.payload.session_id, turn_id: blocked.payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                blocked.episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '⚠️ 確認が必要[missing_authority]: 本番環境の公開権限がありません。権限を付与してください。'
+            ].join('\n')
+        }, { env });
+        expect(escalated.final).toMatchObject({ autonomy_compliance_status: 'runtime_escalated' });
+
+        const completed = await makeEpisode('optional');
+        const optional = finalizeEpisode({
+            session_id: completed.payload.session_id, turn_id: completed.payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                completed.episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '修正とテストを完了しました。必要なら差分も説明できます。'
+            ].join('\n')
+        }, { env });
+        expect(optional.final).toMatchObject({ autonomy_compliance_status: 'continued' });
+    });
+
+    it('escalateはResolver理由の確認行を本文先頭に置いた場合だけ通す', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const makeEpisode = async (suffix) => {
+            const payload = { session_id: `session-escalate-${suffix}`, turn_id: `turn-escalate-${suffix}`, prompt: 'PRを外部公開して', cwd: process.cwd() };
+            const args = buildJudgmentRequest(payload, { env });
+            const receipt = {
+                ...validReceipt(args),
+                classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
+                selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                autonomy_decision: 'escalate',
+                autonomy_reason_code: 'risk_or_external',
+                allowed_runtime_escalation_reasons: []
+            };
+            const episode = await startEpisode(payload, {
+                env,
+                fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+            });
+            return { payload, episode };
+        };
+
+        const wrongOrder = await makeEpisode('wrong-order');
+        const blocked = finalizeEpisode({
+            session_id: wrongOrder.payload.session_id, turn_id: wrongOrder.payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                wrongOrder.episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '外部公開はまだ実行していません。',
+                '⚠️ 確認が必要[risk_or_external]: 公開してよいか承認してください。'
+            ].join('\n')
+        }, { env });
+        expect(blocked.output).toMatchObject({ decision: 'block' });
+
+        const exact = await makeEpisode('exact');
+        const completed = finalizeEpisode({
+            session_id: exact.payload.session_id, turn_id: exact.payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                exact.episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '⚠️ 確認が必要[risk_or_external]: 外部公開はまだ実行していません。公開してよいか承認してください。'
+            ].join('\n')
+        }, { env });
+        expect(completed.final).toMatchObject({ autonomy_compliance_status: 'escalated' });
     });
 
     it('Stop監査契約をepisode開始時に固定する', async () => {

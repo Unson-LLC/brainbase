@@ -1,9 +1,22 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-2.0.1",
+  "runtime_version": "judgment-runtime-2.1.0",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
+  "autonomy": {
+    "schema_version": "brainbase-autonomy-policy-v1",
+    "continue_risks": ["low", "medium"],
+    "escalate_risks": ["high", "critical"],
+    "escalate_action_kinds": ["external"],
+    "runtime_escalation_reasons": [
+      "irreversible_action",
+      "missing_authority",
+      "owner_value_choice",
+      "required_input_unavailable",
+      "evidenced_terminal_blocker"
+    ]
+  },
   "policies": [
     {
       "id": "global.goal-before-solution.v1",

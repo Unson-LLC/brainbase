@@ -190,6 +190,7 @@ function isJudgmentReceipt(
 ): value is Record<string, unknown> {
   const fields = [
     'resolution_id', 'resolved_at', 'turn_id', 'request_digest', 'context_digest', 'status', 'runtime_version',
+    'autonomy_decision', 'autonomy_reason_code', 'allowed_runtime_escalation_reasons',
     'manifest_digest', 'host_binding', 'project_code', 'classification', 'classification_evidence',
     'classification_assurance', 'reconciliation_reasons', 'selected_dag_ids', 'applicable_policies',
     'suppressed_policies', 'required_capabilities', 'active_nodes', 'active_edges', 'active_node_definitions',
@@ -206,12 +207,30 @@ function isJudgmentReceipt(
     : createHash('sha256').update(canonicalJson(expected.args.conversation_context)).digest('hex');
   if (value.context_digest !== expectedContextDigest) return false;
   if (!['resolved', 'needs_classification', 'needs_policy_resolution'].includes(String(value.status))) return false;
+  if (!['continue', 'escalate'].includes(String(value.autonomy_decision))) return false;
+  if (!['routine_in_scope', 'classification_missing', 'policy_conflict', 'risk_or_external'].includes(String(value.autonomy_reason_code))) return false;
+  if (!isStringArray(value.allowed_runtime_escalation_reasons, { unique: true })) return false;
   if (!isNonEmptyString(value.runtime_version) || !/^[a-f0-9]{64}$/.test(String(value.manifest_digest)) || !/^[a-f0-9]{64}$/.test(String(value.plan_digest))) return false;
   if (!isRecord(value.host_binding) || !hasOnlyKeys(value.host_binding, ['adapter_id', 'adapter_version', 'status', 'enforcement_level'])) return false;
   if (value.host_binding.status !== 'managed' || value.host_binding.enforcement_level !== 'host_contract'
     || value.host_binding.adapter_id !== expected.adapterId || value.host_binding.adapter_version !== expected.adapterVersion) return false;
   if (value.project_code !== (expected.args.project_code ?? null)) return false;
   if (value.classification !== null && !isClassification(value.classification)) return false;
+  const expectedReason = value.status === 'needs_classification'
+    ? 'classification_missing'
+    : value.status === 'needs_policy_resolution'
+      ? 'policy_conflict'
+      : ['high', 'critical'].includes(String((value.classification as Record<string, unknown>)?.risk))
+        || (value.classification as Record<string, unknown>)?.action_kind === 'external'
+        ? 'risk_or_external'
+        : 'routine_in_scope';
+  const expectedDecision = expectedReason === 'routine_in_scope' ? 'continue' : 'escalate';
+  const expectedRuntimeReasons = expectedDecision === 'continue'
+    ? ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
+    : [];
+  if (value.autonomy_decision !== expectedDecision
+    || value.autonomy_reason_code !== expectedReason
+    || canonicalJson(value.allowed_runtime_escalation_reasons) !== canonicalJson(expectedRuntimeReasons)) return false;
   if (!isClassificationEvidence(value.classification_evidence)) return false;
   if (!['verified', 'bounded', 'unknown'].includes(String(value.classification_assurance))) return false;
   if (!isStringArray(value.reconciliation_reasons, { unique: true }) || !isStringArray(value.selected_dag_ids, { nonEmpty: true, unique: true })) return false;
