@@ -26,6 +26,10 @@ import {
     enqueueJudgmentKnowledgeEvent,
     resolveJudgmentKnowledgeEventOutboxPath
 } from '../../server/services/routine-runtime/judgment-event-outbox.js';
+import {
+    evaluateJudgmentAutonomy,
+    renderJudgmentAutonomyContinuation
+} from './judgment-autonomy.mjs';
 
 let Database;
 const builtInSqlite = process.getBuiltinModule?.('node:sqlite');
@@ -240,6 +244,7 @@ function journalPaths(sessionRef, turnId, env) {
         episode: join(directory, `${turnRef}.episode.json`),
         events: join(directory, `${turnRef}.events`),
         continuation: join(directory, `${turnRef}.continuation.json`),
+        autonomy: join(directory, `${turnRef}.autonomy.json`),
         auditFailure: join(directory, `${turnRef}.audit-failure.json`),
         auditDegraded: join(directory, `${turnRef}.audit-degraded.json`),
         auditOrphanEvents: join(directory, `${turnRef}.audit-orphan-events`),
@@ -1396,6 +1401,116 @@ function handleOrphanStop(payload, { env = process.env } = {}) {
     }, env);
 }
 
+
+function autonomyRolloutEnabled(episode, env) {
+    const mode = String(env.BRAINBASE_JUDGMENT_AUTONOMY_MODE || 'off').trim().toLowerCase();
+    if (mode === 'enabled') return true;
+    if (mode !== 'canary') return false;
+    const projectCode = String(
+        episode?.initial_route_receipt?.project_code
+        || env.BRAINBASE_JUDGMENT_PROJECT_CODE
+        || ''
+    ).trim();
+    const allowlist = new Set(String(env.BRAINBASE_JUDGMENT_AUTONOMY_CANARY_PROJECTS || '')
+        .split(',').map((value) => value.trim()).filter(Boolean));
+    return Boolean(projectCode) && allowlist.has(projectCode);
+}
+
+function autonomyRequestForTurn(payload, env, identity) {
+    if (typeof payload.prompt === 'string' && payload.prompt.trim()) return payload.prompt;
+    const transcript = readCanonicalTranscript(payload, env);
+    const exact = [...transcript.messages].reverse().find((message) => (
+        message.role === 'user' && message.turn_id === identity.turnId
+    ));
+    if (exact?.text) return exact.text;
+    return [...transcript.messages].reverse().find((message) => message.role === 'user')?.text ?? '';
+}
+
+function existingAutonomyReceipt(paths, episode) {
+    try {
+        const receipt = readJson(paths.autonomy);
+        if (receipt?.schema_version !== 'brainbase-judgment-autonomy-receipt-v1'
+            || receipt.initial_route_receipt_digest !== episode.initial_route_receipt_digest
+            || receipt.evaluation_digest !== sha256(canonicalJson(receipt.evaluation))
+            || receipt.snapshot_digest !== sha256(canonicalJson(receipt.snapshot))) {
+            throw new Error('judgment_autonomy_receipt_invalid');
+        }
+        return receipt;
+    } catch (error) {
+        if (error?.code === 'ENOENT') return null;
+        throw error;
+    }
+}
+
+function autonomySnapshot(episode, events) {
+    return {
+        initial_route_receipt_digest: episode.initial_route_receipt_digest,
+        event_count: events.length,
+        event_set_digest: orderedEventSetDigest(events)
+    };
+}
+
+export async function evaluateAutonomyStop(payload, {
+    env = process.env,
+    autonomyResolver
+} = {}) {
+    const identity = payloadIdentity(payload);
+    if (!identity) throw new Error('judgment_episode_identity_missing');
+    const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+    const episode = existingEpisode(payload, env);
+    if (!episode || !autonomyRolloutEnabled(episode, env)) return null;
+    const answer = typeof payload.last_assistant_message === 'string'
+        ? payload.last_assistant_message
+        : '';
+    const before = autonomySnapshot(episode, episodeEvents(paths));
+    const evaluation = await evaluateJudgmentAutonomy({
+        turn_id: identity.turnId,
+        request: autonomyRequestForTurn(payload, env, identity),
+        final_answer: answer,
+        project_code: episode.initial_route_receipt.project_code
+            || env.BRAINBASE_JUDGMENT_PROJECT_CODE
+            || undefined,
+        selected_dag_ids: Array.isArray(episode.initial_route_receipt.selected_dag_ids)
+            ? episode.initial_route_receipt.selected_dag_ids
+            : []
+    }, autonomyResolver);
+    if (evaluation.verdict !== 'continue') return null;
+
+    const existing = existingAutonomyReceipt(paths, episode);
+    if (existing) throw new Error('judgment_autonomy_continuation_exhausted');
+
+    const currentEpisode = existingEpisode(payload, env);
+    if (!currentEpisode) throw new Error('judgment_episode_not_found');
+    const after = autonomySnapshot(currentEpisode, episodeEvents(paths));
+    if (canonicalJson(before) !== canonicalJson(after)) {
+        throw new Error('judgment_autonomy_snapshot_changed');
+    }
+    const receipt = {
+        schema_version: 'brainbase-judgment-autonomy-receipt-v1',
+        recorded_at: new Date().toISOString(),
+        initial_route_receipt_digest: currentEpisode.initial_route_receipt_digest,
+        snapshot: after,
+        snapshot_digest: sha256(canonicalJson(after)),
+        evaluation,
+        evaluation_digest: sha256(canonicalJson(evaluation))
+    };
+    createImmutableJson(paths.autonomy, receipt, 'judgment_autonomy_receipt_conflict');
+    return {
+        decision: 'block',
+        reason: renderJudgmentAutonomyContinuation(evaluation)
+    };
+}
+
+function hasAuditContinuation(paths) {
+    try {
+        readJson(paths.continuation);
+        return true;
+    } catch (error) {
+        if (error?.code === 'ENOENT') return false;
+        throw error;
+    }
+}
+
 function finalizeEpisodeLocked(payload, episode, paths, env) {
     const events = episodeEvents(paths);
     const completedAuditOutput = () => ({
@@ -1727,6 +1842,12 @@ export async function processHookPayload(payload, dependencies = {}) {
         return event ? { systemMessage: event.display_line } : {};
     }
     if (eventName === 'Stop') {
+        const autonomyOutput = await evaluateAutonomyStop(payload, dependencies);
+        if (autonomyOutput) return autonomyOutput;
+
+        const identity = payloadIdentity(payload);
+        const paths = identity ? journalPaths(identity.sessionRef, identity.turnId, dependencies.env ?? process.env) : null;
+        const auditRepairWasAlreadyActive = paths ? hasAuditContinuation(paths) : false;
         let output;
         try {
             output = finalizeEpisode(payload, dependencies).output;
@@ -1734,7 +1855,9 @@ export async function processHookPayload(payload, dependencies = {}) {
             if (error?.message !== 'judgment_episode_not_found') throw error;
             output = handleOrphanStop(payload, dependencies);
         }
-        if (payload.stop_hook_active === true && output?.decision === 'block') {
+        if (payload.stop_hook_active === true
+            && output?.decision === 'block'
+            && auditRepairWasAlreadyActive) {
             throw new Error('judgment_stop_repair_exhausted');
         }
         return output;

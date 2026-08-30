@@ -456,3 +456,16 @@ curl -fsS \
 ```
 
 Keep the runtime pin in place after rollback; removing it would allow the periodic updater to reapply the failed `origin/develop`. Clear it only as part of a separately verified forward deployment. After these commands, run one fresh Codex turn and the live transcript verification above. Until `UserPromptSubmit` opens a valid episode and the final transcript shows the exact audit prefix, report the rollback as incomplete. Never remove `~/.codex/var/judgment-resolver`; its existing episode/event/final files remain audit evidence.
+
+## Autonomy Gate rollout
+
+Stop finalization can evaluate human-directed approval or choice questions before the existing audit repair.
+
+- Default: disabled (`BRAINBASE_JUDGMENT_AUTONOMY_MODE=off` or unset).
+- Canary: set `BRAINBASE_JUDGMENT_AUTONOMY_MODE=canary` and a comma-separated `BRAINBASE_JUDGMENT_AUTONOMY_CANARY_PROJECTS`.
+- Full enablement: `BRAINBASE_JUDGMENT_AUTONOMY_MODE=enabled`.
+- Rollback: remove the variables or set the mode to `off`; existing episode and final receipt schemas remain valid.
+
+The Gate preserves a clarification selected by the accepted route receipt and fails closed for destructive production changes, authority or secret gaps, sensitive-data transfer, and financial or legal commitments. A routine or semantically resolvable question creates one immutable `brainbase-judgment-autonomy-receipt-v1` and returns `decision:block` so the same Codex turn continues. Repeating the same unnecessary escalation fails with `judgment_autonomy_continuation_exhausted`.
+
+Autonomy continuation and owner-audit repair have separate bounded retries. Resolver Provider decisions, when injected by a Host adapter, must be bound to the case ID, include non-empty Brainbase basis, and cannot expand action authority.
