@@ -34,7 +34,7 @@ function buildEvent(options: { summary?: string; projectCode?: string } = {}): V
       artifact_digest: 'c'.repeat(64),
       head_sha: headSha,
       passing_kinds: ['integration', 'unit'],
-      evidence_sources: ['runner_direct'] as const
+      evidence_sources: ['runner_direct'] as Array<'runner_direct' | 'ci_import' | 'autopilot_run'>
     },
     knowledge_reference_count: 3
   };

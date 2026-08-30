@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { ConnectedOnboardingRuntime, type ConnectedOnboardingRun } from './connected-onboarding.js';
 import { validateCanonicalGraph } from './canonical-graph.js';
 import { resolveText } from './entity-resolution.js';
+import { knowledgeEventToolDefinition, recordBrainbaseKnowledgeEvent } from './knowledge-event.js';
 import { resolveDataDir } from './paths.js';
 import { auditPersonalOsDirectory } from './ontology-ssot.js';
 import { getOntologyImpact, inferPersonalOs, portableOntology, resolveOntologyVersion } from './ontology.js';
@@ -337,10 +338,14 @@ export const toolDefinitions = [
         }
       }
     }
-  }
+  },
+  knowledgeEventToolDefinition
 ] as const;
 
 export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Promise<unknown> {
+if (name === knowledgeEventToolDefinition.name) {
+  return recordBrainbaseKnowledgeEvent(rawArgs);
+}
   if (name in connectedSchemas) {
     return callConnectedOnboardingTool(name as keyof typeof connectedSchemas, rawArgs);
   }

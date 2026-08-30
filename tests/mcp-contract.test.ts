@@ -57,7 +57,8 @@ describe('MCP contract', () => {
       'audit_ontology',
       'infer_decisions',
       'ontology_impact',
-      'resolve_entity'
+      'resolve_entity',
+      'brainbase_knowledge_event_record'
     ]);
     const firstValue = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_first_value');
     expect(firstValue?.inputSchema).toMatchObject({
@@ -117,7 +118,8 @@ describe('MCP contract', () => {
         'audit_ontology',
         'infer_decisions',
         'ontology_impact',
-        'resolve_entity'
+        'resolve_entity',
+        'brainbase_knowledge_event_record'
       ]);
     } finally {
       await client.close();

@@ -97,6 +97,26 @@
           "boundary_reason": "The slice operates inside one owner-controlled Codex session and local Brainbase journal; no hosted or cross-owner boundary is introduced.",
           "multi_tenancy_contract_created": false
         }
+      },
+      {
+        "story_id": "story-vibepro-knowledge-event-record",
+        "title": "VibePro verified Knowledge Event recording",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": "2026-08-31",
+        "due_at": null,
+        "contract_type": "local_single_owner_non_hosted",
+        "scope_boundary": {
+          "owner_model": "single_local_owner",
+          "deployment_mode": "local_mcp_runtime",
+          "sharing_boundary": "candidate_payload_only",
+          "multi_tenancy_applicability": "not_applicable",
+          "boundary_reason": "The OSS receiver writes one caller-owned local candidate store and introduces no hosted or cross-owner resource boundary.",
+          "multi_tenancy_contract_created": false
+        }
       }
     ],
     "current_story_id": "story-m2-codex-proxy-judgment-loop"
