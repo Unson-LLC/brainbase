@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Local-first Brainbase MCP for preserving decision context and helping humans and AI work from the same judgment criteria.",
   "type": "module",
   "license": "MIT",

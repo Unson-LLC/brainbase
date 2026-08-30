@@ -77,8 +77,28 @@
           },
           "disposition": "known classifier false positive; resolve in a separate VibePro change rather than fabricating a tenant contract"
         }
+      },
+      {
+        "story_id": "story-m2-codex-proxy-judgment-loop",
+        "title": "M2 Codex代理判断ループと人間エスカレーション境界",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": "2026-08-30",
+        "due_at": null,
+        "contract_type": "local_single_owner_non_hosted",
+        "scope_boundary": {
+          "owner_model": "single_local_owner",
+          "deployment_mode": "local_codex_hook",
+          "sharing_boundary": "none",
+          "multi_tenancy_applicability": "not_applicable",
+          "boundary_reason": "The slice operates inside one owner-controlled Codex session and local Brainbase journal; no hosted or cross-owner boundary is introduced.",
+          "multi_tenancy_contract_created": false
+        }
       }
     ],
-    "current_story_id": "story-r1-local-immutable-run-artifact-store"
+    "current_story_id": "story-m2-codex-proxy-judgment-loop"
   }
 }

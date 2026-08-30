@@ -15,6 +15,12 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import {
+  evaluateJudgmentAutonomy,
+  renderJudgmentAutonomyContinuation,
+  type JudgmentAutonomyEvaluation,
+  type JudgmentAutonomyResolver
+} from './judgment-autonomy.js';
 
 type Environment = Record<string, string | undefined>;
 
@@ -123,8 +129,13 @@ export interface JudgmentHookOutput {
 export interface JudgmentHostOptions {
   env?: Environment;
   resolver?: (request: JudgmentRequest) => Promise<JudgmentReceipt>;
+  autonomyResolver?: JudgmentAutonomyResolver;
+  autonomyMode?: JudgmentAutonomyMode;
+  autonomyCanaryProjects?: readonly string[];
   trustedConversationMessages?: ConversationMessage[];
 }
+
+export type JudgmentAutonomyMode = 'off' | 'canary' | 'on';
 
 interface LocalResolverOptions {
   now?: () => Date;
@@ -218,8 +229,25 @@ interface JudgmentContinuation {
   continuation_digest: string;
 }
 
+export interface JudgmentAutonomyReceipt {
+  schema_version: 'brainbase-judgment-autonomy-receipt-v1';
+  session_ref: string;
+  turn_id: string;
+  recorded_at: string;
+  mode: Exclude<JudgmentAutonomyMode, 'off'>;
+  project_code: string | null;
+  case_id: string;
+  verdict: JudgmentAutonomyEvaluation['verdict'];
+  reason_code: JudgmentAutonomyEvaluation['reason_code'];
+  source: JudgmentAutonomyEvaluation['source'];
+  question_digest: string | null;
+  basis_entity_ids: string[];
+  autonomy_digest: string;
+}
+
 export interface JudgmentStopBlock {
   decision: 'block';
+  block_kind?: 'autonomy_continue' | 'audit_repair';
   reason: string;
 }
 
@@ -520,6 +548,7 @@ function journalPaths(sessionRef: string, turnId: string, env: Environment): {
   events: string;
   final: string;
   continuation: string;
+  autonomy: string;
   lock: string;
 } {
   const directory = join(journalRoot(env), sessionRef);
@@ -531,6 +560,7 @@ function journalPaths(sessionRef: string, turnId: string, env: Environment): {
     events: join(directory, `${turnRef}.events`),
     final: join(directory, `${turnRef}.final.json`),
     continuation: join(directory, `${turnRef}.continuation.json`),
+    autonomy: join(directory, `${turnRef}.autonomy`),
     lock: join(directory, `${turnRef}.lock`)
   };
 }
@@ -1580,6 +1610,207 @@ async function recordToolUse(payload: JudgmentHookPayload, env: Environment): Pr
   });
 }
 
+function resolveAutonomyMode(options: JudgmentHostOptions, env: Environment): {
+  mode: JudgmentAutonomyMode;
+  canaryProjects: string[];
+} {
+  const rawMode = options.autonomyMode ?? env.BRAINBASE_JUDGMENT_AUTONOMY_MODE ?? 'off';
+  if (!['off', 'canary', 'on'].includes(rawMode)) {
+    throw new Error('judgment_autonomy_mode_invalid');
+  }
+  const configuredProjects = options.autonomyCanaryProjects
+    ?? (env.BRAINBASE_JUDGMENT_AUTONOMY_CANARY_PROJECTS ?? '').split(',');
+  const canaryProjects = [...new Set(configuredProjects.map((value) => value.trim()).filter(Boolean))];
+  if (rawMode === 'canary' && canaryProjects.length === 0) {
+    throw new Error('judgment_autonomy_canary_project_missing');
+  }
+  return { mode: rawMode as JudgmentAutonomyMode, canaryProjects };
+}
+
+interface JudgmentAutonomyStopSnapshot {
+  episode_digest: string;
+  event_set_digest: string;
+  context: {
+    turn_id: string;
+    request: string;
+    final_answer: string;
+    project_code?: string;
+    selected_dag_ids: string[];
+  };
+}
+
+function readAutonomyReceipt(path: string): JudgmentAutonomyReceipt {
+  const value = readJsonArtifact(path);
+  if (value.schema_version !== 'brainbase-judgment-autonomy-receipt-v1'
+    || typeof value.session_ref !== 'string'
+    || typeof value.turn_id !== 'string'
+    || typeof value.recorded_at !== 'string'
+    || !['canary', 'on'].includes(String(value.mode))
+    || (value.project_code !== null && typeof value.project_code !== 'string')
+    || typeof value.case_id !== 'string'
+    || !['continue', 'human_required', 'not_applicable'].includes(String(value.verdict))
+    || typeof value.reason_code !== 'string'
+    || !['deterministic', 'same_codex', 'independent_resolver'].includes(String(value.source))
+    || (value.question_digest !== null && typeof value.question_digest !== 'string')
+    || !Array.isArray(value.basis_entity_ids)
+    || !value.basis_entity_ids.every((entry) => typeof entry === 'string')
+    || typeof value.autonomy_digest !== 'string') {
+    throw new Error(`judgment_journal_invalid:${basename(path)}`);
+  }
+  if (value.autonomy_digest !== artifactDigest(value, 'autonomy_digest')) {
+    throw new Error(`judgment_autonomy_receipt_digest_mismatch:${basename(path)}`);
+  }
+  return value as unknown as JudgmentAutonomyReceipt;
+}
+
+function autonomyReceiptProjection(receipt: JudgmentAutonomyReceipt): Record<string, unknown> {
+  const { recorded_at: _recordedAt, autonomy_digest: _digest, ...projection } = receipt;
+  return projection;
+}
+
+function persistAutonomyReceipt(
+  paths: ReturnType<typeof journalPaths>,
+  sessionRef: string,
+  snapshot: JudgmentAutonomyStopSnapshot,
+  evaluation: JudgmentAutonomyEvaluation,
+  mode: Exclude<JudgmentAutonomyMode, 'off'>
+): JudgmentAutonomyReceipt {
+  const path = join(paths.autonomy, `${evaluation.case_id}.json`);
+  const basisEntityIds = evaluation.resolver_decision?.basis.map((entry) => entry.entity_id) ?? [];
+  const receiptWithoutDigest = {
+    schema_version: 'brainbase-judgment-autonomy-receipt-v1' as const,
+    session_ref: sessionRef,
+    turn_id: snapshot.context.turn_id,
+    recorded_at: new Date().toISOString(),
+    mode,
+    project_code: snapshot.context.project_code ?? null,
+    case_id: evaluation.case_id,
+    verdict: evaluation.verdict,
+    reason_code: evaluation.reason_code,
+    source: evaluation.source,
+    question_digest: evaluation.question ? sha256(evaluation.question) : null,
+    basis_entity_ids: basisEntityIds
+  };
+  const receipt: JudgmentAutonomyReceipt = {
+    ...receiptWithoutDigest,
+    autonomy_digest: artifactDigest(receiptWithoutDigest, 'autonomy_digest')
+  };
+  try {
+    const existing = readAutonomyReceipt(path);
+    if (canonicalJson(autonomyReceiptProjection(existing)) !== canonicalJson(autonomyReceiptProjection(receipt))) {
+      throw new Error('judgment_autonomy_receipt_conflict');
+    }
+    return existing;
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+  }
+  writeImmutableJson(path, receipt as unknown as Record<string, unknown>);
+  return receipt;
+}
+
+async function autonomyStopSnapshot(
+  payload: JudgmentHookPayload,
+  env: Environment
+): Promise<JudgmentAutonomyStopSnapshot | null> {
+  const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
+  if (!answer.trim()) return null;
+  const { sessionRef, turnId } = hookIdentity(payload);
+  const paths = journalPaths(sessionRef, turnId, env);
+  return withTurnLock(paths.lock, async () => {
+    let episode: JudgmentEpisode;
+    try {
+      episode = readEpisode(paths.episode);
+      verifyEpisodeAdoption(episode, paths.target);
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        throw new Error('judgment_orphan_stop');
+      }
+      throw error;
+    }
+    if (episode.session_ref !== sessionRef || episode.turn_id !== turnId) {
+      throw new Error('judgment_episode_binding_mismatch');
+    }
+    try {
+      readFinal(paths.final);
+      return null;
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+    }
+    const events = readEvents(paths.events);
+    return {
+      episode_digest: episode.episode_digest,
+      event_set_digest: sha256(canonicalJson(events)),
+      context: {
+        turn_id: turnId,
+        request: episode.adoption.request.request,
+        final_answer: answer,
+        ...(episode.adoption.receipt.project_code
+          ? { project_code: episode.adoption.receipt.project_code }
+          : {}),
+        selected_dag_ids: [...episode.adoption.receipt.selected_dag_ids]
+      }
+    };
+  });
+}
+
+async function evaluateAutonomyStop(
+  payload: JudgmentHookPayload,
+  env: Environment,
+  options: JudgmentHostOptions
+): Promise<JudgmentStopBlock | null> {
+  const config = resolveAutonomyMode(options, env);
+  if (config.mode === 'off') return null;
+  const snapshot = await autonomyStopSnapshot(payload, env);
+  if (!snapshot) return null;
+  if (config.mode === 'canary'
+    && (!snapshot.context.project_code || !config.canaryProjects.includes(snapshot.context.project_code))) {
+    return null;
+  }
+
+  // A resumed Stop must not invoke an independent LLM twice. Reclassify with
+  // the pure fallback only; repeated routine/semantic escalation fails loud.
+  const evaluation = await evaluateJudgmentAutonomy(
+    snapshot.context,
+    payload.stop_hook_active === true ? undefined : options.autonomyResolver
+  );
+
+  const { sessionRef, turnId } = hookIdentity(payload);
+  const paths = journalPaths(sessionRef, turnId, env);
+  const stillActive = await withTurnLock(paths.lock, async () => {
+    const episode = readEpisode(paths.episode);
+    verifyEpisodeAdoption(episode, paths.target);
+    if (episode.episode_digest !== snapshot.episode_digest) {
+      throw new Error('judgment_autonomy_episode_changed');
+    }
+    const events = readEvents(paths.events);
+    if (sha256(canonicalJson(events)) !== snapshot.event_set_digest) {
+      throw new Error('judgment_autonomy_event_set_changed');
+    }
+    try {
+      readFinal(paths.final);
+      return false;
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return true;
+      throw error;
+    }
+  });
+  if (!stillActive) return null;
+  if (evaluation.verdict === 'continue' && payload.stop_hook_active === true) {
+    throw new Error('judgment_autonomy_continuation_exhausted');
+  }
+  if (evaluation.verdict !== 'not_applicable') {
+    await withTurnLock(paths.lock, async () => {
+      persistAutonomyReceipt(paths, sessionRef, snapshot, evaluation, config.mode as Exclude<JudgmentAutonomyMode, 'off'>);
+    });
+  }
+  if (evaluation.verdict !== 'continue') return null;
+  return {
+    decision: 'block',
+    block_kind: 'autonomy_continue',
+    reason: renderJudgmentAutonomyContinuation(evaluation)
+  };
+}
+
 async function finalizeEpisode(
   payload: JudgmentHookPayload,
   env: Environment
@@ -1668,6 +1899,7 @@ async function finalizeEpisode(
       ];
       return {
         decision: 'block',
+        block_kind: 'audit_repair',
         reason: `Brainbase judgment episodeを完了する前に${reasons.join('。その後')}。監査行の後に、元の回答本文をそのまま続けてください。`
       };
     }
@@ -1705,6 +1937,8 @@ export async function processJudgmentHook(
     return event ? { systemMessage: event.display_line } : {};
   }
   if (eventName === 'Stop') {
+    const autonomyBlock = await evaluateAutonomyStop(payload, env, options);
+    if (autonomyBlock) return autonomyBlock;
     const output = await finalizeEpisode(payload, env);
     if ('decision' in output && output.decision === 'block' && payload.stop_hook_active === true) {
       throw new Error('judgment_stop_repair_exhausted');
