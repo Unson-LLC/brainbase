@@ -1133,4 +1133,88 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.final.json`), 'utf8')))
             .toMatchObject({ completion_status: 'complete' });
     }, 20_000);
+
+    it('不要な確認の差し戻しを短い進捗表示とjournal由来の完了監査へ変換する', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({
+                    management_status: 'managed',
+                    receipt: {
+                        resolution_id: 'jr_autonomy_visibility_entrypoint',
+                        turn_id: args.turn_id,
+                        request_digest: hash(canonicalJson(args)),
+                        context_digest: hash(canonicalJson(args.conversation_context)),
+                        status: 'resolved',
+                        host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                        classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium' },
+                        selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                        required_capabilities: [],
+                        active_node_definitions: [{ id: 'implement', kind: 'common', instruction: 'Implement.' }],
+                        autonomy_decision: 'continue',
+                        autonomy_reason_code: 'routine_in_scope',
+                        allowed_runtime_escalation_reasons: [
+                            'irreversible_action', 'missing_authority', 'owner_value_choice',
+                            'required_input_unavailable', 'evidenced_terminal_blocker'
+                        ]
+                    }
+                }));
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-autonomy-visibility', turn_id: 'turn-autonomy-visibility' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal
+        };
+        const started = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '修正して' })
+        });
+        const ownerLine = JSON.parse(started.stdout).hookSpecificOutput.additionalContext
+            .split('\n').find((line) => line.startsWith('🧠 判断参照:'));
+        const zeroCallLine = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
+        const completionLine = '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓';
+
+        const blocked = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: false,
+                last_assistant_message: `${ownerLine}\n${zeroCallLine}\nどちらの実装にしますか？`
+            })
+        });
+        expect(blocked).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(blocked.stdout)).toMatchObject({
+            decision: 'block',
+            systemMessage: '🔁 確認不要と判定しました。回答を差し戻して処理を続けています'
+        });
+        const journalDirectory = join(journal, hash(identity.session_id));
+        const turnRef = hash(identity.turn_id);
+        expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.continuation.json`), 'utf8')))
+            .toMatchObject({ autonomy_continuation: { count: 1, trigger_code: 'unnecessary_user_question', status: 'requested' } });
+
+        const completed = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+                last_assistant_message: `${ownerLine}\n${zeroCallLine}\n${completionLine}\n実装と検証を完了しました。`
+            })
+        });
+        expect(completed).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(completed.stdout)).toEqual({
+            systemMessage: `${ownerLine}\n${zeroCallLine}\n${completionLine}`
+        });
+        expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.final.json`), 'utf8')))
+            .toMatchObject({
+                completion_status: 'complete', owner_audit_line_count: 3,
+                autonomy_continuation: { count: 1, trigger_code: 'unnecessary_user_question', status: 'completed' }
+            });
+    }, 20_000);
 });

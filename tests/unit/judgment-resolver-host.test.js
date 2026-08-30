@@ -1383,8 +1383,120 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env });
 
         expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.output.systemMessage).toBe(
+            '🔁 確認不要と判定しました。回答を差し戻して処理を続けています'
+        );
         expect(result.output.reason).toContain('安全な範囲で作業を継続');
-        expect(result.continuation.missing_capabilities).toContain('autonomy.continuation');
+        expect(result.continuation).toMatchObject({
+            missing_capabilities: expect.arrayContaining(['autonomy.continuation']),
+            autonomy_continuation: {
+                count: 1,
+                trigger_code: 'unnecessary_user_question',
+                reason_code: 'routine_in_scope',
+                status: 'requested'
+            }
+        });
+
+        const completed = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
+                '安全な範囲の実装と検証を完了しました。'
+            ].join('\n')
+        }, { env });
+
+        expect(completed.output.systemMessage).toBe([
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓'
+        ].join('\n'));
+        expect(completed.final).toMatchObject({
+            completion_status: 'complete',
+            owner_audit_line_count: 3,
+            autonomy_compliance_status: 'continued',
+            autonomy_continuation: {
+                count: 1,
+                trigger_code: 'unnecessary_user_question',
+                reason_code: 'routine_in_scope',
+                status: 'completed'
+            }
+        });
+    });
+
+    it('journalに差し戻しがないturnではAIが自律継続監査を自己申告しても採用しない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-autonomy-fake', turn_id: 'turn-autonomy-fake', prompt: '説明して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '🔁 自律継続: 不要な確認を9回差し戻し → 継続完了 ✓',
+                '完了しました。'
+            ].join('\n')
+        }, { env });
+
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.output.reason).toContain('Hostが記録していない🔁監査行を削除する');
+        expect(result.final).toBeNull();
+    });
+
+    it('自律継続の再試行でも不要な質問を返した場合は有限終了し完了監査を出さない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-autonomy-exhausted', turn_id: 'turn-autonomy-exhausted', prompt: '修正して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+                    selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                    autonomy_decision: 'continue',
+                    autonomy_reason_code: 'routine_in_scope',
+                    allowed_runtime_escalation_reasons: [
+                        'irreversible_action', 'missing_authority', 'owner_value_choice',
+                        'required_input_unavailable', 'evidenced_terminal_blocker'
+                    ]
+                } })
+            })
+        });
+        const badAnswer = [
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            'どちらの実装にしますか？'
+        ].join('\n');
+        finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: badAnswer
+        }, { env });
+
+        await expect(processHookPayload({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true, last_assistant_message: badAnswer
+        }, { env })).rejects.toThrow('judgment_stop_repair_exhausted');
+        const continuationPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.continuation.json`);
+        expect(JSON.parse(readFileSync(continuationPath, 'utf8')).autonomy_continuation.count).toBe(1);
+        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
+        expect(existsSync(finalPath)).toBe(false);
     });
 
     it('continueでも許可理由を明示した限定質問と、完了後の任意提案は通す', async () => {
@@ -1465,6 +1577,8 @@ describe('Codex Judgment Resolver Host', () => {
             ].join('\n')
         }, { env });
         expect(blocked.output).toMatchObject({ decision: 'block' });
+        expect(blocked.output).not.toHaveProperty('systemMessage');
+        expect(blocked.continuation).not.toHaveProperty('autonomy_continuation');
 
         const exact = await makeEpisode('exact');
         const completed = finalizeEpisode({
@@ -1503,6 +1617,10 @@ describe('Codex Judgment Resolver Host', () => {
             schema_version: 'brainbase-owner-audit-contract-v1',
             zero_call_display_line: '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
             zero_call_display_line_digest: hash('📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'),
+            autonomy_continuation_progress_line: '🔁 確認不要と判定しました。回答を差し戻して処理を続けています',
+            autonomy_continuation_progress_line_digest: hash('🔁 確認不要と判定しました。回答を差し戻して処理を続けています'),
+            autonomy_continuation_complete_line: '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
+            autonomy_continuation_complete_line_digest: hash('🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓'),
             repair_body_policy: 'preserve'
         });
     });
