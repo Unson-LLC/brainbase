@@ -3,6 +3,7 @@ import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { createTenantRuntimeRouter } from '../../../server/routes/tenant-runtime.js';
 import { registerTenantRuntimeApiRoute } from '../../../server/bootstrap/register-api-routes.js';
+import { MeetingMinutesContextReceiptError } from '../../../server/services/meeting-minutes/context-receipt-service.js';
 import { REQUIRED_CAPABILITIES } from '../../../server/services/multitenant/protocol-contract.js';
 
 const tenantContext = {
@@ -17,6 +18,8 @@ const tenantContext = {
     operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     contract_revision: '1',
+    actor: { principal_id: 'person-sato' },
+    authorization: { project_ids: ['project-unson'] },
     credential: { mode: 'customer_oauth', credential_ref: 'credref:opaque' }
 };
 
@@ -27,7 +30,12 @@ function createApp(overrides = {}) {
         serviceAuth: (req, res, next) => req.get('authorization') === 'Bearer service-test' ? next() : res.status(401).json({ code: 'SERVICE_AUTH_REQUIRED' }),
         tenantContextVerifier: (input) => input,
         verificationKeys: () => [{ key_id: 'key-current', algorithm: 'EdDSA', public_key_format: 'jwk', public_key: { kty: 'OKP', crv: 'Ed25519', x: 'public-opaque' }, status: 'current' }],
-        connectionRegistry: { validateRevision: (input) => ({ valid: true, authoritative: true, ...input, credential_ref: tenantContext.credential.credential_ref, credential_mode: tenantContext.credential.mode }) },
+        connectionRegistry: {
+            validateRevision: (input) => ({ valid: true, authoritative: true, ...input, credential_ref: tenantContext.credential.credential_ref, credential_mode: tenantContext.credential.mode }),
+            resolveProjectBinding: ({ project_ids, project_code }) => project_ids.includes('project-unson') && project_code === 'unson'
+                ? { project_id: 'project-unson', project_code }
+                : null
+        },
         credentialBroker: { issueLease: (input) => ({ lease_ref: 'lease:opaque', expires_at: '2026-08-16T00:01:00Z', ...input }) },
         usageLedger: { recordUsage: (input) => ({ accepted: true, ...input }) },
         tenantBoundaryGateway: { authorize: (input) => ({ authorized: true, ...input }) },
@@ -135,6 +143,110 @@ describe('tenant runtime API', () => {
         expect(response.body).toMatchObject({ code: 'WORKSPACE_CONNECTION_STALE_REVISION' });
         expect(connectionRegistry.validateRevision).toHaveBeenCalledOnce();
         expect(credentialBroker.issueLease).not.toHaveBeenCalled();
+    });
+
+    it('meeting contextをprivate tenant runtimeで作成・取得し、provider credential brokerを使わない', async () => {
+        const identity = { run_id: 'run-unson-a', project_code: 'unson', transcript_sha256: 'a'.repeat(64) };
+        const meetingMinutesContextReceiptService = {
+            create: vi.fn(async (_identity, actor) => ({ receipt_id: 'receipt-unson-a', actor })),
+            get: vi.fn(async (receiptId, _identity, actor) => ({ receipt_id: receiptId, actor }))
+        };
+        const credentialBroker = { issueLease: vi.fn(), forwardProviderRequest: vi.fn() };
+        const app = createApp({ meetingMinutesContextReceiptService, credentialBroker });
+        const headers = {
+            authorization: 'Bearer service-test',
+            'Brainbase-Protocol-Version': '1.0',
+            'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+        };
+
+        const created = await request(app).post('/api/v1/runtime/meeting-minutes/context-receipts:create')
+            .set(headers).send({ tenant_context: tenantContext, identity });
+        const fetched = await request(app).post('/api/v1/runtime/meeting-minutes/context-receipts:get')
+            .set(headers).send({ tenant_context: tenantContext, receipt_id: 'receipt-unson-a', identity });
+
+        expect([created.status, fetched.status]).toEqual([201, 200]);
+        expect(meetingMinutesContextReceiptService.create).toHaveBeenCalledWith(identity, expect.objectContaining({
+            authType: 'tenant_runtime', person_id: 'person-sato', projectCodes: ['unson'], role: 'member'
+        }));
+        expect(meetingMinutesContextReceiptService.get).toHaveBeenCalledWith('receipt-unson-a', identity, expect.objectContaining({
+            authType: 'tenant_runtime', projectCodes: ['unson']
+        }));
+        expect(credentialBroker.issueLease).not.toHaveBeenCalled();
+        expect(credentialBroker.forwardProviderRequest).not.toHaveBeenCalled();
+    });
+
+    it('meeting contextのproject越境とstale bindingをservice呼出前に拒否する', async () => {
+        const service = { create: vi.fn() };
+        const crossProjectRegistry = {
+            validateRevision: (input) => ({
+                valid: true,
+                authoritative: true,
+                ...input,
+                credential_ref: tenantContext.credential.credential_ref,
+                credential_mode: tenantContext.credential.mode
+            }),
+            resolveProjectBinding: vi.fn(async () => null)
+        };
+        const headers = {
+            authorization: 'Bearer service-test',
+            'Brainbase-Protocol-Version': '1.0',
+            'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+        };
+        const identity = { run_id: 'run-a', project_code: 'mana', transcript_sha256: 'b'.repeat(64) };
+        const projectMismatch = await request(createApp({
+            meetingMinutesContextReceiptService: service,
+            connectionRegistry: crossProjectRegistry
+        }))
+            .post('/api/v1/runtime/meeting-minutes/context-receipts:create')
+            .set(headers).send({ tenant_context: tenantContext, identity });
+        const stale = await request(createApp({
+            meetingMinutesContextReceiptService: service,
+            connectionRegistry: { validateRevision: vi.fn(() => ({ authoritative: false })) }
+        })).post('/api/v1/runtime/meeting-minutes/context-receipts:create')
+            .set(headers).send({ tenant_context: tenantContext, identity: { ...identity, project_code: 'unson' } });
+
+        expect(projectMismatch.status).toBe(403);
+        expect(projectMismatch.body).toMatchObject({ code: 'PROJECT_SCOPE_MISMATCH' });
+        expect(crossProjectRegistry.resolveProjectBinding).toHaveBeenCalledWith({
+            tenant_id: tenantContext.tenant.tenant_id,
+            project_ids: ['project-unson'],
+            project_code: 'mana'
+        });
+        expect(stale.status).toBe(409);
+        expect(stale.body).toMatchObject({ code: 'WORKSPACE_CONNECTION_STALE_REVISION' });
+        expect(service.create).not.toHaveBeenCalled();
+    });
+
+    it('meeting contextの余分な入力を拒否し、service errorをproblem responseとして保持する', async () => {
+        const identity = { run_id: 'run-a', project_code: 'unson', transcript_sha256: 'b'.repeat(64) };
+        const headers = {
+            authorization: 'Bearer service-test',
+            'Brainbase-Protocol-Version': '1.0',
+            'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+        };
+        const service = {
+            create: vi.fn(async () => {
+                throw new MeetingMinutesContextReceiptError(
+                    'meeting_minutes_context_not_found', 'receipt not found', 404
+                );
+            })
+        };
+        const app = createApp({ meetingMinutesContextReceiptService: service });
+
+        const extraField = await request(app).post('/api/v1/runtime/meeting-minutes/context-receipts:create')
+            .set(headers).send({ tenant_context: tenantContext, identity, unexpected: true });
+        const serviceError = await request(app).post('/api/v1/runtime/meeting-minutes/context-receipts:create')
+            .set(headers).send({ tenant_context: tenantContext, identity });
+
+        expect(extraField.status).toBe(400);
+        expect(extraField.body).toMatchObject({ code: 'SCHEMA_INVALID' });
+        expect(serviceError.status).toBe(404);
+        expect(serviceError.type).toBe('application/problem+json');
+        expect(serviceError.body).toMatchObject({
+            code: 'meeting_minutes_context_not_found',
+            status: 404,
+            retryable: false
+        });
     });
 
     it('D-006/D-007: quota・usage・receipt・business-effect claimをcanonical wireのまま実routeへ渡す', async () => {

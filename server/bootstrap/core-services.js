@@ -16,6 +16,10 @@ import { CanonicalTaskOperationRepository } from '../services/companion/canonica
 import { CanonicalTaskReadiness } from '../services/companion/canonical-task-readiness.js';
 import { createCanonicalTaskSourceHeadGuard } from '../services/companion/canonical-task-source-head-guard.js';
 import { CanonicalTaskService } from '../services/companion/canonical-task-service.js';
+import {
+    JsonFileMeetingMinutesContextReceiptRepository,
+    MeetingMinutesContextReceiptService
+} from '../services/meeting-minutes/context-receipt-service.js';
 import { AuthService } from '../services/auth-service.js';
 import { ConfigService } from '../services/config-service.js';
 import { GoogleCalendarService } from '../services/google-calendar-service.js';
@@ -104,7 +108,7 @@ export function createCoreServices({
     );
     const configService = new ConfigService(configPath, projectsRoot, configParser);
     const infoSSOTService = new InfoSSOTService();
-    const tenantRuntimeServices = createTenantRuntimeServicesFromEnv({
+    let tenantRuntimeServices = createTenantRuntimeServicesFromEnv({
         env: process.env,
         pool: infoSSOTService.pool
     });
@@ -145,6 +149,19 @@ export function createCoreServices({
         auditRepository: workflowRepository,
         ownerPersonId: canonicalTaskStoreConfig.ownerPersonId
     });
+    const meetingMinutesContextReceiptService = new MeetingMinutesContextReceiptService({
+        infoSSOTService,
+        canonicalTaskService,
+        repository: new JsonFileMeetingMinutesContextReceiptRepository({
+            filePath: path.join(varDir, 'meeting-minutes-context-receipts.json')
+        })
+    });
+    if (tenantRuntimeServices) {
+        tenantRuntimeServices = {
+            ...tenantRuntimeServices,
+            meetingMinutesContextReceiptService
+        };
+    }
     const authService = new AuthService();
     const slackInstallationControlPlaneRuntime = createSlackInstallationControlPlaneFromEnv({
         pool: infoSSOTService.pool,

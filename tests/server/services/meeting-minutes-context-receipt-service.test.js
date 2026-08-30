@@ -125,4 +125,26 @@ describe('MeetingMinutesContextReceiptService', () => {
         await expect(service.get(receipt.receipt_id, request, actor(['other'])))
             .rejects.toMatchObject({ code: 'project_not_accessible', statusCode: 403 });
     });
+
+    it('scopes persisted receipts by tenant and project', async () => {
+        const dir = await mkdtemp(path.join(os.tmpdir(), 'minutes-context-scope-'));
+        const repository = new JsonFileMeetingMinutesContextReceiptRepository({
+            filePath: path.join(dir, 'receipts.json')
+        });
+        const service = new MeetingMinutesContextReceiptService({
+            infoSSOTService: { getContext: vi.fn().mockResolvedValue({ entities: {}, edges: [], meta: {} }) },
+            canonicalTaskService: { listTasks: vi.fn().mockResolvedValue({ items: [], read_status: 'complete' }) },
+            repository
+        });
+        const tenantA = { ...actor(), tenant_id: 'tenant-a', project_id: 'project-mana' };
+        const tenantB = { ...actor(), tenant_id: 'tenant-b', project_id: 'project-mana' };
+
+        const receiptA = await service.create(request, tenantA);
+        const receiptB = await service.create(request, tenantB);
+
+        expect(receiptA.receipt_id).not.toBe(receiptB.receipt_id);
+        await expect(service.get(receiptA.receipt_id, request, tenantB))
+            .rejects.toMatchObject({ code: 'meeting_minutes_context_receipt_not_found', statusCode: 404 });
+        await expect(service.get(receiptA.receipt_id, request, tenantA)).resolves.toEqual(receiptA);
+    });
 });

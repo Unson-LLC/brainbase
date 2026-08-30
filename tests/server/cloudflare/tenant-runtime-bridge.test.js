@@ -82,6 +82,8 @@ describe('Cloudflare tenant runtime private bridge', () => {
         '/api/v1/runtime/tenant-context:resolve',
         '/api/v1/runtime/workspace-connections:validate-revision',
         '/api/v1/runtime/credential-leases',
+        '/api/v1/runtime/meeting-minutes/context-receipts:create',
+        '/api/v1/runtime/meeting-minutes/context-receipts:get',
         '/api/v1/runtime/quota:decide',
         '/api/v1/runtime/usage-events',
         '/api/v1/runtime/operation-receipts:finalize',

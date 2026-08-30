@@ -5,6 +5,8 @@ export const CANONICAL_RUNTIME_POST_PATHS = Object.freeze([
     '/api/v1/runtime/workspace-connections:validate-revision',
     '/api/v1/runtime/credential-leases',
     '/api/v1/runtime/provider-requests:forward',
+    '/api/v1/runtime/meeting-minutes/context-receipts:create',
+    '/api/v1/runtime/meeting-minutes/context-receipts:get',
     '/api/v1/runtime/quota:decide',
     '/api/v1/runtime/usage-events',
     '/api/v1/runtime/operation-receipts:finalize',
