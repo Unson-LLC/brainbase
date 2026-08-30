@@ -1,0 +1,165 @@
+name: Build VibePro Knowledge Event receiver
+
+on:
+  push:
+    branches:
+      - codex/vibepro-knowledge-event-record-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vibepro-knowledge-event-record-v1
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out implementation branch
+        uses: actions/checkout@v7
+        with:
+          ref: codex/vibepro-knowledge-event-record-v1
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wire MCP, Story catalog, tests, and public operator guidance
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import textwrap
+
+          server = Path('src/server.ts')
+          text = server.read_text()
+
+          import_anchor = "import { resolveText } from './entity-resolution.js';\n"
+          import_replacement = import_anchor + "import { knowledgeEventToolDefinition, recordBrainbaseKnowledgeEvent } from './knowledge-event.js';\n"
+          if "from './knowledge-event.js'" not in text:
+              if text.count(import_anchor) != 1:
+                  raise SystemExit('knowledge-event import anchor missing or duplicated')
+              text = text.replace(import_anchor, import_replacement, 1)
+
+          tool_anchor = "\n] as const;\n\nexport async function callBrainbaseTool"
+          if "  knowledgeEventToolDefinition\n] as const;" not in text:
+              if text.count(tool_anchor) != 1:
+                  raise SystemExit('toolDefinitions terminator missing or duplicated')
+              text = text.replace(
+                  tool_anchor,
+                  ",\n  knowledgeEventToolDefinition\n] as const;\n\nexport async function callBrainbaseTool",
+                  1
+              )
+
+          call_anchor = "export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Promise<unknown> {\n"
+          call_replacement = call_anchor + textwrap.dedent("""\
+            if (name === knowledgeEventToolDefinition.name) {
+              return recordBrainbaseKnowledgeEvent(rawArgs);
+            }
+          """)
+          if "name === knowledgeEventToolDefinition.name" not in text:
+              if text.count(call_anchor) != 1:
+                  raise SystemExit('callBrainbaseTool anchor missing or duplicated')
+              text = text.replace(call_anchor, call_replacement, 1)
+
+          server.write_text(text)
+
+          contract = Path('tests/mcp-contract.test.ts')
+          text = contract.read_text()
+          old_inventory_tail = "      'resolve_entity'\n    ]);"
+          new_inventory_tail = "      'resolve_entity',\n      'brainbase_knowledge_event_record'\n    ]);"
+          if new_inventory_tail not in text:
+              if text.count(old_inventory_tail) != 2:
+                  raise SystemExit(f'expected two MCP inventory anchors, got {text.count(old_inventory_tail)}')
+              text = text.replace(old_inventory_tail, new_inventory_tail)
+          contract.write_text(text)
+
+          knowledge_test = Path('tests/knowledge-event.test.ts')
+          text = knowledge_test.read_text()
+          old_evidence = "evidence_sources: ['runner_direct'] as const"
+          new_evidence = "evidence_sources: ['runner_direct'] as Array<'runner_direct' | 'ci_import' | 'autopilot_run'>"
+          if old_evidence in text:
+              text = text.replace(old_evidence, new_evidence, 1)
+          knowledge_test.write_text(text)
+
+          config_path = Path('.vibepro/config.json')
+          config = json.loads(config_path.read_text())
+          stories = config.setdefault('brainbase', {}).setdefault('stories', [])
+          story_id = 'story-vibepro-knowledge-event-record'
+          if not any(story.get('story_id') == story_id for story in stories):
+              stories.append({
+                  'story_id': story_id,
+                  'title': 'VibePro verified Knowledge Event recording',
+                  'ssot': 'local',
+                  'status': 'active',
+                  'horizon': None,
+                  'view': None,
+                  'period': None,
+                  'started_at': '2026-08-31',
+                  'due_at': None,
+                  'contract_type': 'local_single_owner_non_hosted',
+                  'scope_boundary': {
+                      'owner_model': 'single_local_owner',
+                      'deployment_mode': 'local_mcp_runtime',
+                      'sharing_boundary': 'candidate_payload_only',
+                      'multi_tenancy_applicability': 'not_applicable',
+                      'boundary_reason': 'The OSS receiver writes one caller-owned local candidate store and introduces no hosted or cross-owner resource boundary.',
+                      'multi_tenancy_contract_created': False
+                  }
+              })
+          config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + '\n')
+
+          readme = Path('README.md')
+          text = readme.read_text()
+          section = textwrap.dedent("""\
+          <!-- brainbase:vibepro-knowledge-event:start -->
+          ## VibeProから検証済み学習を受け取る
+
+          VibeProで同じGit状態に対するcomputed verificationが通ると、`knowledge_event.v1`の開発学習候補を生成できます。生成されたeventをMCP `brainbase_knowledge_event_record`の`event`へ渡すと、Brainbaseはhash、Story、HEAD、権限境界を再検証し、ローカルのappend-only候補ストアへ記録します。
+
+          この操作はGraph昇格ではありません。`graph.json`は変更せず、外部操作も実行しません。候補を正式知識へ昇格する判断は、後続のreview/promotion境界に残ります。
+          <!-- brainbase:vibepro-knowledge-event:end -->
+          """)
+          readme_anchor = "\n## 10分で試す\n"
+          if '<!-- brainbase:vibepro-knowledge-event:start -->' not in text:
+              if text.count(readme_anchor) != 1:
+                  raise SystemExit('README insertion anchor missing or duplicated')
+              text = text.replace(readme_anchor, '\n' + section.strip() + '\n' + readme_anchor, 1)
+          readme.write_text(text)
+
+          workflow = Path('.github/workflows/pr-vibepro-knowledge-event-record-build.yml')
+          if workflow.exists():
+              workflow.unlink()
+          PY
+
+      - name: Verify focused and full contracts
+        run: |
+          npm run build
+          npx vitest run tests/knowledge-event.test.ts tests/mcp-contract.test.ts
+          npm test
+          npm run docs:check
+          npm run docs:build
+          npm run docs:smoke
+          git diff --check
+
+      - name: Commit validated wiring
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "Validated wiring already present"
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "feat: expose append-only VibePro Knowledge Event receiver"
+          HUSKY=0 git push origin HEAD:codex/vibepro-knowledge-event-record-v1
