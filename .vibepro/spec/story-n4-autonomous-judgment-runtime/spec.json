@@ -1,0 +1,209 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-n4-autonomous-judgment-runtime",
+  "status": "accepted",
+  "clauses": [
+    {
+      "id": "AJR-001",
+      "type": "invariant",
+      "statement": "Brainbase Core remains LLM-free; semantic intelligence is supplied through a replaceable JudgmentIntelligenceProvider.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-001"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "uses an independent semantic provider"
+        ]
+      }
+    },
+    {
+      "id": "AJR-002",
+      "type": "scenario",
+      "statement": "Only a direct terminal request to the human is classified; explanatory questions, quoted examples, code blocks and ordinary final answers remain on the existing Stop path.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-002"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "classifies only hard external boundaries deterministically"
+        ]
+      }
+    },
+    {
+      "id": "AJR-003",
+      "type": "scenario",
+      "statement": "A low-risk reversible human confirmation is rejected without an LLM and converted into an executable continuation instruction.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-003"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "blocks a low-risk confirmation without invoking an LLM"
+        ]
+      }
+    },
+    {
+      "id": "AJR-004",
+      "type": "scenario",
+      "statement": "A hard production, external communication, financial or contractual boundary is allowed to reach the existing audited Stop path.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-004"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "allows a hard external-impact boundary to reach the existing audit Stop"
+        ]
+      }
+    },
+    {
+      "id": "AJR-005",
+      "type": "invariant",
+      "statement": "Only semantic gray-zone cases invoke an independent Codex resolver in an empty temporary directory with ephemeral state, read-only sandbox, approval never, ignored user config and rules, structured output, stdin input and a recursion guard.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-005"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "launches Codex as an isolated read-only structured-output resolver"
+        ]
+      }
+    },
+    {
+      "id": "AJR-006",
+      "type": "invariant",
+      "statement": "The judgment packet includes the explicit task, digest-verified adoption policies and DAG nodes, successful current-turn Brainbase MCP evidence, and available local SSOT decisions, values and judgments, with bounded and redacted event projections.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-006"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "includes digest-verified current-turn Brainbase evidence and redacts secrets",
+          "fails closed on a tampered episode before issuing a continuation",
+          "adds Brainbase judgment sources before asking the independent resolver"
+        ]
+      }
+    },
+    {
+      "id": "AJR-007",
+      "type": "invariant",
+      "statement": "Resolver basis identifiers must already exist in the compiled Brainbase packet; invented basis and evidence-free authority, secret or terminal-blocker claims fail closed to same-worker continuation.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-007"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "rejects invented Brainbase basis ids and falls back to same-worker continuation",
+          "does not grant missing-authority escalation without trusted host evidence"
+        ]
+      }
+    },
+    {
+      "id": "AJR-008",
+      "type": "invariant",
+      "statement": "Autonomy decisions are immutable, digest-bound to episode, state and policy snapshot, and idempotent for an identical case.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-008"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "reuses an immutable decision for the same state and policy snapshot"
+        ]
+      }
+    },
+    {
+      "id": "AJR-009",
+      "type": "invariant",
+      "statement": "The autonomy layer bypasses itself in resolver subprocesses and fails closed when the same continuation repeats during an active Stop repair; changed cases are bounded to two autonomy blocks per turn by default.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-009"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "fails closed when the same continuation is repeated during an active Stop repair",
+          "bypasses the autonomy layer inside the resolver subprocess"
+        ]
+      }
+    },
+    {
+      "id": "AJR-010",
+      "type": "invariant",
+      "statement": "Non-escalation Stop events and HUMAN_REQUIRED decisions preserve the existing Judgment Host audit and final-receipt path.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-010"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "allows a hard external-impact boundary to reach the existing audit Stop"
+        ]
+      }
+    },
+    {
+      "id": "AJR-011",
+      "type": "scenario",
+      "statement": "The official brainbase binary and generated Codex Hook configuration route UserPromptSubmit, PostToolUse and Stop through the autonomy wrapper while other CLI commands delegate unchanged.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AJR-011"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          "binds all three Codex hooks to the autonomy wrapper"
+        ]
+      }
+    }
+  ]
+}
