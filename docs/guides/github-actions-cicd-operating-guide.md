@@ -76,6 +76,8 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 
 Graph書き込み契約ジョブに秘密情報は不要。テスト用のローカルHTTPサーバーとCI内の使い捨てPostgreSQLだけを使い、本番Graphへの書き込みは行わない。Personal Knowledge本番スモークは、別途署名済みsynthetic fixtureと明示的な実行環境を必要とし、CIの契約ジョブからはfixture検証だけを実行する。
 
+> **VibePro境界**: ここでいうScore Evidence・開発DAG・Story/Architecture/Spec追跡は、2026年4〜5月のBrainbase dogfood証跡を保全するリポジトリ固有の履歴チェッカーである。現在のVibePro一般契約やPR作成権限ではない。新規開発は `Story → Spec → implement → affected tests → one review wave → GitHub PR → CI → merge` を標準とし、ArchitectureとGraphifyは変更リスクに応じて使う。
+
 VibePro Graph SSOTは読み取り専用の`BRAINBASE_GRAPH_API_TOKEN`を外部Graph検証ステップだけに渡す。Pull Requestとpushは同じ検査を重複させず、マージ前のコード・Graph検証とpush後の履歴検証に責務を分ける。Score Evidenceはマージ前の予防と、直接push・マージ後の検知を別の実行として維持する。
 
 各ワークフローは`permissions: contents: read`を上限とし、checkout後は`persist-credentials: false`で認証情報を残さない。同一Pull Requestや手動・定期実行の古い実行は中止する一方、pushはSHAごとに別の排他グループとして`before..sha`の履歴検証を欠落させない。外部ActionはNode.js 24ランタイムの`actions/checkout@v5`と`actions/setup-node@v5`へ統一し、利用者ステップはNode.js 20で実行する。旧npmキャッシュの大容量復元と将来の自動キャッシュを避けるため、`setup-node`には`package-manager-cache: false`を明示する。各ジョブは10分で打ち切る。
