@@ -38,27 +38,36 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import json
+          import subprocess
           import textwrap
+
+          def replace_once(text, old, new, label):
+              if new in text:
+                  return text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label} anchor count was {count}, expected 1')
+              return text.replace(old, new, 1)
+
+          def append_tool_inventory(path, indent, closing_indent):
+              file_path = Path(path)
+              text = file_path.read_text()
+              old = f"{indent}'resolve_entity'\n{closing_indent}]);"
+              new = f"{indent}'resolve_entity',\n{indent}'brainbase_knowledge_event_record'\n{closing_indent}]);"
+              text = replace_once(text, old, new, f'{path} tool inventory')
+              file_path.write_text(text)
 
           server = Path('src/server.ts')
           text = server.read_text()
-
           import_anchor = "import { resolveText } from './entity-resolution.js';\n"
           import_replacement = import_anchor + "import { knowledgeEventToolDefinition, recordBrainbaseKnowledgeEvent } from './knowledge-event.js';\n"
           if "from './knowledge-event.js'" not in text:
-              if text.count(import_anchor) != 1:
-                  raise SystemExit('knowledge-event import anchor missing or duplicated')
-              text = text.replace(import_anchor, import_replacement, 1)
+              text = replace_once(text, import_anchor, import_replacement, 'knowledge-event import')
 
           tool_anchor = "\n] as const;\n\nexport async function callBrainbaseTool"
+          tool_replacement = ",\n  knowledgeEventToolDefinition\n] as const;\n\nexport async function callBrainbaseTool"
           if "  knowledgeEventToolDefinition\n] as const;" not in text:
-              if text.count(tool_anchor) != 1:
-                  raise SystemExit('toolDefinitions terminator missing or duplicated')
-              text = text.replace(
-                  tool_anchor,
-                  ",\n  knowledgeEventToolDefinition\n] as const;\n\nexport async function callBrainbaseTool",
-                  1
-              )
+              text = replace_once(text, tool_anchor, tool_replacement, 'toolDefinitions terminator')
 
           call_anchor = "export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Promise<unknown> {\n"
           call_replacement = call_anchor + textwrap.dedent("""\
@@ -67,31 +76,13 @@ jobs:
             }
           """)
           if "name === knowledgeEventToolDefinition.name" not in text:
-              if text.count(call_anchor) != 1:
-                  raise SystemExit('callBrainbaseTool anchor missing or duplicated')
-              text = text.replace(call_anchor, call_replacement, 1)
-
+              text = replace_once(text, call_anchor, call_replacement, 'callBrainbaseTool')
           server.write_text(text)
 
-          contract = Path('tests/mcp-contract.test.ts')
-          text = contract.read_text()
-          nl = chr(10)
-          inventory_tails = [
-              (
-                  "      'resolve_entity'" + nl + "    ]);",
-                  "      'resolve_entity'," + nl + "      'brainbase_knowledge_event_record'" + nl + "    ]);"
-              ),
-              (
-                  "        'resolve_entity'" + nl + "      ]);",
-                  "        'resolve_entity'," + nl + "        'brainbase_knowledge_event_record'" + nl + "      ]);"
-              )
-          ]
-          for old_inventory_tail, new_inventory_tail in inventory_tails:
-              if new_inventory_tail not in text:
-                  if text.count(old_inventory_tail) != 1:
-                      raise SystemExit(f'MCP inventory anchor missing or duplicated: {old_inventory_tail!r}')
-                  text = text.replace(old_inventory_tail, new_inventory_tail, 1)
-          contract.write_text(text)
+          append_tool_inventory('tests/mcp-contract.test.ts', '      ', '    ')
+          append_tool_inventory('tests/mcp-contract.test.ts', '        ', '      ')
+          append_tool_inventory('tests/e2e/brainbase-mcp-only-acceptance.spec.ts', '      ', '    ')
+          append_tool_inventory('tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts', '      ', '    ')
 
           knowledge_test = Path('tests/knowledge-event.test.ts')
           text = knowledge_test.read_text()
@@ -141,15 +132,15 @@ jobs:
           """)
           readme_anchor = "\n## 10分で試す\n"
           if '<!-- brainbase:vibepro-knowledge-event:start -->' not in text:
-              if text.count(readme_anchor) != 1:
-                  raise SystemExit('README insertion anchor missing or duplicated')
-              text = text.replace(readme_anchor, '\n' + section.strip() + '\n' + readme_anchor, 1)
+              text = replace_once(text, readme_anchor, '\n' + section.strip() + '\n' + readme_anchor, 'README section')
           readme.write_text(text)
 
           workflow = Path('.github/workflows/pr-vibepro-knowledge-event-record-build.yml')
-          if workflow.exists():
-              workflow.unlink()
+          subprocess.run(['git', 'rm', '-f', workflow.as_posix()], check=True)
           PY
+
+      - name: Refresh public contract digests
+        run: npm run contracts:generate
 
       - name: Verify focused and full contracts
         run: |
@@ -164,12 +155,12 @@ jobs:
       - name: Commit validated wiring
         shell: bash
         run: |
-          if git diff --quiet; then
-            echo "Validated wiring already present"
-            exit 0
-          fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
+          if git diff --cached --quiet; then
+            echo "Validated wiring already present"
+            exit 0
+          fi
           git commit -m "feat: expose append-only VibePro Knowledge Event receiver"
           HUSKY=0 git push origin HEAD:codex/vibepro-knowledge-event-record-v1
