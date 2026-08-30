@@ -1,0 +1,249 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-vibepro-knowledge-event-record",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "implementation"
+  },
+  "clauses": [
+    {
+      "id": "VKE-001",
+      "type": "invariant",
+      "statement": "brainbase_knowledge_event_record accepts only strict knowledge_event.v1 development-learning candidates whose external action and Graph promotion authority are disabled.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-1",
+            "text_snippet": "publishes brainbase_knowledge_event_record as a strict tool"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-2",
+            "text_snippet": "accepts only VibePro development-learning candidates"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-story-vibepro-knowledge-event-record.md",
+            "section": "Decision"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/knowledge-event.ts",
+            "anchor": "knowledgeEventToolDefinition"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/knowledge-event.test.ts",
+            "case": "publishes a strict MCP schema with candidate-only authority boundaries"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/knowledge-event.test.ts",
+            "must_cover": "candidate-only authority boundaries"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T00:00:00.000Z",
+      "last_revised_at": "2026-08-31T00:00:00.000Z"
+    },
+    {
+      "id": "VKE-002",
+      "type": "invariant",
+      "statement": "The receiver recalculates canonical payload and event digests and binds source repository, Story, Git HEAD, subject, source pointer, and computed verification evidence before writing.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-3",
+            "text_snippet": "recalculates the payload body hash and deterministic event ID"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-4",
+            "text_snippet": "binds repository source, Story ID, Git HEAD, subject ID"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-5",
+            "text_snippet": "Only computed evidence sources are accepted"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-story-vibepro-knowledge-event-record.md",
+            "section": "Decision"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/knowledge-event.ts",
+            "anchor": "validateEventBindings"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/knowledge-event.test.ts",
+            "case": "fails closed on tampered hashes, authority expansion, and sensitive summaries"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/knowledge-event.test.ts",
+            "must_cover": "tampered hashes"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T00:00:00.000Z",
+      "last_revised_at": "2026-08-31T00:00:00.000Z"
+    },
+    {
+      "id": "VKE-003",
+      "type": "invariant",
+      "statement": "Knowledge Event publication is append-only and idempotent: identical retries reuse the first record and conflicting or corrupt records fail closed.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-6",
+            "text_snippet": "stored append-only under the local runtime candidate store"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-story-vibepro-knowledge-event-record.md",
+            "section": "Decision"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/knowledge-event.ts",
+            "anchor": "recordBrainbaseKnowledgeEvent"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/knowledge-event.test.ts",
+            "case": "is idempotent under concurrent retries and keeps one append-only record"
+          },
+          {
+            "file": "tests/knowledge-event.test.ts",
+            "case": "fails closed when an existing event id points to a corrupt record"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/knowledge-event.test.ts",
+            "must_cover": "idempotent under concurrent retries"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T00:00:00.000Z",
+      "last_revised_at": "2026-08-31T00:00:00.000Z"
+    },
+    {
+      "id": "VKE-004",
+      "type": "invariant",
+      "statement": "Recording a VibePro event does not mutate Graph, promote canonical knowledge, execute an external action, or expose the local filesystem path in its receipt.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-7",
+            "text_snippet": "Recording does not change graph.json"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-story-vibepro-knowledge-event-record.md",
+            "section": "Authority boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/knowledge-event.ts",
+            "anchor": "receiptFrom"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/knowledge-event.test.ts",
+            "case": "records a verified candidate without changing Graph or executing an external action"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/knowledge-event.test.ts",
+            "must_cover": "without changing Graph"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T00:00:00.000Z",
+      "last_revised_at": "2026-08-31T00:00:00.000Z"
+    },
+    {
+      "id": "VKE-005",
+      "type": "invariant",
+      "statement": "The direct server and stdio MCP tool inventories include brainbase_knowledge_event_record without changing the existing resolve_entity position or behavior.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-9",
+            "text_snippet": "Unit tests, the direct server contract, and stdio MCP startup verify the new tool"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-story-vibepro-knowledge-event-record.md",
+            "section": "Decision"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "src/server.ts",
+            "anchor": "toolDefinitions"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/mcp-contract.test.ts",
+            "case": "C-6 lists exactly the v1 tools"
+          },
+          {
+            "file": "tests/mcp-contract.test.ts",
+            "case": "S-4 lists v1 tools through stdio server startup"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/mcp-contract.test.ts",
+            "must_cover": "brainbase_knowledge_event_record"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T00:00:00.000Z",
+      "last_revised_at": "2026-08-31T00:00:00.000Z"
+    }
+  ],
+  "generated_at": "2026-08-31T00:00:00.000Z"
+}
