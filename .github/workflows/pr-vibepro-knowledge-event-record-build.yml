@@ -75,12 +75,21 @@ jobs:
 
           contract = Path('tests/mcp-contract.test.ts')
           text = contract.read_text()
-          old_inventory_tail = "      'resolve_entity'\n    ]);"
-          new_inventory_tail = "      'resolve_entity',\n      'brainbase_knowledge_event_record'\n    ]);"
-          if new_inventory_tail not in text:
-              if text.count(old_inventory_tail) != 2:
-                  raise SystemExit(f'expected two MCP inventory anchors, got {text.count(old_inventory_tail)}')
-              text = text.replace(old_inventory_tail, new_inventory_tail)
+          inventory_tails = [
+              (
+                  "      'resolve_entity'\n    ]);",
+                  "      'resolve_entity',\n      'brainbase_knowledge_event_record'\n    ]);"
+              ),
+              (
+                  "        'resolve_entity'\n      ]);",
+                  "        'resolve_entity',\n        'brainbase_knowledge_event_record'\n      ]);"
+              )
+          ]
+          for old_inventory_tail, new_inventory_tail in inventory_tails:
+              if new_inventory_tail not in text:
+                  if text.count(old_inventory_tail) != 1:
+                      raise SystemExit(f'MCP inventory anchor missing or duplicated: {old_inventory_tail!r}')
+                  text = text.replace(old_inventory_tail, new_inventory_tail, 1)
           contract.write_text(text)
 
           knowledge_test = Path('tests/knowledge-event.test.ts')
