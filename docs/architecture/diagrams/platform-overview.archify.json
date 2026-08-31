@@ -9,59 +9,37 @@
       {
         "id": "shared-kernel",
         "label": "共通KernelとOSS版",
-        "focus": [
-          "operating-surface",
-          "shared-kernel",
-          "oss-local-profile",
-          "local-personal-ssot"
-        ],
+        "focus": ["operating-surface", "shared-kernel", "oss-local-profile", "local-personal-ssot"],
         "note": "OSS版は共通Judgment Kernel、CLI／stdio MCP、4つのローカル正本ファイルで成立する。"
       },
       {
         "id": "organization-extension",
         "label": "組織版はOSSを包含",
-        "focus": [
-          "shared-kernel",
-          "organization-runtime",
-          "organization-sources",
-          "company-authority"
-        ],
+        "focus": ["shared-kernel", "organization-runtime", "organization-sources", "company-authority"],
         "note": "組織版はOSS packageを固定commitで取り込み、Server、UI、組織台帳、権限制御を外側へ追加する。"
       },
       {
         "id": "bounded-operation",
         "label": "境界付き自律実行",
-        "focus": [
-          "company-authority",
-          "governed-execution",
-          "mana-runtime",
-          "external-sors"
-        ],
+        "focus": ["company-authority", "governed-execution", "mana-runtime", "external-sors"],
         "note": "Manaは権限を作らず、Brainbaseが解決したauthorityの範囲で実行し、外部readbackを返す。"
       },
       {
         "id": "north-star",
         "label": "業務別判断DAG",
-        "focus": [
-          "domain-packs",
-          "shared-kernel",
-          "governed-execution"
-        ],
+        "focus": ["domain-packs", "shared-kernel", "governed-execution"],
         "note": "VibePro、Zeims、営業等は同じKernel上のDomain Judgment Packとして接続する到達像である。"
       }
     ]
   },
   "layout": {
     "mode": "grid",
-    "origin": [
-      42,
-      76
-    ],
+    "origin": [40, 76],
     "cols": 4,
-    "gapX": 72,
-    "gapY": 62,
-    "cellW": 250,
-    "cellH": 82
+    "gapX": 52,
+    "gapY": 72,
+    "cellW": 280,
+    "cellH": 90
   },
   "components": [
     {
@@ -71,6 +49,7 @@
       "sublabel": "人間: 基準と責任 / AI: 探索・反証・実行",
       "row": 0,
       "col": 0,
+      "size": [250, 84],
       "tag": "ENTRY"
     },
     {
@@ -80,6 +59,7 @@
       "sublabel": "Ontology・Graph・DAG・runner・artifact・replay primitives",
       "row": 1,
       "col": 1,
+      "size": [260, 90],
       "tag": "CURRENT / J0 DONE"
     },
     {
@@ -89,6 +69,7 @@
       "sublabel": "brainbase CLI・stdio MCP・agent-assisted onboarding",
       "row": 2,
       "col": 1,
+      "size": [250, 84],
       "tag": "CURRENT OSS"
     },
     {
@@ -98,6 +79,7 @@
       "sublabel": "graph.json・relationships.json・personal-kg.jsonl・decisions.jsonl",
       "row": 3,
       "col": 1,
+      "size": [260, 90],
       "tag": "4 CANONICAL FILES"
     },
     {
@@ -107,6 +89,7 @@
       "sublabel": "Express・Web UI・MCP・organization services",
       "row": 0,
       "col": 2,
+      "size": [270, 90],
       "tag": "CURRENT / CONSUMES OSS"
     },
     {
@@ -116,6 +99,7 @@
       "sublabel": "PostgreSQL / legacy SQLite / Graph / Git-owned ADR・Spec・Skills",
       "row": 1,
       "col": 2,
+      "size": [270, 90],
       "tag": "CURRENT / MIXED"
     },
     {
@@ -125,6 +109,7 @@
       "sublabel": "tenant・person・membership・RACI・policy・signed context",
       "row": 0,
       "col": 3,
+      "size": [265, 90],
       "tag": "FRONTIER / T0+A0"
     },
     {
@@ -134,6 +119,7 @@
       "sublabel": "approval・Personal→Organization・runner binding・audit",
       "row": 1,
       "col": 3,
+      "size": [265, 90],
       "tag": "FRONTIER / P0+G0"
     },
     {
@@ -143,6 +129,7 @@
       "sublabel": "VibePro・Zeims・Sales・Marketing・Back Office",
       "row": 2,
       "col": 2,
+      "size": [250, 84],
       "tag": "NORTH STAR"
     },
     {
@@ -152,6 +139,7 @@
       "sublabel": "cadence・priority・stagnation detection・follow-through",
       "row": 2,
       "col": 3,
+      "size": [250, 84],
       "tag": "FRONTIER / O0"
     },
     {
@@ -161,6 +149,7 @@
       "sublabel": "GitHub / CI・Drive・CRM・ledger / filing・Secret Store",
       "row": 3,
       "col": 3,
+      "size": [260, 90],
       "tag": "FINAL EXTERNAL STATE"
     }
   ],
@@ -169,7 +158,7 @@
       "id": "surface-to-kernel",
       "from": "operating-surface",
       "to": "shared-kernel",
-      "label": "personal context request",
+      "label": "local context",
       "variant": "emphasis"
     },
     {
@@ -183,27 +172,24 @@
       "id": "organization-consumes-kernel",
       "from": "organization-runtime",
       "to": "shared-kernel",
-      "label": "fixed-commit package dependency",
+      "label": "pinned OSS package",
       "variant": "emphasis"
     },
     {
       "id": "kernel-to-oss",
       "from": "shared-kernel",
       "to": "oss-local-profile",
-      "label": "shared semantics + runtime",
       "variant": "emphasis"
     },
     {
       "id": "oss-to-local-ssot",
       "from": "oss-local-profile",
-      "to": "local-personal-ssot",
-      "label": "local read / explicit write"
+      "to": "local-personal-ssot"
     },
     {
       "id": "organization-to-sources",
       "from": "organization-runtime",
-      "to": "organization-sources",
-      "label": "organization services"
+      "to": "organization-sources"
     },
     {
       "id": "organization-to-authority",
@@ -216,35 +202,32 @@
       "id": "sources-to-authority",
       "from": "organization-sources",
       "to": "company-authority",
-      "label": "canonical company facts",
+      "label": "company facts",
       "variant": "security"
     },
     {
       "id": "authority-to-governed",
       "from": "company-authority",
       "to": "governed-execution",
-      "label": "signed authority + stop conditions",
       "variant": "dashed"
     },
     {
       "id": "packs-to-governed",
       "from": "domain-packs",
       "to": "governed-execution",
-      "label": "typed DAG contract",
+      "label": "typed DAG",
       "variant": "dashed"
     },
     {
       "id": "governed-to-mana",
       "from": "governed-execution",
       "to": "mana-runtime",
-      "label": "bounded operation",
       "variant": "dashed"
     },
     {
       "id": "mana-to-sors",
       "from": "mana-runtime",
       "to": "external-sors",
-      "label": "execute + readback",
       "variant": "security"
     }
   ],
