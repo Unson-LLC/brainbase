@@ -439,7 +439,7 @@ healthScore = Math.round(
 | `/api/brainbase/critical-alerts` | GET | Critical Alertsデータ取得 |
 | `/api/brainbase/strategic-overview` | GET | Strategic Overviewデータ取得 |
 | `/api/brainbase/trends` | GET | トレンドデータ取得（パラメータ: project_id, days） |
-| `/api/brainbase/projects` | GET | 全プロジェクトの健全性スコア取得 |
+| `/api/brainbase/projects` | GET | 認証組織かつProject Grant対象のプロジェクト一覧取得（Catalog取得元状態を含む） |
 
 ### 7.2 `/api/brainbase/critical-alerts`
 

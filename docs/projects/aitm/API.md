@@ -809,7 +809,9 @@ clearCache('');
 LOG_LEVEL=debug npm run dev
 
 # APIレスポンス時間計測
-curl -w "@curl-format.txt" -o /dev/null -s http://localhost:3005/api/brainbase/projects
+curl -w "@curl-format.txt" -o /dev/null -s \
+  -H 'Authorization: Bearer <token>' \
+  http://localhost:3005/api/brainbase/projects
 ```
 
 ### Q2: NocoDB APIエラーが発生した場合は？

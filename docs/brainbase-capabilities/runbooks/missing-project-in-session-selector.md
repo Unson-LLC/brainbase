@@ -33,20 +33,34 @@ The selector uses:
 Run the selector logic against the relevant project codes.
 
 ```bash
-node --input-type=module - <<'NODE'
+BRAINBASE_API_TOKEN='<token>' node --input-type=module - <<'NODE'
+const token = process.env.BRAINBASE_API_TOKEN;
+if (!token) throw new Error('BRAINBASE_API_TOKEN is required');
 const originalFetch = globalThis.fetch;
 globalThis.fetch = (input, init) => {
   const url = typeof input === 'string' ? input : input?.url;
   if (typeof url === 'string' && url.startsWith('/')) {
-    return originalFetch(`http://127.0.0.1:31013${url}`, init);
+    return originalFetch(`http://127.0.0.1:31013${url}`, {
+      ...init,
+      headers: {
+        ...(init?.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
   }
   return originalFetch(input, init);
 };
 const mod = await import('./public/modules/project-mapping.js');
 await mod.projectMappingReady;
+const source = mod.getRuntimeProjectCatalogSource();
+if (source.status !== 'loaded') {
+  throw new Error(`project catalog is not loaded: ${JSON.stringify(source)}`);
+}
 console.log(mod.getSessionSelectableProjects(['techknight']));
 NODE
 ```
+
+認証失敗や Registry 取得不能は候補0件として扱わず、先にその接続を復旧してください。
 
 ## 4. Check auth_grants
 
