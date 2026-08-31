@@ -472,14 +472,23 @@ export function validateGraphSnapshot(snapshot) {
         const target = entitiesById.get(edge.to_id);
         const targetIsCrossTenant = externalEntityIds.has(target?.id)
             && target.reference_scope !== 'same_organization';
-        if (source && target && targetIsCrossTenant && source.project_code !== target.project_code) {
+        if (source && target
+            && (targetIsCrossTenant || edge.payload?.cross_tenant === true)
+            && source.project_code !== target.project_code) {
             const canonicalCrossTenant = edge.rel_type === 'governs'
                 && edge.project_code === source.project_code
                 && edge.payload?.cross_tenant === true
                 && edge.payload?.target_project_code === target.project_code
                 && edge.role_min === 'ceo'
                 && edge.sensitivity === 'restricted';
-            if (!canonicalCrossTenant) issues.push({ category: 'cross_tenant_edge', id: edge.id });
+            if (!canonicalCrossTenant
+                || source.entity_type !== 'decision'
+                || source.lifecycle_status !== 'active'
+                || target.entity_type !== 'product'
+                || target.reference_scope === 'same_organization'
+                || target.lifecycle_status !== 'active') {
+                issues.push({ category: 'cross_tenant_edge', id: edge.id });
+            }
         }
         const key = `${edge.from_id}\u0000${edge.to_id}\u0000${edge.rel_type}`;
         if (edgeKeys.has(key)) issues.push({ category: 'duplicate_edge', id: edge.id });

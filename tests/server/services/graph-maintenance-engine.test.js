@@ -303,6 +303,37 @@ describe('Graph maintenance Phase 0 contract', () => {
         expect(validateGraphSnapshot(malformed).issues).toContainEqual({ category: 'cross_tenant_edge', id: 'edge_malformed' });
     });
 
+    it.each([
+        ['source type', { entity_type: 'person' }, {}],
+        ['source lifecycle', { lifecycle_status: 'retired' }, {}],
+        ['target type', {}, { entity_type: 'person' }],
+        ['target reference scope', {}, { reference_scope: 'same_organization' }],
+        ['target lifecycle', {}, { lifecycle_status: 'retired' }]
+    ])('existing canonical cross-tenant Edge requires active Decision to active Product (%s)', (_caseName, sourcePatch, targetPatch) => {
+        const invalid = {
+            project_code: 'brainbase',
+            entities: [{
+                id: 'decision', entity_type: 'decision', project_code: 'brainbase', payload: {},
+                role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1,
+                ...sourcePatch
+            }],
+            external_entities: [{
+                id: 'product_aitle', entity_type: 'product', project_code: 'aitle',
+                role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1,
+                ...targetPatch
+            }],
+            edges: [{
+                id: 'edge_existing_canonical', from_id: 'decision', to_id: 'product_aitle', rel_type: 'governs',
+                project_code: 'brainbase', payload: { cross_tenant: true, target_project_code: 'aitle' },
+                role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1
+            }]
+        };
+
+        expect(validateGraphSnapshot(invalid).issues).toContainEqual({
+            category: 'cross_tenant_edge', id: 'edge_existing_canonical'
+        });
+    });
+
     it('same-organization external endpointは通常の跨project Edgeを孤立扱いしない', () => {
         const sameOrganization = {
             project_code: 'brainbase',

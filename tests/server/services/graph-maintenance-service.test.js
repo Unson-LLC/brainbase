@@ -1300,6 +1300,98 @@ describe('GraphMaintenanceService authorization', () => {
         }, 'brainbase')).rejects.toThrow('Decision subject target is missing or inaccessible');
     });
 
+    it.each([
+        ['source type', { entity_type: 'person' }, {}],
+        ['source lifecycle', { lifecycle_status: 'retired' }, {}],
+        ['target type', {}, { entity_type: 'person' }],
+        ['target lifecycle', {}, { lifecycle_status: 'retired' }]
+    ])('existing canonical cross-tenant Edge with invalid endpoint is fail-closed without identifiers (%s)', async (_caseName, sourcePatch, targetPatch) => {
+        const localDecision = {
+            id: 'decision_invalid_endpoint', entity_type: 'decision', project_code: 'brainbase', payload: {},
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1,
+            ...sourcePatch
+        };
+        const target = {
+            id: 'product_invalid_endpoint', entity_type: 'product', project_code: 'aitle', organization_id: 'org_other',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1,
+            ...targetPatch
+        };
+        const edge = {
+            id: 'edge_invalid_endpoint', from_id: localDecision.id, to_id: target.id, rel_type: 'governs',
+            project_code: 'brainbase', payload: { cross_tenant: true, target_project_code: 'aitle' },
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_source' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localDecision] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [target] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+
+        let error;
+        try {
+            await scoped.loadSnapshot(client, {
+                organizationId: 'org_source', projectCodes: ['brainbase', 'aitle'], role: 'ceo'
+            }, 'brainbase');
+        } catch (caught) {
+            error = caught;
+        }
+        expect(error).toBeInstanceOf(Error);
+        expect(error.message).toBe('Decision subject target is missing or inaccessible');
+        expect(error.message).not.toContain(localDecision.id);
+        expect(error.message).not.toContain(target.id);
+        expect(error.message).not.toContain(edge.id);
+    });
+
+    it.each([
+        ['source type', { entity_type: 'person' }, {}],
+        ['source lifecycle', { lifecycle_status: 'retired' }, {}],
+        ['target type', {}, { entity_type: 'person' }],
+        ['target reference scope', {}, { reference_scope: 'same_organization' }],
+        ['target lifecycle', {}, { lifecycle_status: 'retired' }]
+    ])('existing canonical cross-tenant Edge image with invalid endpoint is fail-closed without identifiers (%s)', async (_caseName, sourcePatch, targetPatch) => {
+        const localDecision = {
+            id: 'decision_invalid_image_endpoint', entity_type: 'decision', project_code: 'brainbase', payload: {},
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1,
+            ...sourcePatch
+        };
+        const expected = {
+            id: 'product_invalid_image_endpoint', entity_type: 'product', project_code: 'aitle',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1,
+            ...targetPatch
+        };
+        const target = {
+            ...expected, organization_id: 'org_other', ...targetPatch
+        };
+        const edge = {
+            id: 'edge_invalid_image_endpoint', from_id: localDecision.id, to_id: expected.id, rel_type: 'governs',
+            project_code: 'brainbase', payload: { cross_tenant: true, target_project_code: 'aitle' },
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async () => ({ rows: [target] })) };
+        const image = {
+            project_code: 'brainbase', entities: [localDecision], edges: [edge], external_entities: [expected]
+        };
+
+        let error;
+        try {
+            await service.loadExternalEntitiesFromImage(client, {
+                organizationId: 'org_source', projectCodes: ['brainbase', 'aitle'], role: 'ceo'
+            }, image);
+        } catch (caught) {
+            error = caught;
+        }
+        expect(error).toBeInstanceOf(Error);
+        expect(error.message).toBe('Decision subject target is missing or inaccessible');
+        expect(error.message).not.toContain(localDecision.id);
+        expect(error.message).not.toContain(expected.id);
+        expect(error.message).not.toContain(edge.id);
+    });
+
     it('same-organization external endpointのreadbackはGMでも許可しscope markerを維持する', async () => {
         const expected = {
             id: 'per_yajima_tsuyoshi', entity_type: 'person', project_code: 'techknight',

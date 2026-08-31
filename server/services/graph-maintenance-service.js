@@ -35,6 +35,30 @@ function isCanonicalCrossTenantEdge(edge) {
         && edge?.sensitivity === 'restricted';
 }
 
+function hasInvalidCanonicalCrossTenantEndpoints(snapshot) {
+    const entitiesById = new Map([
+        ...(Array.isArray(snapshot?.entities) ? snapshot.entities : []),
+        ...(Array.isArray(snapshot?.external_entities) ? snapshot.external_entities : [])
+    ].map((entity) => [entity?.id, entity]));
+    return (Array.isArray(snapshot?.edges) ? snapshot.edges : []).some((edge) => {
+        if (!isCanonicalCrossTenantEdge(edge)) return false;
+        const source = entitiesById.get(edge.from_id);
+        const target = entitiesById.get(edge.to_id);
+        if (!source || !target) return true;
+        return source.entity_type !== 'decision'
+            || source.lifecycle_status !== 'active'
+            || target.entity_type !== 'product'
+            || target.reference_scope === 'same_organization'
+            || target.lifecycle_status !== 'active';
+    });
+}
+
+function assertCanonicalCrossTenantEndpoints(snapshot) {
+    if (hasInvalidCanonicalCrossTenantEndpoints(snapshot)) {
+        throw new Error('Decision subject target is missing or inaccessible');
+    }
+}
+
 function humanGateOperationScope(operation) {
     if (operation.operation === 'retire_entity') {
         return {
@@ -457,12 +481,21 @@ export class GraphMaintenanceService {
         return rows[0];
     }
 
-    async loadExternalEntities(client, access, operations, { lock = false } = {}) {
+    async loadExternalEntities(client, access, operations, { lock = false, sourceEntities = null } = {}) {
         const links = operations.filter((operation) => operation.operation === 'link_decision_subject');
         if (!links.length) return [];
         if (access.role !== 'ceo') throw new Error('Cross-tenant Decision subject link requires ceo role');
         const requestedCodes = [...new Set(links.map((operation) => operation.target_project_code))];
         if (requestedCodes.some((code) => !access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
+        if (Array.isArray(sourceEntities)) {
+            for (const link of links) {
+                if (!link.decision_id) continue;
+                const source = sourceEntities.find((entity) => entity.id === link.decision_id);
+                if (!source || source.entity_type !== 'decision' || source.lifecycle_status !== 'active') {
+                    throw new Error('Decision subject target is missing or inaccessible');
+                }
+            }
+        }
         const ids = [...new Set(links.map((operation) => operation.subject_entity_id))];
         const suffix = lock ? ' FOR UPDATE' : '';
         const { rows } = await client.query(
@@ -472,6 +505,7 @@ export class GraphMaintenanceService {
              FROM graph_entities ge JOIN projects p ON p.id=ge.project_id
              WHERE ge.id=ANY($1::text[]) AND p.code=ANY($2::text[])
                AND p.organization_id IS NOT NULL
+               AND ge.entity_type='product' AND ge.lifecycle_status='active'
              ORDER BY ge.id${suffix}`,
             [ids, requestedCodes]
         );
@@ -479,6 +513,9 @@ export class GraphMaintenanceService {
         for (const link of links) {
             const target = rows.find((row) => row.id === link.subject_entity_id);
             if (!target || target.project_code !== link.target_project_code) throw new Error('Product target scope mismatch');
+            if (target.entity_type !== 'product' || target.lifecycle_status !== 'active') {
+                throw new Error('Decision subject target is missing or inaccessible');
+            }
         }
         const sourceOrganizationId = access.organizationId || access.tenantId;
         if (rows.some((row) => row.organization_id === sourceOrganizationId)) {
@@ -488,6 +525,7 @@ export class GraphMaintenanceService {
     }
 
     async loadExternalEntitiesFromImage(client, access, image, { lock = false } = {}) {
+        assertCanonicalCrossTenantEndpoints(image);
         const expected = image.external_entities || [];
         if (!expected.length) return [];
         const crossTenantExpected = expected.filter((entity) => entity.reference_scope !== 'same_organization');
@@ -528,8 +566,11 @@ export class GraphMaintenanceService {
                AND COALESCE(p.code, membership_scope.project_code)=ANY($2::text[])
                AND COALESCE(p.organization_id, membership_scope.organization_id) IS NOT NULL
                AND app_graph_entity_organization_id(ge.id)=COALESCE(p.organization_id, membership_scope.organization_id)
+               AND (ge.id <> ALL($5::text[])
+                    OR (ge.entity_type='product' AND ge.lifecycle_status='active'))
              ORDER BY ge.id${suffix}`,
-            [externalEntityIds(image), codes, access.clearance || ['internal'], access.role]
+            [externalEntityIds(image), codes, access.clearance || ['internal'], access.role,
+                crossTenantExpected.map((entity) => entity.id)]
         );
         if (rows.length !== expected.length) throw new Error('Decision subject target is missing or inaccessible');
         const sourceOrganizationId = access.organizationId || access.tenantId;
@@ -542,6 +583,10 @@ export class GraphMaintenanceService {
             }
             if (entity.reference_scope !== 'same_organization' && sameOrganization) {
                 throw new Error('Decision subject target must belong to a different tenant organization');
+            }
+            if (entity.reference_scope !== 'same_organization'
+                && (target.entity_type !== 'product' || target.lifecycle_status !== 'active')) {
+                throw new Error('Decision subject target is missing or inaccessible');
             }
         }
         return rows.map((row) => {
@@ -628,11 +673,12 @@ export class GraphMaintenanceService {
                 && access.projectCodes.includes(edge.payload.target_project_code))
             .map((edge) => ({
                 operation: 'link_decision_subject',
+                decision_id: edge.from_id,
                 subject_entity_id: edge.to_id,
                 target_project_code: edge.payload.target_project_code
             }));
         const crossTenantExternalEntities = crossTenantLinks.length
-            ? await this.loadExternalEntities(client, access, crossTenantLinks, { lock })
+            ? await this.loadExternalEntities(client, access, crossTenantLinks, { lock, sourceEntities: entityResult.rows })
             : [];
         const externalEntitiesById = new Map([
             ...sameOrganizationExternalEntities,
@@ -755,6 +801,7 @@ export class GraphMaintenanceService {
             );
             const stored = snapshotRows[0];
             if (!stored) throw new Error('Unknown snapshot');
+            assertCanonicalCrossTenantEndpoints(stored.snapshot);
             const catalogBoundOperations = await this.bindProjectCatalogOperations(access, input.operations || [], {
                 snapshot: stored.snapshot
             });
@@ -806,7 +853,9 @@ export class GraphMaintenanceService {
                 );
                 if (collision.rows.length) throw new Error('planned edge id conflict');
             }
-            const externalEntities = await this.loadExternalEntities(client, access, normalizedOperations, { lock: true });
+            const externalEntities = await this.loadExternalEntities(client, access, normalizedOperations, {
+                lock: true, sourceEntities: stored.snapshot.entities
+            });
             const planningSnapshot = structuredClone(stored.snapshot);
             const localEntityIds = new Set(planningSnapshot.entities.map((entity) => entity.id));
             const externalOnlyEntities = externalEntities.filter((entity) => !localEntityIds.has(entity.id));
@@ -996,6 +1045,7 @@ export class GraphMaintenanceService {
     }
 
     async replaceSnapshot(client, access, snapshot, { baseline = null } = {}) {
+        assertCanonicalCrossTenantEndpoints(snapshot);
         assertValidSnapshot(snapshot, 'Graph snapshot is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
         const codes = snapshotProjectCodes(snapshot);
