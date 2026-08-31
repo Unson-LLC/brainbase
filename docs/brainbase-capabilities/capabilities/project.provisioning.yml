@@ -30,10 +30,12 @@ visibility_rules:
   - The Manifest never contains local_path; local paths belong to per-user Workspace Setup.
   - Check is read-only and reports writes_performed: 0.
   - Initial grants add one project code to an existing active organization- and role-matched Auth Grant through AuthGrantService.
-  - Auth Grant receipts mark JWT refresh as required and return the selector project code for readback.
+  - Auth Grant receipts mark JWT refresh as required and return the granted project code for readback.
   - Every Plan requires manifest_plan_approval for the complete Manifest and diff; Repository create, public visibility, and broad grants add narrower gates.
   - Apply and resume never accept approvals in their request body; approval is recorded through the dedicated approve surface before execution.
   - A run becomes active only after Registry, Graph, every requested Auth Grant, and GitHub repository state are read back and verified.
+  - "`session.create` and the Session Launch Picker are retired and are not an entry point or implementation evidence for Project Provisioning."
+  - Codex app/CLI owns task and worktree creation and ownership; per-user local paths remain in separate Workspace Setup.
   - Project Registry, run, and step rows use FORCE RLS with transaction-local app.organization_id; no-context runtime callers cannot enumerate Registry rows.
   - The CLI obtains a session-bound CSRF token for every mutation and does not use a broad Bearer exemption.
   - Connected-world Onboarding starts only after the provisioning run is active.
@@ -62,6 +64,8 @@ common_failures:
 runbooks:
   - ../../../.claude/skills/project-provisioning/SKILL.md
 evidence_boundary:
-  local_contract_tests: implemented
-  postgres_integration: verified_local_postgres_16_container
+  local_contract_tests: implemented_with_graph_and_github_test_fakes
+  postgres_integration: verified_local_postgres_16_container_with_external_writer_fakes
+  production_graph_writes: out_of_scope
+  production_github_writes: out_of_scope
   production_e2e: unverified

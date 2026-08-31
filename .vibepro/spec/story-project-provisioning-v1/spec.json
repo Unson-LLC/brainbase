@@ -22,6 +22,7 @@
     "propagation": {
       "required_surfaces": [
         "HTTP auth access",
+        "Project Catalog CLI/API/MCP",
         "Project Provisioning service",
         "project registry",
         "Graph Maintenance",
@@ -29,6 +30,7 @@
       ],
       "verified_surfaces": [
         "HTTP auth access",
+        "Project Catalog CLI/API/MCP",
         "Project Provisioning service",
         "project registry",
         "Graph Maintenance",
@@ -96,6 +98,7 @@
       "evidence": {
         "propagation_surfaces": [
           "HTTP auth access",
+          "Project Catalog CLI/API/MCP",
           "Project Provisioning service",
           "project registry",
           "Graph Maintenance",
@@ -309,7 +312,7 @@
     {
       "id": "C-003",
       "type": "contract",
-      "statement": "Project Provisioning excludes local_path, delegates Graph writes to Graph Maintenance and auth changes to AuthGrantService, and does not start Connected-world Onboarding.",
+      "statement": "Project Provisioning excludes local_path, delegates Graph writes to Graph Maintenance and auth changes to AuthGrantService, and does not start Connected-world Onboarding; Workspace Setup remains separate.",
       "rationale": "Canonical organization facts, personal workspace paths, repository creation, and content onboarding have different authorities and lifecycles.",
       "origin": {
         "story_refs": [
@@ -321,8 +324,8 @@
           },
           {
             "kind": "acceptance_criteria",
-            "index": 16,
-            "ac_id": "AC-17",
+            "index": 14,
+            "ac_id": "AC-15",
             "text_snippet": "Workspace SetupとConnected-world Onboardingは別Capabilityとして境界を保つ"
           }
         ],
@@ -363,12 +366,12 @@
       },
       "confidence": 1,
       "first_seen_at": "2026-08-31T09:14:28.024Z",
-      "last_revised_at": "2026-08-31T09:14:28.024Z"
+      "last_revised_at": "2026-09-01T00:00:00.000Z"
     },
     {
       "id": "C-004",
       "type": "contract",
-      "statement": "Graph registration uses the existing Graph Maintenance snapshot, plan, apply, receipt, and validate lifecycle.",
+      "statement": "Graph registration uses the existing Graph Maintenance snapshot, plan, apply, receipt, and validate lifecycle; local contract tests use the Graph writer boundary without claiming a production write.",
       "rationale": "Project Provisioning must not become a second Graph writer authority.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 4, "ac_id": "AC-5", "text_snippet": "Graphは既存Graph Maintenanceのsnapshot、plan、apply、receipt、validateを通す" }],
@@ -379,7 +382,7 @@
       "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/project-provisioning-service.test.js", "must_cover": "Graphの正式ライフサイクル順とReceiptをstepへ保存する" }] },
       "confidence": 1,
       "first_seen_at": "2026-08-31T09:14:28.024Z",
-      "last_revised_at": "2026-08-31T09:14:28.024Z"
+      "last_revised_at": "2026-09-01T00:00:00.000Z"
     },
     {
       "id": "C-005",
@@ -400,7 +403,7 @@
     {
       "id": "C-006",
       "type": "contract",
-      "statement": "Repository Bootstrap is a dedicated adapter; repository creation and public visibility require Human Gate approval and repository readback.",
+      "statement": "Repository Bootstrap is a dedicated adapter; its repository creation and public-visibility contract requires Human Gate approval and readback, while local tests use a fake and production GitHub writes are out of scope.",
       "rationale": "Externally visible and irreversible repository actions need an explicit authority boundary.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 7, "ac_id": "AC-8", "text_snippet": "Repository Bootstrapは専用adapterに分離し、create・public化はHuman Gateとreadbackを必須にする" }],
@@ -411,7 +414,7 @@
       "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/project-provisioning-github.test.js", "must_cover": "create後にrepositoryをreadbackする" }] },
       "confidence": 1,
       "first_seen_at": "2026-08-31T09:14:28.024Z",
-      "last_revised_at": "2026-08-31T09:14:28.024Z"
+      "last_revised_at": "2026-09-01T00:00:00.000Z"
     },
     {
       "id": "C-007",
@@ -463,32 +466,37 @@
     {
       "id": "C-009",
       "type": "contract",
-      "statement": "Project Registry is merged into the organization-scoped runtime Project Catalog while preserving legacy aliases and repository metadata.",
+      "statement": "Project Registry is merged into the organization-scoped runtime Project Catalog for CLI/API/MCP while preserving legacy aliases and repository metadata; loaded, confirmed empty, and unavailable/error states remain distinct.",
       "rationale": "A registered project must become usable by access policy without leaking another organization's catalog.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 11, "ac_id": "AC-12", "text_snippet": "Project Registryを実行時Project Catalogへ接続し、登録後のアクセス判定へ反映する" }],
         "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
         "code_refs": [
           { "file": "server/services/project-provisioning/project-registry-catalog-adapter.js", "anchor": "getProjects" },
+          { "file": "server/routes/config.js", "anchor": "GET /api/config/projects" },
           { "file": "server/routes/brainbase/overview-routes.js", "anchor": "router.get('/', projectCatalogAuthGuard" },
+          { "file": "cli/project-provisioning.js", "anchor": "runProjectProvisioning" },
+          { "file": "mcp/brainbase/src/tools/control-plane-tools.ts", "anchor": "brainbase_projects" },
           { "file": "docs/projects/aitm/API.md", "anchor": "GET /api/brainbase" }
         ],
         "test_refs": [
           { "file": "tests/server/services/project-registry-catalog-adapter.test.js", "case": "catalog readをorganization contextで分離する" },
           { "file": "tests/server/routes/project-runtime-catalog.test.js", "case": "/api/brainbaseは認証済みreq.accessのorganizationでcatalogを読みsourceを保持する" },
           { "file": "tests/server/bootstrap/project-provisioning-health.test.js", "case": "registerApiRoutesは/api/brainbase rootへCatalog認証を配線しorganization contextを渡す" },
-          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする" }
+          { "file": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "case": "TSK-WEBRET-003 AC-2: token and configured scopes are intersected and audit evidence is returned" },
+          { "file": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "case": "TSK-WEBRET-003 AC-3: a confirmed empty catalog remains ok instead of unavailable" },
+          { "file": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "case": "TSK-WEBRET-003 AC-4: transport failure is unavailable and never flattened to an empty catalog" }
         ]
       },
       "verifiable_by": { "test_pattern": [
         { "file_glob": "tests/server/services/project-registry-catalog-adapter.test.js", "must_cover": "catalog readをorganization contextで分離する" },
         { "file_glob": "tests/server/routes/project-runtime-catalog.test.js", "must_cover": "/api/brainbaseは認証済みreq.accessのorganizationでcatalogを読みsourceを保持する" },
         { "file_glob": "tests/server/bootstrap/project-provisioning-health.test.js", "must_cover": "registerApiRoutesは/api/brainbase rootへCatalog認証を配線しorganization contextを渡す" },
-        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする" }
+        { "file_glob": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "must_cover": "token and configured scopes are intersected, confirmed empty remains ok, and transport failure is unavailable" }
       ] },
       "confidence": 1,
       "first_seen_at": "2026-08-31T09:14:28.024Z",
-      "last_revised_at": "2026-08-31T09:14:28.024Z"
+      "last_revised_at": "2026-09-01T00:00:00.000Z"
     },
     {
       "id": "C-010",
@@ -508,59 +516,35 @@
     },
     {
       "id": "C-011",
-      "type": "contract",
-      "statement": "Session project selection is empty when the authenticated runtime catalog is unavailable or rejects authentication; legacy topology never remains selectable.",
-      "rationale": "Local topology is not access authority and cannot safely substitute for a failed authenticated catalog.",
+      "type": "boundary",
+      "statement": "session.create and the Session Launch Picker are retired; Codex app/CLI owns task and worktree creation and ownership, while Workspace Setup remains separate from Project Provisioning.",
+      "rationale": "The retired selector is not a supported catalog or provisioning surface, and personal workspace paths must not become organization facts.",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "index": 13, "ac_id": "AC-14", "text_snippet": "実行時Catalogの認証失敗・取得不能時はセッション選択肢を空にする" }],
-        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
-        "code_refs": [{ "file": "public/modules/project-mapping.js", "anchor": "projectMappingReady" }],
-        "test_refs": [
-          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "runtime catalogが認証失敗した場合はlegacy projectを選択可能にしない" },
-          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "runtime catalogが401以外で失敗した場合はlegacy projectを選択可能にしない" },
-          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "runtime catalogのfetchが例外になった場合はlegacy projectを選択可能にしない" },
-          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "runtime catalogのsource.statusがunavailableの場合はlegacy projectを選択可能にしない" }
-        ]
+        "story_refs": [],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "境界・非対象" }],
+        "code_refs": [],
+        "test_refs": []
       },
-      "verifiable_by": { "test_pattern": [
-        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "runtime catalogが認証失敗した場合はlegacy projectを選択可能にしない" },
-        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "runtime catalogが401以外で失敗した場合はlegacy projectを選択可能にしない" },
-        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "runtime catalogのfetchが例外になった場合はlegacy projectを選択可能にしない" },
-        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "runtime catalogのsource.statusがunavailableの場合はlegacy projectを選択可能にしない" }
-      ] },
+      "verifiable_by": { "test_pattern": [] },
       "confidence": 1,
-      "first_seen_at": "2026-08-31T13:10:00.000Z",
-      "last_revised_at": "2026-08-31T13:10:00.000Z"
+      "first_seen_at": "2026-09-01T00:00:00.000Z",
+      "last_revised_at": "2026-09-01T00:00:00.000Z"
     },
     {
       "id": "C-012",
-      "type": "contract",
-      "statement": "A Registry project without a configured local Workspace path is shown as requiring Workspace Setup and cannot launch through a guessed path.",
-      "rationale": "Project identity registration does not prove that a usable local checkout exists.",
+      "type": "evidence_boundary",
+      "statement": "Graph writer and GitHub writer assertions use test fakes or adapter doubles; production Graph/GitHub writes and production E2E are out of scope and unverified.",
+      "rationale": "Local contract and PostgreSQL integration evidence cannot establish that production external writes have completed.",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "index": 14, "ac_id": "AC-15", "text_snippet": "ローカルpath未設定のprojectはワークスペース設定が必要と表示する" }],
-        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
-        "code_refs": [
-          { "file": "public/modules/project-mapping.js", "anchor": "getProjectPath" },
-          { "file": "public/modules/app/session-creation-mixin.js", "anchor": "openSessionLaunchPicker" },
-          { "file": "public/modules/app/ui-setup-mixin.js", "anchor": "refreshProjectSelect" }
-        ],
-        "test_refs": [
-          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする" },
-          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "同じprojectがWorkspace設定にあってもlocal.path未設定なら推測pathで起動しない" },
-          { "file": "tests/ui/session-creation-mixin.test.js", "case": "local.path未設定projectはdisabled optionとしてワークスペース設定が必要と表示する" },
-          { "file": "tests/ui/ui-setup-mixin.test.js", "case": "Workspace Setupが必要なRegistry projectをdisabled optionとして表示する" }
-        ]
+        "story_refs": [],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "証拠境界" }],
+        "code_refs": [],
+        "test_refs": []
       },
-      "verifiable_by": { "test_pattern": [
-        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする" },
-        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "同じprojectがWorkspace設定にあってもlocal.path未設定なら推測pathで起動しない" },
-        { "file_glob": "tests/ui/session-creation-mixin.test.js", "must_cover": "local.path未設定projectはdisabled optionとしてワークスペース設定が必要と表示する" },
-        { "file_glob": "tests/ui/ui-setup-mixin.test.js", "must_cover": "Workspace Setupが必要なRegistry projectをdisabled optionとして表示する" }
-      ] },
+      "verifiable_by": { "test_pattern": [] },
       "confidence": 1,
-      "first_seen_at": "2026-08-31T13:10:00.000Z",
-      "last_revised_at": "2026-08-31T13:10:00.000Z"
+      "first_seen_at": "2026-09-01T00:00:00.000Z",
+      "last_revised_at": "2026-09-01T00:00:00.000Z"
     },
     {
       "id": "C-013",
@@ -568,7 +552,7 @@
       "statement": "Health and config integrity check Project Registry schema availability through the runtime catalog adapter instead of relying only on legacy configuration.",
       "rationale": "A readable legacy config does not prove the canonical Project Registry is ready.",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "index": 15, "ac_id": "AC-16", "text_snippet": "healthとintegrityはRegistry schemaの利用可能性を確認する" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 13, "ac_id": "AC-14", "text_snippet": "healthとintegrityはRegistry schemaの利用可能性を確認する" }],
         "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
         "code_refs": [{ "file": "server/services/project-provisioning/project-registry-catalog-adapter.js", "anchor": "checkIntegrity" }],
         "test_refs": [
@@ -584,9 +568,9 @@
       ] },
       "confidence": 1,
       "first_seen_at": "2026-08-31T13:10:00.000Z",
-      "last_revised_at": "2026-08-31T13:10:00.000Z"
+      "last_revised_at": "2026-09-01T00:00:00.000Z"
     }
   ],
-  "generated_at": "2026-08-31T09:14:28.023Z",
+  "generated_at": "2026-09-01T00:00:00.000Z",
   "previous_spec_id": null
 }

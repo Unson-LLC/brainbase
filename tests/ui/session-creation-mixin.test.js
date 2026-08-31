@@ -9,56 +9,21 @@ vi.mock('../../public/modules/core/http-client.js', () => ({
 vi.mock('../../public/modules/project-mapping.js', () => ({
     projectMappingReady: Promise.resolve(),
     getSessionSelectableProjects: vi.fn(() => ['brainbase', 'aitle', 'no-repo']),
-    getProjectsRequiringWorkspaceSetup: vi.fn(() => []),
-    getRuntimeProjectCatalogSource: vi.fn(() => ({ status: 'loaded' })),
-    getRuntimeProjectCatalogStatusMessage: vi.fn((source) => (
-        source.status === 'loaded'
-            ? '権限のあるプロジェクト一覧を読み込みました。'
-            : 'プロジェクト一覧を取得できません。generalのみ選択できます。'
-    )),
     hasGitRepository: vi.fn((project) => project !== 'no-repo')
 }));
 
 import { httpClient } from '../../public/modules/core/http-client.js';
 import { appStore } from '../../public/modules/core/store.js';
 import { applySessionCreationMixin } from '../../public/modules/app/session-creation-mixin.js';
-import {
-    getSessionSelectableProjects,
-    getProjectsRequiringWorkspaceSetup,
-    getRuntimeProjectCatalogSource,
-    getRuntimeProjectCatalogStatusMessage
-} from '../../public/modules/project-mapping.js';
-
-function installMemoryLocalStorage() {
-    const values = new Map();
-    const storage = {
-        clear: () => values.clear(),
-        getItem: (key) => values.has(String(key)) ? values.get(String(key)) : null,
-        key: (index) => [...values.keys()][index] ?? null,
-        removeItem: (key) => values.delete(String(key)),
-        setItem: (key, value) => values.set(String(key), String(value)),
-        get length() { return values.size; }
-    };
-    Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
-}
 
 describe('applySessionCreationMixin', () => {
     beforeEach(() => {
-        if (!window.localStorage?.clear) installMemoryLocalStorage();
         document.body.innerHTML = `
             <span id="app-version"></span>
             <span id="mobile-app-version"></span>
         `;
         window.localStorage.clear();
         vi.clearAllMocks();
-        getSessionSelectableProjects.mockReturnValue(['brainbase', 'aitle', 'no-repo']);
-        getProjectsRequiringWorkspaceSetup.mockReturnValue([]);
-        getRuntimeProjectCatalogSource.mockReturnValue({ status: 'loaded' });
-        getRuntimeProjectCatalogStatusMessage.mockImplementation((source) => (
-            source.status === 'loaded'
-                ? '権限のあるプロジェクト一覧を読み込みました。'
-                : 'プロジェクト一覧を取得できません。generalのみ選択できます。'
-        ));
     });
 
     it('updateAppVersionDisplay呼び出し時_表示は短いversionだけにして詳細はtitleへ退避する', async () => {
@@ -117,72 +82,6 @@ describe('applySessionCreationMixin', () => {
         expect(document.getElementById('session-launch-picker').classList.contains('hidden')).toBe(false);
         expect(document.getElementById('session-launch-project-select').value).toBe('brainbase');
         expect(document.getElementById('session-launch-use-worktree-checkbox').checked).toBe(true);
-        expect(createSession).not.toHaveBeenCalled();
-    });
-
-    it('local.path未設定projectはdisabled optionとしてワークスペース設定が必要と表示する', async () => {
-        document.body.innerHTML = '<select id="session-launch-project-select"></select>';
-        getProjectsRequiringWorkspaceSetup.mockReturnValue(['registry-same-id']);
-
-        class App {}
-        applySessionCreationMixin(App);
-
-        const projectSelect = document.getElementById('session-launch-project-select');
-        await new App()._populateSessionProjectSelect(projectSelect, 'registry-same-id');
-
-        const blockedOption = [...projectSelect.options].find((option) => option.value === '' && option.textContent.includes('registry-same-id'));
-        expect(blockedOption).toBeDefined();
-        expect(blockedOption.disabled).toBe(true);
-        expect(blockedOption.textContent).toBe('registry-same-id（ワークスペース設定が必要）');
-        expect(projectSelect.value).toBe('general');
-        expect(document.getElementById('session-launch-project-catalog-status').textContent)
-            .toBe('権限のあるプロジェクト一覧を読み込みました。');
-    });
-
-    it('runtime catalog取得失敗時は状態を表示し、抑止されたprojectをstart payloadへ渡さない', async () => {
-        document.body.innerHTML = `
-            <div id="session-launch-picker" class="session-launch-picker hidden">
-                <select id="session-launch-project-select"></select>
-                <input type="checkbox" id="session-launch-use-worktree-checkbox">
-                <label id="session-launch-worktree-label"></label>
-                <p id="session-launch-worktree-hint"></p>
-                <button id="session-launch-start" type="button"></button>
-            </div>
-        `;
-        getSessionSelectableProjects.mockReturnValue([]);
-        getProjectsRequiringWorkspaceSetup.mockReturnValue([]);
-        getRuntimeProjectCatalogSource.mockReturnValue({ status: 'request_failed', http_status: 503 });
-        getRuntimeProjectCatalogStatusMessage.mockImplementation((source) => (
-            `プロジェクト一覧を取得できません（HTTP ${source.http_status}）。generalのみ選択できます。`
-        ));
-        const createSession = vi.fn();
-        class App {
-            constructor() {
-                this.createSession = createSession;
-            }
-            closeMobileSessionsSheet() {}
-        }
-        applySessionCreationMixin(App);
-
-        const app = new App();
-        await app.openSessionLaunchPicker('suppressed-project');
-
-        const status = document.getElementById('session-launch-project-catalog-status');
-        expect(status.hidden).toBe(false);
-        expect(status.getAttribute('role')).toBe('alert');
-        expect(status.dataset.status).toBe('request_failed');
-        expect(status.textContent).toContain('HTTP 503');
-        expect(document.getElementById('session-launch-project-select').value).toBe('general');
-
-        const suppressedOption = document.createElement('option');
-        suppressedOption.value = 'suppressed-project';
-        suppressedOption.textContent = 'suppressed-project';
-        suppressedOption.disabled = true;
-        document.getElementById('session-launch-project-select').appendChild(suppressedOption);
-        document.getElementById('session-launch-project-select').value = 'suppressed-project';
-        document.getElementById('session-launch-start').click();
-        await Promise.resolve();
-
         expect(createSession).not.toHaveBeenCalled();
     });
 

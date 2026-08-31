@@ -1,9 +1,10 @@
 id: project.catalog
 name: Authenticated project catalog
-purpose: Provide the active configured project list within the authenticated actor's project grant for Web and Agent surfaces.
+purpose: Provide the active configured project list within the authenticated actor's project grant for authenticated CLI, API, and MCP surfaces.
 surfaces:
-  ui:
-    - Settings > Projects
+  cli:
+    - brainbase project provision status <run-id>
+    - brainbase project provision verify <run-id>
   mcp:
     - brainbase_projects
   api:
@@ -12,7 +13,6 @@ surfaces:
     - GET /api/brainbase/projects
   code:
     - server/routes/config.js
-    - public/modules/project-mapping.js
     - server/routes/brainbase/overview-routes.js
     - mcp/brainbase/src/tools/control-plane-tools.ts
     - mcp/brainbase/src/server.ts
@@ -24,18 +24,18 @@ visibility_rules:
   - /api/config is the legacy Workspace Setup topology surface for local paths; it is not the organization-scoped Project Catalog authority.
   - /api/config/projects exposes the organization-scoped runtime catalog, filters it to the authenticated actor's project grants, and returns source.status so Registry failure is not mistaken for confirmed success.
   - Project grants match only the project ID, an explicit alias, or the GitHub repository name; prefix similarity never expands access.
-  - Session creation requires both a loaded authenticated runtime catalog entry and a configured local Workspace path.
-  - A Registry project without a local Workspace path is shown as workspace-setup-required and is never launched through a guessed path.
-  - Authentication, transport, or Registry availability failure clears the selectable project list instead of retaining legacy choices.
+  - The provisioning CLI status and verify commands read back Registry, Graph validation, Auth Grant, Repository boundary, and runtime catalog state before reporting completion.
+  - Authentication, transport, or Registry availability failure is returned as unavailable or error and never retained as a legacy catalog result.
+  - A confirmed empty catalog is distinct from an unavailable or error catalog; callers must not treat either failure state as an empty success.
   - /api/health and /api/config/integrity check Project Registry schema availability through the runtime catalog adapter.
-  - archived projects remain in config but should not appear in active selectors.
-  - session_select:false hides a project from session creation even if it is active.
+  - archived projects remain in config but are excluded from the active catalog.
   - /api/brainbase/projects requires a verified token and only returns active projects in access.projectCodes.
   - /api/brainbase requires a verified token and carries the authenticated organization into its project catalog summary; unauthenticated callers receive 401.
   - brainbase_projects intersects JWT projectCodes with BRAINBASE_PROJECT_CODES; callers cannot expand scope through tool arguments.
   - brainbase_projects returns status ok, unavailable, or error together with scope and audit evidence.
+  - "`session.create` and the Session Launch Picker are retired; they are not catalog surfaces or acceptance/implementation evidence for this capability."
+  - Codex app/CLI owns task and worktree creation and ownership. Workspace Setup owns per-user local paths and is separate from Project Catalog and Project Provisioning.
   - Project Catalogの正本パスはhost runtimeがConfigParserへ注入し、個人の絶対パスへ固定しない。
-  - "A confirmed empty catalog is status: ok with count: 0; auth, transport, upstream, and contract failures never become an empty catalog."
   - Graph MaintenanceでProjectをbusiness subjectへ投影するprojectは、空でないnameと正の整数catalog_versionを持つ。
   - Graph projectionのsource_refはproject-catalog:<id>@<catalog_version>としてサーバーが導出し、呼び出し元の自己申告値を採用しない。
 verification:
@@ -43,6 +43,8 @@ verification:
     - curl -s http://127.0.0.1:31013/api/config/projects -H 'Authorization: Bearer <token>'
     - curl -s http://127.0.0.1:31013/api/brainbase -H 'Authorization: Bearer <token>'
     - curl -s http://127.0.0.1:31013/api/brainbase/projects -H 'Authorization: Bearer <token>'
+    - brainbase project provision status <run-id>
+    - brainbase project provision verify <run-id>
     - cd mcp/brainbase && npm test
   expected:
     - salestailor-app exists in /api/config/projects when present in the actor grant
@@ -51,10 +53,11 @@ verification:
     - an unauthenticated /api/brainbase/projects request returns 401
     - an unauthenticated /api/brainbase request returns 401
     - brainbase_projects exposes only the intersection of token and configured project scopes
+    - CLI status and verify expose individual readback results and never mark unavailable data as verified
     - Graph subjectとして投影するprojectのnameとcatalog_versionがProject Catalogから保持される
     - a short grant such as growin does not authorize growin-payroll
-    - a Registry-only project without a configured Workspace path is not selectable for session creation
-    - Registry or catalog authentication failure leaves no legacy project selectable
+    - Registry or catalog authentication failure remains unavailable/error and never falls back to the legacy topology
+    - Graph and GitHub writer assertions use test fakes or adapter doubles; production writes are out of scope and production E2E is unverified
 common_failures:
   - A project exists in the local /api/config topology but is absent from the authenticated runtime catalog or actor grant.
   - A project exists in config but has no NocoDB mapping, so health data is N/A.
@@ -64,4 +67,3 @@ runbooks:
   - ../runbooks/missing-project-in-session-selector.md
 troubleshooting:
   - ../troubleshooting/nocodb-project-unmapped.md
-  - ../troubleshooting/project-exists-but-selector-hides-it.md

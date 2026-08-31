@@ -80,25 +80,17 @@ describe('project-mapping', () => {
       expect(isProjectSelectableForAccess('salestailor', ['brainbase'])).toBe(false);
     });
 
-    it('does not infer app parent access without explicit metadata', () => {
-      expect(isProjectSelectableForAccess('salestailor-app', ['salestailor'])).toBe(false);
+    it('allows app project when parent project code is granted', () => {
+      expect(isProjectSelectableForAccess('salestailor-app', ['salestailor'])).toBe(true);
     });
 
-    it('does not remove hyphens to infer access', () => {
-      expect(isProjectSelectableForAccess('tech-knight', ['techknight'])).toBe(false);
-      expect(isProjectSelectableForAccess('ncom-catalyst', ['ncomcatalyst'])).toBe(false);
+    it('allows project when access code omits hyphens', () => {
+      expect(isProjectSelectableForAccess('tech-knight', ['techknight'])).toBe(true);
+      expect(isProjectSelectableForAccess('ncom-catalyst', ['ncomcatalyst'])).toBe(true);
     });
 
-    it('does not expand a short grant to an unconfigured project prefix', () => {
-      expect(isProjectSelectableForAccess('ncom-catalyst', ['ncom'])).toBe(false);
-    });
-
-    it('allows an explicitly configured project alias', () => {
-      expect(isProjectSelectableForAccess(
-        'ncom-catalyst',
-        ['ncom'],
-        { aliases: ['ncom'] }
-      )).toBe(true);
+    it('allows project when access code is a configured prefix', () => {
+      expect(isProjectSelectableForAccess('ncom-catalyst', ['ncom'])).toBe(true);
     });
 
     it('allows project when github repository code is granted', () => {

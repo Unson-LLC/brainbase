@@ -4,52 +4,6 @@ import { eventBus, EVENTS } from '../core/event-bus.js';
 import { createSessionId } from '../session-manager.js';
 import { showError } from '../toast.js';
 
-function fallbackProjectCatalogStatusMessage(source = {}) {
-    if (source.status === 'authentication_required') {
-        return 'プロジェクト一覧を取得できません。認証が必要です。generalのみ選択できます。';
-    }
-    if (source.status === 'request_failed') {
-        const httpStatus = Number.isInteger(source.http_status) ? `（HTTP ${source.http_status}）` : '';
-        return `プロジェクト一覧を取得できません${httpStatus}。generalのみ選択できます。`;
-    }
-    if (source.status === 'loaded') return '権限のあるプロジェクト一覧を読み込みました。';
-    return 'プロジェクト一覧を取得できません。generalのみ選択できます。';
-}
-
-function renderProjectCatalogStatus(projectSelect, source, getStatusMessage) {
-    if (!projectSelect) return;
-
-    let statusElement = document.getElementById('session-launch-project-catalog-status');
-    if (!statusElement) {
-        statusElement = document.createElement('p');
-        statusElement.id = 'session-launch-project-catalog-status';
-        statusElement.className = 'project-catalog-status';
-        projectSelect.insertAdjacentElement('afterend', statusElement);
-    }
-
-    const normalizedSource = source && typeof source === 'object'
-        ? source
-        : { status: 'unknown' };
-    const isLoaded = normalizedSource.status === 'loaded';
-    statusElement.textContent = typeof getStatusMessage === 'function'
-        ? getStatusMessage(normalizedSource)
-        : fallbackProjectCatalogStatusMessage(normalizedSource);
-    statusElement.dataset.status = normalizedSource.status || 'unknown';
-    statusElement.dataset.severity = isLoaded ? 'success' : 'error';
-    statusElement.hidden = false;
-    statusElement.setAttribute('role', isLoaded ? 'status' : 'alert');
-    statusElement.setAttribute('aria-live', isLoaded ? 'polite' : 'assertive');
-}
-
-function resetProjectSelectToGeneral(projectSelect) {
-    projectSelect.innerHTML = '';
-    const generalOption = document.createElement('option');
-    generalOption.value = 'general';
-    generalOption.textContent = 'general';
-    projectSelect.appendChild(generalOption);
-    projectSelect.value = 'general';
-}
-
 export function applySessionCreationMixin(AppClass) {
     Object.assign(AppClass.prototype, {
         /**
@@ -111,13 +65,7 @@ export function applySessionCreationMixin(AppClass) {
             if (!projectSelect) return;
 
             try {
-                const {
-                    getSessionSelectableProjects,
-                    getProjectsRequiringWorkspaceSetup,
-                    getRuntimeProjectCatalogSource,
-                    getRuntimeProjectCatalogStatusMessage,
-                    projectMappingReady
-                } = await import('../project-mapping.js');
+                const { getSessionSelectableProjects, projectMappingReady } = await import('../project-mapping.js');
                 await projectMappingReady;
                 const projects = getSessionSelectableProjects(this.authManager?.access?.projectCodes);
 
@@ -135,31 +83,16 @@ export function applySessionCreationMixin(AppClass) {
                     projectSelect.appendChild(option);
                 });
 
-                getProjectsRequiringWorkspaceSetup().forEach((proj) => {
-                    const option = document.createElement('option');
-                    option.value = '';
-                    option.textContent = `${proj}（ワークスペース設定が必要）`;
-                    option.disabled = true;
-                    projectSelect.appendChild(option);
-                });
-
                 if (![...projectSelect.options].some((option) => option.value === selectedProject)) {
-                    selectedProject = 'general';
+                    const option = document.createElement('option');
+                    option.value = selectedProject;
+                    option.textContent = selectedProject;
+                    projectSelect.appendChild(option);
                 }
                 projectSelect.value = selectedProject;
-                renderProjectCatalogStatus(
-                    projectSelect,
-                    typeof getRuntimeProjectCatalogSource === 'function'
-                        ? getRuntimeProjectCatalogSource()
-                        : { status: 'unknown' },
-                    getRuntimeProjectCatalogStatusMessage
-                );
             } catch (error) {
                 console.warn('[CreateSession] Failed to refresh inline project select:', error);
-                // Do not preserve a stale or suppressed project when catalog
-                // loading failed.  The only safe fallback is general.
-                resetProjectSelectToGeneral(projectSelect);
-                renderProjectCatalogStatus(projectSelect, { status: 'unavailable' });
+                projectSelect.value = selectedProject;
             }
         },
 
@@ -249,14 +182,7 @@ export function applySessionCreationMixin(AppClass) {
             };
 
             const handleStart = async () => {
-                const selectedProject = projectSelect?.value;
-                const selectedOption = [...(projectSelect?.options || [])].find((option) => (
-                    option.value === selectedProject && !option.disabled
-                ));
-                if (!selectedOption) {
-                    renderProjectCatalogStatus(projectSelect, { status: 'unavailable' });
-                    return;
-                }
+                const selectedProject = projectSelect?.value || project;
                 const engine = document.querySelector('input[name="session-launch-engine"]:checked')?.value
                     || document.querySelector('input[name="inline-session-engine"]:checked')?.value
                     || 'claude';

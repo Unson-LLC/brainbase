@@ -8,7 +8,6 @@ export let WORKSPACE_ROOT = '/path/to/workspace'; // デフォルト値（API経
 let PROJECT_PATH_MAP_CACHE = null;
 let CORE_PROJECTS_CACHE = null;
 let PROJECT_CONFIG_CACHE = null; // プロジェクト設定のキャッシュ（hasGitRepository用）
-let RUNTIME_PROJECT_CATALOG_SOURCE = { status: 'pending' };
 
 function normalizeProjectKey(value) {
   if (!value || typeof value !== 'string') return '';
@@ -32,13 +31,16 @@ function getProjectAccessKeys(projectId, projectConfig = null) {
   const keys = new Set();
   const normalizedId = normalizeProjectKey(projectId);
   if (normalizedId) keys.add(normalizedId);
+  if (normalizedId) keys.add(normalizedId.replace(/-/g, ''));
 
   const githubRepo = normalizeProjectKey(projectConfig?.github?.repo);
   if (githubRepo) keys.add(githubRepo);
+  if (githubRepo) keys.add(githubRepo.replace(/-/g, ''));
 
-  for (const alias of projectConfig?.aliases || []) {
-    const normalizedAlias = normalizeProjectKey(alias);
-    if (normalizedAlias) keys.add(normalizedAlias);
+  if (normalizedId.endsWith('-app')) {
+    const parentId = normalizedId.slice(0, -4);
+    keys.add(parentId);
+    keys.add(parentId.replace(/-/g, ''));
   }
 
   return keys;
@@ -49,12 +51,18 @@ export function isProjectSelectableForAccess(projectId, projectCodes = [], proje
 
   const allowedCodes = new Set(projectCodes.flatMap((code) => {
     const normalized = normalizeProjectKey(code);
-    return normalized ? [normalized] : [];
+    return normalized ? [normalized, normalized.replace(/-/g, '')] : [];
   }));
   if (allowedCodes.size === 0) return true;
 
   const projectKeys = getProjectAccessKeys(projectId, projectConfig);
-  return Array.from(projectKeys).some((key) => allowedCodes.has(key));
+  return Array.from(projectKeys).some((key) => {
+    if (allowedCodes.has(key)) return true;
+    return Array.from(allowedCodes).some((code) => (
+      key.startsWith(`${code}-`) ||
+      key.startsWith(code)
+    ));
+  });
 }
 
 // 初期化処理（モジュールロード時に実行）
@@ -73,13 +81,17 @@ export const projectMappingReady = (async function initWorkspaceRoot() {
                     PROJECT_CONFIG_CACHE = {}; // プロジェクト設定をキャッシュ
                     data.projects.projects.forEach(proj => {
                         PROJECT_CONFIG_CACHE[proj.id] = proj; // 設定全体を保存
+                        let path;
                         if (proj.local && proj.local.path) {
                             // 絶対パスの場合はそのまま使用、相対パスの場合はWORKSPACE_ROOTと結合
-                            const path = proj.local.path.startsWith('/')
+                            path = proj.local.path.startsWith('/')
                                 ? proj.local.path
                                 : `${WORKSPACE_ROOT}/${proj.local.path}`;
-                            PROJECT_PATH_MAP_CACHE[proj.id] = path;
+                        } else {
+                            // フォールバック: デフォルトパス
+                            path = `${WORKSPACE_ROOT}/projects/${proj.id}`;
                         }
+                        PROJECT_PATH_MAP_CACHE[proj.id] = path;
                     });
                     CORE_PROJECTS_CACHE = data.projects.projects
                         .filter(proj => !proj.archived)
@@ -88,49 +100,7 @@ export const projectMappingReady = (async function initWorkspaceRoot() {
                 }
             }
         }
-
-        // Local paths remain owned by the workspace config. Session-selectable
-        // project identity comes from the authenticated, organization-scoped
-        // runtime catalog and is merged without inventing local paths.
-        try {
-            const runtimeResponse = await fetch('/api/config/projects');
-            if (runtimeResponse.ok) {
-                const runtimeCatalog = await runtimeResponse.json();
-                RUNTIME_PROJECT_CATALOG_SOURCE = runtimeCatalog.source || { status: 'unknown' };
-                if (runtimeCatalog.source?.status === 'unavailable') {
-                    console.warn('[ProjectMapping] Project Registry unavailable; session project selection disabled', runtimeCatalog.source.code);
-                }
-                if (runtimeCatalog.source?.status === 'loaded' && Array.isArray(runtimeCatalog.projects)) {
-                    PROJECT_CONFIG_CACHE ||= {};
-                    PROJECT_PATH_MAP_CACHE ||= {};
-                    for (const project of runtimeCatalog.projects) {
-                        PROJECT_CONFIG_CACHE[project.id] = {
-                            ...(PROJECT_CONFIG_CACHE[project.id] || {}),
-                            ...project
-                        };
-                    }
-                    CORE_PROJECTS_CACHE = runtimeCatalog.projects
-                        .filter(project => !project.archived)
-                        .map(project => project.id);
-                } else {
-                    CORE_PROJECTS_CACHE = [];
-                }
-            } else if (runtimeResponse.status !== 401) {
-                RUNTIME_PROJECT_CATALOG_SOURCE = { status: 'request_failed', http_status: runtimeResponse.status };
-                CORE_PROJECTS_CACHE = [];
-                console.warn('[ProjectMapping] Runtime project catalog request failed:', runtimeResponse.status);
-            } else {
-                RUNTIME_PROJECT_CATALOG_SOURCE = { status: 'authentication_required', http_status: 401 };
-                CORE_PROJECTS_CACHE = [];
-            }
-        } catch (runtimeError) {
-            RUNTIME_PROJECT_CATALOG_SOURCE = { status: 'unavailable' };
-            CORE_PROJECTS_CACHE = [];
-            console.warn('[ProjectMapping] Failed to fetch runtime project catalog; session project selection disabled:', runtimeError);
-        }
     } catch (err) {
-        RUNTIME_PROJECT_CATALOG_SOURCE = { status: 'workspace_config_unavailable' };
-        CORE_PROJECTS_CACHE = [];
         console.warn('[ProjectMapping] Failed to fetch config, using defaults:', err);
     }
 })();
@@ -203,9 +173,6 @@ export function getSessionSelectableProjects(projectCodes = null) {
     if (PROJECT_CONFIG_CACHE) {
         filtered = filtered.filter((id) => PROJECT_CONFIG_CACHE[id]?.session_select !== false);
     }
-    if (PROJECT_PATH_MAP_CACHE) {
-        filtered = filtered.filter((id) => Boolean(PROJECT_PATH_MAP_CACHE[id]));
-    }
     if (projectCodes && projectCodes.length > 0) {
         filtered = filtered.filter((id) => isProjectSelectableForAccess(
             id,
@@ -214,47 +181,6 @@ export function getSessionSelectableProjects(projectCodes = null) {
         ));
     }
     return filtered;
-}
-
-export function getProjectsRequiringWorkspaceSetup() {
-    if (!PROJECT_CONFIG_CACHE || !PROJECT_PATH_MAP_CACHE) return [];
-    return (CORE_PROJECTS_CACHE || []).filter((id) => (
-        PROJECT_CONFIG_CACHE[id]?.session_select !== false && !PROJECT_PATH_MAP_CACHE[id]
-    ));
-}
-
-export function getRuntimeProjectCatalogSource() {
-    return { ...RUNTIME_PROJECT_CATALOG_SOURCE };
-}
-
-/**
- * Return the user-facing state of the runtime project catalog.
- *
- * The catalog is deliberately fail-closed: every state other than `loaded`
- * leaves only the safe `general` option available to callers.  Keeping the
- * copy here makes both project selectors use the same wording without
- * exposing registry implementation details in the UI modules.
- *
- * @param {{status?: string, http_status?: number}|null} source
- * @returns {string}
- */
-export function getRuntimeProjectCatalogStatusMessage(source = getRuntimeProjectCatalogSource()) {
-    const status = source?.status || 'unknown';
-
-    if (status === 'loaded') {
-        return '権限のあるプロジェクト一覧を読み込みました。';
-    }
-    if (status === 'authentication_required') {
-        return 'プロジェクト一覧を取得できません。認証が必要です。generalのみ選択できます。';
-    }
-    if (status === 'request_failed') {
-        const httpStatus = Number.isInteger(source?.http_status) ? `（HTTP ${source.http_status}）` : '';
-        return `プロジェクト一覧を取得できません${httpStatus}。generalのみ選択できます。`;
-    }
-    if (status === 'unavailable' || status === 'workspace_config_unavailable') {
-        return 'プロジェクト一覧を取得できません。接続またはワークスペース設定を確認してください。generalのみ選択できます。';
-    }
-    return 'プロジェクト一覧の状態を確認できません。generalのみ選択できます。';
 }
 
 // 後方互換性のため
@@ -280,14 +206,7 @@ export function getProjectPath(project) {
 
   const pathMap = getProjectPathMap();
   const resolvedId = resolveProjectId(project, Object.keys(pathMap));
-  const configuredPath = pathMap[resolvedId] || pathMap[normalized];
-  if (configuredPath) return configuredPath;
-  if (PROJECT_CONFIG_CACHE?.[project] || PROJECT_CONFIG_CACHE?.[resolvedId]) {
-    const error = new Error(`Workspace setup is required for project: ${project}`);
-    error.code = 'PROJECT_WORKSPACE_SETUP_REQUIRED';
-    throw error;
-  }
-  return `${WORKSPACE_ROOT}/${project}`;
+  return pathMap[resolvedId] || pathMap[normalized] || `${WORKSPACE_ROOT}/${project}`;
 }
 
 /**

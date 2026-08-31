@@ -1,81 +1,38 @@
-# Runbook: Project Missing From Session Selector
+# Runbook: Project Catalog Access and Readback
 
-Use this when a project exists somewhere in Brainbase but does not appear in the Create Session dropdown.
+認証済みのCLI/API/MCPでProject Catalogが見えない、またはProject Provisioningの完了を確認できない場合に使います。
 
-## 1. Confirm The Project Exists In Config
+`session.create`とSession Launch Pickerはretiredです。この旧UIを正式な入口や受け入れ条件として調査せず、以下のCatalog・Provisioning面を確認します。
 
-```bash
-curl -s http://127.0.0.1:31013/api/config | jq '.projects.projects[] | select(.id=="tech-knight")'
-```
-
-If the project is missing here, fix `/Users/ksato/workspace/config.yml` or config loading first.
-
-## 2. Confirm Active Catalog Visibility
+## 1. APIのCatalogを確認する
 
 ```bash
+curl -s http://127.0.0.1:31013/api/config/projects \
+  -H 'Authorization: Bearer <token>' | jq .
+
 curl -s http://127.0.0.1:31013/api/brainbase/projects \
-  -H 'Authorization: Bearer <token>' \
-  | jq 'if .source.status != "loaded" then error("project catalog is not loaded") else .projects[] | select(.id=="tech-knight") end'
+  -H 'Authorization: Bearer <token>' | jq .
 ```
 
-If `source.status` is not `loaded`, treat visibility as unconfirmed and restore Registry/auth connectivity first. If the project is present here but not in the selector, the problem is not the dashboard project API.
+`source.status`が`loaded`なら、返されたprojectが認証済みactorのgrantとRegistryのactive状態の積集合です。`status: ok`かつ`count: 0`相当の応答だけが確認済み空です。`unavailable`、`error`、`organization_context_required`は未確認であり、legacy topologyへフォールバックしてはいけません。
 
-## 3. Check Selector Rules
+## 2. MCPのCatalogを確認する
 
-The selector uses:
+`brainbase_projects`を引数なしで呼び出し、返却されたscope・status・audit evidenceを確認します。JWTの`projectCodes`とサーバー設定の許可範囲の積集合だけが返ること、呼び出し引数で範囲を拡張できないことを確認します。
 
-- `config.projects.projects`
-- `archived`
-- `session_select`
-- `auth.access.projectCodes`
-- `public/modules/project-mapping.js`
-
-Run the selector logic against the relevant project codes.
+## 3. Provisioningのreadbackを確認する
 
 ```bash
-BRAINBASE_API_TOKEN='<token>' node --input-type=module - <<'NODE'
-const token = process.env.BRAINBASE_API_TOKEN;
-if (!token) throw new Error('BRAINBASE_API_TOKEN is required');
-const originalFetch = globalThis.fetch;
-globalThis.fetch = (input, init) => {
-  const url = typeof input === 'string' ? input : input?.url;
-  if (typeof url === 'string' && url.startsWith('/')) {
-    return originalFetch(`http://127.0.0.1:31013${url}`, {
-      ...init,
-      headers: {
-        ...(init?.headers || {}),
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  }
-  return originalFetch(input, init);
-};
-const mod = await import('./public/modules/project-mapping.js');
-await mod.projectMappingReady;
-const source = mod.getRuntimeProjectCatalogSource();
-if (source.status !== 'loaded') {
-  throw new Error(`project catalog is not loaded: ${JSON.stringify(source)}`);
-}
-console.log(mod.getSessionSelectableProjects(['techknight']));
-NODE
+brainbase project provision status <run-id>
+brainbase project provision verify <run-id>
 ```
 
-認証失敗や Registry 取得不能は候補0件として扱わず、先にその接続を復旧してください。
+`status`と`verify`の結果で、Registry、Graph validation、Auth Grant、Repository boundary、runtime catalogの各readbackを個別に確認します。ReceiptやHTTP成功だけでは`active`や`verified: true`と判断しません。未確認・不一致・取得不能が一つでもあれば、完了扱いにせず原因を復旧してから`resume`または再検証します。
 
-## 4. Check auth_grants
+## 4. Workspace Setupとの境界を確認する
 
-Query `auth_grants.project_codes` for the user.
+`/api/config`は個人ごとのWorkspace Setup用legacy topologyです。local pathやclone先が未設定でも、Registry上のprojectがCatalogから消えたことを意味しません。逆に、Registryへの登録だけで個人Workspaceが準備済みになることもありません。タスクとworktreeの作成・所有はCodex app/CLIが担い、Workspace Setupは別Capabilityとして扱います。
 
-Known alias cases:
+## 証拠境界
 
-- `techknight` should match `tech-knight`
-- `ncom` should match `ncom-catalyst`
-- `salestailor` should match `salestailor-app`
-
-## 5. Refresh Browser Auth
-
-If DB is correct but the browser still hides the project, refresh auth:
-
-- logout and login again, or
-- trigger auth refresh, or
-- clear stale `brainbase.auth.access` localStorage entry and login again.
+Graph writerとGitHub writerの契約テストはfake/adapter doubleによる確認です。本番Graph/GitHub writesとproduction E2Eは対象外・未確認であり、ローカルテストやreadback契約を本番登録成功の証拠へ置き換えません。
