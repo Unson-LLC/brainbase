@@ -43,6 +43,7 @@ rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
 
 growin="$(rpc '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"resolve_entity","arguments":{"query":"グローウィン・パートナーズ株式会社 Growin"}}}')"
 unson="$(rpc '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"resolve_entity","arguments":{"query":"合同会社雲孫 Unson"}}}')"
+foreign="$(rpc '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"resolve_entity","arguments":{"query":"Aitle HOTEL555 SalesTailor"}}}')"
 
 candidates() {
   sed -n 's/^data: //p' \
@@ -51,14 +52,20 @@ candidates() {
 
 growin_candidates="$(printf '%s' "$growin" | candidates)"
 unson_candidates="$(printf '%s' "$unson" | candidates)"
+foreign_candidates="$(printf '%s' "$foreign" | candidates)"
 
-if ! jq -e 'any(.[]; .entity_id == "org_growin_partners" and .project_code == "growin")' \
+if ! jq -e 'any(.[]; .type == "org" and .name == "グローウィン・パートナーズ株式会社" and .project_code == "growin")' \
   <<<"$growin_candidates" >/dev/null; then
   echo "失敗: Growinの会社エンティティを取得できません" >&2
   exit 1
 fi
-if ! jq -e 'length == 0' <<<"$unson_candidates" >/dev/null; then
-  echo "失敗: Growin専用環境から雲孫エンティティが参照できました" >&2
+if ! jq -e 'any(.[]; .type == "org" and .name == "合同会社雲孫" and .project_code == "growin")' \
+  <<<"$unson_candidates" >/dev/null; then
+  echo "失敗: Growin案件の提供元コンテキストとして雲孫を取得できません" >&2
   exit 1
 fi
-echo 'Growin E2E OK: Growinを取得し、雲孫を取得しないことを確認しました'
+if ! jq -e 'length == 0' <<<"$foreign_candidates" >/dev/null; then
+  echo "失敗: Growin専用環境から他案件エンティティを参照できました" >&2
+  exit 1
+fi
+echo 'Growin E2E OK: Growinと案件内の提供元コンテキストを取得し、他案件を取得しないことを確認しました'
