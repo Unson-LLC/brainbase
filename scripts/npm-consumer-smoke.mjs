@@ -40,10 +40,13 @@ function assertIncludes(output, expected, command) {
 }
 
 function consumerProbeSource() {
-  return `import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+  return `import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import {
@@ -284,6 +287,84 @@ if (JSON.stringify(runnerRecord.nodes) !== JSON.stringify(expectedRunnerNodeReco
   throw new Error('executeJudgmentDAG did not preserve exact node record contracts and inputs');
 }
 
+const runArtifactRoot = await mkdtemp(path.join(tmpdir(), 'brainbase-j0-run-artifact-'));
+const freshSaverPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fresh-run-artifact-saver.mjs');
+const freshLoaderPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fresh-run-artifact-loader.mjs');
+const runRecordInputPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fresh-run-artifact-record.json');
+let runArtifact;
+try {
+  const saverSource = [
+    "import { readFile } from 'node:fs/promises';",
+    "import { saveJudgmentDAGRunArtifact } from '@unson/brainbase-mcp/judgment-dag';",
+    "const [root, recordPath] = process.argv.slice(2);",
+    "const record = JSON.parse(await readFile(recordPath, 'utf8'));",
+    "const receipt = await saveJudgmentDAGRunArtifact({ root, record });",
+    "process.stdout.write(JSON.stringify(receipt));"
+  ].join('\\n');
+  const loaderSource = [
+    "import { loadJudgmentDAGRunArtifact } from '@unson/brainbase-mcp/judgment-dag';",
+    "const [root, artifact_id] = process.argv.slice(2);",
+    "const record = await loadJudgmentDAGRunArtifact({ root, artifact_id });",
+    "const isDeeplyFrozen = (value, seen = new Set()) => {",
+    "  if (value === null || typeof value !== 'object' || seen.has(value)) return true;",
+    "  seen.add(value);",
+    "  return Object.isFrozen(value) && Object.values(value).every((child) => isDeeplyFrozen(child, seen));",
+    "};",
+    "process.stdout.write(JSON.stringify({ record, immutable: isDeeplyFrozen(record), runnerInvocations: 0 }));"
+  ].join('\\n');
+  await writeFile(runRecordInputPath, JSON.stringify(runnerRecord));
+  await writeFile(freshSaverPath, saverSource);
+  await writeFile(freshLoaderPath, loaderSource);
+  const freshSaveProcess = spawnSync(process.execPath, [freshSaverPath, runArtifactRoot, runRecordInputPath], {
+    cwd: path.dirname(fileURLToPath(import.meta.url)),
+    encoding: 'utf8',
+    env: process.env,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  if (freshSaveProcess.error || freshSaveProcess.status !== 0) {
+    throw new Error([
+      freshSaveProcess.error?.message ?? 'fresh artifact saver failed with exit ' + String(freshSaveProcess.status),
+      freshSaveProcess.stdout,
+      freshSaveProcess.stderr
+    ].filter(Boolean).join('\\n'));
+  }
+  const receipt = JSON.parse(freshSaveProcess.stdout);
+  const freshProcess = spawnSync(process.execPath, [freshLoaderPath, runArtifactRoot, receipt.artifact_id], {
+    cwd: path.dirname(fileURLToPath(import.meta.url)),
+    encoding: 'utf8',
+    env: process.env,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  if (freshProcess.error || freshProcess.status !== 0) {
+    throw new Error([
+      freshProcess.error?.message ?? 'fresh artifact loader failed with exit ' + String(freshProcess.status),
+      freshProcess.stdout,
+      freshProcess.stderr
+    ].filter(Boolean).join('\\n'));
+  }
+  const reloaded = JSON.parse(freshProcess.stdout);
+  if (!isDeepStrictEqual(reloaded.record, runnerRecord)) {
+    throw new Error('fresh process did not reload the exact run record');
+  }
+  if (reloaded.immutable !== true || reloaded.runnerInvocations !== 0) {
+    throw new Error('fresh process reload did not preserve immutability without runner execution');
+  }
+  runArtifact = {
+    artifactId: receipt.artifact_id,
+    artifactVersion: receipt.artifact_version,
+    saveStatus: receipt.status,
+    saveProcessExited: true,
+    freshProcessReload: 'passed',
+    immutable: reloaded.immutable,
+    runnerInvocations: reloaded.runnerInvocations
+  };
+} finally {
+  await rm(freshSaverPath, { force: true });
+  await rm(freshLoaderPath, { force: true });
+  await rm(runRecordInputPath, { force: true });
+  await rm(runArtifactRoot, { recursive: true, force: true });
+}
+
 const [serverEntrypoint, dataDir] = process.argv.slice(2);
 for (const forbiddenName of ['NODE_OPTIONS', 'NODE_PATH', 'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY']) {
   if (process.env[forbiddenName]) throw new Error(\`consumer environment leaked \${forbiddenName}\`);
@@ -343,7 +424,8 @@ try {
         nodeRecords: runnerRecord.nodes,
         directDependencyOutputs: runnerAnswer?.dependency_outputs ?? [],
         immutable: isDeeplyFrozen(runnerRecord)
-      }
+      },
+      runArtifact
     }
   }));
 } finally {

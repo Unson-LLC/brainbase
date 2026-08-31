@@ -32,6 +32,17 @@ related_tasks:
 
 # R1 ローカル不変run artifact store契約
 
+## 2026-08-31 J0 Gateとの責務再整合
+
+Program RoadmapのJ0 Exit Gateに合わせ、単一`JudgmentDAGRunRecord`のcontent-addressed save、検証付きreload、fresh-process readbackは`story-j0-durable-run-artifact-contract`へ移管した。本Storyの既存planning lineageは保持するが、以下の責務だけをR1残存scopeとして扱う。
+
+- run_idのcreate-once binding、conflict policy、artifact list/index
+- cross-process lock、同時writer、fsync phase、fault injection、published-unbound/crash recovery
+- RFC 8785相互運用、schema migration、source-lock migration
+- historical replay、outcome/evaluation、version comparison、calibration
+
+以下に残るsave/reload記述はR1でJ0 primitiveを強化する履歴planning contractであり、J0 Gateの最小実装を再所有しない。J0のpackage consumer E2Eと組織版exact/pinned consumer証拠が完了するまでR1 implementation dependencyは未充足である。
+
 ## 利用者成果
 
 Brainbase OSSの利用者として、J0が完了した同じJudgmentDAGRunRecordを、プロセス終了後も検証可能なcontent-addressed local artifactとして保存し、artifact identityを指定して同じ内容を安全に読み戻したい。これにより、後続のreplayとevaluationが、変更されたrun記録や壊れたファイルを履歴として扱わずに済む。

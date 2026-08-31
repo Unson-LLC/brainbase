@@ -66,7 +66,8 @@ runnerは同期値またはPromiseを返せるが、runtimeはnodeを直列にaw
 
 ## 後続境界
 
-- R1: run recordの永続store、reload、historical replay、version comparison、outcome/evaluation contract。
+- J0 durable artifact contract: J0 Gateに必要なrun recordの最小content-addressed saveと検証付きreload。
+- R1: list/index、競合制御、crash recovery、historical replay、version comparison、outcome/evaluation contractを含む運用artifact store。
 - G0: authority-bound runner、human pending、approval、retry、locking、idempotency、external side effect。
 - C0: organization consumerでのexact package version conformance。
 

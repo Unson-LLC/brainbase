@@ -48,4 +48,4 @@ DAG、run input、runner input、runner output、run recordはJSON-compatible sn
 
 ## 非目標
 
-永続store、historical replay、評価・version比較、権限解決、人やagentの待機、承認、再試行、補償、外部副作用、MCP/CLI command追加、DB、migration、secret、tenant/customer mutation、deploymentはこの仕様に含めない。
+このrunner仕様はfilesystemを読まず、永続化を所有しない。J0 Gateに必要なrun記録の最小content-addressed save / 検証付きreloadは`story-j0-durable-run-artifact-contract`に分離する。list/index、競合制御、crash recovery、historical replay、評価・version比較、権限解決、人やagentの待機、承認、再試行、補償、外部副作用、MCP/CLI command追加、DB、migration、secret、tenant/customer mutation、deploymentはこの仕様に含めない。

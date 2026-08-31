@@ -6,6 +6,24 @@
   "work_package_status": "planned",
   "execution_lane": "contract_preparation",
   "implementation_ready": false,
+  "responsibility_reconciliation": {
+    "date": "2026-08-31",
+    "j0_story": "story-j0-durable-run-artifact-contract",
+    "moved_to_j0": [
+      "single artifact content-addressed save",
+      "integrity-verified reload",
+      "fresh-process readback"
+    ],
+    "retained_in_r1": [
+      "run_id binding and conflict policy",
+      "artifact list and index",
+      "cross-process locking and advanced filesystem fault recovery",
+      "RFC 8785 interoperability and schema migration",
+      "historical replay and outcome/evaluation",
+      "version comparison and calibration"
+    ],
+    "lineage_policy": "Existing R1 clauses remain planning lineage for the enhancement layer and do not expand the J0 Exit Gate."
+  },
   "priority": "high",
   "milestone": "M1-local-dag-kernel",
   "later_consumer_milestone": "M3-replay-and-evaluation",

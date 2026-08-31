@@ -19,6 +19,13 @@ export {
 
 export { executeJudgmentDAG, JudgmentDAGExecutionError } from './judgment-dag-runner.js';
 
+export {
+  JUDGMENT_DAG_RUN_ARTIFACT_VERSION,
+  JudgmentDAGArtifactError,
+  loadJudgmentDAGRunArtifact,
+  saveJudgmentDAGRunArtifact
+} from './judgment-dag-artifact-store.js';
+
 export type {
   JudgmentDAG,
   JudgmentDAGEdge,
@@ -48,3 +55,11 @@ export type {
   JudgmentDAGRunnerRegistration,
   JudgmentDAGRunnerVersion
 } from './judgment-dag-runner.js';
+
+export type {
+  JudgmentDAGArtifactErrorCode,
+  JudgmentDAGRunArtifactId,
+  JudgmentDAGRunArtifactReceipt,
+  LoadJudgmentDAGRunArtifactRequest,
+  SaveJudgmentDAGRunArtifactRequest
+} from './judgment-dag-artifact-store.js';
