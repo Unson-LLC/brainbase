@@ -3,8 +3,8 @@
   "ok": true,
   "command": "deliver",
   "type": "architecture",
-  "input": "/home/salestailor/actions-runner/Unson-LLC-linux-4/_work/brainbase-unson/brainbase-unson/docs/architecture/diagrams/current.archify.json",
-  "output": "/home/salestailor/actions-runner/Unson-LLC-linux-4/_work/brainbase-unson/brainbase-unson/docs/architecture/diagrams/generated/current.html",
+  "input": "/home/salestailor/actions-runner/Unson-LLC-linux/_work/brainbase-unson/brainbase-unson/docs/architecture/diagrams/current.archify.json",
+  "output": "/home/salestailor/actions-runner/Unson-LLC-linux/_work/brainbase-unson/brainbase-unson/docs/architecture/diagrams/generated/current.html",
   "specification": {
     "sha256": "095089e5f52a46ca3382ff34372ed0d4ee9945350fcbf435e239e52003a4dc6c",
     "bytes": 10439
