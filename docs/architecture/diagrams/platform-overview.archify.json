@@ -96,7 +96,7 @@
       "id": "organization-sources",
       "type": "database",
       "label": "Organization Sources of Truth",
-      "sublabel": "PostgreSQL / legacy SQLite / Graph / Git-owned ADR・Spec・Skills",
+      "sublabel": "PostgreSQL・legacy SQLite・Graph・Git SSOT",
       "row": 1,
       "col": 2,
       "size": [270, 90],
