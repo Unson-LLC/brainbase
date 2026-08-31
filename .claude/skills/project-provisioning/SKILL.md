@@ -45,7 +45,7 @@ brainbase project provision resume ppr_xxx
 - Repository Bootstrap: GitHub repositoryの作成
 - Workspace Setup: 個人の`local_path`やclone先
 - Connected-world Onboarding: Drive、議事録、既存コンテンツ
-- `session.create`とSession Launch Pickerはretiredであり、このSkillの入口・受け入れ条件・実装証拠に含めない。
+- サーバー側の`session.create`/static endpointはretired。ブラウザのSession Launch Pickerはretirement完了まで残る下流互換consumerで、Skillの正式入口・受け入れ条件・実装証拠ではない。ただし残存する間は、認証済みruntime Catalog、project ID・明示alias・GitHub repository名の完全一致、明示`local.path`、fail-closed、候補外projectの再追加禁止を防御契約として維持する。
 - タスクとworktreeの作成・所有はCodex app/CLIが担う。Workspace Setupは個人ごとのlocal pathを管理する別Capabilityである。
 - Graph writerとGitHub writerの契約テストはfake/adapter doubleを使う。本番Graph/GitHub writesとproduction E2EはこのSkillの対象外で、実施済みと報告しない。
 

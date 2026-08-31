@@ -517,15 +517,30 @@
     {
       "id": "C-011",
       "type": "boundary",
-      "statement": "session.create and the Session Launch Picker are retired; Codex app/CLI owns task and worktree creation and ownership, while Workspace Setup remains separate from Project Provisioning.",
-      "rationale": "The retired selector is not a supported catalog or provisioning surface, and personal workspace paths must not become organization facts.",
+      "statement": "The server-side session.create/static endpoint is retired; the browser Session Launch Picker remains a residual migration-only compatibility consumer until retirement completes, not a formal Project Catalog or Project Provisioning entry. It must retain authenticated runtime Catalog, exact project ID/explicit alias/GitHub repository matching, explicit local.path, fail-closed behavior, and no requested-project re-insertion; Codex app/CLI owns task and worktree creation and Workspace Setup remains separate.",
+      "rationale": "The residual browser route must remain safe while formal registration stays on Skill/CLI/API/MCP; personal workspace paths must not become organization facts.",
       "origin": {
-        "story_refs": [],
+        "story_refs": [{ "file": "docs/management/stories/active/story-project-provisioning-v1.md", "section": "受け入れ条件" }],
         "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "境界・非対象" }],
-        "code_refs": [],
-        "test_refs": []
+        "code_refs": [
+          { "file": "public/modules/project-mapping.js", "anchor": "getSessionSelectableProjects" },
+          { "file": "public/modules/app/session-creation-mixin.js", "anchor": "_populateSessionProjectSelect" },
+          { "file": "public/modules/app/ui-setup-mixin.js", "anchor": "applyUiSetupMixin" }
+        ],
+        "test_refs": [
+          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "runtime catalogが認証失敗した場合はlegacy projectを選択可能にしない" },
+          { "file": "tests/ui/session-creation-mixin.test.js", "case": "runtime catalog取得失敗時は状態を表示し、抑止されたprojectをstart payloadへ渡さない" },
+          { "file": "tests/ui/ui-setup-mixin.test.js", "case": "Workspace Setupが必要なRegistry projectをdisabled optionとして表示する" },
+          { "file": "tests/unit/project-mapping.test.js", "case": "does not expand a short grant to an unconfigured project prefix" },
+          { "file": "tests/e2e/story-project-runtime-catalog-ux.spec.js", "case": "loaded grant-scoped catalog renders selectable, workspace-missing, and workspace setup states" }
+        ]
       },
-      "verifiable_by": { "test_pattern": [] },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/{ui,unit}/**/*project*.test.js", "must_cover": "runtime Catalog failure remains fail-closed and grant matching remains exact" },
+          { "file_glob": "tests/e2e/story-project-runtime-catalog-ux.spec.js", "must_cover": "residual browser compatibility consumer renders Catalog and failure states without re-inserting suppressed projects" }
+        ]
+      },
       "confidence": 1,
       "first_seen_at": "2026-09-01T00:00:00.000Z",
       "last_revised_at": "2026-09-01T00:00:00.000Z"

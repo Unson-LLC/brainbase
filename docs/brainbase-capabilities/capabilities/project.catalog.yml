@@ -7,6 +7,9 @@ surfaces:
     - brainbase project provision verify <run-id>
   mcp:
     - brainbase_projects
+  compatibility_consumer:
+    - "browser Session Launch Picker (migration-only; not a formal catalog or provisioning entry)"
+    - "Workspace Setup project selector (local-path consumer only)"
   api:
     - GET /api/config/projects
     - GET /api/brainbase
@@ -16,6 +19,9 @@ surfaces:
     - server/routes/brainbase/overview-routes.js
     - mcp/brainbase/src/tools/control-plane-tools.ts
     - mcp/brainbase/src/server.ts
+    - public/modules/project-mapping.js
+    - public/modules/app/session-creation-mixin.js
+    - public/modules/app/ui-setup-mixin.js
   data:
     - runtime-injected configPath (config.yml; resolved by the host environment)
 depends_on:
@@ -33,7 +39,8 @@ visibility_rules:
   - /api/brainbase requires a verified token and carries the authenticated organization into its project catalog summary; unauthenticated callers receive 401.
   - brainbase_projects intersects JWT projectCodes with BRAINBASE_PROJECT_CODES; callers cannot expand scope through tool arguments.
   - brainbase_projects returns status ok, unavailable, or error together with scope and audit evidence.
-  - "`session.create` and the Session Launch Picker are retired; they are not catalog surfaces or acceptance/implementation evidence for this capability."
+  - "The server-side `session.create`/static endpoint is retired and is not a catalog surface or formal entry. The browser Session Launch Picker remains a residual migration-only compatibility consumer until retirement completes; it is not a formal Project Catalog or Project Provisioning entry."
+  - "Until that consumer is retired, it must use the authenticated runtime Catalog, exact project ID/explicit alias/GitHub repository matching, explicit local.path, and fail-closed behavior; it must never re-add a requested project outside the returned candidates."
   - Codex app/CLI owns task and worktree creation and ownership. Workspace Setup owns per-user local paths and is separate from Project Catalog and Project Provisioning.
   - Project Catalogの正本パスはhost runtimeがConfigParserへ注入し、個人の絶対パスへ固定しない。
   - Graph MaintenanceでProjectをbusiness subjectへ投影するprojectは、空でないnameと正の整数catalog_versionを持つ。

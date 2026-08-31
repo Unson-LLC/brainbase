@@ -23,6 +23,10 @@ The expected flow is two lightweight states:
 - **Session Launch Picker**: choose only immutable startup settings: project, AI engine, and Git worktree usage.
 - **Startup Composer**: immediately show the input surface while the pending shell, worktree, and Claude/Codex runtime start in the background.
 
+## Compatibility boundary
+
+This Story describes the residual browser Session Launch Picker as a downstream compatibility consumer during migration. It is not the formal Project Provisioning or Project Catalog entry: project registration uses the Skill/CLI/API/MCP surfaces, and the server-side `session.create`/static endpoint is retired. Until retirement completes, the reachable Picker must consume the authenticated runtime Catalog, allow only exact project ID/explicit alias/GitHub repository grants, require explicit `local.path`, fail closed on auth/transport/Registry failures, and never re-add a requested project outside returned candidates. Workspace Setup and Connected-world Onboarding remain separate.
+
 ## Current PR Requirements
 
 - Replace the inline creation draft with a Session Launch Picker that only contains project, engine, and Git worktree settings.
@@ -40,3 +44,6 @@ The expected flow is two lightweight states:
 - [ ] Startup Composer displays locked metadata for project, engine, and workspace setting.
 - [ ] Typing in Startup Composer while startup is pending queues and persists the prompt; readiness flushes it once.
 - [ ] Startup failure keeps the same composer visible with the user's prompt preserved and retry available.
+- [ ] During migration, the remaining Session Launch Picker reads candidates only from the authenticated runtime Catalog; missing `local.path` is disabled and labeled Workspace Setup required.
+- [ ] Non-empty project grants match only exact project ID, explicit alias, or GitHub repository name; prefix similarity never expands access.
+- [ ] Auth, transport, Registry, or catalog-source failures leave only `general` and never reinsert a requested project outside returned candidates.
