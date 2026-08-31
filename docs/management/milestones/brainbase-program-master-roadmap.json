@@ -340,6 +340,38 @@
       ],
       "program_effect": "promote_to_done",
       "blockers": []
+    },
+    {
+      "program_id": "R1",
+      "captured_at": "2026-08-31",
+      "status": "done",
+      "repository": "Unson-LLC/brainbase",
+      "story_id": "story-r1-replay-evaluation-primitives",
+      "branch": "codex/r1/local-immutable-run-artifact-contract",
+      "base_sha": "18b6401c584e48ae6e7feed319836e74dc3d0910",
+      "head_sha": "330586fac86a89a1de23ae87f9788e386e51963c",
+      "merge_sha": "f73bfb41278bf8983c1d23dc8cb5be6c0e3379a1",
+      "pull_request": 493,
+      "vibepro_version": "0.2.0-beta.17",
+      "exit_gate_evidence": {
+        "historical_context_replay": "passed_at_exact_merged_public_head",
+        "version_comparison_without_history_rewrite": "passed_at_exact_merged_public_head",
+        "evaluation_event_set_immutability": "passed_at_exact_merged_public_head"
+      },
+      "verification": [
+        "focused: 3 files / 41 tests passed",
+        "typecheck: passed",
+        "build: passed",
+        "full: 49 files / 478 tests passed",
+        "e2e: 2 files / 2 tests passed",
+        "packed tarball consumer: 1/1 passed after install, exercising historical and candidate replay, outcome attachment, immutable event set and comparison",
+        "public PR #493 required check validate-and-publish passed before merge",
+        "independent boundary delta review: PASS after two P1 fixes; blocking findings 0",
+        "independent Exit Gate review: all three R1 gates passed; blocking findings 0; unknown, partial and skipped evidence were not counted as success",
+        "npm publication, deploy, production changes and permission or contract changes were not performed"
+      ],
+      "program_effect": "promote_to_done",
+      "blockers": []
     }
   ],
   "work_packages": [
