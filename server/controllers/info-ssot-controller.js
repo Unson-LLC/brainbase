@@ -407,9 +407,12 @@ export class InfoSSOTController {
             const entityType = req.query.type || null;
             const query = req.query.query || null;
             const limit = req.query.limit || null;
+            const includeMerged = String(req.query.includeMerged || req.query.include_merged || '').toLowerCase() === 'true';
+            const options = { id, ids, projectCode, entityType, query, limit };
+            if (includeMerged) options.includeMerged = true;
             const records = await this.infoSSOTService.listGraphEntities(
                 access,
-                { id, ids, projectCode, entityType, query, limit }
+                options
             );
             res.json({ records });
         } catch (error) {

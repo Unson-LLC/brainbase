@@ -419,6 +419,91 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(rows.map((row) => row.id)).toEqual(['per_canonical']);
     });
 
+    it('merged personのtyped getはpayloadのcanonical_entity_idで正本へ解決する', async () => {
+        const { service } = buildService();
+        const byIdsSpy = vi.spyOn(service, 'fetchGraphEntitiesByIds')
+            .mockResolvedValueOnce([{
+                id: 'per_merged',
+                entity_type: 'person',
+                payload: { status: 'merged', canonical_entity_id: 'per_canonical' }
+            }])
+            .mockResolvedValueOnce([{
+                id: 'per_canonical',
+                entity_type: 'person',
+                payload: { name: '佐藤 圭吾' }
+            }]);
+        vi.spyOn(service, 'fetchGraphAliasTargetsByIds').mockResolvedValue([]);
+
+        const rows = await service.listGraphEntities(accessContext, {
+            id: 'per_merged',
+            projectCode: 'brainbase',
+            entityType: 'person'
+        });
+
+        expect(rows).toEqual([{
+            id: 'per_canonical',
+            entity_type: 'person',
+            payload: { name: '佐藤 圭吾' }
+        }]);
+        expect(byIdsSpy).toHaveBeenNthCalledWith(2, expect.anything(), accessContext, {
+            ids: ['per_canonical'],
+            projectCode: 'brainbase'
+        });
+    });
+
+    it('listGraphEntities呼び出し時_includeMergedをGraph一覧へ渡す', async () => {
+        const { service } = buildService();
+        const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([]);
+
+        await service.listGraphEntities(accessContext, {
+            projectCode: 'brainbase',
+            entityType: 'person',
+            includeMerged: true
+        });
+
+        expect(listSpy).toHaveBeenCalledWith(expect.anything(), accessContext, {
+            projectCode: 'brainbase',
+            entityType: 'person',
+            query: undefined,
+            limit: undefined,
+            includeMerged: true
+        });
+    });
+
+    it.each([
+        [undefined, false],
+        [true, true]
+    ])('Graph entity一覧のmerged除外フラグをincludeMerged=%sでSQLへ渡す', async (includeMerged, expected) => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValue({ rows: [] });
+
+        await service.fetchGraphEntities(client, accessContext, {
+            projectCode: 'brainbase',
+            entityType: 'person',
+            includeMerged
+        });
+
+        const [sql, params] = client.query.mock.calls[0];
+        expect(sql).toContain("LOWER(COALESCE(ge.payload->>'status', '')) <> 'merged'");
+        expect(params[7]).toBe(expected);
+        expect(params[8]).toBe(200);
+    });
+
+    it('id指定の通常一覧はmerged personを除外する', async () => {
+        const { service } = buildService();
+        vi.spyOn(service, 'fetchGraphEntitiesByIds').mockResolvedValue([
+            { id: 'per_merged', entity_type: 'person', payload: { status: 'merged' } },
+            { id: 'per_active', entity_type: 'person', payload: { status: 'active' } }
+        ]);
+
+        const rows = await service.listGraphEntities(accessContext, {
+            ids: ['per_merged', 'per_active'],
+            projectCode: 'brainbase'
+        });
+
+        expect(rows.map((row) => row.id)).toEqual(['per_active']);
+    });
+
     it('org/personの型付き一覧はalias解決を行わずcanonical型だけを列挙する', async () => {
         const { service } = buildService();
         const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([
@@ -481,6 +566,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             1,
             null,
             null,
+            false,
             20
         ]);
     });
