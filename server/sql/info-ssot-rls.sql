@@ -508,6 +508,11 @@ CREATE POLICY info_graph_edges_select ON graph_edges
     AND (
       rel_type = 'member_of'
       OR app_graph_edge_scope_visible(from_id, to_id, rel_type, payload, role_min, sensitivity)
+      -- Graph maintenance loads source-project rows for forensic validation,
+      -- then redacts every unresolved/inaccessible endpoint before returning
+      -- the snapshot. Ordinary Graph reads never set this transaction-local
+      -- flag and remain subject to endpoint visibility.
+      OR current_setting('app.graph_maintenance_mode', true) = 'true'
     )
   );
 
@@ -560,6 +565,9 @@ CREATE POLICY info_graph_edges_update ON graph_edges
     AND (
       rel_type = 'member_of'
       OR app_graph_edge_scope_visible(from_id, to_id, rel_type, payload, role_min, sensitivity)
+      -- Permit maintenance transactions to lock legacy rows for a stable
+      -- snapshot. WITH CHECK below still rejects an invalid post-update row.
+      OR current_setting('app.graph_maintenance_mode', true) = 'true'
     )
     AND app_graph_edge_source_project_matches(from_id, rel_type, project_id, payload)
   )

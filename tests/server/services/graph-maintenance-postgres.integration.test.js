@@ -249,8 +249,8 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             )).resolves.toMatchObject({
                 valid: true,
                 suppression_summary: {
-                    edge_count: 1,
-                    reasons: { unresolved_or_inaccessible_endpoint: 1 }
+                    edge_count: 2,
+                    reasons: { unresolved_or_inaccessible_endpoint: 2 }
                 }
             });
         } finally {
