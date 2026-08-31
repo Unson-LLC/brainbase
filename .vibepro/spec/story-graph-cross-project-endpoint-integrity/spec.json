@@ -1,0 +1,318 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-cross-project-endpoint-integrity",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "authenticated access context",
+        "projects.organization_id"
+      ],
+      "resolution_point": "GraphMaintenanceService.loadSnapshot",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "snapshot export",
+        "snapshot validation",
+        "snapshot readback"
+      ],
+      "verified_surfaces": [
+        "snapshot export",
+        "snapshot validation",
+        "snapshot readback"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Graph endpoint reference metadata",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_code",
+        "trust_zone": "Brainbase PostgreSQL maintenance transaction",
+        "residue_policy": "metadata-only reference is regenerated from canonical Graph rows",
+        "data_owner": "Brainbase Graph entity in its owning project",
+        "credential_scope": "organization and explicit project codes"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "organization and project scoped access context",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Graph entity in its owning project"
+      ],
+      "residency": "tenant-partitioned Brainbase PostgreSQL",
+      "migration": "no entity or edge data migration; snapshot projection only",
+      "rollback": "remove reference projection behavior and retain canonical Graph rows"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "inaccessible_project_endpoint",
+      "missing_endpoint",
+      "legacy_external_endpoint_without_scope_marker"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "projects.organization_id",
+        "graph_entities.project_id",
+        "graph_edges.project_id"
+      ],
+      "boundary_edges": [
+        "same-organization cross-project endpoint reference",
+        "cross-tenant decision governs product"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": [
+          "snapshot export",
+          "snapshot validation",
+          "snapshot readback"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate",
+          "inaccessible_project_endpoint",
+          "missing_endpoint",
+          "legacy_external_endpoint_without_scope_marker"
+        ],
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "Graph maintenance source and explicitly accessible endpoint projects",
+              "tenant_key_source": "authenticated organization_id and projects.organization_id",
+              "trust_zone": "Brainbase PostgreSQL maintenance transaction",
+              "data_owner": "Brainbase Graph entity in its owning project"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "same organization plus explicit project access",
+              "tenant_key_source": "projects.organization_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "organization and explicit project codes",
+              "connection_mode": "pooled PostgreSQL with access preflight",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "同一organizationかつcallerが参照先projectへ明示アクセスできる跨project endpointをmetadata-only external entityとして解決する。",
+      "rationale": "正式Entityへの参照をproject単位Snapshotでfalse orphanにしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-001"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "loadSnapshot"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "同一organizationで参照権限のある跨project endpointをmetadata-only参照として解決する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-31T00:38:42.012Z",
+      "last_revised_at": "2026-08-31T00:38:42.012Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "権限外・欠損・別organizationの通常endpointとEdgeをSnapshotへ公開せず、識別子を含まない抑止件数と理由を返す。",
+      "rationale": "参照整合性の修復をtenant境界の緩和にしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "loadSnapshot"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "同一organizationでも参照先projectが権限外ならEdgeとendpointを公開しない"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-31T00:38:42.012Z",
+      "last_revised_at": "2026-08-31T00:38:42.012Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "reference_scopeがcross_tenantまたは未指定のexternal endpointには既存のcanonical governs制約を適用する。",
+      "rationale": "旧Snapshot互換性を維持しながらcross-tenant制約をfail closedに保つ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-engine.js",
+            "anchor": "validateGraphSnapshot"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-engine.test.js",
+            "case": "cross-tenant markerとmarkerなし旧Snapshotは非canonical Edgeを拒否する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-31T00:38:42.012Z",
+      "last_revised_at": "2026-08-31T00:38:42.012Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "same-organization external entityはpayloadを持たず、entitiesと変更可能project scopeを広げない。",
+      "rationale": "参照用metadataと変更対象の正本を分離する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-002"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "loadSnapshot"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "同一organizationで参照権限のある跨project endpointをmetadata-only参照として解決する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-31T00:38:42.012Z",
+      "last_revised_at": "2026-08-31T00:38:42.012Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "Snapshot image再読込でexternal endpointのorganization、project access、versionを再検証しhash driftへ反映する。",
+      "rationale": "PlanとApplyの間の参照先driftを見逃さない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-005"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "loadExternalEntitiesFromImage"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "same-organization external endpointのreadbackはGMでも許可しscope markerを維持する"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-31T00:38:42.012Z",
+      "last_revised_at": "2026-08-31T00:38:42.012Z"
+    }
+  ],
+  "generated_at": "2026-08-31T00:38:42.011Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": null
+}

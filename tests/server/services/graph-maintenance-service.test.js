@@ -5,6 +5,29 @@ import { hashGraphSnapshot, validateGraphSnapshot } from '../../../server/servic
 const service = new GraphMaintenanceService({ infoSSOTService: {} });
 
 describe('GraphMaintenanceService authorization', () => {
+    it('Plan差分はvalidatorのorphan categoryを孤立件数へ集計する', () => {
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [{ id: 'entity_a', entity_type: 'person', project_code: 'brainbase', payload: {}, version: 1 }],
+            edges: [{
+                id: 'edge_orphan', from_id: 'entity_a', to_id: 'missing_entity', rel_type: 'knows',
+                project_code: 'brainbase', payload: {}, version: 1
+            }]
+        };
+        const plan = service.formatPlan({
+            id: 'plan_orphan_count', status: 'planned', snapshot_id: 'snapshot_1',
+            base_snapshot_hash: 'before', after_snapshot_hash: 'after', reason: 'count regression',
+            idempotency_key: 'count-regression', operations: [], before_snapshot: snapshot,
+            after_snapshot: structuredClone(snapshot)
+        });
+
+        expect(plan.diff_summary.validation).toMatchObject({
+            orphan_count_before: 1,
+            orphan_count_after: 1,
+            orphan_count_delta: 0
+        });
+    });
+
     it('Project subject metadataを認証済みCatalog正本へ束縛する', async () => {
         const configParser = {
             checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } })),
@@ -1009,6 +1032,11 @@ describe('GraphMaintenanceService authorization', () => {
 
         expect(snapshot.edges).toEqual([]);
         expect(snapshot).not.toHaveProperty('external_entities');
+        expect(snapshot.suppression_summary).toEqual({
+            edge_count: 1,
+            reasons: { unresolved_or_inaccessible_endpoint: 1 }
+        });
+        expect(JSON.stringify(snapshot)).not.toContain('person_hidden');
     });
 
     it('通常Edgeの別organization endpointはorganization境界で解決せず公開しない', async () => {
@@ -1042,6 +1070,37 @@ describe('GraphMaintenanceService authorization', () => {
         expect(endpointQuery?.[1]).toEqual([['person_other_org'], 'org_1', access.projectCodes]);
         expect(snapshot.edges).toEqual([]);
         expect(snapshot).not.toHaveProperty('external_entities');
+        expect(snapshot.suppression_summary).toEqual({
+            edge_count: 1,
+            reasons: { unresolved_or_inaccessible_endpoint: 1 }
+        });
+        expect(JSON.stringify(snapshot)).not.toContain('person_other_org');
+    });
+
+    it('canonical cross-tenant endpointが欠損していればSnapshot全体をfail closedにする', async () => {
+        const localDecision = {
+            id: 'decision_local', entity_type: 'decision', project_code: 'brainbase', payload: {},
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1
+        };
+        const edge = {
+            id: 'edge_missing_subject', from_id: localDecision.id, to_id: 'product_missing', rel_type: 'governs',
+            project_code: 'brainbase', payload: { cross_tenant: true, target_project_code: 'aitle' },
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localDecision] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+
+        await expect(scoped.loadSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'aitle'], role: 'ceo'
+        }, 'brainbase')).rejects.toThrow('Decision subject target is missing or inaccessible');
     });
 
     it('same-organization external endpointのreadbackはGMでも許可しscope markerを維持する', async () => {

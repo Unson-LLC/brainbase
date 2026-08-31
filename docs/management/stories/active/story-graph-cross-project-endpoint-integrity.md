@@ -14,7 +14,7 @@ Graph管理者として、プロジェクト単位のSnapshotを検証すると�
 
 - [ ] AC-001: callerが参照先projectへ明示アクセスでき、endpointがsourceと同じorganizationに属する場合、通常EdgeをSnapshotへ保持し、構造検証で孤立扱いしない。
 - [ ] AC-002: 跨project endpointはpayloadを複製せず、`reference_scope: same_organization`を持つmetadata-only `external_entities`として表現する。`entities`と変更可能project scopeは暗黙に広げない。
-- [ ] AC-003: 参照先projectが権限外、endpointが欠損、またはorganizationが異なる通常EdgeはSnapshotへ公開しない。
+- [ ] AC-003: 参照先projectが権限外、endpointが欠損、またはorganizationが異なる通常EdgeはSnapshotへ公開せず、識別子を含まない抑止件数と理由を返す。
 - [ ] AC-004: 既存のcanonical cross-tenant `governs`契約は維持し、旧Snapshotのscope markerなし`external_entities`もcross-tenantとしてfail closedに検証する。
 - [ ] AC-005: Snapshot再読込時にsame-organization参照をorganization・project access・versionまで再検証し、driftをhashへ反映する。
 
@@ -22,6 +22,7 @@ Graph管理者として、プロジェクト単位のSnapshotを検証すると�
 
 - 同一組織・権限ありの跨project参照が`orphans: 0`になる。
 - 権限外または欠損endpointを持つEdgeは公開されない。
+- 抑止された通常Edgeは、endpoint IDを漏らさず件数と理由だけを監査できる。
 - 非canonical cross-tenant Edgeは`cross_tenant_edge`のまま拒否される。
 - markerなしの旧cross-tenant Snapshot互換性を維持する。
 

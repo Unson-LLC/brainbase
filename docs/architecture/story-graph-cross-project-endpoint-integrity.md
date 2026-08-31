@@ -11,9 +11,10 @@
 1. `loadSnapshot`は明示指定されたprojectのEntityとEdgeを取得する。
 2. Edge endpointのうち`entities`にないIDを、callerのproject scopeかつsourceと同一organizationに限定してmetadata-onlyで取得する。
 3. 両endpointが`entities`、same-organization参照、または既存のcanonical cross-tenant参照として解決できるEdgeだけを残す。
-4. same-organization参照とcross-tenant参照をIDで重複排除し、`external_entities`へ安定順で収録する。
-5. `validateGraphSnapshot`はsame-organization参照を通常の参照整合性にだけ使用し、cross-tenant参照にだけcanonical `governs`制約を適用する。
-6. Snapshot imageの再読込では、same-organization参照は同一organizationとproject access、cross-tenant参照は従来どおりCEO・別organization・両project accessを再確認する。
+4. 除外した通常Edgeは、endpoint ID・project・organizationを含まない`suppression_summary`の件数と理由で監査可能にする。
+5. same-organization参照とcross-tenant参照をIDで重複排除し、`external_entities`へ安定順で収録する。
+6. `validateGraphSnapshot`はsame-organization参照を通常の参照整合性にだけ使用し、cross-tenant参照にだけcanonical `governs`制約を適用する。
+7. Snapshot imageの再読込では、same-organization参照は同一organizationとproject access、cross-tenant参照は従来どおりCEO・別organization・両project accessを再確認する。
 
 ## 不変条件
 
@@ -23,6 +24,8 @@
 - cross-tenant参照は`decision -> product / governs`、CEO、双方project scope、restricted sensitivityの既存契約を維持する。
 - markerなしexternal endpointはcross-tenantとして扱い、安全側へ倒す。
 - 欠損・権限外endpointを持つEdgeは、修復前データを削除せずSnapshotから隠す。
+- 隠した通常Edgeの監査証跡は集約値だけとし、endpoint識別子や所属scopeを漏らさない。
+- canonical cross-tenant endpointが欠損・権限外ならSnapshot全体をfail closedにする。
 
 ## 採用しなかった案
 

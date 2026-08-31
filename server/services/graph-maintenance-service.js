@@ -265,7 +265,8 @@ function changedRecords(before = [], after = [], limit = 100) {
 function planDiffSummary(before, after) {
     const beforeValidation = validateGraphSnapshot(before);
     const afterValidation = validateGraphSnapshot(after);
-    const count = (validation, category) => validation.issues.filter((issue) => issue.category === category).length;
+    const count = (validation, ...categories) => validation.issues
+        .filter((issue) => categories.includes(issue.category)).length;
     return {
         entities: changedRecords(before.entities, after.entities),
         edges: changedRecords(before.edges, after.edges),
@@ -273,9 +274,10 @@ function planDiffSummary(before, after) {
             before_valid: beforeValidation.valid, after_valid: afterValidation.valid,
             issue_count_before: beforeValidation.issues.length, issue_count_after: afterValidation.issues.length,
             issue_count_delta: afterValidation.issues.length - beforeValidation.issues.length,
-            orphan_count_before: count(beforeValidation, 'orphan_entity'),
-            orphan_count_after: count(afterValidation, 'orphan_entity'),
-            orphan_count_delta: count(afterValidation, 'orphan_entity') - count(beforeValidation, 'orphan_entity')
+            orphan_count_before: count(beforeValidation, 'orphan', 'orphan_entity'),
+            orphan_count_after: count(afterValidation, 'orphan', 'orphan_entity'),
+            orphan_count_delta: count(afterValidation, 'orphan', 'orphan_entity')
+                - count(beforeValidation, 'orphan', 'orphan_entity')
         }
     };
 }
@@ -549,6 +551,13 @@ export class GraphMaintenanceService {
         const snapshot = { project_code: projectCode, entities: entityResult.rows, edges: visibleEdges };
         if (externalEntitiesById.size) {
             snapshot.external_entities = [...externalEntitiesById.values()].sort((a, b) => a.id.localeCompare(b.id));
+        }
+        const suppressedEdgeCount = edgeResult.rows.length - visibleEdges.length;
+        if (suppressedEdgeCount > 0) {
+            snapshot.suppression_summary = {
+                edge_count: suppressedEdgeCount,
+                reasons: { unresolved_or_inaccessible_endpoint: suppressedEdgeCount }
+            };
         }
         snapshot.hash = hashGraphSnapshot(snapshot);
         return { project, snapshot };
