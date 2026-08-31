@@ -32,6 +32,15 @@ function event(type, payload) {
     return JSON.stringify({ type, payload });
 }
 
+function structuredStopState(status, { pendingSafeWork = false, runtimeReasonCode = null } = {}) {
+    return `<!-- brainbase-stop-state:${JSON.stringify({
+        schema_version: 'brainbase-stop-state-v1',
+        status,
+        pending_safe_work: pendingSafeWork,
+        runtime_reason_code: runtimeReasonCode
+    })} -->`;
+}
+
 function validReceipt(args) {
     return {
         resolution_id: 'jr_host_test',
@@ -1437,6 +1446,174 @@ describe('Codex Judgment Resolver Host', () => {
 
         expect(result.output).toMatchObject({ decision: 'block' });
         expect(result.output.reason).toContain('Hostが記録していない🛠️監査行を削除する');
+        expect(result.final).toBeNull();
+    });
+
+    it('runtime 2.3の実装turnは本文ではなく構造化pending状態から未完了を差し戻す', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-structured-pending', turn_id: 'turn-structured-pending', prompt: '原因を調査して付け替えてよ', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            runtime_version: 'judgment-runtime-2.3.0',
+            classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '検証器の参照解決を確認しました。',
+                structuredStopState('pending', { pendingSafeWork: true })
+            ].join('\n')
+        }, { env });
+
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.output.systemMessage).toBe(
+            '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'
+        );
+        expect(result.continuation.autonomy_continuation).toMatchObject({
+            trigger_code: 'unfinished_safe_work', status: 'requested'
+        });
+    });
+
+    it('runtime 2.3のcompletedは同一episodeの実行証跡で裏付け、本文中の質問語では誤判定しない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-structured-complete', turn_id: 'turn-structured-complete', prompt: '検出器を修正して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            runtime_version: 'judgment-runtime-2.3.0',
+            classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+        const eventEntry = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'apply_patch', tool_use_id: 'tool-apply-patch',
+            tool_input: { patch_digest: 'safe-test-value' },
+            tool_response: {}
+        }, { env });
+        expect(eventEntry).toMatchObject({ event_kind: 'execution', success: true, display_line: null });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '「確認しますか？」という文言も回帰テストに含め、実装と検証を完了しました。',
+                structuredStopState('completed')
+            ].join('\n')
+        }, { env });
+
+        expect(result.final).toMatchObject({
+            completion_status: 'complete', autonomy_compliance_status: 'continued', event_count: 1,
+            stop_state: { status: 'completed', evidence_event_count: 1 }
+        });
+    });
+
+    it('runtime 2.3のcompletedは非zero終了の実行を成功証跡として扱わない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-structured-failed', turn_id: 'turn-structured-failed', prompt: '検出器を修正して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            runtime_version: 'judgment-runtime-2.3.0',
+            classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+        const eventEntry = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'exec_command', tool_use_id: 'tool-failed-command',
+            tool_input: { command_digest: 'safe-test-value' },
+            tool_response: { exit_code: 1 }
+        }, { env });
+        expect(eventEntry).toMatchObject({ event_kind: 'execution', success: false });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '修正を完了しました。',
+                structuredStopState('completed')
+            ].join('\n')
+        }, { env });
+
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.continuation.autonomy_continuation).toMatchObject({
+            trigger_code: 'unfinished_safe_work', status: 'requested'
+        });
+        expect(result.final).toBeNull();
+    });
+
+    it('runtime 2.3の実装turnは構造化状態の欠落を旧キーワード判定へ戻さない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-structured-missing', turn_id: 'turn-structured-missing', prompt: '修正して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            runtime_version: 'judgment-runtime-2.3.0',
+            classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '修正とテストを完了しました。'
+            ].join('\n')
+        }, { env });
+
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.output.reason).toContain('brainbase-stop-state-v1');
         expect(result.final).toBeNull();
     });
 

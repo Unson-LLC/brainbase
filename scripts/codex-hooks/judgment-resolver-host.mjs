@@ -88,6 +88,7 @@ const AUTONOMY_REASON_CODES = new Set([
     'routine_in_scope', 'classification_missing', 'policy_conflict', 'risk_or_external'
 ]);
 const AUTONOMY_MARKER_PATTERN = /^⚠️ 確認が必要\[([a-z_]+)\]:\s*\S/u;
+const STRUCTURED_STOP_STATE_PATTERN = /^<!-- brainbase-stop-state:(\{.*\}) -->$/u;
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -833,7 +834,12 @@ function validCallToolResultEnvelope(value) {
     });
 }
 
-function responseSucceeded(response, { allowTransportSuccess = false, allowExplicitSuccess = true, semanticSuccess = false } = {}) {
+function responseSucceeded(response, {
+    allowTransportSuccess = false,
+    allowExplicitSuccess = true,
+    allowImplicitSuccess = false,
+    semanticSuccess = false
+} = {}) {
     const items = nestedRecords(response);
     if (items.length === 0) return false;
     const failed = items.some((item) => (
@@ -841,6 +847,7 @@ function responseSucceeded(response, { allowTransportSuccess = false, allowExpli
         || item.is_error === true
         || item.ok === false
         || item.success === false
+        || (Number.isSafeInteger(item.exit_code) && item.exit_code !== 0)
         || ['error', 'unavailable', 'failed', 'failure'].includes(String(item.status).toLowerCase())
         || (item.error !== undefined && item.error !== null && item.error !== false && item.status !== 'ok')
     ));
@@ -850,6 +857,7 @@ function responseSucceeded(response, { allowTransportSuccess = false, allowExpli
         (allowTransportSuccess && validCallToolResultEnvelope(item.Ok))
         || (allowTransportSuccess && validCallToolResultEnvelope(item))
         || (allowExplicitSuccess && (item.isError === false || item.is_error === false || item.ok === true || item.success === true || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())))
+        || (allowImplicitSuccess && response !== null && response !== undefined)
     ));
 }
 
@@ -961,18 +969,25 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
     const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : '';
     const toolUseId = typeof payload?.tool_use_id === 'string' ? payload.tool_use_id : '';
-    if (!/^mcp__brainbase__/u.test(toolName)) return null;
-    if (!identity) throw new Error('judgment_episode_identity_missing');
-    if (!toolUseId) throw new Error('judgment_tool_use_id_missing');
+    const brainbaseTool = /^mcp__brainbase__/u.test(toolName);
+    if (!toolName) return null;
+    if (!identity) {
+        if (brainbaseTool) throw new Error('judgment_episode_identity_missing');
+        return null;
+    }
+    if (!toolUseId) {
+        if (brainbaseTool) throw new Error('judgment_tool_use_id_missing');
+        return null;
+    }
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     const inputValue = payload.tool_input === undefined ? null : payload.tool_input;
     const responseValue = payload.tool_response === undefined ? null : payload.tool_response;
     const inputDigest = sha256(canonicalJson(inputValue));
     const responseDigest = sha256(canonicalJson(responseValue));
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
-    const callScope = toolCallScope(toolName, inputValue);
+    const callScope = brainbaseTool ? toolCallScope(toolName, inputValue) : 'tool execution';
     const resultCount = responseCount(responseValue);
-    const fallbackKind = eventKind(toolName);
+    const fallbackKind = brainbaseTool ? eventKind(toolName) : 'execution';
     const retrieval = ['search', 'retrieve'].includes(fallbackKind)
         ? retrievalAudit(responseValue)
         : null;
@@ -981,7 +996,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
     const success = responseSucceeded(responseValue, {
         allowTransportSuccess: ['search', 'retrieve'].includes(kind),
-        allowExplicitSuccess: !['write', 'route'].includes(kind),
+        allowExplicitSuccess: !['write', 'route'].includes(kind) || !brainbaseTool,
+        allowImplicitSuccess: !brainbaseTool,
         semanticSuccess: kind === 'route'
             ? resolution?.status === 'resolved'
             : Boolean(taskResult)
@@ -1007,7 +1023,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             : kind === 'retrieve'
                 ? '取得'
                 : '呼出';
-    const displayLine = kind === 'route'
+    const displayLine = !brainbaseTool
+        ? null
+        : kind === 'route'
         ? routeDisplayLine(inputValue, resolution, success)
         : `${success ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success
             ? retrievalResult === 'no_result'
@@ -1019,6 +1037,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     return withEpisodeTransitionLock(paths, () => {
         const episode = existingEpisode(payload, env);
         if (!episode) {
+            if (!brainbaseTool) return null;
             mkdirSync(paths.auditOrphanEvents, { recursive: true, mode: 0o700 });
             const target = join(paths.auditOrphanEvents, `${sha256(toolUseId)}.json`);
             const marker = {
@@ -1210,7 +1229,8 @@ function verifyFinalStopRepair(finalized, continuationMarker, auditContract) {
 
 function requiredAuditLines(episode, events, continuationMarker = null) {
     const auditContract = episodeAuditContract(episode);
-    const zeroCallLines = events.length === 0 && typeof auditContract?.zero_call_display_line === 'string'
+    const brainbaseEvents = events.filter((event) => typeof event.display_line === 'string');
+    const zeroCallLines = brainbaseEvents.length === 0 && typeof auditContract?.zero_call_display_line === 'string'
         ? [auditContract.zero_call_display_line]
         : [];
     const autonomyContinuation = verifiedAutonomyContinuation(continuationMarker, auditContract);
@@ -1226,7 +1246,7 @@ function requiredAuditLines(episode, events, continuationMarker = null) {
     return [
         episode.owner_audit.display_line,
         ...zeroCallLines,
-        ...events.map((event) => event.display_line),
+        ...brainbaseEvents.map((event) => event.display_line),
         ...continuationLines,
         ...stopRepairLines
     ];
@@ -1280,13 +1300,53 @@ function normalizedAnswerBody(answer, expectedLines) {
     const auditLines = new Set(expectedLines.map((line) => line.replace(/[ \t]+$/u, '')));
     const bodyLines = answer.replaceAll('\r\n', '\n').split('\n')
         .map((line) => line.replace(/[ \t]+$/u, ''))
-        .filter((line) => !auditLines.has(line));
+        .filter((line) => !auditLines.has(line))
+        .filter((line) => !STRUCTURED_STOP_STATE_PATTERN.test(line));
     while (bodyLines.length > 0 && (
         bodyLines[0] === ''
         || /^(?:🧠 判断参照:|📚 Brainbase|⚠️ Brainbase|🔁 |🛠️ )/u.test(bodyLines[0])
     )) bodyLines.shift();
     while (bodyLines.at(-1) === '') bodyLines.pop();
     return bodyLines.join('\n');
+}
+
+function runtimeAtLeast(receipt, major, minor) {
+    const match = String(receipt?.runtime_version ?? '').match(/^judgment-runtime-(\d+)\.(\d+)\.(\d+)$/u);
+    if (!match) return false;
+    const actualMajor = Number(match[1]);
+    const actualMinor = Number(match[2]);
+    return actualMajor > major || (actualMajor === major && actualMinor >= minor);
+}
+
+function structuredStopStateRequired(receipt) {
+    const classification = record(receipt?.classification);
+    return runtimeAtLeast(receipt, 2, 3)
+        && ['implement', 'operate'].includes(classification?.intent)
+        && ['write', 'external'].includes(classification?.action_kind);
+}
+
+function parseStructuredStopState(answer) {
+    if (typeof answer !== 'string') return { state: null, error: 'missing' };
+    const matches = answer.replaceAll('\r\n', '\n').split('\n')
+        .map((line) => line.trim())
+        .filter((line) => STRUCTURED_STOP_STATE_PATTERN.test(line));
+    if (matches.length !== 1) return { state: null, error: matches.length === 0 ? 'missing' : 'duplicate' };
+    let state;
+    try {
+        state = JSON.parse(matches[0].match(STRUCTURED_STOP_STATE_PATTERN)[1]);
+    } catch {
+        return { state: null, error: 'invalid_json' };
+    }
+    const expectedKeys = ['pending_safe_work', 'runtime_reason_code', 'schema_version', 'status'];
+    if (!record(state)
+        || Object.keys(state).sort().join(',') !== expectedKeys.sort().join(',')
+        || state.schema_version !== 'brainbase-stop-state-v1'
+        || !['completed', 'pending', 'waiting_human'].includes(state.status)
+        || typeof state.pending_safe_work !== 'boolean'
+        || !(state.runtime_reason_code === null || typeof state.runtime_reason_code === 'string')) {
+        return { state: null, error: 'invalid_schema' };
+    }
+    return { state, error: null };
 }
 
 function requestsUserInput(body) {
@@ -1313,13 +1373,56 @@ function leavesRequestedWorkUnfinished(body, receipt) {
         || /(?:未実施|未完了|まだ[^。\n]{0,60}(?:していません|できていません)|作業が残っています)/u.test(body);
 }
 
-function autonomyAnswerCompliance(answer, expectedLines, receipt) {
+function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
     const contract = verifyAutonomyContract(receipt);
     if (!contract) return { status: 'legacy', violation: null };
     const body = normalizedAnswerBody(answer, expectedLines) ?? '';
     const bodyLines = body.split('\n').map((line) => line.trim()).filter(Boolean);
     const markerMatch = bodyLines[0]?.match(AUTONOMY_MARKER_PATTERN) ?? null;
     const markerReason = markerMatch?.[1] ?? null;
+    if (structuredStopStateRequired(receipt)) {
+        const parsed = parseStructuredStopState(answer);
+        const state = parsed.state;
+        const stateInstruction = '最終回答の末尾にbrainbase-stop-state-v1の非表示状態を1件だけ置き、completed・pending・waiting_humanの実行状態を正確に示す';
+        if (!state) {
+            return {
+                status: null,
+                violation: `${stateInstruction}（形式: <!-- brainbase-stop-state:{"schema_version":"brainbase-stop-state-v1","status":"completed","pending_safe_work":false,"runtime_reason_code":null} -->）`,
+                triggerCode: 'unfinished_safe_work',
+                stopStateError: parsed.error
+            };
+        }
+        if (state.status === 'pending' || state.pending_safe_work) {
+            return {
+                status: null,
+                violation: 'Brainbase自律判断はcontinueです。構造化状態が未完了のため、安全な範囲の実装・操作・検証まで継続する',
+                triggerCode: 'unfinished_safe_work',
+                stopState: state
+            };
+        }
+        if (state.status === 'waiting_human') {
+            if (!contract.allowedRuntimeReasons.includes(state.runtime_reason_code)
+                || markerReason !== state.runtime_reason_code) {
+                return { status: null, violation: '構造化waiting_human状態と許可された実行時確認理由を正確な確認行で一致させる', stopState: state };
+            }
+            return { status: 'runtime_escalated', violation: null, stopState: state };
+        }
+        const successfulEvidence = events.filter((event) => event.success);
+        if (state.runtime_reason_code !== null || successfulEvidence.length === 0) {
+            return {
+                status: null,
+                violation: `${stateInstruction}。completedは同一episodeに成功したPostToolUse実行証跡がある場合だけ使用する`,
+                triggerCode: 'unfinished_safe_work',
+                stopState: state
+            };
+        }
+        return {
+            status: 'continued',
+            violation: null,
+            stopState: state,
+            evidenceEventCount: successfulEvidence.length
+        };
+    }
     const asks = requestsUserInput(body);
     const unfinishedSafeWork = leavesRequestedWorkUnfinished(body, receipt);
 
@@ -1761,7 +1864,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines)
         || unauthorizedContinuationAudit
         || unauthorizedStopRepairAudit;
-    const autonomyCompliance = autonomyAnswerCompliance(answer, expectedAuditLines, episode.initial_route_receipt);
+    const autonomyCompliance = autonomyAnswerCompliance(answer, expectedAuditLines, episode.initial_route_receipt, events);
     const missingAutonomyCompliance = autonomyCompliance.violation !== null;
     const auditContract = episodeAuditContract(episode);
     const autonomyContinuationRequested = ['unnecessary_user_question', 'unfinished_safe_work']
@@ -1878,6 +1981,12 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         owner_audit_complete: !missingOwnerAudit,
         owner_audit_line_count: expectedAuditLines.length,
         autonomy_compliance_status: autonomyCompliance.status,
+        ...(autonomyCompliance.stopState ? {
+            stop_state: {
+                status: autonomyCompliance.stopState.status,
+                evidence_event_count: autonomyCompliance.evidenceEventCount ?? 0
+            }
+        } : {}),
         ...(verifiedAutonomyContinuation(existingContinuation, episodeAuditContract(episode)) ? {
             autonomy_continuation: {
                 ...existingContinuation.autonomy_continuation,
@@ -2101,6 +2210,9 @@ export function successOutput(
         'The Host-fixed initial route and classification are immutable for this episode; do not recalculate or change them.',
         ...autonomyInstructions,
         ...requiredCapabilityInstructions,
+        ...(structuredStopStateRequired(receipt) ? [
+            '実装・操作turnの実行状態は自然文から推測しません。最終回答の末尾に次の非表示状態を正確に1件だけ置く: <!-- brainbase-stop-state:{"schema_version":"brainbase-stop-state-v1","status":"completed","pending_safe_work":false,"runtime_reason_code":null} -->。安全な作業が残る間はstatusをpending、pending_safe_workをtrueにする。人間確認が必須ならstatusをwaiting_humanにし、runtime_reason_codeを許可された確認理由と一致させる。completedは同一episodeに成功したPostToolUse実行証跡があり、安全な作業が残っていない場合だけ使う。'
+        ] : []),
         'Use Brainbase knowledge and retrieval tools repeatedly when later evidence makes another lookup useful; there is no one-call-per-turn limit.',
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
@@ -2150,7 +2262,7 @@ export async function processHookPayload(payload, dependencies = {}) {
         if (event?.schema_version === 'brainbase-judgment-orphan-tool-event-v1') {
             return { systemMessage: ORPHAN_TOOL_EVENT_WARNING };
         }
-        return event ? { systemMessage: event.display_line } : {};
+        return typeof event?.display_line === 'string' ? { systemMessage: event.display_line } : {};
     }
     if (eventName === 'Stop') {
         const autonomyOutput = await evaluateAutonomyStop(payload, dependencies);

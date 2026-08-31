@@ -72,7 +72,7 @@ Startがlockを保持している間にPostToolUseまたはStopが到着して�
 
 ### Integrity boundary
 
-監査対象のBrainbase PostToolUseでidentityまたは`tool_use_id`が欠ける場合は、曖昧なjournalへ結合せず非zeroで失敗する。非Brainbase toolは監査対象外として無変更で無視する。既存の診断、degraded receipt、orphan markerは、厳密なschema、digest、boolean、正規ISO timestampを再検証し、不一致をterminal conflictにする。
+監査対象のBrainbase PostToolUseでidentityまたは`tool_use_id`が欠ける場合は、曖昧なjournalへ結合せず非zeroで失敗する。runtime 2.3では、identityと`tool_use_id`が揃った非Brainbase toolをowner非表示のcompletion evidenceとしてepisodeへ記録し、欠落した一般toolやorphan一般toolは完全性を偽装しないよう無視する。既存の診断、degraded receipt、orphan markerは、厳密なschema、digest、boolean、正規ISO timestampを再検証し、不一致をterminal conflictにする。
 
 UserPromptSubmitだけはHook protocol上の通知チャネルが異なる。orphan artifact確定後のlate Startはprocess exit 0のまま`blockedOutput.continue: false`を返して意味的にfail closedし、episodeを作らない。このprotocol上の正常終了は監査成功でも`audit_degraded`でもない。Brainbase PostToolUseのidentity/tool metadata欠損と、Stop時のartifact・digest・timestamp・lock conflictは引き続きprocess nonzeroで失敗する。
 

@@ -23,12 +23,12 @@ test_files:
 - **INV-2**: a missing episode is never converted into a complete judgment episode or fabricated initial route receipt.
 - **INV-3**: an orphan turn gets at most one answer regeneration request; the active retry terminates with process success and an immutable `audit_degraded` receipt that rejects a late Start for the same identity.
 - **INV-4**: `audit_degraded` is not a complete final, task completion proof, prior finalized judgment, retrieval success, or action authorization.
-- **INV-5**: missing identity, missing `tool_use_id` on a Brainbase PostToolUse, and integrity conflicts remain terminal failures; a late UserPromptSubmit Start fails closed through `blockedOutput.continue: false` with process exit 0 as required by that Hook protocol, while Brainbase PostToolUse and Stop conflicts remain process-nonzero; unrelated non-Brainbase tools remain outside this audit.
+- **INV-5**: missing identity, missing `tool_use_id` on a Brainbase PostToolUse, and integrity conflicts remain terminal failures; a late UserPromptSubmit Start fails closed through `blockedOutput.continue: false` with process exit 0 as required by that Hook protocol, while Brainbase PostToolUse and Stop conflicts remain process-nonzero. Runtime 2.3 additionally records bound non-Brainbase tool calls as non-visible completion evidence without turning them into Brainbase audit claims.
 - **INV-6**: normal episode repair, owner audit prefix, answer body binding, required capability, and exactly-one final contracts remain unchanged.
 
 ## Contracts
 
-- **C-1**: `recordBrainbaseToolUse` ignores unrelated non-Brainbase tools, but for Brainbase PostToolUse it validates identity/tool metadata, derives paths, acquires the transition lock, then reads the episode and records the event.
+- **C-1**: `recordBrainbaseToolUse` records bound non-Brainbase tools as digest-only execution evidence and Brainbase PostToolUse as owner-visible audit evidence. Brainbase events retain strict identity/tool metadata validation; incomplete generic events are ignored because they cannot satisfy a bound episode contract.
 - **C-2**: `finalizeEpisode` validates identity, derives paths, acquires the transition lock, then reads and finalizes the episode.
 - **C-3**: first orphan Stop writes one diagnostic and returns `decision:block` with an exact warning line and answer-body preservation instruction; it does not create `.final.json`.
 - **C-4**: active orphan Stop writes one degraded receipt and returns a non-blocking output with exit 0; it does not instruct the user to create a new task. A later Start for the same identity creates no episode and returns `blockedOutput.continue: false` with process exit 0; this semantic terminal result is neither audit success nor `audit_degraded`.
@@ -45,7 +45,7 @@ test_files:
 - **S-3**: an automatic Goal-like turn without UserPromptSubmit reaches first Stop; Host requests one warning-prefix repair and stores a diagnostic without a final.
 - **S-4**: the same turn reaches active Stop; Host exits 0, stores `audit_degraded`, never emits a new-task instruction, and rejects a later Start without creating an episode.
 - **S-5**: warning/body verification failure is stored as false but does not trigger a third generation.
-- **S-6**: a Brainbase PostToolUse missing identity or `tool_use_id` remains a visible terminal failure and creates no artifact bound to an ambiguous target, while an unrelated tool remains ignored.
+- **S-6**: a Brainbase PostToolUse missing identity or `tool_use_id` remains a visible terminal failure and creates no artifact bound to an ambiguous target, while a fully bound unrelated tool becomes non-visible execution evidence and an incomplete unrelated tool remains ignored.
 - **S-7**: a Resolver response delayed beyond the former three-second wait still lets concurrent PostToolUse/Stop continue after the start commit.
 - **S-8**: an orphan Brainbase PostToolUse leaves a digest-only marker and visible warning, then the first Stop still receives its one repair request. A late Start after that marker returns process exit 0 with `blockedOutput.continue: false` and `judgment_orphan_tool_event_start_conflict`; it creates no episode because the digest-only marker cannot reconstruct a complete audited event.
 

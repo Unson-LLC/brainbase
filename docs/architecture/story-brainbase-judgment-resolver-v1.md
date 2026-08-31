@@ -35,9 +35,10 @@ UserPromptSubmit
   -> model generation with selected active DAG
 
 model/tool loop (0..N)
-  -> mcp__brainbase__* call
+  -> any tool call
   -> PostToolUse
-  -> immutable safe event + accurate owner trace
+  -> immutable safe execution event
+  -> Brainbase calls additionally get an accurate owner trace
 
 Stop
   -> required-capability check
@@ -57,7 +58,7 @@ The model-visible MCP catalog has no Judgment Resolver tool. The persistent runt
 | Judgment Resolver service | Deterministically match explicit request/context evidence against manifest-owned `semantic_matchers`, inherit a bounded prior classification when the current request is an under-specified follow-up, apply the server-owned `general/answer` fallback to non-follow-up input with no explicit specialist match, apply safety floors and policies, and select the initial active DAG. | No LLM provider or model API |
 | Codex model | Decide how to answer inside the returned active DAG, formulate and refine queries from observed evidence, and call Brainbase knowledge/retrieval tools 0..N times. It cannot author or replace the initial classification. | The open-ended LLM in the current execution loop |
 | Knowledge Resolver | Deterministically select the canonical source route and required retrieval capability. It does not search or retrieve content. | No internal LLM |
-| Retrieval tools/adapters | Perform the actual Graph, Personal KG, repo, Drive, or wiki search/read/write. Direct `mcp__brainbase__*` outcomes produce the current episode's observable `PostToolUse` events; local file reads and other connectors are not yet covered by that matcher. | Called by the Codex model |
+| Tool adapters | Perform file, shell, Graph, Personal KG, repo, Drive, wiki, and other operations. Every completed call produces a non-visible execution event; direct `mcp__brainbase__*` outcomes additionally produce owner-visible Brainbase audit lines. | Called by the Codex model |
 
 In the current implementation, `semantic_matchers` names the domain of matching; it does not imply embedding search or an internal Resolver LLM. A request that is neither a resolvable follow-up nor an explicit specialist match uses the v1 `general/answer` fallback; a follow-up with no resolvable referent or a knowledge route without required project context uses the clarification DAG. Adding model-assisted initial classification would be a new architecture and specification change, not an undocumented runtime detail.
 
@@ -87,6 +88,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 - Concurrent `PostToolUse` processes are totally ordered by the Host's atomic journal commit, not by an unverifiable wall-clock call-start time. Episode start, event commit, and Stop finalization share one per-turn SQLite `BEGIN IMMEDIATE` transaction boundary, so no committed event can be inserted into an already finalized episode. The OS releases the transaction lock when a process exits; the Host never guesses whether a stale lock file is safe to delete.
 - The Host uses Node's built-in SQLite when the runtime provides it, avoiding native-addon CPU/ABI coupling between Codex and the interactive shell. Node 20 runtimes fall back to the locally installed `better-sqlite3` build.
 - A missing required route or a final answer that omits, duplicates, or reorders a stored owner-visible audit line returns `decision:block` on the first repairable Stop; no incomplete final receipt is written. If the active repeated Stop is still incomplete, it exits non-zero with `judgment_stop_repair_exhausted` instead of regenerating forever. Body preservation strips only the leading Host audit namespace block, including malformed variants, while keeping audit-like text after the business body starts. A true orphan Stop emits one visible degraded-warning repair, then converges to an immutable non-final `audit_degraded` receipt without asking for a new task; replay cannot reopen the repair loop. Identity or integrity ambiguity and transaction-acquisition timeout remain terminal fail-closed failures.
+- Runtime 2.3 implement/operate episodes use a hidden structured Stop state rather than prose matching. `pending` blocks, `waiting_human` must match an allowed reason and visible marker, and `completed` requires a successful same-episode execution event. The event proves execution, not semantic correctness; content verification remains a separate test/readback responsibility. Runtime 2.2 and older episodes retain prose matching only for compatibility.
 - Normal platform permissions, approvals, and executor authorization remain responsible for effects. There is no Effect Guard.
 
 ## Acceptance criteria
@@ -95,7 +97,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 2. Judgment Resolver is absent from model-visible MCP tools.
 3. Canonical context preserves ordered exact user/assistant text and current request exactly once.
 4. Resolver owns deterministic manifest-backed classification, policy, required capabilities, and active-DAG selection, with no LLM provider/API dependency.
-5. The model may execute 0..N Brainbase tool calls after the initial route.
+5. The model may execute 0..N tool calls after the initial route; Brainbase calls alone produce owner-visible Brainbase lines.
 6. Every matching `PostToolUse` creates at most one immutable event per `tool_use_id`.
 7. A replayed identical event is a no-op; a conflicting event fails loudly.
 8. Journals and visible traces exclude raw payloads/secrets and accurately distinguish route, search, retrieval, and write.
@@ -108,6 +110,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 15. Judgment receipts never authorize writes/external actions or introduce duplicate authorization.
 16. `CLAUDE.md`, `AGENTS.md`, Skill, capability, runbook, spec, and tests publish this same contract.
 17. The current Codex model remains responsible for open-ended query formulation and iterative investigation inside the selected DAG; Host and Resolver do not silently perform that model work. Claude Code support requires a separate Host adapter and lifecycle integration.
+18. Runtime 2.3 implement/operate completion is accepted only from one valid structured Stop state plus successful same-episode execution evidence; answer wording is not the primary completion signal.
 
 ## Deployment boundary
 
