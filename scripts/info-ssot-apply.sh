@@ -90,6 +90,7 @@ if ! run_psql \
   -f "$RLS_SQL" \
   -f "$READBACK_SQL" \
   -f "$NEGATIVE_SMOKE_SQL" >"$MIGRATION_OUTPUT" 2>&1; then
+  tail -n 40 "$MIGRATION_OUTPUT" >&2
   echo "Info SSOT schema/RLS transaction failed; do not restart or switch API/MCP, and verify the current service state" >&2
   exit 1
 fi
