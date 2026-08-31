@@ -1,7 +1,8 @@
 {
   "schema_version": "1.0.0",
   "graph_http_mutation_owners": [
-    "scripts/lib/brainbase-graph-http-client.mjs"
+    "scripts/lib/brainbase-graph-http-client.mjs",
+    "scripts/growin/migrate-local-seed-to-gcp.py"
   ],
   "writers": {
     "server/controllers/info-ssot-controller.js": { "mode": "runtime", "reason": "Info SSOT HTTP write surface", "vocabulary": { "types": [], "relations": [] } },
@@ -23,6 +24,7 @@
     "scripts/ontology-remediate-production-1.0.0.js": { "mode": "controlled_migration", "reason": "exact-precondition production remediation with transaction and backup", "vocabulary": { "types": ["app", "decision", "org", "person", "project"], "relations": ["belongs_to_project", "owned_by"] } },
     "scripts/seed-sato-personal-records.js": { "mode": "deferred", "reason": "personal record seed", "vocabulary": { "types": [], "relations": [] }, "classified_literals": { "compatibility": [], "internal": ["hex", "sha1"], "rejected": [] } },
     "scripts/growin/seed-initial-graph.mjs": { "mode": "controlled_migration", "reason": "one-shot Growin tenant bootstrap through the authenticated Graph HTTP client", "vocabulary": { "types": ["org", "person", "philosophy", "project"], "relations": [] }, "classified_literals": { "compatibility": [], "internal": ["growin", "internal", "member", "phi_growin_graph_ssot_first"], "rejected": [] } },
+    "scripts/growin/migrate-local-seed-to-gcp.py": { "mode": "controlled_migration", "reason": "verified Growin local seed migration through the tenant-scoped authenticated Graph HTTP API", "vocabulary": { "types": ["app", "project"], "relations": [] }, "classified_literals": { "compatibility": [], "internal": ["entity_type", "from_id", "id", "rel_type", "source_entity_type", "to_id"], "rejected": [] } },
     "scripts/upsert-app-environments.mjs": { "mode": "deferred", "reason": "app environment migration", "vocabulary": { "types": ["app"], "relations": [] }, "classified_literals": { "compatibility": [], "internal": [], "rejected": [] } },
     "scripts/vibepro-graph-ssot-check.mjs": { "mode": "deferred", "reason": "Graph checker contains write-path contract fixtures", "vocabulary": { "types": [], "relations": [] }, "classified_literals": { "compatibility": [], "internal": [], "rejected": [] } },
     "scripts/personal-knowledge-promotion-production-smoke.mjs": { "mode": "deferred", "reason": "customer-data-free production smoke reads Graph state and verifies promotion evidence; it never writes Graph entities or edges", "vocabulary": { "types": [], "relations": [] }, "classified_literals": { "compatibility": [], "internal": [], "rejected": [] } }
