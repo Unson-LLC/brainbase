@@ -20,6 +20,7 @@
 - healthとintegrityはRegistry schemaの利用可能性を実行時Catalog経由で確認する。
 - Workspace SetupとConnected-world Onboardingは別Capabilityとして境界を保つ。
 - ブラウザのSession Launch Pickerもretiredかつ到達不能とし、ブラウザのProject Catalog consumerはWorkspace Setupだけに限定する。desktop/mobileの旧`CREATE_SESSION`入口はCodex移行案内を表示し、Pickerを開かずsession APIを呼ばない。
+- Graph writerとGitHub writerの検証はfake/adapter doubleによる契約確認までとし、本番Graph/GitHub writeの完了証拠として扱わない。
 
 ## 境界・非対象
 

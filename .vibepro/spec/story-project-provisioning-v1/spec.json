@@ -492,7 +492,9 @@
         { "file_glob": "tests/server/services/project-registry-catalog-adapter.test.js", "must_cover": "catalog readをorganization contextで分離する" },
         { "file_glob": "tests/server/routes/project-runtime-catalog.test.js", "must_cover": "/api/brainbaseは認証済みreq.accessのorganizationでcatalogを読みsourceを保持する" },
         { "file_glob": "tests/server/bootstrap/project-provisioning-health.test.js", "must_cover": "registerApiRoutesは/api/brainbase rootへCatalog認証を配線しorganization contextを渡す" },
-        { "file_glob": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "must_cover": "token and configured scopes are intersected, confirmed empty remains ok, and transport failure is unavailable" }
+        { "file_glob": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "must_cover": "TSK-WEBRET-003 AC-2: token and configured scopes are intersected and audit evidence is returned" },
+        { "file_glob": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "must_cover": "TSK-WEBRET-003 AC-3: a confirmed empty catalog remains ok instead of unavailable" },
+        { "file_glob": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "must_cover": "TSK-WEBRET-003 AC-4: transport failure is unavailable and never flattened to an empty catalog" }
       ] },
       "confidence": 1,
       "first_seen_at": "2026-08-31T09:14:28.024Z",
@@ -520,7 +522,7 @@
       "statement": "The server-side session.create/static endpoint and browser Session Launch Picker are retired and unreachable. Desktop/mobile CREATE_SESSION actions fail closed to a Codex migration notice, do not open the Picker, and do not call session APIs. Workspace Setup is the only browser Project Catalog consumer and owns explicit per-user local.path; Codex app/CLI owns task and worktree creation.",
       "rationale": "Retired session creation must not remain a shadow Catalog or task-creation route; formal registration stays on Skill/CLI/API/MCP and personal workspace paths remain outside organization facts.",
       "origin": {
-        "story_refs": [{ "file": "docs/management/stories/active/story-project-provisioning-v1.md", "section": "受け入れ条件" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 15, "ac_id": "AC-16", "text_snippet": "ブラウザのSession Launch Pickerもretiredかつ到達不能とし、ブラウザのProject Catalog consumerはWorkspace Setupだけに限定する" }],
         "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "境界・非対象" }],
         "code_refs": [
           { "file": "public/modules/app/event-listeners-mixin.js", "anchor": "EVENTS.CREATE_SESSION" },
@@ -535,8 +537,8 @@
       },
       "verifiable_by": {
         "test_pattern": [
-          { "file_glob": "tests/e2e/story-inline-session-creation-pr-gate.spec.ts", "must_cover": "desktop/mobile legacy actions show the Codex migration notice without opening the Picker or calling session APIs" },
-          { "file_glob": "tests/e2e/story-project-runtime-catalog-ux.spec.js", "must_cover": "Workspace Setup is the sole browser Catalog consumer and renders Catalog and failure states" }
+        { "file_glob": "tests/e2e/story-inline-session-creation-pr-gate.spec.ts", "must_cover": "legacy entrypoint shows the Codex notice without session API calls" },
+        { "file_glob": "tests/e2e/story-project-runtime-catalog-ux.spec.js", "must_cover": "loaded grant-scoped catalog renders selectable, workspace-missing, and workspace setup states" }
         ]
       },
       "confidence": 1,
@@ -549,7 +551,7 @@
       "statement": "Graph writer and GitHub writer assertions use test fakes or adapter doubles; production Graph/GitHub writes and production E2E are out of scope and unverified.",
       "rationale": "Local contract and PostgreSQL integration evidence cannot establish that production external writes have completed.",
       "origin": {
-        "story_refs": [{ "file": "docs/management/stories/active/story-project-provisioning-v1.md", "section": "境界・非対象" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 16, "ac_id": "AC-17", "text_snippet": "Graph writerとGitHub writerの検証はfake/adapter doubleによる契約確認までとし、本番Graph/GitHub writeの完了証拠として扱わない" }],
         "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "証拠境界" }],
         "code_refs": [],
         "test_refs": [
@@ -559,8 +561,9 @@
         ]
       },
       "verifiable_by": { "test_pattern": [
-        { "file_glob": "tests/server/services/project-provisioning-{service,github}.test.js", "must_cover": "Graph/GitHub adapter contract and readback without claiming production writes" },
-        { "file_glob": "tests/integration/project-provisioning-full-flow.test.js", "must_cover": "local PostgreSQL integration boundary remains distinct from production external writes" }
+        { "file_glob": "tests/server/services/project-provisioning-service.test.js", "must_cover": "Graphの正式ライフサイクル順とReceiptをstepへ保存する" },
+        { "file_glob": "tests/server/services/project-provisioning-github.test.js", "must_cover": "public repositoryを作成しprivate:falseで送信した結果をreadbackする" },
+        { "file_glob": "tests/integration/project-provisioning-full-flow.test.js", "must_cover": "acceptance-e2e-full-provisioning-flow-missing: real PostgreSQL/factory flow preserves auth, CSRF, scope, and durable resume" }
       ] },
       "confidence": 1,
       "first_seen_at": "2026-09-01T00:00:00.000Z",
