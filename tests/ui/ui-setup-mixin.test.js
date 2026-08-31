@@ -79,4 +79,27 @@ describe('ui setup mixin Workspace Setup selector', () => {
         expect([...document.getElementById('session-project-select').options]
             .some((option) => option.value === 'suppressed-project')).toBe(false);
     });
+
+    it('Workspace Setupは確認済み0件を成功読込と区別して表示する', async () => {
+        projectMapping.getSessionSelectableProjects.mockReturnValue([]);
+        projectMapping.getProjectsRequiringWorkspaceSetup.mockReturnValue([]);
+        projectMapping.getRuntimeProjectCatalogSource.mockReturnValue({
+            status: 'confirmed_empty', upstream_status: 'loaded'
+        });
+        projectMapping.getRuntimeProjectCatalogStatusMessage.mockReturnValue(
+            'プロジェクト一覧の取得は完了しましたが、権限のあるプロジェクトは0件です。generalのみ選択できます。'
+        );
+
+        const app = new TestApp();
+        app.authManager = { access: { projectCodes: [] } };
+        await app.refreshProjectSelect('general');
+
+        const status = document.getElementById('session-project-catalog-status');
+        expect(status.dataset.status).toBe('confirmed_empty');
+        expect(status.dataset.severity).toBe('info');
+        expect(status.getAttribute('role')).toBe('status');
+        expect(status.textContent).toContain('権限のあるプロジェクトは0件です');
+        expect([...document.getElementById('session-project-select').options].map((option) => option.value))
+            .toEqual(['general']);
+    });
 });

@@ -187,4 +187,31 @@ describe('project mapping runtime catalog', () => {
             status: 'unavailable', code: 'registry_unavailable'
         });
     });
+
+    it('取得成功かつ0件をconfirmed emptyとして保持する', async () => {
+        vi.stubGlobal('fetch', vi.fn(async (url) => {
+            if (url === '/api/config') {
+                return {
+                    ok: true,
+                    json: async () => ({ projects: { root: '/workspace', projects: [] } })
+                };
+            }
+            if (url === '/api/config/projects') {
+                return {
+                    ok: true,
+                    json: async () => ({ source: { status: 'loaded' }, projects: [] })
+                };
+            }
+            throw new Error(`unexpected URL: ${url}`);
+        }));
+
+        const mapping = await import('../../public/modules/project-mapping.js');
+        await mapping.projectMappingReady;
+
+        expect(mapping.getRuntimeProjectCatalogSource()).toEqual({
+            status: 'confirmed_empty', upstream_status: 'loaded'
+        });
+        expect(mapping.getRuntimeProjectCatalogStatusMessage()).toContain('権限のあるプロジェクトは0件です');
+        expect(mapping.getSessionSelectableProjects([])).toEqual([]);
+    });
 });

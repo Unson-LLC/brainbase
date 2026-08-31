@@ -31,6 +31,7 @@ visibility_rules:
   - "If projectCodes is non-empty, match only exact normalized project ID, explicit alias, or GitHub repository name; do not infer hyphenless IDs, parent IDs, or prefixes."
   - "A candidate is selectable only when explicit `local.path` is configured for the current Workspace; otherwise show a disabled Workspace Setup required option and never guess a path."
   - "Authentication, transport, Registry, or source.status unavailable failure is fail-closed: show status/error and retain only general; never re-add requested project outside returned candidates."
+  - "A loaded catalog with zero projects is shown as confirmed_empty with a 0件 message; it is not presented as an ordinary loaded list or as an unavailable state."
   - Workspace Setup and Connected-world Onboarding are separate capabilities.
 verification:
   commands:
@@ -41,6 +42,7 @@ verification:
     - "exact ID, explicit alias, and GitHub repository grants are accepted; short prefix grants are rejected"
     - "projects without explicit local.path are shown as disabled Workspace Setup required options and have no guessed path"
     - "401, non-401, fetch exception, and source unavailable failures leave only general and expose an unavailable/error status"
+    - "a loaded catalog with zero projects exposes confirmed_empty and a 0件 status message"
     - "a requested project outside runtime Workspace Setup candidates falls back to general"
 common_failures:
   - grant updates are correct but Workspace Setup still has stale JWT/localStorage access.

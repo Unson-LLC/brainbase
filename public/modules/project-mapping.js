@@ -101,6 +101,13 @@ export const projectMappingReady = (async function initWorkspaceRoot() {
                     console.warn('[ProjectMapping] Project Registry unavailable; session project selection disabled', runtimeCatalog.source.code);
                 }
                 if (runtimeCatalog.source?.status === 'loaded' && Array.isArray(runtimeCatalog.projects)) {
+                    if (runtimeCatalog.projects.length === 0) {
+                        RUNTIME_PROJECT_CATALOG_SOURCE = {
+                            ...RUNTIME_PROJECT_CATALOG_SOURCE,
+                            status: 'confirmed_empty',
+                            upstream_status: 'loaded'
+                        };
+                    }
                     PROJECT_CONFIG_CACHE ||= {};
                     PROJECT_PATH_MAP_CACHE ||= {};
                     for (const project of runtimeCatalog.projects) {
@@ -243,6 +250,9 @@ export function getRuntimeProjectCatalogStatusMessage(source = getRuntimeProject
 
     if (status === 'loaded') {
         return '権限のあるプロジェクト一覧を読み込みました。';
+    }
+    if (status === 'confirmed_empty') {
+        return 'プロジェクト一覧の取得は完了しましたが、権限のあるプロジェクトは0件です。generalのみ選択できます。';
     }
     if (status === 'authentication_required') {
         return 'プロジェクト一覧を取得できません。認証が必要です。generalのみ選択できます。';

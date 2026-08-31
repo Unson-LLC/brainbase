@@ -46,6 +46,9 @@ function fallbackProjectCatalogStatusMessage(source = {}) {
         const httpStatus = Number.isInteger(source.http_status) ? `（HTTP ${source.http_status}）` : '';
         return `プロジェクト一覧を取得できません${httpStatus}。generalのみ選択できます。`;
     }
+    if (source.status === 'confirmed_empty') {
+        return 'プロジェクト一覧の取得は完了しましたが、権限のあるプロジェクトは0件です。generalのみ選択できます。';
+    }
     if (source.status === 'loaded') return '権限のあるプロジェクト一覧を読み込みました。';
     return 'プロジェクト一覧を取得できません。generalのみ選択できます。';
 }
@@ -64,15 +67,18 @@ function renderProjectCatalogStatus(projectSelect, source, getStatusMessage) {
     const normalizedSource = source && typeof source === 'object'
         ? source
         : { status: 'unknown' };
-    const isLoaded = normalizedSource.status === 'loaded';
+    const isConfirmed = normalizedSource.status === 'loaded'
+        || normalizedSource.status === 'confirmed_empty';
     statusElement.textContent = typeof getStatusMessage === 'function'
         ? getStatusMessage(normalizedSource)
         : fallbackProjectCatalogStatusMessage(normalizedSource);
     statusElement.dataset.status = normalizedSource.status || 'unknown';
-    statusElement.dataset.severity = isLoaded ? 'success' : 'error';
+    statusElement.dataset.severity = normalizedSource.status === 'confirmed_empty'
+        ? 'info'
+        : isConfirmed ? 'success' : 'error';
     statusElement.hidden = false;
-    statusElement.setAttribute('role', isLoaded ? 'status' : 'alert');
-    statusElement.setAttribute('aria-live', isLoaded ? 'polite' : 'assertive');
+    statusElement.setAttribute('role', isConfirmed ? 'status' : 'alert');
+    statusElement.setAttribute('aria-live', isConfirmed ? 'polite' : 'assertive');
 }
 
 function resetProjectSelectToGeneral(projectSelect) {

@@ -476,6 +476,8 @@
           { "file": "server/routes/config.js", "anchor": "GET /api/config/projects" },
           { "file": "server/routes/brainbase/overview-routes.js", "anchor": "router.get('/', projectCatalogAuthGuard" },
           { "file": "cli/project-provisioning.js", "anchor": "runProjectProvisioning" },
+          { "file": "public/modules/project-mapping.js", "anchor": "confirmed_empty" },
+          { "file": "public/modules/app/ui-setup-mixin.js", "anchor": "renderProjectCatalogStatus" },
           { "file": "mcp/brainbase/src/tools/control-plane-tools.ts", "anchor": "brainbase_projects" },
           { "file": "docs/projects/aitm/API.md", "anchor": "GET /api/brainbase" }
         ],
@@ -486,6 +488,8 @@
           { "file": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "case": "TSK-WEBRET-003 AC-2: token and configured scopes are intersected and audit evidence is returned" },
           { "file": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "case": "TSK-WEBRET-003 AC-3: a confirmed empty catalog remains ok instead of unavailable" },
           { "file": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "case": "TSK-WEBRET-003 AC-4: transport failure is unavailable and never flattened to an empty catalog" }
+          ,{ "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "取得成功かつ0件をconfirmed emptyとして保持する" }
+          ,{ "file": "tests/ui/ui-setup-mixin.test.js", "case": "Workspace Setupは確認済み0件を成功読込と区別して表示する" }
         ]
       },
       "verifiable_by": { "test_pattern": [
@@ -495,6 +499,8 @@
         { "file_glob": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "must_cover": "TSK-WEBRET-003 AC-2: token and configured scopes are intersected and audit evidence is returned" },
         { "file_glob": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "must_cover": "TSK-WEBRET-003 AC-3: a confirmed empty catalog remains ok instead of unavailable" },
         { "file_glob": "mcp/brainbase/tests/tools/control-plane-tools.test.ts", "must_cover": "TSK-WEBRET-003 AC-4: transport failure is unavailable and never flattened to an empty catalog" }
+        ,{ "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "取得成功かつ0件をconfirmed emptyとして保持する" }
+        ,{ "file_glob": "tests/ui/ui-setup-mixin.test.js", "must_cover": "Workspace Setupは確認済み0件を成功読込と区別して表示する" }
       ] },
       "confidence": 1,
       "first_seen_at": "2026-08-31T09:14:28.024Z",

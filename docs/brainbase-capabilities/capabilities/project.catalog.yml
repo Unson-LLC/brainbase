@@ -63,6 +63,7 @@ verification:
     - Graph subjectとして投影するprojectのnameとcatalog_versionがProject Catalogから保持される
     - a short grant such as growin does not authorize growin-payroll
     - Registry or catalog authentication failure remains unavailable/error and never falls back to the legacy topology
+    - Workspace Setup renders a loaded zero-project catalog as confirmed_empty with a 0件 message
     - Graph and GitHub writer assertions use test fakes or adapter doubles; production writes are out of scope and production E2E is unverified
 common_failures:
   - A project exists in the local /api/config topology but is absent from the authenticated runtime catalog or actor grant.
