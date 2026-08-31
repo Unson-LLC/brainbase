@@ -23,6 +23,54 @@ const OWNED_RESOURCE_TABLES = Object.freeze({
 });
 
 const SLACK_INSTALLATION_CLAIM_STALE_SECONDS = 120;
+const SLACK_INSTALLATION_FAILURE_STAGES = new Set([
+    'oauth_exchange', 'exchange_normalize', 'connection_reserve', 'credential_store', 'db_register'
+]);
+const SLACK_INSTALLATION_CLEANUP_STATUSES = new Set(['not_needed', 'revoked', 'failed']);
+const SLACK_INSTALLATION_FAILURE_CODES = new Set([
+    'INSTALLATION_EXCHANGE_FAILED',
+    'UPSTREAM_UNAVAILABLE',
+    'OAUTH_EXCHANGE_UNAVAILABLE', 'OAUTH_EXCHANGE_INVALID', 'OAUTH_EXCHANGE_REJECTED',
+    'OAUTH_CREDENTIAL_MISSING', 'OAUTH_EXCHANGE_FAILED',
+    'WORKSPACE_CONNECTION_INVALID', 'WORKSPACE_CONNECTION_CONFLICT', 'EXCHANGE_NORMALIZATION_FAILED',
+    'INSTALLATION_STATE_INVALID', 'INSTALLATION_BINDING_MISMATCH',
+    'INSTALLATION_STATE_REPLAYED', 'INSTALLATION_STATE_EXPIRED',
+    'INSTALLATION_CLAIM_STALE', 'INSTALLATION_IN_PROGRESS',
+    'WORKSPACE_CONNECTION_STALE_REVISION', 'CONNECTION_RESERVATION_FAILED',
+    'CREDENTIAL_REF_INVALID', 'CREDENTIAL_STORE_UNAVAILABLE', 'CREDENTIAL_STORE_INVALID',
+    'CREDENTIAL_STORE_REJECTED', 'CREDENTIAL_STORE_FAILED',
+    'TENANT_UNKNOWN', 'CONTRACT_UNAVAILABLE', 'DB_REGISTRATION_FAILED'
+]);
+const SLACK_INSTALLATION_STAGE_FALLBACK = Object.freeze({
+    oauth_exchange: 'OAUTH_EXCHANGE_FAILED',
+    exchange_normalize: 'EXCHANGE_NORMALIZATION_FAILED',
+    connection_reserve: 'CONNECTION_RESERVATION_FAILED',
+    credential_store: 'CREDENTIAL_STORE_FAILED',
+    db_register: 'DB_REGISTRATION_FAILED'
+});
+const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/u;
+
+function safeStoredSlackInstallationDiagnostic(row) {
+    const failureStage = SLACK_INSTALLATION_FAILURE_STAGES.has(row.failure_stage)
+        ? row.failure_stage
+        : null;
+    const failureCode = SLACK_INSTALLATION_FAILURE_CODES.has(String(row.failure_code))
+        ? String(row.failure_code)
+        : 'INSTALLATION_EXCHANGE_FAILED';
+    const cleanupStatus = SLACK_INSTALLATION_CLEANUP_STATUSES.has(row.cleanup_status)
+        ? row.cleanup_status
+        : null;
+    const attempt = Number(row.attempt);
+    return {
+        tenant_id: row.tenant_id,
+        installation_intent_id: row.installation_intent_id,
+        request_digest: SHA256_DIGEST.test(String(row.request_digest)) ? row.request_digest : null,
+        attempt: Number.isSafeInteger(attempt) && attempt > 0 ? attempt : null,
+        failure_stage: failureStage,
+        failure_code: failureCode,
+        cleanup_status: cleanupStatus
+    };
+}
 
 function sha256(value) {
     return `sha256:${createHash('sha256').update(String(value), 'utf8').digest('hex')}`;
@@ -468,6 +516,7 @@ export class MultitenantPostgresRepository {
                         SET status = 'processing', request_digest = $3,
                             claim_token_hash = $4, claimed_at = $5,
                             attempt = attempt + 1, failure_code = NULL,
+                            failure_stage = NULL, cleanup_status = NULL,
                             connection_id = NULL, connection_revision = NULL,
                             response_payload = NULL, completed_at = NULL
                       WHERE tenant_id = $1 AND installation_intent_id = $2`,
@@ -509,6 +558,21 @@ export class MultitenantPostgresRepository {
             }
             if (row.consumed_at) throw new ContractError('INSTALLATION_STATE_REPLAYED', { status: 409 });
             return null;
+        });
+    }
+
+    async readSlackInstallationFailureDiagnostic({ tenant_id, installation_intent_id }) {
+        return this.withTenant(tenant_id, async (client) => {
+            const result = await client.query(
+                `SELECT tenant_id, installation_intent_id, request_digest, status,
+                        attempt, failure_stage, failure_code, cleanup_status
+                   FROM slack_installation_exchange_ledger
+                  WHERE tenant_id = $1 AND installation_intent_id = $2`,
+                [tenant_id, installation_intent_id]
+            );
+            const row = result.rows[0];
+            if (!row || row.status !== 'failed') return null;
+            return safeStoredSlackInstallationDiagnostic(row);
         });
     }
 
@@ -868,6 +932,7 @@ export class MultitenantPostgresRepository {
                 `UPDATE slack_installation_exchange_ledger
                     SET status = 'completed', claim_token_hash = NULL,
                         claimed_at = NULL, failure_code = NULL,
+                        failure_stage = NULL, cleanup_status = NULL,
                         connection_id = $3, connection_revision = $4,
                         response_payload = $5::jsonb, completed_at = $6
                   WHERE tenant_id = $1 AND installation_intent_id = $2
@@ -890,26 +955,35 @@ export class MultitenantPostgresRepository {
         intent,
         claim_token,
         request_digest,
+        failure_stage,
         failure_code = 'INSTALLATION_EXCHANGE_FAILED',
+        cleanup_status = 'not_needed',
         now = this.now().toISOString()
     }) {
         if (!intent || typeof claim_token !== 'string' || typeof request_digest !== 'string') return false;
-        const safeFailureCode = /^[A-Z0-9_:-]{1,128}$/u.test(String(failure_code))
+        const safeFailureStage = SLACK_INSTALLATION_FAILURE_STAGES.has(failure_stage)
+            ? failure_stage
+            : null;
+        const safeFailureCode = SLACK_INSTALLATION_FAILURE_CODES.has(String(failure_code))
             ? String(failure_code)
-            : 'INSTALLATION_EXCHANGE_FAILED';
+            : (SLACK_INSTALLATION_STAGE_FALLBACK[safeFailureStage] ?? 'INSTALLATION_EXCHANGE_FAILED');
+        const safeCleanupStatus = SLACK_INSTALLATION_CLEANUP_STATUSES.has(cleanup_status)
+            ? cleanup_status
+            : 'failed';
         return this.withTenant(intent.tenant_id, async (client) => {
             const result = await client.query(
                 `UPDATE slack_installation_exchange_ledger
                     SET status = 'failed', claim_token_hash = NULL,
                         claimed_at = NULL, failure_code = $3,
+                        failure_stage = $4, cleanup_status = $5,
                         completed_at = NULL, response_payload = NULL,
                         connection_id = NULL, connection_revision = NULL
                   WHERE tenant_id = $1 AND installation_intent_id = $2
                     AND status = 'processing'
-                    AND request_digest = $4
-                    AND claim_token_hash = $5`,
+                    AND request_digest = $6
+                    AND claim_token_hash = $7`,
                 [intent.tenant_id, intent.installation_intent_id, safeFailureCode,
-                    request_digest, sha256(claim_token)]
+                    safeFailureStage, safeCleanupStatus, request_digest, sha256(claim_token)]
             );
             if (result.rowCount !== 1) return false;
             return true;

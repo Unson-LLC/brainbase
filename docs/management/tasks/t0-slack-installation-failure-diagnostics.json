@@ -1,0 +1,56 @@
+{
+  "task_id": "t0-slack-installation-failure-diagnostics",
+  "story_id": "story-t0-slack-installation-failure-diagnostics",
+  "status": "done",
+  "t0_program_status": "implementing",
+  "production_executed": false,
+  "deploy_allowed": false,
+  "scope": {
+    "include": [
+      "internal Slack installation failure ledger contract",
+      "safe adapter classification",
+      "focused local tests",
+      "internal failure diagnostic readback"
+    ],
+    "exclude": [
+      "production OAuth retry",
+      "deploy or secret changes",
+      "public diagnostic exposure",
+      "past generic failure inference",
+      "T0 done promotion"
+    ]
+  },
+  "production_evidence": {
+    "bridge": "not_collected",
+    "oauth_exchange": "not_collected",
+    "postgresql_readback": "not_collected",
+    "credential_store_round_trip": "not_collected",
+    "usage_and_receipt_readback": "not_collected"
+  },
+  "local_evidence": {
+    "unit_and_schema": {
+      "files": 6,
+      "tests": 80,
+      "result": "pass"
+    },
+    "postgresql_integration": {
+      "files": 3,
+      "tests": 15,
+      "result": "pass"
+    },
+    "typecheck": "pass",
+    "eslint": "pass",
+    "task_json_parse": "pass",
+    "diff_check": "pass",
+    "independent_review": {
+      "result": "pass",
+      "blocking_findings": 0
+    }
+  },
+  "completion_boundary": {
+    "local_diagnostic_contract": "done",
+    "t0_program": "implementing",
+    "past_generic_failures_reclassified": false,
+    "production_exit_gate_satisfied": false
+  }
+}

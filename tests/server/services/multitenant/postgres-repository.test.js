@@ -236,6 +236,115 @@ describe('MultitenantPostgresRepository', () => {
         );
     });
 
+    it('reads only the non-secret failed installation diagnostic', async () => {
+        const tenantId = CLAIM_INTENT.tenant_id;
+        const requestDigest = digest('oauth-code-and-redirect');
+        const { pool, client } = poolWithRows({
+            'FROM slack_installation_exchange_ledger': [{
+                tenant_id: tenantId,
+                installation_intent_id: CLAIM_INTENT.installation_intent_id,
+                request_digest: requestDigest,
+                status: 'failed',
+                attempt: 2,
+                failure_stage: 'credential_store',
+                failure_code: 'CREDENTIAL_STORE_UNAVAILABLE',
+                cleanup_status: 'not_needed'
+            }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.readSlackInstallationFailureDiagnostic({
+            tenant_id: tenantId,
+            installation_intent_id: CLAIM_INTENT.installation_intent_id
+        })).resolves.toEqual({
+            tenant_id: tenantId,
+            installation_intent_id: CLAIM_INTENT.installation_intent_id,
+            request_digest: requestDigest,
+            attempt: 2,
+            failure_stage: 'credential_store',
+            failure_code: 'CREDENTIAL_STORE_UNAVAILABLE',
+            cleanup_status: 'not_needed'
+        });
+        const sql = client.query.mock.calls.find(([statement]) => statement.includes('FROM slack_installation_exchange_ledger'))[0];
+        expect(sql).not.toMatch(/credential_ref|response_payload|claim_token_hash/u);
+    });
+
+    it('fails closed when a stored failure diagnostic contains untrusted values', async () => {
+        const tenantId = CLAIM_INTENT.tenant_id;
+        const { pool } = poolWithRows({
+            'FROM slack_installation_exchange_ledger': [{
+                tenant_id: tenantId,
+                installation_intent_id: CLAIM_INTENT.installation_intent_id,
+                request_digest: 'raw-authorization-code',
+                status: 'failed',
+                attempt: 'not-a-number',
+                failure_stage: 'secret_stage',
+                failure_code: 'RAW_PROVIDER_ERROR',
+                cleanup_status: 'success-ish'
+            }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.readSlackInstallationFailureDiagnostic({
+            tenant_id: tenantId,
+            installation_intent_id: CLAIM_INTENT.installation_intent_id
+        })).resolves.toEqual({
+            tenant_id: tenantId,
+            installation_intent_id: CLAIM_INTENT.installation_intent_id,
+            request_digest: null,
+            attempt: null,
+            failure_stage: null,
+            failure_code: 'INSTALLATION_EXCHANGE_FAILED',
+            cleanup_status: null
+        });
+    });
+
+    it('normalizes an untrusted failure code to the stage allowlist fallback', async () => {
+        const query = vi.fn(async (sql, values = []) => {
+            if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK'
+                || sql.startsWith("SELECT set_config('brainbase.tenant_id'")) return { rows: [] };
+            if (sql.includes('UPDATE slack_installation_exchange_ledger')) return { rows: [], rowCount: 1 };
+            return { rows: [] };
+        });
+        const client = { query, release: vi.fn() };
+        const repository = new MultitenantPostgresRepository({ pool: { connect: vi.fn(async () => client) } });
+
+        await expect(repository.failSlackInstallationExchange({
+            intent: CLAIM_INTENT,
+            claim_token: 'claim-token',
+            request_digest: digest('request'),
+            failure_stage: 'credential_store',
+            failure_code: 'EVIL_RAW_CODE',
+            cleanup_status: 'not_needed'
+        })).resolves.toBe(true);
+        const update = query.mock.calls.find(([sql]) => sql.includes('UPDATE slack_installation_exchange_ledger'));
+        expect(update[1][2]).toBe('CREDENTIAL_STORE_FAILED');
+        expect(update[1]).not.toContain('EVIL_RAW_CODE');
+    });
+
+    it('preserves an existing stable reservation failure code', async () => {
+        const query = vi.fn(async (sql) => {
+            if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK'
+                || sql.startsWith("SELECT set_config('brainbase.tenant_id'")) return { rows: [] };
+            if (sql.includes('UPDATE slack_installation_exchange_ledger')) return { rows: [], rowCount: 1 };
+            return { rows: [] };
+        });
+        const client = { query, release: vi.fn() };
+        const repository = new MultitenantPostgresRepository({ pool: { connect: vi.fn(async () => client) } });
+
+        await repository.failSlackInstallationExchange({
+            intent: CLAIM_INTENT,
+            claim_token: 'claim-token',
+            request_digest: digest('request'),
+            failure_stage: 'connection_reserve',
+            failure_code: 'WORKSPACE_CONNECTION_STALE_REVISION',
+            cleanup_status: 'not_needed'
+        });
+
+        const update = query.mock.calls.find(([sql]) => sql.includes('UPDATE slack_installation_exchange_ledger'));
+        expect(update[1][2]).toBe('WORKSPACE_CONNECTION_STALE_REVISION');
+    });
+
     it('AC-005/AC-105/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む', async () => {
         const { pool, client } = poolWithRows({
             'FROM workspace_connections': [{

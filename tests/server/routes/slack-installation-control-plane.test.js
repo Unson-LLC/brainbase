@@ -3,6 +3,7 @@ import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
 import { registerSlackInstallationControlPlaneApiRoute } from '../../../server/bootstrap/register-api-routes.js';
+import { ContractError } from '../../../server/services/multitenant/errors.js';
 
 const binding = {
     installation_intent_id: 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -112,5 +113,38 @@ describe('Slack installation control-plane HTTP contract', () => {
             });
         expect(schemaResponse.status).toBe(400);
         expect(controlPlane.exchange_and_register).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        'OAUTH_EXCHANGE_REJECTED',
+        'OAUTH_EXCHANGE_FAILED',
+        'EXCHANGE_NORMALIZATION_FAILED',
+        'CONNECTION_RESERVATION_FAILED',
+        'CREDENTIAL_STORE_FAILED',
+        'DB_REGISTRATION_FAILED'
+    ])('keeps internal failure diagnostic %s out of the public response', async (failureCode) => {
+        const controlPlane = {
+            authorize: vi.fn(),
+            authorizeBinding: vi.fn(),
+            exchange_and_register: vi.fn(async () => {
+                throw new ContractError(failureCode, {
+                    status: 502,
+                    fault_domain: 'external_provider'
+                });
+            })
+        };
+        const response = await request(createApp({ controlPlane }))
+            .post('/api/v1/slack-installations:exchange-and-register')
+            .send({
+                authorization_code: 'short-lived-code',
+                redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+                intent: binding
+            });
+
+        expect(response.status).toBe(503);
+        expect(response.body).toEqual({
+            error: { code: 'UPSTREAM_UNAVAILABLE', retryable: true, fault_domain: 'brainbase_cloud' }
+        });
+        expect(JSON.stringify(response.body)).not.toContain(failureCode);
     });
 });

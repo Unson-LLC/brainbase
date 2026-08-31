@@ -65,7 +65,7 @@ function createControlPlane(overrides = {}) {
             credential_mode: 'customer_oauth',
             refresh_revision: 1
         })),
-        revoke: vi.fn(),
+        revoke: vi.fn(async () => ({ status: 'revoked' })),
         ...overrides.credentialStore
     };
     const controlPlane = new SlackInstallationControlPlane({
@@ -176,7 +176,29 @@ describe('Slack installation control plane', () => {
         expect(credentialStore.store).not.toHaveBeenCalled();
         expect(repository.registerSlackInstallation).not.toHaveBeenCalled();
         expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
+            failure_stage: 'exchange_normalize',
             failure_code: 'WORKSPACE_CONNECTION_CONFLICT'
+        }));
+    });
+
+    it.each([
+        ['connection_reserve', 'CONNECTION_RESERVATION_FAILED', {
+            repository: { reserveSlackInstallationConnection: vi.fn(async () => { throw new Error('database reserve detail'); }) }
+        }],
+        ['credential_store', 'CREDENTIAL_STORE_FAILED', {
+            credentialStore: { store: vi.fn(async () => { throw new Error('secret store detail'); }) }
+        }]
+    ])('records %s with its stage-specific generic code', async (failureStage, failureCode, overrides) => {
+        const { controlPlane, repository } = createControlPlane(overrides);
+        await expect(controlPlane.exchange_and_register({
+            authorization_code: 'oauth-code',
+            redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+            intent: binding
+        })).rejects.toThrow();
+        expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
+            failure_stage: failureStage,
+            failure_code: failureCode,
+            cleanup_status: failureStage === 'credential_store' ? 'failed' : 'not_needed'
         }));
     });
 
@@ -204,7 +226,66 @@ describe('Slack installation control plane', () => {
         expect(credentialStore.revoke.mock.calls[0][0].connection_id)
             .toBe(credentialStore.store.mock.calls[0][0].connection_id);
         expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
-            failure_code: 'INSTALLATION_EXCHANGE_FAILED'
+            failure_stage: 'db_register',
+            failure_code: 'DB_REGISTRATION_FAILED',
+            cleanup_status: 'revoked'
+        }));
+    });
+
+    it('records the exact failure stage and ignores forged error codes', async () => {
+        const forged = Object.assign(new Error('raw upstream body'), { code: 'EVIL_RAW_CODE' });
+        const { controlPlane, repository } = createControlPlane({
+            oauthClient: { exchangeCode: vi.fn(async () => { throw forged; }) }
+        });
+
+        await expect(controlPlane.exchange_and_register({
+            authorization_code: 'oauth-code',
+            redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+            intent: binding
+        })).rejects.toBe(forged);
+        expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
+            failure_stage: 'oauth_exchange',
+            failure_code: 'OAUTH_EXCHANGE_FAILED',
+            cleanup_status: 'not_needed'
+        }));
+        expect(JSON.stringify(repository.failSlackInstallationExchange.mock.calls[0][0]))
+            .not.toContain('raw upstream body');
+    });
+
+    it('records cleanup failure without exposing the opaque credential reference', async () => {
+        const { controlPlane, credentialStore, repository } = createControlPlane({
+            repository: { registerSlackInstallation: vi.fn(async () => { throw new Error('database unavailable'); }) },
+            credentialStore: { revoke: vi.fn(async () => { throw new Error('revoke unavailable'); }) }
+        });
+
+        await expect(controlPlane.exchange_and_register({
+            authorization_code: 'oauth-code',
+            redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+            intent: binding
+        })).rejects.toThrow('database unavailable');
+        expect(credentialStore.revoke).toHaveBeenCalledOnce();
+        const diagnostic = repository.failSlackInstallationExchange.mock.calls[0][0];
+        expect(diagnostic).toMatchObject({
+            failure_stage: 'db_register',
+            failure_code: 'DB_REGISTRATION_FAILED',
+            cleanup_status: 'failed'
+        });
+        expect(JSON.stringify(diagnostic)).not.toContain('opaque-ref');
+    });
+
+    it('does not mark cleanup revoked without an explicit revoke receipt', async () => {
+        const { controlPlane, repository } = createControlPlane({
+            repository: { registerSlackInstallation: vi.fn(async () => { throw new Error('database unavailable'); }) },
+            credentialStore: { revoke: vi.fn(async () => undefined) }
+        });
+
+        await expect(controlPlane.exchange_and_register({
+            authorization_code: 'oauth-code',
+            redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+            intent: binding
+        })).rejects.toThrow('database unavailable');
+        expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
+            cleanup_status: 'failed'
         }));
     });
 

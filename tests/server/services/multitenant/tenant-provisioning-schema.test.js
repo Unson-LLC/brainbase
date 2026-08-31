@@ -51,6 +51,10 @@ describe('tenant production provisioning schema', () => {
         expect(sql).toContain('audience TEXT[]');
         expect(sql).toContain('slack_installation_intents_tenant_idx');
         expect(sql).toContain('slack_installation_exchange_ledger_tenant_idx');
+        expect(sql).toContain('failure_stage TEXT');
+        expect(sql).toContain('cleanup_status TEXT');
+        expect(sql).toContain("oauth_exchange', 'exchange_normalize', 'connection_reserve', 'credential_store', 'db_register'");
+        expect(sql).toContain("not_needed', 'revoked', 'failed'");
     });
 
     it('does not persist secret bodies or model service actors as Graph persons', async () => {

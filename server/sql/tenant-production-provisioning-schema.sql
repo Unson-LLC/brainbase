@@ -426,6 +426,8 @@ CREATE TABLE IF NOT EXISTS slack_installation_exchange_ledger (
     claimed_at TIMESTAMPTZ,
     attempt BIGINT NOT NULL DEFAULT 1 CHECK (attempt > 0),
     failure_code TEXT,
+    failure_stage TEXT CHECK (failure_stage IS NULL OR failure_stage IN ('oauth_exchange', 'exchange_normalize', 'connection_reserve', 'credential_store', 'db_register')),
+    cleanup_status TEXT CHECK (cleanup_status IS NULL OR cleanup_status IN ('not_needed', 'revoked', 'failed')),
     created_at TIMESTAMPTZ NOT NULL,
     completed_at TIMESTAMPTZ,
     UNIQUE (tenant_id, installation_intent_id),
@@ -442,7 +444,9 @@ ALTER TABLE slack_installation_exchange_ledger
     ADD COLUMN IF NOT EXISTS claim_token_hash TEXT,
     ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS attempt BIGINT NOT NULL DEFAULT 1,
-    ADD COLUMN IF NOT EXISTS failure_code TEXT;
+    ADD COLUMN IF NOT EXISTS failure_code TEXT,
+    ADD COLUMN IF NOT EXISTS failure_stage TEXT,
+    ADD COLUMN IF NOT EXISTS cleanup_status TEXT;
 
 DO $slack_installation_exchange_status_migration$
 BEGIN
@@ -459,6 +463,31 @@ BEGIN
         CHECK (status IN ('processing', 'completed', 'failed'));
 END
 $slack_installation_exchange_status_migration$;
+
+DO $slack_installation_exchange_diagnostic_checks$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'slack_installation_exchange_ledger'::regclass
+           AND conname = 'slack_installation_exchange_ledger_failure_stage_check'
+    ) THEN
+        ALTER TABLE slack_installation_exchange_ledger
+            ADD CONSTRAINT slack_installation_exchange_ledger_failure_stage_check
+            CHECK (failure_stage IS NULL OR failure_stage IN (
+                'oauth_exchange', 'exchange_normalize', 'connection_reserve', 'credential_store', 'db_register'
+            ));
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'slack_installation_exchange_ledger'::regclass
+           AND conname = 'slack_installation_exchange_ledger_cleanup_status_check'
+    ) THEN
+        ALTER TABLE slack_installation_exchange_ledger
+            ADD CONSTRAINT slack_installation_exchange_ledger_cleanup_status_check
+            CHECK (cleanup_status IS NULL OR cleanup_status IN ('not_needed', 'revoked', 'failed'));
+    END IF;
+END
+$slack_installation_exchange_diagnostic_checks$;
 
 CREATE INDEX IF NOT EXISTS slack_installation_exchange_ledger_claim_idx
     ON slack_installation_exchange_ledger (tenant_id, status, claimed_at);

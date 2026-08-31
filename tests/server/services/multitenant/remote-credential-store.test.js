@@ -14,6 +14,26 @@ const binding = {
 };
 
 describe('remote tenant credential store adapter', () => {
+    it.each([
+        ['network failure', async () => { throw new Error('secret network detail'); }, 'CREDENTIAL_STORE_UNAVAILABLE'],
+        ['invalid JSON', async () => new Response('not-json', { status: 200 }), 'CREDENTIAL_STORE_INVALID'],
+        ['provider rejection', async () => Response.json({ error: 'secret rejection' }, { status: 503 }), 'CREDENTIAL_STORE_REJECTED']
+    ])('classifies %s with a stable non-secret code', async (_name, fetchImpl, code) => {
+        const store = createRemoteCredentialStore({
+            env: {
+                BRAINBASE_TENANT_CREDENTIAL_STORE_URL: 'https://credentials.example.test',
+                BRAINBASE_TENANT_CREDENTIAL_STORE_SERVICE_TOKEN: 'store-service-token'
+            },
+            fetchImpl
+        });
+        const storeCredential = () => store.store({
+            ...binding,
+            credential_material: 'secret-only-in-boundary'
+        });
+        await expect(storeCredential()).rejects.toMatchObject({ code });
+        await expect(storeCredential()).rejects.not.toThrow(/secret-only-in-boundary|secret network detail|secret rejection/u);
+    });
+
     it('uses the canonical URL/token names and sends only a bearer credential', async () => {
         const fetchImpl = vi.fn(async (_url, init) => {
             expect(init.headers.authorization).toBe('Bearer store-service-token');
@@ -68,7 +88,10 @@ describe('remote tenant credential store adapter', () => {
     });
 
     it('projects verify and revoke to the strict remote boundary without leaking local context fields', async () => {
-        const fetchImpl = vi.fn(async (_url, init) => Response.json({ result: { valid: true } }));
+        const fetchImpl = vi.fn(async (_url, init) => {
+            const { operation } = JSON.parse(init.body);
+            return Response.json({ result: operation === 'revoke' ? { status: 'revoked' } : { valid: true } });
+        });
         const store = createRemoteCredentialStore({
             env: {
                 BRAINBASE_TENANT_CREDENTIAL_STORE_URL: 'https://credentials.example.test',
@@ -97,6 +120,21 @@ describe('remote tenant credential store adapter', () => {
             credential_ref: input.credential_ref,
             reason: 'registration_failed'
         });
+    });
+
+    it('rejects a revoke response without an explicit revoked receipt', async () => {
+        const store = createRemoteCredentialStore({
+            env: {
+                BRAINBASE_TENANT_CREDENTIAL_STORE_URL: 'https://credentials.example.test',
+                BRAINBASE_TENANT_CREDENTIAL_STORE_SERVICE_TOKEN: 'store-service-token'
+            },
+            fetchImpl: vi.fn(async () => Response.json({ result: { valid: true } }))
+        });
+
+        await expect(store.revoke({
+            ...binding,
+            credential_ref: 'credref://tenant/slack/ref-1'
+        })).rejects.toMatchObject({ code: 'CREDENTIAL_STORE_REJECTED' });
     });
 
     it('fails closed before a canonical request when verify lacks the strict connection binding', async () => {
