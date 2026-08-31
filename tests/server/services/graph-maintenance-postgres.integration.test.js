@@ -370,6 +370,136 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
+    it('projectless Personのactive member_ofを外部metadataとしてApply・readback・Rollbackする', async () => {
+        const personId = 'person_projectless_roundtrip';
+        const anchorId = 'projectless_roundtrip_anchor';
+        const membershipEdgeId = 'membership_projectless_roundtrip';
+        const relatedEdgeId = 'edge_projectless_roundtrip';
+        await infoSSOTService.withAccessContext(access, async (client) => {
+            await client.query(`
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('${anchorId}', 'project', 'project_phase0', '{"name":"Projectless roundtrip anchor"}',
+                     'member', 'internal', 'active', 1),
+                    ('${personId}', 'person', NULL, '{"name":"Projectless roundtrip member"}',
+                     'member', 'internal', 'active', 1)
+            `);
+            await client.query(`
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('${membershipEdgeId}', '${personId}', 'project_entity_a', 'member_of',
+                     'project_phase0', '{}', 'member', 'internal', 'active', 1)
+            `);
+            await client.query(`
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('${relatedEdgeId}', '${personId}', 'project_entity_b', 'related_to',
+                     'project_phase0', '{}', 'member', 'internal', 'active', 1)
+            `);
+        });
+
+        const externalPerson = (snapshot) => snapshot.external_entities?.find((entity) => entity.id === personId);
+        try {
+            const baseline = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+            expect(baseline.entities).not.toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: personId })
+            ]));
+            expect(baseline.edges).toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: relatedEdgeId, from_id: personId })
+            ]));
+            expect(externalPerson(baseline)).toMatchObject({
+                id: personId,
+                entity_type: 'person',
+                project_code: 'brainbase',
+                reference_scope: 'same_organization',
+                role_min: 'member',
+                sensitivity: 'internal',
+                lifecycle_status: 'active',
+                version: 1
+            });
+            expect(externalPerson(baseline)).not.toHaveProperty('payload');
+            expect(validateGraphSnapshot(baseline)).toMatchObject({ valid: true, counts: { orphans: 0 } });
+            await expect(infoSSOTService.listGraphEdges(access, {
+                projectCode: 'brainbase', relType: 'related_to', fromId: personId
+            })).resolves.toEqual([
+                expect.objectContaining({ id: relatedEdgeId, from_id: personId })
+            ]);
+            await expect(infoSSOTService.listGraphEdges(
+                { ...access, projectCodes: ['vibepro'] },
+                { projectCode: 'brainbase', relType: 'related_to', fromId: personId }
+            )).resolves.toEqual([]);
+
+            const operation = {
+                operation: 'patch_entity',
+                entity_id: anchorId,
+                expected_version: 1,
+                patch: { roundtrip_marker: 'projectless-person' }
+            };
+            const plan = await service.planMutations(access, {
+                projectCode: 'brainbase',
+                snapshotId: baseline.snapshot_id,
+                idempotencyKey: 'projectless-person-db-roundtrip-1',
+                reason: 'Projectless Person PostgreSQL acceptance roundtrip',
+                operations: [operation]
+            });
+            expect(plan.snapshot_hash).toBe(baseline.snapshot_hash);
+            expect(externalPerson(plan.before)).toEqual(externalPerson(baseline));
+            expect(externalPerson(plan.after)).toEqual(externalPerson(baseline));
+            expect(externalPerson(plan.after)).not.toHaveProperty('payload');
+            expect(plan.after.entities).toEqual(expect.arrayContaining([
+                expect.objectContaining({
+                    id: anchorId,
+                    payload: { name: 'Projectless roundtrip anchor', roundtrip_marker: 'projectless-person' },
+                    version: 2
+                })
+            ]));
+
+            const applyReceipt = await service.applyPlan(access, {
+                projectCode: 'brainbase', planId: plan.plan_id, snapshotHash: plan.snapshot_hash
+            });
+            expect(applyReceipt).toMatchObject({
+                plan_id: plan.plan_id,
+                receipt_type: 'apply',
+                status: 'completed',
+                before_hash: baseline.snapshot_hash,
+                after_hash: plan.after_snapshot_hash
+            });
+            const appliedSnapshot = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+            expect(appliedSnapshot.snapshot_hash).toBe(plan.after_snapshot_hash);
+            expect(externalPerson(appliedSnapshot)).toEqual(externalPerson(baseline));
+            expect(externalPerson(appliedSnapshot)).not.toHaveProperty('payload');
+            expect(appliedSnapshot.edges).toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: relatedEdgeId, from_id: personId })
+            ]));
+            expect(validateGraphSnapshot(appliedSnapshot)).toMatchObject({ valid: true, counts: { orphans: 0 } });
+
+            const rollbackReceipt = await service.rollbackPlan(access, {
+                projectCode: 'brainbase', planId: plan.plan_id, applyReceiptId: applyReceipt.receipt_id
+            });
+            expect(rollbackReceipt).toMatchObject({
+                plan_id: plan.plan_id,
+                receipt_type: 'rollback',
+                status: 'completed',
+                before_hash: plan.after_snapshot_hash,
+                after_hash: baseline.snapshot_hash
+            });
+            const restoredSnapshot = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+            expect(restoredSnapshot.snapshot_hash).toBe(baseline.snapshot_hash);
+            expect(restoredSnapshot.entities).toEqual(baseline.entities);
+            expect(restoredSnapshot.edges).toEqual(baseline.edges);
+            expect(restoredSnapshot.external_entities).toEqual(baseline.external_entities);
+            expect(externalPerson(restoredSnapshot)).not.toHaveProperty('payload');
+        } finally {
+            await infoSSOTService.withAccessContext(access, async (client) => {
+                await client.query(`DELETE FROM graph_edges WHERE id IN ('${relatedEdgeId}', '${membershipEdgeId}')`);
+                await client.query(`DELETE FROM graph_entities WHERE id IN ('${personId}', '${anchorId}')`);
+            });
+        }
+    });
+
     it('projectless Personは不可視なmember_ofをorganization根拠として利用できない', async () => {
         const ceoAccess = { ...access, role: 'ceo' };
         await infoSSOTService.withAccessContext(ceoAccess, async (client) => {
