@@ -21,7 +21,7 @@ import type {
   DecisionEntry,
   AssignmentEntry,
 } from '../indexer/types.js';
-import { TokenManager } from '../auth/token-manager.js';
+import type { TokenProvider } from '../auth/request-token-context.js';
 import {
   EXTENSION_ENTITY_TYPE_SET,
   getExtensionRegistrations,
@@ -106,11 +106,11 @@ function graphMetadata(entity: GraphEntity): {
 
 export class GraphAPISource implements EntitySource {
   private apiUrl: string;
-  private tokenManager: TokenManager;
+  private tokenManager: TokenProvider;
   private projectCodes?: string[];
   private entities: GraphEntity[] = [];
 
-  constructor(apiUrl: string, tokenManager: TokenManager, projectCodes?: string[]) {
+  constructor(apiUrl: string, tokenManager: TokenProvider, projectCodes?: string[]) {
     this.apiUrl = apiUrl;
     this.tokenManager = tokenManager;
     this.projectCodes = projectCodes;
@@ -176,6 +176,7 @@ export class GraphAPISource implements EntitySource {
 
     if (response.status === 401) {
       console.error('[GraphAPISource] Token expired, refreshing...');
+      if (!this.tokenManager.refresh) return response;
       await this.tokenManager.refresh();
       const newToken = await this.tokenManager.getToken();
       response = await fetch(url, {

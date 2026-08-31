@@ -18,7 +18,11 @@ Cloud RunのAPI・MCP・DBマイグレーションJobまで配備済みです。
 scripts/growin/run-claude-isolated.sh
 ```
 
-このランチャーはSecret ManagerからMCPトークンを実行時に取得し、一時設定を`0600`で作成します。`--strict-mcp-config`により、雲孫を含む利用者設定・プロジェクト設定のMCPを読みません。終了時に一時設定を削除します。
+このランチャーは初回にGrowin専用APIのDevice Code Flowを開始し、Slackで本人確認します。取得した個人JWTは`~/.brainbase/growin/tokens.json`へ`0600`で保存し、MCPからGraph APIまで同じ本人情報を伝播します。共通Bearerは移行期間だけ`hybrid`モードで受け付け、個人認証の確認後に`brainbase-jwt`へ切り替えて廃止します。
+
+認証プロバイダーはBrainbase人物・権限から分離されています。初期プロバイダーはSlackですが、Google Workspace、Microsoft Entra ID、パスキーへ切り替えても、人物ID・案件権限・監査モデルは変えません。`--strict-mcp-config`により、雲孫を含む利用者設定・プロジェクト設定のMCPを読みません。終了時に一時設定を削除します。
+
+個人認証を有効化する前に、GrowinのSlackアプリ資格情報と、加藤さん・川村さんのSlack IDを`auth_grants`へ登録する必要があります。値が未確認の間は推測して登録しません。
 
 初期Graphの投入とリモートE2Eは次の順で実行します。秘密値は標準出力へ表示しません。
 

@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-project_id="${GROWIN_GCP_PROJECT_ID:-brainbase-505912}"
-account="${GROWIN_GCP_ACCOUNT:-k.sato.unson@gmail.com}"
 mcp_url="${GROWIN_BRAINBASE_MCP_URL:-https://brainbase-mcp-lmc74punpa-an.a.run.app/mcp}"
-secret_name="${GROWIN_MCP_SECRET_NAME:-brainbase-mcp-http-bearer-token}"
+api_url="${GROWIN_BRAINBASE_API_URL:-https://brainbase-api-lmc74punpa-an.a.run.app}"
+token_file="${GROWIN_BRAINBASE_TOKEN_FILE:-${HOME}/.brainbase/growin/tokens.json}"
 
-command -v gcloud >/dev/null || { echo "gcloud が必要です" >&2; exit 1; }
 command -v claude >/dev/null || { echo "Claude Code が必要です" >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq が必要です" >&2; exit 1; }
 
-token="$(gcloud secrets versions access latest --secret="$secret_name" --project="$project_id" --account="$account")"
-test -n "$token" || { echo "Growin MCPトークンを取得できません" >&2; exit 1; }
+if [[ ! -f "$token_file" ]]; then
+  echo "Growin専用の個人認証を開始します。ブラウザでSlack認証を完了してください。"
+  BRAINBASE_API_URL="$api_url" BRAINBASE_TOKEN_FILE="$token_file" node scripts/auth-setup.mjs
+fi
+token="$(jq -er '.access_token | select(type == "string" and length > 0)' "$token_file")" || {
+  echo "Growin専用の個人トークンを読み込めません。再認証してください: $token_file" >&2
+  exit 1
+}
 
 config_file="$(mktemp "${TMPDIR:-/tmp}/growin-brainbase-mcp.XXXXXX.json")"
 chmod 600 "$config_file"

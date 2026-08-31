@@ -537,6 +537,14 @@ resource "google_cloud_run_v2_service" "mcp" {
         value = "growin"
       }
       env {
+        name  = "MCP_HTTP_AUTH_MODE"
+        value = "hybrid"
+      }
+      env {
+        name  = "MCP_HTTP_REQUIRED_ORGANIZATION_ID"
+        value = "org_growin"
+      }
+      env {
         name = "MCP_HTTP_BEARER_TOKEN"
         value_source {
           secret_key_ref {

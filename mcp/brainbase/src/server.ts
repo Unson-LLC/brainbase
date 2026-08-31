@@ -35,6 +35,8 @@ import { loadConfig, resolveBrainbaseApiUrl } from './config.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
 import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager } from './auth/token-manager.js';
+import { authenticateMcpHttpRequest, type McpHttpAuthMode } from './auth/http-auth.js';
+import { RequestTokenContext, type TokenProvider } from './auth/request-token-context.js';
 import { filterWikiPages } from './tools/wiki-search.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
 import {
@@ -77,7 +79,7 @@ const taskApiToken = process.env.BRAINBASE_TASK_API_TOKEN;
 
 // Global refs for wiki API calls
 let wikiApiBaseUrl: string;
-let globalTokenManager: TokenManager;
+let globalTokenManager: TokenProvider;
 let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
 let configuredProjectCodes: string[] | undefined;
@@ -1064,7 +1066,7 @@ export const __testing = {
     indexRefreshEnabled = enabled;
   },
   setTokenManager(manager: { getToken(): Promise<string> }): void {
-    globalTokenManager = manager as TokenManager;
+    globalTokenManager = manager;
   },
   setWikiApiBaseUrl(url: string): void {
     wikiApiBaseUrl = url;
@@ -1107,9 +1109,10 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   }
 
   const tokenManager = new TokenManager(config.graphApiUrl);
-  globalTokenManager = tokenManager;
+  const requestTokenContext = new RequestTokenContext(tokenManager);
+  globalTokenManager = requestTokenContext;
   wikiApiBaseUrl = process.env.BRAINBASE_WIKI_API_URL || 'http://localhost:31013';
-  const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
+  const source = new GraphAPISource(config.graphApiUrl, requestTokenContext, config.projectCodes);
   globalGraphSource = source;
   indexRefreshEnabled = true;
   defaultProjectCode = config.projectCodes?.[0] || 'brainbase';
@@ -1265,10 +1268,37 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   const httpPort = process.env.MCP_HTTP_PORT ? Number(process.env.MCP_HTTP_PORT) : null;
   if (httpPort && Number.isFinite(httpPort)) {
     const bearerToken = process.env.MCP_HTTP_BEARER_TOKEN || '';
-    if (!bearerToken) throw new Error('MCP_HTTP_BEARER_TOKEN is required when MCP_HTTP_PORT is set');
+    const authMode = (process.env.MCP_HTTP_AUTH_MODE || 'shared-bearer') as McpHttpAuthMode;
+    if (!['shared-bearer', 'brainbase-jwt', 'hybrid'].includes(authMode)) {
+      throw new Error(`Unsupported MCP_HTTP_AUTH_MODE: ${authMode}`);
+    }
+    if (authMode === 'shared-bearer' && !bearerToken) {
+      throw new Error('MCP_HTTP_BEARER_TOKEN is required in shared-bearer mode');
+    }
+    const authVerifyUrl = process.env.MCP_HTTP_AUTH_VERIFY_URL
+      || `${config.graphApiUrl.replace(/\/$/, '')}/api/auth/verify`;
+    const requiredOrganizationId = process.env.MCP_HTTP_REQUIRED_ORGANIZATION_ID || undefined;
     const http = await import('node:http');
     const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
     const host = process.env.MCP_HTTP_HOST || '127.0.0.1';
+    // The entity index is process-global. In personal-auth modes, serialize MCP
+    // requests and rebuild it with the caller's token so one user's snapshot is
+    // never observed by another user with different permissions.
+    let authenticatedRequestQueue: Promise<void> = Promise.resolve();
+    async function runAuthenticatedRequest<T>(callback: () => Promise<T>): Promise<T> {
+      if (authMode === 'shared-bearer') return callback();
+      const previous = authenticatedRequestQueue;
+      let release!: () => void;
+      authenticatedRequestQueue = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await previous;
+      try {
+        return await callback();
+      } finally {
+        release();
+      }
+    }
 
     const httpServer = http.createServer(async (req, res) => {
       if (isPublicMcpHttpEndpoint(req.method, req.url)) {
@@ -1276,7 +1306,13 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         res.end('ok');
         return;
       }
-      if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
+      const auth = await authenticateMcpHttpRequest(req.headers.authorization, {
+        mode: authMode,
+        sharedBearerToken: bearerToken,
+        verifyUrl: authVerifyUrl,
+        requiredOrganizationId,
+      });
+      if (!auth.ok) {
         res.writeHead(401, {
           'Content-Type': 'application/json',
           'WWW-Authenticate': 'Bearer',
@@ -1304,7 +1340,8 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           projectCode: Array.isArray(req.headers['x-brainbase-project-code'])
             ? req.headers['x-brainbase-project-code'][0]
             : req.headers['x-brainbase-project-code'],
-          isAuthorized: isAuthorizedMcpHttpRequest,
+          // The request has already passed the configured shared/JWT strategy above.
+          isAuthorized: () => true,
           dispatch: dispatchRemoteJudgmentHook,
           onDispatchError: (details) => {
             console.error(JSON.stringify({
@@ -1375,8 +1412,20 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         void transport.close();
         void server.close();
       });
-      await server.connect(transport);
-      await transport.handleRequest(req, res, body);
+      const handleMcpRequest = async () => {
+        await refreshEntityIndex();
+        await server.connect(transport);
+        await transport.handleRequest(req, res, body);
+      };
+      await runAuthenticatedRequest(async () => {
+        if (auth.kind === 'brainbase-jwt') {
+          await requestTokenContext.run({ token: auth.token }, handleMcpRequest);
+          return;
+        }
+        // A shared MCP bearer authenticates only the MCP edge. It must never be
+        // forwarded to Graph API; the fallback service token remains the caller.
+        await handleMcpRequest();
+      });
     });
 
     await new Promise<void>((resolve) => {

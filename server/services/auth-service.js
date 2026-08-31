@@ -4,6 +4,8 @@ import { Pool } from 'pg';
 import { ulid } from 'ulid';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
+import { AuthProviderRegistry } from './auth/auth-provider-registry.js';
+import { createSlackAuthProvider } from './auth/providers/slack-auth-provider.js';
 
 const DEFAULT_SCOPES = 'openid profile email';
 const DEFAULT_CLEARANCE = ['internal', 'restricted'];
@@ -44,7 +46,7 @@ function slugifyServiceName(name) {
 }
 
 export class AuthService {
-    constructor() {
+    constructor({ providerRegistry = null, authProviderId = process.env.BRAINBASE_AUTH_PROVIDER || 'slack' } = {}) {
         this.databaseUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || '';
         this.pool = this.databaseUrl ? new Pool({ connectionString: this.databaseUrl }) : null;
         this.jwtSecret = process.env.BRAINBASE_JWT_SECRET || '';
@@ -80,6 +82,24 @@ export class AuthService {
                 : 'https://slack.com/api/openid.connect.token');
         this.userInfoUrl = process.env.SLACK_AUTH_USERINFO_URL
             || 'https://slack.com/api/openid.connect.userInfo';
+
+        this.providerRegistry = providerRegistry || new AuthProviderRegistry();
+        if (!this.providerRegistry.has('slack')) {
+            this.providerRegistry.register(createSlackAuthProvider({
+                mode: this.slackMode,
+                clientId: this.slackClientId,
+                clientSecret: this.slackClientSecret,
+                redirectUri: this.slackRedirectUri,
+                callbackPath: this.slackCallbackPath,
+                scopes: this.slackScopes,
+                userScopes: this.slackUserScopes,
+                authorizeUrl: this.authorizeUrl,
+                tokenUrl: this.tokenUrl,
+                userInfoUrl: this.userInfoUrl
+            }));
+        }
+        this.authProviderId = authProviderId;
+        this.authProvider = this.providerRegistry.require(this.authProviderId);
 
         this.stateStore = new Map();
         this.stateTtlMs = 10 * 60 * 1000;
@@ -263,6 +283,9 @@ export class AuthService {
     }
 
     buildAuthorizeUrl(state, req) {
+        if (this.authProvider?.buildAuthorizationUrl) {
+            return this.authProvider.buildAuthorizationUrl(state, req);
+        }
         const url = new URL(this.authorizeUrl);
         url.searchParams.set('client_id', this.slackClientId);
         url.searchParams.set('redirect_uri', this.resolveRedirectUri(req));
@@ -278,6 +301,9 @@ export class AuthService {
     }
 
     async exchangeCode(code, req) {
+        if (this.authProvider?.exchangeCode) {
+            return this.authProvider.exchangeCode(code, req);
+        }
         const body = new URLSearchParams({
             client_id: this.slackClientId,
             client_secret: this.slackClientSecret,
@@ -304,6 +330,9 @@ export class AuthService {
     }
 
     async fetchUserInfo(accessToken) {
+        if (this.authProvider?.fetchUserInfo) {
+            return this.authProvider.fetchUserInfo(accessToken);
+        }
         const res = await fetch(this.userInfoUrl, {
             method: 'GET',
             headers: { Authorization: `Bearer ${accessToken}` }
@@ -320,6 +349,9 @@ export class AuthService {
     }
 
     resolveSlackIdentity(tokenPayload, userInfo) {
+        if (this.authProviderId === 'slack' && this.authProvider?.resolveIdentity) {
+            return this.authProvider.resolveIdentity({ tokenPayload, userInfo });
+        }
         const fromTokenUser = tokenPayload?.authed_user?.id || tokenPayload?.user?.id || tokenPayload?.user_id || tokenPayload?.sub || null;
         const fromTokenTeam = tokenPayload?.team?.id || tokenPayload?.team_id || tokenPayload?.enterprise_id || tokenPayload?.workspace_id || null;
 
