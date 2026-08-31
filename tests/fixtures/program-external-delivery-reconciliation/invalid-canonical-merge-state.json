@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "prior_head": "fc821b58ed1e4bb6d276ec3ab2cf0ce0861a2764",
+  "missing_mergeability_prior_head": "eb18ed63a0f37e2d554372f85a62b1346d18db0c",
+  "missing_mergeability_prior_behavior": "accepted canonical identity when mergeable or merge_state_status was absent",
+  "expected_identity": {
+    "repository": "Unson-LLC/brainbase-unson",
+    "pull_request": 1302,
+    "role": "producer_contract_delivery",
+    "merged_sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad"
+  },
+  "verified_delivery": {
+    "repository": "Unson-LLC/brainbase-unson",
+    "pull_request": 1302,
+    "role": "producer_contract_delivery",
+    "state": "MERGED_EXTERNALLY",
+    "pre_merge_health": {
+      "mergeable": "UNKNOWN",
+      "merge_state_status": "UNKNOWN"
+    },
+    "merge": {
+      "sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
+      "merged_at": "2026-08-21T19:09:27Z",
+      "merged_by": "sintariran"
+    },
+    "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1302"
+  },
+  "negative_patches": [
+    { "id": "open", "patch": { "state": "OPEN" }, "invalid": "state" },
+    { "id": "unknown-state", "patch": { "state": "UNKNOWN" }, "invalid": "state" },
+    { "id": "nonmerged", "patch": { "state": "CLOSED" }, "invalid": "state" },
+    {
+      "id": "invalid-pre-mergeability",
+      "patch": { "pre_merge_health": { "mergeable": "BROKEN" } },
+      "invalid": "pre_merge_health.mergeable"
+    },
+    {
+      "id": "invalid-pre-merge-state",
+      "patch": { "pre_merge_health": { "merge_state_status": "BROKEN" } },
+      "invalid": "pre_merge_health.merge_state_status"
+    },
+    { "id": "missing-merged-at", "patch": { "merge": { "merged_at": null } }, "invalid": "merge.merged_at" },
+    { "id": "missing-merged-by", "patch": { "merge": { "merged_by": " " } }, "invalid": "merge.merged_by" },
+    { "id": "wrong-source", "patch": { "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1283" }, "invalid": "source_url" },
+    {
+      "id": "contradictory-sha",
+      "patch": {
+        "merged_sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
+        "merge": { "sha": "0000000000000000000000000000000000000000" }
+      },
+      "invalid": "merged_sha/merge.sha"
+    }
+  ]
+}

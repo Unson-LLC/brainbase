@@ -1,0 +1,48 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-program-external-delivery-reconciliation-v1",
+  "authority": {
+    "status": "accepted",
+    "scope": "story"
+  },
+  "provenance": {
+    "input_path": "docs/management/tasks/program-external-delivery-reconciliation-v1.vibepro.json",
+    "input_sha256": "23308dddd278055629311b508142400c3c5b51e2e851b92746a01394b28bf60c"
+  },
+  "tasks": [
+    {
+      "task_id": "program-external-delivery-reconciliation-v1",
+      "story_id": "story-program-external-delivery-reconciliation-v1",
+      "title": "Program external delivery reconciliation v1",
+      "allowed_paths": [
+        ".vibepro/pr/story-program-external-delivery-reconciliation-v1/**",
+        ".vibepro/spec/story-program-external-delivery-reconciliation-v1/**",
+        ".vibepro/stories/story-program-external-delivery-reconciliation-v1/tasks/**",
+        "docs/architecture/story-program-external-delivery-reconciliation-v1.md",
+        "docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json",
+        "docs/management/milestones/brainbase-program-master-roadmap.json",
+        "docs/management/milestones/brainbase-program-master-roadmap.md",
+        "docs/management/prompts/codex-brainbase-program-orchestrator.md",
+        "docs/management/stories/active/story-program-external-delivery-reconciliation-v1.md",
+        "docs/management/tasks/program-external-delivery-reconciliation-v1.json",
+        "docs/management/tasks/program-external-delivery-reconciliation-v1.vibepro.json",
+        "docs/specs/program-external-delivery-reconciliation-v1.json",
+        "docs/specs/program-external-delivery-reconciliation-v1.md",
+        "scripts/program/reconcile-external-delivery.mjs",
+        "tests/contracts/program-external-delivery-reconciliation.test.js",
+        "tests/fixtures/program-external-delivery-reconciliation/**"
+      ],
+      "acceptance_criteria": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005",
+        "AC-006",
+        "AC-007",
+        "AC-008"
+      ],
+      "status": "accepted"
+    }
+  ]
+}

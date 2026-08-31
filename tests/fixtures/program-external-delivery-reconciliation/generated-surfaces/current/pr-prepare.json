@@ -1,0 +1,12 @@
+{
+  "schema_version": "0.2.0",
+  "spec": { "present": true, "story_id": "story-program-external-delivery-reconciliation-v1", "clause_count": 8 },
+  "task_authorities": { "accepted": { "present": true, "task_count": 1, "status_counts": { "accepted": 1 } } },
+  "traceability": {
+    "accepted_spec_lineage": { "status": "resolved", "clause_count": 8, "resolved_clause_count": 8, "reason_codes": [] },
+    "summary": { "clause_count": 8, "acceptance_criteria_count": 8, "mapped_count": 8, "weakly_mapped_count": 0, "unmapped_count": 0 }
+  },
+  "review": { "configured": true, "recorded": true, "complete": false, "status": "needs_review" },
+  "gate_status": "needs_review",
+  "blocking_reasons": ["agent_review:needs_review"]
+}

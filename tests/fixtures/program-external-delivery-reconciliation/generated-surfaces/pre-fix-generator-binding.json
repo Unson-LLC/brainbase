@@ -1,0 +1,9 @@
+{
+  "prior_head_sha": "825563fccaa113798274c092da6e90d1a9b59b5c",
+  "stale_base_ref": "develop",
+  "canonical_base_ref": "origin/develop",
+  "generated_changed_files": 427,
+  "canonical_changed_files": 25,
+  "unrelated_changed_files": 402,
+  "prior_standard_regression": "skipped_without_VIBEPRO_LIVE_SURFACE_ROOT"
+}

@@ -1,0 +1,187 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-program-external-delivery-selector-runtime-integration-v1",
+  "predecessor_story_id": "story-program-external-delivery-reconciliation-v1",
+  "lifecycle": "planning_only",
+  "spec_status": "planned",
+  "implementation_status": "blocked",
+  "planning_only": true,
+  "blocked": true,
+  "blocked_by": [
+    "story-program-external-delivery-reconciliation-v1"
+  ],
+  "production_evidence": "not_collected",
+  "done": false,
+  "selector_contract": {
+    "sequence": [
+      "actual_external_delivery_readback",
+      "selector",
+      "before_program_status_evaluation"
+    ],
+    "failure_surface": "fail_closed_reconciliation_gate_needs_review",
+    "automatic_promotion": false,
+    "production_evidence": "not_collected"
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "ordering",
+      "statement": "actual external delivery readbackを同一runで完了し、source、readback時刻、repository-qualified identity、immutable provenanceを束縛してからselectorを呼び出す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-program-external-delivery-selector-runtime-integration-v1.md",
+            "section": "処理順序の契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/program/reconcile-external-delivery.mjs",
+            "anchor": "canonicalSelectorContract"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-selector-runtime-integration-planning.test.js",
+            "case": "keeps actual readback before selector before status evaluation"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-002",
+      "type": "input_boundary",
+      "statement": "selectorはactual readbackの結果だけを入力にし、stale snapshot、title一致だけの候補、黙った候補除外を使わない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-program-external-delivery-selector-runtime-integration-v1.md",
+            "section": "処理順序の契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/program/reconcile-external-delivery.mjs",
+            "anchor": "selectCanonicalDelivery"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-selector-runtime-integration-planning.test.js",
+            "case": "keeps selector input bound to the actual readback"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-003",
+      "type": "failure_boundary",
+      "statement": "readback、identity、provenance、selectorの失敗はfail-closedでreconciliation Gateをneeds_reviewにし、status評価を続行しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-program-external-delivery-selector-runtime-integration-v1.md",
+            "section": "失敗と状態境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/program/reconcile-external-delivery.mjs",
+            "anchor": "canonicalSelectorContract"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-selector-runtime-integration-planning.test.js",
+            "case": "keeps selector failure fail-closed at needs_review"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-004",
+      "type": "promotion_boundary",
+      "statement": "selector成功、external merge、release、docs、open PRはProgram statusを自動promotionしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-program-external-delivery-selector-runtime-integration-v1.md",
+            "section": "失敗と状態境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/program/reconcile-external-delivery.mjs",
+            "anchor": "canonicalSelectorContract"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-selector-runtime-integration-planning.test.js",
+            "case": "keeps automatic Program status promotion disabled"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-005",
+      "type": "planning_boundary",
+      "statement": "predecessor v1へruntime integrationを混ぜず、本Storyはplanning-only、blocked、production_evidence=not_collected、done=falseを維持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-program-external-delivery-selector-runtime-integration-v1.md",
+            "section": "ownershipと依存"
+          }
+        ],
+        "code_refs": [],
+        "test_refs": [
+          {
+            "file": "tests/contracts/program-external-delivery-selector-runtime-integration-planning.test.js",
+            "case": "keeps predecessor and successor planning boundaries explicit"
+          }
+        ]
+      }
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "OQ-001",
+      "question": "runtime owner、readback adapter、selector caller、failure receipt、独立review/Gate担当は未割当"
+    },
+    {
+      "id": "OQ-002",
+      "question": "production evidenceは未収集"
+    }
+  ]
+}

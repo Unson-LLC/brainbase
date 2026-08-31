@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-program-external-delivery-reconciliation-v1",
+  "stage": "gate",
+  "status": "needs_review",
+  "roles": [
+    { "role": "gate_evidence", "status": "missing" },
+    { "role": "pr_split_scope", "status": "missing" },
+    { "role": "release_risk", "status": "missing" }
+  ]
+}

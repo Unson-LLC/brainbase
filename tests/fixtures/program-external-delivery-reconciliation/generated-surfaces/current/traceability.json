@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-program-external-delivery-reconciliation-v1",
+  "successor_dependency": {
+    "story_id": "story-program-external-delivery-selector-runtime-integration-v1",
+    "predecessor_story_id": "story-program-external-delivery-reconciliation-v1",
+    "status": "planned",
+    "planning_only": true,
+    "blocked": true,
+    "blocked_by": "predecessor remains contract-only; runtime owner, implementation Task and independent Gate are not assigned",
+    "production_evidence": "not_collected",
+    "done": false
+  },
+  "acceptance_criteria": [
+    { "id": "AC-001", "status": "mapped", "mapping_source": "accepted_spec", "lineage_status": "resolved", "spec_clause_ids": ["C-001"] },
+    { "id": "AC-002", "status": "mapped", "mapping_source": "accepted_spec", "lineage_status": "resolved", "spec_clause_ids": ["C-002"] },
+    { "id": "AC-003", "status": "mapped", "mapping_source": "accepted_spec", "lineage_status": "resolved", "spec_clause_ids": ["C-003"] },
+    { "id": "AC-004", "status": "mapped", "mapping_source": "accepted_spec", "lineage_status": "resolved", "spec_clause_ids": ["C-004"] },
+    { "id": "AC-005", "status": "mapped", "mapping_source": "accepted_spec", "lineage_status": "resolved", "spec_clause_ids": ["C-005"] },
+    { "id": "AC-006", "status": "mapped", "mapping_source": "accepted_spec", "lineage_status": "resolved", "spec_clause_ids": ["C-006"] },
+    { "id": "AC-007", "status": "mapped", "mapping_source": "accepted_spec", "lineage_status": "resolved", "spec_clause_ids": ["C-007"] },
+    { "id": "AC-008", "status": "mapped", "mapping_source": "accepted_spec", "lineage_status": "resolved", "spec_clause_ids": ["C-008"] }
+  ],
+  "accepted_spec_lineage": { "status": "resolved", "clause_count": 8, "resolved_clause_count": 8, "reason_codes": [] },
+  "coverage_summary": { "clause_count": 8, "acceptance_criteria_count": 8, "mapped_count": 8, "weakly_mapped_count": 0, "unmapped_count": 0 }
+}

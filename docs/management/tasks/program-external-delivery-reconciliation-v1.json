@@ -1,0 +1,54 @@
+{
+  "task_id": "program-external-delivery-reconciliation-v1",
+  "story_id": "story-program-external-delivery-reconciliation-v1",
+  "status": "contract_ready",
+  "done": false,
+  "successor_dependency": {
+    "story_id": "story-program-external-delivery-selector-runtime-integration-v1",
+    "predecessor_story_id": "story-program-external-delivery-reconciliation-v1",
+    "status": "planned",
+    "planning_only": true,
+    "blocked": true,
+    "blocked_by": "predecessor remains contract-only; runtime owner, implementation Task and independent Gate are not assigned",
+    "production_evidence": "not_collected",
+    "done": false
+  },
+  "scope": {
+    "allowed": [
+      "docs/management/milestones/brainbase-program-master-roadmap.md",
+      "docs/management/milestones/brainbase-program-master-roadmap.json",
+      "docs/management/prompts/codex-brainbase-program-orchestrator.md",
+      "docs/management/stories/active/story-program-external-delivery-reconciliation-v1.md",
+      "docs/architecture/story-program-external-delivery-reconciliation-v1.md",
+      "docs/specs/program-external-delivery-reconciliation-v1.md",
+      "docs/specs/program-external-delivery-reconciliation-v1.json",
+      "docs/management/tasks/program-external-delivery-reconciliation-v1.json",
+      "docs/management/tasks/program-external-delivery-reconciliation-v1.vibepro.json",
+      "docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json",
+      "scripts/program/reconcile-external-delivery.mjs",
+      "tests/contracts/program-external-delivery-reconciliation.test.js",
+      "tests/fixtures/program-external-delivery-reconciliation/**",
+      ".vibepro/** story-scoped artifacts"
+    ],
+    "forbidden": [
+      "P0 Story, Architecture, Spec, Task, contract or Gate changes",
+      "runtime changes",
+      "external PR mutation",
+      "deploy, release, publish, migration, secret or customer data"
+    ]
+  },
+  "acceptance": [
+    "repository-qualified external delivery identity",
+    "A0 canonical producer #1302 separated from stale open #1283",
+    "P0 source-lock repository/SHA and companion PR/producer_contract_delivery role bind mechanically",
+    "external delivery does not promote Program status",
+    "only the six Master Roadmap Program status values are allowed"
+  ],
+  "canonical_identity": {
+    "repository": "Unson-LLC/brainbase-unson",
+    "pull_request": 1302,
+    "role": "producer_contract_delivery",
+    "merged_sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad"
+  },
+  "production_evidence": "not_collected"
+}

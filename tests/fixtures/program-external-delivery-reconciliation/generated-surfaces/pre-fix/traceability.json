@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-program-external-delivery-reconciliation-v1",
+  "acceptance_criteria": [
+    { "id": "AC-001", "status": "unmapped", "mapping_source": "none", "lineage_status": "missing", "spec_clause_ids": [] },
+    { "id": "AC-002", "status": "mapped", "mapping_source": "test_name", "lineage_status": "unresolved", "spec_clause_ids": [] },
+    { "id": "AC-003", "status": "mapped", "mapping_source": "test_name", "lineage_status": "unresolved", "spec_clause_ids": [] },
+    { "id": "AC-004", "status": "mapped", "mapping_source": "test_name", "lineage_status": "unresolved", "spec_clause_ids": [] },
+    { "id": "AC-005", "status": "mapped", "mapping_source": "test_name", "lineage_status": "unresolved", "spec_clause_ids": [] },
+    { "id": "AC-006", "status": "unmapped", "mapping_source": "none", "lineage_status": "missing", "spec_clause_ids": [] },
+    { "id": "AC-007", "status": "mapped", "mapping_source": "test_name", "lineage_status": "unresolved", "spec_clause_ids": [] },
+    { "id": "AC-008", "status": "weakly_mapped", "mapping_source": "test_name", "lineage_status": "unresolved", "spec_clause_ids": [] }
+  ],
+  "accepted_spec_lineage": { "status": "missing", "clause_count": 0, "resolved_clause_count": 0, "reason_codes": ["accepted_spec_missing"] },
+  "coverage_summary": { "clause_count": 8, "acceptance_criteria_count": 8, "mapped_count": 5, "weakly_mapped_count": 1, "unmapped_count": 2 }
+}

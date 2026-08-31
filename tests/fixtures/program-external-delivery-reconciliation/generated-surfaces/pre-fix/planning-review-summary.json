@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-program-external-delivery-reconciliation-v1",
+  "stage": "planning_spec",
+  "status": "needs_review",
+  "roles": [
+    { "role": "spec_consistency", "status": "needs_changes" },
+    { "role": "product_requirement", "status": "needs_changes" },
+    { "role": "architecture_boundary", "status": "pass" }
+  ]
+}
