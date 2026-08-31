@@ -13,6 +13,7 @@
         "server/services/graph-maintenance-engine.js",
         "server/services/graph-maintenance-service.js",
         "tests/server/services/graph-maintenance-engine.test.js",
+        "tests/server/services/graph-maintenance-postgres.integration.test.js",
         "tests/server/services/graph-maintenance-service.test.js"
       ],
       "acceptance_criteria": [

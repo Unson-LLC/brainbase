@@ -1011,6 +1011,39 @@ describe('GraphMaintenanceService authorization', () => {
         expect(snapshot).not.toHaveProperty('external_entities');
     });
 
+    it('通常Edgeの別organization endpointはorganization境界で解決せず公開しない', async () => {
+        const localEntity = {
+            id: 'project_brainbase_entity', entity_type: 'project', project_code: 'brainbase', payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const edge = {
+            id: 'edge_cross_org_noncanonical', from_id: 'person_other_org', to_id: localEntity.id,
+            rel_type: 'member_of', project_code: 'brainbase', payload: {}, role_min: 'member',
+            sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localEntity] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+        const access = {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'other_project'], role: 'gm'
+        };
+        const { snapshot } = await scoped.loadSnapshot(client, access, 'brainbase');
+
+        const endpointQuery = client.query.mock.calls.find(([sql]) => sql.includes('WHERE ge.id=ANY'));
+        expect(endpointQuery?.[0]).toContain('p.organization_id=$2');
+        expect(endpointQuery?.[0]).toContain('p.code=ANY($3::text[])');
+        expect(endpointQuery?.[1]).toEqual([['person_other_org'], 'org_1', access.projectCodes]);
+        expect(snapshot.edges).toEqual([]);
+        expect(snapshot).not.toHaveProperty('external_entities');
+    });
+
     it('same-organization external endpointのreadbackはGMでも許可しscope markerを維持する', async () => {
         const expected = {
             id: 'per_yajima_tsuyoshi', entity_type: 'person', project_code: 'techknight',
