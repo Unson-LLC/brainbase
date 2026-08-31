@@ -45,6 +45,7 @@ describe('personal and organization knowledge schema', () => {
         expect(edgeScopeFunction).toContain('SECURITY DEFINER');
         expect(edgeScopeFunction).toContain('SET search_path FROM CURRENT');
         expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_select[\s\S]*current_setting\('app\.graph_maintenance_mode', true\) = 'true'/);
+        expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_select[\s\S]*app_project_codes\(\)[\s\S]*graph_maintenance_mode[\s\S]*rel_type = 'member_of'/);
         expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_update[\s\S]*USING[\s\S]*current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*WITH CHECK/);
         expect(infoSsotRls.match(/CREATE OR REPLACE FUNCTION app_setting_array\([\s\S]*?\n(?:\$\$;|\s*\$function\$;)/)?.[0])
             .not.toContain('COALESCE((');

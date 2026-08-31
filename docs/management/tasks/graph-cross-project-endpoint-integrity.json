@@ -11,11 +11,13 @@
         "docs/management/stories/active/story-graph-cross-project-endpoint-integrity.md",
         "docs/management/tasks/graph-cross-project-endpoint-integrity.json",
         ".vibepro/spec/story-graph-cross-project-endpoint-integrity/spec.json",
+        "server/sql/info-ssot-rls.sql",
         "server/services/graph-maintenance-engine.js",
         "server/services/graph-maintenance-service.js",
         "tests/server/services/graph-maintenance-engine.test.js",
         "tests/server/services/graph-maintenance-postgres.integration.test.js",
-        "tests/server/services/graph-maintenance-service.test.js"
+        "tests/server/services/graph-maintenance-service.test.js",
+        "tests/server/services/personal-knowledge-schema.test.js"
       ],
       "acceptance_criteria": [
         "同一organizationかつ明示project accessのendpointをmetadata-only参照として解決しorphansを0にする",

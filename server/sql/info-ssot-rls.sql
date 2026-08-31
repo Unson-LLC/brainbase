@@ -500,10 +500,20 @@ CREATE POLICY info_graph_edges_select ON graph_edges
   USING (
     app_current_role_rank() >= app_role_rank(role_min)
     AND sensitivity = ANY(app_clearance())
-    AND EXISTS (
-      SELECT 1 FROM projects p
-      WHERE p.id = graph_edges.project_id
-        AND p.code = ANY(app_project_codes())
+    AND (
+      EXISTS (
+        SELECT 1 FROM projects p
+        WHERE p.id = graph_edges.project_id
+          AND p.code = ANY(app_project_codes())
+      )
+      -- Maintenance must see every active membership when proving that a
+      -- projectless Person belongs to exactly one organization. Snapshot
+      -- queries still select only source-project edges and redact unresolved
+      -- endpoints before returning any data.
+      OR (
+        current_setting('app.graph_maintenance_mode', true) = 'true'
+        AND rel_type = 'member_of'
+      )
     )
     AND (
       rel_type = 'member_of'

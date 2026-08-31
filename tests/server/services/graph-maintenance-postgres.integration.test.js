@@ -348,6 +348,20 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             })).resolves.toEqual([
                 expect.objectContaining({ id: 'edge_projectless_person', from_id: 'person_projectless' })
             ]);
+            const snapshot = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+            expect(snapshot.edges).toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: 'edge_projectless_person', from_id: 'person_projectless' })
+            ]));
+            expect(snapshot.external_entities).toEqual(expect.arrayContaining([
+                expect.objectContaining({
+                    id: 'person_projectless',
+                    project_code: 'brainbase',
+                    reference_scope: 'same_organization'
+                })
+            ]));
+            expect(snapshot.external_entities.find((entity) => entity.id === 'person_projectless'))
+                .not.toHaveProperty('payload');
+            expect(validateGraphSnapshot(snapshot)).toMatchObject({ valid: true, counts: { orphans: 0 } });
         } finally {
             await infoSSOTService.withAccessContext(access, async (client) => {
                 await client.query(`DELETE FROM graph_edges WHERE id IN ('edge_projectless_person', 'membership_projectless_person')`);
@@ -390,11 +404,62 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             })).resolves.toEqual([
                 expect.objectContaining({ id: 'edge_projectless_restricted', from_id: 'person_projectless_restricted' })
             ]);
+            const gmSnapshot = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+            expect(gmSnapshot.edges).not.toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: 'edge_projectless_restricted' })
+            ]));
+            expect(JSON.stringify(gmSnapshot)).not.toContain('person_projectless_restricted');
         } finally {
             await infoSSOTService.withAccessContext(ceoAccess, async (client) => {
                 await client.query(`DELETE FROM graph_edges WHERE id IN ('edge_projectless_restricted', 'membership_projectless_restricted')`);
                 await client.query(`DELETE FROM graph_entities WHERE id='person_projectless_restricted'`);
             });
+        }
+    });
+
+    it('複数organizationに所属するprojectless Personを保守Snapshotでも抑止する', async () => {
+        const isolated = await createScopedDatabase('gm_multi_org');
+        try {
+            await assertRlsEnforcedConnection(isolated.pool);
+            await applyInfoSSOTSchema(isolated.pool);
+            await isolated.pool.query(`
+                INSERT INTO projects (id, code, name, organization_id)
+                VALUES
+                    ('project_brainbase', 'brainbase', 'Brainbase', 'org_phase0'),
+                    ('project_aitle', 'aitle', 'Aitle', 'org_aitle');
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('project_brainbase_entity', 'project', 'project_brainbase', '{}', 'member', 'internal', 'active', 1),
+                    ('project_aitle_entity', 'project', 'project_aitle', '{}', 'member', 'internal', 'active', 1),
+                    ('person_multi_org', 'person', NULL, '{"name":"Ambiguous fixture"}', 'member', 'internal', 'active', 1);
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('membership_multi_org_brainbase', 'person_multi_org', 'project_brainbase_entity', 'member_of',
+                     'project_brainbase', '{}', 'member', 'internal', 'active', 1),
+                    ('membership_multi_org_aitle', 'person_multi_org', 'project_aitle_entity', 'member_of',
+                     'project_aitle', '{}', 'member', 'internal', 'active', 1),
+                    ('edge_multi_org_person', 'person_multi_org', 'project_brainbase_entity', 'related_to',
+                     'project_brainbase', '{}', 'member', 'internal', 'active', 1)
+            `);
+            await applyInfoSSOTRls(isolated.pool);
+            const isolatedInfoSSOT = new InfoSSOTService({
+                pool: isolated.pool,
+                ontologyRegistry: new OntologyRegistry({ rootDir: sourceRoot, publicKeyPem: '' })
+            });
+            const isolatedService = new GraphMaintenanceService({ infoSSOTService: isolatedInfoSSOT });
+            const snapshot = await isolatedService.exportSnapshot(access, { projectCode: 'brainbase' });
+            expect(snapshot.edges).not.toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: 'edge_multi_org_person' })
+            ]));
+            expect(JSON.stringify(snapshot)).not.toContain('person_multi_org');
+            expect(snapshot.suppression_summary).toEqual({
+                edge_count: 2,
+                reasons: { unresolved_or_inaccessible_endpoint: 2 }
+            });
+        } finally {
+            await dropScopedDatabase(isolated);
         }
     });
 

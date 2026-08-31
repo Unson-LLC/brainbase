@@ -22,6 +22,19 @@ function plannedEdgeId(organizationId, projectCode, idempotencyKey, index) {
     return `edg_maint_${createHash('sha256').update(`${organizationId}\u0000${projectCode}\u0000${idempotencyKey}\u0000${index}`).digest('hex').slice(0, 32)}`;
 }
 
+function hasCrossTenantMarker(edge) {
+    return edge?.payload?.cross_tenant !== undefined || edge?.payload?.target_project_code !== undefined;
+}
+
+function isCanonicalCrossTenantEdge(edge) {
+    return edge?.rel_type === 'governs'
+        && edge?.payload?.cross_tenant === true
+        && typeof edge?.payload?.target_project_code === 'string'
+        && edge.payload.target_project_code.length > 0
+        && edge?.role_min === 'ceo'
+        && edge?.sensitivity === 'restricted';
+}
+
 function humanGateOperationScope(operation) {
     if (operation.operation === 'retire_entity') {
         return {
@@ -441,16 +454,39 @@ export class GraphMaintenanceService {
         }
         const codes = [...new Set(expected.map((entity) => entity.project_code))];
         if (codes.some((code) => !access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
-        const suffix = lock ? ' FOR UPDATE' : '';
+        const suffix = lock ? ' FOR UPDATE OF ge' : '';
         const { rows } = await client.query(
-            `SELECT ge.id, ge.entity_type, p.code AS project_code, p.organization_id,
+            `SELECT ge.id, ge.entity_type,
+                    COALESCE(p.code, membership_scope.project_code) AS project_code,
+                    COALESCE(p.organization_id, membership_scope.organization_id) AS organization_id,
                     ge.role_min,
                     ge.sensitivity, ge.lifecycle_status, ge.version
-             FROM graph_entities ge JOIN projects p ON p.id=ge.project_id
-             WHERE ge.id=ANY($1::text[]) AND p.code=ANY($2::text[])
-               AND p.organization_id IS NOT NULL
+             FROM graph_entities ge
+             LEFT JOIN projects p ON p.id=ge.project_id
+             LEFT JOIN LATERAL (
+               SELECT MIN(membership_project.code) FILTER (
+                        WHERE membership_project.code=ANY($2::text[])
+                          AND app_role_rank($4::text) >= app_role_rank(membership.role_min)
+                          AND membership.sensitivity=ANY($3::text[])
+                      ) AS project_code,
+                      MIN(membership_project.organization_id) AS organization_id
+               FROM graph_edges membership
+               JOIN projects membership_project ON membership_project.id=membership.project_id
+               WHERE ge.project_id IS NULL AND ge.entity_type='person'
+                 AND membership.from_id=ge.id AND membership.rel_type='member_of'
+                 AND membership.lifecycle_status='active'
+               HAVING COUNT(DISTINCT membership_project.organization_id)=1
+                  AND COUNT(*) FILTER (
+                        WHERE membership_project.code=ANY($2::text[])
+                          AND app_role_rank($4::text) >= app_role_rank(membership.role_min)
+                          AND membership.sensitivity=ANY($3::text[])
+                      ) > 0
+             ) membership_scope ON TRUE
+             WHERE ge.id=ANY($1::text[])
+               AND COALESCE(p.code, membership_scope.project_code)=ANY($2::text[])
+               AND COALESCE(p.organization_id, membership_scope.organization_id) IS NOT NULL
              ORDER BY ge.id${suffix}`,
-            [externalEntityIds(image), codes]
+            [externalEntityIds(image), codes, access.clearance || ['internal'], access.role]
         );
         if (rows.length !== expected.length) throw new Error('Decision subject target is missing or inaccessible');
         const sourceOrganizationId = access.organizationId || access.tenantId;
@@ -497,38 +533,55 @@ export class GraphMaintenanceService {
                         gx.role_min, gx.sensitivity, gx.lifecycle_status, gx.version
                  FROM graph_edges gx JOIN projects p ON p.id = gx.project_id
                  WHERE gx.project_id=ANY($1::text[])
-                   AND (
-                     NOT (gx.payload ? 'target_project_code' OR gx.payload ? 'cross_tenant')
-                     OR (
-                       $2::text='ceo'
-                       AND gx.rel_type='governs'
-                       AND gx.payload->>'cross_tenant'='true'
-                       AND gx.role_min='ceo'
-                       AND gx.sensitivity='restricted'
-                       AND gx.payload->>'target_project_code'=ANY($3::text[])
-                     )
-                   )
                  ORDER BY gx.id${suffix}`,
-                [projectIds, access.role, access.projectCodes]
+                [projectIds]
             )
         ]);
         const localEndpointIds = new Set(entityResult.rows.map((entity) => entity.id));
         const endpointIds = [...new Set(edgeResult.rows.flatMap((edge) => [edge.from_id, edge.to_id]))];
         const unresolvedEndpointIds = endpointIds.filter((id) => !localEndpointIds.has(id));
         const organizationId = access.organizationId || access.tenantId;
+        const endpointLockSuffix = lock ? ' FOR UPDATE OF ge' : '';
         const sameOrganizationResult = unresolvedEndpointIds.length ? await client.query(
-            `SELECT ge.id, ge.entity_type, p.code AS project_code, p.organization_id,
+            `SELECT ge.id, ge.entity_type,
+                    COALESCE(p.code, membership_scope.project_code) AS project_code,
+                    COALESCE(p.organization_id, membership_scope.organization_id) AS organization_id,
                     ge.role_min, ge.sensitivity, ge.lifecycle_status, ge.version
-             FROM graph_entities ge JOIN projects p ON p.id=ge.project_id
-             WHERE ge.id=ANY($1::text[]) AND p.organization_id=$2
-               AND p.code=ANY($3::text[])
-             ORDER BY ge.id${suffix}`,
-            [unresolvedEndpointIds, organizationId, access.projectCodes]
+             FROM graph_entities ge
+             LEFT JOIN projects p ON p.id=ge.project_id
+             LEFT JOIN LATERAL (
+               SELECT MIN(membership_project.code) FILTER (
+                        WHERE membership_project.code=ANY($3::text[])
+                          AND membership_project.organization_id=$2
+                          AND app_role_rank($5::text) >= app_role_rank(membership.role_min)
+                          AND membership.sensitivity=ANY($4::text[])
+                      ) AS project_code,
+                      MIN(membership_project.organization_id) AS organization_id
+               FROM graph_edges membership
+               JOIN projects membership_project ON membership_project.id=membership.project_id
+               WHERE ge.project_id IS NULL AND ge.entity_type='person'
+                 AND membership.from_id=ge.id AND membership.rel_type='member_of'
+                 AND membership.lifecycle_status='active'
+               HAVING COUNT(DISTINCT membership_project.organization_id)=1
+                  AND COUNT(*) FILTER (
+                        WHERE membership_project.code=ANY($3::text[])
+                          AND membership_project.organization_id=$2
+                          AND app_role_rank($5::text) >= app_role_rank(membership.role_min)
+                          AND membership.sensitivity=ANY($4::text[])
+                      ) > 0
+             ) membership_scope ON TRUE
+             WHERE ge.id=ANY($1::text[])
+               AND COALESCE(p.organization_id, membership_scope.organization_id)=$2
+               AND COALESCE(p.code, membership_scope.project_code)=ANY($3::text[])
+             ORDER BY ge.id${endpointLockSuffix}`,
+            [unresolvedEndpointIds, organizationId, access.projectCodes, access.clearance || ['internal'], access.role]
         ) : { rows: [] };
         const sameOrganizationExternalEntities = sameOrganizationResult.rows
             .map((entity) => externalEntityProjection(entity, 'same_organization'));
         const crossTenantLinks = edgeResult.rows
-            .filter((edge) => edge.rel_type === 'governs' && edge.payload?.cross_tenant === true)
+            .filter((edge) => isCanonicalCrossTenantEdge(edge)
+                && access.role === 'ceo'
+                && access.projectCodes.includes(edge.payload.target_project_code))
             .map((edge) => ({
                 operation: 'link_decision_subject',
                 subject_entity_id: edge.to_id,
@@ -546,17 +599,28 @@ export class GraphMaintenanceService {
         // database for forensic repair, but must never disclose that endpoint
         // through a maintenance snapshot. Canonical rows require both endpoints.
         const visibleEdges = edgeResult.rows.filter((edge) => (
-            visibleEndpointIds.has(edge.from_id) && visibleEndpointIds.has(edge.to_id)
+            (!hasCrossTenantMarker(edge) || isCanonicalCrossTenantEdge(edge))
+            && visibleEndpointIds.has(edge.from_id)
+            && visibleEndpointIds.has(edge.to_id)
         ));
         const snapshot = { project_code: projectCode, entities: entityResult.rows, edges: visibleEdges };
         if (externalEntitiesById.size) {
             snapshot.external_entities = [...externalEntitiesById.values()].sort((a, b) => a.id.localeCompare(b.id));
         }
-        const suppressedEdgeCount = edgeResult.rows.length - visibleEdges.length;
+        const visibleEdgeIds = new Set(visibleEdges.map((edge) => edge.id));
+        const suppressedEdges = edgeResult.rows.filter((edge) => !visibleEdgeIds.has(edge.id));
+        const suppressedEdgeCount = suppressedEdges.length;
         if (suppressedEdgeCount > 0) {
+            const reasons = {};
+            for (const edge of suppressedEdges) {
+                const reason = hasCrossTenantMarker(edge) && !isCanonicalCrossTenantEdge(edge)
+                    ? 'noncanonical_cross_tenant_marker'
+                    : 'unresolved_or_inaccessible_endpoint';
+                reasons[reason] = (reasons[reason] || 0) + 1;
+            }
             snapshot.suppression_summary = {
                 edge_count: suppressedEdgeCount,
-                reasons: { unresolved_or_inaccessible_endpoint: suppressedEdgeCount }
+                reasons
             };
         }
         snapshot.hash = hashGraphSnapshot(snapshot);
