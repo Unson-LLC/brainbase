@@ -1,7 +1,7 @@
 {
   "task_id": "task-j0-durable-run-artifact-contract",
   "story_id": "story-j0-durable-run-artifact-contract",
-  "status": "in_progress",
+  "status": "done",
   "owner": "codex-orchestrator",
   "base_sha": "76021adcf22c92833136b5481bf3a72b736bdb4b",
   "branch": "codex/j0/durable-run-artifact-contract-reconcile",
@@ -14,7 +14,7 @@
     {"id": "red", "status": "completed", "evidence": ["npm test -- tests/judgment-dag-artifact-store.test.ts: 6/6 failed before implementation because save/reload exports were absent"]},
     {"id": "green", "status": "completed", "evidence": ["npm test -- tests/judgment-dag-artifact-store.test.ts tests/judgment-dag-runner.test.ts tests/npm-consumer-smoke.integration.test.ts: 3 files/35 tests passed after review fixes", "npm exec tsc -- --noEmit -p tsconfig.json: passed", "npm run build: passed", "npm test: 47 files/469 tests passed", "npm run test:e2e: 2 files/2 tests passed"]},
     {"id": "consumer_e2e", "status": "completed", "evidence": ["npm test -- tests/npm-consumer-smoke.integration.test.ts: fresh tarball install, process A save, process B verified reload, runnerInvocations=0; 1/1 passed"]},
-    {"id": "independent_review", "status": "completed", "evidence": ["Independent read-only delta review closed all four findings and reported no additional blocker for AC-001 through AC-005; AC-006 remains a separate known blocker."]},
-    {"id": "organization_consumer", "status": "blocked", "evidence": ["ADR-022 requires an exact/pinned OSS package dependency and organization consumer smoke; current inventory records no J0 consumer implementation."]}
+    {"id": "independent_review", "status": "completed", "evidence": ["Final independent read-only review of the exact public implementation, package consumer, organization exact-pin consumer, and four completion documents reported no blocking finding and accepted AC-001 through AC-006 as done; the reviewer did not independently re-fetch live PR/CI state, which the orchestrator verified separately."]},
+    {"id": "organization_consumer", "status": "completed", "evidence": ["brainbase-unson PR #1335 exact-pins public implementation commit 9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae; organization implementation head b7c953fa0081a1e02c0aa465aabf54054a3d96a2 and merge SHA 4dbdff9b2825edb5ff3d1fded1b7603fc27c86ee", "focused organization consumer smoke 2/2 passed: process A saved through the public API and independent process B reloaded through the same public API with runnerInvocations=0", "organization package-lock resolves the exact Git commit and no public source copy or semantic fork was added", "PR #1335 contract, Graphify impact, Graph SSOT, and VibePro score checks passed before merge; post-merge Graph writer run for the exact merge SHA was superseded by later develop pushes after its preceding steps passed and is not counted as a success"]}
   ]
 }

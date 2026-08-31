@@ -1,7 +1,7 @@
 ---
 story_id: story-j0-local-deterministic-runner
 title: J0 ローカル決定論的ランナーと不変run記録
-status: active
+status: done
 category: architecture
 spec: docs/specs/j0-local-deterministic-runner.md
 architecture: docs/architecture/story-j0-local-deterministic-runner.md
@@ -23,7 +23,7 @@ Brainbase OSSの利用者として、検証済みJudgment DAGを明示的なrunn
 - [x] AC-003: `validateJudgmentDAG`が返す安定したtopological orderで各nodeを一度だけ実行し、runnerへ渡すdependency outputsはそのnodeが宣言した直接依存だけに限定する。
 - [x] AC-004: DAG、run input、dependency outputs、runner outputsを実行境界でJSON snapshot化し、callerまたはrunnerによる後続mutationが返却済みrun記録を変更しない。非JSON値と循環値は実行前またはnode境界で拒否する。
 - [x] AC-005: 成功runは実行開始前にsnapshotしたcaller指定`run_id`、DAG ID/version、runner version、execution order、nodeごとのinput/output contractと出力を含むdeep-frozenな記録を返し、同じDAG・入力・runnerに対して同値になる。
-- [ ] AC-006: 既存J0 schema・fixture・source-lockとその意味契約、package deep import互換、MCP/CLI起動面を壊さない。公開runner説明をREADME.mdへ追加する場合に限り、contracts/judgment-dag/digest.jsonのREADME hashとaggregate digestだけを派生再計算して更新し、他のdigest項目・契約artifactは変更せず、対象unit・公開consumer smoke・full test・build・typecheckが通る（回帰証拠は揃っている。最終exact-HEAD refresh前にはplanning_specからtest_planまで12/21 roleがpassしていたが、現在の独立review状態は生成artifactを正本とし、未完のためGate完了・Story完了にはしていない）。
+- [x] AC-006: 既存J0 schema・fixture・source-lockとその意味契約、package deep import互換、MCP/CLI起動面を壊さない。公開runner説明をREADME.mdへ追加する場合に限り、contracts/judgment-dag/digest.jsonのREADME hashとaggregate digestだけを派生再計算して更新し、他のdigest項目・契約artifactは変更せず、対象unit・公開consumer smoke・full test・build・typecheckが通る。
 
 ## 境界
 
@@ -35,4 +35,4 @@ Brainbase OSSの利用者として、検証済みJudgment DAGを明示的なrunn
 
 ## 完了証拠
 
-Red→Greenの対象unit、公開subpath consumer、既存J0回帰、full test、build、typecheckを同一HEADへ結び付ける。現時点のregression evidenceは揃っている。planning_spec・requirement・architecture_spec・test_planの12/21 role passは最終exact-HEAD refresh前の履歴であり、現在の独立review状態は生成artifactを正本とする。未完reviewが残るためGateはpendingとし、Storyを完了扱いにしない。PR作成とmergeはGateがcurrent HEADで成立した後に別判断する。
+公開版`upstream/develop`の`93e7b946a0b93bd61b61bd1f151e863fca4ac819`でrunner/artifact/package consumerのfocused 3 files/35 tests、full 48 files/471 tests、E2E 2/2、typecheck、buildをpassした。公開版PR #490と#491、および組織版PR #1335のexact-pinned consumer smokeにより、run記録の実行・永続化・独立process再読込まで同じ公開契約で成立した。現行AGENTS.mdが廃止した旧mandatory review lifecycleは完了条件にせず、現行の一回の独立レビューと通常のPR/CIを正本証跡とする。
