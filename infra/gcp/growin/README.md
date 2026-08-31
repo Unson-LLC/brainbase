@@ -12,7 +12,24 @@ Growin専用Brainbaseの本番基盤をTerraformで管理します。雲孫が�
 - 実行・取り込み・配備を分離したサービスアカウント
 - Secret Managerの格納先（値そのものはTerraformへ保存しない）
 
-Cloud Runサービス、実際のSecret値、Claude Codeから利用するBrainbase MCPの設定は、アプリのコンテナイメージと接続値が揃う次の段階で配備します。
+Cloud RunのAPI・MCP・DBマイグレーションJobまで配備済みです。Claude Codeでは、利用者共通のMCP設定へ追加せず、Growin専用設定だけを読む隔離ランチャーを使います。
+
+```bash
+scripts/growin/run-claude-isolated.sh
+```
+
+このランチャーはSecret ManagerからMCPトークンを実行時に取得し、一時設定を`0600`で作成します。`--strict-mcp-config`により、雲孫を含む利用者設定・プロジェクト設定のMCPを読みません。終了時に一時設定を削除します。
+
+初期Graphの投入とリモートE2Eは次の順で実行します。秘密値は標準出力へ表示しません。
+
+```bash
+export BRAINBASE_SERVICE_TOKEN_SECRET="$(gcloud secrets versions access latest \
+  --secret=brainbase-service-token-secret --project=brainbase-505912 \
+  --account=k.sato.unson@gmail.com)"
+node scripts/growin/seed-initial-graph.mjs
+unset BRAINBASE_SERVICE_TOKEN_SECRET
+scripts/growin/verify-remote-e2e.sh
+```
 
 ## 初期化
 
