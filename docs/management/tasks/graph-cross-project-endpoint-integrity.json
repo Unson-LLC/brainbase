@@ -11,6 +11,8 @@
         "docs/management/stories/active/story-graph-cross-project-endpoint-integrity.md",
         "docs/management/tasks/graph-cross-project-endpoint-integrity.json",
         ".vibepro/spec/story-graph-cross-project-endpoint-integrity/spec.json",
+        "mcp/brainbase/package.json",
+        "mcp/brainbase/package-lock.json",
         "server/sql/info-ssot-rls.sql",
         "server/services/graph-maintenance-engine.js",
         "server/services/graph-maintenance-service.js",
