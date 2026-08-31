@@ -5,7 +5,7 @@ import {
   fetchAuthenticatedJson,
   toolError,
   type AuthenticatedApiDependencies,
-  type ToolResult
+  type ToolResult,
 } from './authenticated-api-tool.js';
 
 const EVENT_SCHEMA = 'knowledge_event.v1';
@@ -20,7 +20,7 @@ const COMPUTED_EVIDENCE_SOURCES = new Set(['runner_direct', 'ci_import', 'autopi
 const SENSITIVE_CONTENT = [
   /\b(?:api[_-]?key|password|passwd|secret|token)\s*[:=]\s*\S+/iu,
   /\bsk-[a-z0-9_-]{8,}\b/iu,
-  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu,
 ] as const;
 
 interface JsonRecord {
@@ -76,7 +76,7 @@ export interface VibeProKnowledgeEvent {
   };
 }
 
-export interface KnowledgeEventToolDependencies extends AuthenticatedApiDependencies {}
+export type KnowledgeEventToolDependencies = AuthenticatedApiDependencies;
 
 function compareCodePoints(left: string, right: string): number {
   const a = Array.from(left, (value) => value.codePointAt(0) ?? 0);
@@ -119,7 +119,9 @@ function asRecord(value: unknown, label: string): JsonRecord {
 function assertExactKeys(value: JsonRecord, allowed: readonly string[], label: string): void {
   const allowedKeys = new Set(allowed);
   const unexpected = Object.keys(value).filter((key) => !allowedKeys.has(key));
-  if (unexpected.length > 0) throw new Error(`${label} has unsupported fields: ${unexpected.sort(compareCodePoints).join(', ')}`);
+  if (unexpected.length > 0) {
+    throw new Error(`${label} has unsupported fields: ${unexpected.sort(compareCodePoints).join(', ')}`);
+  }
 }
 
 function requiredString(value: unknown, label: string, maxLength = 2000): string {
@@ -175,7 +177,13 @@ function uniqueStrings(value: unknown, label: string, allowed?: ReadonlySet<stri
   if (new Set(values).size !== values.length) throw new Error(`${label} must not contain duplicates`);
   if (allowed) {
     const unsupported = values.filter((entry) => !allowed.has(entry));
-    if (unsupported.length > 0) throw new Error(`${label} contains unsupported values: ${unsupported.join(', ')}`);
+    if (unsupported.length > 0) {
+      throw new Error(`${label} contains unsupported values: ${unsupported.join(', ')}`);
+    }
+  }
+  const sorted = [...values].sort(compareCodePoints);
+  if (canonicalKnowledgeEventJson(values) !== canonicalKnowledgeEventJson(sorted)) {
+    throw new Error(`${label} must be sorted by Unicode code point`);
   }
   return values;
 }
@@ -193,7 +201,7 @@ export function validateVibeProKnowledgeEvent(value: unknown): VibeProKnowledgeE
   assertExactKeys(event, [
     'schema_version', 'event_id', 'occurred_at', 'captured_at', 'source', 'subject',
     'decision_authority', 'applicability_scope', 'permission_snapshot', 'source_pointer',
-    'body_hash', 'parent_episode_id', 'payload'
+    'body_hash', 'parent_episode_id', 'payload',
   ], 'event');
 
   exactString(event.schema_version, EVENT_SCHEMA, 'event.schema_version');
@@ -231,7 +239,7 @@ export function validateVibeProKnowledgeEvent(value: unknown): VibeProKnowledgeE
 
   const permission = asRecord(event.permission_snapshot, 'event.permission_snapshot');
   assertExactKeys(permission, [
-    'knowledge_registration', 'external_action', 'graph_promotion', 'visibility', 'sensitivity'
+    'knowledge_registration', 'external_action', 'graph_promotion', 'visibility', 'sensitivity',
   ], 'event.permission_snapshot');
   exactBoolean(permission.knowledge_registration, true, 'event.permission_snapshot.knowledge_registration');
   exactBoolean(permission.external_action, false, 'event.permission_snapshot.external_action');
@@ -246,7 +254,7 @@ export function validateVibeProKnowledgeEvent(value: unknown): VibeProKnowledgeE
   const payload = asRecord(event.payload, 'event.payload');
   assertExactKeys(payload, [
     'schema_version', 'story_id', 'summary', 'context_digest',
-    'verification_evidence', 'knowledge_reference_count'
+    'verification_evidence', 'knowledge_reference_count',
   ], 'event.payload');
   exactString(payload.schema_version, PAYLOAD_SCHEMA, 'event.payload.schema_version');
   const storyId = safeIdentifier(payload.story_id, 'event.payload.story_id');
@@ -254,14 +262,24 @@ export function validateVibeProKnowledgeEvent(value: unknown): VibeProKnowledgeE
   const contextDigest = digest(payload.context_digest, 'event.payload.context_digest');
 
   const evidence = asRecord(payload.verification_evidence, 'event.payload.verification_evidence');
-  assertExactKeys(evidence, ['artifact_digest', 'head_sha', 'passing_kinds', 'evidence_sources'], 'event.payload.verification_evidence');
-  const artifactDigest = digest(evidence.artifact_digest, 'event.payload.verification_evidence.artifact_digest');
+  assertExactKeys(
+    evidence,
+    ['artifact_digest', 'head_sha', 'passing_kinds', 'evidence_sources'],
+    'event.payload.verification_evidence',
+  );
+  const artifactDigest = digest(
+    evidence.artifact_digest,
+    'event.payload.verification_evidence.artifact_digest',
+  );
   const evidenceHeadSha = gitSha(evidence.head_sha, 'event.payload.verification_evidence.head_sha');
-  const passingKinds = uniqueStrings(evidence.passing_kinds, 'event.payload.verification_evidence.passing_kinds');
+  const passingKinds = uniqueStrings(
+    evidence.passing_kinds,
+    'event.payload.verification_evidence.passing_kinds',
+  );
   const evidenceSources = uniqueStrings(
     evidence.evidence_sources,
     'event.payload.verification_evidence.evidence_sources',
-    COMPUTED_EVIDENCE_SOURCES
+    COMPUTED_EVIDENCE_SOURCES,
   ) as Array<'runner_direct' | 'ci_import' | 'autopilot_run'>;
 
   if (!Number.isInteger(payload.knowledge_reference_count) || Number(payload.knowledge_reference_count) < 0) {
@@ -288,9 +306,9 @@ export function validateVibeProKnowledgeEvent(value: unknown): VibeProKnowledgeE
       artifact_digest: artifactDigest,
       head_sha: evidenceHeadSha,
       passing_kinds: passingKinds,
-      evidence_sources: evidenceSources
+      evidence_sources: evidenceSources,
     },
-    knowledge_reference_count: knowledgeReferenceCount
+    knowledge_reference_count: knowledgeReferenceCount,
   };
   const expectedBodyHash = knowledgeEventSha256(canonicalKnowledgeEventJson(normalizedPayload));
   if (bodyHash !== expectedBodyHash) throw new Error('event.body_hash does not match event.payload');
@@ -300,7 +318,7 @@ export function validateVibeProKnowledgeEvent(value: unknown): VibeProKnowledgeE
     sourceRef,
     subjectId,
     parentEpisodeId,
-    bodyHash
+    bodyHash,
   ]))}`;
   if (eventId !== expectedEventId) throw new Error('event.event_id does not match its deterministic identity');
 
@@ -314,7 +332,7 @@ export function validateVibeProKnowledgeEvent(value: unknown): VibeProKnowledgeE
     decision_authority: {
       kind: 'development_learning_candidate',
       authorized: false,
-      graph_promotion_allowed: false
+      graph_promotion_allowed: false,
     },
     applicability_scope: { scope: 'project', project_code: projectCode },
     permission_snapshot: {
@@ -322,12 +340,12 @@ export function validateVibeProKnowledgeEvent(value: unknown): VibeProKnowledgeE
       external_action: false,
       graph_promotion: false,
       visibility: 'team',
-      sensitivity: 'internal'
+      sensitivity: 'internal',
     },
     source_pointer: { uri: sourcePointer },
     body_hash: bodyHash,
     parent_episode_id: parentEpisodeId,
-    payload: normalizedPayload
+    payload: normalizedPayload,
   };
 }
 
@@ -336,6 +354,12 @@ export const knowledgeEventTools: Tool[] = [
     name: 'brainbase_knowledge_event_record',
     title: 'Record verified VibePro Knowledge Event',
     description: 'Validate a VibePro development-learning event and record it as an append-only Brainbase candidate. This never grants Graph promotion or external-action authority.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       required: ['event'],
@@ -346,7 +370,7 @@ export const knowledgeEventTools: Tool[] = [
           required: [
             'schema_version', 'event_id', 'occurred_at', 'captured_at', 'source', 'subject',
             'decision_authority', 'applicability_scope', 'permission_snapshot', 'source_pointer',
-            'body_hash', 'parent_episode_id', 'payload'
+            'body_hash', 'parent_episode_id', 'payload',
           ],
           additionalProperties: false,
           properties: {
@@ -355,27 +379,41 @@ export const knowledgeEventTools: Tool[] = [
             occurred_at: { type: 'string', format: 'date-time' },
             captured_at: { type: 'string', format: 'date-time' },
             source: {
-              type: 'object', required: ['type', 'ref'], additionalProperties: false,
-              properties: { type: { const: 'vibepro' }, ref: { type: 'string', minLength: 1 } }
+              type: 'object',
+              required: ['type', 'ref'],
+              additionalProperties: false,
+              properties: {
+                type: { const: 'vibepro' },
+                ref: { type: 'string', minLength: 1 },
+              },
             },
             subject: {
-              type: 'object', required: ['type', 'id'], additionalProperties: false,
-              properties: { type: { const: 'development_learning' }, id: { type: 'string', minLength: 1 } }
+              type: 'object',
+              required: ['type', 'id'],
+              additionalProperties: false,
+              properties: {
+                type: { const: 'development_learning' },
+                id: { type: 'string', minLength: 1 },
+              },
             },
             decision_authority: {
-              type: 'object', required: ['kind', 'authorized', 'graph_promotion_allowed'], additionalProperties: false,
+              type: 'object',
+              required: ['kind', 'authorized', 'graph_promotion_allowed'],
+              additionalProperties: false,
               properties: {
                 kind: { const: 'development_learning_candidate' },
                 authorized: { const: false },
-                graph_promotion_allowed: { const: false }
-              }
+                graph_promotion_allowed: { const: false },
+              },
             },
             applicability_scope: {
-              type: 'object', required: ['scope', 'project_code'], additionalProperties: false,
+              type: 'object',
+              required: ['scope', 'project_code'],
+              additionalProperties: false,
               properties: {
                 scope: { const: 'project' },
-                project_code: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$' }
-              }
+                project_code: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$' },
+              },
             },
             permission_snapshot: {
               type: 'object',
@@ -386,12 +424,14 @@ export const knowledgeEventTools: Tool[] = [
                 external_action: { const: false },
                 graph_promotion: { const: false },
                 visibility: { const: 'team' },
-                sensitivity: { const: 'internal' }
-              }
+                sensitivity: { const: 'internal' },
+              },
             },
             source_pointer: {
-              type: 'object', required: ['uri'], additionalProperties: false,
-              properties: { uri: { type: 'string', pattern: '^vibepro://' } }
+              type: 'object',
+              required: ['uri'],
+              additionalProperties: false,
+              properties: { uri: { type: 'string', pattern: '^vibepro://' } },
             },
             body_hash: { type: 'string', pattern: '^[a-f0-9]{64}$' },
             parent_episode_id: { type: 'string', minLength: 1, maxLength: 500 },
@@ -399,7 +439,7 @@ export const knowledgeEventTools: Tool[] = [
               type: 'object',
               required: [
                 'schema_version', 'story_id', 'summary', 'context_digest',
-                'verification_evidence', 'knowledge_reference_count'
+                'verification_evidence', 'knowledge_reference_count',
               ],
               additionalProperties: false,
               properties: {
@@ -414,19 +454,80 @@ export const knowledgeEventTools: Tool[] = [
                   properties: {
                     artifact_digest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
                     head_sha: { type: 'string', pattern: '^[a-f0-9]{40}$' },
-                    passing_kinds: { type: 'array', minItems: 1, maxItems: 50, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 100 } },
-                    evidence_sources: { type: 'array', minItems: 1, maxItems: 3, uniqueItems: true, items: { enum: ['runner_direct', 'ci_import', 'autopilot_run'] } }
-                  }
+                    passing_kinds: {
+                      type: 'array',
+                      minItems: 1,
+                      maxItems: 50,
+                      uniqueItems: true,
+                      items: { type: 'string', minLength: 1, maxLength: 100 },
+                    },
+                    evidence_sources: {
+                      type: 'array',
+                      minItems: 1,
+                      maxItems: 3,
+                      uniqueItems: true,
+                      items: { enum: ['runner_direct', 'ci_import', 'autopilot_run'] },
+                    },
+                  },
                 },
-                knowledge_reference_count: { type: 'integer', minimum: 0 }
-              }
-            }
-          }
-        }
-      }
+                knowledge_reference_count: { type: 'integer', minimum: 0 },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+];
+
+function decodeTokenClaims(token: string): JsonRecord | null {
+  const jwt = token.startsWith('bbsvc_') ? token.slice('bbsvc_'.length) : token;
+  const payloadSegment = jwt.split('.')[1];
+  if (!payloadSegment) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payloadSegment, 'base64url').toString('utf8'));
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function organizationProxyHeaders(token: string): Record<string, string> {
+  if (!token.startsWith('bbsvc_')) return {};
+  const claims = decodeTokenClaims(token);
+  const organizationId = typeof claims?.organizationId === 'string' && claims.organizationId.trim()
+    ? claims.organizationId.trim()
+    : typeof claims?.tenantId === 'string' && claims.tenantId.trim()
+      ? claims.tenantId.trim()
+      : '';
+  if (!organizationId) {
+    throw new Error('service token does not contain an organization context');
+  }
+  return { 'x-brainbase-organization-id': organizationId };
+}
+
+function backendError(payload: unknown, response: Response): { code: string; message: string } {
+  if (isRecord(payload)) {
+    if (typeof payload.error === 'string') {
+      return {
+        code: payload.error,
+        message: typeof payload.message === 'string' ? payload.message : payload.error,
+      };
+    }
+    if (isRecord(payload.error)) {
+      return {
+        code: typeof payload.error.code === 'string' ? payload.error.code : 'brainbase_api_error',
+        message: typeof payload.error.message === 'string'
+          ? payload.error.message
+          : `${response.status} ${response.statusText}`.trim(),
+      };
     }
   }
-];
+  return {
+    code: 'brainbase_api_error',
+    message: `${response.status} ${response.statusText}`.trim(),
+  };
+}
 
 function validBackendResult(value: unknown, event: VibeProKnowledgeEvent): JsonRecord {
   const result = asRecord(value, 'knowledge event API response');
@@ -447,7 +548,7 @@ function validBackendResult(value: unknown, event: VibeProKnowledgeEvent): JsonR
 export async function handleKnowledgeEventToolCall(
   name: string,
   args: Record<string, unknown>,
-  dependencies: KnowledgeEventToolDependencies
+  dependencies: KnowledgeEventToolDependencies,
 ): Promise<ToolResult | null> {
   if (name !== 'brainbase_knowledge_event_record') return null;
 
@@ -456,18 +557,54 @@ export async function handleKnowledgeEventToolCall(
     assertExactKeys(args, ['event'], 'arguments');
     event = validateVibeProKnowledgeEvent(args.event);
   } catch (error) {
-    return toolError('knowledge_event_invalid', error instanceof Error ? error.message : String(error));
+    return toolError(
+      'error',
+      'knowledge_event_invalid',
+      error instanceof Error ? error.message : String(error),
+      [],
+    );
+  }
+
+  const context = await authenticateProject(
+    { project_code: event.applicability_scope.project_code },
+    dependencies,
+    { requireProject: true },
+  );
+  if ('status' in context) return context;
+
+  let headers: Record<string, string>;
+  try {
+    headers = organizationProxyHeaders(context.token);
+  } catch (error) {
+    return toolError(
+      'error',
+      'knowledge_event_organization_context_invalid',
+      error instanceof Error ? error.message : String(error),
+      context.scope,
+    );
+  }
+
+  const fetched = await fetchAuthenticatedJson(dependencies, context, {
+    method: 'POST',
+    path: '/api/knowledge/events',
+    body: event,
+    headers,
+  });
+  if (!fetched.ok) return fetched.result;
+  const { response, payload } = fetched;
+  if (!response.ok) {
+    const failure = backendError(payload, response);
+    return toolError(
+      response.status >= 500 ? 'unavailable' : 'error',
+      response.status >= 500 ? 'brainbase_api_unavailable' : failure.code,
+      failure.message,
+      context.scope,
+      response.status,
+    );
   }
 
   try {
-    const context = await authenticateProject({
-      project_code: event.applicability_scope.project_code
-    }, dependencies);
-    const backend = validBackendResult(await fetchAuthenticatedJson(dependencies, context, {
-      method: 'POST',
-      path: '/api/knowledge/events',
-      body: event
-    }), event);
+    const backend = validBackendResult(payload, event);
     const candidateId = String(backend.candidate_id);
     return {
       status: 'ok',
@@ -486,10 +623,16 @@ export async function handleKnowledgeEventToolCall(
         graph_promoted: false,
         external_action_executed: false,
         record_ref: `brainbase://knowledge-events/${event.event_id}`,
-        candidate_ref: `brainbase://knowledge-candidates/${candidateId}`
-      }
+        candidate_ref: `brainbase://knowledge-candidates/${candidateId}`,
+      },
     };
   } catch (error) {
-    return toolError('knowledge_event_record_failed', error instanceof Error ? error.message : String(error));
+    return toolError(
+      'error',
+      'knowledge_event_record_failed',
+      error instanceof Error ? error.message : String(error),
+      context.scope,
+      response.status,
+    );
   }
 }
