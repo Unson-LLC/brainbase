@@ -97,4 +97,41 @@ describe('ProjectRegistryCatalogAdapter', () => {
                 source: { status: 'unavailable', mode: 'registry_unavailable', code: '42P01' }
             });
     });
+
+    it('local enrichmentが読めなくてもcanonical Registry catalogは利用可能なまま返す', async () => {
+        const repository = { listProjects: vi.fn(async () => [{
+            project_code: 'growin-ai', display_name: 'Growin AI', catalog_version: 1,
+            lifecycle_status: 'active', session_select: true
+        }]) };
+        const fallbackError = Object.assign(new Error('config missing'), { code: 'ENOENT' });
+        const fallbackConfigParser = { getProjects: vi.fn(async () => { throw fallbackError; }) };
+        const adapter = new ProjectRegistryCatalogAdapter({ repository, fallbackConfigParser });
+
+        await expect(adapter.runForOrganization('org_a', () => adapter.getProjects()))
+            .resolves.toMatchObject({
+                projects: [{ id: 'growin-ai', name: 'Growin AI' }],
+                source: {
+                    status: 'loaded', mode: 'registry_scoped',
+                    enrichment_status: 'unavailable', enrichment_code: 'ENOENT'
+                }
+            });
+    });
+
+    it('Registry DB接続障害は500へ漏らさずunavailableとして返す', async () => {
+        const connectionError = Object.assign(new Error('connect refused'), { code: 'ECONNREFUSED' });
+        const repository = { listProjects: vi.fn(async () => { throw connectionError; }) };
+        const fallbackConfigParser = { getProjects: vi.fn(async () => ({
+            projects: [{ id: 'fallback-only' }]
+        })) };
+        const adapter = new ProjectRegistryCatalogAdapter({ repository, fallbackConfigParser });
+
+        await expect(adapter.runForOrganization('org_a', () => adapter.getProjects()))
+            .resolves.toEqual({
+                projects: [],
+                source: {
+                    status: 'unavailable', mode: 'registry_unavailable', code: 'ECONNREFUSED'
+                }
+            });
+        expect(fallbackConfigParser.getProjects).not.toHaveBeenCalled();
+    });
 });

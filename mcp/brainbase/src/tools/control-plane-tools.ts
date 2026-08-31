@@ -353,6 +353,18 @@ function projectId(project: ProjectCatalogItem): string | null {
   return normalizeProjectCode(project.id);
 }
 
+function projectAccessKeys(project: ProjectCatalogItem): string[] {
+  const github = project.github && typeof project.github === 'object' && !Array.isArray(project.github)
+    ? project.github as Record<string, unknown>
+    : null;
+  const aliases = Array.isArray(project.aliases) ? project.aliases : [];
+  const candidates = [project.id, project.project_code, github?.repo, ...aliases];
+  return Array.from(new Set(candidates.flatMap((value) => {
+    const normalized = typeof value === 'string' ? normalizeProjectCode(value) : null;
+    return normalized ? [normalized] : [];
+  })));
+}
+
 function optionalStringArgument(args: Record<string, unknown>, key: string): string | null {
   const value = args[key];
   if (value === undefined || value === null || value === '') return null;
@@ -1226,10 +1238,9 @@ export async function handleControlPlaneToolCall(
   }
 
   const allowed = new Set(scope);
-  const scopedProjects = catalog.projects.filter((project) => {
-    const id = projectId(project);
-    return id ? allowed.has(id) : false;
-  });
+  const scopedProjects = catalog.projects.filter((project) => (
+    projectAccessKeys(project).some((key) => allowed.has(key))
+  ));
 
   const data: ControlPlaneData = {
     projects: scopedProjects,

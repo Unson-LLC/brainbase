@@ -84,6 +84,45 @@ describe('Brainbase MCP control-plane tools', () => {
     assert.equal(result?.data.count, 0);
   });
 
+  it('project catalogはcanonical id以外の明示alias grantも完全一致で保持する', async () => {
+    const result = await handleControlPlaneToolCall('brainbase_projects', {}, dependencies({
+      configuredProjectCodes: ['growin'],
+      tokenManager: {
+        getToken: async () => jwt({ sub: 'per_keigo', role: 'member', projectCodes: ['growin'] }),
+      },
+      fetch: async () => new Response(JSON.stringify({
+        projects: [{ id: 'growin-ai', name: 'Growin AI', aliases: ['growin'] }],
+        source: { status: 'loaded', mode: 'registry_scoped' },
+      }), { status: 200 }),
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(result?.data.projects.map((project) => project.id), ['growin-ai']);
+    assert.equal(result?.data.count, 1);
+  });
+
+  it('project catalogはGitHub repo名の明示grantも完全一致で保持する', async () => {
+    const result = await handleControlPlaneToolCall('brainbase_projects', {}, dependencies({
+      configuredProjectCodes: ['growin-project'],
+      tokenManager: {
+        getToken: async () => jwt({
+          sub: 'per_keigo', role: 'member', projectCodes: ['growin-project'],
+        }),
+      },
+      fetch: async () => new Response(JSON.stringify({
+        projects: [{
+          id: 'growin-ai', name: 'Growin AI',
+          github: { owner: 'Unson-LLC', repo: 'growin-project' },
+        }],
+        source: { status: 'loaded', mode: 'registry_scoped' },
+      }), { status: 200 }),
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(result?.data.projects.map((project) => project.id), ['growin-ai']);
+    assert.equal(result?.data.count, 1);
+  });
+
   it('preserves the Registry source for a confirmed empty catalog envelope', async () => {
     const result = await handleControlPlaneToolCall('brainbase_projects', {}, dependencies({
       fetch: async () => new Response(JSON.stringify({

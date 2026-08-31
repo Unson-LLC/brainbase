@@ -51,28 +51,32 @@ export class ProjectRegistryCatalogAdapter {
                 source: { status: 'organization_context_required', mode: 'registry_scope_required' }
             };
         }
-        const fallback = this.fallbackConfigParser?.getProjects
-            ? await this.fallbackConfigParser.getProjects()
-            : { projects: [] };
         let rows;
         try {
             rows = await this.repository.listProjects(organizationId);
         } catch (error) {
-            // A rolling deployment may start the application before the registry
-            // migration is present. Do not turn an unavailable Registry into an
-            // organization membership or permission grant through the legacy catalog.
-            if (['42P01', 'PROJECT_REGISTRY_UNAVAILABLE'].includes(error?.code)) {
-                return {
-                    ...fallback,
-                    projects: [],
-                    source: {
-                        status: 'unavailable',
-                        mode: 'registry_unavailable',
-                        code: error?.code || 'PROJECT_REGISTRY_UNAVAILABLE'
-                    }
-                };
+            // Do not flatten database outages, timeouts, or migration gaps into
+            // a confirmed empty catalog. The Registry is the membership authority,
+            // so a fallback-only row must never become selectable during an outage.
+            return {
+                projects: [],
+                source: {
+                    status: 'unavailable',
+                    mode: 'registry_unavailable',
+                    code: error?.code || 'PROJECT_REGISTRY_UNAVAILABLE'
+                }
+            };
+        }
+        let fallback = { projects: [] };
+        let enrichmentFailure = null;
+        if (this.fallbackConfigParser?.getProjects) {
+            try {
+                fallback = await this.fallbackConfigParser.getProjects();
+            } catch (error) {
+                // Local workspace metadata is optional enrichment. Its absence
+                // must not make a successfully read canonical Registry unavailable.
+                enrichmentFailure = error?.code || 'LOCAL_PROJECT_ENRICHMENT_UNAVAILABLE';
             }
-            throw error;
         }
         const fallbackById = new Map((fallback.projects || []).map((project) => [project.id, project]));
         const merged = new Map();
@@ -104,7 +108,14 @@ export class ProjectRegistryCatalogAdapter {
         return {
             root: fallback.root,
             projects: Array.from(merged.values()),
-            source: { status: 'loaded', mode: 'registry_scoped' }
+            source: {
+                status: 'loaded',
+                mode: 'registry_scoped',
+                ...(enrichmentFailure ? {
+                    enrichment_status: 'unavailable',
+                    enrichment_code: enrichmentFailure
+                } : {})
+            }
         };
     }
 }
