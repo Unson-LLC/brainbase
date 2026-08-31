@@ -27,12 +27,14 @@ test.describe('story-session-launch-picker-startup-composer PR gate evidence', (
     expect(eventListeners).toContain('this.openSessionLaunchPicker(project)');
   });
 
-  test('updates capability artifacts to launch picker and startup composer', async () => {
+  test('keeps the retired session capability separate from the residual picker contract', async () => {
     const sessionCapability = await read('docs/brainbase-capabilities/capabilities/session.create.yml');
     const projectCapability = await read('docs/brainbase-capabilities/capabilities/project.selector.yml');
-    expect(sessionCapability).toContain('#session-launch-picker');
-    expect(sessionCapability).toContain('#session-startup-composer');
+    expect(sessionCapability).toContain('lifecycle: retired');
+    expect(sessionCapability).not.toContain('#session-launch-picker');
+    expect(sessionCapability).not.toContain('#session-startup-composer');
     expect(sessionCapability).not.toContain('#create-session-modal');
+    expect(projectCapability).toContain('#session-launch-picker');
     expect(projectCapability).toContain('#session-launch-project-select');
     expect(projectCapability).not.toContain('#create-session-modal');
   });

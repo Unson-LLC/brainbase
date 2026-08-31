@@ -1,0 +1,28 @@
+import { defineConfig } from "@playwright/test";
+import { fileURLToPath } from "node:url";
+
+const port = Number(process.env.BRAINBASE_E2E_PORT || 31991);
+const baseURL = process.env.BRAINBASE_BASE_URL || `http://127.0.0.1:${port}`;
+const publicDir = fileURLToPath(new URL("../../public", import.meta.url));
+
+export default defineConfig({
+  testDir: ".",
+  testMatch: [
+    "story-project-runtime-catalog-ux.spec.js",
+    "story-inline-session-creation-pr-gate.spec.ts",
+  ],
+  outputDir: "../../var/test-results/project-provisioning",
+  workers: 1,
+  reporter: [["list"]],
+  use: {
+    baseURL,
+    channel: "chrome",
+    headless: true,
+  },
+  webServer: {
+    command: `python3 -m http.server ${port} --directory ${JSON.stringify(publicDir)} --bind 127.0.0.1`,
+    url: `${baseURL}/modules/project-mapping.js`,
+    reuseExistingServer: false,
+    timeout: 30000,
+  },
+});
