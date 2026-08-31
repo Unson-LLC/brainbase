@@ -522,15 +522,17 @@ CREATE POLICY info_graph_edges_select ON graph_edges
       OR (
         current_setting('app.graph_maintenance_mode', true) = 'true'
         AND rel_type = 'member_of'
+        AND lifecycle_status = 'active'
       )
     )
     AND (
       rel_type = 'member_of'
       OR app_graph_edge_scope_visible(from_id, to_id, rel_type, payload, role_min, sensitivity)
-      -- Graph maintenance loads source-project rows for forensic validation,
-      -- then redacts every unresolved/inaccessible endpoint before returning
-      -- the snapshot. Ordinary Graph reads never set this transaction-local
-      -- flag and remain subject to endpoint visibility.
+      -- Graph maintenance loads only rows whose own project passed the
+      -- preceding project-code check. This bounded forensic exception lets
+      -- the service count and redact inaccessible endpoints instead of
+      -- silently dropping them. It never relaxes INSERT/UPDATE checks, and
+      -- ordinary Graph reads never set this transaction-local flag.
       OR current_setting('app.graph_maintenance_mode', true) = 'true'
     )
   );

@@ -319,6 +319,83 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         )).rejects.toMatchObject({ code: '42501' });
     });
 
+    it('保守modeのforensic readはアクセス可能project内だけを読み通常readへ漏らさない', async () => {
+        await expect(infoSSOTService.listGraphEdges(access, {
+            projectCode: 'brainbase', relType: 'related_to', toId: 'project_vibepro_restricted'
+        })).resolves.toEqual([]);
+
+        const { rows: forensicRows } = await infoSSOTService.withAccessContext(
+            { ...access, graphMaintenanceMode: true },
+            (client) => client.query(`
+                SELECT id
+                FROM graph_edges
+                WHERE id = 'edge_restricted_endpoint'
+            `)
+        );
+        expect(forensicRows).toEqual([{ id: 'edge_restricted_endpoint' }]);
+
+        const { rows: inaccessibleProjectRows } = await infoSSOTService.withAccessContext(
+            { ...access, projectCodes: ['brainbase'], graphMaintenanceMode: true },
+            (client) => client.query(`
+                SELECT id
+                FROM graph_edges
+                WHERE project_id = 'project_vibepro'
+            `)
+        );
+        expect(inaccessibleProjectRows).toEqual([]);
+
+        const snapshot = await service.exportSnapshot(
+            { ...access, projectCodes: ['brainbase'] },
+            { projectCode: 'brainbase' }
+        );
+        expect(snapshot.edges).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'edge_restricted_endpoint' })
+        ]));
+        expect(snapshot.suppression_summary).toEqual({
+            edge_count: 1,
+            reasons: { unresolved_or_inaccessible_endpoint: 1 }
+        });
+    });
+
+    it('保守modeでも別projectのinactive member_ofはproject scopeを迂回しない', async () => {
+        const isolated = await createScopedDatabase('gm_inactive_membership');
+        try {
+            await assertRlsEnforcedConnection(isolated.pool);
+            await applyInfoSSOTSchema(isolated.pool);
+            await isolated.pool.query(`
+                INSERT INTO projects (id, code, name, organization_id)
+                VALUES
+                    ('project_inactive_brainbase', 'brainbase', 'Brainbase', 'org_phase0'),
+                    ('project_inactive_aitle', 'aitle', 'Aitle', 'org_phase0');
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('person_inactive_membership', 'person', NULL, '{"name":"Inactive membership"}',
+                     'member', 'internal', 'active', 1),
+                    ('project_inactive_aitle_entity', 'project', 'project_inactive_aitle', '{}',
+                     'member', 'internal', 'active', 1);
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('membership_inactive_aitle', 'person_inactive_membership',
+                     'project_inactive_aitle_entity', 'member_of', 'project_inactive_aitle', '{}',
+                     'member', 'internal', 'retired', 1)
+            `);
+            await applyInfoSSOTRls(isolated.pool);
+            const isolatedInfoSSOT = new InfoSSOTService({
+                pool: isolated.pool,
+                ontologyRegistry: new OntologyRegistry({ rootDir: sourceRoot, publicKeyPem: '' })
+            });
+            const { rows } = await isolatedInfoSSOT.withAccessContext(
+                { ...access, projectCodes: ['brainbase'], graphMaintenanceMode: true },
+                (client) => client.query(`SELECT id FROM graph_edges WHERE id='membership_inactive_aitle'`)
+            );
+            expect(rows).toEqual([]);
+        } finally {
+            await dropScopedDatabase(isolated);
+        }
+    });
+
     it('projectless Personは一意なactive member_ofのorganizationで通常readできる', async () => {
         await infoSSOTService.withAccessContext(access, async (client) => {
             await client.query(`
