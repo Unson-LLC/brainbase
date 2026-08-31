@@ -270,14 +270,6 @@
           }
         ]
       },
-      "verifiable_by": {
-        "test_pattern": [
-          {
-            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
-            "must_cover": "cross-tenant markerとmarkerなし旧Snapshotは非canonical Edgeを拒否する"
-          }
-        ]
-      },
       "confidence": 0.99,
       "first_seen_at": "2026-08-31T00:38:42.012Z",
       "last_revised_at": "2026-08-31T00:38:42.012Z"
@@ -341,6 +333,14 @@
           {
             "file": "tests/server/services/graph-maintenance-service.test.js",
             "case": "same-organization external endpointのreadbackはGMでも許可しscope markerを維持する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "same-organization external endpointのreadbackはGMでも許可しscope markerを維持する"
           }
         ]
       },
