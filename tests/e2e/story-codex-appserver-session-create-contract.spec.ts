@@ -7,6 +7,8 @@ const retiredDocumentPaths = {
   spec: 'docs/specs/codex-appserver-session-create-spec.md',
 };
 const projectProvisioningPath = 'docs/brainbase-capabilities/capabilities/project.provisioning.yml';
+const projectSelectorPath = 'docs/brainbase-capabilities/capabilities/project.selector.yml';
+const projectArchitecturePath = 'docs/architecture/story-project-provisioning-v1.md';
 const retirementRunbookPath = 'docs/brainbase-capabilities/runbooks/missing-project-in-session-selector.md';
 const workspaceSetupContractPath = 'tests/ui/project-mapping-runtime-catalog.test.js';
 
@@ -94,5 +96,18 @@ test.describe('story-codex-appserver-session-create retirement contract', () => 
     expect(runbook).toContain('FocusEngineModalが表示');
     expect(workspaceSetupContract).toContain('Workspace Setupはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする');
     expect(workspaceSetupContract).not.toContain('Session Launch Pickerはruntime catalog');
+  });
+
+  test('does not present the retained Workspace Setup module as a production browser UI', async () => {
+    const [provisioning, selector, architecture] = await Promise.all([
+      read(projectProvisioningPath),
+      read(projectSelectorPath),
+      read(projectArchitecturePath),
+    ]);
+
+    expect(provisioning).toContain('Project Provisioning has no production browser UI');
+    expect(selector).toContain('not currently served by a production static route');
+    expect(architecture).toContain('synthetic hostへ載せるブラウザ試験は契約E2E');
+    expect(architecture).toContain('production browser E2Eの証拠ではありません');
   });
 });

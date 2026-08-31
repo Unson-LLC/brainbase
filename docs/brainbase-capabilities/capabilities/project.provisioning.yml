@@ -35,7 +35,8 @@ visibility_rules:
   - Apply and resume never accept approvals in their request body; approval is recorded through the dedicated approve surface before execution.
   - A run becomes active only after Registry, Graph, every requested Auth Grant, and GitHub repository state are read back and verified.
   - "The server-side `session.create`/static endpoint and browser Session Launch Picker are retired and unreachable; neither is a Project Provisioning entry point or acceptance-evidence surface."
-  - "Desktop and mobile legacy CREATE_SESSION actions show the Codex migration notice without opening the Picker or calling session APIs. Workspace Setup is the only browser Project Catalog consumer."
+  - "Project Provisioning has no production browser UI. The retained Workspace Setup selector module is a separate compatibility/contract surface not currently served by a production static route; synthetic-host tests are not production browser E2E evidence."
+  - "Desktop and mobile legacy CREATE_SESSION actions show the Codex migration notice without opening the Picker or calling session APIs."
   - Codex app/CLI owns task and worktree creation and ownership; per-user local paths remain in separate Workspace Setup.
   - Project Registry, run, and step rows use FORCE RLS with transaction-local app.organization_id; no-context runtime callers cannot enumerate Registry rows.
   - The CLI obtains a session-bound CSRF token for every mutation and does not use a broad Bearer exemption.

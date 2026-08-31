@@ -149,11 +149,7 @@ test('FocusEngineModalがないNocoDBタスク開始は即時にCodex移行案�
     });
 });
 
-for (const engine of ['claude', 'codex']) {
-    const title = engine === 'claude'
-        ? 'NocoDB開始ボタンからエンジン選択後に移行案内へfail-closedし、session APIを呼ばない'
-        : 'NocoDBタスク開始からcodex選択後はCodex移行案内へfail-closedする';
-    test(title, async ({ page }) => {
+async function assertEngineSelectionFailsClosed(page, engine) {
         const sessionRequests = [];
         page.on('request', (request) => {
             if (new URL(request.url()).pathname.startsWith('/api/sessions')) {
@@ -181,5 +177,12 @@ for (const engine of ['claude', 'codex']) {
             sessionCreateCalls: 0,
             taskStatusUpdateCalls: 0
         });
-    });
 }
+
+test('NocoDB開始ボタンからエンジン選択後に移行案内へfail-closedし、session APIを呼ばない', async ({ page }) => {
+    await assertEngineSelectionFailsClosed(page, 'claude');
+});
+
+test('NocoDBタスク開始からcodex選択後はCodex移行案内へfail-closedする', async ({ page }) => {
+    await assertEngineSelectionFailsClosed(page, 'codex');
+});

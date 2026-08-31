@@ -12,7 +12,7 @@
 
 正式なProject Catalogの入口は認証済みCLI/API/MCPです。CLIはProject Provisioningのcheck/plan/approve/apply/status/verify/resumeを呼び、APIは`/api/config/projects`、`/api/brainbase`、`/api/brainbase/projects`を提供し、MCPは`brainbase_projects`を提供します。各面はproject grantを認証コンテキストと設定スコープの積集合で絞り、`source.status`やstatus envelopeでloaded・confirmed empty・unavailable/errorを区別します。未認証・取得不能・Registry unavailableはlegacy topologyへfail-openせず、readback未確認として扱います。
 
-`GET /api/config`は個人のWorkspace Setup用legacy topologyであり、組織Catalogやアクセス権の根拠ではありません。Workspace SetupとConnected-world Onboardingは別Capabilityです。サーバー側の`session.create`/static endpointとSession Launch Pickerはretiredかつ到達不能で、Project Provisioningの正式入口でもProject Catalog consumerでもありません。移行期間中は旧NocoDB `EVENTS.START_TASK`から互換導線としてFocusEngineModalへ到達し得ますが、エンジン選択後（Modal不在時は直ちに）Codex移行案内へfail-closedし、session APIを呼びません。ブラウザの正式Project Catalog consumerはWorkspace Setupだけです。desktop/mobileの旧`EVENTS.CREATE_SESSION`導線もCodex移行案内を表示し、Pickerを開かずsession APIを呼びません。タスクとworktreeの作成・所有はCodex app/CLIが担います。
+Project Provisioningは本番ブラウザUIを持ちません。`GET /api/config`は個人のWorkspace Setup用legacy topologyであり、組織Catalogやアクセス権の根拠ではありません。Workspace SetupとConnected-world Onboardingは別Capabilityです。保持されるWorkspace Setup selector moduleは個人のlocal pathを扱う互換・契約surfaceで、現在のproduction static routeから配信される本番UIではありません。このmoduleをsynthetic hostへ載せるブラウザ試験は契約E2Eであり、production browser E2Eの証拠ではありません。サーバー側の`session.create`/static endpointとSession Launch Pickerはretiredかつ到達不能で、Project Provisioningの正式入口でもProject Catalog consumerでもありません。移行期間中は旧NocoDB `EVENTS.START_TASK`から互換導線としてFocusEngineModalへ到達し得ますが、エンジン選択後（Modal不在時は直ちに）Codex移行案内へfail-closedし、session APIを呼びません。desktop/mobileの旧`EVENTS.CREATE_SESSION`導線もCodex移行案内を表示し、Pickerを開かずsession APIを呼びません。タスクとworktreeの作成・所有はCodex app/CLIが担います。
 
 プロセス終了でrunが`applying`に残った場合、通常の`apply`は再取得しません。明示的な`resume`だけが、最終更新から5分を超えたstale runを原子的に再claimできます。これにより稼働中runとの二重実行を避けつつ、クラッシュ後の復旧経路を保ちます。
 
@@ -20,7 +20,7 @@ CLIの更新系HTTPはBearerだけでCSRFを迂回しません。CLI自身が同
 
 ## PR分割境界
 
-この変更は、Manifest契約、状態機械、永続化、Graph・Auth Grant・Repositoryのadapter、API/CLI、実行時Catalog接続、Capability文書、テストを一つの縦断スライスとして扱います。途中で分割すると、Registryへ登録してもアクセス判定へ反映されない、または入口だけ存在して永続化・読戻しが成立しない中間状態になるためです。外部GitHubの本番作成、Production DBへのmigration適用、Workspace Setup、Connected-world OnboardingはこのPRに含めません。
+この変更は、Manifest契約、状態機械、永続化、Graph・Auth Grant・Repositoryのadapter、API/CLI、実行時Catalog接続、Capability文書、テストを一つの縦断スライスとして扱います。既存のautomation、meeting、run-receipt経路に入る変更は、新しい組織境界を迂回させないための`organizationId`伝播と回帰テストに限定します。旧session作成導線のretirement更新は、新Catalogの影に別の作成・Catalog経路を残さないための同一cutoverです。AITM文書の更新は、この影響API契約との整合だけを扱います。途中で分割すると、Registryへ登録してもアクセス判定へ反映されない、または旧入口だけが残る中間状態になるため、一つの原子的PRとします。外部GitHubの本番作成、Production DBへのmigration適用、Workspace Setup本体、新しいブラウザUI、Connected-world OnboardingはこのPRに含めません。
 
 ## 証拠境界
 

@@ -7,6 +7,24 @@ function value(args, flag) {
     return index >= 0 ? args[index + 1] : null;
 }
 
+function assertArgs(args, { positionals = 0, flags = [] }) {
+    const allowedFlags = new Set(flags);
+    let positionalCount = 0;
+    for (let index = 0; index < args.length; index += 1) {
+        const argument = args[index];
+        if (argument.startsWith('--')) {
+            if (!allowedFlags.has(argument)) throw new Error(`Unsupported option: ${argument}`);
+            if (args[index + 1] === undefined || args[index + 1].startsWith('--')) {
+                throw new Error(`${argument} requires a value`);
+            }
+            index += 1;
+            continue;
+        }
+        positionalCount += 1;
+    }
+    if (positionalCount !== positionals) throw new Error(`Expected ${positionals} positional argument(s)`);
+}
+
 function manifest(args) {
     const file = value(args, '--manifest');
     if (!file) throw new Error('--manifest <file> is required');
@@ -53,20 +71,32 @@ async function request(path, { method = 'GET', body, idempotencyKey } = {}) {
     const payload = await response.json();
     if (!response.ok) throw new Error(`${payload.error?.code || response.status}: ${payload.error?.message || 'request failed'}`);
     console.log(JSON.stringify(payload, null, 2));
+    return payload;
 }
 
 export async function runProjectProvisioning(subcommand, args) {
-    if (subcommand === 'check') return request('/check', { method: 'POST', body: manifest(args) });
+    if (subcommand === 'check') {
+        assertArgs(args, { flags: ['--manifest'] });
+        return request('/check', { method: 'POST', body: manifest(args) });
+    }
     if (subcommand === 'plan') {
+        assertArgs(args, { flags: ['--manifest', '--idempotency-key'] });
         const idempotencyKey = value(args, '--idempotency-key');
         if (!idempotencyKey) throw new Error('--idempotency-key <key> is required');
         return request('/plan', { method: 'POST', body: manifest(args), idempotencyKey });
     }
     const runId = args[0];
     if (!runId) throw new Error(`Usage: brainbase project provision ${subcommand} <run-id>`);
-    if (subcommand === 'status') return request(`/runs/${runId}`);
-    if (subcommand === 'verify') return request(`/runs/${runId}/verify`, { method: 'POST', body: {} });
+    if (subcommand === 'status') {
+        assertArgs(args, { positionals: 1 });
+        return request(`/runs/${runId}`);
+    }
+    if (subcommand === 'verify') {
+        assertArgs(args, { positionals: 1 });
+        return request(`/runs/${runId}/verify`, { method: 'POST', body: {} });
+    }
     if (subcommand === 'approve') {
+        assertArgs(args, { positionals: 1, flags: ['--gates', '--review-ref'] });
         const approvedGates = (value(args, '--gates') || '').split(',').map((item) => item.trim()).filter(Boolean);
         const reviewRef = value(args, '--review-ref');
         if (!approvedGates.length) throw new Error('--gates <gate,...> is required');
@@ -77,7 +107,12 @@ export async function runProjectProvisioning(subcommand, args) {
         });
     }
     if (subcommand === 'apply' || subcommand === 'resume') {
-        return request(`/runs/${runId}/${subcommand}`, { method: 'POST', body: {} });
+        assertArgs(args, { positionals: 1 });
+        const result = await request(`/runs/${runId}/${subcommand}`, { method: 'POST', body: {} });
+        if (result.state === 'manual_intervention_required') {
+            throw new Error(`manual_intervention_required: approve exactly these gates, then run resume: ${(result.missing_gates || []).join(',')}`);
+        }
+        return result;
     }
     throw new Error('Usage: brainbase project provision [check|plan|approve|apply|status|verify|resume]');
 }

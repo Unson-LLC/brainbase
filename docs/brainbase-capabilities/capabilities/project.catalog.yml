@@ -38,7 +38,8 @@ visibility_rules:
   - brainbase_projects intersects JWT projectCodes with BRAINBASE_PROJECT_CODES; callers cannot expand scope through tool arguments.
   - brainbase_projects returns status ok, unavailable, or error together with scope and audit evidence.
   - "The server-side `session.create`/static endpoint and browser Session Launch Picker are retired and unreachable; neither is a catalog surface, formal entry, or acceptance-evidence surface."
-  - "Desktop and mobile legacy CREATE_SESSION actions show the Codex migration notice without opening the Picker or calling session APIs. Workspace Setup is the only browser Project Catalog consumer."
+  - "Project Provisioning has no production browser UI. The retained Workspace Setup selector module is a separate compatibility/contract consumer and is not currently served by a production static route; synthetic-host tests are not production browser E2E evidence."
+  - "Desktop and mobile legacy CREATE_SESSION actions show the Codex migration notice without opening the Picker or calling session APIs."
   - Codex app/CLI owns task and worktree creation and ownership. Workspace Setup owns per-user local paths and is separate from Project Catalog and Project Provisioning.
   - Project Catalogの正本パスはhost runtimeがConfigParserへ注入し、個人の絶対パスへ固定しない。
   - Graph MaintenanceでProjectをbusiness subjectへ投影するprojectは、空でないnameと正の整数catalog_versionを持つ。

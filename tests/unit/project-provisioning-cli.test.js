@@ -49,15 +49,23 @@ describe('project provisioning CLI', () => {
         );
     });
 
-    it('does not accept approval flags on apply', async () => {
-        const fetchMock = mockCsrfAndRequest({ run_id: 'run-1', state: 'active' });
+    it('rejects approval flags on apply instead of silently ignoring them', async () => {
+        const fetchMock = vi.spyOn(globalThis, 'fetch');
+        await expect(runProjectProvisioning('apply', ['run-1', '--gates', 'repository_create']))
+            .rejects.toThrow('Unsupported option: --gates');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('manual interventionを非zero相当で示し、approve後のresumeを案内する', async () => {
+        mockCsrfAndRequest({
+            run_id: 'run-1',
+            state: 'manual_intervention_required',
+            missing_gates: ['manifest_plan_approval', 'repository_create']
+        });
         vi.spyOn(console, 'log').mockImplementation(() => {});
 
-        await runProjectProvisioning('apply', ['run-1', '--gates', 'repository_create']);
-
-        expect(fetchMock).toHaveBeenNthCalledWith(2,
-            'https://brainbase.example/api/project-provisioning/runs/run-1/apply',
-            expect.objectContaining({ method: 'POST', body: '{}' })
+        await expect(runProjectProvisioning('apply', ['run-1'])).rejects.toThrow(
+            'manual_intervention_required: approve exactly these gates, then run resume: manifest_plan_approval,repository_create'
         );
     });
 

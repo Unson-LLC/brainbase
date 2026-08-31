@@ -1,6 +1,6 @@
 id: project.selector
 name: Workspace Setup project selector
-purpose: Describe the Workspace Setup consumer of the authenticated Project Catalog; this is not a formal Project Catalog or Project Provisioning entry.
+purpose: Describe the retained Workspace Setup compatibility and contract consumer of the authenticated Project Catalog; this is not a formal Project Catalog or Project Provisioning entry and is not currently served by a production static route.
 surfaces:
   ui:
     - "#session-project-select (Workspace Setup)"
@@ -21,6 +21,7 @@ depends_on:
   - project.catalog
   - auth.grants
 visibility_rules:
+  - "Project Provisioning has no production browser UI. The retained selector module is a compatibility/contract surface and its synthetic-host browser test is not production browser E2E evidence."
   - "The browser Session Launch Picker and server-side session creation are retired under session.create; this capability owns only Workspace Setup selection."
   - "Fetch project candidates from the authenticated runtime Catalog (`GET /api/config/projects`); `/api/config` is local Workspace Setup data and never an access/catalog fallback."
   - Add general as the first option.

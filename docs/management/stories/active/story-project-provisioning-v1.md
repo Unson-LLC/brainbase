@@ -19,7 +19,7 @@
 - Project Grantはproject ID・明示alias・GitHub repository名の完全一致だけで判定し、prefix一致で権限を拡張しない。
 - healthとintegrityはRegistry schemaの利用可能性を実行時Catalog経由で確認する。
 - Workspace SetupとConnected-world Onboardingは別Capabilityとして境界を保つ。
-- サーバー側のsession.create/static endpointとSession Launch Pickerはretiredかつ到達不能とし、ブラウザのProject Catalog consumerはWorkspace Setupだけに限定する。移行期間中はNocoDBの旧`START_TASK`入口から互換用のFocusEngineModalへ到達し得るが、エンジン選択後はCodex移行案内へfail-closedし、session APIを呼ばない。desktop/mobileの旧`CREATE_SESSION`入口はPickerを開かず同じ案内を表示する。
+- Project Provisioningは本番ブラウザUIを持たない。サーバー側のsession.create/static endpointとSession Launch Pickerはretiredかつ到達不能とする。保持されるWorkspace Setup selector moduleは、個人のlocal pathを扱う別Capabilityの互換・契約surfaceであり、現在のproduction static routeから配信される本番UIではない。移行期間中はNocoDBの旧`START_TASK`入口から互換用のFocusEngineModalへ到達し得るが、エンジン選択後はCodex移行案内へfail-closedし、session APIを呼ばない。desktop/mobileの旧`CREATE_SESSION`入口はPickerを開かず同じ案内を表示する。
 - Graph writerとGitHub writerの検証はfake/adapter doubleによる契約確認までとし、本番Graph/GitHub writeの完了証拠として扱わない。
 
 ## 境界・非対象
@@ -27,4 +27,5 @@
 - サーバー側の `session.create`/static endpointとSession Launch Pickerはretiredかつ到達不能。移行期間中の旧NocoDB `START_TASK`互換導線はFocusEngineModalを表示する場合があるが、エンジン選択後（Modal不在時は直ちに）Codex移行案内へfail-closedし、session APIを呼ばない。
 - タスクとworktreeの作成・所有はCodex app/CLIが担う。Project ProvisioningはProject Registry、Graph、Auth Grant、Repository boundaryの登録・検証を扱う。
 - `local_path`やclone先は個人ごとのWorkspace Setupで管理し、Project ProvisioningのManifest・実行時Catalogには入れない。
+- Workspace Setup selector moduleを使うブラウザ試験は互換・契約surfaceの証拠であり、production browser E2Eの証拠ではない。
 - Graph writerとGitHub writerの本番実行はこのStoryで検証しない。テストで使うwriterはfake/adapter doubleであり、本番Graph/GitHub writesは対象外とする。

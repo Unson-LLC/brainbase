@@ -20,16 +20,35 @@ description: Brainbaseへ新規プロジェクトを正式登録するときに�
 1. Manifestを作り、`local_path`を入れない。
 2. `check`で衝突を確認する。この操作は書き込みを行わない。
 3. `plan`のManifestと全差分を確認する。すべてのPlanに`manifest_plan_approval` Human Gateが付く。
-4. Bearer認証された担当者が、基礎承認と追加Gateを過不足なく`approve`し、review ref付きの不変Receiptを保存する。
+4. Bearer認証された担当者が、`plan.required_human_gates`に表示された配列をそのまま`approve --gates`へ渡し、review ref付きの不変Receiptを保存する。
 5. `apply`を実行し、`verify`でRegistry・Graph・Grant・Repositoryの実読戻しReceiptを確認する。
-6. `partial_failed`なら原因を直して`resume`する。完了済みstepは再実行しない。プロセス終了で`applying`に残ったrunは、5分経過後に`resume`が原子的に再取得する。
+6. `manual_intervention_required`なら表示されたGateを`approve`してから`resume`する。`partial_failed`なら原因を直して`resume`する。完了済みstepは再実行しない。プロセス終了で`applying`に残ったrunは、5分経過後に`resume`が原子的に再取得する。
 7. `active`になった後で、必要ならConnected-world Onboardingを別途開始する。
 
 ## コマンド例
 
+最小Manifest例（IDはGraph/認証基盤の正本値へ置き換える）:
+
+```json
+{
+  "schema_version": "project-provisioning.v1",
+  "project_code": "customer-project",
+  "display_name": "顧客プロジェクト",
+  "kind": "client",
+  "catalog_version": 1,
+  "session_select": true,
+  "organization_entity_id": "org_xxx",
+  "owner_person_id": "person_xxx",
+  "initial_grants": [{ "person_id": "person_xxx", "role": "gm" }],
+  "repository": { "mode": "create", "owner": "unson-llc", "repo": "customer-project", "visibility": "private" }
+}
+```
+
 ```bash
 brainbase project provision check --manifest project.json
 brainbase project provision plan --manifest project.json --idempotency-key customer-2026-001
+# 直前のplan.required_human_gatesが
+# ["manifest_plan_approval","repository_create"]だった場合
 brainbase project provision approve ppr_xxx --gates manifest_plan_approval,repository_create --review-ref review-001
 brainbase project provision apply ppr_xxx
 brainbase project provision status ppr_xxx
@@ -37,7 +56,7 @@ brainbase project provision verify ppr_xxx
 brainbase project provision resume ppr_xxx
 ```
 
-すべてのPlanはManifestと差分全体の`manifest_plan_approval`を必須とします。`repository.mode=create`、公開リポジトリ、CEO権限などの広い変更は追加Gateとして表示されます。`approve`はPlanに必要な項目を過不足なく指定し、`apply`とは別に実行します。CLIのローカルフラグを承認Receiptの代用にはしません。
+すべてのPlanはManifestと差分全体の`manifest_plan_approval`を必須とします。`repository.mode=create`、公開リポジトリ、CEO権限などの広い変更は追加Gateとして表示されます。固定例を流用せず、`plan.required_human_gates`を過不足なく指定してください。`approve`は`apply`とは別に実行し、CLIのローカルフラグを承認Receiptの代用にはしません。未知のフラグは誤認防止のためエラーになります。
 
 ## 境界
 
@@ -45,7 +64,7 @@ brainbase project provision resume ppr_xxx
 - Repository Bootstrap: GitHub repositoryの作成
 - Workspace Setup: 個人の`local_path`やclone先
 - Connected-world Onboarding: Drive、議事録、既存コンテンツ
-- サーバー側の`session.create`/static endpointとブラウザのSession Launch Pickerはretiredかつ到達不能で、Skillの正式入口・受け入れ条件・実装証拠ではない。ブラウザのProject Catalog consumerはWorkspace Setupだけに限定し、desktop/mobileの旧`CREATE_SESSION`入口はCodex移行案内を表示してPickerもsession APIも呼ばない。
+- Project Provisioningは本番ブラウザUIを持たない。サーバー側の`session.create`/static endpointとブラウザのSession Launch Pickerはretiredかつ到達不能で、Skillの正式入口・受け入れ条件・実装証拠ではない。保持されているWorkspace Setup selector moduleは、個人のlocal pathを扱う別Capabilityの互換・契約surfaceであり、現在のproduction static routeから配信される本番UIではない。desktop/mobileの旧`CREATE_SESSION`入口はCodex移行案内を表示してPickerもsession APIも呼ばない。
 - タスクとworktreeの作成・所有はCodex app/CLIが担う。Workspace Setupは個人ごとのlocal pathを管理する別Capabilityである。
 - Graph writerとGitHub writerの契約テストはfake/adapter doubleを使う。本番Graph/GitHub writesとproduction E2EはこのSkillの対象外で、実施済みと報告しない。
 
