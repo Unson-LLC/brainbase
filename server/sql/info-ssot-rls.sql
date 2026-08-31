@@ -498,8 +498,17 @@ END $do$;
 CREATE POLICY info_graph_edges_select ON graph_edges
   FOR SELECT
   USING (
-    app_current_role_rank() >= app_role_rank(role_min)
-    AND sensitivity = ANY(app_clearance())
+    (
+      (
+        current_setting('app.graph_maintenance_mode', true) = 'true'
+        AND rel_type = 'member_of'
+        AND lifecycle_status = 'active'
+      )
+      OR (
+        app_current_role_rank() >= app_role_rank(role_min)
+        AND sensitivity = ANY(app_clearance())
+      )
+    )
     AND (
       EXISTS (
         SELECT 1 FROM projects p

@@ -485,6 +485,7 @@ export class GraphMaintenanceService {
              WHERE ge.id=ANY($1::text[])
                AND COALESCE(p.code, membership_scope.project_code)=ANY($2::text[])
                AND COALESCE(p.organization_id, membership_scope.organization_id) IS NOT NULL
+               AND app_graph_entity_organization_id(ge.id)=COALESCE(p.organization_id, membership_scope.organization_id)
              ORDER BY ge.id${suffix}`,
             [externalEntityIds(image), codes, access.clearance || ['internal'], access.role]
         );
@@ -573,6 +574,7 @@ export class GraphMaintenanceService {
              WHERE ge.id=ANY($1::text[])
                AND COALESCE(p.organization_id, membership_scope.organization_id)=$2
                AND COALESCE(p.code, membership_scope.project_code)=ANY($3::text[])
+               AND app_graph_entity_organization_id(ge.id)=COALESCE(p.organization_id, membership_scope.organization_id)
              ORDER BY ge.id${endpointLockSuffix}`,
             [unresolvedEndpointIds, organizationId, access.projectCodes, access.clearance || ['internal'], access.role]
         ) : { rows: [] };

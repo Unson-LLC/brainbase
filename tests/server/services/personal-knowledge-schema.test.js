@@ -30,6 +30,9 @@ describe('personal and organization knowledge schema', () => {
         const edgeScopeFunction = infoSsotRls.match(
             /CREATE OR REPLACE FUNCTION app_graph_edge_scope_visible\([\s\S]*?\n(?:\$\$;|\s*\$function\$;)/
         )?.[0] || '';
+        const edgeSelectPolicy = infoSsotRls.match(
+            /CREATE POLICY info_graph_edges_select[\s\S]*?(?=\n\nDROP POLICY IF EXISTS info_graph_edges_insert)/
+        )?.[0] || '';
         expect(infoSsotRls).toContain('app_graph_edge_scope_visible');
         expect(infoSsotRls).toContain('app_graph_entity_organization_id');
         expect(infoSsotRls).toContain("edge_rel_type = 'governs'");
@@ -46,6 +49,7 @@ describe('personal and organization knowledge schema', () => {
         expect(edgeScopeFunction).toContain('SET search_path FROM CURRENT');
         expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_select[\s\S]*current_setting\('app\.graph_maintenance_mode', true\) = 'true'/);
         expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_select[\s\S]*app_project_codes\(\)[\s\S]*graph_maintenance_mode[\s\S]*rel_type = 'member_of'/);
+        expect(edgeSelectPolicy).toMatch(/current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*AND rel_type = 'member_of'[\s\S]*AND lifecycle_status = 'active'[\s\S]*\)[\s\S]*OR[\s\S]*\([\s\S]*app_current_role_rank\(\) >= app_role_rank\(role_min\)[\s\S]*AND sensitivity = ANY\(app_clearance\(\)\)/);
         expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_update[\s\S]*USING[\s\S]*current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*WITH CHECK/);
         expect(infoSsotRls.match(/CREATE OR REPLACE FUNCTION app_setting_array\([\s\S]*?\n(?:\$\$;|\s*\$function\$;)/)?.[0])
             .not.toContain('COALESCE((');

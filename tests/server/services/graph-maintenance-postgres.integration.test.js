@@ -593,6 +593,60 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
+    it('RLSで不可視な別organization member_ofが混在するprojectless Personを保守Snapshotでも抑止する', async () => {
+        const isolated = await createScopedDatabase('gm_mixed_visibility');
+        try {
+            await assertRlsEnforcedConnection(isolated.pool);
+            await applyInfoSSOTSchema(isolated.pool);
+            await isolated.pool.query(`
+                INSERT INTO projects (id, code, name, organization_id)
+                VALUES
+                    ('project_mixed_brainbase', 'brainbase', 'Brainbase', 'org_phase0'),
+                    ('project_mixed_aitle', 'aitle', 'Aitle', 'org_aitle');
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('project_mixed_brainbase_entity', 'project', 'project_mixed_brainbase', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('project_mixed_aitle_entity', 'project', 'project_mixed_aitle', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('person_mixed_visibility', 'person', NULL, '{"name":"Mixed visibility fixture"}',
+                     'member', 'internal', 'active', 1);
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('membership_mixed_visible', 'person_mixed_visibility', 'project_mixed_brainbase_entity',
+                     'member_of', 'project_mixed_brainbase', '{}', 'member', 'internal', 'active', 1),
+                    ('membership_mixed_hidden', 'person_mixed_visibility', 'project_mixed_aitle_entity',
+                     'member_of', 'project_mixed_aitle', '{}', 'ceo', 'restricted', 'active', 1),
+                    ('edge_mixed_visibility', 'person_mixed_visibility', 'project_mixed_brainbase_entity',
+                     'related_to', 'project_mixed_brainbase', '{}', 'member', 'internal', 'active', 1)
+            `);
+            await applyInfoSSOTRls(isolated.pool);
+            const isolatedInfoSSOT = new InfoSSOTService({
+                pool: isolated.pool,
+                ontologyRegistry: new OntologyRegistry({ rootDir: sourceRoot, publicKeyPem: '' })
+            });
+            const isolatedService = new GraphMaintenanceService({ infoSSOTService: isolatedInfoSSOT });
+            const mixedVisibilityAccess = { ...access, clearance: ['internal'] };
+            const snapshot = await isolatedService.exportSnapshot(mixedVisibilityAccess, {
+                projectCode: 'brainbase'
+            });
+
+            expect(snapshot.edges).not.toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: 'edge_mixed_visibility' }),
+                expect.objectContaining({ id: 'membership_mixed_visible' })
+            ]));
+            expect(JSON.stringify(snapshot)).not.toContain('person_mixed_visibility');
+            expect(snapshot.suppression_summary).toEqual({
+                edge_count: 2,
+                reasons: { unresolved_or_inaccessible_endpoint: 2 }
+            });
+        } finally {
+            await dropScopedDatabase(isolated);
+        }
+    });
+
     it('複合scope rehomeをApplyしRollbackで全rowsを復元する', async () => {
         const plan = await service.planMutations(access, {
             projectCode: 'brainbase',
