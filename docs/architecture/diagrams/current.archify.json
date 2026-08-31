@@ -1,0 +1,461 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Brainbase Organization Edition — CURRENT Architecture — 2026-08-31",
+    "output": "generated/current.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1220,
+      880
+    ],
+    "views": [
+      {
+        "id": "request-to-authority",
+        "label": "要求から権限解決",
+        "focus": [
+          "people",
+          "agent-hosts",
+          "mana-runtime",
+          "private-bridge",
+          "mcp-api",
+          "company-authority"
+        ],
+        "note": "外部AIは権限を自己申告せず、Brainbaseがtenant・人物・組織・project・RACI・policyを正本解決する。"
+      },
+      {
+        "id": "canonical-knowledge",
+        "label": "正本と知識",
+        "focus": [
+          "resolution",
+          "core-services",
+          "org-graph",
+          "postgres",
+          "git-ssot"
+        ],
+        "note": "Graphは現在有効な組織事実、PostgreSQLはtenant境界・業務台帳、GitはOntology・設計・Skillの正本を持つ。"
+      },
+      {
+        "id": "personal-boundary",
+        "label": "個人と組織の境界",
+        "focus": [
+          "personal-vault",
+          "promotion-gate",
+          "org-graph",
+          "postgres"
+        ],
+        "note": "Personal Vaultの原文は組織Graphへコピーせず、本人同意と組織レビュー後の正規化済み蒸留物だけを昇格する。"
+      },
+      {
+        "id": "action-and-receipt",
+        "label": "実行と証跡",
+        "focus": [
+          "company-authority",
+          "core-services",
+          "external-sors",
+          "postgres"
+        ],
+        "note": "署名済み実行contextの範囲でだけ外部作用を行い、Usage・Operation Receipt・readbackを同じ相関IDへ束縛する。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "people",
+      "type": "external",
+      "label": "組織の人間",
+      "sublabel": "基準・Accountability・承認",
+      "pos": [
+        40,
+        80
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "tag": "SETS CRITERIA"
+    },
+    {
+      "id": "agent-hosts",
+      "type": "frontend",
+      "label": "Operating Surfaces",
+      "sublabel": "Codex・Claude Code・ChatGPT・minimal Web",
+      "pos": [
+        40,
+        230
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "tag": "AGENT-FIRST"
+    },
+    {
+      "id": "mana-runtime",
+      "type": "cloud",
+      "label": "Mana / Channel Runtime",
+      "sublabel": "Slack・meeting・background jobs",
+      "pos": [
+        40,
+        410
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "tag": "INTEGRATION"
+    },
+    {
+      "id": "mcp-api",
+      "type": "backend",
+      "label": "MCP / Canonical API",
+      "sublabel": "read・write・execute・diagnose",
+      "pos": [
+        320,
+        229
+      ],
+      "size": [
+        220,
+        78
+      ],
+      "tag": "ENTRY"
+    },
+    {
+      "id": "private-bridge",
+      "type": "security",
+      "label": "Cloudflare Private Bridge",
+      "sublabel": "Service Binding・Access・Tunnel",
+      "pos": [
+        320,
+        410
+      ],
+      "size": [
+        220,
+        76
+      ],
+      "tag": "FAIL CLOSED"
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL + FORCE RLS",
+      "sublabel": "tenant・project・event・usage・receipt",
+      "pos": [
+        320,
+        589
+      ],
+      "size": [
+        240,
+        86
+      ],
+      "tag": "CANONICAL LEDGER"
+    },
+    {
+      "id": "company-authority",
+      "type": "security",
+      "label": "Tenant & Company Authority",
+      "sublabel": "identity・membership・RACI・policy",
+      "pos": [
+        610,
+        226
+      ],
+      "size": [
+        230,
+        84
+      ],
+      "tag": "CANONICAL"
+    },
+    {
+      "id": "resolution",
+      "type": "backend",
+      "label": "Context / Judgment Resolver",
+      "sublabel": "source routing・DAG・continue/escalate",
+      "pos": [
+        610,
+        410
+      ],
+      "size": [
+        230,
+        84
+      ],
+      "tag": "BOUNDARY"
+    },
+    {
+      "id": "core-services",
+      "type": "backend",
+      "label": "Brainbase Core Services",
+      "sublabel": "Graph・Task・Event・Run・Receipt",
+      "pos": [
+        610,
+        590
+      ],
+      "size": [
+        230,
+        84
+      ],
+      "tag": "CONTROL PLANE"
+    },
+    {
+      "id": "promotion-gate",
+      "type": "security",
+      "label": "Knowledge Promotion Gate",
+      "sublabel": "candidate・consent・organization review",
+      "pos": [
+        610,
+        745
+      ],
+      "size": [
+        230,
+        78
+      ],
+      "tag": "2-STAGE"
+    },
+    {
+      "id": "git-ssot",
+      "type": "database",
+      "label": "Git-owned SSOT",
+      "sublabel": "Ontology releases・docs・Skills",
+      "pos": [
+        940,
+        227
+      ],
+      "size": [
+        190,
+        82
+      ],
+      "tag": "VERSIONED"
+    },
+    {
+      "id": "org-graph",
+      "type": "database",
+      "label": "Organization Graph SSOT",
+      "sublabel": "facts・Decision・RACI・relations",
+      "pos": [
+        940,
+        411
+      ],
+      "size": [
+        230,
+        82
+      ],
+      "tag": "CURRENT FACTS"
+    },
+    {
+      "id": "external-sors",
+      "type": "external",
+      "label": "External SoRs & Vaults",
+      "sublabel": "GitHub・Drive・CRM・ledger・Secret Store",
+      "pos": [
+        940,
+        589
+      ],
+      "size": [
+        220,
+        86
+      ],
+      "tag": "FINAL STATE"
+    },
+    {
+      "id": "personal-vault",
+      "type": "database",
+      "label": "Personal Vault",
+      "sublabel": "owner-scoped immutable events",
+      "pos": [
+        940,
+        745
+      ],
+      "size": [
+        220,
+        78
+      ],
+      "tag": "LOGICALLY ISOLATED"
+    }
+  ],
+  "connections": [
+    {
+      "id": "people-surfaces",
+      "from": "people",
+      "to": "agent-hosts",
+      "label": "criteria / approval",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelAt": [
+        195,
+        192
+      ]
+    },
+    {
+      "id": "surfaces-mcp",
+      "from": "agent-hosts",
+      "to": "mcp-api",
+      "label": "intent + identity",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelAt": [
+        280,
+        210
+      ]
+    },
+    {
+      "id": "mana-bridge",
+      "from": "mana-runtime",
+      "to": "private-bridge",
+      "label": "runtime request",
+      "variant": "security",
+      "route": "straight",
+      "labelAt": [
+        280,
+        390
+      ]
+    },
+    {
+      "id": "bridge-mcp",
+      "from": "private-bridge",
+      "to": "mcp-api",
+      "label": "allowlisted ingress",
+      "variant": "security",
+      "route": "straight",
+      "labelAt": [
+        600,
+        360
+      ]
+    },
+    {
+      "id": "mcp-authority",
+      "from": "mcp-api",
+      "to": "company-authority",
+      "label": "resolve",
+      "variant": "security",
+      "route": "straight",
+      "labelAt": [
+        575,
+        210
+      ]
+    },
+    {
+      "id": "git-authority",
+      "from": "git-ssot",
+      "to": "company-authority",
+      "label": "policy version",
+      "variant": "dashed",
+      "route": "straight",
+      "labelAt": [
+        890,
+        210
+      ]
+    },
+    {
+      "id": "authority-resolution",
+      "from": "company-authority",
+      "to": "resolution",
+      "label": "signed context",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelAt": [
+        785,
+        360
+      ]
+    },
+    {
+      "id": "resolution-core",
+      "from": "resolution",
+      "to": "core-services",
+      "label": "bounded plan",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelAt": [
+        785,
+        545
+      ]
+    },
+    {
+      "id": "resolution-graph",
+      "from": "resolution",
+      "to": "org-graph",
+      "label": "current facts",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelAt": [
+        890,
+        390
+      ]
+    },
+    {
+      "id": "core-postgres",
+      "from": "core-services",
+      "to": "postgres",
+      "label": "ledger",
+      "variant": "default",
+      "route": "straight",
+      "labelAt": [
+        585,
+        570
+      ]
+    },
+    {
+      "id": "core-external",
+      "from": "core-services",
+      "to": "external-sors",
+      "label": "execute + readback",
+      "variant": "security",
+      "route": "straight",
+      "labelAt": [
+        890,
+        570
+      ]
+    },
+    {
+      "id": "personal-promotion",
+      "from": "personal-vault",
+      "to": "promotion-gate",
+      "label": "sanitized candidate",
+      "variant": "security",
+      "route": "straight",
+      "labelAt": [
+        890,
+        725
+      ]
+    },
+    {
+      "id": "promotion-core",
+      "from": "promotion-gate",
+      "to": "core-services",
+      "label": "accepted fact",
+      "variant": "security",
+      "route": "straight",
+      "labelAt": [
+        795,
+        710
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "現在の中核",
+      "items": [
+        "Brainbase CoreがGraph、Canonical Task、Knowledge Event、Run・Usage・Receiptの制御面を持つ",
+        "tenant、人物、membership、organization、project、RACI、policyを正本解決し、実行contextへ署名する",
+        "Codex／Claude CodeのMCPを標準操作面とし、Webはブラウザ必須機能へ限定する"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "越えてはいけない境界",
+      "items": [
+        "Agent host、Mana、Slack、CLIはactor・project・authorityを自己申告して確定しない",
+        "Secret値、外部SoR全体、Personal Vault原文をOrganization Graphへコピーしない",
+        "未解決・曖昧・失効・revision不一致・scope不足をdefaultへ寄せずfail closedにする"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "現在地の読み方",
+      "items": [
+        "図は2026-08-31時点のaccepted設計と実装済み境界を中心に表す",
+        "Cloudflare private ingressやMana連携はcode／contractとproduction provisioningを分けて判定する",
+        "全Domain Judgment Packの統合と会社全体の自律実行ループはNorth Star側で扱う"
+      ]
+    }
+  ]
+}
