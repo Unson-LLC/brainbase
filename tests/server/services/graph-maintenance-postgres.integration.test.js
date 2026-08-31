@@ -243,6 +243,16 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
                 expect.objectContaining({ id: 'edge_same_org_cross_project' })
             ]));
             expect(JSON.stringify(sourceOnlySnapshot)).not.toContain('project_vibepro_entity');
+            await expect(service.validate(
+                { ...access, projectCodes: ['brainbase'] },
+                { projectCode: 'brainbase' }
+            )).resolves.toMatchObject({
+                valid: true,
+                suppression_summary: {
+                    edge_count: 1,
+                    reasons: { unresolved_or_inaccessible_endpoint: 1 }
+                }
+            });
         } finally {
             await infoSSOTService.withAccessContext(access, (client) =>
                 client.query(`DELETE FROM graph_edges WHERE id='edge_same_org_cross_project'`));

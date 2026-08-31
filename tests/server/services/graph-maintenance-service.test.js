@@ -5,6 +5,37 @@ import { hashGraphSnapshot, validateGraphSnapshot } from '../../../server/servic
 const service = new GraphMaintenanceService({ infoSSOTService: {} });
 
 describe('GraphMaintenanceService authorization', () => {
+    it('Validate応答へ識別子を含まないEdge抑止集計を伝播する', async () => {
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [],
+            edges: [],
+            suppression_summary: {
+                edge_count: 1,
+                reasons: { unresolved_or_inaccessible_endpoint: 1 }
+            }
+        };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const validatingService = new GraphMaintenanceService({
+            infoSSOTService: {
+                withAccessContext: async (_access, callback) => callback({}),
+                validateOntology: vi.fn(() => ({ valid: true }))
+            }
+        });
+        validatingService.loadSnapshot = vi.fn(async () => ({ snapshot }));
+
+        const result = await validatingService.validate({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, { projectCode: 'brainbase' });
+
+        expect(result).toMatchObject({
+            valid: true,
+            snapshot_hash: snapshot.hash,
+            suppression_summary: snapshot.suppression_summary
+        });
+        expect(JSON.stringify(result)).not.toContain('hidden_entity');
+    });
+
     it('Plan差分はvalidatorのorphan categoryを孤立件数へ集計する', () => {
         const snapshot = {
             project_code: 'brainbase',

@@ -1167,7 +1167,10 @@ export class GraphMaintenanceService {
                 ...structural,
                 valid: structural.valid === true && ontology?.valid === true,
                 ontology,
-                snapshot_hash: snapshot.hash
+                snapshot_hash: snapshot.hash,
+                ...(snapshot.suppression_summary
+                    ? { suppression_summary: snapshot.suppression_summary }
+                    : {})
             };
         });
     }
