@@ -4,6 +4,8 @@
 **作成日**: 2026-01-11
 **対象**: フロントエンド開発者、API統合担当者
 
+> **現行契約の範囲**: 本書で現行の正本として扱うのは、Project Catalogを返す `GET /api/brainbase`、`GET /api/brainbase/projects` と、その認証・組織・Project Grant・取得元状態の契約です。その他のAITM Phase 1 API例には履歴記述が含まれるため、実装時は現行routeとCapability定義を確認してください。
+
 ---
 
 ## 目次
@@ -36,15 +38,15 @@ AITM (AI Technical Management) Dashboard APIは、プロジェクト管理・健
 
 | 環境 | Base URL |
 |------|----------|
-| 開発 | `http://localhost:3005` |
-| 本番 | `https://brainbase.unson.jp` |
+| ローカル正本 | `http://127.0.0.1:31013` |
+| 本番 | `https://bb.unson.jp` |
 
 **エンドポイントプレフィックス**: `/api/brainbase`
 
 **例**:
 ```
-開発: http://localhost:3005/api/brainbase/projects
-本番: https://brainbase.unson.jp/api/brainbase/projects
+ローカル: http://127.0.0.1:31013/api/brainbase/projects
+本番: https://bb.unson.jp/api/brainbase/projects
 ```
 
 ---
@@ -216,7 +218,9 @@ curl http://localhost:3005/api/brainbase/storage
 
 ---
 
-### 5.5 GET /api/brainbase/tasks
+### 5.5 GET /api/brainbase/tasks（履歴契約・現行routeなし）
+
+> このendpointは現行runtimeに存在しません。以下はPhase 1案の履歴例であり、実装・疎通確認には使用しないでください。
 
 **概要**: タスク管理ステータスを取得
 
@@ -256,31 +260,22 @@ curl http://localhost:3005/api/brainbase/tasks
 
 ---
 
-### 5.6 GET /api/brainbase/worktrees
+### 5.6 GET /api/brainbase/worktrees（廃止済み）
 
-**概要**: Worktree情報を取得
+**概要**: Worktree情報APIは廃止済みです。Codex appとCLIのtask/worktree statusを使用してください。
 
 **リクエスト**:
 ```bash
-curl http://localhost:3005/api/brainbase/worktrees
+curl http://127.0.0.1:31013/api/brainbase/worktrees
 ```
 
 **レスポンス**:
 ```json
 {
-  "total": 3,
-  "active": 2,
-  "uncommitted": 1,
-  "list": [
-    {
-      "branch": "session/session-1767361754399",
-      "path": "/Users/ksato/workspace/shared/.worktrees/session-1767361754399-brainbase"
-    },
-    {
-      "branch": "feature/dashboard-v2",
-      "path": "/Users/ksato/workspace/shared/.worktrees/feature-dashboard-v2"
-    }
-  ]
+  "error": "capability_retired",
+  "capability": "brainbase.worktree-status",
+  "owner": "Codex app and CLI",
+  "replacement": "Use Codex task and worktree status directly"
 }
 ```
 

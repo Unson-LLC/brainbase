@@ -5,7 +5,7 @@
 **ステータス**: Design Phase
 **実装期間**: 8-12週間（Week 1-2からWeek 11-12）
 
-> API契約の正本は [API.md](./API.md) です。本書と差異がある場合は、認証・組織スコープ・レスポンス形式を含めて API.md を優先してください。
+> Project Catalog API契約の正本は [API.mdの認証・プロジェクト管理API](./API.md#3-認証) です。実行環境と接続先は [Canonical 31013 launchd runtime](../../brainbase-capabilities/capabilities/runtime.launchd.yml) と [Lightsail production runtime](../../brainbase-capabilities/capabilities/runtime.lightsail.yml)、個々の実装面は現行routeを優先してください。
 
 ---
 
