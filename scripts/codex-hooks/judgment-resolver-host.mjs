@@ -1947,9 +1947,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ] : []),
             ...(missingAutonomyCompliance ? [autonomyCompliance.violation] : [])
         ];
-        const reasonSequence = reasons
-            .map((reason) => reason.replace(/。$/u, ''))
-            .join('。その後');
+        const reasonSequence = reasons.join('\nその後、');
         const completionInstruction = missingAutonomyCompliance
             ? '不要な確認質問を回答本文に残さず、安全な範囲の作業結果を続けてください。'
             : '監査行の後に、元の回答本文をそのまま続けてください。';
@@ -1961,7 +1959,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         return {
             output: {
                 decision: 'block',
-                reason: `Brainbase judgment episodeを完了する前に${reasonSequence}。${completionInstruction}`,
+                reason: `Brainbase judgment episodeを完了する前に${reasonSequence}\n${completionInstruction}`,
                 ...(typeof progressLine === 'string' ? { systemMessage: progressLine } : {})
             },
             continuation: marker,

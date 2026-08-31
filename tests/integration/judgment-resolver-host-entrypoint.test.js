@@ -1260,6 +1260,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             decision: 'block',
             systemMessage: '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'
         });
+        const blockedReason = JSON.parse(blocked.stdout).reason;
+        expect(blockedReason.split('\n')).toContain(repairLine);
+        expect(blockedReason).not.toContain(`${repairLine}。`);
         const journalDirectory = join(journal, hash(identity.session_id));
         const turnRef = hash(identity.turn_id);
         expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.continuation.json`), 'utf8')))
