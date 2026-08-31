@@ -1,0 +1,24 @@
+{
+  "task_id": "task-j0-exact-commit-consumer-build",
+  "story_id": "story-j0-exact-commit-consumer-build",
+  "status": "done",
+  "owner": "codex-orchestrator",
+  "base_sha": "c5437841be333e7e2ff1744bf08f8bbd4058c34f",
+  "branch": "codex/j0/git-consumer-build-contract",
+  "vibepro_version": "0.2.0-beta.17",
+  "allowed_paths": [
+    ".vibepro/config.json",
+    "package.json",
+    "docs/management/stories/active/story-j0-exact-commit-consumer-build.md",
+    "docs/specs/j0-exact-commit-consumer-build.md",
+    "docs/management/tasks/j0-exact-commit-consumer-build.json",
+    "tests/git-commit-consumer-smoke.integration.test.ts"
+  ],
+  "forbidden_paths": ["src/**", "contracts/**", "dist/**", "deployment/**", "secrets/**", "customer-data/**"],
+  "stages": [
+    {"id": "contract", "status": "completed", "evidence": ["docs/management/stories/active/story-j0-exact-commit-consumer-build.md", "docs/specs/j0-exact-commit-consumer-build.md"]},
+    {"id": "red", "status": "completed", "evidence": ["focused lifecycle test failed because package.json scripts.prepare was undefined"]},
+    {"id": "green", "status": "completed", "evidence": ["exact git commit consumer: 2/2 passed", "existing npm tarball consumer: 1/1 passed", "npm exec tsc -- --noEmit -p tsconfig.json: passed", "npm run build: passed"]},
+    {"id": "independent_review", "status": "completed", "evidence": ["fixed-commit lock resolved value is an exact dependency equality check", "independent delta review: previous blocking finding resolved; remaining blocking findings: none"]}
+  ]
+}

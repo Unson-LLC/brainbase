@@ -58,6 +58,7 @@
     "docs:promotion:plan": "node scripts/promote-public-message.mjs --plan",
     "docs:promotion:apply": "node scripts/promote-public-message.mjs --apply",
     "docs:preview": "vitepress preview docs",
+    "prepare": "npm run build",
     "start": "node dist/index.js",
     "doctor": "node dist/cli.js doctor",
     "onboard:init": "node dist/cli.js onboard:init",
