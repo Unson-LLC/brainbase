@@ -21,6 +21,10 @@ j0_source_lock:
 
 # R1 ローカル不変run artifact store Draft Specification
 
+## J0 Gate整合（2026-08-31）
+
+単一artifactのcontent-addressed save、integrity-verified reload、fresh-process readbackは`story-j0-durable-run-artifact-contract`の受け入れ基準とする。本仕様はその公開primitiveを入力に、run_id binding、list/index、cross-process lock、詳細なstorage fault/crash recovery、RFC 8785相互運用・migration、historical replay、outcome/evaluation、version comparisonを追加する残存R1契約である。以下の既存save/reload clausesは強化層のplanning lineageとして保持し、J0最小契約の完了条件を拡張しない。
+
 ## 適用状態
 
 このSpecはcontract_preparationのplanning-only draftであり、accepted Spec、実装仕様、production-ready判定ではない。J0 PR #481、merge commit f8e7ac61349b326863feae5d7d3d8ae68e2b9d10、implementation head 3fd71a1da59a85cb7cdc8cce8b17f22e3b767bdeのJudgmentDAGRunRecordだけを入力の正本として参照する。

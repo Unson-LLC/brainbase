@@ -18,6 +18,10 @@ j0_source_lock:
 
 # R1 ローカル不変run artifact store Architecture
 
+## J0 primitiveとの境界（2026-08-31）
+
+R1は`story-j0-durable-run-artifact-contract`のcontent-addressed save/reloadを置き換えず、その上へrun_id binding、list/index、cross-process concurrency、詳細fault recovery、RFC 8785相互運用、replay/evaluationを追加する。既存のenvelope・binding・fault phase設計はこの強化層のlineageとして保持する。
+
 ## 判断
 
 J0の完了済みJudgmentDAGRunRecordを、JCSで正規化した二層のartifactへ固定する。第一層はartifact_idのdigest preimageである`payload`、第二層は`artifact_id`と`run_id`を含む保存用`envelope`である。`artifact_id`は`sha256:<hex>` + `SHA-256(JCS(payload)のUTF-8 bytes)`であり、payloadにartifact_id自身を入れない。保存されるbytesはJCS(envelope)であり、preimage bytesとは別物である。

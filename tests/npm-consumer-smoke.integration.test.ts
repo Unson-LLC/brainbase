@@ -134,6 +134,15 @@ describe('npm tarball consumer smoke', () => {
           ],
           immutable: true
         },
+        runArtifact: {
+          artifactId: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
+          artifactVersion: 'judgment-dag-run-artifact.v1',
+          saveStatus: 'created',
+          saveProcessExited: true,
+          freshProcessReload: 'passed',
+          immutable: true,
+          runnerInvocations: 0
+        },
         negativeBoundaries: {
           missing_dependency: { status: 'passed', errorCode: 'missing_dependency' },
           cycle: { status: 'passed', errorCode: 'cycle' },

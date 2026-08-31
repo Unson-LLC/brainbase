@@ -29,7 +29,7 @@ Brainbase OSSの利用者として、検証済みJudgment DAGを明示的なrunn
 
 - このStoryの境界はローカルCLI相当の非共有・非永続実行境界とする。runner callbackは外部副作用を行わないlocal deterministic実装を対象とし、権限付与や副作用安全性の証拠にはしない。
 - human / agent / committee / external runnerの待機、承認、再試行、取消、idempotencyはG0側の後続Storyとする。
-- filesystem/database artifact persistence、historical replay、version比較、outcome attachment、evaluation scoring、評価event-set immutabilityはR1側の後続Storyとする。
+- このrunner Story自体はin-memory実行に限定する。J0 Gateに必要なrun記録の最小content-addressed save / 検証付きreloadは`story-j0-durable-run-artifact-contract`が所有する。list/index、競合制御、crash recovery、historical replay、version比較、outcome attachment、evaluation scoring、評価event-set immutabilityはR1側の後続Storyとする。
 - `input_contract` / `output_contract`は既存の契約参照文字列として記録する。このStoryで任意schema registryやpayload schema validationを新設しない。
 - MCP tool、CLI command、HTTP route、database、secret、production deploy、実データ、isolation modelを変更しない。
 

@@ -79,6 +79,18 @@
         }
       },
       {
+        "story_id": "story-j0-durable-run-artifact-contract",
+        "title": "J0 content-addressed run artifactの保存と検証付き再読込",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": "2026-08-31",
+        "due_at": null,
+        "contract_type": "local_single_owner_non_hosted"
+      },
+      {
         "story_id": "story-m2-codex-proxy-judgment-loop",
         "title": "M2 Codex代理判断ループと人間エスカレーション境界",
         "ssot": "local",
