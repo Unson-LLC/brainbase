@@ -138,7 +138,24 @@ function upstreamHeaders(request, env) {
     return headers;
 }
 
-async function downstreamResponse(upstream) {
+function safeUpstreamProblem(body, upstream, logger) {
+    if (upstream.ok || !upstream.headers.get('content-type')?.includes('application/problem+json')) return;
+    try {
+        const parsed = JSON.parse(new TextDecoder().decode(body));
+        logger.warn(JSON.stringify({
+            event: 'tenant_runtime_upstream_problem',
+            status: upstream.status,
+            code: typeof parsed?.code === 'string' ? parsed.code : null,
+            scope_reason: typeof parsed?.details?.scope_reason === 'string' ? parsed.details.scope_reason : null,
+            required_action: typeof parsed?.details?.required_action === 'string' ? parsed.details.required_action : null,
+        }));
+    } catch {
+        logger.warn(JSON.stringify({ event: 'tenant_runtime_upstream_problem', status: upstream.status,
+            code: null, scope_reason: null, required_action: null }));
+    }
+}
+
+async function downstreamResponse(upstream, logger) {
     const headers = new Headers();
     for (const name of RESPONSE_HEADERS) {
         const value = upstream.headers.get(name);
@@ -146,6 +163,7 @@ async function downstreamResponse(upstream) {
     }
     headers.set('cache-control', 'no-store');
     const body = await upstream.arrayBuffer();
+    safeUpstreamProblem(body, upstream, logger);
     return new Response(body, {
         status: upstream.status,
         statusText: upstream.statusText,
@@ -153,7 +171,7 @@ async function downstreamResponse(upstream) {
     });
 }
 
-export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl = fetch } = {}) {
+export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl = fetch, logger = console } = {}) {
     const route = allowedRuntimePath(request);
     if (!route) return problem(404, 'BRIDGE_ROUTE_NOT_ALLOWED');
 
@@ -184,7 +202,7 @@ export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl
         redirect: 'manual'
     });
     try {
-        return await downstreamResponse(await fetchImpl(upstreamRequest));
+        return await downstreamResponse(await fetchImpl(upstreamRequest), logger);
     } catch {
         return problem(502, 'BRIDGE_UPSTREAM_UNAVAILABLE', true);
     }
