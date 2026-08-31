@@ -347,6 +347,52 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
             incomplete_steps: []
         });
 
+        const originalReceipts = await infoSSOTService.withAccessContext(actorAccess, async (client) => {
+            const { rows } = await client.query(
+                `SELECT human_gate_receipt, receipt
+                 FROM project_provisioning_runs
+                 WHERE run_id=$1 AND organization_id=$2`,
+                [fullRunId, ORGANIZATION_ID]
+            );
+            return rows[0];
+        });
+        expect(originalReceipts).toMatchObject({
+            human_gate_receipt: { review_ref: 'acceptance-review-full' },
+            receipt: { verified: true }
+        });
+
+        await expect(infoSSOTService.withAccessContext(actorAccess, (client) => client.query(
+            `UPDATE project_provisioning_runs
+             SET human_gate_receipt=$1::jsonb
+             WHERE run_id=$2 AND organization_id=$3`,
+            [JSON.stringify({ ...originalReceipts.human_gate_receipt, review_ref: 'tampered' }), fullRunId, ORGANIZATION_ID]
+        ))).rejects.toThrow('project provisioning human gate receipt is immutable');
+        await expect(infoSSOTService.withAccessContext(actorAccess, async (client) => {
+            const { rows } = await client.query(
+                `SELECT human_gate_receipt, receipt
+                 FROM project_provisioning_runs
+                 WHERE run_id=$1 AND organization_id=$2`,
+                [fullRunId, ORGANIZATION_ID]
+            );
+            return rows[0];
+        })).resolves.toEqual(originalReceipts);
+
+        await expect(infoSSOTService.withAccessContext(actorAccess, (client) => client.query(
+            `UPDATE project_provisioning_runs
+             SET receipt=$1::jsonb
+             WHERE run_id=$2 AND organization_id=$3`,
+            [JSON.stringify({ ...originalReceipts.receipt, verified: false }), fullRunId, ORGANIZATION_ID]
+        ))).rejects.toThrow('project provisioning receipt is immutable');
+        await expect(infoSSOTService.withAccessContext(actorAccess, async (client) => {
+            const { rows } = await client.query(
+                `SELECT human_gate_receipt, receipt
+                 FROM project_provisioning_runs
+                 WHERE run_id=$1 AND organization_id=$2`,
+                [fullRunId, ORGANIZATION_ID]
+            );
+            return rows[0];
+        })).resolves.toEqual(originalReceipts);
+
         const partialPlan = await cli('plan', [
             '--manifest', partialFailureManifest,
             '--idempotency-key', 'acceptance-partial-failure'

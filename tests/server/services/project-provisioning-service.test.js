@@ -244,6 +244,45 @@ describe('ProjectProvisioningService', () => {
         expect(result.failure.missing_gates).toContain('manifest_plan_approval');
     });
 
+    it('public repository planはrequired Human Gateを正確に宣言する', async () => {
+        const { service } = createHarness();
+        const publicManifest = {
+            ...manifest,
+            repository: { mode: 'create', owner: 'Unson-LLC', repo: 'new-public-project', visibility: 'public' }
+        };
+
+        const plan = await service.plan(actor, publicManifest, { idempotencyKey: 'growin-public-gates' });
+
+        expect(plan.plan.required_human_gates).toEqual([
+            'manifest_plan_approval', 'repository_create', 'public_repository'
+        ]);
+    });
+
+    it('public repository gateが欠けた状態では外部書き込みを行わない', async () => {
+        const { service, repository, graphService, authGrantService, repositoryBootstrap } = createHarness();
+        const publicManifest = {
+            ...manifest,
+            repository: { mode: 'create', owner: 'Unson-LLC', repo: 'new-public-project', visibility: 'public' }
+        };
+        const plan = await service.plan(actor, publicManifest, { idempotencyKey: 'growin-public-missing-gate' });
+
+        await expect(service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval', 'repository_create'], reviewRef: 'growin-public-incomplete'
+        })).rejects.toMatchObject({ code: 'PROJECT_PROVISIONING_HUMAN_GATE_SCOPE_MISMATCH' });
+        const result = await service.apply(actor, plan.run_id);
+
+        expect(result).toMatchObject({
+            state: 'manual_intervention_required',
+            failure: {
+                missing_gates: ['manifest_plan_approval', 'public_repository', 'repository_create']
+            }
+        });
+        expect(repository.projects.size).toBe(0);
+        expect(graphService.applyPlan).not.toHaveBeenCalled();
+        expect(authGrantService.addProjectGrant).not.toHaveBeenCalled();
+        expect(repositoryBootstrap.create).not.toHaveBeenCalled();
+    });
+
     it('link_existingでもManifestとPlanの承認前は一切書き込まない', async () => {
         const { service, repository, graphService, authGrantService, repositoryBootstrap } = createHarness();
         const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-baseline-gate' });

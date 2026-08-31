@@ -38,6 +38,52 @@ import { RenameModal } from '../ui/modals/rename-modal.js';
 
 const LEARNING_HEALTH_DISMISS_KEY = 'brainbase.learningHealth.dismissedIssueKey';
 
+function fallbackProjectCatalogStatusMessage(source = {}) {
+    if (source.status === 'authentication_required') {
+        return 'プロジェクト一覧を取得できません。認証が必要です。generalのみ選択できます。';
+    }
+    if (source.status === 'request_failed') {
+        const httpStatus = Number.isInteger(source.http_status) ? `（HTTP ${source.http_status}）` : '';
+        return `プロジェクト一覧を取得できません${httpStatus}。generalのみ選択できます。`;
+    }
+    if (source.status === 'loaded') return '権限のあるプロジェクト一覧を読み込みました。';
+    return 'プロジェクト一覧を取得できません。generalのみ選択できます。';
+}
+
+function renderProjectCatalogStatus(projectSelect, source, getStatusMessage) {
+    if (!projectSelect) return;
+
+    let statusElement = document.getElementById('session-project-catalog-status');
+    if (!statusElement) {
+        statusElement = document.createElement('p');
+        statusElement.id = 'session-project-catalog-status';
+        statusElement.className = 'project-catalog-status';
+        projectSelect.insertAdjacentElement('afterend', statusElement);
+    }
+
+    const normalizedSource = source && typeof source === 'object'
+        ? source
+        : { status: 'unknown' };
+    const isLoaded = normalizedSource.status === 'loaded';
+    statusElement.textContent = typeof getStatusMessage === 'function'
+        ? getStatusMessage(normalizedSource)
+        : fallbackProjectCatalogStatusMessage(normalizedSource);
+    statusElement.dataset.status = normalizedSource.status || 'unknown';
+    statusElement.dataset.severity = isLoaded ? 'success' : 'error';
+    statusElement.hidden = false;
+    statusElement.setAttribute('role', isLoaded ? 'status' : 'alert');
+    statusElement.setAttribute('aria-live', isLoaded ? 'polite' : 'assertive');
+}
+
+function resetProjectSelectToGeneral(projectSelect) {
+    projectSelect.innerHTML = '';
+    const generalOption = document.createElement('option');
+    generalOption.value = 'general';
+    generalOption.textContent = 'general';
+    projectSelect.appendChild(generalOption);
+    projectSelect.value = 'general';
+}
+
 export function applyUiSetupMixin(AppClass) {
     AppClass.prototype.ensureTopBannerStack = function() {
         let stack = document.getElementById('top-banner-stack');
@@ -647,6 +693,8 @@ export function applyUiSetupMixin(AppClass) {
             const {
                 getSessionSelectableProjects,
                 getProjectsRequiringWorkspaceSetup,
+                getRuntimeProjectCatalogSource,
+                getRuntimeProjectCatalogStatusMessage,
                 projectMappingReady
             } = await import('../project-mapping.js');
             await projectMappingReady;
@@ -681,8 +729,17 @@ export function applyUiSetupMixin(AppClass) {
             projectSelect.value = projects.includes(selectedProject) || selectedProject === 'general'
                 ? selectedProject
                 : 'general';
+            renderProjectCatalogStatus(
+                projectSelect,
+                typeof getRuntimeProjectCatalogSource === 'function'
+                    ? getRuntimeProjectCatalogSource()
+                    : { status: 'unknown' },
+                getRuntimeProjectCatalogStatusMessage
+            );
         } catch (error) {
             console.warn('[App] Failed to refresh project select:', error);
+            resetProjectSelectToGeneral(projectSelect);
+            renderProjectCatalogStatus(projectSelect, { status: 'unavailable' });
         }
     };
 }

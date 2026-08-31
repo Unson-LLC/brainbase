@@ -227,6 +227,36 @@ export function getRuntimeProjectCatalogSource() {
     return { ...RUNTIME_PROJECT_CATALOG_SOURCE };
 }
 
+/**
+ * Return the user-facing state of the runtime project catalog.
+ *
+ * The catalog is deliberately fail-closed: every state other than `loaded`
+ * leaves only the safe `general` option available to callers.  Keeping the
+ * copy here makes both project selectors use the same wording without
+ * exposing registry implementation details in the UI modules.
+ *
+ * @param {{status?: string, http_status?: number}|null} source
+ * @returns {string}
+ */
+export function getRuntimeProjectCatalogStatusMessage(source = getRuntimeProjectCatalogSource()) {
+    const status = source?.status || 'unknown';
+
+    if (status === 'loaded') {
+        return '権限のあるプロジェクト一覧を読み込みました。';
+    }
+    if (status === 'authentication_required') {
+        return 'プロジェクト一覧を取得できません。認証が必要です。generalのみ選択できます。';
+    }
+    if (status === 'request_failed') {
+        const httpStatus = Number.isInteger(source?.http_status) ? `（HTTP ${source.http_status}）` : '';
+        return `プロジェクト一覧を取得できません${httpStatus}。generalのみ選択できます。`;
+    }
+    if (status === 'unavailable' || status === 'workspace_config_unavailable') {
+        return 'プロジェクト一覧を取得できません。接続またはワークスペース設定を確認してください。generalのみ選択できます。';
+    }
+    return 'プロジェクト一覧の状態を確認できません。generalのみ選択できます。';
+}
+
 // 後方互換性のため
 export const CORE_PROJECTS = new Proxy([], {
     get(target, prop) {
