@@ -179,6 +179,14 @@ GitHubとlocal checkoutの両方から、現在状態を再構成する。
 
 既存PRをタイトルだけで分類しない。diff、Story、Spec、acceptance criteria、test evidenceを読む。
 
+### External delivery reconciliation
+
+外部merge/releaseの観測はProgram status判定と分離する。PR identityは必ず`repository + pull_request + role`で扱い、merge済みならmerge SHAも束縛する。A0 producerのcanonical roleは`producer_contract_delivery`とする。同名のopen PR、別repositoryの同番号PR、consumer PRをcanonical producerへ代入しない。machine source-lockにPR/roleがない場合は正本を捏造せず、Program-owned companion lockでsource-lock実値のrepository/SHAとlive readback由来のPR、Program契約由来のroleを結合し、全てを照合する。
+
+現在のA0 canonical identityはrepository=`Unson-LLC/brainbase-unson`、pull_request=`1302`、role=`producer_contract_delivery`、merged_sha=`ad908bce7b90678f9ed7f1c570f808bdf1a500ad`である。4要素の完全一致以外を採用しない。
+
+外部merge、release、package publish、docs mergeはdelivery provenanceであり、それだけで`verified`、`production_proven`、`done`へ昇格させない。reconciliation自体の責務は専用Storyへ置き、照合対象のP0等のpurpose、AC、Gateへ混ぜない。
+
 特にOSS compatibility stack、multi-tenant stack、company authority stack、Personal promotion stackは、現在のMaster IDへ再マッピングする。重複PR、古いbase、invalid Spec、別semantic実装を発見したら、そのままmerge対象にしない。
 
 ### Phase B — Build the program state

@@ -130,6 +130,21 @@ function canonicalJson(value) {
 }
 
 function sameEventIdentity(existing, incoming) {
+    const requiredIdentityFields = [
+        'body_hash',
+        'source_pointer',
+        'subject',
+        'decision_authority',
+        'applicability_scope',
+        'permission_snapshot',
+        'parent_episode_id'
+    ];
+    const hasCompletePersistedInput = existing?.payload?.schema_version === 'knowledge_event.v1'
+        && existing.payload.event_id === existing.event_id
+        && requiredIdentityFields.every((field) => existing.payload[field] !== undefined);
+    const persistedInput = hasCompletePersistedInput
+        ? existing.payload
+        : existing;
     const identityFields = [
         'body_hash',
         'source_pointer',
@@ -143,8 +158,8 @@ function sameEventIdentity(existing, incoming) {
         'role_min',
         'venue'
     ];
-    return identityFields.every((field) => existing[field] === undefined
-        || canonicalJson(existing[field]) === canonicalJson(incoming[field]));
+    return identityFields.every((field) => persistedInput[field] === undefined
+        || canonicalJson(persistedInput[field]) === canonicalJson(incoming[field]));
 }
 
 function decisionQuarantineReason(event) {

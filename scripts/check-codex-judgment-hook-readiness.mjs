@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REQUIRED_HOOKS = [
     { eventName: 'userPromptSubmit', matcher: null },
-    { eventName: 'postToolUse', matcher: '^mcp__brainbase__.*$' },
+    { eventName: 'postToolUse', matcher: '.*' },
     { eventName: 'stop', matcher: null }
 ];
 const CANONICAL_ENTRYPOINT = 'scripts/codex-hooks/judgment-resolver-entry.sh';

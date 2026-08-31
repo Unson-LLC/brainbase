@@ -1197,7 +1197,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             .toMatchObject({ completion_status: 'complete' });
     }, 20_000);
 
-    it('不要な確認の差し戻しを短い進捗表示とjournal由来の完了監査へ変換する', async () => {
+    it('構造化pendingを差し戻し、実行証跡付きcompletedだけを完了させる', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const hostUrl = await listen((request, response) => {
@@ -1210,6 +1210,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                     management_status: 'managed',
                     receipt: {
                         resolution_id: 'jr_autonomy_visibility_entrypoint',
+                        runtime_version: 'judgment-runtime-2.3.0',
                         turn_id: args.turn_id,
                         request_digest: hash(canonicalJson(args)),
                         context_digest: hash(canonicalJson(args.conversation_context)),
@@ -1244,31 +1245,42 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const ownerLine = JSON.parse(started.stdout).hookSpecificOutput.additionalContext
             .split('\n').find((line) => line.startsWith('🧠 判断参照:'));
         const zeroCallLine = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
-        const completionLine = '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓';
+        const completionLine = '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓';
         const repairLine = '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓';
 
         const blocked = await run('bash', [wrapper], {
             env,
             input: JSON.stringify({
                 hook_event_name: 'Stop', ...identity, stop_hook_active: false,
-                last_assistant_message: `${ownerLine}\n${zeroCallLine}\nどちらの実装にしますか？`
+                last_assistant_message: `${ownerLine}\n${zeroCallLine}\n参照解決処理を確認しました。\n<!-- brainbase-stop-state:{"schema_version":"brainbase-stop-state-v1","status":"pending","pending_safe_work":true,"runtime_reason_code":null} -->`
             })
         });
         expect(blocked).toMatchObject({ code: 0, stderr: '' });
         expect(JSON.parse(blocked.stdout)).toMatchObject({
             decision: 'block',
-            systemMessage: '🔁 確認不要と判定しました。回答を差し戻して処理を続けています'
+            systemMessage: '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'
         });
         const journalDirectory = join(journal, hash(identity.session_id));
         const turnRef = hash(identity.turn_id);
         expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.continuation.json`), 'utf8')))
-            .toMatchObject({ autonomy_continuation: { count: 1, trigger_code: 'unnecessary_user_question', status: 'requested' } });
+            .toMatchObject({ autonomy_continuation: { count: 1, trigger_code: 'unfinished_safe_work', status: 'requested' } });
+
+        const toolUse = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'PostToolUse', ...identity,
+                tool_name: 'apply_patch', tool_use_id: 'tool-structured-apply',
+                tool_input: { patch_digest: 'entrypoint-test' }, tool_response: { success: true }
+            })
+        });
+        expect(toolUse).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(toolUse.stdout)).toEqual({});
 
         const completed = await run('bash', [wrapper], {
             env,
             input: JSON.stringify({
                 hook_event_name: 'Stop', ...identity, stop_hook_active: true,
-                last_assistant_message: `${ownerLine}\n${zeroCallLine}\n${completionLine}\n${repairLine}\n実装と検証を完了しました。`
+                last_assistant_message: `${ownerLine}\n${zeroCallLine}\n${completionLine}\n${repairLine}\n「確認しますか？」を含むケースも実装と検証を完了しました。\n<!-- brainbase-stop-state:{"schema_version":"brainbase-stop-state-v1","status":"completed","pending_safe_work":false,"runtime_reason_code":null} -->`
             })
         });
         expect(completed).toMatchObject({ code: 0, stderr: '' });
@@ -1277,8 +1289,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.final.json`), 'utf8')))
             .toMatchObject({
-                completion_status: 'complete', owner_audit_line_count: 4,
-                autonomy_continuation: { count: 1, trigger_code: 'unnecessary_user_question', status: 'completed' },
+                completion_status: 'complete', owner_audit_line_count: 4, event_count: 1,
+                stop_state: { status: 'completed', evidence_event_count: 1 },
+                autonomy_continuation: { count: 1, trigger_code: 'unfinished_safe_work', status: 'completed' },
                 stop_repair: { count: 1, status: 'completed' }
             });
     }, 20_000);

@@ -1,0 +1,253 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-p0-negative-boundary-contract-v1",
+  "stage": "planning_spec",
+  "role": "product_requirement",
+  "status": "block",
+  "summary": "BLOCK: P0 Story is an implementation contract, not a roadmap reconciliation record; its A0 identity is incomplete because the source-lock producer PR and external delivery facts are not bound in the roadmap. T0/A0 exit, review, Gate, and production must remain incomplete.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "program-reconciliation-scope",
+      "detail": "Current P0 Story purpose/ACs do not define external delivery reconciliation, so adding roadmap identity corrections to P0 would make the Story/roadmap contract ambiguous."
+    },
+    {
+      "severity": "high",
+      "id": "a0-producer-identity",
+      "detail": "The roadmap does not bind source-lock SHA ad908bce7b90678f9ed7f1c570f808bdf1a500ad to Unson-LLC/brainbase-unson#1302 MERGED; #1283 is only an older OPEN/CONFLICTING candidate."
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected P0 Story, P0 Spec/source-lock/task, roadmap Markdown/JSON, and the prepared planning_spec request at implementation HEAD c6e4bf1cd3d8bafc7238507ca23553c606cb5525.",
+    "evidence": "docs/management/stories/active/story-p0-negative-boundary-contract-v1.md; docs/specs/p0-negative-boundary-contract-v1.md; contracts/p0-negative-boundary-contract-v1/source-lock.json; docs/management/milestones/brainbase-program-master-roadmap.{md,json}; gh pr view metadata for Unson-LLC/brainbase-unson#1302/#1283/#1304",
+    "inputs": [
+      "docs/management/stories/active/story-p0-negative-boundary-contract-v1.md",
+      "docs/specs/p0-negative-boundary-contract-v1.md",
+      "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+      "docs/management/milestones/brainbase-program-master-roadmap.json",
+      "docs/management/milestones/brainbase-program-master-roadmap.md"
+    ]
+  },
+  "judgment_delta": [
+    "Initial judgment: roadmap reconciliation could be appended to the P0 record -> Final judgment: BLOCK because P0's purpose/ACs are implementation-contract-specific and the canonical A0 producer is the merged #1302 source-lock lineage, not the stale #1283 candidate."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+    "repo_root": "/private/tmp/brainbase-p0-dispatch-final.2Pyr7r",
+    "actual_root": "/private/tmp/brainbase-p0-dispatch-final.2Pyr7r",
+    "expected_root": null,
+    "expected_head_sha": "c6e4bf1cd3d8bafc7238507ca23553c606cb5525",
+    "current_head_sha": "c6e4bf1cd3d8bafc7238507ca23553c606cb5525",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-p0-dispatch-final.2Pyr7r",
+      "actual_root": "/private/tmp/brainbase-p0-dispatch-final.2Pyr7r",
+      "expected_root": null,
+      "expected_head_sha": "c6e4bf1cd3d8bafc7238507ca23553c606cb5525",
+      "current_head_sha": "c6e4bf1cd3d8bafc7238507ca23553c606cb5525",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-25T14:35:19.242Z",
+  "git_context": {
+    "head_sha": "c6e4bf1cd3d8bafc7238507ca23553c606cb5525",
+    "current_branch": null,
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "26585fe228ad476cfd3e5fb37b53f2fca12c47a2eddc2f472bb54ca717ccd2bb",
+    "user_status_fingerprint_hash": "26585fe228ad476cfd3e5fb37b53f2fca12c47a2eddc2f472bb54ca717ccd2bb",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-08-25T14:35:19.221Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 5 file(s)",
+    "recorded_head_sha": "c6e4bf1cd3d8bafc7238507ca23553c606cb5525",
+    "surface_files": [
+      {
+        "path": "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+        "sha256": "03e2be77d4a575b4de05a8385878832f5cf1bfb60538d27d07fec2f9fd8996d1",
+        "size": 1091
+      },
+      {
+        "path": "docs/management/milestones/brainbase-program-master-roadmap.json",
+        "sha256": "00b8638a67926454727d84f7ac124e9fa917bcb5d1c5d7862afd3645e3deae14",
+        "size": 17905
+      },
+      {
+        "path": "docs/management/milestones/brainbase-program-master-roadmap.md",
+        "sha256": "c78c424d3d797511992b1830d7cb44b4ebc8cb925545b4ecebbfa54188e47500",
+        "size": 27966
+      },
+      {
+        "path": "docs/management/stories/active/story-p0-negative-boundary-contract-v1.md",
+        "sha256": "c3aba09a9f94820d98a57dd08b74514b159099b7301fbd8bb1ab50e539599af1",
+        "size": 3745
+      },
+      {
+        "path": "docs/specs/p0-negative-boundary-contract-v1.md",
+        "sha256": "ec1dc52771aafea9582a74af04f5b8b5282e2d67910006bd2378cd02d75311d9",
+        "size": 5287
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "83b4aaad3a37944ebe5f8535f266d8e9af6c4df6985d08b3762007e0b704a68a"
+  },
+  "causal_review": {
+    "schema_version": "0.2.0",
+    "model": "vibepro-review-causal-dag-v1",
+    "stage": "planning_spec",
+    "role": "product_requirement",
+    "dependency_domains": [
+      "story",
+      "spec",
+      "policy",
+      "public_contract"
+    ],
+    "inspection_surface": [
+      {
+        "path": "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+        "domain": "public_contract",
+        "classified": true
+      },
+      {
+        "path": "docs/management/milestones/brainbase-program-master-roadmap.json",
+        "domain": "other",
+        "classified": false
+      },
+      {
+        "path": "docs/management/milestones/brainbase-program-master-roadmap.md",
+        "domain": "other",
+        "classified": false
+      },
+      {
+        "path": "docs/management/stories/active/story-p0-negative-boundary-contract-v1.md",
+        "domain": "story",
+        "classified": true
+      },
+      {
+        "path": "docs/specs/p0-negative-boundary-contract-v1.md",
+        "domain": "spec",
+        "classified": true
+      }
+    ],
+    "decision_dependencies": [
+      {
+        "path": "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+        "domain": "public_contract",
+        "classified": true
+      },
+      {
+        "path": "docs/management/stories/active/story-p0-negative-boundary-contract-v1.md",
+        "domain": "story",
+        "classified": true
+      },
+      {
+        "path": "docs/specs/p0-negative-boundary-contract-v1.md",
+        "domain": "spec",
+        "classified": true
+      }
+    ],
+    "invalidation_surface": [
+      {
+        "path": "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+        "domain": "public_contract",
+        "classified": true
+      },
+      {
+        "path": "docs/management/stories/active/story-p0-negative-boundary-contract-v1.md",
+        "domain": "story",
+        "classified": true
+      },
+      {
+        "path": "docs/specs/p0-negative-boundary-contract-v1.md",
+        "domain": "spec",
+        "classified": true
+      }
+    ],
+    "unknown_inspection_surface": [
+      {
+        "path": "docs/management/milestones/brainbase-program-master-roadmap.json",
+        "domain": "other",
+        "classified": false
+      },
+      {
+        "path": "docs/management/milestones/brainbase-program-master-roadmap.md",
+        "domain": "other",
+        "classified": false
+      }
+    ],
+    "classification_status": "inconclusive_fail_closed",
+    "strict_head": false,
+    "reason": "Inspection contains 2 unclassified path(s); causal reuse must fail closed until they are classified."
+  },
+  "delta_closure": {
+    "mode": "full_review",
+    "source_recorded_at": null,
+    "source_status": null,
+    "resolved_findings": [],
+    "unresolved_finding_ids": [],
+    "closure_inputs": []
+  },
+  "runtime_failure": null,
+  "source_fingerprint": "b302648ef76c826e3defc415b2d35714f9806fd3eb1f8b8aefbf9ec1928e2d96",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/p0_reconcile_review_product",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/p0_reconcile_review_product",
+    "session_id": "/root/p0_reconcile_review_product",
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-p0-negative-boundary-contract-v1/planning_spec/review-request-product_requirement.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "Parent-confirmed independent reviewer closed: /root/p0_reconcile_review_product",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/p0_reconcile_review_product",
+      "implementation_session_id": "c6e4bf1cd3d8bafc7238507ca23553c606cb5525",
+      "source": "declared_session_ids"
+    }
+  },
+  "agent_usage": null
+}

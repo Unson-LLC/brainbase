@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "lock_id": "program-external-delivery-reconciliation-lock-v1",
+  "authority": "program_owned_reconciliation_companion",
+  "canonical_role": "producer_contract_delivery",
+  "source_lock": {
+    "path": "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+    "upstream_repository": "Unson-LLC/brainbase-unson",
+    "upstream_merged_sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad"
+  },
+  "external_delivery": {
+    "repository": "Unson-LLC/brainbase-unson",
+    "pull_request": 1302,
+    "role": "producer_contract_delivery",
+    "merged_sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
+    "source": "https://github.com/Unson-LLC/brainbase-unson/pull/1302"
+  },
+  "binding": {
+    "repository_match_required": true,
+    "merged_sha_match_required": true,
+    "pull_request_source": "external_delivery_readback",
+    "role_source": "program_reconciliation_contract",
+    "program_status_effect": "none"
+  }
+}

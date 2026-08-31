@@ -1,0 +1,27 @@
+{
+  "task_id": "TASK-j0-organization-pinned-artifact-consumer",
+  "story_id": "story-j0-organization-pinned-artifact-consumer",
+  "status": "done",
+  "owner": "codex-orchestrator",
+  "base_sha": "eff7a54c0cfec0f0ee87c172dd1a8fe8e3b67578",
+  "branch": "codex/j0/organization-pinned-artifact-consumer",
+  "vibepro_version": "0.2.0-beta.17",
+  "public_dependency_commit": "9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae",
+  "adr_source_commit": "747ba33eb42b478ffa7d2d6285dfd63f58c4a35f",
+  "allowed_paths": [
+    "docs/architecture/ADR-022-oss-common-core-and-organization-superset.md",
+    "docs/management/stories/active/story-j0-organization-pinned-artifact-consumer.md",
+    "docs/specs/story-j0-organization-pinned-artifact-consumer-spec.md",
+    "docs/management/tasks/TASK-j0-organization-pinned-artifact-consumer.json",
+    "package.json",
+    "package-lock.json",
+    "tests/integration/j0-organization-pinned-artifact-consumer.test.js"
+  ],
+  "forbidden_paths": ["server/**", "mcp/**", "deployment/**", "config/**", "secrets/**", "customer-data/**"],
+  "stages": [
+    {"id": "contract", "status": "completed", "evidence": ["ADR-022", "Story", "Spec"]},
+    {"id": "red", "status": "completed", "evidence": ["manifest dependency undefined", "package import failed with ERR_MODULE_NOT_FOUND", "focused test: 0/2 passed"]},
+    {"id": "green", "status": "completed", "evidence": ["npm ci: passed", "exact manifest and lock readback passed", "process A save and independent process B verified reload: 2/2 passed", "npm run typecheck: passed"]},
+    {"id": "independent_review", "status": "completed", "evidence": ["read-only review: no blocking findings", "deleted .vibepro/config.json remains excluded", "exact pin, process A/B reload, immutable record, and no runner re-execution confirmed"]}
+  ]
+}

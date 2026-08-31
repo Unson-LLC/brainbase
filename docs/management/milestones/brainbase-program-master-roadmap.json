@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "title": "Brainbase Program Master Roadmap",
-  "updated_at": "2026-08-20",
+  "updated_at": "2026-08-31",
   "authority_markdown": "docs/management/milestones/brainbase-program-master-roadmap.md",
   "authority": "cross_repository_dependency_order_and_completion_gates",
   "status_vocabulary": [
@@ -21,6 +21,363 @@
     "one_story_one_branch_one_worktree": true,
     "semantic_dependency_direction": "brainbase-unson -> brainbase"
   },
+  "live_reconciliation": {
+    "captured_at": "2026-08-25T14:10:02Z",
+    "revalidated_at": "2026-08-25T14:36:32Z",
+    "scope": "external_delivery_provenance_and_source_lock_lineage_only",
+    "freshness": {
+      "scope": "A0 producer #1302 -> P0 #1304 source-lock lineage and external delivery identity",
+      "revalidated_at": "2026-08-25T14:36:32Z",
+      "evidence_sources": [
+        "gh pr view Unson-LLC/brainbase-unson#1302",
+        "gh pr view Unson-LLC/brainbase-unson#1304",
+        "git merge-base --is-ancestor ad908bce7b90678f9ed7f1c570f808bdf1a500ad 27b37cdaac50967edff095b696c540322feb75c2"
+      ]
+    },
+    "reconciliation_contract": {
+      "story_id": "story-program-external-delivery-reconciliation-v1",
+      "status": "contract_ready",
+      "story_path": "docs/management/stories/active/story-program-external-delivery-reconciliation-v1.md",
+      "architecture_path": "docs/architecture/story-program-external-delivery-reconciliation-v1.md",
+      "spec_path": "docs/specs/program-external-delivery-reconciliation-v1.md",
+      "task_path": "docs/management/tasks/program-external-delivery-reconciliation-v1.json",
+      "companion_lock_path": "docs/management/evidence/program-external-delivery-reconciliation-lock-v1.json",
+      "test_path": "tests/contracts/program-external-delivery-reconciliation.test.js",
+      "production_evidence": "not_collected"
+    },
+    "sources": [
+      "GitHub PR metadata via gh pr view",
+      "GitHub release and tag metadata",
+      "npm package metadata via npm view"
+    ],
+    "guardrails": [
+      "external merge or release does not satisfy T0, A0, G0, Gate or production_proven",
+      "no independent review verdict is recorded here",
+      "an open PR is not implementation completion",
+      "source-lock contract delivery is distinct from work-package exit, consumer review, Gate and production completion"
+    ],
+    "artifacts": [
+      {
+        "program_id": "A0",
+        "role": "producer_contract_delivery",
+        "repository": "Unson-LLC/brainbase-unson",
+        "pull_request": 1302,
+        "title": "Canonical Company Authority Producer Contract v1 (completed)",
+        "state": "MERGED_EXTERNALLY",
+        "pre_merge_health": {
+          "mergeable": "UNKNOWN",
+          "merge_state_status": "UNKNOWN",
+          "observed_at": "2026-08-25T14:36:32Z",
+          "source": "gh pr view Unson-LLC/brainbase-unson#1302 (post-merge snapshot; transient fields)"
+        },
+        "base": {
+          "branch": "develop",
+          "sha": "0ed0cc9828018a893bb4bbc426b5d0639f68e732"
+        },
+        "head": {
+          "branch": "codex/a0/company-authority-producer-contract-v1-r2",
+          "sha": "7bc849da01dedabfced2eeca8943534cf3dee78e"
+        },
+        "merge": {
+          "sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
+          "merged_at": "2026-08-21T19:09:27Z",
+          "merged_by": "sintariran"
+        },
+        "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1302",
+        "program_effect": "contract_delivery_only",
+        "exit_evidence": {
+          "work_package": "not_established",
+          "consumer": "not_established",
+          "independent_review": "not_recorded_here",
+          "gate": "not_established",
+          "production": "not_collected"
+        }
+      },
+      {
+        "program_id": "P0",
+        "role": "negative_boundary_contract_delivery",
+        "repository": "Unson-LLC/brainbase-unson",
+        "pull_request": 1304,
+        "title": "story-p0-negative-boundary-contract-v1",
+        "state": "MERGED_EXTERNALLY",
+        "base": {
+          "branch": "develop",
+          "sha": "3ff5b0766d3414051b4fd15da7617896ea534eed"
+        },
+        "head": {
+          "branch": "codex/p0-negative-boundary-contract-v1",
+          "sha": "3f9e06373831485fa48175487515fd746c69a590"
+        },
+        "merge": {
+          "sha": "27b37cdaac50967edff095b696c540322feb75c2",
+          "merged_at": "2026-08-25T12:29:25Z",
+          "merged_by": "sintariran"
+        },
+        "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1304",
+        "program_effect": "no_status_promotion",
+        "source_lock_lineage": {
+          "source_lock_path": "contracts/p0-negative-boundary-contract-v1/source-lock.json",
+          "upstream_contract_id": "mana-brainbase-company-authority/v1",
+          "upstream_repository": "Unson-LLC/brainbase-unson",
+          "upstream_pull_request": 1302,
+          "upstream_role": "producer_contract_delivery",
+          "upstream_state": "MERGED",
+          "upstream_merged_sha": "ad908bce7b90678f9ed7f1c570f808bdf1a500ad",
+          "downstream_pull_request": 1304,
+          "downstream_role": "P0 contract",
+          "downstream_state": "MERGED",
+          "downstream_merge_sha": "27b37cdaac50967edff095b696c540322feb75c2",
+          "ancestor_verified": true
+        },
+        "dependency_debt": [
+          "P0 was externally merged after source-locked A0 contract delivery #1302, but while T0 and A0 work-package exit evidence was not established",
+          "A0 contract delivery #1302 does not satisfy A0 work-package, consumer, independent review, Gate or production completion",
+          "observed delivery does not satisfy the required T0 -> A0 -> P0 exit order"
+        ]
+      },
+      {
+        "program_id": "J0",
+        "repository": "Unson-LLC/brainbase",
+        "pull_request": 479,
+        "title": "J0 typed DAG contract and preflight validation",
+        "role": "judgment_contract_delivery",
+        "state": "MERGED_EXTERNALLY",
+        "base": {
+          "branch": "develop",
+          "sha": "7e5d5693f988f4ba84072c5910ef32f0e70871e1"
+        },
+        "head": {
+          "branch": "codex/j0/judgment-dag-core-contract",
+          "sha": "44a0e53f0b664c1a647fac1fd7eaeea700315ca4"
+        },
+        "merge": {
+          "sha": "0ee5db39ac8f91a484628cc07a2df21cdfb149b7",
+          "merged_at": "2026-08-20T22:44:52Z",
+          "merged_by": "sintariran"
+        },
+        "source_url": "https://github.com/Unson-LLC/brainbase/pull/479",
+        "program_effect": "no_status_promotion",
+        "dependency_debt": [
+          "merge metadata alone does not establish J0 verified or done",
+          "no independent review verdict is recorded here"
+        ]
+      },
+      {
+        "program_id": "J0",
+        "repository": "Unson-LLC/brainbase",
+        "pull_request": 481,
+        "title": "J0 ローカル決定論的ランナーと不変run記録",
+        "role": "judgment_runner_delivery",
+        "state": "MERGED_EXTERNALLY",
+        "base": {
+          "branch": "develop",
+          "sha": "3db3218107845cac051d7a433ad5e0c8a398ea16"
+        },
+        "head": {
+          "branch": "codex/j0/local-deterministic-runner",
+          "sha": "3fd71a1da59a85cb7cdc8cce8b17f22e3b767bde"
+        },
+        "merge": {
+          "sha": "f8e7ac61349b326863feae5d7d3d8ae68e2b9d10",
+          "merged_at": "2026-08-21T19:08:44Z",
+          "merged_by": "sintariran"
+        },
+        "source_url": "https://github.com/Unson-LLC/brainbase/pull/481",
+        "program_effect": "no_status_promotion",
+        "dependency_debt": [
+          "merge metadata alone does not establish J0 exit-gate completion or R1 completion",
+          "no independent review verdict is recorded here"
+        ]
+      },
+      {
+        "program_area": "VibePro external gate dependency",
+        "repository": "Unson-LLC/vibepro",
+        "pull_request": 493,
+        "title": "chore: prepare 0.2.0-beta.16 release",
+        "role": "release_dependency_delivery",
+        "state": "MERGED_EXTERNALLY",
+        "base": {
+          "branch": "main",
+          "sha": "3db04f430fe017aef42a456ef6c18434ad8b4407"
+        },
+        "head": {
+          "branch": "codex/vibepro-beta16-release",
+          "sha": "5dc2c8e0964167a79fe08fac97d6c8c800580d4e"
+        },
+        "merge": {
+          "sha": "8b9fd24b6614f8d55b4e6c42d1179a68e6f92f85",
+          "merged_at": "2026-08-25T12:43:06Z",
+          "merged_by": "sintariran"
+        },
+        "release": {
+          "version": "0.2.0-beta.16",
+          "tag": "v0.2.0-beta.16",
+          "target_sha": "8b9fd24b6614f8d55b4e6c42d1179a68e6f92f85",
+          "published_at": "2026-08-25T12:44:26Z",
+          "npm": {
+            "version": "0.2.0-beta.16",
+            "dist_tags": {
+              "latest": "0.2.0-beta.16",
+              "beta": "0.2.0-beta.16"
+            }
+          },
+          "source_url": "https://github.com/Unson-LLC/vibepro/releases/tag/v0.2.0-beta.16"
+        },
+        "source_url": "https://github.com/Unson-LLC/vibepro/pull/493",
+        "program_effect": "no_status_promotion",
+        "dependency_debt": [
+          "external release does not satisfy the VibePro Gate, R1, T0, A0, G0 or production evidence"
+        ]
+      }
+    ],
+    "identity_discrepancies": [
+      {
+        "claimed_program_item": "A0 #338",
+        "handoff_claim": "OPEN",
+        "repository": "Unson-LLC/brainbase-unson",
+        "observed_state": "MERGED_EXTERNALLY_UNRELATED",
+        "observed_title": "docs(session): archive gog",
+        "base": {
+          "branch": "develop",
+          "sha": "bdaa43ed161398fa86ad049ae7e609626767750b"
+        },
+        "head": {
+          "branch": "archive-record/session-1771228828137-1777115262692",
+          "sha": "b39f3ad5635cfa840f69b317c1a5959b8911fd63"
+        },
+        "merge": {
+          "sha": "8274ec7be148ca545669f4e9f2a54cce5818ad82",
+          "merged_at": "2026-04-25T11:07:50Z",
+          "merged_by": "sintariran"
+        },
+        "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/338",
+        "conclusion": "#338 is not an open A0 PR and is not used as A0 completion evidence"
+      },
+      {
+        "claimed_program_item": "A0 candidate by PR title",
+        "repository": "Unson-LLC/brainbase-unson",
+        "pull_request": 1283,
+        "state": "OPEN",
+        "role": "stale_title_matched_candidate",
+        "mergeable": "CONFLICTING",
+        "merge_state_status": "DIRTY",
+        "title": "Canonical Company Authority Producer Contract v1",
+        "base": {
+          "branch": "develop",
+          "sha": "135dd778eb2c94b29ccbe9be364548a53d428464"
+        },
+        "head": {
+          "branch": "codex/a0/company-authority-producer-contract-v1",
+          "sha": "fb98642b0f2268369ad61224124794cabbd29a04"
+        },
+        "source_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1283",
+        "supersession_evidence": "not_collected",
+        "conclusion": "This older title-matched candidate is OPEN/CONFLICTING and is not the canonical source-lock producer; no supersession evidence promotes it over merged #1302"
+      },
+      {
+        "claimed_program_item": "A0 #338 from merge audit",
+        "repository": "Unson-LLC/mana-runtime",
+        "pull_request": 338,
+        "state": "OPEN",
+        "title": "MANAがBrainbase署名済み会社権限だけを実行する",
+        "base": {
+          "branch": "main",
+          "sha": "da9a1d1ecfd67d34113ab3894d1a77c18460fe81"
+        },
+        "head": {
+          "branch": "codex/a0-company-authority-consumer",
+          "sha": "487371328b70b466e0f6bec9a7dc54c475a029d1"
+        },
+        "merge": null,
+        "source_url": "https://github.com/Unson-LLC/mana-runtime/pull/338",
+        "roadmap_role": "A0 consumer; canonical source is brainbase-unson",
+        "conclusion": "This consumer-side PR does not identify or complete the A0 producer source; its OPEN state is separate from the merged producer #1302 and does not establish A0 exit"
+      }
+    ],
+    "non_compliant_order": [
+      {
+        "required_order": "T0 -> A0 -> P0",
+        "observed": "P0 #1304 externally merged at 2026-08-25T12:29:25Z after A0 contract delivery #1302 at 2026-08-21T19:09:27Z, while T0 exit and A0 work-package, consumer, review, Gate and production evidence remained incomplete",
+        "debt": "retain dependency debt and do not promote P0 or any downstream Gate/production status; #1302 is contract delivery only and #1283 remains an older OPEN/CONFLICTING candidate without supersession evidence"
+      }
+    ]
+  },
+  "current_execution_evidence": [
+    {
+      "program_id": "J0",
+      "captured_at": "2026-08-31",
+      "status": "done",
+      "repository": "Unson-LLC/brainbase",
+      "organization_repository": "Unson-LLC/brainbase-unson",
+      "story_id": "story-j0-durable-run-artifact-contract",
+      "branch": "codex/j0/durable-run-artifact-evidence-close",
+      "base_sha": "93e7b946a0b93bd61b61bd1f151e863fca4ac819",
+      "implementation_head_sha": "684f8c45c7c99d720c4acd7eca90dcda151c6196",
+      "public_consumer_head_sha": "9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae",
+      "organization_consumer_head_sha": "b7c953fa0081a1e02c0aa465aabf54054a3d96a2",
+      "organization_consumer_merge_sha": "4dbdff9b2825edb5ff3d1fded1b7603fc27c86ee",
+      "head_sha": "928ea432427e068e95771159df4ca4f5d2af584a",
+      "merge_sha": "18b6401c584e48ae6e7feed319836e74dc3d0910",
+      "vibepro_version": "0.2.0-beta.17",
+      "exit_gate_evidence": {
+        "deterministic_dag": "passed",
+        "negative_preflight": "passed",
+        "durable_run_artifact": "passed_at_exact_merged_public_head",
+        "organization_semantic_consumer": "passed_at_exact_pinned_organization_head"
+      },
+      "verification": [
+        "focused: 3 files / 35 tests passed",
+        "typecheck: passed",
+        "build: passed",
+        "full: 48 files / 471 tests passed",
+        "e2e: 2 files / 2 tests passed",
+        "npm pack --dry-run --ignore-scripts: passed",
+        "fresh package consumer: saver process exited before loader process verified the same artifact with zero runner invocations",
+        "public PR #490 merged durable artifact implementation; PR #491 merged exact Git package consumer build lifecycle; PR #492 merged Story and Task exit-gate closure",
+        "organization PR #1335 exact-pinned public commit 9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae; two-process consumer smoke 2/2 passed with no public source copy or semantic fork",
+        "independent final review: no blocking finding for local runner and durable artifact AC-001 through AC-006",
+        "post-merge organization Graph writer run was superseded and cancelled by later develop pushes; it is not counted as success"
+      ],
+      "program_effect": "promote_to_done",
+      "blockers": []
+    },
+    {
+      "program_id": "R1",
+      "captured_at": "2026-08-31",
+      "status": "done",
+      "repository": "Unson-LLC/brainbase",
+      "story_id": "story-r1-replay-evaluation-primitives",
+      "branch": "codex/r1/local-immutable-run-artifact-contract",
+      "base_sha": "18b6401c584e48ae6e7feed319836e74dc3d0910",
+      "head_sha": "330586fac86a89a1de23ae87f9788e386e51963c",
+      "merge_sha": "f73bfb41278bf8983c1d23dc8cb5be6c0e3379a1",
+      "pull_request": 493,
+      "closure_head_sha": "b6281bb0855b61caf6f2b3a8daddaef49d7af9fe",
+      "closure_merge_sha": "c782bffb0e018e0752cb875b2424c3280f0a9f21",
+      "closure_pull_request": 494,
+      "vibepro_version": "0.2.0-beta.17",
+      "exit_gate_evidence": {
+        "historical_context_replay": "passed_at_exact_merged_public_head",
+        "version_comparison_without_history_rewrite": "passed_at_exact_merged_public_head",
+        "evaluation_event_set_immutability": "passed_at_exact_merged_public_head"
+      },
+      "verification": [
+        "focused: 3 files / 41 tests passed",
+        "typecheck: passed",
+        "build: passed",
+        "full: 49 files / 478 tests passed",
+        "e2e: 2 files / 2 tests passed",
+        "packed tarball consumer: 1/1 passed after install, exercising historical and candidate replay, outcome attachment, immutable event set and comparison",
+        "public PR #493 required check validate-and-publish passed before merge",
+        "public closure PR #494 required check validate-and-publish passed before merge; Story, Task and VibePro evidence are done at c782bffb0e018e0752cb875b2424c3280f0a9f21",
+        "independent boundary delta review: PASS after two P1 fixes; blocking findings 0",
+        "independent Exit Gate review: all three R1 gates passed; blocking findings 0; unknown, partial and skipped evidence were not counted as success",
+        "npm publication, deploy, production changes and permission or contract changes were not performed"
+      ],
+      "program_effect": "promote_to_done",
+      "blockers": []
+    }
+  ],
   "work_packages": [
     {
       "id": "R0",

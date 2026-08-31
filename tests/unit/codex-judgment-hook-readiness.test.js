@@ -20,7 +20,7 @@ function hook(eventName, overrides = {}) {
     return {
         key: `/hooks.json:${eventName}:0:0`,
         eventName,
-        matcher: eventName === 'postToolUse' ? '^mcp__brainbase__.*$' : null,
+        matcher: eventName === 'postToolUse' ? '.*' : null,
         command,
         enabled: true,
         trustStatus: 'trusted',

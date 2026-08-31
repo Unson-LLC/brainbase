@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/home/salestailor/actions-runner/Unson-LLC-linux-4/_work/brainbase-unson/brainbase-unson/docs/architecture/diagrams/north-star.archify.json",
+  "output": "/home/salestailor/actions-runner/Unson-LLC-linux-4/_work/brainbase-unson/brainbase-unson/docs/architecture/diagrams/generated/north-star.html",
+  "specification": {
+    "sha256": "7a01611952d63191a06d9b37d0c32e9691e5aef082781b819bcb1bde9d7b221c",
+    "bytes": 10068
+  },
+  "artifact": {
+    "sha256": "a718757af3217469b75376d2fbd25a9ee2fd9b382d11f7047e87280e20827250",
+    "bytes": 726290
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}
