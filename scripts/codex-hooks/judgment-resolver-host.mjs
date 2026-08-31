@@ -841,7 +841,9 @@ function responseSucceeded(response, {
     semanticSuccess = false
 } = {}) {
     const items = nestedRecords(response);
-    if (items.length === 0) return false;
+    if (items.length === 0) {
+        return allowImplicitSuccess && response !== null && response !== undefined;
+    }
     const failed = items.some((item) => (
         Object.hasOwn(item, 'Err') || item.isError === true
         || item.is_error === true
