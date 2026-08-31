@@ -19,11 +19,11 @@
 - Project Grantはproject ID・明示alias・GitHub repository名の完全一致だけで判定し、prefix一致で権限を拡張しない。
 - healthとintegrityはRegistry schemaの利用可能性を実行時Catalog経由で確認する。
 - Workspace SetupとConnected-world Onboardingは別Capabilityとして境界を保つ。
-- 移行期間に残るブラウザのSession Launch Pickerは正式入口ではない下流互換consumerとして、認証済みruntime Catalog、project ID・明示alias・GitHub repository名の完全一致、明示local.path、fail-closed、候補外projectの再追加禁止を守る。
+- ブラウザのSession Launch Pickerもretiredかつ到達不能とし、ブラウザのProject Catalog consumerはWorkspace Setupだけに限定する。desktop/mobileの旧`CREATE_SESSION`入口はCodex移行案内を表示し、Pickerを開かずsession APIを呼ばない。
 
 ## 境界・非対象
 
-- サーバー側の `session.create`/static endpoint は retired。ブラウザのSession Launch Pickerはretirement完了まで残る下流互換導線であり、Project Provisioningの正式入口ではない。ただし残存する間の防御契約は受け入れ条件と回帰テストの対象にする。
+- サーバー側の `session.create`/static endpointとブラウザのSession Launch Pickerはretiredかつ到達不能。過去実装はProject Provisioningの正式入口でも受け入れ証拠でもない。desktop/mobileの旧導線はCodex移行案内へfail-closedする。
 - タスクとworktreeの作成・所有はCodex app/CLIが担う。Project ProvisioningはProject Registry、Graph、Auth Grant、Repository boundaryの登録・検証を扱う。
 - `local_path`やclone先は個人ごとのWorkspace Setupで管理し、Project ProvisioningのManifest・実行時Catalogには入れない。
 - Graph writerとGitHub writerの本番実行はこのStoryで検証しない。テストで使うwriterはfake/adapter doubleであり、本番Graph/GitHub writesは対象外とする。

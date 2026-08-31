@@ -34,8 +34,8 @@ visibility_rules:
   - Every Plan requires manifest_plan_approval for the complete Manifest and diff; Repository create, public visibility, and broad grants add narrower gates.
   - Apply and resume never accept approvals in their request body; approval is recorded through the dedicated approve surface before execution.
   - A run becomes active only after Registry, Graph, every requested Auth Grant, and GitHub repository state are read back and verified.
-  - "The server-side `session.create`/static endpoint is retired. The browser Session Launch Picker remains a residual migration-only compatibility consumer until retirement completes; it is not a Project Provisioning entry point, but its safety contract remains acceptance and regression-test evidence until retirement."
-  - "Until retirement, that consumer must use the authenticated runtime Catalog, exact project ID/explicit alias/GitHub repository grants, explicit local.path, fail-closed behavior, and no requested-project re-insertion."
+  - "The server-side `session.create`/static endpoint and browser Session Launch Picker are retired and unreachable; neither is a Project Provisioning entry point or acceptance-evidence surface."
+  - "Desktop and mobile legacy CREATE_SESSION actions show the Codex migration notice without opening the Picker or calling session APIs. Workspace Setup is the only browser Project Catalog consumer."
   - Codex app/CLI owns task and worktree creation and ownership; per-user local paths remain in separate Workspace Setup.
   - Project Registry, run, and step rows use FORCE RLS with transaction-local app.organization_id; no-context runtime callers cannot enumerate Registry rows.
   - The CLI obtains a session-bound CSRF token for every mutation and does not use a broad Bearer exemption.

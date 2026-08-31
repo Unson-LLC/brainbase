@@ -12,7 +12,7 @@
 
 正式なProject Catalogの入口は認証済みCLI/API/MCPです。CLIはProject Provisioningのcheck/plan/approve/apply/status/verify/resumeを呼び、APIは`/api/config/projects`、`/api/brainbase`、`/api/brainbase/projects`を提供し、MCPは`brainbase_projects`を提供します。各面はproject grantを認証コンテキストと設定スコープの積集合で絞り、`source.status`やstatus envelopeでloaded・confirmed empty・unavailable/errorを区別します。未認証・取得不能・Registry unavailableはlegacy topologyへfail-openせず、readback未確認として扱います。
 
-`GET /api/config`は個人のWorkspace Setup用legacy topologyであり、組織Catalogやアクセス権の根拠ではありません。Workspace SetupとConnected-world Onboardingは別Capabilityです。サーバー側の`session.create`/static endpointはretiredですが、ブラウザのSession Launch Pickerはretirement完了まで残る下流互換consumerです。これはProject Provisioningの正式入口ではありませんが、認証済みruntime Catalog、exact grant、明示`local.path`、fail-closed、候補外projectの再追加禁止を維持します。タスクとworktreeの作成・所有はCodex app/CLIが担います。
+`GET /api/config`は個人のWorkspace Setup用legacy topologyであり、組織Catalogやアクセス権の根拠ではありません。Workspace SetupとConnected-world Onboardingは別Capabilityです。サーバー側の`session.create`/static endpointとブラウザのSession Launch Pickerはretiredかつ到達不能で、過去実装はProject Provisioningの正式入口でも受け入れ証拠でもありません。ブラウザのProject Catalog consumerはWorkspace Setupだけです。desktop/mobileの旧`EVENTS.CREATE_SESSION`導線はCodex移行案内を表示し、Pickerを開かずsession APIを呼びません。タスクとworktreeの作成・所有はCodex app/CLIが担います。
 
 プロセス終了でrunが`applying`に残った場合、通常の`apply`は再取得しません。明示的な`resume`だけが、最終更新から5分を超えたstale runを原子的に再claimできます。これにより稼働中runとの二重実行を避けつつ、クラッシュ後の復旧経路を保ちます。
 

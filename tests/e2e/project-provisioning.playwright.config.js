@@ -20,7 +20,7 @@ export default defineConfig({
     headless: true,
   },
   webServer: {
-    command: `python3 -m http.server ${port} --directory ${JSON.stringify(publicDir)} --bind 127.0.0.1`,
+    command: `python3 -m http.server ${port} --bind 127.0.0.1 --directory ${JSON.stringify(publicDir)}`,
     url: `${baseURL}/modules/project-mapping.js`,
     reuseExistingServer: false,
     timeout: 30000,

@@ -70,7 +70,11 @@ async function loadWorkspaceSetup(page) {
 
 async function openCatalogFixture(page, response = { body: loadedCatalog }) {
     await stubCatalogRoutes(page, response);
-    await page.goto('/device');
+    await page.route('**/project-catalog-test', (route) => route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><html lang="ja"><body></body></html>'
+    }));
+    await page.goto('/project-catalog-test');
     await page.waitForLoadState('domcontentloaded');
     await installWorkspaceSetupFixture(page);
     await loadWorkspaceSetup(page);
