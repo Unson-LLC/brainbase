@@ -50,6 +50,7 @@ import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-to
 import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from './tools/graph-maintenance-tools.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
 import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
+import { judgmentStateTools, handleJudgmentStateToolCall } from './tools/judgment-state-tools.js';
 import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
 import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
@@ -1034,6 +1035,7 @@ const publishedTools = annotateToolCapabilities([
   ...onboardingTools,
   ...graphMaintenanceTools,
   ...judgmentResolutionTools,
+  ...judgmentStateTools,
   ...knowledgeResolutionTools,
   ...meetingMinutesContextTools,
   ...taskTools,
@@ -1218,6 +1220,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           tokenManager: globalTokenManager,
         }),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleJudgmentStateToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),
           getToken: () => globalTokenManager.getToken(),

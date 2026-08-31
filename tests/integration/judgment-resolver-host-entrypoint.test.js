@@ -1298,4 +1298,60 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 stop_repair: { count: 1, status: 'completed' }
             });
     }, 20_000);
+
+    it('runtime 2.4は状態を回答へ表示せず、最後の専用PostToolUseから完了する', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({ management_status: 'managed', receipt: {
+                    resolution_id: 'jr_journal_state_entrypoint', runtime_version: 'judgment-runtime-2.4.0',
+                    turn_id: args.turn_id, request_digest: hash(canonicalJson(args)), context_digest: hash(canonicalJson(args.conversation_context)),
+                    status: 'resolved', host_binding: { status: 'managed' },
+                    classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                    classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium' },
+                    selected_dag_ids: ['engineering.v1', 'authority.v1'], required_capabilities: [],
+                    active_node_definitions: [{ id: 'implement', kind: 'common', instruction: 'Implement.' }],
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                    allowed_runtime_escalation_reasons: ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
+                } }));
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-journal-state-entrypoint', turn_id: 'turn-journal-state-entrypoint' };
+        const env = { ...process.env, BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`, BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+        const started = await run('bash', [wrapper], { env, input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '修正して' }) });
+        const context = JSON.parse(started.stdout).hookSpecificOutput.additionalContext;
+        expect(context).toContain('mcp__brainbase__brainbase_judgment_state_record');
+        expect(context).not.toContain('<!-- brainbase-stop-state:');
+        const ownerLine = context.split('\n').find((line) => line.startsWith('🧠 判断参照:'));
+
+        for (const payload of [
+            { tool_name: 'apply_patch', tool_use_id: 'tool-journal-entrypoint-apply', tool_input: {}, tool_response: { success: true } },
+            {
+                tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-journal-entrypoint-state',
+                tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+                tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+            }
+        ]) {
+            const event = await run('bash', [wrapper], { env, input: JSON.stringify({ hook_event_name: 'PostToolUse', ...identity, ...payload }) });
+            expect(event).toMatchObject({ code: 0, stderr: '' });
+            expect(JSON.parse(event.stdout)).toEqual({});
+        }
+
+        const answer = `${ownerLine}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n修正と検証を完了しました。`;
+        expect(answer).not.toContain('brainbase-stop-state');
+        const completed = await run('bash', [wrapper], { env, input: JSON.stringify({ hook_event_name: 'Stop', ...identity, stop_hook_active: false, last_assistant_message: answer }) });
+        expect(completed).toMatchObject({ code: 0, stderr: '' });
+        const final = JSON.parse(readFileSync(join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`), 'utf8'));
+        expect(final).toMatchObject({
+            completion_status: 'complete', event_count: 2,
+            stop_state: { status: 'completed', evidence_event_count: 1, source: 'journal' }
+        });
+        expect(String(final.final_summary ?? '')).not.toContain('brainbase-stop-state');
+    }, 20_000);
 });

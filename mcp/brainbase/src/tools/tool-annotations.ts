@@ -31,6 +31,7 @@ const READ_ONLY_TOOL_NAMES = new Set([
 ]);
 
 const WRITE_TOOL_NAMES = new Set([
+  'brainbase_judgment_state_record',
   'brainbase_automation_human_step_resolve',
   'brainbase_onboarding_start',
   'brainbase_onboarding_ingest',
