@@ -76,7 +76,7 @@
       "id": "local-personal-ssot",
       "type": "database",
       "label": "Local Personal OS SSOT",
-      "sublabel": "graph.json・relationships.json・personal-kg.jsonl・decisions.jsonl",
+      "sublabel": "Graph・Relations・Personal KG・Decisions",
       "row": 3,
       "col": 1,
       "size": [260, 90],
