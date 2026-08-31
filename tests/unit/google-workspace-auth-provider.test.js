@@ -4,6 +4,20 @@ import { describe, expect, it, vi } from 'vitest';
 import { createGoogleWorkspaceAuthProvider } from '../../server/services/auth/providers/google-workspace-auth-provider.js';
 
 describe('Google Workspace auth provider', () => {
+    it('checks Google configuration without requiring Slack credentials', () => {
+        const provider = createGoogleWorkspaceAuthProvider({
+            clientId: 'google-client',
+            clientSecret: 'google-secret',
+            allowedDomains: ['growin.jp']
+        });
+        expect(() => provider.assertReady()).not.toThrow();
+        expect(() => createGoogleWorkspaceAuthProvider({
+            clientId: 'google-client',
+            clientSecret: '',
+            allowedDomains: ['growin.jp']
+        }).assertReady()).toThrow(/client secret/i);
+    });
+
     it('builds an OIDC authorization URL with hosted-domain and PKCE-safe parameters', () => {
         const provider = createGoogleWorkspaceAuthProvider({
             clientId: 'google-client',

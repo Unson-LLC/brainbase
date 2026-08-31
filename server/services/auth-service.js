@@ -129,7 +129,9 @@ export class AuthService {
         if (!this.jwtSecret) {
             throw new Error('BRAINBASE_JWT_SECRET is not set');
         }
-        if (!this.slackClientId || !this.slackClientSecret) {
+        if (this.authProvider?.assertReady) {
+            this.authProvider.assertReady();
+        } else if (this.authProviderId === 'slack' && (!this.slackClientId || !this.slackClientSecret)) {
             throw new Error('Slack OAuth configuration is missing (SLACK_CLIENT_ID/SLACK_CLIENT_SECRET)');
         }
     }
@@ -139,6 +141,9 @@ export class AuthService {
      * Falls back to SLACK_REDIRECT_URI env var.
      */
     resolveRedirectUri(req) {
+        if (this.authProvider?.resolveRedirectUri) {
+            return this.authProvider.resolveRedirectUri(req);
+        }
         if (req) {
             const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
             const host = req.get('x-forwarded-host') || req.get('host');

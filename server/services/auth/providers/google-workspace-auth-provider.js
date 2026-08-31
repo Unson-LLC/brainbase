@@ -77,6 +77,11 @@ export function createGoogleWorkspaceAuthProvider(options = {}) {
         capabilities: ['login', 'identity'],
         mode: 'oidc',
         callbackPath,
+        assertReady() {
+            if (!clientId) throw new GoogleWorkspaceAuthProviderError('Google client id is not configured', 'client_id_missing');
+            if (!clientSecret) throw new GoogleWorkspaceAuthProviderError('Google client secret is not configured', 'client_secret_missing');
+            if (!allowedDomains.length) throw new GoogleWorkspaceAuthProviderError('Google Workspace allowed domain is not configured', 'domain_not_configured');
+        },
         buildAuthorizationUrl(state, req) {
             requireConfig(req);
             const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
