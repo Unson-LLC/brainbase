@@ -16,7 +16,7 @@ permissions:
 jobs:
   render:
     if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[archify-generated]')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux]
 
     steps:
       - uses: actions/checkout@v4
