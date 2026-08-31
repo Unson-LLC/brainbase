@@ -206,6 +206,68 @@ describe('KnowledgeEventService knowledge_event.v1 contract', () => {
         expect(graphRepository.upsertDecision).not.toHaveBeenCalled();
     });
 
+    it('PostgreSQLが補完した列ではなく保存済みの受信payloadで再送identityを比較する', async () => {
+        const original = decisionEvent();
+        const priorResult = {
+            event_id: original.event_id,
+            candidate_id: 'cand_decision_1',
+            processing_stage: 'retrievable'
+        };
+        const { service, eventRepository, candidateRepository } = createHarness({
+            existing: {
+                ...original,
+                organization_id: 'unson',
+                sensitivity: 'internal',
+                role_min: 'member',
+                venue: 'meeting_review_package',
+                payload: original,
+                result: priorResult
+            }
+        });
+
+        await expect(service.ingest(original)).resolves.toEqual({
+            ...priorResult,
+            idempotent: true
+        });
+        expect(eventRepository.create).not.toHaveBeenCalled();
+        expect(candidateRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('保存済みの受信payloadと異なる再送はPostgreSQLの補完列が一致してもconflictにする', async () => {
+        const original = decisionEvent();
+        const { service } = createHarness({
+            existing: {
+                ...original,
+                organization_id: 'unson',
+                sensitivity: 'internal',
+                role_min: 'member',
+                venue: 'meeting_review_package',
+                payload: original,
+                result: { event_id: original.event_id }
+            }
+        });
+
+        await expect(service.ingest(decisionEvent({ body_hash: 'sha256:changed' })))
+            .rejects.toBeInstanceOf(KnowledgeEventConflictError);
+    });
+
+    it('保存済みの受信payloadがidentity項目を欠く場合はDB列へfail-closed fallbackする', async () => {
+        const original = decisionEvent();
+        const { service } = createHarness({
+            existing: {
+                ...original,
+                payload: {
+                    schema_version: original.schema_version,
+                    event_id: original.event_id
+                },
+                result: { event_id: original.event_id }
+            }
+        });
+
+        await expect(service.ingest(decisionEvent({ body_hash: 'sha256:changed' })))
+            .rejects.toBeInstanceOf(KnowledgeEventConflictError);
+    });
+
     it('同じevent_idでbody_hashが異なる再送はidentity conflictにする', async () => {
         const { service } = createHarness({
             existing: { body_hash: 'sha256:original' }
