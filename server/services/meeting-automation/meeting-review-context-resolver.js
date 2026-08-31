@@ -377,7 +377,7 @@ export class MeetingReviewContextResolver {
     }
 
     async resolveScope(input = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const reviewPackage = readReviewPackage(input);
         const packageId = readOptionalString(reviewPackage, 'package_id', 'packageId');
         const meetingIdentity = reviewPackage.meeting_identity && typeof reviewPackage.meeting_identity === 'object' ? reviewPackage.meeting_identity : {};
@@ -393,8 +393,8 @@ export class MeetingReviewContextResolver {
             this._blockedScope({ input, reviewPackage, meetingIdentity, orgId, projectId, caseScope, packageId, sourceEvent, evidenceRefs, code, message: code === 'multiple_project_candidates' ? 'multiple project candidates require human project selection before Graph SSOT lookup' : 'project_id is required before project scoped Graph SSOT lookup', field: 'project_id' });
         }
         try {
-            await this.assertProjectSelectable(projectId);
-            await this.assertOrgReferenceAllowed(orgId);
+            await this.assertProjectSelectable(projectId, actor);
+            await this.assertOrgReferenceAllowed(orgId, actor);
             await this.assertProjectAccess(projectId, actor);
         } catch (error) {
             if (error?.statusCode !== 400) throw error;

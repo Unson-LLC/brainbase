@@ -1,0 +1,584 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-project-provisioning-v1",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "final",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "authenticated access context"
+      ],
+      "resolution_point": "ProjectProvisioningService before check, plan, apply, status, verify, or resume",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "HTTP auth access",
+        "Project Provisioning service",
+        "project registry",
+        "Graph Maintenance",
+        "Auth Grants"
+      ],
+      "verified_surfaces": [
+        "HTTP auth access",
+        "Project Provisioning service",
+        "project registry",
+        "Graph Maintenance",
+        "Auth Grants"
+      ]
+    },
+    "resources": [
+      {
+        "name": "project provisioning run",
+        "sharing": "tenant_partitioned",
+        "partition_key": "organization_id/project_code",
+        "tenant_key": "organization_id",
+        "trust_zone": "Brainbase authenticated service and PostgreSQL",
+        "residue_policy": "immutable execution history and Receipt are retained for audit",
+        "data_owner": "Brainbase Project Authority",
+        "credential_scope": "organization and explicit project grants"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "organization and explicit project grants",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Project Authority"
+      ],
+      "residency": "Brainbase PostgreSQL",
+      "migration": "project-provisioning.v1 schema with forward-only resumable steps",
+      "rollback": "completed facts are retained; resume continues forward"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "project_code_collision",
+      "idempotency_conflict",
+      "partial_failure"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "project_registry",
+        "project_provisioning_runs",
+        "projects.organization_id"
+      ],
+      "boundary_edges": [
+        "authenticated organization provisions one explicit project code"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "unverified",
+      "evidence": {
+        "propagation_surfaces": [
+          "HTTP auth access",
+          "Project Provisioning service",
+          "project registry",
+          "Graph Maintenance",
+          "Auth Grants"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate",
+          "project_code_collision",
+          "idempotency_conflict",
+          "partial_failure"
+        ],
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "organization and project",
+              "tenant_key_source": "authenticated access",
+              "trust_zone": "Brainbase PostgreSQL",
+              "data_owner": "Brainbase Project Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "organization and project",
+              "tenant_key_source": "authenticated access",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "organization and explicit project grants",
+              "connection_mode": "pooled",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "scanner_results": {
+          "tenant_boundary": "inconclusive",
+          "tenant_key_propagation": "inconclusive",
+          "cross_tenant_authorization": "inconclusive",
+          "state_partitioning": "inconclusive",
+          "sandbox_isolation": "inconclusive",
+          "connection_routing": "inconclusive",
+          "secret_scope": "inconclusive",
+          "canonical_data_owner": "inconclusive",
+          "deployment_topology": "inconclusive",
+          "cross_tenant_negative_evidence": "inconclusive"
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "check is read-only and rejects project code collisions before planning.",
+      "rationale": "A project identity must not be silently merged or renamed.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-1",
+            "text_snippet": "checkは書き込みを行わず、project codeの衝突を返す"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-project-provisioning-v1.md",
+            "section": "Architecture"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/project-provisioning/project-provisioning-service.js",
+            "anchor": "check"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/project-provisioning-service.test.js",
+            "case": "checkは書き込みを行わない"
+          },
+          {
+            "file": "tests/server/routes/project-provisioning.test.js",
+            "case": "check APIはwrites_performed 0とauthority/collision detailsを保持する"
+          },
+          {
+            "file": "tests/unit/project-provisioning-cli.test.js",
+            "case": "check CLIはURLへManifestを送りwrites_performed 0とauthority/collision detailsを表示する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/project-provisioning-service.test.js",
+            "must_cover": "checkは書き込みを行わない"
+          },
+          {
+            "file_glob": "tests/server/routes/project-provisioning.test.js",
+            "must_cover": "check APIはwrites_performed 0とauthority/collision detailsを保持する"
+          },
+          {
+            "file_glob": "tests/unit/project-provisioning-cli.test.js",
+            "must_cover": "check CLIはURLへManifestを送りwrites_performed 0とauthority/collision detailsを表示する"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T09:14:28.024Z",
+      "last_revised_at": "2026-08-31T09:14:28.024Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "apply persists planned, applying, active, partial_failed, and manual_intervention_required states and resume skips completed steps.",
+      "rationale": "Provisioning spans multiple durable systems and must be forward-resumable.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-2",
+            "text_snippet": "planはManifest fingerprint、step、Human Gate、rollback boundaryを永続化する"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-3",
+            "text_snippet": "applyはplannedからapplyingを経てactiveまたはpartial_failedへ遷移する"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-4",
+            "text_snippet": "resumeはcompleted stepを保持し、未完了stepから再開する"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-project-provisioning-v1.md",
+            "section": "Architecture"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/project-provisioning/project-provisioning-service.js",
+            "anchor": "apply"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/project-provisioning-service.test.js",
+            "case": "partial_failedから完了stepを保持してresumeする"
+          },
+          {
+            "file": "tests/server/routes/project-provisioning.test.js",
+            "case": "plan APIはURLのManifestとIdempotency-Keyをservice結果へ保持する"
+          },
+          {
+            "file": "tests/unit/project-provisioning-cli.test.js",
+            "case": "plan CLIはURLへManifestとIdempotency-Keyを送り、plan detailsを表示する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/project-provisioning-service.test.js",
+            "must_cover": "partial_failedから完了stepを保持してresumeする"
+          },
+          {
+            "file_glob": "tests/server/routes/project-provisioning.test.js",
+            "must_cover": "plan APIはURLのManifestとIdempotency-Keyをservice結果へ保持する"
+          },
+          {
+            "file_glob": "tests/unit/project-provisioning-cli.test.js",
+            "must_cover": "plan CLIはURLへManifestとIdempotency-Keyを送り、plan detailsを表示する"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T09:14:28.024Z",
+      "last_revised_at": "2026-08-31T09:14:28.024Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "Project Provisioning excludes local_path, delegates Graph writes to Graph Maintenance and auth changes to AuthGrantService, and does not start Connected-world Onboarding.",
+      "rationale": "Canonical organization facts, personal workspace paths, repository creation, and content onboarding have different authorities and lifecycles.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6,
+            "ac_id": "AC-7",
+            "text_snippet": "local_pathはManifestで拒否し、Workspace Setupと分離する"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 16,
+            "ac_id": "AC-17",
+            "text_snippet": "Workspace SetupとConnected-world Onboardingは別Capabilityとして境界を保つ"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-project-provisioning-v1.md",
+            "section": "Architecture"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/project-provisioning/project-provisioning-manifest.js",
+            "anchor": "ALLOWED_KEYS"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/project-provisioning-manifest.test.js",
+            "case": "local_pathと未知フィールドをfail-closedで拒否する"
+          },
+          {
+            "file": "tests/server/services/project-provisioning-manifest.test.js",
+            "case": "Project Provisioningの実行経路はConnected-world Onboardingを起動しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/project-provisioning-manifest.test.js",
+            "must_cover": "local_pathと未知フィールドをfail-closedで拒否する"
+          },
+          {
+            "file_glob": "tests/server/services/project-provisioning-manifest.test.js",
+            "must_cover": "Project Provisioningの実行経路はConnected-world Onboardingを起動しない"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T09:14:28.024Z",
+      "last_revised_at": "2026-08-31T09:14:28.024Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "Graph registration uses the existing Graph Maintenance snapshot, plan, apply, receipt, and validate lifecycle.",
+      "rationale": "Project Provisioning must not become a second Graph writer authority.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 4, "ac_id": "AC-5", "text_snippet": "Graphは既存Graph Maintenanceのsnapshot、plan、apply、receipt、validateを通す" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
+        "code_refs": [{ "file": "server/services/project-provisioning/project-provisioning-service.js", "anchor": "applyStep" }],
+        "test_refs": [{ "file": "tests/server/services/project-provisioning-service.test.js", "case": "Graphの正式ライフサイクル順とReceiptをstepへ保存する" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/project-provisioning-service.test.js", "must_cover": "Graphの正式ライフサイクル順とReceiptをstepへ保存する" }] },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T09:14:28.024Z",
+      "last_revised_at": "2026-08-31T09:14:28.024Z"
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "Auth grant mutation goes through AuthGrantService and only set-adds the explicit project code to an active organization-scoped grant.",
+      "rationale": "Provisioning must preserve existing grants and tenant boundaries.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "ac_id": "AC-6", "text_snippet": "Auth Grantは専用サービスを通し、既存の有効なGrantへ明示されたproject codeだけを追加する" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
+        "code_refs": [{ "file": "server/services/project-provisioning/auth-grant-service.js", "anchor": "addProjectGrant" }],
+        "test_refs": [{ "file": "tests/server/services/project-provisioning-auth-grant.test.js", "case": "organization and role matched grantだけをset-addし、JWT refreshを要求する" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/project-provisioning-auth-grant.test.js", "must_cover": "organization and role matched grantだけをset-addし、JWT refreshを要求する" }] },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T09:14:28.024Z",
+      "last_revised_at": "2026-08-31T09:14:28.024Z"
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "Repository Bootstrap is a dedicated adapter; repository creation and public visibility require Human Gate approval and repository readback.",
+      "rationale": "Externally visible and irreversible repository actions need an explicit authority boundary.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 7, "ac_id": "AC-8", "text_snippet": "Repository Bootstrapは専用adapterに分離し、create・public化はHuman Gateとreadbackを必須にする" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
+        "code_refs": [{ "file": "server/services/project-provisioning/github-repository-bootstrap.js", "anchor": "create" }],
+        "test_refs": [{ "file": "tests/server/services/project-provisioning-github.test.js", "case": "create後にrepositoryをreadbackする" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/project-provisioning-github.test.js", "must_cover": "create後にrepositoryをreadbackする" }] },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T09:14:28.024Z",
+      "last_revised_at": "2026-08-31T09:14:28.024Z"
+    },
+    {
+      "id": "C-007",
+      "type": "contract",
+      "statement": "Every Plan requires a dedicated Bearer-authenticated manifest_plan_approval bound to the exact Plan scope and Manifest fingerprint; broader operations add gates and apply cannot self-assert approval.",
+      "rationale": "Approval must be attributable, immutable, and independent of the mutation request.",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "index": 8, "ac_id": "AC-9", "text_snippet": "Human GateはBearer認証済み人物の専用approve操作でManifest fingerprintへ束縛する" },
+          { "kind": "acceptance_criteria", "index": 9, "ac_id": "AC-10", "text_snippet": "link_existingを含む全PlanでManifestとPlan全体のHuman Gate承認前に書き込みを開始しない" }
+        ],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
+        "code_refs": [{ "file": "server/services/project-provisioning/project-provisioning-service.js", "anchor": "approve" }],
+        "test_refs": [
+          { "file": "tests/server/services/project-provisioning-service.test.js", "case": "Human GateはBearer認証とPlan完全一致scopeを要求する" },
+          { "file": "tests/server/services/project-provisioning-service.test.js", "case": "link_existingでもManifestとPlanの承認前は一切書き込まない" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [
+        { "file_glob": "tests/server/services/project-provisioning-service.test.js", "must_cover": "Human GateはBearer認証とPlan完全一致scopeを要求する" },
+        { "file_glob": "tests/server/services/project-provisioning-service.test.js", "must_cover": "link_existingでもManifestとPlanの承認前は一切書き込まない" }
+      ] },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T09:14:28.024Z",
+      "last_revised_at": "2026-08-31T09:14:28.024Z"
+    },
+    {
+      "id": "C-008",
+      "type": "contract",
+      "statement": "The run becomes active only after fresh readback of Registry, Graph validation, every Auth Grant, Repository, and the organization-scoped runtime catalog.",
+      "rationale": "A receipt or successful write response is not proof that the canonical systems converged.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 10, "ac_id": "AC-11", "text_snippet": "active遷移前にRegistry・Graph・全Auth Grant・Repositoryを実読戻しする" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
+        "code_refs": [{ "file": "server/services/project-provisioning/project-provisioning-service.js", "anchor": "verify" }],
+        "test_refs": [
+          { "file": "tests/server/services/project-provisioning-service.test.js", "case": "実読戻しが欠ける場合はactiveへ遷移しない" },
+          { "file": "tests/server/services/project-provisioning-service.test.js", "case": "runtime catalogの読戻しが欠ける場合はactiveへ遷移しない" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [
+        { "file_glob": "tests/server/services/project-provisioning-service.test.js", "must_cover": "実読戻しが欠ける場合はactiveへ遷移しない" },
+        { "file_glob": "tests/server/services/project-provisioning-service.test.js", "must_cover": "runtime catalogの読戻しが欠ける場合はactiveへ遷移しない" }
+      ] },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T09:14:28.024Z",
+      "last_revised_at": "2026-08-31T09:14:28.024Z"
+    },
+    {
+      "id": "C-009",
+      "type": "contract",
+      "statement": "Project Registry is merged into the organization-scoped runtime Project Catalog while preserving legacy aliases and repository metadata.",
+      "rationale": "A registered project must become usable by access policy without leaking another organization's catalog.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 11, "ac_id": "AC-12", "text_snippet": "Project Registryを実行時Project Catalogへ接続し、登録後のアクセス判定へ反映する" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
+        "code_refs": [{ "file": "server/services/project-provisioning/project-registry-catalog-adapter.js", "anchor": "getProjects" }],
+        "test_refs": [
+          { "file": "tests/server/services/project-registry-catalog-adapter.test.js", "case": "catalog readをorganization contextで分離する" },
+          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [
+        { "file_glob": "tests/server/services/project-registry-catalog-adapter.test.js", "must_cover": "catalog readをorganization contextで分離する" },
+        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする" }
+      ] },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T09:14:28.024Z",
+      "last_revised_at": "2026-08-31T09:14:28.024Z"
+    },
+    {
+      "id": "C-010",
+      "type": "contract",
+      "statement": "Project grants authorize only an exact project ID, explicit alias, or GitHub repository name and never expand by prefix similarity.",
+      "rationale": "A short grant must not authorize a different project whose code merely starts with the same text.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 12, "ac_id": "AC-13", "text_snippet": "Project Grantはproject ID・明示alias・GitHub repository名の完全一致だけで判定する" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
+        "code_refs": [{ "file": "server/services/project-access/project-code-matcher.js", "anchor": "isProjectAllowed" }],
+        "test_refs": [{ "file": "tests/server/routes/project-runtime-catalog.test.js", "case": "短いproject grantをprefixが一致する別projectへ拡張しない" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/routes/project-runtime-catalog.test.js", "must_cover": "短いproject grantをprefixが一致する別projectへ拡張しない" }] },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T13:10:00.000Z",
+      "last_revised_at": "2026-08-31T13:10:00.000Z"
+    },
+    {
+      "id": "C-011",
+      "type": "contract",
+      "statement": "Session project selection is empty when the authenticated runtime catalog is unavailable or rejects authentication; legacy topology never remains selectable.",
+      "rationale": "Local topology is not access authority and cannot safely substitute for a failed authenticated catalog.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 13, "ac_id": "AC-14", "text_snippet": "実行時Catalogの認証失敗・取得不能時はセッション選択肢を空にする" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
+        "code_refs": [{ "file": "public/modules/project-mapping.js", "anchor": "projectMappingReady" }],
+        "test_refs": [
+          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "runtime catalogが認証失敗した場合はlegacy projectを選択可能にしない" },
+          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "runtime catalogが401以外で失敗した場合はlegacy projectを選択可能にしない" },
+          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "runtime catalogのfetchが例外になった場合はlegacy projectを選択可能にしない" },
+          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "runtime catalogのsource.statusがunavailableの場合はlegacy projectを選択可能にしない" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [
+        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "runtime catalogが認証失敗した場合はlegacy projectを選択可能にしない" },
+        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "runtime catalogが401以外で失敗した場合はlegacy projectを選択可能にしない" },
+        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "runtime catalogのfetchが例外になった場合はlegacy projectを選択可能にしない" },
+        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "runtime catalogのsource.statusがunavailableの場合はlegacy projectを選択可能にしない" }
+      ] },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T13:10:00.000Z",
+      "last_revised_at": "2026-08-31T13:10:00.000Z"
+    },
+    {
+      "id": "C-012",
+      "type": "contract",
+      "statement": "A Registry project without a configured local Workspace path is shown as requiring Workspace Setup and cannot launch through a guessed path.",
+      "rationale": "Project identity registration does not prove that a usable local checkout exists.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 14, "ac_id": "AC-15", "text_snippet": "ローカルpath未設定のprojectはワークスペース設定が必要と表示する" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
+        "code_refs": [
+          { "file": "public/modules/project-mapping.js", "anchor": "getProjectPath" },
+          { "file": "public/modules/app/session-creation-mixin.js", "anchor": "openSessionLaunchPicker" },
+          { "file": "public/modules/app/ui-setup-mixin.js", "anchor": "refreshProjectSelect" }
+        ],
+        "test_refs": [
+          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする" },
+          { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "同じprojectがWorkspace設定にあってもlocal.path未設定なら推測pathで起動しない" },
+          { "file": "tests/ui/session-creation-mixin.test.js", "case": "local.path未設定projectはdisabled optionとしてワークスペース設定が必要と表示する" },
+          { "file": "tests/ui/ui-setup-mixin.test.js", "case": "Workspace Setupが必要なRegistry projectをdisabled optionとして表示する" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [
+        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする" },
+        { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "同じprojectがWorkspace設定にあってもlocal.path未設定なら推測pathで起動しない" },
+        { "file_glob": "tests/ui/session-creation-mixin.test.js", "must_cover": "local.path未設定projectはdisabled optionとしてワークスペース設定が必要と表示する" },
+        { "file_glob": "tests/ui/ui-setup-mixin.test.js", "must_cover": "Workspace Setupが必要なRegistry projectをdisabled optionとして表示する" }
+      ] },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T13:10:00.000Z",
+      "last_revised_at": "2026-08-31T13:10:00.000Z"
+    },
+    {
+      "id": "C-013",
+      "type": "contract",
+      "statement": "Health and config integrity check Project Registry schema availability through the runtime catalog adapter instead of relying only on legacy configuration.",
+      "rationale": "A readable legacy config does not prove the canonical Project Registry is ready.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 15, "ac_id": "AC-16", "text_snippet": "healthとintegrityはRegistry schemaの利用可能性を確認する" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
+        "code_refs": [{ "file": "server/services/project-provisioning/project-registry-catalog-adapter.js", "anchor": "checkIntegrity" }],
+        "test_refs": [
+          { "file": "tests/server/services/project-registry-catalog-adapter.test.js", "case": "organizationなしのreadinessはRegistry schemaの実在を確認する" },
+          { "file": "tests/server/routes/project-runtime-catalog.test.js", "case": "/api/config/integrityはlegacy parserではなくRegistry-aware catalogを確認する" },
+          { "file": "tests/server/bootstrap/project-provisioning-health.test.js", "case": "registerApiRoutesはRegistry-aware runtime catalogを/api/healthへ配線する" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [
+        { "file_glob": "tests/server/services/project-registry-catalog-adapter.test.js", "must_cover": "organizationなしのreadinessはRegistry schemaの実在を確認する" },
+        { "file_glob": "tests/server/routes/project-runtime-catalog.test.js", "must_cover": "/api/config/integrityはlegacy parserではなくRegistry-aware catalogを確認する" },
+        { "file_glob": "tests/server/bootstrap/project-provisioning-health.test.js", "must_cover": "registerApiRoutesはRegistry-aware runtime catalogを/api/healthへ配線する" }
+      ] },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T13:10:00.000Z",
+      "last_revised_at": "2026-08-31T13:10:00.000Z"
+    }
+  ],
+  "generated_at": "2026-08-31T09:14:28.023Z",
+  "previous_spec_id": null
+}

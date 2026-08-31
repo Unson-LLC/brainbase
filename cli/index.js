@@ -12,6 +12,7 @@ import {
     showPromotion
 } from './learning.js';
 import { sync, pull, push, wikiStatus } from './sync.js';
+import { runProjectProvisioning } from './project-provisioning.js';
 
 const [,, command, subcommand, ...restArgs] = process.argv;
 
@@ -34,6 +35,11 @@ Usage:
   brainbase learn show ID  候補を1件表示する
   brainbase learn apply ID 候補を保存先に応じて正式登録・手順化する
   brainbase learn reject ID [--reason TEXT] 候補を今回は見送る
+  brainbase project provision check --manifest FILE
+  brainbase project provision plan --manifest FILE --idempotency-key KEY
+  brainbase project provision approve RUN_ID --gates GATE,... --review-ref RECEIPT
+  brainbase project provision apply|resume RUN_ID
+  brainbase project provision status|verify RUN_ID
   brainbase help           このヘルプを表示する
 `;
 
@@ -93,6 +99,13 @@ async function main() {
                     default:
                         console.log('Usage: brainbase learn [add|ingest-reviews|daily|inbox|dedupe-existing|show|apply|reject]');
                 }
+                break;
+
+            case 'project':
+                if (subcommand !== 'provision') {
+                    throw new Error('Usage: brainbase project provision [check|plan|approve|apply|status|verify|resume]');
+                }
+                await runProjectProvisioning(restArgs[0], restArgs.slice(1));
                 break;
 
             case 'help':

@@ -65,7 +65,11 @@ export function applySessionCreationMixin(AppClass) {
             if (!projectSelect) return;
 
             try {
-                const { getSessionSelectableProjects, projectMappingReady } = await import('../project-mapping.js');
+                const {
+                    getSessionSelectableProjects,
+                    getProjectsRequiringWorkspaceSetup,
+                    projectMappingReady
+                } = await import('../project-mapping.js');
                 await projectMappingReady;
                 const projects = getSessionSelectableProjects(this.authManager?.access?.projectCodes);
 
@@ -83,11 +87,16 @@ export function applySessionCreationMixin(AppClass) {
                     projectSelect.appendChild(option);
                 });
 
-                if (![...projectSelect.options].some((option) => option.value === selectedProject)) {
+                getProjectsRequiringWorkspaceSetup().forEach((proj) => {
                     const option = document.createElement('option');
-                    option.value = selectedProject;
-                    option.textContent = selectedProject;
+                    option.value = '';
+                    option.textContent = `${proj}（ワークスペース設定が必要）`;
+                    option.disabled = true;
                     projectSelect.appendChild(option);
+                });
+
+                if (![...projectSelect.options].some((option) => option.value === selectedProject)) {
+                    selectedProject = 'general';
                 }
                 projectSelect.value = selectedProject;
             } catch (error) {

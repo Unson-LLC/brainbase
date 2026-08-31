@@ -29,6 +29,7 @@ import { createUsageRouter } from '../routes/usage.js';
 import { createSnsGrowthRouter } from '../routes/sns-growth.js';
 import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
 import { createSlackInstallationControlPlaneRouter } from '../routes/slack-installation-control-plane.js';
+import { createProjectProvisioningRouter } from '../routes/project-provisioning.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
 import {
     createTenantEntrypointGuard,
@@ -216,6 +217,7 @@ export function registerApiRoutes(app, {
     projectsRoot,
     authService,
     infoSSOTService,
+    projectProvisioningService,
     canonicalTaskStoreConfig,
     canonicalTaskService,
     learningService,
@@ -273,8 +275,10 @@ export function registerApiRoutes(app, {
         owner: 'Codex app and CLI',
         replacement: 'Use Codex task state directly; historical Brainbase records are frozen'
     }));
+    const runtimeProjectCatalog = projectProvisioningService?.runtimeCatalog || configParser;
     app.use('/api/config', createConfigRouter(configParser, configService, runtimePaths, {
-        authGuard: requireAuth(authService)
+        authGuard: requireAuth(authService),
+        projectCatalogParser: runtimeProjectCatalog
     }));
     app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
     app.use('/api/sessions', createRetiredCapabilityRouter({
@@ -284,6 +288,7 @@ export function registerApiRoutes(app, {
     }));
     app.use('/api/brainbase', createBrainbaseRouter({
         configParser,
+        projectCatalogParser: runtimeProjectCatalog,
         projectsRoot,
         infoSSOTService,
         wikiService,
@@ -292,13 +297,18 @@ export function registerApiRoutes(app, {
         projectCatalogAuthGuard: requireAuth(authService)
     }));
     app.use('/api/nocodb', createNocoDBRouter(configParser, { canonicalTaskStoreConfig }));
-    app.use('/api/health', createHealthRouter({ configParser }));
+    app.use('/api/health', createHealthRouter({ configParser: runtimeProjectCatalog }));
     app.use('/api/terminal', createRetiredCapabilityRouter({
         capability: 'brainbase.terminal-runtime',
         owner: 'Codex app and CLI',
         replacement: 'Use the terminal attached to the Codex task'
     }));
     app.use('/api/auth', createAuthRouter(authService));
+    app.use(
+        '/api/project-provisioning',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createProjectProvisioningRouter({ service: projectProvisioningService })
+    );
     app.use(
         '/api/info',
         requireAuth(authService, { allowInsecureHeaders: false }),

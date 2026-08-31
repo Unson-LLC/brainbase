@@ -84,6 +84,44 @@ describe('Brainbase MCP control-plane tools', () => {
     assert.equal(result?.data.count, 0);
   });
 
+  it('preserves the Registry source for a confirmed empty catalog envelope', async () => {
+    const result = await handleControlPlaneToolCall('brainbase_projects', {}, dependencies({
+      fetch: async () => new Response(JSON.stringify({
+        projects: [],
+        source: { status: 'loaded', mode: 'registry_scoped' },
+      }), { status: 200 }),
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(result?.data?.projects, []);
+    assert.equal(result?.data?.count, 0);
+    assert.deepEqual(result?.data?.source, { status: 'loaded', mode: 'registry_scoped' });
+  });
+
+  it('keeps HTTP 200 Registry source.status=unavailable distinct from confirmed empty', async () => {
+    const result = await handleControlPlaneToolCall('brainbase_projects', {}, dependencies({
+      fetch: async () => new Response(JSON.stringify({
+        projects: [],
+        source: {
+          status: 'unavailable',
+          mode: 'legacy_fallback',
+          code: 'project_registry_migration_unavailable',
+        },
+      }), { status: 200 }),
+    }));
+
+    assert.equal(result?.status, 'unavailable');
+    assert.equal(result?.error?.code, 'brainbase_project_catalog_unavailable');
+    assert.match(result?.error?.message || '', /unavailable/);
+    assert.deepEqual(result?.data?.projects, []);
+    assert.equal(result?.data?.count, 0);
+    assert.deepEqual(result?.data?.source, {
+      status: 'unavailable',
+      mode: 'legacy_fallback',
+      code: 'project_registry_migration_unavailable',
+    });
+  });
+
   it('TSK-WEBRET-003 AC-4: transport failure is unavailable and never flattened to an empty catalog', async () => {
     const result = await handleControlPlaneToolCall('brainbase_projects', {}, dependencies({
       fetch: async () => {

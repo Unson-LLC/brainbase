@@ -644,7 +644,11 @@ export function applyUiSetupMixin(AppClass) {
         }
 
         try {
-            const { getSessionSelectableProjects, projectMappingReady } = await import('../project-mapping.js');
+            const {
+                getSessionSelectableProjects,
+                getProjectsRequiringWorkspaceSetup,
+                projectMappingReady
+            } = await import('../project-mapping.js');
             await projectMappingReady;
             const projects = getSessionSelectableProjects(this.authManager?.access?.projectCodes);
             console.log('[App] Initializing project select with projects:', projects);
@@ -666,7 +670,17 @@ export function applyUiSetupMixin(AppClass) {
                 projectSelect.appendChild(option);
             });
 
-            projectSelect.value = selectedProject;
+            getProjectsRequiringWorkspaceSetup().forEach((proj) => {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = `${proj}（ワークスペース設定が必要）`;
+                option.disabled = true;
+                projectSelect.appendChild(option);
+            });
+
+            projectSelect.value = projects.includes(selectedProject) || selectedProject === 'general'
+                ? selectedProject
+                : 'general';
         } catch (error) {
             console.warn('[App] Failed to refresh project select:', error);
         }

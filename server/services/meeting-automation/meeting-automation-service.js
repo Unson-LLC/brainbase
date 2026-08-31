@@ -141,11 +141,11 @@ export class MeetingAutomationService {
     }
 
     async _preparePackRecords(input = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const orgId = requireInputString(input, 'org_id', 'orgId');
         const projectId = requireInputString(input, 'project_id', 'projectId');
-        await this.assertProjectSelectable(projectId);
-        await this.assertOrgReferenceAllowed(orgId);
+        await this.assertProjectSelectable(projectId, actor);
+        await this.assertOrgReferenceAllowed(orgId, actor);
         await this.assertProjectAccess(projectId, actor);
         const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
         const records = buildMeetingWorkflowPackRecords({
@@ -225,7 +225,7 @@ export class MeetingAutomationService {
     }
 
     async createCalendarLoopIntents(input = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         if (!this.googleCalendarService) {
             throw AppError.validation('google_calendar_service is not configured');
         }
@@ -235,8 +235,8 @@ export class MeetingAutomationService {
         const to = requireInputString(input, 'to');
         const account = readOptionalString(input, 'account');
         const calendarIds = readStringList(input, 'calendar_ids', 'calendarIds');
-        await this.assertProjectSelectable(projectId);
-        await this.assertOrgReferenceAllowed(orgId);
+        await this.assertProjectSelectable(projectId, actor);
+        await this.assertOrgReferenceAllowed(orgId, actor);
         await this.assertProjectAccess(projectId, actor);
 
         const authStatus = !account && typeof this.googleCalendarService.getAuthStatus === 'function'
@@ -448,7 +448,7 @@ export class MeetingAutomationService {
     }
 
     async recordNoteGeneration(input = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const orgId = readOptionalString(input, 'org_id', 'orgId');
         const projectId = readOptionalString(input, 'project_id', 'projectId');
         const packageId = readOptionalString(input, 'package_id', 'packageId');
@@ -484,8 +484,8 @@ export class MeetingAutomationService {
             });
         }
 
-        await this.assertProjectSelectable(projectId);
-        await this.assertOrgReferenceAllowed(orgId);
+        await this.assertProjectSelectable(projectId, actor);
+        await this.assertOrgReferenceAllowed(orgId, actor);
         await this.assertProjectAccess(projectId, actor);
 
         return this.reviewLedgerService.recordNoteGeneration({
@@ -501,7 +501,7 @@ export class MeetingAutomationService {
     }
 
     async recordCandidates(input = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const orgId = readOptionalString(input, 'org_id', 'orgId');
         const projectId = readOptionalString(input, 'project_id', 'projectId');
         const packageId = readOptionalString(input, 'package_id', 'packageId');
@@ -530,8 +530,8 @@ export class MeetingAutomationService {
             });
         }
 
-        await this.assertProjectSelectable(projectId);
-        await this.assertOrgReferenceAllowed(orgId);
+        await this.assertProjectSelectable(projectId, actor);
+        await this.assertOrgReferenceAllowed(orgId, actor);
         await this.assertProjectAccess(projectId, actor);
 
         const candidateContext = this.reviewLedgerService.resolveCandidateContext({

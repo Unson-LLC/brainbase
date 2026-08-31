@@ -32,6 +32,7 @@ function makeApp({
         async getProjects() {
             return {
                 root: '/workspace',
+                source: { status: 'loaded', mode: 'registry_scoped' },
                 projects: [
                     { id: 'sample-project', session_select: true, aliases: ['sample', 'salestailor'] },
                     { id: 'archived-project', archived: true }
@@ -47,7 +48,8 @@ function makeApp({
         req.access = {
             personId: 'sato',
             projectCodes: accessProjectCodes,
-            role
+            role,
+            organizationId: 'sample-project'
         };
         req.authSource = 'test';
         next();
@@ -73,7 +75,8 @@ function runAutomationInternally(service, workflowId) {
         actorId: 'sato',
         projectCodes: ['general', 'sample-project'],
         role: 'member',
-        authSource: 'test'
+        authSource: 'test',
+        organizationId: 'sample-project'
     });
 }
 
@@ -717,7 +720,13 @@ describe('workflow routes', () => {
             .post('/api/workflows/control/meeting-pack/bootstrap')
             .send({ org_id: 'sample-project', project_id: 'sample-project' })
             .expect(201);
-        const actor = { sub: 'keigo', person_id: 'keigo', role: 'admin', projectCodes: ['sample-project'] };
+        const actor = {
+            sub: 'keigo',
+            person_id: 'keigo',
+            role: 'admin',
+            projectCodes: ['sample-project'],
+            organizationId: 'sample-project'
+        };
         const makePkg = (packageId) => {
             const pkg = sampleMeetingReviewPackage({ packageId });
             pkg.source_event = { ...pkg.source_event, source_system: 'plaud', provider: 'plaud', mcp_resource_uri: 'plaud:file-race-1' };
@@ -777,7 +786,13 @@ describe('workflow routes', () => {
         await service.meetingAutomationService.bootstrapPack({
             org_id: 'sample-project',
             project_id: 'sample-project'
-        }, { sub: 'system', person_id: 'system', role: 'admin', projectCodes: ['sample-project'] });
+        }, {
+            sub: 'system',
+            person_id: 'system',
+            role: 'admin',
+            projectCodes: ['sample-project'],
+            organizationId: 'sample-project'
+        });
 
         const res = await request(app)
             .post('/api/workflows/control/meeting-pack/review-ingest')
@@ -934,7 +949,13 @@ describe('workflow routes', () => {
 
     it('story-meeting-review-package-ingest-v1 returns project access denial before rerun guard', async () => {
         const { app, repository, service } = makeApp({ accessProjectCodes: [] });
-        const systemActor = { sub: 'system', person_id: 'system', role: 'admin', projectCodes: ['sample-project'] };
+        const systemActor = {
+            sub: 'system',
+            person_id: 'system',
+            role: 'admin',
+            projectCodes: ['sample-project'],
+            organizationId: 'sample-project'
+        };
         await service.meetingAutomationService.bootstrapPack({
             org_id: 'sample-project',
             project_id: 'sample-project'

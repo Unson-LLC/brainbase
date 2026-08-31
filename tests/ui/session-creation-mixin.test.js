@@ -9,15 +9,31 @@ vi.mock('../../public/modules/core/http-client.js', () => ({
 vi.mock('../../public/modules/project-mapping.js', () => ({
     projectMappingReady: Promise.resolve(),
     getSessionSelectableProjects: vi.fn(() => ['brainbase', 'aitle', 'no-repo']),
+    getProjectsRequiringWorkspaceSetup: vi.fn(() => []),
     hasGitRepository: vi.fn((project) => project !== 'no-repo')
 }));
 
 import { httpClient } from '../../public/modules/core/http-client.js';
 import { appStore } from '../../public/modules/core/store.js';
 import { applySessionCreationMixin } from '../../public/modules/app/session-creation-mixin.js';
+import { getProjectsRequiringWorkspaceSetup } from '../../public/modules/project-mapping.js';
+
+function installMemoryLocalStorage() {
+    const values = new Map();
+    const storage = {
+        clear: () => values.clear(),
+        getItem: (key) => values.has(String(key)) ? values.get(String(key)) : null,
+        key: (index) => [...values.keys()][index] ?? null,
+        removeItem: (key) => values.delete(String(key)),
+        setItem: (key, value) => values.set(String(key), String(value)),
+        get length() { return values.size; }
+    };
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
+}
 
 describe('applySessionCreationMixin', () => {
     beforeEach(() => {
+        if (!window.localStorage?.clear) installMemoryLocalStorage();
         document.body.innerHTML = `
             <span id="app-version"></span>
             <span id="mobile-app-version"></span>
@@ -83,6 +99,23 @@ describe('applySessionCreationMixin', () => {
         expect(document.getElementById('session-launch-project-select').value).toBe('brainbase');
         expect(document.getElementById('session-launch-use-worktree-checkbox').checked).toBe(true);
         expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it('local.path未設定projectはdisabled optionとしてワークスペース設定が必要と表示する', async () => {
+        document.body.innerHTML = '<select id="session-launch-project-select"></select>';
+        getProjectsRequiringWorkspaceSetup.mockReturnValue(['registry-same-id']);
+
+        class App {}
+        applySessionCreationMixin(App);
+
+        const projectSelect = document.getElementById('session-launch-project-select');
+        await new App()._populateSessionProjectSelect(projectSelect, 'registry-same-id');
+
+        const blockedOption = [...projectSelect.options].find((option) => option.value === '' && option.textContent.includes('registry-same-id'));
+        expect(blockedOption).toBeDefined();
+        expect(blockedOption.disabled).toBe(true);
+        expect(blockedOption.textContent).toBe('registry-same-id（ワークスペース設定が必要）');
+        expect(projectSelect.value).toBe('general');
     });
 
     it('Session Launch Picker cancel時_セッション作成や状態永続化を実行しない', async () => {

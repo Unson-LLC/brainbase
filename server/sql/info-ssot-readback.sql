@@ -13,7 +13,10 @@ DECLARE
     'events',
     'raci_assignments',
     'graph_entities',
-    'graph_edges'
+    'graph_edges',
+    'project_registry',
+    'project_provisioning_runs',
+    'project_provisioning_steps'
   ];
   required_function text;
   required_functions text[] := ARRAY[
@@ -92,5 +95,34 @@ BEGIN
   END LOOP;
 END
 $info_ssot_readback$;
+
+DO $project_provisioning_readback$
+DECLARE
+  required_table text;
+BEGIN
+  -- Table, FORCE RLS, and policy checks are performed by the shared loop above.
+  IF to_regprocedure(format('%I.prevent_project_provisioning_receipt_mutation()', current_schema())) IS NULL THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project provisioning receipt guard';
+  END IF;
+  IF to_regprocedure(format('%I.project_code_collision_sources(text,text)', current_schema())) IS NULL
+     OR to_regprocedure(format('%I.claim_project_code(text,text)', current_schema())) IS NULL THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project code claim functions';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.role_table_grants
+    WHERE table_schema=current_schema() AND table_name='project_code_claims' AND grantee='PUBLIC'
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project code claims table is publicly readable';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = to_regclass(format('%I.project_provisioning_runs', current_schema()))
+      AND tgname = 'project_provisioning_receipts_no_mutation'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project provisioning receipt trigger';
+  END IF;
+END
+$project_provisioning_readback$;
 
 SELECT 'INFO_SSOT_READBACK_OK' AS marker;

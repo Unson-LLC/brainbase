@@ -14,11 +14,33 @@ DECLARE
   fixture_decision_id text := format('info_ssot_negative_smoke_decision_%s', txid_current());
   fixture_product_id text := format('info_ssot_negative_smoke_product_%s', txid_current());
   fixture_edge_id text := format('info_ssot_negative_smoke_wrong_owner_edge_%s', txid_current());
+  fixture_registry_code text := format('info-ssot-rls-%s', txid_current());
+  fixture_organization_id text := format('org_info_ssot_%s', txid_current());
   visible_count integer;
   deleted_count integer;
   edge_count integer;
   edge_rejected boolean := false;
 BEGIN
+  PERFORM set_config('app.organization_id', fixture_organization_id, true);
+  INSERT INTO project_registry (
+    project_code, organization_id, display_name, kind, catalog_version,
+    organization_entity_id, owner_person_id
+  ) VALUES (
+    fixture_registry_code, fixture_organization_id, 'Info SSOT RLS fixture',
+    'internal', 1, 'org_fixture', 'person_fixture'
+  );
+  SELECT count(*) INTO visible_count FROM project_registry WHERE project_code = fixture_registry_code;
+  IF visible_count <> 1 THEN
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: authorized project registry fixture was not readable';
+  END IF;
+  PERFORM set_config('app.organization_id', '__info_ssot_denied_organization__', true);
+  SELECT count(*) INTO visible_count FROM project_registry WHERE project_code = fixture_registry_code;
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: cross-organization project registry fixture was readable';
+  END IF;
+  PERFORM set_config('app.organization_id', fixture_organization_id, true);
+  DELETE FROM project_registry WHERE project_code = fixture_registry_code;
+
   SELECT p.id, p.code
     INTO fixture_project_id, fixture_project_code
   FROM projects p

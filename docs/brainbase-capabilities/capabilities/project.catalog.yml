@@ -7,7 +7,6 @@ surfaces:
   mcp:
     - brainbase_projects
   api:
-    - GET /api/config
     - GET /api/config/projects
     - GET /api/brainbase/projects
   code:
@@ -21,7 +20,13 @@ surfaces:
 depends_on:
   - config.projects.projects
 visibility_rules:
-  - /api/config and /api/config/projects expose the configured project catalog.
+  - /api/config is the legacy Workspace Setup topology surface for local paths; it is not the organization-scoped Project Catalog authority.
+  - /api/config/projects exposes the organization-scoped runtime catalog, filters it to the authenticated actor's project grants, and returns source.status so Registry failure is not mistaken for confirmed success.
+  - Project grants match only the project ID, an explicit alias, or the GitHub repository name; prefix similarity never expands access.
+  - Session creation requires both a loaded authenticated runtime catalog entry and a configured local Workspace path.
+  - A Registry project without a local Workspace path is shown as workspace-setup-required and is never launched through a guessed path.
+  - Authentication, transport, or Registry availability failure clears the selectable project list instead of retaining legacy choices.
+  - /api/health and /api/config/integrity check Project Registry schema availability through the runtime catalog adapter.
   - archived projects remain in config but should not appear in active selectors.
   - session_select:false hides a project from session creation even if it is active.
   - /api/brainbase/projects requires a verified token and only returns active projects in access.projectCodes.
@@ -33,18 +38,21 @@ visibility_rules:
   - Graph projectionのsource_refはproject-catalog:<id>@<catalog_version>としてサーバーが導出し、呼び出し元の自己申告値を採用しない。
 verification:
   commands:
-    - curl -s http://127.0.0.1:31013/api/config
+    - curl -s http://127.0.0.1:31013/api/config/projects -H 'Authorization: Bearer <token>'
     - curl -s http://127.0.0.1:31013/api/brainbase/projects -H 'Authorization: Bearer <token>'
     - cd mcp/brainbase && npm test
   expected:
-    - salestailor-app exists in /api/config
-    - tech-knight exists in /api/config and /api/brainbase/projects
+    - salestailor-app exists in /api/config/projects when present in the actor grant
+    - tech-knight exists in /api/config/projects and /api/brainbase/projects when present in the actor grant
     - projects without NocoDB mappings are returned as healthStatus: unmapped
     - an unauthenticated /api/brainbase/projects request returns 401
     - brainbase_projects exposes only the intersection of token and configured project scopes
     - Graph subjectとして投影するprojectのnameとcatalog_versionがProject Catalogから保持される
+    - a short grant such as growin does not authorize growin-payroll
+    - a Registry-only project without a configured Workspace path is not selectable for session creation
+    - Registry or catalog authentication failure leaves no legacy project selectable
 common_failures:
-  - A project exists in /api/config but is hidden from session selector by auth access filtering.
+  - A project exists in the local /api/config topology but is absent from the authenticated runtime catalog or actor grant.
   - A project exists in config but has no NocoDB mapping, so health data is N/A.
   - A dashboard count is mistaken for the complete configured project count.
   - An upstream failure is mistaken for a confirmed empty project catalog.

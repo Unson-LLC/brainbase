@@ -45,7 +45,7 @@ export function createAutomationRuntimeServices({
     const ownerResolver = meetingTaskOwnerResolver || new MeetingTaskOwnerResolver({ infoSSOTService });
     const runReceiptQueryService = new RunReceiptQueryService({
         repository,
-        prepareProjectAccess: () => accessPolicy.prepare(),
+        prepareProjectAccess: (actor) => accessPolicy.prepare(actor),
         assertProjectAccess: (projectId, actor) => accessPolicy.assertProjectAccess(projectId, actor),
         canAccessProject: (projectId, actor) => accessPolicy.canAccessProject(projectId, actor)
     });
@@ -66,8 +66,8 @@ export function createAutomationRuntimeServices({
         repository,
         runner,
         ensureDefaultWorkflows: () => automationRuntimeDefaultsService.ensure(),
-        prepareProjectAccess: () => accessPolicy.prepare(),
-        assertProjectSelectable: (projectId) => accessPolicy.assertProjectSelectable(projectId),
+        prepareProjectAccess: (actor) => accessPolicy.prepare(actor),
+        assertProjectSelectable: (projectId, actor) => accessPolicy.assertProjectSelectable(projectId, actor),
         assertProjectAccess: (projectId, actor) => accessPolicy.assertProjectAccess(projectId, actor),
         assertHumanStepAccess: assertActorCanResolveHumanStep,
         canonicalTaskService

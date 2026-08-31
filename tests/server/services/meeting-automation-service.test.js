@@ -63,8 +63,8 @@ describe('MeetingAutomationService', () => {
         }, actor);
 
         expect(prepareProjectAccess).toHaveBeenCalledOnce();
-        expect(assertProjectSelectable).toHaveBeenCalledWith('salestailor');
-        expect(assertOrgReferenceAllowed).toHaveBeenCalledWith('salestailor');
+        expect(assertProjectSelectable).toHaveBeenCalledWith('salestailor', actor);
+        expect(assertOrgReferenceAllowed).toHaveBeenCalledWith('salestailor', actor);
         expect(assertProjectAccess).toHaveBeenCalledWith('salestailor', actor);
         expect(result.meeting_workflow_pack_design).toMatchObject({
             pack_id: 'mana-meeting-workflow-pack-v1',
@@ -316,8 +316,8 @@ describe('MeetingAutomationService', () => {
         }, actor);
 
         expect(prepareProjectAccess).toHaveBeenCalledOnce();
-        expect(assertProjectSelectable).toHaveBeenCalledWith('input-project');
-        expect(assertOrgReferenceAllowed).toHaveBeenCalledWith('input-org');
+        expect(assertProjectSelectable).toHaveBeenCalledWith('input-project', actor);
+        expect(assertOrgReferenceAllowed).toHaveBeenCalledWith('input-org', actor);
         expect(assertProjectAccess).toHaveBeenCalledWith('input-project', actor);
         expect(infoSSOTService.getContext).toHaveBeenCalledWith(expect.objectContaining({
             personId: 'keigo',
