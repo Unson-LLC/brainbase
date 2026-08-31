@@ -16,7 +16,7 @@ surfaces:
     - Git worktree checkout
 depends_on: []
 visibility_rules:
-  - Project Provisioning uses Skill/CLI/API/MCP; the residual browser Session Launch Picker is a compatibility consumer, not the project-registration workflow.
+  - Project Provisioning uses Skill/CLI/API/MCP; the retired browser Session Launch Picker is not the project-registration workflow.
   - Git status and diff are the authoritative local work state for Brainbase worktrees.
   - Start coding tasks with `git status --short --branch`, `git diff --name-status`, and `git diff --stat`.
   - Stage only files owned by the current intent; never use `git add -A` in a mixed worktree.

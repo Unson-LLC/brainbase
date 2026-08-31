@@ -1,23 +1,32 @@
 id: session.create
 name: Session creation
 lifecycle: retired
-purpose: Historical record of the retired Brainbase server-side session creation API. Codex app/CLI now owns task and worktree creation; the residual browser picker safety contract belongs to project.selector.
+purpose: Historical record of retired Brainbase browser and server-side session creation. Codex app/CLI owns task and worktree creation.
 surfaces:
+  ui:
+    - "#session-launch-picker (retired and unreachable)"
+    - "#session-launch-project-select (retired and unreachable)"
   api:
     - POST /api/sessions
+    - POST /api/sessions/start
+    - POST /api/sessions/create-with-worktree
   code:
+    - public/modules/app/event-listeners-mixin.js
+    - public/modules/app/session-creation-mixin.js
     - server/controllers/session-controller.js
     - server/controllers/session/codex-app-server-startup.js
     - server/services/worktree-service.js
 visibility_rules:
   - Do not restore this capability. ADR-019 assigns task and worktree lifecycle to Codex app/CLI.
   - Retired Brainbase-owned session creation and static app endpoints return 410 Gone.
-  - Residual browser picker UI is not owned by this retired capability; its temporary safety contract is project.selector.
+  - EVENTS.CREATE_SESSION shows a migration notice and must not open the legacy picker.
+  - Legacy picker implementation is frozen historical code and is not a product entrypoint.
 verification:
   commands:
     - npm run test:e2e -- tests/e2e/story-inline-session-creation-pr-gate.spec.ts
   expected:
-    - session.create does not claim ownership of the residual browser picker.
-    - project.selector owns the residual browser picker compatibility contract.
+    - session.create owns every retired picker and session-creation surface.
+    - EVENTS.CREATE_SESSION does not call openSessionLaunchPicker.
+    - project.selector contains only Workspace Setup selector surfaces.
 common_failures:
   - A compatibility route accidentally restores Brainbase-owned task or worktree creation.

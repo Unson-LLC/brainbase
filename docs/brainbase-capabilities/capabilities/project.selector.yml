@@ -1,21 +1,16 @@
 id: project.selector
-name: Session compatibility project selector
-purpose: Describe the residual browser Session Launch Picker and Workspace Setup consumers; this is not a formal Project Catalog or Project Provisioning entry.
+name: Workspace Setup project selector
+purpose: Describe the Workspace Setup consumer of the authenticated Project Catalog; this is not a formal Project Catalog or Project Provisioning entry.
 surfaces:
   ui:
-    - "#session-launch-project-select (residual Session Launch Picker)"
-    - "#session-launch-picker (residual session-creation route)"
     - "#session-project-select (Workspace Setup)"
   compatibility_consumer:
-    - "#session-launch-project-select (residual Session Launch Picker)"
-    - "#session-launch-picker (residual session-creation route)"
     - "#session-project-select (Workspace Setup)"
   api:
     - GET /api/config/projects (authenticated runtime Project Catalog)
     - GET /api/config (Workspace Setup local topology only)
   code:
     - public/modules/app/ui-setup-mixin.js
-    - public/modules/app/session-creation-mixin.js
     - public/modules/project-mapping.js
   data:
     - runtime project catalog source/status
@@ -26,7 +21,7 @@ depends_on:
   - project.catalog
   - auth.grants
 visibility_rules:
-  - "The server-side `session.create`/static endpoint is retired; the browser Session Launch Picker is a residual downstream compatibility consumer until retirement completes, not a formal entry."
+  - "The browser Session Launch Picker and server-side session creation are retired under session.create; this capability owns only Workspace Setup selection."
   - "Fetch project candidates from the authenticated runtime Catalog (`GET /api/config/projects`); `/api/config` is local Workspace Setup data and never an access/catalog fallback."
   - Add general as the first option.
   - Exclude archived projects.
@@ -38,16 +33,16 @@ visibility_rules:
   - Workspace Setup and Connected-world Onboarding are separate capabilities.
 verification:
   commands:
-    - node scripts/manual-check-session-selector.mjs zeims
-    - npm run test:run -- tests/ui/session-creation-mixin.test.js tests/ui/project-mapping-runtime-catalog.test.js tests/ui/ui-setup-mixin.test.js tests/unit/project-mapping.test.js
+    - npm run test:run -- tests/ui/project-mapping-runtime-catalog.test.js tests/ui/ui-setup-mixin.test.js tests/unit/project-mapping.test.js
+    - npx playwright test --config tests/e2e/project-provisioning.playwright.config.js
   expected:
     - "runtime Catalog loaded candidates are the only selectable source"
     - "exact ID, explicit alias, and GitHub repository grants are accepted; short prefix grants are rejected"
     - "projects without explicit local.path are shown as disabled Workspace Setup required options and have no guessed path"
     - "401, non-401, fetch exception, and source unavailable failures leave only general and expose an unavailable/error status"
-    - "a requested project outside runtime candidates is not re-added and falls back to general"
+    - "a requested project outside runtime Workspace Setup candidates falls back to general"
 common_failures:
-  - grant updates are correct but the browser still has stale JWT/localStorage access.
+  - grant updates are correct but Workspace Setup still has stale JWT/localStorage access.
   - The legacy /api/config topology is accidentally used as the runtime Catalog or access fallback.
   - A project without explicit local.path is given a guessed path.
   - A short project grant is treated as a prefix and expands access.

@@ -358,11 +358,12 @@ export function applyEventListenersMixin(AppClass) {
             this.modals.taskEditModal.open(task);
         });
 
-        // Create session: choose immutable startup settings before the composer opens.
+        // Brainbase no longer owns task/session creation. Keep the legacy event
+        // fail-closed so old buttons cannot reach the retired /api/sessions API.
         const unsub4 = eventBus.on(EVENTS.CREATE_SESSION, (event) => {
-            const { project } = event.detail;
-            console.log('Create session requested for project:', project);
-            this.openSessionLaunchPicker(project);
+            const { project } = event.detail || {};
+            console.info('Retired Brainbase session creation requested for project:', project);
+            showInfo('新しいタスクはCodexアプリから作成してください。Brainbaseのセッション作成は廃止されました。');
         });
 
         // Worktree fallback: warn user when session falls back to main workspace
