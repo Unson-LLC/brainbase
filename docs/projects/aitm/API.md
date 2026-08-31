@@ -51,7 +51,7 @@ AITM (AI Technical Management) Dashboard APIは、プロジェクト管理・健
 
 ## 3. 認証
 
-**現在**: Bearer token認証が必須です。`/api/brainbase` と `/api/brainbase/projects` は、認証された組織と明示的なProject Grantの範囲だけを返します。
+**現在**: Project Catalogを返す `GET /api/brainbase` と `GET /api/brainbase/projects` の2面はBearer token認証が必須です。認証された組織と明示的なProject Grantの範囲だけを返します。他の既存エンドポイントの認証契約は、この変更の対象外です。
 
 以前の未認証アクセスは廃止しました。既存の内部クライアントも `Authorization: Bearer <token>` を付け、未認証時の `401` を認証エラーとして扱ってください。
 
@@ -93,12 +93,17 @@ curl http://localhost:3005/api/brainbase \
 **レスポンス**:
 ```json
 {
-  "success": true,
-  "version": "1.0.0",
-  "uptime": "2h 35m 12s",
-  "message": "brainbase API is running"
+  "github": { "status": "connected" },
+  "system": { "status": "healthy" },
+  "projects": [
+    { "id": "growin-project", "name": "Growin", "healthScore": 92 }
+  ],
+  "source": { "status": "loaded", "mode": "registry_scoped" },
+  "timestamp": "2026-09-01T00:00:00.000Z"
 }
 ```
+
+`projects` は認証された組織とProject Grantで絞られます。`source.status` が `loaded` でない場合は、確認済みの空一覧として扱わないでください。
 
 ---
 
@@ -285,45 +290,33 @@ curl http://localhost:3005/api/brainbase/worktrees
 
 ### 6.1 GET /api/brainbase/projects
 
-**概要**: 全プロジェクトの健全性スコアを取得（NocoDB実データ使用）
+**概要**: 認証された組織とProject Grantの範囲にあるプロジェクトの健全性スコアを取得（NocoDB実データ使用）
 
 **リクエスト**:
 ```bash
-curl http://localhost:3005/api/brainbase/projects
+curl http://localhost:3005/api/brainbase/projects \
+  -H 'Authorization: Bearer <token>'
 ```
 
 **レスポンス**:
 ```json
-[
-  {
-    "id": "brainbase",
-    "name": "brainbase",
-    "healthScore": 92,
-    "overdue": 2,
-    "blocked": 1,
-    "completionRate": 75,
-    "manaScore": 92
-  },
-  {
-    "id": "salestailor",
-    "name": "salestailor",
-    "healthScore": 85,
-    "overdue": 3,
-    "blocked": 2,
-    "completionRate": 68,
-    "manaScore": 92
-  },
-  {
-    "id": "zeims",
-    "name": "zeims",
-    "healthScore": 78,
-    "overdue": 5,
-    "blocked": 3,
-    "completionRate": 60,
-    "manaScore": 92
-  }
-]
+{
+  "source": { "status": "loaded", "mode": "registry_scoped" },
+  "projects": [
+    {
+      "id": "growin-project",
+      "name": "Growin",
+      "healthScore": 92,
+      "overdue": 2,
+      "blocked": 1,
+      "completionRate": 75,
+      "manaScore": 92
+    }
+  ]
+}
 ```
+
+Registry-backed runtimeでは `source` 付きのenvelopeを返します。`source.status` が `unavailable` または `error` の場合、`projects` を確認済みの全件・0件として扱わないでください。
 
 **Health Score計算式**:
 ```
