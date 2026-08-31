@@ -9,7 +9,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test 'tests/**/*.test.ts'",
+    "test": "node scripts/run-tests.mjs",
     "test:graph-maintenance": "tsx --test tests/tools/graph-maintenance-tools.test.ts --test-name-pattern='Graph maintenance MCP tools'"
   },
   "dependencies": {
