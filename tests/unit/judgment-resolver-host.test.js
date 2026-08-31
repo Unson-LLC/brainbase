@@ -288,6 +288,28 @@ describe('Codex Judgment Resolver Host', () => {
         expect(context).toContain('The full route receipt stays in the per-session judgment journal');
     });
 
+    it('implement分類は明示がなくてもVibePro最小ループを必須にし、非implementには注入しない', () => {
+        const implementContext = successOutput(
+            { request: '修正して', conversation_context: { messages: [] } },
+            { classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write' } }
+        ).hookSpecificOutput.additionalContext;
+        const diagnoseContext = successOutput(
+            { request: '原因を調べて', conversation_context: { messages: [] } },
+            { classification: { intent: 'diagnose', domains: ['engineering'], action_kind: 'read' } }
+        ).hookSpecificOutput.additionalContext;
+
+        expect(implementContext).toContain(
+            'Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.'
+        );
+        expect(implementContext).toContain('Before changing code, create or select one focused VibePro Story');
+        expect(implementContext).toContain(
+            'Story → Spec → implement → affected tests → one review wave → GitHub PR → CI → merge'
+        );
+        expect(diagnoseContext).not.toContain(
+            'Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.'
+        );
+    });
+
     it('continue契約は不要な確認を禁止し、許可された実行時escalationだけを指示する', () => {
         const output = successOutput({ request: '修正して', conversation_context: { messages: [] } }, {
             classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium' },

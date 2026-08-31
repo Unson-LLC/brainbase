@@ -13,6 +13,10 @@ The standard loop is:
 
 > Story → Spec → implement → affected tests → one review wave → GitHub PR → CI → merge
 
+## When to Use
+
+Use this Skill for every Brainbase-managed repository turn whose immutable Judgment receipt has `classification.intent=implement`, even if the user did not mention VibePro. Debugging, TDD, and Git Skills are implementation methods inside this loop; they do not replace it. Do not inject this workflow for diagnose, answer, or pure operate receipts.
+
 ## Operating Contract
 
 1. Use the current Brainbase Judgment receipt and only the smallest relevant Knowledge/Graph context. Link canonical IDs or paths instead of copying organization policy into the Story.

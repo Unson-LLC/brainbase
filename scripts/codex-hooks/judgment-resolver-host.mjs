@@ -2265,6 +2265,16 @@ export function buildOwnerReferenceLine(args, receipt) {
     return buildOwnerAudit(args, receipt).display_line;
 }
 
+function mandatoryVibeProImplementationInstructions(receipt) {
+    if (receipt?.classification?.intent !== 'implement') return [];
+    return [
+        'This is an implementation request. Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.',
+        'Before changing code, create or select one focused VibePro Story with explicit acceptance criteria and write the smallest testable Spec.',
+        'Run debugging, TDD, and Git Skills inside the Story → Spec → implement → affected tests → one review wave → GitHub PR → CI → merge loop; they do not replace it.',
+        'Brainbase remains the authority for organization judgment, knowledge, permissions, merge approval, deployment authorization, external actions, and secret boundaries. Do not restore retired managed-worktree or general Gate DAG contracts.'
+    ];
+}
+
 export function successOutput(
     args,
     receipt,
@@ -2274,6 +2284,7 @@ export function successOutput(
     const ownerReferenceLine = ownerAudit.display_line;
     const requiredCapabilityInstructions = requiredCapabilityActionContracts(receipt)
         .map((contract) => capabilityActionInstruction(contract));
+    const implementationWorkflowInstructions = mandatoryVibeProImplementationInstructions(receipt);
     const autonomy = verifyAutonomyContract(receipt);
     const autonomyInstructions = autonomy?.decision === 'continue'
         ? [
@@ -2293,6 +2304,7 @@ export function successOutput(
         'Brainbase Judgment Resolver Host opened one judgment episode before model generation. The route receipt fixes the current intent and active DAG for this episode; it is not the final episode receipt.',
         'The Host-fixed initial route and classification are immutable for this episode; do not recalculate or change them.',
         ...autonomyInstructions,
+        ...implementationWorkflowInstructions,
         ...requiredCapabilityInstructions,
         ...(journalStopStateRequired(receipt) ? [
             '実装・操作turnの状態は回答本文へ書かない。全作業と検証の完了後、最終回答を作る直前の最後のtool callとしてmcp__brainbase__brainbase_judgment_state_recordを正確に1回実行する。安全な作業が残る間はstatus=pending・pending_safe_work=true、人間確認が必須ならstatus=waiting_humanと許可理由、完了時はstatus=completed・pending_safe_work=false・runtime_reason_code=nullを渡す。HTMLコメントや自然文へ状態をコピーしない。'

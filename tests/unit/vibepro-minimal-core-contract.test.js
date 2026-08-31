@@ -26,6 +26,18 @@ describe('VibePro Minimal Core distribution contract', () => {
     expect(agents).toContain('VibePro is not a workflow engine, merge authority, safety decision engine');
   });
 
+  it('routes every implement receipt through VibePro without requiring an explicit product mention', () => {
+    const agents = read('AGENTS.md');
+    const workflow = read('.claude/skills/vibepro-workflow/SKILL.md');
+    expect(agents).toContain(
+      'When the Judgment Resolver fixes `classification.intent=implement`, use `vibepro-workflow` before changing code even if the user did not mention VibePro.'
+    );
+    expect(agents).toContain('Debugging, TDD, and Git Skills run inside this loop; they do not replace it.');
+    expect(workflow).toContain(
+      'Use this Skill for every Brainbase-managed repository turn whose immutable Judgment receipt has `classification.intent=implement`, even if the user did not mention VibePro.'
+    );
+  });
+
   it('removes retired authority language from active instructions and Skills', () => {
     const retiredImperatives = [
       'Use VibePro as the Story / Architecture / Spec / Graphify / Gate control plane',

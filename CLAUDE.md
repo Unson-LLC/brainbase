@@ -51,6 +51,7 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 - Execute routine work end-to-end without asking for confirmation: commit, push, restart, local verification, and established reflection/report flows.
 - Ask only for destructive/irreversible actions, external sends/deletes/purchases/publication, high-cost ambiguous product intent, or missing information that cannot be discovered locally.
 - Before implementation, use the relevant Skill or command; do not rely on memory when project guidance exists.
+- When the Judgment Resolver fixes `classification.intent=implement`, use `vibepro-workflow` before changing code even if the user did not mention VibePro. Create or select one focused Story and its smallest testable Spec first. Debugging, TDD, and Git Skills run inside this loop; they do not replace it.
 - One intent should become one focused commit. Stage only files touched for that intent.
 - Never revert or overwrite unrelated user changes.
 - If worktrees or sources conflict, stop blending and identify the authoritative source.
