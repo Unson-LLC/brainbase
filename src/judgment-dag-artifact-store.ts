@@ -276,6 +276,16 @@ function artifactIdFor(payload: JudgmentDAGRunArtifactPayload): JudgmentDAGRunAr
   return `sha256:${createHash('sha256').update(canonicalJSON(payload), 'utf8').digest('hex')}`;
 }
 
+/**
+ * Derive the exact J0 content address for a run record without writing it.
+ * The record is validated and normalized with the same contract used by save/load.
+ */
+export function computeJudgmentDAGRunArtifactId(
+  value: JudgmentDAGRunRecord
+): JudgmentDAGRunArtifactId {
+  return artifactIdFor(payloadFor(validateRunRecord(value)));
+}
+
 function locator(root: string, artifactId: string): string {
   if (typeof artifactId !== 'string') {
     throw artifactError('invalid_artifact_id', 'artifact_id must be sha256:<64 lowercase hex>');
@@ -368,7 +378,7 @@ export async function saveJudgmentDAGRunArtifact(
   const root = requireRoot(request.root);
   const record = validateRunRecord(request.record);
   const payload = payloadFor(record);
-  const artifactId = artifactIdFor(payload);
+  const artifactId = computeJudgmentDAGRunArtifactId(record);
   const envelope: JudgmentDAGRunArtifactEnvelope = {
     artifact_id: artifactId,
     artifact_version: JUDGMENT_DAG_RUN_ARTIFACT_VERSION,

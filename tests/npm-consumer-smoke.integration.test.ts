@@ -143,6 +143,18 @@ describe('npm tarball consumer smoke', () => {
           immutable: true,
           runnerInvocations: 0
         },
+        replayEvaluation: {
+          historicalReplay: 'passed',
+          candidateReplay: 'passed',
+          recordedContext: { source: 'consumer' },
+          outcomeAttachmentIds: [
+            expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
+            expect.stringMatching(/^sha256:[a-f0-9]{64}$/u)
+          ],
+          eventSetId: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
+          comparison: { baseline: 60, candidate: 80, delta: 20, event_count: 1 },
+          immutable: true
+        },
         negativeBoundaries: {
           missing_dependency: { status: 'passed', errorCode: 'missing_dependency' },
           cycle: { status: 'passed', errorCode: 'cycle' },

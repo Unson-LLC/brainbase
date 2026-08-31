@@ -20,11 +20,22 @@ export {
 export { executeJudgmentDAG, JudgmentDAGExecutionError } from './judgment-dag-runner.js';
 
 export {
+  computeJudgmentDAGRunArtifactId,
   JUDGMENT_DAG_RUN_ARTIFACT_VERSION,
   JudgmentDAGArtifactError,
   loadJudgmentDAGRunArtifact,
   saveJudgmentDAGRunArtifact
 } from './judgment-dag-artifact-store.js';
+
+export {
+  JUDGMENT_DAG_EVALUATION_EVENT_SET_VERSION,
+  JUDGMENT_DAG_OUTCOME_ATTACHMENT_VERSION,
+  JudgmentDAGReplayEvaluationError,
+  createJudgmentDAGEvaluationEventSet,
+  createJudgmentDAGOutcomeAttachment,
+  evaluateJudgmentDAGVersions,
+  replayJudgmentDAGRun
+} from './judgment-dag-replay-evaluation.js';
 
 export type {
   JudgmentDAG,
@@ -63,3 +74,24 @@ export type {
   LoadJudgmentDAGRunArtifactRequest,
   SaveJudgmentDAGRunArtifactRequest
 } from './judgment-dag-artifact-store.js';
+
+export type {
+  CreateJudgmentDAGEvaluationEventSetRequest,
+  CreateJudgmentDAGOutcomeAttachmentRequest,
+  EvaluateJudgmentDAGVersionsRequest,
+  JudgmentDAGEvaluationCriterion,
+  JudgmentDAGEvaluationEvent,
+  JudgmentDAGEvaluationEventSet,
+  JudgmentDAGEvaluationRun,
+  JudgmentDAGEvaluationScoring,
+  JudgmentDAGNodeCalibration,
+  JudgmentDAGNodeCalibrationStatus,
+  JudgmentDAGOutcomeAttachment,
+  JudgmentDAGOutcomeObservation,
+  JudgmentDAGReplayEvaluationErrorCode,
+  JudgmentDAGReplayResult,
+  JudgmentDAGRunArtifactReference,
+  JudgmentDAGScoreSummary,
+  JudgmentDAGVersionComparison,
+  ReplayJudgmentDAGRunRequest
+} from './judgment-dag-replay-evaluation.js';

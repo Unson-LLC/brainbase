@@ -1,11 +1,11 @@
 ---
 story_id: story-r1-local-immutable-run-artifact-store
 title: R1 ローカル不変run artifact store契約
-status: active
-planning_status: needs_review
-work_package_status: planned
-execution_lane: contract_preparation
-dependency_state: j0_merge_source_locked
+status: superseded
+planning_status: superseded
+work_package_status: superseded
+execution_lane: archived_planning_lineage
+dependency_state: j0_done
 implementation_ready: false
 owner_model: single_local_owner
 deployment_mode: local_non_hosted
@@ -31,6 +31,8 @@ related_tasks:
 ---
 
 # R1 ローカル不変run artifact store契約
+
+> **2026-08-31 supersession**: J0が単一run artifactのcontent-addressed save、検証付きreload、fresh-process readbackを完了したため、このplanning-only Storyは実装しない。R1 Roadmap/M3本体は`story-r1-replay-evaluation-primitives`が所有する。run_id index、全fsync phase、RFC 8785移行などの追加耐久化は、必要になった時点で別のstorage-hardening Storyへ切り出す。以下は履歴参照用の旧計画であり、現在の受け入れ契約ではない。
 
 ## 2026-08-31 J0 Gateとの責務再整合
 

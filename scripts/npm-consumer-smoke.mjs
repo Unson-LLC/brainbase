@@ -50,8 +50,13 @@ import { isDeepStrictEqual } from 'node:util';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import {
+  createJudgmentDAGEvaluationEventSet,
+  createJudgmentDAGOutcomeAttachment,
+  evaluateJudgmentDAGVersions,
   JudgmentDAGValidationError,
   executeJudgmentDAG,
+  replayJudgmentDAGRun,
+  saveJudgmentDAGRunArtifact,
   validateJudgmentDAG
 } from '@unson/brainbase-mcp/judgment-dag';
 
@@ -292,6 +297,7 @@ const freshSaverPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '
 const freshLoaderPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fresh-run-artifact-loader.mjs');
 const runRecordInputPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fresh-run-artifact-record.json');
 let runArtifact;
+let replayEvaluation;
 try {
   const saverSource = [
     "import { readFile } from 'node:fs/promises';",
@@ -357,6 +363,90 @@ try {
     freshProcessReload: 'passed',
     immutable: reloaded.immutable,
     runnerInvocations: reloaded.runnerInvocations
+  };
+
+  const historicalReplay = await replayJudgmentDAGRun({
+    source: { artifact_id: receipt.artifact_id, record: reloaded.record },
+    replay_run_id: 'consumer-smoke-historical-replay',
+    mode: 'historical',
+    runners: {
+      deterministic: {
+        version: 'consumer-deterministic-v1',
+        run: ({ node }) => ({ node_id: node.id, source: 'consumer' })
+      }
+    }
+  });
+  const candidateDag = structuredClone(runnerDag);
+  candidateDag.version = '2026-08-21.2';
+  for (const node of candidateDag.nodes) node.version = '2.0.0';
+  const candidateReplay = await replayJudgmentDAGRun({
+    source: { artifact_id: receipt.artifact_id, record: reloaded.record },
+    replay_run_id: 'consumer-smoke-candidate-replay',
+    mode: 'candidate',
+    candidate_dag: candidateDag,
+    runners: {
+      deterministic: {
+        version: 'consumer-deterministic-v2',
+        run: ({ node }) => ({ node_id: node.id, source: 'consumer' })
+      }
+    }
+  });
+  const candidateReceipt = await saveJudgmentDAGRunArtifact({
+    root: runArtifactRoot,
+    record: candidateReplay.record
+  });
+  const baselineOutcome = createJudgmentDAGOutcomeAttachment({
+    run_artifact_id: receipt.artifact_id,
+    record: reloaded.record,
+    observations: [{ metric_id: 'quality', scope: 'run', value: 60 }]
+  });
+  const candidateOutcome = createJudgmentDAGOutcomeAttachment({
+    run_artifact_id: candidateReceipt.artifact_id,
+    record: candidateReplay.record,
+    observations: [{ metric_id: 'quality', scope: 'run', value: 80 }]
+  });
+  const eventSet = createJudgmentDAGEvaluationEventSet({
+    events: [{
+      event_id: 'consumer-smoke-event',
+      baseline: {
+        artifact_id: receipt.artifact_id,
+        record: reloaded.record,
+        outcome: baselineOutcome
+      },
+      candidate: {
+        artifact_id: candidateReceipt.artifact_id,
+        record: candidateReplay.record,
+        outcome: candidateOutcome
+      }
+    }]
+  });
+  const comparison = evaluateJudgmentDAGVersions({
+    event_set: eventSet,
+    criterion: {
+      criterion_id: 'consumer-quality',
+      goal: 'increase consumer smoke quality',
+      metric_id: 'quality',
+      scoring: { kind: 'numeric', direction: 'higher_is_better' }
+    }
+  });
+  if (!isDeepStrictEqual(historicalReplay.record.input, runnerRecord.input) ||
+      !isDeepStrictEqual(candidateReplay.record.input, runnerRecord.input)) {
+    throw new Error('R1 replay did not preserve the recorded consumer context');
+  }
+  if (!isDeepStrictEqual(comparison.overall, {
+    baseline: 60, candidate: 80, delta: 20, event_count: 1
+  })) {
+    throw new Error('R1 installed-package evaluation returned an unexpected comparison');
+  }
+  replayEvaluation = {
+    historicalReplay: 'passed',
+    candidateReplay: 'passed',
+    recordedContext: candidateReplay.record.input,
+    outcomeAttachmentIds: [baselineOutcome.attachment_id, candidateOutcome.attachment_id],
+    eventSetId: eventSet.event_set_id,
+    comparison: comparison.overall,
+    immutable: isDeeplyFrozen(historicalReplay) && isDeeplyFrozen(candidateReplay) &&
+      isDeeplyFrozen(eventSet) && isDeeplyFrozen(comparison)
   };
 } finally {
   await rm(freshSaverPath, { force: true });
@@ -425,7 +515,8 @@ try {
         directDependencyOutputs: runnerAnswer?.dependency_outputs ?? [],
         immutable: isDeeplyFrozen(runnerRecord)
       },
-      runArtifact
+      runArtifact,
+      replayEvaluation
     }
   }));
 } finally {

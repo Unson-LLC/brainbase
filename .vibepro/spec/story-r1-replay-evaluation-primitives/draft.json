@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-r1-replay-evaluation-primitives",
+  "title": "R1 不変履歴のreplayとevaluation primitives",
+  "planning_status": "accepted",
+  "implementation_ready": true,
+  "dependency_state": "j0_done",
+  "generated_by": {"tool":"vibepro","version":"0.2.0-beta.17","mode":"explicit_story_id"},
+  "j0_source_lock": {"implementation_head":"684f8c45c7c99d720c4acd7eca90dcda151c6196","public_consumer_head":"9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae","closure_merge":"18b6401c584e48ae6e7feed319836e74dc3d0910"},
+  "clauses": ["replay recorded DAG and input with exact recorded runner versions","attach immutable outcome without rewriting the run artifact","create a content-addressed immutable same-context event set","use data-only pass-fail or numeric scoring criteria","return overall and node-level calibration without zero-filling missing observations"],
+  "test_refs": ["tests/judgment-dag-replay-evaluation.test.ts"],
+  "non_goals": ["filesystem crash recovery and index hardening","RFC 8785 migration","runner retrieval registry","deployment or package publication"]
+}

@@ -1,10 +1,10 @@
 ---
 spec_id: r1-local-immutable-run-artifact-store
 story_id: story-r1-local-immutable-run-artifact-store
-status: needs_review
-spec_maturity: draft
-planning_status: needs_review
-dependency_state: j0_merge_source_locked
+status: superseded
+spec_maturity: superseded
+planning_status: superseded
+dependency_state: j0_done
 implementation_ready: false
 owner_model: single_local_owner
 deployment_mode: local_non_hosted
@@ -20,6 +20,8 @@ j0_source_lock:
 ---
 
 # R1 ローカル不変run artifact store Draft Specification
+
+> **2026-08-31 supersession**: このplanning Specは実装対象ではない。J0が最小artifact契約を完了し、R1本体は`story-r1-replay-evaluation-primitives`へ移した。以下は旧planning lineageとしてのみ保持する。
 
 ## J0 Gate整合（2026-08-31）
 
