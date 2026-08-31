@@ -6,8 +6,8 @@
     "output": "generated/current.html",
     "quality_profile": "showcase",
     "viewBox": [
-      1380,
-      920
+      1220,
+      880
     ],
     "views": [
       {
@@ -64,30 +64,31 @@
       "id": "people",
       "type": "external",
       "label": "組織の人間",
-      "sublabel": "Accountable・Approver・Operator",
+      "sublabel": "基準・Accountability・承認",
       "pos": [
         40,
-        100
+        80
       ],
       "size": [
-        180,
+        200,
         72
-      ]
+      ],
+      "tag": "SETS CRITERIA"
     },
     {
       "id": "agent-hosts",
       "type": "frontend",
-      "label": "Agent Surfaces",
-      "sublabel": "Codex・Claude Code・ChatGPT",
+      "label": "Operating Surfaces",
+      "sublabel": "Codex・Claude Code・ChatGPT・minimal Web",
       "pos": [
         40,
-        265
+        230
       ],
       "size": [
-        190,
+        200,
         76
       ],
-      "tag": "STANDARD"
+      "tag": "AGENT-FIRST"
     },
     {
       "id": "mana-runtime",
@@ -96,43 +97,13 @@
       "sublabel": "Slack・meeting・background jobs",
       "pos": [
         40,
-        465
-      ],
-      "size": [
-        200,
-        76
-      ],
-      "tag": "INTEGRATION"
-    },
-    {
-      "id": "brainbase-web",
-      "type": "frontend",
-      "label": "Brainbase Web",
-      "sublabel": "login・OAuth・bootstrap・recovery",
-      "pos": [
-        40,
-        665
-      ],
-      "size": [
-        200,
-        72
-      ],
-      "tag": "MINIMAL"
-    },
-    {
-      "id": "private-bridge",
-      "type": "security",
-      "label": "Cloudflare Private Bridge",
-      "sublabel": "Service Binding・Access・Tunnel",
-      "pos": [
-        300,
-        470
+        410
       ],
       "size": [
         210,
         76
       ],
-      "tag": "FAIL CLOSED"
+      "tag": "INTEGRATION"
     },
     {
       "id": "mcp-api",
@@ -140,14 +111,44 @@
       "label": "MCP / Canonical API",
       "sublabel": "read・write・execute・diagnose",
       "pos": [
-        300,
-        260
+        320,
+        229
       ],
       "size": [
-        210,
+        220,
         78
       ],
       "tag": "ENTRY"
+    },
+    {
+      "id": "private-bridge",
+      "type": "security",
+      "label": "Cloudflare Private Bridge",
+      "sublabel": "Service Binding・Access・Tunnel",
+      "pos": [
+        320,
+        410
+      ],
+      "size": [
+        220,
+        76
+      ],
+      "tag": "FAIL CLOSED"
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL + FORCE RLS",
+      "sublabel": "tenant・project・event・usage・receipt",
+      "pos": [
+        320,
+        589
+      ],
+      "size": [
+        240,
+        86
+      ],
+      "tag": "CANONICAL LEDGER"
     },
     {
       "id": "company-authority",
@@ -155,8 +156,8 @@
       "label": "Tenant & Company Authority",
       "sublabel": "identity・membership・RACI・policy",
       "pos": [
-        575,
-        145
+        610,
+        226
       ],
       "size": [
         230,
@@ -170,8 +171,8 @@
       "label": "Context / Judgment Resolver",
       "sublabel": "source routing・DAG・continue/escalate",
       "pos": [
-        575,
-        315
+        610,
+        410
       ],
       "size": [
         230,
@@ -185,8 +186,8 @@
       "label": "Brainbase Core Services",
       "sublabel": "Graph・Task・Event・Run・Receipt",
       "pos": [
-        575,
-        515
+        610,
+        590
       ],
       "size": [
         230,
@@ -198,10 +199,10 @@
       "id": "promotion-gate",
       "type": "security",
       "label": "Knowledge Promotion Gate",
-      "sublabel": "candidate・consent・org review",
+      "sublabel": "candidate・consent・organization review",
       "pos": [
-        575,
-        690
+        610,
+        745
       ],
       "size": [
         230,
@@ -210,13 +211,28 @@
       "tag": "2-STAGE"
     },
     {
+      "id": "git-ssot",
+      "type": "database",
+      "label": "Git-owned SSOT",
+      "sublabel": "Ontology releases・docs・Skills",
+      "pos": [
+        940,
+        227
+      ],
+      "size": [
+        190,
+        82
+      ],
+      "tag": "VERSIONED"
+    },
+    {
       "id": "org-graph",
       "type": "database",
       "label": "Organization Graph SSOT",
       "sublabel": "facts・Decision・RACI・relations",
       "pos": [
-        880,
-        140
+        940,
+        411
       ],
       "size": [
         230,
@@ -225,19 +241,19 @@
       "tag": "CURRENT FACTS"
     },
     {
-      "id": "postgres",
-      "type": "database",
-      "label": "PostgreSQL + FORCE RLS",
-      "sublabel": "tenant・project・events・usage・receipts",
+      "id": "external-sors",
+      "type": "external",
+      "label": "External SoRs & Vaults",
+      "sublabel": "GitHub・Drive・CRM・ledger・Secret Store",
       "pos": [
-        880,
-        330
+        940,
+        589
       ],
       "size": [
-        240,
+        220,
         86
       ],
-      "tag": "CANONICAL LEDGER"
+      "tag": "FINAL STATE"
     },
     {
       "id": "personal-vault",
@@ -245,368 +261,171 @@
       "label": "Personal Vault",
       "sublabel": "owner-scoped immutable events",
       "pos": [
-        880,
-        690
+        940,
+        745
       ],
       "size": [
         220,
         78
       ],
       "tag": "LOGICALLY ISOLATED"
-    },
-    {
-      "id": "git-ssot",
-      "type": "database",
-      "label": "Git-owned SSOT",
-      "sublabel": "Ontology releases・docs・Skills",
-      "pos": [
-        1165,
-        140
-      ],
-      "size": [
-        185,
-        82
-      ],
-      "tag": "VERSIONED"
-    },
-    {
-      "id": "external-sors",
-      "type": "external",
-      "label": "External SoRs & Vaults",
-      "sublabel": "GitHub・Drive・Slack・Secret Store",
-      "pos": [
-        1165,
-        490
-      ],
-      "size": [
-        190,
-        86
-      ],
-      "tag": "NOT COPIED"
     }
   ],
   "connections": [
     {
-      "id": "people-agents",
+      "id": "people-surfaces",
       "from": "people",
       "to": "agent-hosts",
-      "label": "依頼・確認・承認",
+      "label": "criteria / approval",
       "variant": "emphasis",
       "route": "straight",
-      "fromSide": "bottom",
-      "toSide": "top",
       "labelAt": [
-        105,
-        218
+        195,
+        192
       ]
     },
     {
-      "id": "people-web",
-      "from": "people",
-      "to": "brainbase-web",
-      "label": "本人確認・接続同意",
-      "variant": "default",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "via": [
-        [
-          255,
-          136
-        ],
-        [
-          255,
-          700
-        ]
-      ],
-      "labelAt": [
-        255,
-        628
-      ]
-    },
-    {
-      "id": "agents-mcp",
+      "id": "surfaces-mcp",
       "from": "agent-hosts",
       "to": "mcp-api",
-      "label": "観測identity + requested action",
+      "label": "intent + identity",
       "variant": "emphasis",
       "route": "straight",
       "labelAt": [
-        270,
-        244
+        280,
+        210
       ]
     },
     {
       "id": "mana-bridge",
       "from": "mana-runtime",
       "to": "private-bridge",
-      "label": "Service Binding",
+      "label": "runtime request",
       "variant": "security",
       "route": "straight",
       "labelAt": [
-        268,
-        448
+        280,
+        390
       ]
     },
     {
-      "id": "bridge-core",
+      "id": "bridge-mcp",
       "from": "private-bridge",
-      "to": "core-services",
-      "label": "allowlisted private runtime routes",
+      "to": "mcp-api",
+      "label": "allowlisted ingress",
       "variant": "security",
       "route": "straight",
       "labelAt": [
-        540,
-        495
-      ]
-    },
-    {
-      "id": "web-mcp",
-      "from": "brainbase-web",
-      "to": "mcp-api",
-      "label": "bootstrap / break-glass",
-      "variant": "dashed",
-      "fromSide": "right",
-      "toSide": "bottom",
-      "via": [
-        [
-          405,
-          700
-        ],
-        [
-          405,
-          370
-        ]
-      ],
-      "labelAt": [
-        405,
-        605
+        600,
+        360
       ]
     },
     {
       "id": "mcp-authority",
       "from": "mcp-api",
       "to": "company-authority",
-      "label": "解決要求",
+      "label": "resolve",
       "variant": "security",
-      "fromSide": "right",
-      "toSide": "left",
-      "via": [
-        [
-          540,
-          299
-        ],
-        [
-          540,
-          187
-        ]
-      ],
+      "route": "straight",
       "labelAt": [
-        540,
-        235
+        575,
+        210
+      ]
+    },
+    {
+      "id": "git-authority",
+      "from": "git-ssot",
+      "to": "company-authority",
+      "label": "policy version",
+      "variant": "dashed",
+      "route": "straight",
+      "labelAt": [
+        890,
+        210
       ]
     },
     {
       "id": "authority-resolution",
       "from": "company-authority",
       "to": "resolution",
-      "label": "署名済みCanonical Execution Context",
+      "label": "signed context",
       "variant": "emphasis",
       "route": "straight",
-      "fromSide": "bottom",
-      "toSide": "top",
       "labelAt": [
-        705,
-        270
+        785,
+        360
       ]
     },
     {
       "id": "resolution-core",
       "from": "resolution",
       "to": "core-services",
-      "label": "bounded plan / continue / escalate",
+      "label": "bounded plan",
       "variant": "emphasis",
       "route": "straight",
-      "fromSide": "bottom",
-      "toSide": "top",
       "labelAt": [
-        705,
-        457
-      ]
-    },
-    {
-      "id": "authority-postgres",
-      "from": "company-authority",
-      "to": "postgres",
-      "label": "tenant・membership・policy revision",
-      "variant": "security",
-      "fromSide": "right",
-      "toSide": "left",
-      "via": [
-        [
-          845,
-          187
-        ],
-        [
-          845,
-          373
-        ]
-      ],
-      "labelAt": [
-        845,
-        280
+        785,
+        545
       ]
     },
     {
       "id": "resolution-graph",
       "from": "resolution",
       "to": "org-graph",
-      "label": "current facts / Decision / RACI",
+      "label": "current facts",
       "variant": "emphasis",
-      "fromSide": "right",
-      "toSide": "left",
-      "via": [
-        [
-          840,
-          357
-        ],
-        [
-          840,
-          181
-        ]
-      ],
+      "route": "straight",
       "labelAt": [
-        840,
-        270
-      ]
-    },
-    {
-      "id": "resolution-git",
-      "from": "resolution",
-      "to": "git-ssot",
-      "label": "Ontology・policy・runbook version",
-      "variant": "dashed",
-      "fromSide": "right",
-      "toSide": "left",
-      "via": [
-        [
-          1138,
-          357
-        ],
-        [
-          1138,
-          181
-        ]
-      ],
-      "labelAt": [
-        1138,
-        278
+        890,
+        390
       ]
     },
     {
       "id": "core-postgres",
       "from": "core-services",
       "to": "postgres",
-      "label": "Task・Event・Usage・Receipt",
-      "variant": "emphasis",
-      "fromSide": "right",
-      "toSide": "left",
-      "via": [
-        [
-          842,
-          557
-        ],
-        [
-          842,
-          373
-        ]
-      ],
-      "labelAt": [
-        842,
-        482
-      ]
-    },
-    {
-      "id": "core-graph",
-      "from": "core-services",
-      "to": "org-graph",
-      "label": "validated Graph mutation",
+      "label": "ledger",
       "variant": "default",
-      "fromSide": "right",
-      "toSide": "bottom",
-      "via": [
-        [
-          1050,
-          557
-        ],
-        [
-          1050,
-          250
-        ]
-      ],
+      "route": "straight",
       "labelAt": [
-        1050,
-        474
+        585,
+        570
       ]
     },
     {
       "id": "core-external",
       "from": "core-services",
       "to": "external-sors",
-      "label": "authorized connector action + readback",
+      "label": "execute + readback",
       "variant": "security",
       "route": "straight",
       "labelAt": [
-        1118,
-        470
+        890,
+        570
       ]
     },
     {
       "id": "personal-promotion",
       "from": "personal-vault",
       "to": "promotion-gate",
-      "label": "sanitized preview + owner consent",
+      "label": "sanitized candidate",
       "variant": "security",
       "route": "straight",
       "labelAt": [
-        840,
-        670
+        890,
+        725
       ]
     },
     {
-      "id": "promotion-graph",
+      "id": "promotion-core",
       "from": "promotion-gate",
-      "to": "org-graph",
-      "label": "org-accepted distilled fact only",
+      "to": "core-services",
+      "label": "accepted fact",
       "variant": "security",
-      "fromSide": "right",
-      "toSide": "bottom",
-      "via": [
-        [
-          1125,
-          730
-        ],
-        [
-          1125,
-          250
-        ]
-      ],
-      "labelAt": [
-        1125,
-        633
-      ]
-    },
-    {
-      "id": "personal-postgres",
-      "from": "personal-vault",
-      "to": "postgres",
-      "label": "same cluster / separate RLS scope",
-      "variant": "dashed",
-      "fromSide": "top",
-      "toSide": "bottom",
       "route": "straight",
       "labelAt": [
-        1000,
-        565
+        795,
+        710
       ]
     }
   ],
