@@ -89,6 +89,7 @@ const AUTONOMY_REASON_CODES = new Set([
 ]);
 const AUTONOMY_MARKER_PATTERN = /^⚠️ 確認が必要\[([a-z_]+)\]:\s*\S/u;
 const STRUCTURED_STOP_STATE_PATTERN = /^<!-- brainbase-stop-state:(\{.*\}) -->$/u;
+const JUDGMENT_STATE_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_state_record';
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -900,6 +901,26 @@ function taskResultData(response) {
     return nestedRecords(response).find((item) => item.status === 'ok' && record(item.task) && typeof item.task.id === 'string' && item.task.id.trim()) ?? null;
 }
 
+function validJudgmentStopState(value) {
+    const state = record(value);
+    const expectedKeys = ['pending_safe_work', 'runtime_reason_code', 'schema_version', 'status'];
+    if (!state
+        || Object.keys(state).sort().join(',') !== expectedKeys.sort().join(',')
+        || state.schema_version !== 'brainbase-stop-state-v1'
+        || !['completed', 'pending', 'waiting_human'].includes(state.status)
+        || typeof state.pending_safe_work !== 'boolean'
+        || !(state.runtime_reason_code === null || typeof state.runtime_reason_code === 'string')) return null;
+    return state;
+}
+
+function judgmentStopStateData(response) {
+    for (const item of nestedRecords(response)) {
+        const state = validJudgmentStopState(item);
+        if (state) return state;
+    }
+    return null;
+}
+
 function eventKind(toolName) {
     const exactToolName = String(toolName);
     if (exactToolName === CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'].exactTool) return 'route';
@@ -972,6 +993,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : '';
     const toolUseId = typeof payload?.tool_use_id === 'string' ? payload.tool_use_id : '';
     const brainbaseTool = /^mcp__brainbase__/u.test(toolName);
+    const judgmentStateTool = toolName === JUDGMENT_STATE_TOOL_NAME;
     if (!toolName) return null;
     if (!identity) {
         if (brainbaseTool) throw new Error('judgment_episode_identity_missing');
@@ -989,26 +1011,35 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
     const callScope = brainbaseTool ? toolCallScope(toolName, inputValue) : 'tool execution';
     const resultCount = responseCount(responseValue);
-    const fallbackKind = brainbaseTool ? eventKind(toolName) : 'execution';
+    const fallbackKind = judgmentStateTool ? 'state' : brainbaseTool ? eventKind(toolName) : 'execution';
     const retrieval = ['search', 'retrieve'].includes(fallbackKind)
         ? retrievalAudit(responseValue)
         : null;
     const kind = retrieval?.kind ?? fallbackKind;
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
+    const stopState = kind === 'state' ? judgmentStopStateData(responseValue) : null;
+    const requestedStopState = kind === 'state' ? {
+        schema_version: 'brainbase-stop-state-v1',
+        status: record(inputValue)?.status,
+        pending_safe_work: record(inputValue)?.pending_safe_work,
+        runtime_reason_code: record(inputValue)?.runtime_reason_code
+    } : null;
     const success = responseSucceeded(responseValue, {
         allowTransportSuccess: ['search', 'retrieve'].includes(kind),
         allowExplicitSuccess: !['write', 'route'].includes(kind) || !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
         semanticSuccess: kind === 'route'
             ? resolution?.status === 'resolved'
-            : Boolean(taskResult)
+            : kind === 'state'
+                ? Boolean(stopState && canonicalJson(stopState) === canonicalJson(requestedStopState))
+                : Boolean(taskResult)
     });
     const satisfiesKnowledgeExecution = kind === 'route';
     const retrievalResult = success && ['search', 'retrieve'].includes(kind)
         ? retrieval?.outcome ?? null
         : null;
-    const safeMetadata = resolution ? {
+    const safeMetadata = stopState ? { stop_state: stopState } : resolution ? {
         resolution_id: resolution.resolution_id,
         status: resolution.status,
         source_class: resolution.source_class ?? null,
@@ -1025,7 +1056,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             : kind === 'retrieve'
                 ? '取得'
                 : '呼出';
-    const displayLine = !brainbaseTool
+    const displayLine = !brainbaseTool || judgmentStateTool
         ? null
         : kind === 'route'
         ? routeDisplayLine(inputValue, resolution, success)
@@ -1323,6 +1354,14 @@ function runtimeAtLeast(receipt, major, minor) {
 function structuredStopStateRequired(receipt) {
     const classification = record(receipt?.classification);
     return runtimeAtLeast(receipt, 2, 3)
+        && !runtimeAtLeast(receipt, 2, 4)
+        && ['implement', 'operate'].includes(classification?.intent)
+        && ['write', 'external'].includes(classification?.action_kind);
+}
+
+function journalStopStateRequired(receipt) {
+    const classification = record(receipt?.classification);
+    return runtimeAtLeast(receipt, 2, 4)
         && ['implement', 'operate'].includes(classification?.intent)
         && ['write', 'external'].includes(classification?.action_kind);
 }
@@ -1339,16 +1378,11 @@ function parseStructuredStopState(answer) {
     } catch {
         return { state: null, error: 'invalid_json' };
     }
-    const expectedKeys = ['pending_safe_work', 'runtime_reason_code', 'schema_version', 'status'];
-    if (!record(state)
-        || Object.keys(state).sort().join(',') !== expectedKeys.sort().join(',')
-        || state.schema_version !== 'brainbase-stop-state-v1'
-        || !['completed', 'pending', 'waiting_human'].includes(state.status)
-        || typeof state.pending_safe_work !== 'boolean'
-        || !(state.runtime_reason_code === null || typeof state.runtime_reason_code === 'string')) {
+    const validated = validJudgmentStopState(state);
+    if (!validated) {
         return { state: null, error: 'invalid_schema' };
     }
-    return { state, error: null };
+    return { state: validated, error: null };
 }
 
 function requestsUserInput(body) {
@@ -1382,6 +1416,55 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
     const bodyLines = body.split('\n').map((line) => line.trim()).filter(Boolean);
     const markerMatch = bodyLines[0]?.match(AUTONOMY_MARKER_PATTERN) ?? null;
     const markerReason = markerMatch?.[1] ?? null;
+    if (journalStopStateRequired(receipt)) {
+        if (answer?.replaceAll('\r\n', '\n').split('\n').some((line) => STRUCTURED_STOP_STATE_PATTERN.test(line.trim()))) {
+            return { status: null, violation: '回答本文からbrainbase-stop-stateのHTMLコメントを削除し、状態は専用toolだけで記録する' };
+        }
+        const stateEvents = events.filter((event) => event.event_kind === 'state');
+        const latestStateEvent = stateEvents.at(-1) ?? null;
+        const state = validJudgmentStopState(latestStateEvent?.safe_metadata?.stop_state);
+        const exactTool = 'brainbase_judgment_state_record';
+        if (!latestStateEvent || !latestStateEvent.success || !state) {
+            return {
+                status: null,
+                violation: `最終回答を作る前の最後のtool callとして${exactTool}を正確に1回実行し、回答本文には状態を表示しない`,
+                triggerCode: 'unfinished_safe_work'
+            };
+        }
+        if (events.at(-1) !== latestStateEvent) {
+            return {
+                status: null,
+                violation: `${exactTool}をすべての作業・検証後の最後にもう一度実行し、最新の実行状態をjournalへ記録する`,
+                triggerCode: 'unfinished_safe_work', stopState: state
+            };
+        }
+        if (state.status === 'pending' || state.pending_safe_work) {
+            return {
+                status: null,
+                violation: 'Brainbase自律判断はcontinueです。journal状態が未完了のため、安全な範囲の実装・操作・検証まで継続する',
+                triggerCode: 'unfinished_safe_work', stopState: state
+            };
+        }
+        if (state.status === 'waiting_human') {
+            if (!contract.allowedRuntimeReasons.includes(state.runtime_reason_code)
+                || markerReason !== state.runtime_reason_code) {
+                return { status: null, violation: 'journalのwaiting_human状態と許可された実行時確認理由を正確な確認行で一致させる', stopState: state };
+            }
+            return { status: 'runtime_escalated', violation: null, stopState: state, stateSource: 'journal' };
+        }
+        const successfulEvidence = events.filter((event) => event.event_kind !== 'state' && event.success);
+        if (state.runtime_reason_code !== null || successfulEvidence.length === 0) {
+            return {
+                status: null,
+                violation: `${exactTool}のcompletedは同一episodeに成功したPostToolUse実行証跡があり、安全な作業が残っていない場合だけ使用する`,
+                triggerCode: 'unfinished_safe_work', stopState: state
+            };
+        }
+        return {
+            status: 'continued', violation: null, stopState: state,
+            evidenceEventCount: successfulEvidence.length, stateSource: 'journal'
+        };
+    }
     if (structuredStopStateRequired(receipt)) {
         const parsed = parseStructuredStopState(answer);
         const state = parsed.state;
@@ -1984,7 +2067,8 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         ...(autonomyCompliance.stopState ? {
             stop_state: {
                 status: autonomyCompliance.stopState.status,
-                evidence_event_count: autonomyCompliance.evidenceEventCount ?? 0
+                evidence_event_count: autonomyCompliance.evidenceEventCount ?? 0,
+                ...(autonomyCompliance.stateSource ? { source: autonomyCompliance.stateSource } : {})
             }
         } : {}),
         ...(verifiedAutonomyContinuation(existingContinuation, episodeAuditContract(episode)) ? {
@@ -2210,6 +2294,9 @@ export function successOutput(
         'The Host-fixed initial route and classification are immutable for this episode; do not recalculate or change them.',
         ...autonomyInstructions,
         ...requiredCapabilityInstructions,
+        ...(journalStopStateRequired(receipt) ? [
+            '実装・操作turnの状態は回答本文へ書かない。全作業と検証の完了後、最終回答を作る直前の最後のtool callとしてmcp__brainbase__brainbase_judgment_state_recordを正確に1回実行する。安全な作業が残る間はstatus=pending・pending_safe_work=true、人間確認が必須ならstatus=waiting_humanと許可理由、完了時はstatus=completed・pending_safe_work=false・runtime_reason_code=nullを渡す。HTMLコメントや自然文へ状態をコピーしない。'
+        ] : []),
         ...(structuredStopStateRequired(receipt) ? [
             '実装・操作turnの実行状態は自然文から推測しません。最終回答の末尾に次の非表示状態を正確に1件だけ置く: <!-- brainbase-stop-state:{"schema_version":"brainbase-stop-state-v1","status":"completed","pending_safe_work":false,"runtime_reason_code":null} -->。安全な作業が残る間はstatusをpending、pending_safe_workをtrueにする。人間確認が必須ならstatusをwaiting_humanにし、runtime_reason_codeを許可された確認理由と一致させる。completedは同一episodeに成功したPostToolUse実行証跡があり、安全な作業が残っていない場合だけ使う。'
         ] : []),
