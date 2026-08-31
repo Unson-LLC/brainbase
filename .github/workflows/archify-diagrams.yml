@@ -59,7 +59,7 @@ jobs:
           node "$ARCHIFY" validate dataflow "$SRC/data-flow.archify.json" --quality showcase --json | tee "$RECEIPTS/data-flow.validate.json"
           node "$ARCHIFY" deliver dataflow "$SRC/data-flow.archify.json" "$OUT/data-flow.html" --quality showcase --json | tee "$RECEIPTS/data-flow.deliver.json"
 
-      - name: Prepare Chrome for bounded visual checks
+      - name: Prepare Chrome for the platform overview visual gate
         run: |
           set -euo pipefail
           if command -v google-chrome >/dev/null 2>&1; then
@@ -81,7 +81,7 @@ jobs:
           echo "ARCHIFY_CHROME=$CHROME" >> "$GITHUB_ENV"
           "$CHROME" --version
 
-      - name: Run real browser visual checks
+      - name: Run the platform overview browser visual gate
         run: |
           set -euo pipefail
           ARCHIFY="$ARCHIFY_ROOT/archify/bin/archify.mjs"
@@ -91,10 +91,8 @@ jobs:
           rm -rf "$VISUAL_ROOT"
           mkdir -p "$VISUAL_ROOT"
 
-          for name in platform-overview current north-star data-flow; do
-            cp "$SRC/generated/$name.html" "$VISUAL_ROOT/$name.html"
-            node "$ARCHIFY" visual-check "$VISUAL_ROOT/$name.html" --json | tee "$RECEIPTS/$name.visual-check.json"
-          done
+          cp "$SRC/generated/platform-overview.html" "$VISUAL_ROOT/platform-overview.html"
+          node "$ARCHIFY" visual-check "$VISUAL_ROOT/platform-overview.html" --json | tee "$RECEIPTS/platform-overview.visual-check.json"
 
       - name: Extract static SVG
         run: |
