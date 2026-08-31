@@ -64,6 +64,7 @@ const DEFAULT_LOCK_WAIT_MS = 10;
 const NO_BRAINBASE_REFERENCE_LINE = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
 const AUTONOMY_CONTINUATION_PROGRESS_LINE = '🔁 確認不要と判定しました。回答を差し戻して処理を続けています';
 const AUTONOMY_CONTINUATION_COMPLETE_LINE = '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓';
+const STOP_REPAIR_COMPLETE_LINE = '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓';
 const ORPHAN_AUDIT_WARNING = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。';
 const ORPHAN_TOOL_EVENT_WARNING = '⚠️ Brainbase監査未完了: Brainbase tool eventを開始episodeへ結合できませんでした。';
 const CAPABILITY_ACTION_CONTRACTS = Object.freeze({
@@ -1115,6 +1116,8 @@ function buildAuditContract(receipt) {
         autonomy_continuation_progress_line_digest: sha256(AUTONOMY_CONTINUATION_PROGRESS_LINE),
         autonomy_continuation_complete_line: AUTONOMY_CONTINUATION_COMPLETE_LINE,
         autonomy_continuation_complete_line_digest: sha256(AUTONOMY_CONTINUATION_COMPLETE_LINE),
+        stop_repair_complete_line: STOP_REPAIR_COMPLETE_LINE,
+        stop_repair_complete_line_digest: sha256(STOP_REPAIR_COMPLETE_LINE),
         repair_body_policy: 'preserve'
     };
 }
@@ -1132,7 +1135,8 @@ function verifyAuditContract(value) {
     }
     const continuationLinePairs = [
         ['autonomy_continuation_progress_line', 'autonomy_continuation_progress_line_digest'],
-        ['autonomy_continuation_complete_line', 'autonomy_continuation_complete_line_digest']
+        ['autonomy_continuation_complete_line', 'autonomy_continuation_complete_line_digest'],
+        ['stop_repair_complete_line', 'stop_repair_complete_line_digest']
     ];
     for (const [lineField, digestField] of continuationLinePairs) {
         const continuationLine = contract[lineField];
@@ -1165,6 +1169,30 @@ function verifiedAutonomyContinuation(marker, auditContract) {
     return continuation;
 }
 
+function verifiedStopRepair(marker, auditContract) {
+    const repair = record(marker?.stop_repair);
+    if (!repair) return null;
+    if (repair.count !== 1
+        || repair.status !== 'requested'
+        || typeof auditContract?.stop_repair_complete_line !== 'string') {
+        throw new Error('judgment_stop_repair_invalid');
+    }
+    return repair;
+}
+
+function verifyFinalStopRepair(finalized, continuationMarker, auditContract) {
+    if (finalized.schema_version !== 'brainbase-judgment-episode-final-v2') return;
+    const requested = verifiedStopRepair(continuationMarker, auditContract);
+    const completed = record(finalized.stop_repair);
+    if (!requested && !completed) return;
+    if (!requested
+        || !completed
+        || completed.count !== requested.count
+        || completed.status !== 'completed') {
+        throw new Error('judgment_episode_final_stop_repair_mismatch');
+    }
+}
+
 function requiredAuditLines(episode, events, continuationMarker = null) {
     const auditContract = episodeAuditContract(episode);
     const zeroCallLines = events.length === 0 && typeof auditContract?.zero_call_display_line === 'string'
@@ -1174,11 +1202,16 @@ function requiredAuditLines(episode, events, continuationMarker = null) {
     const continuationLines = autonomyContinuation
         ? [auditContract.autonomy_continuation_complete_line]
         : [];
+    const stopRepair = verifiedStopRepair(continuationMarker, auditContract);
+    const stopRepairLines = stopRepair
+        ? [auditContract.stop_repair_complete_line]
+        : [];
     return [
         episode.owner_audit.display_line,
         ...zeroCallLines,
         ...events.map((event) => event.display_line),
-        ...continuationLines
+        ...continuationLines,
+        ...stopRepairLines
     ];
 }
 
@@ -1217,6 +1250,14 @@ function containsUnauthorizedContinuationAudit(answer, expectedLines) {
         .some((line) => /^🔁 /u.test(line) && !allowed.has(line));
 }
 
+function containsUnauthorizedStopRepairAudit(answer, expectedLines) {
+    if (typeof answer !== 'string') return false;
+    const allowed = new Set(expectedLines);
+    return answer.replaceAll('\r\n', '\n').split('\n')
+        .map((line) => line.replace(/[ \t]+$/u, ''))
+        .some((line) => /^🛠️ /u.test(line) && !allowed.has(line));
+}
+
 function normalizedAnswerBody(answer, expectedLines) {
     if (typeof answer !== 'string') return null;
     const auditLines = new Set(expectedLines.map((line) => line.replace(/[ \t]+$/u, '')));
@@ -1225,7 +1266,7 @@ function normalizedAnswerBody(answer, expectedLines) {
         .filter((line) => !auditLines.has(line));
     while (bodyLines.length > 0 && (
         bodyLines[0] === ''
-        || /^(?:🧠 判断参照:|📚 Brainbase|⚠️ Brainbase|🔁 )/u.test(bodyLines[0])
+        || /^(?:🧠 判断参照:|📚 Brainbase|⚠️ Brainbase|🔁 |🛠️ )/u.test(bodyLines[0])
     )) bodyLines.shift();
     while (bodyLines.at(-1) === '') bodyLines.pop();
     return bodyLines.join('\n');
@@ -1642,16 +1683,6 @@ export async function evaluateAutonomyStop(payload, {
     };
 }
 
-function hasAuditContinuation(paths) {
-    try {
-        readJson(paths.continuation);
-        return true;
-    } catch (error) {
-        if (error?.code === 'ENOENT') return false;
-        throw error;
-    }
-}
-
 function finalizeEpisodeLocked(payload, episode, paths, env) {
     const events = episodeEvents(paths);
     let existingContinuation = null;
@@ -1663,6 +1694,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     });
     const finalized = existingFinal(paths, episode);
     if (finalized) {
+        verifyFinalStopRepair(finalized, existingContinuation, episodeAuditContract(episode));
         const qualifyingCount = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve')).length;
         const eventSetDigest = finalized.schema_version === 'brainbase-judgment-episode-final-v1'
             ? sha256(canonicalJson(events.map((entry) => entry.event_fingerprint).sort(compareCodePoints)))
@@ -1673,7 +1705,11 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             throw new Error('judgment_episode_final_event_set_mismatch');
         }
         enqueueFinalKnowledgeEvent(payload, finalized, env);
-        return { output: completedAuditOutput(), final: finalized };
+        return {
+            output: completedAuditOutput(),
+            final: finalized,
+            auditRepairWasAlreadyActive: existingContinuation !== null
+        };
     }
     const requiredKnowledge = requiredKnowledgeResolution(episode.initial_route_receipt);
     const knowledgeExecutionEvents = events.filter((entry) => entry.satisfies.includes('knowledge.resolve'));
@@ -1682,8 +1718,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
     const expectedAuditLines = requiredAuditLines(episode, events, existingContinuation);
     const unauthorizedContinuationAudit = containsUnauthorizedContinuationAudit(answer, expectedAuditLines);
+    const unauthorizedStopRepairAudit = containsUnauthorizedStopRepairAudit(answer, expectedAuditLines);
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines)
-        || unauthorizedContinuationAudit;
+        || unauthorizedContinuationAudit
+        || unauthorizedStopRepairAudit;
     const autonomyCompliance = autonomyAnswerCompliance(answer, expectedAuditLines, episode.initial_route_receipt);
     const missingAutonomyCompliance = autonomyCompliance.violation !== null;
     const auditContract = episodeAuditContract(episode);
@@ -1704,13 +1742,20 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             const shouldBindAnswerBody = !missingKnowledge
                 && missingOwnerAudit
                 && !unauthorizedContinuationAudit
+                && !unauthorizedStopRepairAudit
                 && !missingAutonomyCompliance
                 && episodeAuditContract(episode)?.repair_body_policy === 'preserve';
             const autonomyContract = verifyAutonomyContract(episode.initial_route_receipt);
-            marker = createImmutableJson(paths.continuation, {
+            const markerEntry = {
                 schema_version: 'brainbase-judgment-continuation-v2',
                 requested_at: new Date().toISOString(),
                 missing_capabilities: missingCapabilities,
+                ...(typeof auditContract?.stop_repair_complete_line === 'string' ? {
+                    stop_repair: {
+                        count: 1,
+                        status: 'requested'
+                    }
+                } : {}),
                 ...(autonomyContinuationRequested ? {
                     autonomy_continuation: {
                         count: 1,
@@ -1718,11 +1763,19 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                         reason_code: autonomyContract.reasonCode,
                         status: 'requested'
                     }
-                } : {}),
-                ...(shouldBindAnswerBody ? {
-                    answer_body_binding: buildAnswerBodyBinding(answer, expectedAuditLines)
                 } : {})
-            }, 'judgment_episode_continuation_conflict');
+            };
+            if (shouldBindAnswerBody) {
+                markerEntry.answer_body_binding = buildAnswerBodyBinding(
+                    answer,
+                    requiredAuditLines(episode, events, markerEntry)
+                );
+            }
+            marker = createImmutableJson(
+                paths.continuation,
+                markerEntry,
+                'judgment_episode_continuation_conflict'
+            );
         }
         const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
         const reasons = [
@@ -1733,7 +1786,14 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ...((missingOwnerAudit || missingAutonomyCompliance) ? [
                 `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
             ] : []),
+            ...((missingKnowledge
+                && !missingOwnerAudit
+                && !missingAutonomyCompliance
+                && typeof auditContract?.stop_repair_complete_line === 'string') ? [
+                `Brainbase参照後の最終監査ブロック末尾に「${auditContract.stop_repair_complete_line}」を1回だけ表示する`
+            ] : []),
             ...(unauthorizedContinuationAudit ? ['Hostが記録していない🔁監査行を削除する'] : []),
+            ...(unauthorizedStopRepairAudit ? ['Hostが記録していない🛠️監査行を削除する'] : []),
             ...((missingAnswerBody || (!missingKnowledge && missingOwnerAudit && marker.answer_body_binding)) ? [
                 '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
             ] : []),
@@ -1755,7 +1815,8 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 ...(typeof progressLine === 'string' ? { systemMessage: progressLine } : {})
             },
             continuation: marker,
-            final: null
+            final: null,
+            auditRepairWasAlreadyActive: existingContinuation !== null
         };
     }
     const safeAnswer = sanitizeJudgmentAnswer(answer);
@@ -1778,6 +1839,12 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 status: 'completed'
             }
         } : {}),
+        ...(verifiedStopRepair(existingContinuation, episodeAuditContract(episode)) ? {
+            stop_repair: {
+                ...existingContinuation.stop_repair,
+                status: 'completed'
+            }
+        } : {}),
         answer_digest: answer === null ? null : sha256(answer),
         ...(safeAnswer?.sensitive
             ? { redaction_status: 'needs_redaction' }
@@ -1787,7 +1854,11 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     };
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
     enqueueFinalKnowledgeEvent(payload, final, env);
-    return { output: completedAuditOutput(), final };
+    return {
+        output: completedAuditOutput(),
+        final,
+        auditRepairWasAlreadyActive: existingContinuation !== null
+    };
 }
 
 function enqueueFinalKnowledgeEvent(payload, final, env) {
@@ -2040,22 +2111,19 @@ export async function processHookPayload(payload, dependencies = {}) {
         const autonomyOutput = await evaluateAutonomyStop(payload, dependencies);
         if (autonomyOutput) return autonomyOutput;
 
-        const identity = payloadIdentity(payload);
-        const paths = identity ? journalPaths(identity.sessionRef, identity.turnId, dependencies.env ?? process.env) : null;
-        const auditRepairWasAlreadyActive = paths ? hasAuditContinuation(paths) : false;
-        let output;
+        let result;
         try {
-            output = finalizeEpisode(payload, dependencies).output;
+            result = finalizeEpisode(payload, dependencies);
         } catch (error) {
             if (error?.message !== 'judgment_episode_not_found') throw error;
-            output = handleOrphanStop(payload, dependencies);
+            return handleOrphanStop(payload, dependencies);
         }
         if (payload.stop_hook_active === true
-            && output?.decision === 'block'
-            && auditRepairWasAlreadyActive) {
+            && result.output?.decision === 'block'
+            && result.auditRepairWasAlreadyActive) {
             throw new Error('judgment_stop_repair_exhausted');
         }
-        return output;
+        return result.output;
     }
     return {};
 }

@@ -1076,6 +1076,42 @@ describe('Codex Judgment Resolver Host', () => {
         expect(existsSync(finalPath)).toBe(false);
     });
 
+    it('required knowledgeだけが不足したStop修復でも完了監査行を明示する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-knowledge-only-repair', turn_id: 'turn-knowledge-only-repair',
+            prompt: '正本を確認して答えて', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+                } })
+            })
+        });
+
+        const repair = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '参照前の回答'
+            ].join('\n')
+        }, { env });
+
+        expect(repair.output).toMatchObject({ decision: 'block' });
+        expect(repair.output.reason).toContain(
+            'Brainbase参照後の最終監査ブロック末尾に' +
+            '「🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓」を1回だけ表示する'
+        );
+    });
+
     it('SQLite transition transactionでStopをfinal receiptへ収束させる', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
@@ -1159,12 +1195,14 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 routed.display_line,
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '参照先が未確定だと説明'
             ].join('\n')
         }, { env });
         expect(result.output.systemMessage).toBe([
             episode.owner_audit.display_line,
-            routed.display_line
+            routed.display_line,
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
         ].join('\n'));
         expect(result.final).toMatchObject({
             schema_version: 'brainbase-judgment-episode-final-v2',
@@ -1175,6 +1213,19 @@ describe('Codex Judgment Resolver Host', () => {
             ...routePayload,
             tool_use_id: 'tool-after-final'
         }, { env })).toThrow('judgment_episode_already_finalized');
+
+        rmSync(join(
+            root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.continuation.json`
+        ));
+        expect(() => finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                routed.display_line,
+                '参照先が未確定だと説明'
+            ].join('\n')
+        }, { env })).toThrow('judgment_episode_final_stop_repair_mismatch');
     });
 
     // Traceability: story-brainbase-judgment-audit-fail-closed:ac:6
@@ -1333,20 +1384,60 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env });
         expect(missingZeroCallAudit.output).toMatchObject({ decision: 'block' });
         expect(missingZeroCallAudit.output.reason).toContain('📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓');
+        expect(missingZeroCallAudit.continuation).toMatchObject({
+            stop_repair: { count: 1, status: 'requested' }
+        });
 
         const result = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true,
-            last_assistant_message: `${episode.owner_audit.display_line}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\nこんにちは`
+            last_assistant_message: `${episode.owner_audit.display_line}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\nこんにちは`
         }, { env });
         expect(result.output.systemMessage).toBe([
             episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
         ].join('\n'));
         expect(result.final).toMatchObject({
             completion_status: 'complete', event_count: 0, qualifying_event_count: 0,
-            owner_audit_complete: true, owner_audit_line_count: 2
+            owner_audit_complete: true, owner_audit_line_count: 3,
+            stop_repair: {
+                count: 1,
+                status: 'completed'
+            }
         });
+    });
+
+    it('journalに差し戻しがないturnではAIがStop修復監査を自己申告しても採用しない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-stop-repair-fake', turn_id: 'turn-stop-repair-fake', prompt: '説明して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '🛠️ Stop修復: 最終回答を9回差し戻し → 修復完了 ✓',
+                '完了しました。'
+            ].join('\n')
+        }, { env });
+
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.output.reason).toContain('Hostが記録していない🛠️監査行を削除する');
+        expect(result.final).toBeNull();
     });
 
     it('continueなのに判断質問だけで終了した場合はStopが継続させる', async () => {
@@ -1389,6 +1480,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(result.output.reason).toContain('安全な範囲で作業を継続');
         expect(result.continuation).toMatchObject({
             missing_capabilities: expect.arrayContaining(['autonomy.continuation']),
+            stop_repair: { count: 1, status: 'requested' },
             autonomy_continuation: {
                 count: 1,
                 trigger_code: 'unnecessary_user_question',
@@ -1403,6 +1495,7 @@ describe('Codex Judgment Resolver Host', () => {
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
                 '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '安全な範囲の実装と検証を完了しました。'
             ].join('\n')
         }, { env });
@@ -1410,18 +1503,20 @@ describe('Codex Judgment Resolver Host', () => {
         expect(completed.output.systemMessage).toBe([
             episode.owner_audit.display_line,
             '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓'
+            '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
         ].join('\n'));
         expect(completed.final).toMatchObject({
             completion_status: 'complete',
-            owner_audit_line_count: 3,
+            owner_audit_line_count: 4,
             autonomy_compliance_status: 'continued',
             autonomy_continuation: {
                 count: 1,
                 trigger_code: 'unnecessary_user_question',
                 reason_code: 'routine_in_scope',
                 status: 'completed'
-            }
+            },
+            stop_repair: { count: 1, status: 'completed' }
         });
     });
 
@@ -1621,6 +1716,8 @@ describe('Codex Judgment Resolver Host', () => {
             autonomy_continuation_progress_line_digest: hash('🔁 確認不要と判定しました。回答を差し戻して処理を続けています'),
             autonomy_continuation_complete_line: '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
             autonomy_continuation_complete_line_digest: hash('🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓'),
+            stop_repair_complete_line: '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
+            stop_repair_complete_line_digest: hash('🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'),
             repair_body_policy: 'preserve'
         });
     });
@@ -1717,6 +1814,7 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '修正は完了しました。'
             ].join('\n')
         }, { env });
@@ -1732,16 +1830,18 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 detailedBody
             ].join('\n')
         }, { env });
 
         expect(preserved.output.systemMessage).toBe([
             episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
         ].join('\n'));
         expect(preserved.final).toMatchObject({
-            completion_status: 'complete', owner_audit_line_count: 2
+            completion_status: 'complete', owner_audit_line_count: 3
         });
     });
 
@@ -1783,14 +1883,16 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 answerBody
             ].join('\n')
         }, { env });
         expect(repaired.output.systemMessage).toBe([
             episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
         ].join('\n'));
-        expect(repaired.final).toMatchObject({ completion_status: 'complete', owner_audit_line_count: 2 });
+        expect(repaired.final).toMatchObject({ completion_status: 'complete', owner_audit_line_count: 3 });
     });
 
     it('本文開始後の行頭予約namespaceと行途中の部分文字列を本文bindingへ保持する', async () => {
@@ -1836,6 +1938,7 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '本文開始'
             ].join('\n')
         }, { env });
@@ -1847,12 +1950,14 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 answerBody
             ].join('\n')
         }, { env });
         expect(preserved.output.systemMessage).toBe([
             episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
         ].join('\n'));
         expect(preserved.final).toMatchObject({ completion_status: 'complete' });
     });
@@ -1890,10 +1995,10 @@ describe('Codex Judgment Resolver Host', () => {
 
         const corrected = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
-            last_assistant_message: `${episode.owner_audit.display_line}\n${eventEntry.display_line}\n回答`
+            last_assistant_message: `${episode.owner_audit.display_line}\n${eventEntry.display_line}\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n回答`
         }, { env });
         expect(corrected.final).toMatchObject({
-            completion_status: 'complete', owner_audit_complete: true, owner_audit_line_count: 2
+            completion_status: 'complete', owner_audit_complete: true, owner_audit_line_count: 3
         });
     });
 
@@ -1970,6 +2075,7 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 failed.display_line,
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '参照先を確定できなかった回答'
             ].join('\n')
         }, { env });

@@ -218,6 +218,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 genericLine,
                 routeLine,
                 searchLine,
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '確認後の回答'
             ].join('\n')
         });
@@ -228,7 +229,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             unrelatedLine,
             genericLine,
             routeLine,
-            searchLine
+            searchLine,
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
         ].join('\n');
         expect(JSON.parse(finalStop.stdout)).toEqual({ systemMessage: expectedAuditBlock });
         expect(JSON.parse(finalStopReplay.stdout)).toEqual({ systemMessage: expectedAuditBlock });
@@ -257,8 +259,68 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             event_count: 4,
             qualifying_event_count: 1,
             owner_audit_complete: true,
-            owner_audit_line_count: 5
+            owner_audit_line_count: 6
         });
+    }, 20_000);
+
+    it('同時に到着したactive Stopでも修復要求を1回だけ許可する', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({
+                    management_status: 'managed',
+                    receipt: {
+                        resolution_id: 'jr_concurrent_stop_entrypoint',
+                        turn_id: args.turn_id,
+                        request_digest: hash(canonicalJson(args)),
+                        context_digest: hash(canonicalJson(args.conversation_context)),
+                        status: 'resolved',
+                        host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                        classification: { intent: 'answer', domains: ['knowledge'], action_kind: 'read' },
+                        selected_dag_ids: ['knowledge.v1'],
+                        required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }],
+                        active_node_definitions: [{ id: 'knowledge', kind: 'domain', instruction: 'Resolve knowledge.' }]
+                    }
+                }));
+            });
+        });
+        const identity = { session_id: 'session-concurrent-stop', turn_id: 'turn-concurrent-stop' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`
+        };
+        const started = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT,
+                prompt: 'Brainbaseを確認して'
+            })
+        });
+        expect(started).toMatchObject({ code: 0, stderr: '' });
+
+        const stopInput = JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+            last_assistant_message: '未取得のまま回答'
+        });
+        const results = await Promise.all([
+            run('bash', [wrapper], { env, input: stopInput }),
+            run('bash', [wrapper], { env, input: stopInput })
+        ]);
+
+        expect(results.map((result) => result.code).sort()).toEqual([0, 1]);
+        const allowed = results.find((result) => result.code === 0);
+        const exhausted = results.find((result) => result.code === 1);
+        expect(JSON.parse(allowed.stdout)).toMatchObject({ decision: 'block' });
+        expect(exhausted.stdout).toBe('');
+        expect(exhausted.stderr).toContain('judgment_stop_repair_exhausted');
     }, 20_000);
 
     // Traceability: story-judgment-audit-continuity-v1:ac:3
@@ -613,6 +675,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             last_assistant_message: [
                 '🧠 判断参照: 「正本を確認して」を参照 → Brainbase参照先の判断が必要 ✓',
                 routeLine,
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '参照先を確定できなかった回答'
             ].join('\n')
         }) });
@@ -1182,6 +1245,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             .split('\n').find((line) => line.startsWith('🧠 判断参照:'));
         const zeroCallLine = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
         const completionLine = '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓';
+        const repairLine = '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓';
 
         const blocked = await run('bash', [wrapper], {
             env,
@@ -1204,17 +1268,18 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             env,
             input: JSON.stringify({
                 hook_event_name: 'Stop', ...identity, stop_hook_active: true,
-                last_assistant_message: `${ownerLine}\n${zeroCallLine}\n${completionLine}\n実装と検証を完了しました。`
+                last_assistant_message: `${ownerLine}\n${zeroCallLine}\n${completionLine}\n${repairLine}\n実装と検証を完了しました。`
             })
         });
         expect(completed).toMatchObject({ code: 0, stderr: '' });
         expect(JSON.parse(completed.stdout)).toEqual({
-            systemMessage: `${ownerLine}\n${zeroCallLine}\n${completionLine}`
+            systemMessage: `${ownerLine}\n${zeroCallLine}\n${completionLine}\n${repairLine}`
         });
         expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.final.json`), 'utf8')))
             .toMatchObject({
-                completion_status: 'complete', owner_audit_line_count: 3,
-                autonomy_continuation: { count: 1, trigger_code: 'unnecessary_user_question', status: 'completed' }
+                completion_status: 'complete', owner_audit_line_count: 4,
+                autonomy_continuation: { count: 1, trigger_code: 'unnecessary_user_question', status: 'completed' },
+                stop_repair: { count: 1, status: 'completed' }
             });
     }, 20_000);
 });

@@ -27,6 +27,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(claude).toContain('`judgment_stop_repair_exhausted`で非zero終了し');
         expect(claude).toContain('Brainbase callが0件で参照必須でないturnも0件だったことを明示する');
         expect(claude).toContain('episodeのないorphan Stopも成功へ潰さない');
+        expect(claude).toContain('journalに記録されたStop修復だけを最終監査へ表示し');
     });
 
     it('wrapperがUserPromptSubmit・PostToolUse・Stopのepisode lifecycleを起動する', () => {
@@ -48,6 +49,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('judgment_episode_identity_missing');
         expect(host).toContain('judgment_episode_not_found');
         expect(host).toContain('NO_BRAINBASE_REFERENCE_LINE');
+        expect(host).toContain('STOP_REPAIR_COMPLETE_LINE');
         expect(host).toContain('ORPHAN_AUDIT_WARNING');
         expect(host).toContain("completion_status: 'audit_degraded'");
         expect(host).not.toContain('新しいCodex taskを作り、同じ依頼を送ってください');
@@ -113,6 +115,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(skill).toContain('非zero exit');
         expect(capability).toContain('non-final `audit_degraded` receipt');
         expect(capability).toContain('rejects a late Start for the same identity');
+        expect(capability).toContain('model-authored `🛠️` line without that marker is rejected');
         expect(spec).toContain('rejects a late Start for the same identity');
         expect(architecture).toContain('Codex lifecycle Host adapter');
         expect(architecture).toContain('BEGIN IMMEDIATE');
@@ -128,6 +131,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
         expect(runbook).toContain('SQLite');
         expect(runbook).toContain('active repeated Stop exits non-zero with `judgment_stop_repair_exhausted`');
+        expect(runbook).toContain('🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓');
         expect(runbook).toContain('never fabricates `.final.json` or asks the operator to create a new task');
         expect(runbook).toContain('official `hooks/list` RPC');
         expect(runbook).toContain('Open `/hooks`');
