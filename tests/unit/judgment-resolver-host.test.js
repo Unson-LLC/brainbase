@@ -1440,7 +1440,12 @@ describe('Codex Judgment Resolver Host', () => {
         expect(result.final).toBeNull();
     });
 
-    it('continueなのに判断質問だけで終了した場合はStopが継続させる', async () => {
+    it.each([
+        'どちらの実装にしますか？',
+        'package.jsonを確認すれば分かります。確認しますか？',
+        'こちらで調査しますか？',
+        'このまま作業を続けますか？'
+    ])('continueなのに不要な確認質問「%s」で終了した場合はStopが継続させる', async (question) => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-autonomy-continue', turn_id: 'turn-autonomy-continue', prompt: '修正して', cwd: process.cwd() };
@@ -1469,7 +1474,7 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                'どちらの実装にしますか？'
+                question
             ].join('\n')
         }, { env });
 

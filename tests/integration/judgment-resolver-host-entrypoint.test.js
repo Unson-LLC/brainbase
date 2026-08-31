@@ -1251,7 +1251,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             env,
             input: JSON.stringify({
                 hook_event_name: 'Stop', ...identity, stop_hook_active: false,
-                last_assistant_message: `${ownerLine}\n${zeroCallLine}\nどちらの実装にしますか？`
+                last_assistant_message: `${ownerLine}\n${zeroCallLine}\npackage.jsonを確認すれば分かります。確認しますか？`
             })
         });
         expect(blocked).toMatchObject({ code: 0, stderr: '' });
