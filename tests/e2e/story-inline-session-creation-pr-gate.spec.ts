@@ -73,11 +73,11 @@ test.describe('story-session-launch-picker-startup-composer PR gate evidence', (
     expect(projectCapability).not.toContain('#create-session-modal');
   });
 
-  for (const entrypoint of [
-    { name: 'desktop', selector: '#add-session-btn', viewport: { width: 1280, height: 800 } },
-    { name: 'mobile', selector: '#mobile-new-session-btn', viewport: { width: 390, height: 844 } },
-  ]) {
-    test(`${entrypoint.name} legacy entrypoint shows the Codex notice without session API calls`, async ({ page }) => {
+  test('desktop/mobileの旧入口が移行案内を表示し、Pickerもsession APIも呼ばない', async ({ page }) => {
+    for (const entrypoint of [
+      { name: 'desktop', selector: '#add-session-btn', viewport: { width: 1280, height: 800 } },
+      { name: 'mobile', selector: '#mobile-new-session-btn', viewport: { width: 390, height: 844 } },
+    ]) {
       const sessionRequests: string[] = [];
       page.on('request', (request) => {
         if (new URL(request.url()).pathname.startsWith('/api/sessions')) sessionRequests.push(request.url());
@@ -92,6 +92,6 @@ test.describe('story-session-launch-picker-startup-composer PR gate evidence', (
       const modal = page.locator('#create-session-modal');
       if (await modal.count()) await expect(modal).not.toHaveClass(/active/);
       expect(sessionRequests).toEqual([]);
-    });
-  }
+    }
+  });
 });

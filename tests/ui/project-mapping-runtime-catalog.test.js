@@ -6,7 +6,7 @@ describe('project mapping runtime catalog', () => {
         vi.resetModules();
     });
 
-    it('Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする', async () => {
+    it('Workspace Setupはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする', async () => {
         const calls = [];
         vi.stubGlobal('fetch', vi.fn(async (url) => {
             calls.push(url);

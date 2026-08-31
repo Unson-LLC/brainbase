@@ -2,7 +2,7 @@
 
 認証済みのCLI/API/MCPでProject Catalogが見えない、またはProject Provisioningの完了を確認できない場合に使います。
 
-サーバー側の`session.create`/static endpointとブラウザのSession Launch Pickerはretiredかつ到達不能です。ブラウザのProject Catalog consumerはWorkspace Setupだけです。
+サーバー側の`session.create`/static endpointとSession Launch Pickerはretiredかつ到達不能です。移行期間中は旧NocoDB `START_TASK`互換導線からFocusEngineModalが表示される場合がありますが、エンジン選択後はCodex移行案内へfail-closedし、session APIを呼びません。ブラウザの正式Project Catalog consumerはWorkspace Setupだけです。
 
 ## 1. APIのCatalogを確認する
 
@@ -29,13 +29,15 @@ brainbase project provision verify <run-id>
 
 `status`と`verify`の結果で、Registry、Graph validation、Auth Grant、Repository boundary、runtime catalogの各readbackを個別に確認します。ReceiptやHTTP成功だけでは`active`や`verified: true`と判断しません。未確認・不一致・取得不能が一つでもあれば、完了扱いにせず原因を復旧してから`resume`または再検証します。
 
-## 4. 退役済みSession Launch Pickerの入口を確認する
+## 4. 旧セッション作成導線とFocusEngineModal互換導線を確認する
 
-desktop/mobileの新規セッション操作は`EVENTS.CREATE_SESSION`を発火しますが、現在のhandlerはCodex移行案内へfail-closedします。次を確認します。
+desktop/mobileの新規セッション操作は`EVENTS.CREATE_SESSION`を発火し、現在のhandlerはPickerを開かずCodex移行案内へfail-closedします。NocoDBの旧タスク開始は`EVENTS.START_TASK`を発火し、移行期間中はFocusEngineModalを表示しますが、エンジン選択後は同じ案内へfail-closedします。次を確認します。
 
 - desktopの`#add-session-btn`とmobileの`#mobile-new-session-btn`が同じCodex移行案内を表示する。
-- `#session-launch-picker`と`#create-session-modal`を表示しない。
+- `CREATE_SESSION`では`#session-launch-picker`と`#create-session-modal`を表示しない。
+- NocoDBの`.nocodb-task-start-btn`では`#focus-engine-modal`が表示され、エンジン選択後にCodex移行案内を表示する。
 - `/api/sessions`、`/api/sessions/start`、`/api/sessions/create-with-worktree`を呼ばない。
+- `tests/e2e/story-nocodb-task-start-retirement.spec.js`でNocoDB開始ボタンからエンジン選択後までの実ブラウザ回帰を確認する。
 - `session-creation-mixin.js`の過去実装を現在の受け入れ証拠やProject Catalog consumerとして使わない。
 
 ## 5. Workspace Setupとの境界を確認する

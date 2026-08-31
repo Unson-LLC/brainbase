@@ -25,14 +25,17 @@ updated_at: 2026-09-01
 
 This spec is retained as historical evidence only. Codex app/CLI owns task and
 worktree creation. The Brainbase browser picker and `/api/sessions` creation
-paths are retired and must not be reachable from product entrypoints.
+paths are retired and unreachable. During migration, the old NocoDB
+`START_TASK` path may show FocusEngineModal as a downstream compatibility
+consumer, but engine selection must fail closed to the Codex
+migration notice without calling a session API.
 
 ## Current retirement invariants
 
 - INV-1: `EVENTS.CREATE_SESSION` must not activate `#create-session-modal` or `#session-launch-picker`.
 - INV-2: The create-session event must show the Codex migration notice.
 - INV-3: No reachable Brainbase browser entrypoint may call a retired session creation API.
-- INV-4: Historical picker and composer implementation is frozen compatibility code, not an active capability.
+- INV-4: Historical picker and composer implementation is frozen compatibility code and unreachable; the old NocoDB `START_TASK` route may show FocusEngineModal only as a downstream consumer and must fail closed after engine selection.
 - INV-9: Workspace Setup project candidates come only from the authenticated runtime Catalog; `/api/config` legacy topology never substitutes for it.
 - INV-5: A non-empty Workspace Setup grant matches only exact project ID, explicit alias, or GitHub repository name; prefix/parent/hyphenless inference is forbidden.
 - INV-6: A selectable Workspace Setup project has explicit `local.path`; missing path is disabled and never guessed.
@@ -46,3 +49,4 @@ paths are retired and must not be reachable from product entrypoints.
 - CON-4: Workspace Setup options are sourced from the authenticated runtime Catalog and use exact project ID, explicit alias, or GitHub repository grants only.
 - CON-5: Workspace Setup options without explicit `local.path` are disabled and labeled as requiring Workspace Setup; no path is guessed.
 - CON-6: Auth, transport, Registry, or catalog-source failures expose unavailable/error state and retain only `general`.
+- CON-7: The NocoDB `.nocodb-task-start-btn` path may open FocusEngineModal, but selecting either engine shows the Codex migration notice and does not call `/api/sessions`.

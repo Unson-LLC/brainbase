@@ -5,6 +5,7 @@ purpose: Historical record of retired Brainbase browser and server-side session 
 surfaces:
   ui:
     - "#session-launch-picker (retired and unreachable)"
+    - "#focus-engine-modal (compatibility-only and fail-closed)"
     - "#session-launch-project-select (retired and unreachable)"
   api:
     - POST /api/sessions
@@ -20,13 +21,14 @@ visibility_rules:
   - Do not restore this capability. ADR-019 assigns task and worktree lifecycle to Codex app/CLI.
   - Retired Brainbase-owned session creation and static app endpoints return 410 Gone.
   - EVENTS.CREATE_SESSION shows a migration notice and must not open the legacy picker.
-  - Legacy picker implementation is frozen historical code and is not a product entrypoint.
+  - The legacy Session Launch Picker is frozen historical code and unreachable. During migration, an old NocoDB EVENTS.START_TASK event may open FocusEngineModal as a downstream compatibility consumer; engine selection must show the Codex migration notice and never call a session API.
 verification:
   commands:
-    - npm run test:e2e -- tests/e2e/story-inline-session-creation-pr-gate.spec.ts
+    - npx playwright test --config tests/e2e/project-provisioning.playwright.config.js tests/e2e/story-inline-session-creation-pr-gate.spec.ts tests/e2e/story-nocodb-task-start-retirement.spec.js
   expected:
     - session.create owns every retired picker and session-creation surface.
     - EVENTS.CREATE_SESSION does not call openSessionLaunchPicker.
+    - NocoDB EVENTS.START_TASK may show FocusEngineModal but fails closed after engine selection without calling /api/sessions.
     - project.selector contains only Workspace Setup selector surfaces.
 common_failures:
   - A compatibility route accidentally restores Brainbase-owned task or worktree creation.

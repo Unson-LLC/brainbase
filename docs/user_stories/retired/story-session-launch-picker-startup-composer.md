@@ -28,7 +28,10 @@ session in the background.
 - `EVENTS.CREATE_SESSION` must show a migration notice and must not open the
   legacy picker or call a retired session API.
 - `#session-launch-picker` and its implementation are frozen historical
-  compatibility code, not a reachable product capability.
+  compatibility code and unreachable. During migration, the old NocoDB
+  `START_TASK` path may still show FocusEngineModal; choosing an engine must
+  immediately fail closed to the Codex
+  migration notice without calling a session API.
 - Workspace Setup may still consume the authenticated Project Catalog through
   `#session-project-select`; it does not create projects, tasks, or sessions.
 - Formal project registration uses Project Provisioning Skill/CLI/API/MCP.
@@ -36,6 +39,8 @@ session in the background.
 ## Retirement acceptance criteria
 
 - [ ] Desktop and mobile create-session events cannot reach the legacy picker.
+- [ ] NocoDB task start may show FocusEngineModal, but engine selection
+      reaches the Codex migration notice without calling `/api/sessions`.
 - [ ] The user is directed to create a new task in the Codex app.
 - [ ] The retired capability owns the historical picker/API surfaces.
 - [ ] Workspace Setup remains a read-only downstream Project Catalog consumer.

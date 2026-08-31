@@ -8,8 +8,10 @@ const publicDir = fileURLToPath(new URL("../../public", import.meta.url));
 export default defineConfig({
   testDir: ".",
   testMatch: [
+    "story-codex-appserver-session-create-contract.spec.ts",
     "story-project-runtime-catalog-ux.spec.js",
     "story-inline-session-creation-pr-gate.spec.ts",
+    "story-nocodb-task-start-retirement.spec.js",
   ],
   outputDir: "../../var/test-results/project-provisioning",
   workers: 1,
