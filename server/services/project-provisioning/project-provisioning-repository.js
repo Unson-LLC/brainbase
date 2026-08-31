@@ -112,6 +112,12 @@ export class PgProjectProvisioningRepository {
     }
 
     async findIdentityCollisions(manifest, actor) {
+        if (!this.infoSSOTService?.withAccessContext) {
+            const error = new Error('Graph identity collision check requires scoped InfoSSOT access context');
+            error.code = 'PROJECT_PROVISIONING_GRAPH_CONTEXT_REQUIRED';
+            error.statusCode = 409;
+            throw error;
+        }
         const execute = (client) => client.query(
             `SELECT id, entity_type FROM graph_entities
              WHERE lifecycle_status='active' AND id<>$1
@@ -120,11 +126,9 @@ export class PgProjectProvisioningRepository {
                             WHERE lower(aliases.alias)=lower($2)))`,
             [manifest.project_code, manifest.display_name]
         );
-        const { rows } = this.infoSSOTService?.withAccessContext
-            ? await this.infoSSOTService.withAccessContext(
-                graphAccessFrom(actor, organizationIdFrom(actor)), execute
-            )
-            : await execute(this.pool);
+        const { rows } = await this.infoSSOTService.withAccessContext(
+            graphAccessFrom(actor, organizationIdFrom(actor)), execute
+        );
         return rows;
     }
 

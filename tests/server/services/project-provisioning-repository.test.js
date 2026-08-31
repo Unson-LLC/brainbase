@@ -105,6 +105,19 @@ describe('PgProjectProvisioningRepository', () => {
         }), expect.any(Function));
     });
 
+    it('Graph access contextがない場合は同名衝突を生DBで照会しない', async () => {
+        const query = vi.fn(async () => ({ rows: [] }));
+        const repository = new PgProjectProvisioningRepository({ pool: { query } });
+
+        await expect(repository.findIdentityCollisions({
+            project_code: 'growin-ai', display_name: 'Growin AI'
+        }, { organizationId: 'org_a' })).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_CONTEXT_REQUIRED',
+            statusCode: 409
+        });
+        expect(query).not.toHaveBeenCalled();
+    });
+
     it('resumeだけが5分以上staleなapplying runを原子的に再claimできる', async () => {
         const query = vi.fn(async (sql) => ({
             rows: sql.startsWith('UPDATE project_provisioning_runs') ? [{ run_id: 'ppr_1' }] : []

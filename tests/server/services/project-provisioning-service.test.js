@@ -355,6 +355,44 @@ describe('ProjectProvisioningService', () => {
         expect(repositoryBootstrap.link).not.toHaveBeenCalled();
     });
 
+    it('承認Receiptのmanifest fingerprintが改変された場合はapplyの最初の書き込み前に停止する', async () => {
+        const { service, repository, graphService, authGrantService, repositoryBootstrap } = createHarness();
+        const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-receipt-fingerprint-mutation' });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-fingerprint-receipt'
+        });
+        repository.runs.get(plan.run_id).human_gate_receipt.manifest_fingerprint = 'tampered-receipt-fingerprint';
+        const claimRun = vi.spyOn(repository, 'claimRun');
+
+        await expect(service.apply(actor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_HUMAN_GATE_BINDING_MISMATCH'
+        });
+        expect(claimRun).not.toHaveBeenCalled();
+        expect(repository.projects.size).toBe(0);
+        expect(graphService.applyPlan).not.toHaveBeenCalled();
+        expect(authGrantService.addProjectGrant).not.toHaveBeenCalled();
+        expect(repositoryBootstrap.link).not.toHaveBeenCalled();
+    });
+
+    it('承認Receiptのapproved gate集合が改変された場合はresumeの最初の書き込み前に停止する', async () => {
+        const { service, repository, graphService, authGrantService, repositoryBootstrap } = createHarness();
+        const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-receipt-gate-mutation' });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-gates-receipt'
+        });
+        repository.runs.get(plan.run_id).human_gate_receipt.approved_gates = [];
+        const claimRun = vi.spyOn(repository, 'claimRun');
+
+        await expect(service.resume(actor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_HUMAN_GATE_BINDING_MISMATCH'
+        });
+        expect(claimRun).not.toHaveBeenCalled();
+        expect(repository.projects.size).toBe(0);
+        expect(graphService.applyPlan).not.toHaveBeenCalled();
+        expect(authGrantService.addProjectGrant).not.toHaveBeenCalled();
+        expect(repositoryBootstrap.link).not.toHaveBeenCalled();
+    });
+
     it('承認後にrequired gate集合が改変された場合は最初の書き込み前に停止する', async () => {
         const { service, repository, graphService, authGrantService, repositoryBootstrap } = createHarness();
         const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-gate-set-mutation' });

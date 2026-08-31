@@ -173,6 +173,35 @@ async function setupDatabase() {
             project_codes=EXCLUDED.project_codes,
             clearance=EXCLUDED.clearance,
             active=true;
+
+        INSERT INTO organizations (id, name, workspace_id, projects)
+        VALUES ('org_other', 'Other Integration', 'WS_ORG_OTHER', ARRAY['brainbase'])
+        ON CONFLICT (id) DO NOTHING;
+        INSERT INTO projects (id, code, name, organization_id)
+        VALUES ('project_other', 'other-project', 'Other Project', 'org_other')
+        ON CONFLICT (code) DO UPDATE SET organization_id=EXCLUDED.organization_id;
+        INSERT INTO graph_entities
+            (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+        VALUES
+            ('org_other', 'org', 'project_other', '{"name":"Other Integration"}',
+             'member', 'internal', 'active', 1)
+        ON CONFLICT (id) DO NOTHING;
+        INSERT INTO people (id, name, status)
+        VALUES
+            ('person_inactive', 'Inactive Owner', 'inactive'),
+            ('person_no_grant', 'Owner Without Grant', 'active'),
+            ('person_wrong_workspace', 'Owner With Wrong Workspace', 'active')
+        ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status;
+        INSERT INTO auth_grants
+            (id, person_id, person_name, slack_user_id, slack_workspace_id, role,
+             project_codes, clearance, active)
+        VALUES
+            ('grant_wrong_workspace', 'person_wrong_workspace', 'Owner With Wrong Workspace',
+             'U_WRONG_WORKSPACE', 'WS_ORG_OTHER', 'gm', ARRAY['brainbase'], ARRAY['internal'], true)
+        ON CONFLICT (id) DO UPDATE SET
+            person_id=EXCLUDED.person_id,
+            slack_workspace_id=EXCLUDED.slack_workspace_id,
+            active=true;
     `);
 
     await adminPool.query(`
@@ -293,6 +322,39 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         await adminPool?.end();
         await container?.stop();
         vi.unstubAllEnvs();
+    }, 300_000);
+
+    it('実PostgreSQL authorityは不正組織・組織横断entity・inactive owner・grant欠落/別workspaceを拒否する', async () => {
+        const repository = currentService.repository;
+        const baseManifest = {
+            organization_entity_id: ORGANIZATION_ID,
+            owner_person_id: PERSON_ID
+        };
+
+        await expect(repository.verifyManifestAuthority(baseManifest, {
+            ...actorAccess, organizationId: 'org_missing', tenantId: 'org_missing'
+        })).resolves.toMatchObject({ organization_exists: false });
+        await expect(repository.verifyManifestAuthority({
+            ...baseManifest, organization_entity_id: 'org_other'
+        }, actorAccess)).resolves.toMatchObject({ organization_entity_exists: false });
+        await expect(repository.verifyManifestAuthority({
+            ...baseManifest, owner_person_id: 'person_inactive'
+        }, actorAccess)).resolves.toMatchObject({
+            owner_person_exists: false,
+            owner_has_organization_grant: false
+        });
+        await expect(repository.verifyManifestAuthority({
+            ...baseManifest, owner_person_id: 'person_no_grant'
+        }, actorAccess)).resolves.toMatchObject({
+            owner_person_exists: true,
+            owner_has_organization_grant: false
+        });
+        await expect(repository.verifyManifestAuthority({
+            ...baseManifest, owner_person_id: 'person_wrong_workspace'
+        }, actorAccess)).resolves.toMatchObject({
+            owner_person_exists: true,
+            owner_has_organization_grant: false
+        });
     }, 300_000);
 
     it('acceptance-e2e-full-provisioning-flow-missing: real PostgreSQL/factory flow preserves auth, CSRF, scope, and durable resume', async () => {
