@@ -1490,7 +1490,7 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
-    it('runtime 2.3のcompletedは同一episodeの実行証跡で裏付け、本文中の質問語では誤判定しない', async () => {
+    it('runtime 2.3のcompletedはCodexが文字列で返すBash実行証跡で裏付け、本文中の質問語では誤判定しない', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-structured-complete', turn_id: 'turn-structured-complete', prompt: '検出器を修正して', cwd: process.cwd() };
@@ -1513,9 +1513,9 @@ describe('Codex Judgment Resolver Host', () => {
         });
         const eventEntry = recordBrainbaseToolUse({
             hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
-            tool_name: 'apply_patch', tool_use_id: 'tool-apply-patch',
-            tool_input: { patch_digest: 'safe-test-value' },
-            tool_response: {}
+            tool_name: 'Bash', tool_use_id: 'tool-bash',
+            tool_input: { command_digest: 'safe-test-value' },
+            tool_response: 'brainbase-ui\n'
         }, { env });
         expect(eventEntry).toMatchObject({ event_kind: 'execution', success: true, display_line: null });
 
