@@ -32,11 +32,57 @@ async function snapshot(client) {
   };
 }
 
+async function readRlsState(client, tableName) {
+  return (await client.query(`
+    SELECT c.relrowsecurity, c.relforcerowsecurity,
+           pg_get_userbyid(c.relowner) AS owner,
+           current_user AS current_role,
+           r.rolsuper
+    FROM pg_class c
+    JOIN pg_roles r ON r.rolname = current_user
+    WHERE c.oid = $1::regclass
+  `, [tableName])).rows[0];
+}
+
+async function withPromotionRequestMaintenanceRead(client, work) {
+  const tableName = 'knowledge_promotion_requests';
+  const initial = await readRlsState(client, tableName);
+  if (!initial?.relrowsecurity || !initial?.relforcerowsecurity) {
+    throw new Error(`${tableName} RLS must be ENABLE/FORCE before maintenance read`);
+  }
+  if (!initial.rolsuper && initial.owner !== initial.current_role) {
+    throw new Error(`${tableName} maintenance requires its table owner`);
+  }
+
+  await client.query('BEGIN');
+  try {
+    await client.query(`ALTER TABLE ${tableName} NO FORCE ROW LEVEL SECURITY`);
+    const result = await work();
+    await client.query('ROLLBACK');
+    const restored = await readRlsState(client, tableName);
+    if (!restored?.relrowsecurity || !restored?.relforcerowsecurity) {
+      throw new Error(`${tableName} RLS was not restored after maintenance read`);
+    }
+    return result;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], 'maintenance read and rollback failed');
+    }
+    throw error;
+  }
+}
+
 export function assertPostflight(before, after, targetRows, rls) {
   const targetCount = before.target_request_ids.length;
   const expected = { ...before.status_counts };
   expected.pending_org_review = (expected.pending_org_review || 0) - targetCount;
   expected.pending_owner_approval = (expected.pending_owner_approval || 0) + targetCount;
+  expected.org_accepted = (expected.org_accepted || 0) + (expected.approved || 0);
+  expected.owner_rejected = (expected.owner_rejected || 0) + (expected.rejected || 0);
+  expected.approved = 0;
+  expected.rejected = 0;
   const keys = new Set([...Object.keys(expected), ...Object.keys(after.status_counts)]);
   const errors = [];
   for (const key of ['database', 'role', 'host', 'port']) {
@@ -91,21 +137,23 @@ async function main() {
   const client = await pool.connect();
   try {
   if (mode === 'preflight') {
-    const before = await snapshot(client);
+    const before = await withPromotionRequestMaintenanceRead(client, () => snapshot(client));
     const receipt = { schema_version: 'personal_knowledge_migration_release.v1', status: 'preflight_recorded', target_sha: targetSha, recorded_at: new Date().toISOString(), before };
     await writeReceipt(receiptPath, receipt);
     console.log(JSON.stringify({ status: receipt.status, target_sha: targetSha, target_count: before.target_request_ids.length, total: before.total, receipt_path: receiptPath }));
   } else {
     const receipt = JSON.parse(await fs.readFile(receiptPath, 'utf8'));
     assertReceiptBinding(receipt, targetSha);
-    const after = await snapshot(client);
     const ids = receipt.before.target_request_ids;
-    const targetRows = ids.length === 0 ? [] : (await client.query(`
-      SELECT request_id, status, owner_decided_by, owner_decided_at, owner_consent_receipt_id, decided_at,
-             normalization_contract_version, normalized_payload, normalized_payload_hash,
-             normalized_by_person_id, normalized_at
-      FROM knowledge_promotion_requests WHERE request_id = ANY($1::text[]) ORDER BY request_id
-    `, [ids])).rows;
+    const { after, targetRows } = await withPromotionRequestMaintenanceRead(client, async () => ({
+      after: await snapshot(client),
+      targetRows: ids.length === 0 ? [] : (await client.query(`
+        SELECT request_id, status, owner_decided_by, owner_decided_at, owner_consent_receipt_id, decided_at,
+               normalization_contract_version, normalized_payload, normalized_payload_hash,
+               normalized_by_person_id, normalized_at
+        FROM knowledge_promotion_requests WHERE request_id = ANY($1::text[]) ORDER BY request_id
+      `, [ids])).rows
+    }));
     const rls = (await client.query("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = 'knowledge_promotion_authority_uses'::regclass")).rows[0];
     assertPostflight(receipt.before, after, targetRows, rls);
     const completed = { ...receipt, status: 'passed', completed_at: new Date().toISOString(), after, rls: { enabled: rls.relrowsecurity, forced: rls.relforcerowsecurity } };

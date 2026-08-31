@@ -1,0 +1,117 @@
+name: Render Brainbase Archify diagrams
+
+on:
+  push:
+    branches:
+      - develop
+      - 'docs/archify-*'
+    paths:
+      - docs/architecture/diagrams/*.archify.json
+      - .github/workflows/archify-diagrams.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[archify-generated]')
+    runs-on: [self-hosted, Linux, X64, wsl-linux]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Fetch pinned Archify
+        run: |
+          rm -rf /tmp/archify-repo
+          git clone --quiet https://github.com/tt-a1i/archify.git /tmp/archify-repo
+          git -C /tmp/archify-repo checkout --quiet 5de7275fe87a66a19d52a4d9b0b3a4f2a5a90115
+          node /tmp/archify-repo/archify/bin/archify.mjs doctor
+
+      - name: Validate and deliver diagrams
+        run: |
+          set -euo pipefail
+          ARCHIFY=/tmp/archify-repo/archify/bin/archify.mjs
+          SRC=docs/architecture/diagrams
+          OUT=${SRC}/generated
+          RECEIPTS=${SRC}/receipts
+          mkdir -p "$OUT" "$RECEIPTS"
+
+          node "$ARCHIFY" validate architecture "$SRC/current.archify.json" --quality showcase --json | tee "$RECEIPTS/current.validate.json"
+          node "$ARCHIFY" deliver architecture "$SRC/current.archify.json" "$OUT/current.html" --quality showcase --json | tee "$RECEIPTS/current.deliver.json"
+
+          node "$ARCHIFY" validate architecture "$SRC/north-star.archify.json" --quality showcase --json | tee "$RECEIPTS/north-star.validate.json"
+          node "$ARCHIFY" deliver architecture "$SRC/north-star.archify.json" "$OUT/north-star.html" --quality showcase --json | tee "$RECEIPTS/north-star.deliver.json"
+
+          node "$ARCHIFY" validate dataflow "$SRC/data-flow.archify.json" --quality showcase --json | tee "$RECEIPTS/data-flow.validate.json"
+          node "$ARCHIFY" deliver dataflow "$SRC/data-flow.archify.json" "$OUT/data-flow.html" --quality showcase --json | tee "$RECEIPTS/data-flow.deliver.json"
+
+      - name: Run bounded visual checks
+        run: |
+          set -euo pipefail
+          ARCHIFY=/tmp/archify-repo/archify/bin/archify.mjs
+          SRC=docs/architecture/diagrams
+          RECEIPTS=${SRC}/receipts
+          TMP=/tmp/archify-visual-check
+          rm -rf "$TMP"
+          mkdir -p "$TMP"
+
+          for name in current north-star data-flow; do
+            cp "$SRC/generated/$name.html" "$TMP/$name.html"
+            set +e
+            node "$ARCHIFY" visual-check "$TMP/$name.html" --json > "$RECEIPTS/$name.visual-check.json"
+            status=$?
+            set -e
+            if [ "$status" -eq 1 ]; then
+              cat "$RECEIPTS/$name.visual-check.json"
+              exit 1
+            fi
+            if [ "$status" -eq 2 ]; then
+              echo "Visual check skipped because Chrome/Chromium was unavailable: $name"
+            fi
+          done
+
+      - name: Extract static SVG
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const dir = 'docs/architecture/diagrams/generated';
+          for (const name of ['current', 'north-star', 'data-flow']) {
+            const html = fs.readFileSync(path.join(dir, `${name}.html`), 'utf8');
+            const match = html.match(/<svg\b[\s\S]*?<\/svg>/i);
+            if (!match) throw new Error(`No SVG found in ${name}.html`);
+            const styles = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)]
+              .map((item) => item[1])
+              .join('\n');
+            const svg = match[0].replace(/<svg\b([^>]*)>/i, (_all, attrs) =>
+              `<svg${attrs}><style><![CDATA[${styles}]]></style>`
+            );
+            fs.writeFileSync(path.join(dir, `${name}.svg`), svg);
+          }
+          NODE
+
+          test -s docs/architecture/diagrams/generated/current.svg
+          test -s docs/architecture/diagrams/generated/north-star.svg
+          test -s docs/architecture/diagrams/generated/data-flow.svg
+
+      - name: Commit generated artifacts
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/architecture/diagrams/generated docs/architecture/diagrams/receipts
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+            exit 0
+          fi
+          git commit -m "docs: render Brainbase Archify diagrams [archify-generated]"
+          git push origin HEAD:${{ github.ref_name }}

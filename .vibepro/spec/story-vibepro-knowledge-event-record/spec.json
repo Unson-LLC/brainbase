@@ -1,0 +1,165 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-vibepro-knowledge-event-record",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "implementation"
+  },
+  "clauses": [
+    {
+      "id": "UVKE-001",
+      "type": "invariant",
+      "statement": "brainbase_knowledge_event_record validates a strict VibePro knowledge_event.v1 and rejects any Graph-promotion or external-action authority before authentication or API mutation.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-1",
+            "text_snippet": "publishes brainbase_knowledge_event_record as a write tool"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-2",
+            "text_snippet": "accepts only a strict knowledge_event.v1 development-learning candidate"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-3",
+            "text_snippet": "recalculates the payload hash and deterministic event ID"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-story-vibepro-knowledge-event-record.md",
+            "section": "Decision"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/tools/knowledge-event-tools.ts",
+            "anchor": "validateVibeProKnowledgeEvent"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/knowledge-event-tools.test.ts",
+            "case": "fails before authentication when body hash or authority is tampered"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/tools/knowledge-event-tools.test.ts",
+            "must_cover": "authority is tampered"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T00:00:00.000Z",
+      "last_revised_at": "2026-08-31T00:00:00.000Z"
+    },
+    {
+      "id": "UVKE-002",
+      "type": "invariant",
+      "statement": "The adapter authenticates the exact project and posts the unchanged validated event to the existing /api/knowledge/events authority.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-4",
+            "text_snippet": "resolved through the existing authenticated project scope"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-8",
+            "text_snippet": "existing Knowledge Event service remains the persistence authority"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-story-vibepro-knowledge-event-record.md",
+            "section": "Runtime flow"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/tools/knowledge-event-tools.ts",
+            "anchor": "handleKnowledgeEventToolCall"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/knowledge-event-tools.test.ts",
+            "case": "validates and records the exact event through the authenticated project API"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/tools/knowledge-event-tools.test.ts",
+            "must_cover": "authenticated project API"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T00:00:00.000Z",
+      "last_revised_at": "2026-08-31T00:00:00.000Z"
+    },
+    {
+      "id": "UVKE-003",
+      "type": "invariant",
+      "statement": "A successful backend receipt must identify the same event, an active retrievable candidate, and no Graph entity; any divergence fails closed.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-5",
+            "text_snippet": "must preserve the same event ID"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-6",
+            "text_snippet": "idempotent API replay returns already_recorded"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-7",
+            "text_snippet": "candidate_only=true, graph_promoted=false"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-story-vibepro-knowledge-event-record.md",
+            "section": "Decision"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/tools/knowledge-event-tools.ts",
+            "anchor": "validBackendResult"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/knowledge-event-tools.test.ts",
+            "case": "fails closed when the backend reports Graph promotion or incomplete indexing"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/tools/knowledge-event-tools.test.ts",
+            "must_cover": "backend reports Graph promotion"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-31T00:00:00.000Z",
+      "last_revised_at": "2026-08-31T00:00:00.000Z"
+    }
+  ],
+  "generated_at": "2026-08-31T00:00:00.000Z"
+}

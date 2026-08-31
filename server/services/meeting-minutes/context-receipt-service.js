@@ -179,9 +179,11 @@ export class JsonFileMeetingMinutesContextReceiptRepository {
         }
     }
 
-    async put(receipt) {
+    async put(receipt, scope = null) {
         const receipts = await this.readAll();
-        const next = [...receipts.filter((item) => item.receipt_id !== receipt.receipt_id), receipt];
+        const scopedReceipt = scope ? { ...receipt, _tenant_scope: scope } : receipt;
+        const sameScope = (item) => JSON.stringify(item._tenant_scope ?? null) === JSON.stringify(scope);
+        const next = [...receipts.filter((item) => item.receipt_id !== receipt.receipt_id || !sameScope(item)), scopedReceipt];
         const dir = path.dirname(this.filePath);
         await mkdir(dir, { recursive: true, mode: 0o700 });
         await chmod(dir, 0o700);
@@ -193,9 +195,19 @@ export class JsonFileMeetingMinutesContextReceiptRepository {
         return receipt;
     }
 
-    async get(receiptId) {
-        return (await this.readAll()).find((item) => item.receipt_id === receiptId) || null;
+    async get(receiptId, scope = null) {
+        const stored = (await this.readAll()).find((item) => item.receipt_id === receiptId
+            && JSON.stringify(item._tenant_scope ?? null) === JSON.stringify(scope));
+        if (!stored) return null;
+        const { _tenant_scope: _scope, ...receipt } = stored;
+        return receipt;
     }
+}
+
+function tenantProjectScope(actor) {
+    if (typeof actor?.tenant_id !== 'string' || !actor.tenant_id
+        || typeof actor?.project_id !== 'string' || !actor.project_id) return null;
+    return { tenant_id: actor.tenant_id, project_id: actor.project_id };
 }
 
 export class MeetingMinutesContextReceiptService {
@@ -209,6 +221,7 @@ export class MeetingMinutesContextReceiptService {
     async create(input, actor = {}) {
         const identity = normalizeIdentity(input);
         assertProjectAccess(actor, identity.project_code);
+        const scope = tenantProjectScope(actor);
         const errors = [];
         let graph = null;
         let tasks = null;
@@ -218,7 +231,10 @@ export class MeetingMinutesContextReceiptService {
                 entityTypes: GRAPH_ENTITY_TYPES,
                 limit: MAX_ENTITIES,
                 humanReadable: false,
-                includeEdges: true,
+                // Meeting-minutes generation consumes canonical entities and tasks, not
+                // the workspace-wide edge set. Fetching every edge makes this endpoint
+                // scale with the whole Graph and can exceed the caller deadline.
+                includeEdges: false,
                 includePhilosophy: false,
                 scope: 'meeting_minutes_generation'
             });
@@ -263,7 +279,7 @@ export class MeetingMinutesContextReceiptService {
                 ? 'partial'
                 : isEmpty ? 'confirmed_empty' : 'resolved';
         const resolvedAt = this.clock().toISOString();
-        const receiptId = `mmctx_${digest(identity).slice(0, 32)}`;
+        const receiptId = `mmctx_${digest(scope ? { identity, scope } : identity).slice(0, 32)}`;
         const base = {
             schema_version: 'meeting_minutes_context_receipt.v1',
             receipt_id: receiptId,
@@ -283,13 +299,13 @@ export class MeetingMinutesContextReceiptService {
         };
         const receipt = boundedReceipt({ ...base, checksum: digest(base) });
         receipt.checksum = digest({ ...receipt, checksum: undefined });
-        return this.repository.put(receipt);
+        return this.repository.put(receipt, scope);
     }
 
     async get(receiptId, input, actor = {}) {
         const identity = normalizeIdentity(input);
         assertProjectAccess(actor, identity.project_code);
-        const receipt = await this.repository.get(receiptId);
+        const receipt = await this.repository.get(receiptId, tenantProjectScope(actor));
         if (!receipt) {
             throw new MeetingMinutesContextReceiptError(
                 'meeting_minutes_context_receipt_not_found',

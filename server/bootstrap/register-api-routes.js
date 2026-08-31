@@ -423,13 +423,14 @@ export function registerApiRoutes(app, {
         '/api/meeting-minutes/context-receipts',
         workflowAuthGuard,
         createMeetingMinutesContextReceiptRouter({
-            service: new MeetingMinutesContextReceiptService({
-                infoSSOTService,
-                canonicalTaskService,
-                repository: new JsonFileMeetingMinutesContextReceiptRepository({
-                    filePath: path.join(runtimePaths.varDir, 'meeting-minutes-context-receipts.json')
+            service: tenantRuntimeServices?.meetingMinutesContextReceiptService
+                ?? new MeetingMinutesContextReceiptService({
+                    infoSSOTService,
+                    canonicalTaskService,
+                    repository: new JsonFileMeetingMinutesContextReceiptRepository({
+                        filePath: path.join(runtimePaths.varDir, 'meeting-minutes-context-receipts.json')
+                    })
                 })
-            })
         })
     );
     if (routineCycleExecutor) {

@@ -66,7 +66,9 @@ describe('completed judgment episode knowledge event adapter', () => {
         const auditPrefix = [
             '🧠 判断参照: 「記憶循環」を参照 → 実装として確認 ✓',
             '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            '⚠️ 注意: 部分確認 ✓'
+            '⚠️ 注意: 部分確認 ✓',
+            '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
         ].join('\n');
         const body = `安全な回答本文:${'あ'.repeat(2500)}`;
         const event = toKnowledgeEventFromJudgmentEpisode(completedEpisode({
@@ -78,6 +80,8 @@ describe('completed judgment episode knowledge event adapter', () => {
         expect(event.payload.summary).not.toContain('🧠 判断参照');
         expect(event.payload.summary).not.toContain('📚 Brainbase');
         expect(event.payload.summary).not.toContain('⚠️ 注意');
+        expect(event.payload.summary).not.toContain('🔁 自律継続');
+        expect(event.payload.summary).not.toContain('🛠️ Stop修復');
     });
 
     it.each([

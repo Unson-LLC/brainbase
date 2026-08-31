@@ -2,7 +2,10 @@ id: judgment.resolve
 name: Host judgment episode lifecycle
 purpose: Open one context-bound judgment episode before model generation, record 0..N actual Brainbase calls, finalize one auditable episode receipt at Stop, and expose only the selected active DAG without authorizing the eventual action.
 surfaces:
-  ui: []
+  ui:
+    - Codex in-progress systemMessage when Stop rejects an unnecessary user question
+    - Final owner audit line for a journal-proven autonomy continuation
+    - Final Stop repair audit line only when the immutable continuation journal proves one completed repair
   mcp: []
   host:
     - UserPromptSubmit -> POST http://127.0.0.1:39002/host/judgment/resolve
@@ -14,6 +17,9 @@ surfaces:
     - scripts/codex-hooks/judgment-resolver-entry.sh
     - scripts/codex-hooks/judgment-resolver-host.mjs
     - scripts/check-codex-judgment-hook-readiness.mjs
+    - scripts/launchd/brainbase-runtime-target.sh
+    - scripts/launchd/brainbase-ui-start.sh
+    - scripts/launchd/brainbase-runtime-update.sh
     - mcp/brainbase/src/server.ts
     - mcp/brainbase/src/tools/judgment-resolution-tools.ts
     - mcp/brainbase/src/tools/judgment-host-contract.ts
@@ -35,6 +41,8 @@ visibility_rules:
   - Non-follow-up input with no explicit specialist domain or intent match uses the server-owned `general/answer` fallback; unresolved follow-up references or knowledge routes missing required project context use the clarification DAG.
   - UserPromptSubmit adopts exactly one initial route receipt; retries are bounded before episode creation and no reclassification occurs afterwards.
   - The Host fixes the initial route and classification. When `knowledge.resolve` is required, UserPromptSubmit explicitly names the allowed exact tool `mcp__brainbase__brainbase_knowledge_resolve`, explains that it selects the canonical source and next retrieval path without retrieving the answer body, and distinguishes it from route reclassification. Stop repair uses the same capability-action contract.
+  - The Resolver deterministically fixes autonomy_decision as continue or escalate in the initial receipt. Stop verifies answer compliance without asking another model to re-grade the task; the legacy Stop-time model evaluator is used only for already-open legacy receipts during rollout.
+  - Continue completes low/medium-risk in-scope work without preference or just-in-case questions. It may escalate at runtime only for irreversible action, missing authority, an owner-only value choice, unavailable required input, or an evidenced terminal blocker. Escalate requires one exact reason-marked confirmation and never authorizes the action.
   - The current Codex model is the open-ended LLM in the execution loop. It decides how to answer inside the selected DAG and may formulate, refine, and call Brainbase knowledge/retrieval tools 0..N times as results create new questions; there is no one-call-per-turn limit.
   - Claude Code is a future Host-adapter candidate for the same responsibility split, but is not part of the current episode-lifecycle hook integration.
   - Knowledge Resolver deterministically chooses a canonical source route and required retrieval capability; it does not search or retrieve content.
@@ -42,7 +50,8 @@ visibility_rules:
   - Only successful exact `mcp__brainbase__brainbase_knowledge_resolve` calls satisfy a required `knowledge.resolve`; unrelated or failed calls do not.
   - Same-turn episode start, PostToolUse commits, and Stop finalization share a per-turn SQLite immediate transaction; concurrent calls receive a unique event sequence in journal-commit order, and process exit releases the lock without stale-path deletion.
   - UserPromptSubmit stores the exact Stop audit contract in the episode. A runtime deployment during an active turn cannot add a new owner-visible line or repair policy to that already-open episode.
-  - Stop verifies that the final answer begins with the stored owner judgment line and every stored Brainbase event line exactly in journal-commit order, then finalizes one complete episode receipt. A missing required route or invalid owner-visible prefix returns `decision:block` on the first repairable Stop and writes no final receipt. If the active repeated Stop is still incomplete, it exits non-zero with `judgment_stop_repair_exhausted`. When knowledge is optional and zero Brainbase calls were recorded, the episode-bound prefix explicitly reports zero calls. Audit-only repair stores only the normalized non-audit body digest and character count after removing the leading Host audit namespace block, including malformed variants, then rejects a corrected prefix if the business body was deleted, summarized, or replaced. Orphan Stop and transaction-acquisition timeout remain terminal fail-closed errors.
+  - Stop verifies that the final answer begins with the stored owner judgment line and every stored Brainbase event line exactly in journal-commit order, then finalizes one complete episode receipt. When a continue receipt rejects an unnecessary user question, the first Stop emits the short Host-generated `🔁` in-progress systemMessage and stores count, trigger, reason, and requested status in the immutable continuation journal. The retry must include the episode-bound `🔁 自律継続` completion line; only then does final record completed status. Every repairable Stop rejection also records one Host-owned `stop_repair` marker. A completed retry must therefore include `🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓`; a model-authored `🛠️` line without that marker is rejected. A model-authored `🔁` line without matching journal evidence is rejected. A missing required route or invalid owner-visible prefix returns `decision:block` on the first repairable Stop and writes no final receipt. If the active repeated Stop for an existing episode is still incomplete, it exits non-zero with `judgment_stop_repair_exhausted`. A true orphan Stop requests one warning-preserving repair, then exits 0 with a non-final `audit_degraded` receipt; that immutable barrier rejects a late Start for the same identity. Missing identity, diagnostic or degraded integrity conflict, and transaction-acquisition timeout remain terminal fail-closed errors. When knowledge is optional and zero Brainbase calls were recorded, the episode-bound prefix explicitly reports zero calls. Audit-only repair stores only the normalized non-audit body digest and character count after removing the leading Host audit namespace block, including malformed variants, then rejects a corrected prefix if the business body was deleted, summarized, or replaced.
+  - For implement/operate requests, Stop also rejects a final answer that only describes a pending remediation target or future fix without completion or no-change evidence. It stores trigger `unfinished_safe_work`, uses the owner-visible `🔁 未完了` progress line, and requires the episode-bound `🔁 実行継続` completion line. This completion contract does not claim semantic content verification.
   - Static Hook definitions are only installed state. Codex Host hooks/list must report all three current bindings as trusted and matcher-correct before the checker returns ready_for_fresh_task. Modified or untrusted definitions are trust_required; the owner approves them through /hooks, and only a task created afterwards can provide proven_active live evidence. Repository code never writes trusted_hash.
   - Each active node has a manifest-owned executable definition; only selected branches run.
   - A managed clarification receipt continues to model generation and selects the clarification DAG.
@@ -62,13 +71,17 @@ verification:
     - Host preserves exact ordered user/assistant text and removes host envelopes and tool internals structurally.
     - The same turn reuses its initial route without another Resolver request.
     - Multiple distinct Brainbase calls create multiple immutable events; replay creates no duplicate.
-    - The final user-visible answer starts with the stored owner judgment and tool-event lines exactly in journal-commit order; the final receipt answer digest binds that rendered message.
+    - The final user-visible answer starts with the stored owner judgment and tool-event lines exactly in journal-commit order. The final receipt answer digest binds the exact Stop Hook-visible answer body; transcript comparison may exclude only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block added later by the Codex application. An incomplete, embedded, or multiple citation block remains part of the digest comparison and fails closed on mismatch.
     - The Stop audit contract is bound at episode start, and an audit-only continuation cannot complete after shortening the original non-audit answer body.
     - Raw tool input/output and secret-like values are absent from journals and owner-visible lines.
     - Zero Brainbase calls is complete when no Brainbase capability is required.
+    - A continue receipt rejects an unnecessary user decision request, accepts completion with an optional follow-up offer, and accepts only exact allowed runtime-escalation reasons. An escalate receipt requires the Resolver reason marker at the start of the answer body.
+    - An unnecessary-question rejection emits exactly one short in-progress `systemMessage`; its final `🔁` audit line and count are accepted only from the immutable continuation journal. Normal turns emit neither line, and an incomplete active retry never emits a completion line.
+    - A completed Stop repair emits one final `🛠️` audit line only from the immutable `stop_repair` marker. A normal turn emits no repair line, and an unjournaled model-authored repair claim is rejected.
     - Required `knowledge.resolve` is complete only after a successful exact route call.
-    - A replayed complete Stop reuses the same final receipt; an evidence-incomplete active repeated Stop exits non-zero with `judgment_stop_repair_exhausted`, while an orphan Stop also fails non-zero. Neither writes a final.
+    - A replayed complete Stop reuses the same final receipt; an evidence-incomplete active repeated Stop for an existing episode exits non-zero with `judgment_stop_repair_exhausted`, while a true orphan Stop converges to non-final `audit_degraded` with exit 0 and rejects a late Start for the same identity. Neither writes a fabricated final.
     - Current Codex Hook trust is ready_for_fresh_task before live verification, and proven_active evidence comes from a task created after owner trust approval.
+    - Local UI/MCP rollback uses the shared disposable runtime and a validated full-SHA pin that launchd start and periodic update both honor; missing roots, root mismatches, invalid pins, and unavailable commits fail closed without modifying the canonical checkout.
 common_failures:
   - Asking the model to call Resolver after generation has already begun.
   - Describing an internal "Resolver LLM" even though the current Resolver is deterministic and the Codex model owns open-ended investigation.
@@ -77,6 +90,7 @@ common_failures:
   - Treating one network attempt or one tool call as the per-turn invariant.
   - Treating brainbase_project_not_accessible as a reason judgment cannot run.
   - Adding a second Judgment-specific action guard that re-judges the receipt.
+  - Calling an LLM at Stop to decide again whether routine work should continue after a new Resolver receipt already fixed autonomy_decision.
 runbooks:
   - ../runbooks/judgment-resolve.md
 troubleshooting: []

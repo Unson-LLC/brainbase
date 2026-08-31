@@ -82,6 +82,8 @@ describe('Cloudflare tenant runtime private bridge', () => {
         '/api/v1/runtime/tenant-context:resolve',
         '/api/v1/runtime/workspace-connections:validate-revision',
         '/api/v1/runtime/credential-leases',
+        '/api/v1/runtime/meeting-minutes/context-receipts:create',
+        '/api/v1/runtime/meeting-minutes/context-receipts:get',
         '/api/v1/runtime/quota:decide',
         '/api/v1/runtime/usage-events',
         '/api/v1/runtime/operation-receipts:finalize',
@@ -241,5 +243,18 @@ describe('Cloudflare tenant runtime private bridge', () => {
         expect(response.status).toBe(409);
         expect(response.headers.get('content-type')).toContain('application/problem+json');
         await expect(response.text()).resolves.toBe(problemBody);
+    });
+
+    it('buffers the complete upstream body before returning it downstream', async () => {
+        const upstream = new Response('{"valid":true,"authoritative":true}', {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+        });
+        const fetchImpl = vi.fn(async () => upstream);
+
+        const response = await handleTenantRuntimeBridgeRequest(request(), ENV, { fetchImpl });
+
+        expect(upstream.bodyUsed).toBe(true);
+        await expect(response.text()).resolves.toBe('{"valid":true,"authoritative":true}');
     });
 });

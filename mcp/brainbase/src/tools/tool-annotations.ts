@@ -36,6 +36,7 @@ const WRITE_TOOL_NAMES = new Set([
   'brainbase_onboarding_ingest',
   'brainbase_onboarding_review',
   'brainbase_onboarding_first_value',
+  'brainbase_knowledge_event_record',
   'create_task',
   'update_task',
   'transition_task',

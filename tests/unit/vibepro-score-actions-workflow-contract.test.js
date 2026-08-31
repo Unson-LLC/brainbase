@@ -6,6 +6,7 @@ import yaml from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const selfHostedLinuxRunner = ['self-hosted', 'Linux', 'X64', 'wsl-linux'];
 
 function loadWorkflow() {
   return yaml.load(fs.readFileSync(
@@ -15,7 +16,7 @@ function loadWorkflow() {
 }
 
 describe('VibePro Score Actions workflow contract', () => {
-  it('GitHub-hosted runnerで最小権限・push履歴を保つ排他・キャッシュ無効を固定する', () => {
+  it('Linuxセルフホストrunnerで最小権限・push履歴を保つ排他・キャッシュ無効を固定する', () => {
     const workflow = loadWorkflow();
     const job = workflow.jobs['score-evidence'];
 
@@ -29,7 +30,7 @@ describe('VibePro Score Actions workflow contract', () => {
     expect(workflow.on.pull_request.paths).toContain('docs/guides/github-actions-cicd-operating-guide.md');
     expect(workflow.on.pull_request.paths).not.toContain('_codex/common/ops/scheduled-jobs.md');
 
-    expect(job['runs-on']).toBe('ubuntu-latest');
+    expect(job['runs-on']).toEqual(selfHostedLinuxRunner);
     expect(job['timeout-minutes']).toBe(10);
     expect(job.env.GITHUB_EVENT_BEFORE).toBe('${{ github.event.before }}');
     const checkout = job.steps.find((step) => step.uses === 'actions/checkout@v5');

@@ -20,7 +20,7 @@ jobs:
   pr-graph-ssot:
     if: github.event_name == 'pull_request'
     name: Verify VibePro Graph SSOT before merge
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux]
     timeout-minutes: 10
 
     env:
@@ -70,7 +70,7 @@ jobs:
   post-merge-ontology:
     if: github.event_name == 'push'
     name: Verify Ontology after push
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux]
     timeout-minutes: 10
 
     steps:
@@ -97,7 +97,7 @@ jobs:
   scheduled-graph-ssot:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     name: Verify scheduled VibePro Graph SSOT drift
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux]
     timeout-minutes: 10
 
     env:

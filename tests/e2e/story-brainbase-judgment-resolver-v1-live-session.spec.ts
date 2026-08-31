@@ -110,6 +110,61 @@ function readFinalAssistantMessage(path, turnId) {
     return messages.at(-1).text;
 }
 
+function hookVisibleFinalAnswer(renderedAnswer) {
+    const openingTag = '<oai-mem-citation>';
+    const closingTag = '</oai-mem-citation>';
+    const openingTags = [...renderedAnswer.matchAll(/<oai-mem-citation>/gu)];
+    const closingTags = [...renderedAnswer.matchAll(/<\/oai-mem-citation>/gu)];
+    if (openingTags.length !== 1 || closingTags.length !== 1) return renderedAnswer;
+
+    const markerIndex = openingTags[0].index;
+    const closingIndex = closingTags[0].index;
+    if (markerIndex === undefined || closingIndex === undefined || closingIndex <= markerIndex) {
+        return renderedAnswer;
+    }
+
+    const prefix = renderedAnswer.slice(0, markerIndex);
+    const citationBlock = renderedAnswer.slice(markerIndex);
+    if (!/(?:\r?\n)+$/u.test(prefix)
+        || !new RegExp(`^${openingTag}\\r?\\n[\\s\\S]*\\r?\\n${closingTag}$`, 'u').test(citationBlock)
+        || closingIndex + closingTag.length !== renderedAnswer.length) {
+        return renderedAnswer;
+    }
+    return prefix;
+}
+
+test('hookVisibleFinalAnswer preserves an answer without a citation block', () => {
+    const renderedAnswer = '本文のみ';
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+});
+
+test('hookVisibleFinalAnswer removes one complete trailing citation block', () => {
+    const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource\n</oai-mem-citation>';
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), '本文\n\n');
+});
+
+test('hookVisibleFinalAnswer preserves an incomplete citation block', () => {
+    const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource';
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+});
+
+test('hookVisibleFinalAnswer preserves an embedded citation block', () => {
+    const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource\n</oai-mem-citation>\n\n続き';
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+});
+
+test('hookVisibleFinalAnswer preserves multiple citation blocks joined by one newline', () => {
+    const citation = '<oai-mem-citation>\nsource\n</oai-mem-citation>';
+    const renderedAnswer = `本文\n${citation}\n${citation}`;
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+});
+
+test('hookVisibleFinalAnswer preserves multiple citation blocks joined by a blank line', () => {
+    const citation = '<oai-mem-citation>\nsource\n</oai-mem-citation>';
+    const renderedAnswer = `本文\n\n${citation}\n\n${citation}`;
+    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+});
+
 function assertRenderedAuditTrace(answer, expectedLines) {
     const lines = answer.replaceAll('\r\n', '\n').split('\n');
     assert.deepEqual(
@@ -399,7 +454,11 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         'Live evidence must use the Resolver manifest declared by current HEAD'
     );
     assert.deepEqual(candidate.events.map((event) => event.tool_name), EXPECTED_TOOLS);
-    assert.ok(candidate.events.every((event) => event.success === true));
+    assert.deepEqual(
+        candidate.events.map((event) => event.success),
+        [false, true, true, true],
+        'Unconfirmed routing is executed once but must not be promoted to a successful result'
+    );
     for (const [index, expected] of EXPECTED_QUERY_EXCERPTS.entries()) {
         const excerpt = candidate.events[index].query_excerpt || '';
         assert.ok(expected.includes().every((token) => excerpt.includes(token)));
@@ -427,7 +486,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.equal(candidate.final.owner_audit_complete, true);
     assert.equal(candidate.final.owner_audit_line_count, 5);
     assert.equal(candidate.final.event_count, 4);
-    assert.equal(candidate.final.qualifying_event_count, 1);
+    assert.equal(candidate.final.qualifying_event_count, 0);
     assert.match(candidate.final.answer_digest, /^[0-9a-f]{64}$/u);
     const renderedAnswer = readFinalAssistantMessage(
         EVIDENCE_TRANSCRIPT_PATH,
@@ -440,8 +499,8 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assertRenderedAuditTrace(renderedAnswer, expectedAuditLines);
     assert.equal(
         candidate.final.answer_digest,
-        createHash('sha256').update(renderedAnswer).digest('hex'),
-        'Final receipt must bind the exact user-visible final answer'
+        createHash('sha256').update(hookVisibleFinalAnswer(renderedAnswer)).digest('hex'),
+        'Final receipt must bind the exact Stop Hook-visible final answer before app-added memory citation metadata'
     );
     const finalizedAt = Date.parse(candidate.final.finalized_at);
     const evidenceAgeMs = Date.now() - finalizedAt;

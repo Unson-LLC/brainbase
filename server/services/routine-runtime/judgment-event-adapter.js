@@ -19,7 +19,7 @@ function eventIdFor(episode) {
 }
 
 const MAX_SUMMARY_LENGTH = 2000;
-const AUDIT_LINE = /^(?:🧠 |📚 |⚠️ )/u;
+const AUDIT_LINE = /^(?:🧠 |📚 |⚠️ |🔁 |🛠️ )/u;
 const SENSITIVE_CONTENT = [
     /\b(?:api[_-]?key|password|passwd|secret|token)\s*[:=]\s*\S+/iu,
     /\bsk-[a-z0-9_-]{8,}\b/iu,

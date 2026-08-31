@@ -16,6 +16,8 @@ RECEIPT="${BRAINBASE_MCP_RECONCILE_RECEIPT:-/Users/ksato/workspace/var/brainbase
 LOCK_DIR="${BRAINBASE_MCP_RECONCILE_LOCK:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.lock}"
 INFISICAL_BIN="${INFISICAL_BIN:-/Users/ksato/.local/bin/infisical}"
 WAIT_ATTEMPTS="${BRAINBASE_MCP_RECONCILE_WAIT_ATTEMPTS:-30}"
+CONNECT_TIMEOUT_SECONDS="${BRAINBASE_MCP_RECONCILE_CONNECT_TIMEOUT_SECONDS:-2}"
+MAX_TIMEOUT_SECONDS="${BRAINBASE_MCP_RECONCILE_MAX_TIMEOUT_SECONDS:-5}"
 
 log() {
   printf '[mcp-reconcile] %s %s\n' "$(date -u +%FT%TZ)" "$*" >&2
@@ -26,17 +28,29 @@ fail() {
   exit 1
 }
 
-[[ "$TARGET_SHA" =~ ^[0-9a-f]{7,40}$ ]] || fail "target SHA is missing or invalid"
+is_finite_positive_timeout() {
+  [[ "$1" =~ ^([1-9][0-9]*(\.[0-9]+)?|0\.([0-9]*[1-9][0-9]*))$ ]]
+}
 
+[[ "$TARGET_SHA" =~ ^[0-9a-f]{7,40}$ ]] || fail "target SHA is missing or invalid"
+mkdir -p "$(dirname "$RECEIPT")"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  log "another reconciliation is already running"
-  exit 0
+  fail "another reconciliation is already running"
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+rm -f -- "$RECEIPT"
+[[ "$WAIT_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || fail "wait attempts must be a positive integer"
+is_finite_positive_timeout "$CONNECT_TIMEOUT_SECONDS" || \
+  fail "connect timeout must be finite positive seconds"
+is_finite_positive_timeout "$MAX_TIMEOUT_SECONDS" || \
+  fail "maximum timeout must be finite positive seconds"
 
 ui_sha=""
 for ((attempt = 1; attempt <= WAIT_ATTEMPTS; attempt += 1)); do
-  ui_sha="$(curl -fsS "${UI_API_URL%/}/api/version" 2>/dev/null | \
+  ui_sha="$(curl -fsS \
+    --connect-timeout "$CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$MAX_TIMEOUT_SECONDS" \
+    -- "${UI_API_URL%/}/api/version" 2>/dev/null | \
     node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);process.stdout.write(j?.runtime?.git?.sha||j?.git?.sha||j?.sha||"")}catch{}})' \
     2>/dev/null || true)"
   if [[ "$ui_sha" == "$TARGET_SHA" ]]; then
@@ -122,7 +136,6 @@ if launchctl print "gui/$(id -u)/${CHATGPT_TUNNEL_LABEL}" >/dev/null 2>&1; then
   fi
 fi
 
-mkdir -p "$(dirname "$RECEIPT")"
 printf 'sha=%s\ncompleted_at=%s\nchatgpt_tunnel=%s\n' \
   "$TARGET_SHA" \
   "$(date -u +%FT%TZ)" \

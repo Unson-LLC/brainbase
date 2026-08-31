@@ -1,0 +1,98 @@
+name: VibePro Knowledge Event Contract
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'mcp/brainbase/package.json'
+      - 'mcp/brainbase/scripts/run-tests.mjs'
+      - 'mcp/brainbase/src/tools/knowledge-event-tools.ts'
+      - 'mcp/brainbase/src/tools/knowledge-resolution-tools.ts'
+      - 'mcp/brainbase/src/tools/authenticated-api-tool.ts'
+      - 'mcp/brainbase/src/tools/tool-annotations.ts'
+      - 'mcp/brainbase/src/server.ts'
+      - 'mcp/brainbase/tests/tools/knowledge-event-*.test.ts'
+      - 'mcp/brainbase/tests/tools/knowledge-resolution-tools.test.ts'
+      - 'server/routes/knowledge-events.js'
+      - 'server/services/knowledge-event-service.js'
+      - 'docs/stories/story-vibepro-knowledge-event-record.md'
+      - 'docs/architecture/ADR-story-vibepro-knowledge-event-record.md'
+      - '.vibepro/spec/story-vibepro-knowledge-event-record/spec.json'
+      - '.github/workflows/vibepro-knowledge-event-contract.yml'
+  push:
+    branches:
+      - develop
+    paths:
+      - 'mcp/brainbase/package.json'
+      - 'mcp/brainbase/scripts/run-tests.mjs'
+      - 'mcp/brainbase/src/tools/knowledge-event-tools.ts'
+      - 'mcp/brainbase/src/tools/knowledge-resolution-tools.ts'
+      - 'mcp/brainbase/src/tools/authenticated-api-tool.ts'
+      - 'mcp/brainbase/src/tools/tool-annotations.ts'
+      - 'mcp/brainbase/src/server.ts'
+      - 'mcp/brainbase/tests/tools/knowledge-event-*.test.ts'
+      - 'mcp/brainbase/tests/tools/knowledge-resolution-tools.test.ts'
+      - 'server/routes/knowledge-events.js'
+      - 'server/services/knowledge-event-service.js'
+      - 'docs/stories/story-vibepro-knowledge-event-record.md'
+      - 'docs/architecture/ADR-story-vibepro-knowledge-event-record.md'
+      - '.vibepro/spec/story-vibepro-knowledge-event-record/spec.json'
+      - '.github/workflows/vibepro-knowledge-event-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vibepro-knowledge-event-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: [self-hosted, Linux, X64, wsl-linux]
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install MCP dependencies
+        run: npm --prefix mcp/brainbase ci
+
+      - name: Build private MCP
+        run: npm --prefix mcp/brainbase run build
+
+      - name: Run complete private MCP regression suite
+        run: npm --prefix mcp/brainbase test
+
+      - name: Run Knowledge Event backend contract tests
+        run: >-
+          npm run test:run --
+          tests/unit/knowledge-event-service.test.js
+          tests/server/routes/knowledge-event-routes.test.js
+
+      - name: Reject whitespace errors
+        shell: bash
+        run: |
+          case "${{ github.event_name }}" in
+            pull_request)
+              git diff --check "${{ github.event.pull_request.base.sha }}...HEAD"
+              ;;
+            push)
+              git diff --check "${{ github.event.before }}..HEAD"
+              ;;
+            *)
+              git diff --check HEAD^
+              ;;
+          esac

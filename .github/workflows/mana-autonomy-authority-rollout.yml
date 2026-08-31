@@ -1,0 +1,59 @@
+name: Mana autonomy authority rollout
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/mana-autonomy-authority-rollout.yml"
+      - "scripts/read-service-company-authority-foundation.js"
+      - "scripts/build-mana-autonomy-service-authority-manifest.js"
+      - "scripts/rollout-mana-autonomy-service-authority.js"
+      - "server/services/multitenant/service-company-authority-provisioner.js"
+      - "tests/scripts/read-service-company-authority-foundation.test.js"
+      - "tests/scripts/build-mana-autonomy-service-authority-manifest.test.js"
+      - "tests/scripts/rollout-mana-autonomy-service-authority.test.js"
+      - "tests/server/services/multitenant/service-company-authority-provisioner.test.js"
+  push:
+    branches:
+      - "codex/mana-autonomy-authority-rollout"
+    paths:
+      - ".github/workflows/mana-autonomy-authority-rollout.yml"
+      - "scripts/read-service-company-authority-foundation.js"
+      - "scripts/build-mana-autonomy-service-authority-manifest.js"
+      - "scripts/rollout-mana-autonomy-service-authority.js"
+      - "server/services/multitenant/service-company-authority-provisioner.js"
+      - "tests/scripts/read-service-company-authority-foundation.test.js"
+      - "tests/scripts/build-mana-autonomy-service-authority-manifest.test.js"
+      - "tests/scripts/rollout-mana-autonomy-service-authority.test.js"
+      - "tests/server/services/multitenant/service-company-authority-provisioner.test.js"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mana-autonomy-authority-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Syntax check rollout scripts
+        run: |
+          node --check scripts/read-service-company-authority-foundation.js
+          node --check scripts/build-mana-autonomy-service-authority-manifest.js
+          node --check scripts/rollout-mana-autonomy-service-authority.js
+      - name: Run focused authority rollout tests
+        run: >-
+          npx vitest run
+          tests/scripts/read-service-company-authority-foundation.test.js
+          tests/scripts/build-mana-autonomy-service-authority-manifest.test.js
+          tests/scripts/rollout-mana-autonomy-service-authority.test.js
+          tests/server/services/multitenant/service-company-authority-provisioner.test.js

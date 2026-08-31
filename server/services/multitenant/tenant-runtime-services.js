@@ -179,7 +179,8 @@ export function createTenantRuntimeServicesFromEnv({
     return createTenantRuntimeServices({
         serviceAuth,
         connectionRegistry: {
-            validateRevision: (input) => repository.validateConnectionRevision(input)
+            validateRevision: (input) => repository.validateConnectionRevision(input),
+            resolveProjectBinding: (input) => repository.resolveProjectBinding(input)
         },
         credentialBroker: new CredentialBroker({
             repository,

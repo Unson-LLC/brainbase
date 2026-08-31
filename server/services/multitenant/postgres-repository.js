@@ -331,6 +331,25 @@ export class MultitenantPostgresRepository {
         });
     }
 
+    async resolveProjectBinding({ tenant_id: tenantId, project_ids: projectIds, project_code: projectCode }) {
+        if (![tenantId, projectCode].every((value) => typeof value === 'string' && value.length > 0)
+            || !Array.isArray(projectIds) || projectIds.length === 0
+            || projectIds.some((value) => typeof value !== 'string' || value.length === 0)) {
+            throw new ContractError('PROJECT_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        return this.withTenant(tenantId, async (client) => {
+            const result = await client.query(
+                `SELECT project_id, project_code
+                   FROM tenant_projects
+                  WHERE tenant_id = $1 AND project_id = ANY($2::text[]) AND project_code = $3
+                  LIMIT 1
+                  FOR SHARE`,
+                [tenantId, projectIds, projectCode]
+            );
+            return result.rows[0] ?? null;
+        });
+    }
+
     async createSlackInstallationIntent({
         installation_intent_id,
         tenant_id,

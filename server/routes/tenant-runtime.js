@@ -4,9 +4,22 @@ import { serializeVerificationKeys } from '../services/multitenant/tenant-contex
 import { ContractError } from '../services/multitenant/errors.js';
 import { assertMigrationCandidateTargets, assertMigrationRowCandidates } from '../services/multitenant/migration-planner.js';
 import { assertTrustedProviderForwardRequest } from '../services/multitenant/trusted-provider-forwarder.js';
+import { MeetingMinutesContextReceiptError } from '../services/meeting-minutes/context-receipt-service.js';
 
 function asyncHandler(handler) {
     return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+}
+
+function rethrowMeetingMinutesContextReceiptError(error) {
+    if (!(error instanceof MeetingMinutesContextReceiptError)) throw error;
+    throw new ContractError(error.code, {
+        message: error.message,
+        status: error.statusCode || 400,
+        fault_domain: 'customer_environment',
+        details: error.details && Object.keys(error.details).length
+            ? error.details
+            : { required_action: 'none' }
+    });
 }
 
 function contextBoundInput(req) {
@@ -259,6 +272,7 @@ export function createTenantRuntimeRouter({
     tenantBoundaryGateway,
     migrationAdapter,
     tenantContextVerifier,
+    meetingMinutesContextReceiptService,
     now = () => new Date()
 }) {
     if (typeof tenantContextVerifier !== 'function') {
@@ -302,8 +316,80 @@ export function createTenantRuntimeRouter({
         }
         return { input, current };
     }
+    async function resolveAuthorizedProject(req, projectCode) {
+        const authorizedProjectIds = req.tenantContext.authorization?.project_ids;
+        if (!Array.isArray(authorizedProjectIds) || authorizedProjectIds.length === 0) {
+            throw new ContractError('PROJECT_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        if (!connectionRegistry?.resolveProjectBinding) {
+            throw new ContractError('PROJECT_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        const project = await connectionRegistry.resolveProjectBinding({
+            tenant_id: req.tenantContext.tenant.tenant_id,
+            project_ids: authorizedProjectIds,
+            project_code: projectCode
+        });
+        if (!project || !authorizedProjectIds.includes(project.project_id) || project.project_code !== projectCode) {
+            throw new ContractError('PROJECT_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        return project;
+    }
     router.post('/workspace-connections:validate-revision', asyncHandler(async (req, res) => {
         res.json(await connectionRegistry.validateRevision(contextBoundInput(req)));
+    }));
+    router.post(/^\/meeting-minutes\/context-receipts:create$/, asyncHandler(async (req, res) => {
+        if (!meetingMinutesContextReceiptService?.create) {
+            throw new ContractError('UPSTREAM_UNAVAILABLE', { status: 503, retryable: true });
+        }
+        await revalidateAuthoritativeBinding(req);
+        const { identity } = wireInput(req, ['identity'], {});
+        if (!identity || typeof identity !== 'object' || Array.isArray(identity)
+            || Object.keys(identity).some((field) => !['run_id', 'project_code', 'transcript_sha256'].includes(field))) {
+            throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+        }
+        const project = await resolveAuthorizedProject(req, identity.project_code);
+        try {
+            res.status(201).json(await meetingMinutesContextReceiptService.create(identity, {
+                authType: 'tenant_runtime',
+                sub: req.serviceIdentity?.subject,
+                person_id: req.tenantContext.actor?.principal_id,
+                tenant_id: req.tenantContext.tenant.tenant_id,
+                project_id: project.project_id,
+                projectCodes: [project.project_code],
+                role: 'member'
+            }));
+        } catch (error) {
+            rethrowMeetingMinutesContextReceiptError(error);
+        }
+    }));
+    router.post(/^\/meeting-minutes\/context-receipts:get$/, asyncHandler(async (req, res) => {
+        if (!meetingMinutesContextReceiptService?.get) {
+            throw new ContractError('UPSTREAM_UNAVAILABLE', { status: 503, retryable: true });
+        }
+        await revalidateAuthoritativeBinding(req);
+        const input = wireInput(req, ['receipt_id', 'identity'], {});
+        if (typeof input.receipt_id !== 'string' || input.receipt_id.length === 0) {
+            throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+        }
+        const identity = input.identity;
+        if (!identity || typeof identity !== 'object' || Array.isArray(identity)
+            || Object.keys(identity).some((field) => !['run_id', 'project_code', 'transcript_sha256'].includes(field))) {
+            throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+        }
+        const project = await resolveAuthorizedProject(req, identity.project_code);
+        try {
+            res.json(await meetingMinutesContextReceiptService.get(input.receipt_id, identity, {
+                authType: 'tenant_runtime',
+                sub: req.serviceIdentity?.subject,
+                person_id: req.tenantContext.actor?.principal_id,
+                tenant_id: req.tenantContext.tenant.tenant_id,
+                project_id: project.project_id,
+                projectCodes: [project.project_code],
+                role: 'member'
+            }));
+        } catch (error) {
+            rethrowMeetingMinutesContextReceiptError(error);
+        }
     }));
     for (const [path, entryPoint] of Object.entries({
         'admin-api': 'admin_api',

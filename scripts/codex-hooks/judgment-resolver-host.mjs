@@ -26,6 +26,10 @@ import {
     enqueueJudgmentKnowledgeEvent,
     resolveJudgmentKnowledgeEventOutboxPath
 } from '../../server/services/routine-runtime/judgment-event-outbox.js';
+import {
+    evaluateJudgmentAutonomy,
+    renderJudgmentAutonomyContinuation
+} from './judgment-autonomy.mjs';
 
 let Database;
 const builtInSqlite = process.getBuiltinModule?.('node:sqlite');
@@ -53,9 +57,18 @@ const TRANSIENT_REASONS = new Set([
     'judgment_host_bridge_failed',
     'judgment_host_transport_failed'
 ]);
-const DEFAULT_LOCK_WAIT_ATTEMPTS = 300;
+// A start transition may include three bounded 15-second Resolver attempts.
+// Other lifecycle processes must wait through that authorized start budget.
+const DEFAULT_LOCK_WAIT_ATTEMPTS = 5000;
 const DEFAULT_LOCK_WAIT_MS = 10;
 const NO_BRAINBASE_REFERENCE_LINE = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
+const AUTONOMY_CONTINUATION_PROGRESS_LINE = '🔁 確認不要と判定しました。回答を差し戻して処理を続けています';
+const AUTONOMY_CONTINUATION_COMPLETE_LINE = '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓';
+const OUTCOME_CONTINUATION_PROGRESS_LINE = '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています';
+const OUTCOME_CONTINUATION_COMPLETE_LINE = '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓';
+const STOP_REPAIR_COMPLETE_LINE = '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓';
+const ORPHAN_AUDIT_WARNING = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。';
+const ORPHAN_TOOL_EVENT_WARNING = '⚠️ Brainbase監査未完了: Brainbase tool eventを開始episodeへ結合できませんでした。';
 const CAPABILITY_ACTION_CONTRACTS = Object.freeze({
     'knowledge.resolve': Object.freeze({
         capability: 'knowledge.resolve',
@@ -64,6 +77,17 @@ const CAPABILITY_ACTION_CONTRACTS = Object.freeze({
         distinctFrom: 'Hostが確定したJudgment routeの再分類'
     })
 });
+const AUTONOMY_RUNTIME_ESCALATION_REASONS = Object.freeze([
+    'irreversible_action',
+    'missing_authority',
+    'owner_value_choice',
+    'required_input_unavailable',
+    'evidenced_terminal_blocker'
+]);
+const AUTONOMY_REASON_CODES = new Set([
+    'routine_in_scope', 'classification_missing', 'policy_conflict', 'risk_or_external'
+]);
+const AUTONOMY_MARKER_PATTERN = /^⚠️ 確認が必要\[([a-z_]+)\]:\s*\S/u;
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -236,6 +260,10 @@ function journalPaths(sessionRef, turnId, env) {
         episode: join(directory, `${turnRef}.episode.json`),
         events: join(directory, `${turnRef}.events`),
         continuation: join(directory, `${turnRef}.continuation.json`),
+        autonomy: join(directory, `${turnRef}.autonomy.json`),
+        auditFailure: join(directory, `${turnRef}.audit-failure.json`),
+        auditDegraded: join(directory, `${turnRef}.audit-degraded.json`),
+        auditOrphanEvents: join(directory, `${turnRef}.audit-orphan-events`),
         final: join(directory, `${turnRef}.final.json`),
         transitionDatabase: join(directory, `${turnRef}.transition.sqlite`)
     };
@@ -454,7 +482,46 @@ function verifyReceipt(receipt, args) {
     if (receipt.context_digest !== contextDigest) throw new Error('judgment_receipt_context_mismatch');
     if (!record(receipt.host_binding) || receipt.host_binding.status !== 'managed') throw new Error('judgment_receipt_binding_unmanaged');
     if (!Array.isArray(receipt.active_node_definitions)) throw new Error('judgment_receipt_active_nodes_missing');
+    const runtimeMatch = String(receipt.runtime_version ?? '').match(/^judgment-runtime-(\d+)\.(\d+)\.(\d+)$/u);
+    const autonomyRequired = runtimeMatch
+        ? Number(runtimeMatch[1]) > 2 || (Number(runtimeMatch[1]) === 2 && Number(runtimeMatch[2]) >= 1)
+        : false;
+    verifyAutonomyContract(receipt, { required: autonomyRequired });
     return receipt;
+}
+
+function verifyAutonomyContract(receipt, { required = false } = {}) {
+    const fieldsPresent = ['autonomy_decision', 'autonomy_reason_code', 'allowed_runtime_escalation_reasons']
+        .some((field) => Object.hasOwn(receipt || {}, field));
+    if (!fieldsPresent && !required) return null;
+    if (!['continue', 'escalate'].includes(receipt?.autonomy_decision)
+        || !AUTONOMY_REASON_CODES.has(receipt?.autonomy_reason_code)
+        || !Array.isArray(receipt?.allowed_runtime_escalation_reasons)
+        || new Set(receipt.allowed_runtime_escalation_reasons).size !== receipt.allowed_runtime_escalation_reasons.length) {
+        throw new Error('judgment_receipt_autonomy_invalid');
+    }
+    const expectedReason = receipt.status === 'needs_classification'
+        ? 'classification_missing'
+        : receipt.status === 'needs_policy_resolution'
+            ? 'policy_conflict'
+            : ['high', 'critical'].includes(receipt?.classification?.risk)
+                || receipt?.classification?.action_kind === 'external'
+                ? 'risk_or_external'
+                : 'routine_in_scope';
+    const expectedDecision = expectedReason === 'routine_in_scope' ? 'continue' : 'escalate';
+    const expectedRuntimeReasons = expectedDecision === 'continue'
+        ? AUTONOMY_RUNTIME_ESCALATION_REASONS
+        : [];
+    if (receipt.autonomy_reason_code !== expectedReason
+        || receipt.autonomy_decision !== expectedDecision
+        || canonicalJson(receipt.allowed_runtime_escalation_reasons) !== canonicalJson(expectedRuntimeReasons)) {
+        throw new Error('judgment_receipt_autonomy_mismatch');
+    }
+    return {
+        decision: receipt.autonomy_decision,
+        reasonCode: receipt.autonomy_reason_code,
+        allowedRuntimeReasons: [...receipt.allowed_runtime_escalation_reasons]
+    };
 }
 
 function adoptReceipt(args, receipt, env) {
@@ -602,13 +669,9 @@ async function resolveInitialRoute(args, { env, fetchImpl }) {
 export async function startEpisode(payload, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new TypeError('UserPromptSubmit requires session_id and turn_id');
-    const existing = withJudgmentStage(
-        'judgment_episode_existing_read_failed',
-        () => existingEpisode(payload, env)
-    );
-    if (existing) return existing;
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     return withJudgmentStage('judgment_episode_transition_failed', () => withEpisodeTransitionLock(paths, async () => {
+        assertNoOrphanAuditBarrier(identity, paths, env);
         const afterLock = withJudgmentStage(
             'judgment_episode_existing_read_failed',
             () => existingEpisode(payload, env)
@@ -796,6 +859,26 @@ function responseCount(response) {
         .find((count) => Number.isSafeInteger(count) && count >= 0) ?? null;
 }
 
+function retrievalAudit(response) {
+    for (const item of nestedRecords(response, 0, { parseContent: false })) {
+        if (!Array.isArray(item.content)) continue;
+        const text = record(item.content.at(-1))?.text;
+        if (typeof text !== 'string') continue;
+        const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+        if (lines.length !== 3
+            || lines[0] !== 'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.'
+            || lines[1] !== 'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.') {
+            continue;
+        }
+        const terminalLine = lines[2];
+        const noResult = terminalLine.match(/^📚 Brainbase(検索|取得): [^\r\n]* → 該当なし（不在確定ではない）$/u);
+        if (noResult) return { kind: noResult[1] === '検索' ? 'search' : 'retrieve', outcome: 'no_result' };
+        const result = terminalLine.match(/^📚 Brainbase(検索|取得): [^\r\n]* → 結果を取得 ✓$/u);
+        if (result) return { kind: result[1] === '検索' ? 'search' : 'retrieve', outcome: 'result' };
+    }
+    return null;
+}
+
 function knowledgeResolutionData(response) {
     return nestedRecords(response).find((item) => (
         typeof item.resolution_id === 'string'
@@ -859,11 +942,12 @@ function knowledgeExclusionDisplay(data) {
 
 function routeDisplayLine(input, data, success) {
     const query = toolQuery(input);
-    if (!success || !data) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
+    if (!data) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
     const exclusions = knowledgeExclusionDisplay(data);
     if (data.status === 'unconfirmed') {
         return `⚠️ Brainbase参照先: 「${query}」→ 参照先を確定できず${exclusions ? `／除外: ${exclusions}` : ''}`;
     }
+    if (!success) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
     const source = sanitizeToolExcerpt(data.source_class ?? '参照先');
     const location = knowledgeCanonicalLocation(data.canonical_location);
     const contentType = record(input)?.content_type;
@@ -877,8 +961,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
     const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : '';
     const toolUseId = typeof payload?.tool_use_id === 'string' ? payload.tool_use_id : '';
-    if (!identity || !toolUseId || !/^mcp__brainbase__/u.test(toolName)) return null;
-    if (!existingEpisode(payload, env)) return null;
+    if (!/^mcp__brainbase__/u.test(toolName)) return null;
+    if (!identity) throw new Error('judgment_episode_identity_missing');
+    if (!toolUseId) throw new Error('judgment_tool_use_id_missing');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     const inputValue = payload.tool_input === undefined ? null : payload.tool_input;
     const responseValue = payload.tool_response === undefined ? null : payload.tool_response;
@@ -887,15 +972,24 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
     const callScope = toolCallScope(toolName, inputValue);
     const resultCount = responseCount(responseValue);
-    const kind = eventKind(toolName);
+    const fallbackKind = eventKind(toolName);
+    const retrieval = ['search', 'retrieve'].includes(fallbackKind)
+        ? retrievalAudit(responseValue)
+        : null;
+    const kind = retrieval?.kind ?? fallbackKind;
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
     const success = responseSucceeded(responseValue, {
         allowTransportSuccess: ['search', 'retrieve'].includes(kind),
         allowExplicitSuccess: !['write', 'route'].includes(kind),
-        semanticSuccess: Boolean(resolution || taskResult)
+        semanticSuccess: kind === 'route'
+            ? resolution?.status === 'resolved'
+            : Boolean(taskResult)
     });
-    const qualifies = kind === 'route' && success && Boolean(resolution);
+    const satisfiesKnowledgeExecution = kind === 'route';
+    const retrievalResult = success && ['search', 'retrieve'].includes(kind)
+        ? retrieval?.outcome ?? null
+        : null;
     const safeMetadata = resolution ? {
         resolution_id: resolution.resolution_id,
         status: resolution.status,
@@ -915,10 +1009,44 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                 : '呼出';
     const displayLine = kind === 'route'
         ? routeDisplayLine(inputValue, resolution, success)
-        : `${success ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success ? `${resultCount === null ? '' : `${resultCount}件・`}正常応答を確認 ✓` : '失敗または結果不明'}`;
+        : `${success ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success
+            ? retrievalResult === 'no_result'
+                ? '該当なし（不在確定ではない）'
+                : retrievalResult === 'result'
+                    ? '結果を取得 ✓'
+                    : `${resultCount === null ? '' : `${resultCount}件・`}正常応答を確認 ✓`
+            : '失敗または結果不明'}`;
     return withEpisodeTransitionLock(paths, () => {
         const episode = existingEpisode(payload, env);
-        if (!episode) return null;
+        if (!episode) {
+            mkdirSync(paths.auditOrphanEvents, { recursive: true, mode: 0o700 });
+            const target = join(paths.auditOrphanEvents, `${sha256(toolUseId)}.json`);
+            const marker = {
+                schema_version: 'brainbase-judgment-orphan-tool-event-v1',
+                recorded_at: new Date().toISOString(),
+                reason: 'judgment_episode_not_found',
+                session_ref: identity.sessionRef,
+                turn_ref: paths.turnRef,
+                tool_name_digest: sha256(toolName),
+                tool_use_ref: sha256(toolUseId),
+                input_digest: inputDigest,
+                response_digest: responseDigest,
+                event_fingerprint: fingerprint
+            };
+            try {
+                const existing = readJson(target);
+                const replayProjection = { ...existing };
+                delete replayProjection.recorded_at;
+                const markerProjection = { ...marker };
+                delete markerProjection.recorded_at;
+                if (canonicalJson(replayProjection) === canonicalJson(markerProjection)
+                    && validIsoTimestamp(existing.recorded_at)) return existing;
+                throw new Error('judgment_orphan_tool_event_conflict');
+            } catch (error) {
+                if (error?.code !== 'ENOENT') throw error;
+            }
+            return createImmutableJson(target, marker, 'judgment_orphan_tool_event_conflict');
+        }
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
         const finalized = existingFinal(paths, episode);
@@ -953,7 +1081,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             tool_use_id: toolUseId,
             event_kind: kind,
             success,
-            satisfies: qualifies ? ['knowledge.resolve'] : [],
+            satisfies: satisfiesKnowledgeExecution ? ['knowledge.resolve'] : [],
             input_digest: inputDigest,
             response_digest: responseDigest,
             event_fingerprint: fingerprint,
@@ -990,6 +1118,16 @@ function buildAuditContract(receipt) {
         schema_version: 'brainbase-owner-audit-contract-v1',
         zero_call_display_line: zeroCallDisplayLine,
         zero_call_display_line_digest: zeroCallDisplayLine === null ? null : sha256(zeroCallDisplayLine),
+        autonomy_continuation_progress_line: AUTONOMY_CONTINUATION_PROGRESS_LINE,
+        autonomy_continuation_progress_line_digest: sha256(AUTONOMY_CONTINUATION_PROGRESS_LINE),
+        autonomy_continuation_complete_line: AUTONOMY_CONTINUATION_COMPLETE_LINE,
+        autonomy_continuation_complete_line_digest: sha256(AUTONOMY_CONTINUATION_COMPLETE_LINE),
+        outcome_continuation_progress_line: OUTCOME_CONTINUATION_PROGRESS_LINE,
+        outcome_continuation_progress_line_digest: sha256(OUTCOME_CONTINUATION_PROGRESS_LINE),
+        outcome_continuation_complete_line: OUTCOME_CONTINUATION_COMPLETE_LINE,
+        outcome_continuation_complete_line_digest: sha256(OUTCOME_CONTINUATION_COMPLETE_LINE),
+        stop_repair_complete_line: STOP_REPAIR_COMPLETE_LINE,
+        stop_repair_complete_line_digest: sha256(STOP_REPAIR_COMPLETE_LINE),
         repair_body_policy: 'preserve'
     };
 }
@@ -1005,6 +1143,21 @@ function verifyAuditContract(value) {
         || (typeof line === 'string' && digest === sha256(line)))) {
         throw new Error('judgment_owner_audit_contract_digest_mismatch');
     }
+    const continuationLinePairs = [
+        ['autonomy_continuation_progress_line', 'autonomy_continuation_progress_line_digest'],
+        ['autonomy_continuation_complete_line', 'autonomy_continuation_complete_line_digest'],
+        ['outcome_continuation_progress_line', 'outcome_continuation_progress_line_digest'],
+        ['outcome_continuation_complete_line', 'outcome_continuation_complete_line_digest'],
+        ['stop_repair_complete_line', 'stop_repair_complete_line_digest']
+    ];
+    for (const [lineField, digestField] of continuationLinePairs) {
+        const continuationLine = contract[lineField];
+        const continuationDigest = contract[digestField];
+        if (!((continuationLine === undefined && continuationDigest === undefined)
+            || (typeof continuationLine === 'string' && continuationDigest === sha256(continuationLine)))) {
+            throw new Error('judgment_owner_audit_contract_digest_mismatch');
+        }
+    }
     if (contract.repair_body_policy !== 'preserve') {
         throw new Error('judgment_owner_audit_repair_policy_invalid');
     }
@@ -1015,12 +1168,68 @@ function episodeAuditContract(episode) {
     return episode.audit_contract === undefined ? null : verifyAuditContract(episode.audit_contract);
 }
 
-function requiredAuditLines(episode, events) {
+function verifiedAutonomyContinuation(marker, auditContract) {
+    const continuation = record(marker?.autonomy_continuation);
+    if (!continuation) return null;
+    const expectedCompleteLine = continuation.trigger_code === 'unfinished_safe_work'
+        ? auditContract?.outcome_continuation_complete_line
+        : auditContract?.autonomy_continuation_complete_line;
+    if (continuation.count !== 1
+        || !['unnecessary_user_question', 'unfinished_safe_work'].includes(continuation.trigger_code)
+        || !AUTONOMY_REASON_CODES.has(continuation.reason_code)
+        || continuation.status !== 'requested'
+        || typeof expectedCompleteLine !== 'string') {
+        throw new Error('judgment_autonomy_continuation_invalid');
+    }
+    return continuation;
+}
+
+function verifiedStopRepair(marker, auditContract) {
+    const repair = record(marker?.stop_repair);
+    if (!repair) return null;
+    if (repair.count !== 1
+        || repair.status !== 'requested'
+        || typeof auditContract?.stop_repair_complete_line !== 'string') {
+        throw new Error('judgment_stop_repair_invalid');
+    }
+    return repair;
+}
+
+function verifyFinalStopRepair(finalized, continuationMarker, auditContract) {
+    if (finalized.schema_version !== 'brainbase-judgment-episode-final-v2') return;
+    const requested = verifiedStopRepair(continuationMarker, auditContract);
+    const completed = record(finalized.stop_repair);
+    if (!requested && !completed) return;
+    if (!requested
+        || !completed
+        || completed.count !== requested.count
+        || completed.status !== 'completed') {
+        throw new Error('judgment_episode_final_stop_repair_mismatch');
+    }
+}
+
+function requiredAuditLines(episode, events, continuationMarker = null) {
     const auditContract = episodeAuditContract(episode);
     const zeroCallLines = events.length === 0 && typeof auditContract?.zero_call_display_line === 'string'
         ? [auditContract.zero_call_display_line]
         : [];
-    return [episode.owner_audit.display_line, ...zeroCallLines, ...events.map((event) => event.display_line)];
+    const autonomyContinuation = verifiedAutonomyContinuation(continuationMarker, auditContract);
+    const continuationLines = autonomyContinuation
+        ? [autonomyContinuation.trigger_code === 'unfinished_safe_work'
+            ? auditContract.outcome_continuation_complete_line
+            : auditContract.autonomy_continuation_complete_line]
+        : [];
+    const stopRepair = verifiedStopRepair(continuationMarker, auditContract);
+    const stopRepairLines = stopRepair
+        ? [auditContract.stop_repair_complete_line]
+        : [];
+    return [
+        episode.owner_audit.display_line,
+        ...zeroCallLines,
+        ...events.map((event) => event.display_line),
+        ...continuationLines,
+        ...stopRepairLines
+    ];
 }
 
 function orderedEventSetDigest(events) {
@@ -1050,6 +1259,22 @@ function answerContainsExactAuditPrefix(answer, expectedLines) {
     ));
 }
 
+function containsUnauthorizedContinuationAudit(answer, expectedLines) {
+    if (typeof answer !== 'string') return false;
+    const allowed = new Set(expectedLines);
+    return answer.replaceAll('\r\n', '\n').split('\n')
+        .map((line) => line.replace(/[ \t]+$/u, ''))
+        .some((line) => /^🔁 /u.test(line) && !allowed.has(line));
+}
+
+function containsUnauthorizedStopRepairAudit(answer, expectedLines) {
+    if (typeof answer !== 'string') return false;
+    const allowed = new Set(expectedLines);
+    return answer.replaceAll('\r\n', '\n').split('\n')
+        .map((line) => line.replace(/[ \t]+$/u, ''))
+        .some((line) => /^🛠️ /u.test(line) && !allowed.has(line));
+}
+
 function normalizedAnswerBody(answer, expectedLines) {
     if (typeof answer !== 'string') return null;
     const auditLines = new Set(expectedLines.map((line) => line.replace(/[ \t]+$/u, '')));
@@ -1058,10 +1283,76 @@ function normalizedAnswerBody(answer, expectedLines) {
         .filter((line) => !auditLines.has(line));
     while (bodyLines.length > 0 && (
         bodyLines[0] === ''
-        || /^(?:🧠 判断参照:|📚 Brainbase|⚠️ Brainbase)/u.test(bodyLines[0])
+        || /^(?:🧠 判断参照:|📚 Brainbase|⚠️ Brainbase|🔁 |🛠️ )/u.test(bodyLines[0])
     )) bodyLines.shift();
     while (bodyLines.at(-1) === '') bodyLines.pop();
     return bodyLines.join('\n');
+}
+
+function requestsUserInput(body) {
+    if (typeof body !== 'string' || !body.trim()) return false;
+    const relevant = body.split('\n').map((line) => line.trim()).filter(Boolean)
+        .filter((line) => !/^(?:必要なら|必要であれば|ご希望なら|希望があれば|必要に応じて)/u.test(line));
+    return relevant.some((line) => (
+        /(?:どちら|どれ|どうしますか|何を選びますか|よろしいですか|進めてもいいですか|進めてもよいですか)[^。]*[?？]?$/u.test(line)
+        || /(?:(?:確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え)(?:しますか|しましょうか)|(?:進め|続け)ますか)[?？]?$/u.test(line)
+        || /(?:教えて|選んで|決めて|判断して|承認して|確認して|入力して|提示して|付与して)(?:ください|もらえますか|いただけますか)[。！!？?]?$/u.test(line)
+    ));
+}
+
+function leavesRequestedWorkUnfinished(body, receipt) {
+    const classification = record(receipt?.classification);
+    if (!classification
+        || !['implement', 'operate'].includes(classification.intent)
+        || !['write', 'external'].includes(classification.action_kind)) return false;
+    const completionEvidence = /(?:完了しました|実装しました|修正しました|変更しました|更新しました|削除しました|付け替えました|実行しました|デプロイしました|マージしました|変更不要|対応不要|すでに[^。\n]{0,80}(?:正しい|一致している|反映済み))/u;
+    if (completionEvidence.test(body)) return false;
+    return /(?:直す|修正する|変更する|更新する|実装する|調査する|対応する)対象は/u.test(body)
+        || /(?:すれば|することで)[^。\n]{0,120}(?:解消|修正|改善|完了)できます/u.test(body)
+        || /(?:修正|変更|実装|調査|対応)(?:方針|方法)は/u.test(body)
+        || /(?:未実施|未完了|まだ[^。\n]{0,60}(?:していません|できていません)|作業が残っています)/u.test(body);
+}
+
+function autonomyAnswerCompliance(answer, expectedLines, receipt) {
+    const contract = verifyAutonomyContract(receipt);
+    if (!contract) return { status: 'legacy', violation: null };
+    const body = normalizedAnswerBody(answer, expectedLines) ?? '';
+    const bodyLines = body.split('\n').map((line) => line.trim()).filter(Boolean);
+    const markerMatch = bodyLines[0]?.match(AUTONOMY_MARKER_PATTERN) ?? null;
+    const markerReason = markerMatch?.[1] ?? null;
+    const asks = requestsUserInput(body);
+    const unfinishedSafeWork = leavesRequestedWorkUnfinished(body, receipt);
+
+    if (contract.decision === 'continue') {
+        if (markerReason) {
+            if (!contract.allowedRuntimeReasons.includes(markerReason) || !asks) {
+                return { status: null, violation: '許可された実行時確認理由と、必要な入力要求を正確な確認行で示す' };
+            }
+            return { status: 'runtime_escalated', violation: null };
+        }
+        if (asks) {
+            return {
+                status: null,
+                violation: 'Brainbase自律判断はcontinueです。高リスク等の許可理由がないためユーザーへ判断を返さず、安全な範囲で作業を継続する',
+                triggerCode: 'unnecessary_user_question'
+            };
+        }
+        if (unfinishedSafeWork) {
+            return {
+                status: null,
+                violation: 'Brainbase自律判断はcontinueです。修正方針の説明だけで終了せず、安全な範囲の実装・操作・検証まで継続する',
+                triggerCode: 'unfinished_safe_work'
+            };
+        }
+        return { status: 'continued', violation: null };
+    }
+    if (markerReason !== contract.reasonCode || !asks) {
+        return {
+            status: null,
+            violation: `境界操作を実行せず、回答本文の先頭に「⚠️ 確認が必要[${contract.reasonCode}]:」を置いて必要な確認を一つだけ求める`
+        };
+    }
+    return { status: 'escalated', violation: null };
 }
 
 function buildAnswerBodyBinding(answer, expectedLines) {
@@ -1114,19 +1405,335 @@ function existingFinal(paths, episode) {
 export function finalizeEpisode(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new Error('judgment_episode_identity_missing');
-    const episode = existingEpisode(payload, env);
-    if (!episode) throw new Error('judgment_episode_not_found');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
-    return withEpisodeTransitionLock(paths, () => finalizeEpisodeLocked(payload, episode, paths, env), env);
+    return withEpisodeTransitionLock(paths, () => {
+        const episode = existingEpisode(payload, env);
+        if (!episode) throw new Error('judgment_episode_not_found');
+        return finalizeEpisodeLocked(payload, episode, paths, env);
+    }, env);
+}
+
+function orphanEpisodeCandidateCount(paths) {
+    try {
+        return readdirSync(paths.directory).filter((name) => name.endsWith('.episode.json')).length;
+    } catch (error) {
+        if (error?.code === 'ENOENT') return 0;
+        throw error;
+    }
+}
+
+function orphanAnswerBodyBinding(answer) {
+    return typeof answer === 'string' ? {
+        schema_version: 'brainbase-orphan-answer-body-binding-v1',
+        body_digest: sha256(answer),
+        character_count: answer.length
+    } : null;
+}
+
+function validSha256(value) {
+    return typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+}
+
+function validIsoTimestamp(value) {
+    if (typeof value !== 'string') return false;
+    const timestamp = Date.parse(value);
+    return !Number.isNaN(timestamp) && new Date(timestamp).toISOString() === value;
+}
+
+function validateAuditFailure(entry, identity, paths, env) {
+    const expectedKeys = [
+        'answer_body_binding', 'episode_candidate_count', 'host_digest', 'journal_root_digest',
+        'reason', 'recorded_at', 'repair_requested', 'schema_version', 'session_ref',
+        'stop_hook_active', 'turn_ref', 'warning_line_digest'
+    ];
+    const binding = entry?.answer_body_binding;
+    const bindingValid = binding === null || (
+        record(binding)
+        && Object.keys(binding).sort().join(',') === 'body_digest,character_count,schema_version'
+        && binding.schema_version === 'brainbase-orphan-answer-body-binding-v1'
+        && validSha256(binding.body_digest)
+        && Number.isSafeInteger(binding.character_count)
+        && binding.character_count >= 0
+    );
+    if (!record(entry)
+        || Object.keys(entry).sort().join(',') !== expectedKeys.sort().join(',')
+        || entry.schema_version !== 'brainbase-judgment-audit-failure-v1'
+        || entry.reason !== 'judgment_episode_not_found'
+        || entry.session_ref !== identity.sessionRef
+        || entry.turn_ref !== paths.turnRef
+        || entry.journal_root_digest !== sha256(journalRoot(env))
+        || entry.host_digest !== sha256(readFileSync(SCRIPT_PATH))
+        || entry.warning_line_digest !== sha256(ORPHAN_AUDIT_WARNING)
+        || !Number.isSafeInteger(entry.episode_candidate_count)
+        || entry.episode_candidate_count < 0
+        || typeof entry.repair_requested !== 'boolean'
+        || typeof entry.stop_hook_active !== 'boolean'
+        || entry.repair_requested === entry.stop_hook_active
+        || !validIsoTimestamp(entry.recorded_at)
+        || !bindingValid) {
+        throw new Error('judgment_audit_failure_integrity_invalid');
+    }
+    return entry;
+}
+
+function existingOrCreateAuditFailure(payload, identity, paths, env) {
+    const answer = typeof payload.last_assistant_message === 'string'
+        ? payload.last_assistant_message
+        : null;
+    try {
+        const entry = readJson(paths.auditFailure);
+        return { entry: validateAuditFailure(entry, identity, paths, env), created: false };
+    } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+    }
+    const entry = createImmutableJson(paths.auditFailure, {
+        schema_version: 'brainbase-judgment-audit-failure-v1',
+        recorded_at: new Date().toISOString(),
+        reason: 'judgment_episode_not_found',
+        session_ref: identity.sessionRef,
+        turn_ref: paths.turnRef,
+        journal_root_digest: sha256(journalRoot(env)),
+        host_digest: sha256(readFileSync(SCRIPT_PATH)),
+        episode_candidate_count: orphanEpisodeCandidateCount(paths),
+        repair_requested: payload.stop_hook_active !== true,
+        stop_hook_active: payload.stop_hook_active === true,
+        warning_line_digest: sha256(ORPHAN_AUDIT_WARNING),
+        answer_body_binding: orphanAnswerBodyBinding(answer)
+    }, 'judgment_audit_failure_conflict');
+    return { entry, created: true };
+}
+
+function strippedOrphanWarning(answer) {
+    if (typeof answer !== 'string') return null;
+    const prefix = `${ORPHAN_AUDIT_WARNING}\n`;
+    return answer.startsWith(prefix) ? answer.slice(prefix.length) : null;
+}
+
+function createAuditDegraded(payload, paths, diagnostic) {
+    const answer = typeof payload.last_assistant_message === 'string'
+        ? payload.last_assistant_message
+        : null;
+    const body = strippedOrphanWarning(answer);
+    const binding = record(diagnostic.answer_body_binding);
+    const ownerWarningDisplayed = body !== null;
+    const answerBodyPreserved = Boolean(binding)
+        && body !== null
+        && body.length === binding.character_count
+        && sha256(body) === binding.body_digest;
+    const projection = {
+        schema_version: 'brainbase-judgment-audit-degraded-v1',
+        completion_status: 'audit_degraded',
+        reason: 'judgment_episode_not_found',
+        session_ref: diagnostic.session_ref,
+        turn_ref: diagnostic.turn_ref,
+        diagnostic_digest: sha256(canonicalJson(diagnostic)),
+        stop_hook_active: true,
+        owner_warning_displayed: ownerWarningDisplayed,
+        answer_body_preserved: answerBodyPreserved,
+        answer_digest: answer === null ? null : sha256(answer)
+    };
+    try {
+        const existing = readJson(paths.auditDegraded);
+        const validated = validateAuditDegraded(existing, diagnostic);
+        const existingProjection = { ...validated };
+        delete existingProjection.finalized_at;
+        if (canonicalJson(existingProjection) !== canonicalJson(projection)) {
+            throw new Error('judgment_audit_degraded_conflict');
+        }
+        return validated;
+    } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+    }
+    return createImmutableJson(paths.auditDegraded, {
+        ...projection,
+        finalized_at: new Date().toISOString()
+    }, 'judgment_audit_degraded_conflict');
+}
+
+function validateAuditDegraded(entry, diagnostic) {
+    const expectedKeys = [
+        'answer_body_preserved', 'answer_digest', 'completion_status', 'diagnostic_digest',
+        'finalized_at', 'owner_warning_displayed', 'reason', 'schema_version', 'session_ref',
+        'stop_hook_active', 'turn_ref'
+    ];
+    if (!record(entry)
+        || Object.keys(entry).sort().join(',') !== expectedKeys.sort().join(',')
+        || entry.schema_version !== 'brainbase-judgment-audit-degraded-v1'
+        || entry.completion_status !== 'audit_degraded'
+        || entry.reason !== 'judgment_episode_not_found'
+        || entry.session_ref !== diagnostic.session_ref
+        || entry.turn_ref !== diagnostic.turn_ref
+        || entry.diagnostic_digest !== sha256(canonicalJson(diagnostic))
+        || entry.stop_hook_active !== true
+        || typeof entry.owner_warning_displayed !== 'boolean'
+        || typeof entry.answer_body_preserved !== 'boolean'
+        || !(entry.answer_digest === null || validSha256(entry.answer_digest))
+        || !validIsoTimestamp(entry.finalized_at)) {
+        throw new Error('judgment_audit_degraded_integrity_invalid');
+    }
+    return entry;
+}
+
+function assertNoOrphanAuditBarrier(identity, paths, env) {
+    try {
+        if (readdirSync(paths.auditOrphanEvents).some((name) => name.endsWith('.json'))) {
+            throw new Error('judgment_orphan_tool_event_start_conflict');
+        }
+    } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+    }
+    let diagnostic;
+    try {
+        diagnostic = validateAuditFailure(readJson(paths.auditFailure), identity, paths, env);
+    } catch (error) {
+        if (error?.code === 'ENOENT') return;
+        throw error;
+    }
+    let degraded;
+    try {
+        degraded = readJson(paths.auditDegraded);
+    } catch (error) {
+        if (error?.code === 'ENOENT') throw new Error('judgment_audit_failure_start_conflict');
+        throw error;
+    }
+    validateAuditDegraded(degraded, diagnostic);
+    throw new Error('judgment_audit_degraded_start_conflict');
+}
+
+function handleOrphanStop(payload, { env = process.env } = {}) {
+    const identity = payloadIdentity(payload);
+    if (!identity) throw new Error('judgment_episode_identity_missing');
+    const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+    return withEpisodeTransitionLock(paths, () => {
+        const episode = existingEpisode(payload, env);
+        if (episode) return finalizeEpisodeLocked(payload, episode, paths, env).output;
+        const diagnosticState = existingOrCreateAuditFailure(payload, identity, paths, env);
+        if (payload.stop_hook_active !== true && diagnosticState.created) {
+            return {
+                decision: 'block',
+                reason: `judgment_episode_not_found。${ORPHAN_AUDIT_WARNING}\n最終回答の先頭に上の監査行をそのまま1回追加し、その後に元の回答本文を削除・要約・置換せずそのまま続けてください。`
+            };
+        }
+        createAuditDegraded(payload, paths, diagnosticState.entry);
+        return { systemMessage: ORPHAN_AUDIT_WARNING };
+    }, env);
+}
+
+
+function autonomyRolloutEnabled(episode, env) {
+    const mode = String(env.BRAINBASE_JUDGMENT_AUTONOMY_MODE || 'off').trim().toLowerCase();
+    if (mode === 'enabled') return true;
+    if (mode !== 'canary') return false;
+    const projectCode = String(
+        episode?.initial_route_receipt?.project_code
+        || env.BRAINBASE_JUDGMENT_PROJECT_CODE
+        || ''
+    ).trim();
+    const allowlist = new Set(String(env.BRAINBASE_JUDGMENT_AUTONOMY_CANARY_PROJECTS || '')
+        .split(',').map((value) => value.trim()).filter(Boolean));
+    return Boolean(projectCode) && allowlist.has(projectCode);
+}
+
+function autonomyRequestForTurn(payload, env, identity) {
+    if (typeof payload.prompt === 'string' && payload.prompt.trim()) return payload.prompt;
+    const transcript = readCanonicalTranscript(payload, env);
+    const exact = [...transcript.messages].reverse().find((message) => (
+        message.role === 'user' && message.turn_id === identity.turnId
+    ));
+    if (exact?.text) return exact.text;
+    return [...transcript.messages].reverse().find((message) => message.role === 'user')?.text ?? '';
+}
+
+function existingAutonomyReceipt(paths, episode) {
+    try {
+        const receipt = readJson(paths.autonomy);
+        if (receipt?.schema_version !== 'brainbase-judgment-autonomy-receipt-v1'
+            || receipt.initial_route_receipt_digest !== episode.initial_route_receipt_digest
+            || receipt.evaluation_digest !== sha256(canonicalJson(receipt.evaluation))
+            || receipt.snapshot_digest !== sha256(canonicalJson(receipt.snapshot))) {
+            throw new Error('judgment_autonomy_receipt_invalid');
+        }
+        return receipt;
+    } catch (error) {
+        if (error?.code === 'ENOENT') return null;
+        throw error;
+    }
+}
+
+function autonomySnapshot(episode, events) {
+    return {
+        initial_route_receipt_digest: episode.initial_route_receipt_digest,
+        event_count: events.length,
+        event_set_digest: orderedEventSetDigest(events)
+    };
+}
+
+export async function evaluateAutonomyStop(payload, {
+    env = process.env,
+    autonomyResolver
+} = {}) {
+    const identity = payloadIdentity(payload);
+    if (!identity) throw new Error('judgment_episode_identity_missing');
+    const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+    const episode = existingEpisode(payload, env);
+    // Runtime 2.1 receipts already contain a deterministic autonomy decision.
+    // Keep the model evaluator only for in-flight legacy episodes during rollout.
+    if (episode && verifyAutonomyContract(episode.initial_route_receipt)) return null;
+    if (!episode || !autonomyRolloutEnabled(episode, env)) return null;
+    const answer = typeof payload.last_assistant_message === 'string'
+        ? payload.last_assistant_message
+        : '';
+    const before = autonomySnapshot(episode, episodeEvents(paths));
+    const evaluation = await evaluateJudgmentAutonomy({
+        turn_id: identity.turnId,
+        request: autonomyRequestForTurn(payload, env, identity),
+        final_answer: answer,
+        project_code: episode.initial_route_receipt.project_code
+            || env.BRAINBASE_JUDGMENT_PROJECT_CODE
+            || undefined,
+        selected_dag_ids: Array.isArray(episode.initial_route_receipt.selected_dag_ids)
+            ? episode.initial_route_receipt.selected_dag_ids
+            : []
+    }, autonomyResolver);
+    if (evaluation.verdict !== 'continue') return null;
+
+    const existing = existingAutonomyReceipt(paths, episode);
+    if (existing) throw new Error('judgment_autonomy_continuation_exhausted');
+
+    const currentEpisode = existingEpisode(payload, env);
+    if (!currentEpisode) throw new Error('judgment_episode_not_found');
+    const after = autonomySnapshot(currentEpisode, episodeEvents(paths));
+    if (canonicalJson(before) !== canonicalJson(after)) {
+        throw new Error('judgment_autonomy_snapshot_changed');
+    }
+    const receipt = {
+        schema_version: 'brainbase-judgment-autonomy-receipt-v1',
+        recorded_at: new Date().toISOString(),
+        initial_route_receipt_digest: currentEpisode.initial_route_receipt_digest,
+        snapshot: after,
+        snapshot_digest: sha256(canonicalJson(after)),
+        evaluation,
+        evaluation_digest: sha256(canonicalJson(evaluation))
+    };
+    createImmutableJson(paths.autonomy, receipt, 'judgment_autonomy_receipt_conflict');
+    return {
+        decision: 'block',
+        reason: renderJudgmentAutonomyContinuation(evaluation)
+    };
 }
 
 function finalizeEpisodeLocked(payload, episode, paths, env) {
     const events = episodeEvents(paths);
+    let existingContinuation = null;
+    try { existingContinuation = readJson(paths.continuation); } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+    }
     const completedAuditOutput = () => ({
-        systemMessage: requiredAuditLines(episode, events).join('\n')
+        systemMessage: requiredAuditLines(episode, events, existingContinuation).join('\n')
     });
     const finalized = existingFinal(paths, episode);
     if (finalized) {
+        verifyFinalStopRepair(finalized, existingContinuation, episodeAuditContract(episode));
         const qualifyingCount = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve')).length;
         const eventSetDigest = finalized.schema_version === 'brainbase-judgment-episode-final-v1'
             ? sha256(canonicalJson(events.map((entry) => entry.event_fingerprint).sort(compareCodePoints)))
@@ -1137,62 +1744,124 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             throw new Error('judgment_episode_final_event_set_mismatch');
         }
         enqueueFinalKnowledgeEvent(payload, finalized, env);
-        return { output: completedAuditOutput(), final: finalized };
+        return {
+            output: completedAuditOutput(),
+            final: finalized,
+            auditRepairWasAlreadyActive: existingContinuation !== null
+        };
     }
     const requiredKnowledge = requiredKnowledgeResolution(episode.initial_route_receipt);
-    const qualifyingEvents = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve'));
-    const missingKnowledge = requiredKnowledge && qualifyingEvents.length === 0;
+    const knowledgeExecutionEvents = events.filter((entry) => entry.satisfies.includes('knowledge.resolve'));
+    const qualifyingEvents = knowledgeExecutionEvents.filter((entry) => entry.success);
+    const missingKnowledge = requiredKnowledge && knowledgeExecutionEvents.length === 0;
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
-    const expectedAuditLines = requiredAuditLines(episode, events);
-    const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);
-    let existingContinuation = null;
-    try { existingContinuation = readJson(paths.continuation); } catch (error) {
-        if (error?.code !== 'ENOENT') throw error;
-    }
+    const expectedAuditLines = requiredAuditLines(episode, events, existingContinuation);
+    const unauthorizedContinuationAudit = containsUnauthorizedContinuationAudit(answer, expectedAuditLines);
+    const unauthorizedStopRepairAudit = containsUnauthorizedStopRepairAudit(answer, expectedAuditLines);
+    const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines)
+        || unauthorizedContinuationAudit
+        || unauthorizedStopRepairAudit;
+    const autonomyCompliance = autonomyAnswerCompliance(answer, expectedAuditLines, episode.initial_route_receipt);
+    const missingAutonomyCompliance = autonomyCompliance.violation !== null;
+    const auditContract = episodeAuditContract(episode);
+    const autonomyContinuationRequested = ['unnecessary_user_question', 'unfinished_safe_work']
+        .includes(autonomyCompliance.triggerCode)
+        && typeof auditContract?.autonomy_continuation_progress_line === 'string'
+        && typeof auditContract?.autonomy_continuation_complete_line === 'string'
+        && (autonomyCompliance.triggerCode !== 'unfinished_safe_work'
+            || (typeof auditContract?.outcome_continuation_progress_line === 'string'
+                && typeof auditContract?.outcome_continuation_complete_line === 'string'));
     const answerBodyBinding = activeAnswerBodyBinding(existingContinuation, expectedAuditLines);
     const missingAnswerBody = !answerBodyMatchesBinding(answer, expectedAuditLines, answerBodyBinding);
-    if (missingKnowledge || missingOwnerAudit || missingAnswerBody) {
+    if (missingKnowledge || missingOwnerAudit || missingAnswerBody || missingAutonomyCompliance) {
         const missingCapabilities = [
             ...(missingKnowledge ? ['knowledge.resolve'] : []),
             ...(missingOwnerAudit ? ['owner.audit.display'] : []),
-            ...(missingAnswerBody ? ['answer.body.preservation'] : [])
+            ...(missingAnswerBody ? ['answer.body.preservation'] : []),
+            ...(missingAutonomyCompliance ? ['autonomy.continuation'] : [])
         ];
         let marker = existingContinuation;
         if (!marker) {
             const shouldBindAnswerBody = !missingKnowledge
                 && missingOwnerAudit
+                && !unauthorizedContinuationAudit
+                && !unauthorizedStopRepairAudit
+                && !missingAutonomyCompliance
                 && episodeAuditContract(episode)?.repair_body_policy === 'preserve';
-            marker = createImmutableJson(paths.continuation, {
+            const autonomyContract = verifyAutonomyContract(episode.initial_route_receipt);
+            const markerEntry = {
                 schema_version: 'brainbase-judgment-continuation-v2',
                 requested_at: new Date().toISOString(),
                 missing_capabilities: missingCapabilities,
-                ...(shouldBindAnswerBody ? {
-                    answer_body_binding: buildAnswerBodyBinding(answer, expectedAuditLines)
+                ...(typeof auditContract?.stop_repair_complete_line === 'string' ? {
+                    stop_repair: {
+                        count: 1,
+                        status: 'requested'
+                    }
+                } : {}),
+                ...(autonomyContinuationRequested ? {
+                    autonomy_continuation: {
+                        count: 1,
+                        trigger_code: autonomyCompliance.triggerCode,
+                        reason_code: autonomyContract.reasonCode,
+                        status: 'requested'
+                    }
                 } : {})
-            }, 'judgment_episode_continuation_conflict');
+            };
+            if (shouldBindAnswerBody) {
+                markerEntry.answer_body_binding = buildAnswerBodyBinding(
+                    answer,
+                    requiredAuditLines(episode, events, markerEntry)
+                );
+            }
+            marker = createImmutableJson(
+                paths.continuation,
+                markerEntry,
+                'judgment_episode_continuation_conflict'
+            );
         }
+        const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
         const reasons = [
             ...(missingKnowledge ? [capabilityActionInstruction(
                 CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'],
                 { repair: true }
             )] : []),
-            ...(missingOwnerAudit ? [
-                `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${expectedAuditLines.join('\n')}`
+            ...((missingOwnerAudit || missingAutonomyCompliance) ? [
+                `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
             ] : []),
+            ...((missingKnowledge
+                && !missingOwnerAudit
+                && !missingAutonomyCompliance
+                && typeof auditContract?.stop_repair_complete_line === 'string') ? [
+                `Brainbase参照後の最終監査ブロック末尾に「${auditContract.stop_repair_complete_line}」を1回だけ表示する`
+            ] : []),
+            ...(unauthorizedContinuationAudit ? ['Hostが記録していない🔁監査行を削除する'] : []),
+            ...(unauthorizedStopRepairAudit ? ['Hostが記録していない🛠️監査行を削除する'] : []),
             ...((missingAnswerBody || (!missingKnowledge && missingOwnerAudit && marker.answer_body_binding)) ? [
                 '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
-            ] : [])
+            ] : []),
+            ...(missingAutonomyCompliance ? [autonomyCompliance.violation] : [])
         ];
         const reasonSequence = reasons
             .map((reason) => reason.replace(/。$/u, ''))
             .join('。その後');
+        const completionInstruction = missingAutonomyCompliance
+            ? '不要な確認質問を回答本文に残さず、安全な範囲の作業結果を続けてください。'
+            : '監査行の後に、元の回答本文をそのまま続けてください。';
+        const progressLine = autonomyContinuationRequested
+            ? autonomyCompliance.triggerCode === 'unfinished_safe_work'
+                ? auditContract.outcome_continuation_progress_line
+                : auditContract.autonomy_continuation_progress_line
+            : null;
         return {
             output: {
                 decision: 'block',
-                reason: `Brainbase judgment episodeを完了する前に${reasonSequence}。監査行の後に、元の回答本文をそのまま続けてください。`
+                reason: `Brainbase judgment episodeを完了する前に${reasonSequence}。${completionInstruction}`,
+                ...(typeof progressLine === 'string' ? { systemMessage: progressLine } : {})
             },
             continuation: marker,
-            final: null
+            final: null,
+            auditRepairWasAlreadyActive: existingContinuation !== null
         };
     }
     const safeAnswer = sanitizeJudgmentAnswer(answer);
@@ -1208,6 +1877,19 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         event_set_digest: orderedEventSetDigest(events),
         owner_audit_complete: !missingOwnerAudit,
         owner_audit_line_count: expectedAuditLines.length,
+        autonomy_compliance_status: autonomyCompliance.status,
+        ...(verifiedAutonomyContinuation(existingContinuation, episodeAuditContract(episode)) ? {
+            autonomy_continuation: {
+                ...existingContinuation.autonomy_continuation,
+                status: 'completed'
+            }
+        } : {}),
+        ...(verifiedStopRepair(existingContinuation, episodeAuditContract(episode)) ? {
+            stop_repair: {
+                ...existingContinuation.stop_repair,
+                status: 'completed'
+            }
+        } : {}),
         answer_digest: answer === null ? null : sha256(answer),
         ...(safeAnswer?.sensitive
             ? { redaction_status: 'needs_redaction' }
@@ -1217,7 +1899,11 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     };
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
     enqueueFinalKnowledgeEvent(payload, final, env);
-    return { output: completedAuditOutput(), final };
+    return {
+        output: completedAuditOutput(),
+        final,
+        auditRepairWasAlreadyActive: existingContinuation !== null
+    };
 }
 
 function enqueueFinalKnowledgeEvent(payload, final, env) {
@@ -1308,6 +1994,7 @@ function requiredKnowledgeResolution(receipt) {
 }
 
 function ownerDecision(receipt) {
+    if (receipt?.autonomy_decision === 'escalate') return '高リスク・外部作用または必須確認のため停止';
     if (requiredKnowledgeResolution(receipt)) return 'Brainbase参照先の判断が必要';
     const intent = receipt?.classification?.intent;
     const byIntent = {
@@ -1394,9 +2081,25 @@ export function successOutput(
     const ownerReferenceLine = ownerAudit.display_line;
     const requiredCapabilityInstructions = requiredCapabilityActionContracts(receipt)
         .map((contract) => capabilityActionInstruction(contract));
+    const autonomy = verifyAutonomyContract(receipt);
+    const autonomyInstructions = autonomy?.decision === 'continue'
+        ? [
+            'Autonomy decision: continue.',
+            '安全なスコープ内の読解、調査、テスト、可逆な実装はそのまま完了まで続ける。複雑さ、好みの確認、念のための確認だけを理由に停止しない。',
+            `実行中に確認が必須になった場合だけ、許可された理由コードの確認行「⚠️ 確認が必要[reason_code]:」を回答本文の先頭に置く。許可コード: ${autonomy.allowedRuntimeReasons.join(', ')}。例: ⚠️ 確認が必要[missing_authority]:`,
+            'この自律判断は通常の権限・承認を置き換えません。'
+        ]
+        : autonomy?.decision === 'escalate'
+            ? [
+                'Autonomy decision: escalate.',
+                `境界操作を実行せず、回答本文の先頭に「⚠️ 確認が必要[${autonomy.reasonCode}]:」を置き、必要な確認を一つだけ求める。`,
+                'この自律判断は通常の権限・承認を置き換えません。'
+            ]
+            : [];
     const context = [
         'Brainbase Judgment Resolver Host opened one judgment episode before model generation. The route receipt fixes the current intent and active DAG for this episode; it is not the final episode receipt.',
         'The Host-fixed initial route and classification are immutable for this episode; do not recalculate or change them.',
+        ...autonomyInstructions,
         ...requiredCapabilityInstructions,
         'Use Brainbase knowledge and retrieval tools repeatedly when later evidence makes another lookup useful; there is no one-call-per-turn limit.',
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
@@ -1428,7 +2131,7 @@ function blockedOutput(reason) {
 
 function stopFailureMessage(reason) {
     if (reason === 'judgment_episode_not_found') {
-        return `⚠️ Brainbase監査を確定できませんでした。このtaskはBrainbase Hookを有効にする前に始まった可能性があります。新しいCodex taskを作り、同じ依頼を送ってください。（詳細: ${reason}）`;
+        return `${ORPHAN_AUDIT_WARNING}（詳細: ${reason}）`;
     }
     return `⚠️ Brainbase監査を確定できませんでした。新しいCodex taskで同じ依頼を再送してください。再発する場合は、Settings → HooksでBrainbaseのユーザーHookを信頼し直してください。（詳細: ${reason}）`;
 }
@@ -1444,14 +2147,28 @@ export async function processHookPayload(payload, dependencies = {}) {
     }
     if (eventName === 'PostToolUse') {
         const event = recordBrainbaseToolUse(payload, dependencies);
+        if (event?.schema_version === 'brainbase-judgment-orphan-tool-event-v1') {
+            return { systemMessage: ORPHAN_TOOL_EVENT_WARNING };
+        }
         return event ? { systemMessage: event.display_line } : {};
     }
     if (eventName === 'Stop') {
-        const output = finalizeEpisode(payload, dependencies).output;
-        if (payload.stop_hook_active === true && output?.decision === 'block') {
+        const autonomyOutput = await evaluateAutonomyStop(payload, dependencies);
+        if (autonomyOutput) return autonomyOutput;
+
+        let result;
+        try {
+            result = finalizeEpisode(payload, dependencies);
+        } catch (error) {
+            if (error?.message !== 'judgment_episode_not_found') throw error;
+            return handleOrphanStop(payload, dependencies);
+        }
+        if (payload.stop_hook_active === true
+            && result.output?.decision === 'block'
+            && result.auditRepairWasAlreadyActive) {
             throw new Error('judgment_stop_repair_exhausted');
         }
-        return output;
+        return result.output;
     }
     return {};
 }
@@ -1468,7 +2185,8 @@ async function main() {
         if (eventName === 'UserPromptSubmit') {
             process.stdout.write(`${JSON.stringify(blockedOutput(reason))}\n`);
         } else if (eventName === 'PostToolUse') {
-            process.stdout.write(`${JSON.stringify({ systemMessage: `⚠️ Brainbase監査記録に失敗: ${reason}` })}\n`);
+            process.stderr.write(`⚠️ Brainbase監査記録に失敗: ${reason}\n`);
+            process.exitCode = 1;
         } else if (eventName === 'Stop') {
             const message = stopFailureMessage(reason);
             if (payload.stop_hook_active === true) {

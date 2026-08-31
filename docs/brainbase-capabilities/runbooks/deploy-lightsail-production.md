@@ -105,7 +105,7 @@ TARGET_SHA="$TARGET_SHA" node scripts/personal-knowledge-migration-release-gate.
 )
 ```
 
-postflightは、移行対象request ID集合が全件`pending_owner_approval`へ移りowner同意証跡がNULLへ戻ったこと、総行数不変、対象外status件数不変、RLSがENABLE/FORCEであることをすべて満たす場合だけ`status=passed`を同じReceiptへ保存する。失敗時は非zero終了し、serviceを起動しない。成功時だけsection 3で同じ`TARGET_SHA`のserviceを起動し、Personal KG本番スモークのDB/API/Graph/Receipt readbackまで実行する。
+postflightは、移行対象request ID集合が全件`pending_owner_approval`へ移りowner同意証跡がNULLへ戻ったこと、総行数不変、旧終端statusの決定的な変換（`approved`→`org_accepted`、`rejected`→`owner_rejected`）以外のstatus件数不変、RLSがENABLE/FORCEであることをすべて満たす場合だけ`status=passed`を同じReceiptへ保存する。失敗時は非zero終了し、serviceを起動しない。成功時だけsection 3で同じ`TARGET_SHA`のserviceを起動し、Personal KG本番スモークのDB/API/Graph/Receipt readbackまで実行する。
 
 このmigration適用後は、A0署名昇格対応前のSHAへ通常rollbackしてはならない。対応SHAが起動できない場合は`brainbase-ssot.service`を停止したままpromotion writeを全面停止し、readback済みのA0対応SHAへforward fixする。DB down migrationや旧writerの再公開はしない。
 

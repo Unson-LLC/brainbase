@@ -5,6 +5,10 @@ on:
     branches: [main, develop]
     paths:
       - '.github/workflows/vibepro-score-run.yml'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - '.claude/skills/vibepro-*/**'
+      - 'tests/unit/vibepro-minimal-core-contract.test.js'
       - 'docs/guides/github-actions-cicd-operating-guide.md'
       - 'docs/internal/vibepro-dogfood/runs/**'
       - 'docs/stories/vibepro-brainbase-dogfood-story.md'
@@ -19,6 +23,10 @@ on:
     branches: [main, develop, 'session/**']
     paths:
       - '.github/workflows/vibepro-score-run.yml'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - '.claude/skills/vibepro-*/**'
+      - 'tests/unit/vibepro-minimal-core-contract.test.js'
       - 'docs/guides/github-actions-cicd-operating-guide.md'
       - 'docs/internal/vibepro-dogfood/runs/**'
       - 'docs/stories/vibepro-brainbase-dogfood-story.md'
@@ -41,7 +49,7 @@ concurrency:
 jobs:
   score-evidence:
     name: Verify committed VibePro score evidence
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux]
     timeout-minutes: 10
 
     env:
@@ -64,7 +72,7 @@ jobs:
         run: npm ci
 
       - name: Run VibePro scorer unit tests
-        run: npm run test:run -- tests/unit/vibepro-score-run.test.js tests/unit/vibepro-development-dag-check.test.js tests/unit/vibepro-doc-trace-check.test.js tests/unit/vibepro-score-actions-workflow-contract.test.js tests/unit/vibepro-graph-actions-workflow-contract.test.js
+        run: npm run test:run -- tests/unit/vibepro-score-run.test.js tests/unit/vibepro-development-dag-check.test.js tests/unit/vibepro-doc-trace-check.test.js tests/unit/vibepro-score-actions-workflow-contract.test.js tests/unit/vibepro-graph-actions-workflow-contract.test.js tests/unit/vibepro-minimal-core-contract.test.js
 
       - name: Verify committed score artifacts
         run: npm run vibepro:score-verify

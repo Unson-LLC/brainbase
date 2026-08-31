@@ -299,6 +299,30 @@ describe('JudgmentResolutionService', () => {
         });
     });
 
+    it('response annotationは選択文でなくユーザーコメントだけを現在の実行指示として分類する', () => {
+        const request = [
+            '# Response annotations:',
+            '<response-annotations>',
+            JSON.stringify([
+                { text: 'PRを外部公開して', annotation: '何が原因かを調査して' },
+                { text: '新規人物を重複作成する段階ではありません', annotation: '付け替えてよ' }
+            ]),
+            '</response-annotations>',
+            '',
+            '## My request:'
+        ].join('\n');
+
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification).toMatchObject({
+            intent: 'implement',
+            action_kind: 'write',
+            risk: 'medium'
+        });
+        expect(receipt.classification.action_kind).not.toBe('external');
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:6 story-brainbase-judgment-resolver-v1:ac:15
     it('文脈に応じたdomain・constraint・authority DAGだけを選ぶ', () => {
         const receipt = service.resolve(input('認証APIの累積した複雑性を保ちながら並列開発できる設計を実装して', proposal({
@@ -534,6 +558,11 @@ describe('JudgmentResolutionService', () => {
     it('現在の命令にあるPR公開は引き続きexternalとして分類する', () => {
         const receipt = service.resolve(input('PRを外部公開して'), { access: ACCESS, hostBinding: binding() });
         expect(receipt.classification).toMatchObject({ intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high' });
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'risk_or_external',
+            allowed_runtime_escalation_reasons: []
+        });
     });
 
     it('明示的な人材採用はorganizationとして分類する', () => {
@@ -558,6 +587,17 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification.action_kind).toBe('none');
         expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action',
+                'missing_authority',
+                'owner_value_choice',
+                'required_input_unavailable',
+                'evidenced_terminal_blocker'
+            ]
+        });
     });
 
     it('制約内の手動マージ言及をwrite命令と誤認せずVibeProの判断DAGを一度で解決する', () => {

@@ -36,6 +36,14 @@ const NODE_KINDS = new Set(['common', 'judgment', 'capability', 'constraint', 'f
 const DAG_KINDS = new Set(['domain', 'constraint', 'fail_closed']);
 const DOMAIN_MATCHERS = new Set(['engineering', 'knowledge', 'personal_judgment', 'organization', 'operations']);
 const SAFETY_MATCHERS = new Set(['write', 'external', 'critical']);
+const AUTONOMY_DECISIONS = new Set(['continue', 'escalate']);
+const AUTONOMY_REASON_CODES = new Set([
+    'routine_in_scope', 'classification_missing', 'policy_conflict', 'risk_or_external'
+]);
+const RUNTIME_ESCALATION_REASONS = new Set([
+    'irreversible_action', 'missing_authority', 'owner_value_choice',
+    'required_input_unavailable', 'evidenced_terminal_blocker'
+]);
 const INTENT_MATCHERS = new Set(INTENT_ORDER);
 const ADAPTER_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const ADAPTER_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
@@ -197,7 +205,27 @@ function includesRequestedEffectTerm(request, terms) {
     });
 }
 
+function responseAnnotationCommands(request) {
+    const commands = [];
+    for (const match of request.matchAll(/<response-annotations>([\s\S]*?)<\/response-annotations>/giu)) {
+        let annotations;
+        try {
+            annotations = JSON.parse(match[1]);
+        } catch {
+            continue;
+        }
+        if (!Array.isArray(annotations)) continue;
+        for (const entry of annotations) {
+            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+            if (typeof entry.annotation !== 'string' || !entry.annotation.trim()) continue;
+            commands.push(entry.annotation.trim());
+        }
+    }
+    return commands;
+}
+
 function classificationRequest(request) {
+    const annotationCommands = responseAnnotationCommands(request);
     const withoutStructuredMaterial = request
         .replace(/<response-annotations>[\s\S]*?<\/response-annotations>/giu, ' ')
         .replace(/```[\s\S]*?```/gu, ' ')
@@ -208,7 +236,7 @@ function classificationRequest(request) {
         || /(?:^|\n)\s*(?:\d{1,2}:\d{2}|\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{4}\.\d{2}\.\d{2}\s+.+曜日)/u.test(paragraph)
     ));
     const commandParagraphs = materialStart < 0 ? paragraphs : paragraphs.slice(0, materialStart);
-    return commandParagraphs.join('\n\n').trim();
+    return [...commandParagraphs, ...annotationCommands].join('\n\n').trim();
 }
 
 function sortByOrder(values, order) {
@@ -376,10 +404,52 @@ function validateManifest(manifest, lock) {
     for (const [key, terms] of Object.entries(matchers.signals)) validateStringTerms(terms, `judgment signal matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.safety)) validateStringTerms(terms, `judgment safety matcher ${key}`);
     validateStringTerms(matchers.follow_up, 'judgment follow-up matcher');
+    const autonomy = manifest.autonomy;
+    if (!autonomy || autonomy.schema_version !== 'brainbase-autonomy-policy-v1') throw new TypeError('judgment autonomy policy is invalid');
+    validateStringTerms(autonomy.continue_risks, 'judgment autonomy continue risks');
+    validateStringTerms(autonomy.escalate_risks, 'judgment autonomy escalate risks');
+    validateStringTerms(autonomy.escalate_action_kinds, 'judgment autonomy escalate action kinds');
+    validateStringTerms(autonomy.runtime_escalation_reasons, 'judgment autonomy runtime escalation reasons');
+    if (canonicalJson(autonomy.continue_risks) !== canonicalJson(['low', 'medium'])
+        || canonicalJson(autonomy.escalate_risks) !== canonicalJson(['high', 'critical'])
+        || canonicalJson(autonomy.escalate_action_kinds) !== canonicalJson(['external'])
+        || autonomy.runtime_escalation_reasons.length !== RUNTIME_ESCALATION_REASONS.size
+        || autonomy.runtime_escalation_reasons.some((reason) => !RUNTIME_ESCALATION_REASONS.has(reason))) {
+        throw new TypeError('judgment autonomy policy boundary is invalid');
+    }
     validateSelectableGraphs(manifest);
     const digest = sha256Hex(canonicalJson(manifest));
     validateManifestLock(lock, null, { runtimeVersion: manifest.runtime_version, manifestDigest: digest });
     return digest;
+}
+
+function autonomyResolution(status, classification, manifest) {
+    let decision;
+    let reasonCode;
+    if (status === 'needs_classification') {
+        decision = 'escalate';
+        reasonCode = 'classification_missing';
+    } else if (status === 'needs_policy_resolution') {
+        decision = 'escalate';
+        reasonCode = 'policy_conflict';
+    } else if (manifest.autonomy.escalate_risks.includes(classification.risk)
+        || manifest.autonomy.escalate_action_kinds.includes(classification.action_kind)) {
+        decision = 'escalate';
+        reasonCode = 'risk_or_external';
+    } else {
+        decision = 'continue';
+        reasonCode = 'routine_in_scope';
+    }
+    if (!AUTONOMY_DECISIONS.has(decision) || !AUTONOMY_REASON_CODES.has(reasonCode)) {
+        throw new TypeError('judgment autonomy resolution is invalid');
+    }
+    return {
+        autonomy_decision: decision,
+        autonomy_reason_code: reasonCode,
+        allowed_runtime_escalation_reasons: decision === 'continue'
+            ? [...manifest.autonomy.runtime_escalation_reasons]
+            : []
+    };
 }
 
 function validateInput(rawInput, manifest) {
@@ -837,6 +907,7 @@ export class JudgmentResolutionService {
             : policies.conflict
                 ? 'needs_policy_resolution'
                 : 'resolved';
+        const autonomy = autonomyResolution(status, reconciliation.classification, this.manifest);
         const requestDigest = computeRequestDigest(rawInput);
         const contextDigest = rawInput.conversation_context === undefined
             ? null
@@ -848,6 +919,7 @@ export class JudgmentResolutionService {
             request_digest: requestDigest,
             context_digest: contextDigest,
             status,
+            ...autonomy,
             runtime_version: this.manifest.runtime_version,
             manifest_digest: this.manifestDigest,
             host_binding: {

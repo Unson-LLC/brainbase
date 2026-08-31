@@ -7,10 +7,33 @@ The source checkout is `/Users/ksato/workspace/repos/brainbase`. The process run
 ## Standard Restart
 
 ```bash
+set -euo pipefail
+SOURCE_REPO=/Users/ksato/workspace/repos/brainbase
+RUNTIME_ROOT=/Users/ksato/workspace/repos/.runtime/brainbase-31013
+PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-pinned.sha
+source "$SOURCE_REPO/scripts/launchd/brainbase-runtime-target.sh"
+source "$SOURCE_REPO/scripts/launchd/brainbase-runtime-readiness.sh"
+TARGET_SHA="$(brainbase_resolve_runtime_target \
+  "$SOURCE_REPO" origin develop refs/brainbase-runtime/origin-develop "$PIN_FILE")"
+CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
+MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+brainbase_runtime_readiness_validate_positive_seconds "$CONNECT_TIMEOUT_SECONDS" 'connect timeout'
+brainbase_runtime_readiness_validate_positive_seconds "$MAX_TIMEOUT_SECONDS" 'maximum request time'
 launchctl kickstart -k gui/$(id -u)/com.brainbase.ui
-sleep 5
-curl -s http://127.0.0.1:31013/api/version | jq
+brainbase_wait_for_runtime_ready \
+  "$RUNTIME_ROOT" \
+  "$TARGET_SHA" \
+  http://127.0.0.1:31013/api/version \
+  "${BRAINBASE_RUNTIME_READINESS_ATTEMPTS:-30}" \
+  "${BRAINBASE_RUNTIME_READINESS_DELAY_SECONDS:-2}" \
+  "$CONNECT_TIMEOUT_SECONDS" \
+  "$MAX_TIMEOUT_SECONDS"
 ```
+
+The bounded wait accepts the restart only when the API and disposable runtime
+worktree both report the exact target commit and a clean state. A timeout exits
+non-zero; every API probe has a finite positive connect and total request
+timeout, and do not continue to MCP or Hook restoration until it passes.
 
 ## If The Job Is Not Loaded
 
@@ -29,8 +52,18 @@ It may already be loaded or restarting.
 ## Verify
 
 ```bash
+set -euo pipefail
+SOURCE_REPO=/Users/ksato/workspace/repos/brainbase
+source "$SOURCE_REPO/scripts/launchd/brainbase-runtime-readiness.sh"
+CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
+MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+brainbase_runtime_readiness_validate_positive_seconds "$CONNECT_TIMEOUT_SECONDS" 'connect timeout'
+brainbase_runtime_readiness_validate_positive_seconds "$MAX_TIMEOUT_SECONDS" 'maximum request time'
 lsof -nP -iTCP:31013 -sTCP:LISTEN
-curl -s http://127.0.0.1:31013/api/version | jq '.runtime.git'
+curl -fsS \
+  --connect-timeout "$CONNECT_TIMEOUT_SECONDS" \
+  --max-time "$MAX_TIMEOUT_SECONDS" \
+  -- http://127.0.0.1:31013/api/version | jq '.runtime.git'
 cat /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
 ```
 
