@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 import { GraphMaintenanceService } from '../../../server/services/graph-maintenance-service.js';
+import { validateGraphSnapshot } from '../../../server/services/graph-maintenance-engine.js';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
 
@@ -218,6 +219,30 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             })).resolves.toEqual([
                 expect.objectContaining({ id: 'edge_same_org_cross_project', to_id: 'project_vibepro_entity' })
             ]);
+            const snapshot = await service.exportSnapshot(access, { projectCode: 'brainbase' });
+            expect(snapshot.entities).not.toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: 'project_vibepro_entity' })
+            ]));
+            expect(snapshot.external_entities).toEqual(expect.arrayContaining([
+                expect.objectContaining({
+                    id: 'project_vibepro_entity',
+                    project_code: 'vibepro',
+                    reference_scope: 'same_organization'
+                })
+            ]));
+            expect(snapshot.edges).toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: 'edge_same_org_cross_project' })
+            ]));
+            expect(validateGraphSnapshot(snapshot)).toMatchObject({ valid: true, counts: { orphans: 0 } });
+
+            const sourceOnlySnapshot = await service.exportSnapshot(
+                { ...access, projectCodes: ['brainbase'] },
+                { projectCode: 'brainbase' }
+            );
+            expect(sourceOnlySnapshot.edges).not.toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: 'edge_same_org_cross_project' })
+            ]));
+            expect(JSON.stringify(sourceOnlySnapshot)).not.toContain('project_vibepro_entity');
         } finally {
             await infoSSOTService.withAccessContext(access, (client) =>
                 client.query(`DELETE FROM graph_edges WHERE id='edge_same_org_cross_project'`));

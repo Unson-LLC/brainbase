@@ -941,6 +941,94 @@ describe('GraphMaintenanceService authorization', () => {
         }, 'brainbase', { includeProjectCodes: ['vibepro'] })).rejects.toThrow('Access denied for project: vibepro');
     });
 
+    it('同一organizationで参照権限のある跨project endpointをmetadata-only参照として解決する', async () => {
+        const localEntity = {
+            id: 'project_brainbase_entity', entity_type: 'project', project_code: 'brainbase', payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const externalPerson = {
+            id: 'per_yajima_tsuyoshi', entity_type: 'person', project_code: 'techknight', organization_id: 'org_1',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 3
+        };
+        const edge = {
+            id: 'edge_yajima_member_of', from_id: externalPerson.id, to_id: localEntity.id, rel_type: 'member_of',
+            project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localEntity] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [externalPerson] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+        const { snapshot } = await scoped.loadSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'techknight'], role: 'gm'
+        }, 'brainbase');
+
+        expect(snapshot.entities).toEqual([localEntity]);
+        expect(snapshot.edges).toEqual([edge]);
+        expect(snapshot.external_entities).toEqual([{
+            id: externalPerson.id, entity_type: 'person', project_code: 'techknight', reference_scope: 'same_organization',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 3
+        }]);
+        expect(snapshot.external_entities[0]).not.toHaveProperty('payload');
+        expect(validateGraphSnapshot(snapshot)).toMatchObject({ valid: true, counts: { orphans: 0 } });
+    });
+
+    it('同一organizationでも参照先projectが権限外ならEdgeとendpointを公開しない', async () => {
+        const localEntity = {
+            id: 'project_brainbase_entity', entity_type: 'project', project_code: 'brainbase', payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const edge = {
+            id: 'edge_hidden_member_of', from_id: 'person_hidden', to_id: localEntity.id, rel_type: 'member_of',
+            project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localEntity] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [{
+                id: localEntity.id, entity_type: localEntity.entity_type, project_code: localEntity.project_code,
+                organization_id: 'org_1', role_min: localEntity.role_min, sensitivity: localEntity.sensitivity,
+                lifecycle_status: localEntity.lifecycle_status, version: localEntity.version
+            }] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+        const { snapshot } = await scoped.loadSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, 'brainbase');
+
+        expect(snapshot.edges).toEqual([]);
+        expect(snapshot).not.toHaveProperty('external_entities');
+    });
+
+    it('same-organization external endpointのreadbackはGMでも許可しscope markerを維持する', async () => {
+        const expected = {
+            id: 'per_yajima_tsuyoshi', entity_type: 'person', project_code: 'techknight',
+            reference_scope: 'same_organization', role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 3
+        };
+        const client = { query: vi.fn(async () => ({ rows: [{
+            ...expected, organization_id: 'org_1', reference_scope: undefined
+        }] })) };
+
+        const readback = await service.loadExternalEntitiesFromImage(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'techknight'], role: 'gm'
+        }, { project_code: 'brainbase', entities: [], edges: [], external_entities: [expected] }, { lock: true });
+
+        expect(readback).toEqual([expected]);
+        expect(client.query.mock.calls[0][0]).toContain('FOR UPDATE');
+    });
+
     it.each([
         ['gm', ['brainbase']],
         ['ceo', ['brainbase']]

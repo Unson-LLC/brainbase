@@ -470,7 +470,9 @@ export function validateGraphSnapshot(snapshot) {
         }
         const source = entitiesById.get(edge.from_id);
         const target = entitiesById.get(edge.to_id);
-        if (source && target && externalEntityIds.has(target.id) && source.project_code !== target.project_code) {
+        const targetIsCrossTenant = externalEntityIds.has(target?.id)
+            && target.reference_scope !== 'same_organization';
+        if (source && target && targetIsCrossTenant && source.project_code !== target.project_code) {
             const canonicalCrossTenant = edge.rel_type === 'governs'
                 && edge.project_code === source.project_code
                 && edge.payload?.cross_tenant === true

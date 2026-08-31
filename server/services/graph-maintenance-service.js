@@ -208,6 +208,19 @@ function uniqueIds(records) {
     return [...new Set(records.map((record) => record.id))];
 }
 
+function externalEntityProjection(entity, referenceScope) {
+    return {
+        id: entity.id,
+        entity_type: entity.entity_type,
+        project_code: entity.project_code,
+        ...(referenceScope ? { reference_scope: referenceScope } : {}),
+        role_min: entity.role_min,
+        sensitivity: entity.sensitivity,
+        lifecycle_status: entity.lifecycle_status,
+        version: entity.version
+    };
+}
+
 function snapshotProjectCodes(snapshot) {
     return [...new Set([
         snapshot.project_code,
@@ -420,7 +433,10 @@ export class GraphMaintenanceService {
     async loadExternalEntitiesFromImage(client, access, image, { lock = false } = {}) {
         const expected = image.external_entities || [];
         if (!expected.length) return [];
-        if (access.role !== 'ceo') throw new Error('Cross-tenant Decision subject link requires ceo role');
+        const crossTenantExpected = expected.filter((entity) => entity.reference_scope !== 'same_organization');
+        if (crossTenantExpected.length && access.role !== 'ceo') {
+            throw new Error('Cross-tenant Decision subject link requires ceo role');
+        }
         const codes = [...new Set(expected.map((entity) => entity.project_code))];
         if (codes.some((code) => !access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
         const suffix = lock ? ' FOR UPDATE' : '';
@@ -436,10 +452,27 @@ export class GraphMaintenanceService {
         );
         if (rows.length !== expected.length) throw new Error('Decision subject target is missing or inaccessible');
         const sourceOrganizationId = access.organizationId || access.tenantId;
-        if (rows.some((row) => row.organization_id === sourceOrganizationId)) {
-            throw new Error('Decision subject target must belong to a different tenant organization');
+        for (const entity of expected) {
+            const target = rows.find((row) => row.id === entity.id);
+            if (!target || target.project_code !== entity.project_code) throw new Error('Product target scope mismatch');
+            const sameOrganization = target.organization_id === sourceOrganizationId;
+            if (entity.reference_scope === 'same_organization' && !sameOrganization) {
+                throw new Error('Same-organization endpoint must belong to the source organization');
+            }
+            if (entity.reference_scope !== 'same_organization' && sameOrganization) {
+                throw new Error('Decision subject target must belong to a different tenant organization');
+            }
         }
-        return rows;
+        return rows.map((row) => {
+            const entity = expected.find((item) => item.id === row.id);
+            if (entity.reference_scope === 'same_organization') {
+                return externalEntityProjection(row, entity.reference_scope);
+            }
+            return {
+                ...row,
+                ...(entity.reference_scope ? { reference_scope: entity.reference_scope } : {})
+            };
+        });
     }
 
     async loadSnapshot(client, access, projectCode, { lock = false, includeProjectCodes = [] } = {}) {
@@ -477,12 +510,36 @@ export class GraphMaintenanceService {
                 [projectIds, access.role, access.projectCodes]
             )
         ]);
+        const localEndpointIds = new Set(entityResult.rows.map((entity) => entity.id));
         const endpointIds = [...new Set(edgeResult.rows.flatMap((edge) => [edge.from_id, edge.to_id]))];
-        const endpointResult = endpointIds.length ? await client.query(
-            `SELECT ge.id FROM graph_entities ge WHERE ge.id=ANY($1::text[])`,
-            [endpointIds]
+        const unresolvedEndpointIds = endpointIds.filter((id) => !localEndpointIds.has(id));
+        const organizationId = access.organizationId || access.tenantId;
+        const sameOrganizationResult = unresolvedEndpointIds.length ? await client.query(
+            `SELECT ge.id, ge.entity_type, p.code AS project_code, p.organization_id,
+                    ge.role_min, ge.sensitivity, ge.lifecycle_status, ge.version
+             FROM graph_entities ge JOIN projects p ON p.id=ge.project_id
+             WHERE ge.id=ANY($1::text[]) AND p.organization_id=$2
+               AND p.code=ANY($3::text[])
+             ORDER BY ge.id${suffix}`,
+            [unresolvedEndpointIds, organizationId, access.projectCodes]
         ) : { rows: [] };
-        const visibleEndpointIds = new Set(endpointResult.rows.map((row) => row.id));
+        const sameOrganizationExternalEntities = sameOrganizationResult.rows
+            .map((entity) => externalEntityProjection(entity, 'same_organization'));
+        const crossTenantLinks = edgeResult.rows
+            .filter((edge) => edge.rel_type === 'governs' && edge.payload?.cross_tenant === true)
+            .map((edge) => ({
+                operation: 'link_decision_subject',
+                subject_entity_id: edge.to_id,
+                target_project_code: edge.payload.target_project_code
+            }));
+        const crossTenantExternalEntities = crossTenantLinks.length
+            ? await this.loadExternalEntities(client, access, crossTenantLinks, { lock })
+            : [];
+        const externalEntitiesById = new Map([
+            ...sameOrganizationExternalEntities,
+            ...crossTenantExternalEntities
+        ].filter((entity) => !localEndpointIds.has(entity.id)).map((entity) => [entity.id, entity]));
+        const visibleEndpointIds = new Set([...localEndpointIds, ...externalEntitiesById.keys()]);
         // Legacy rows with an unresolved or inaccessible endpoint stay in the
         // database for forensic repair, but must never disclose that endpoint
         // through a maintenance snapshot. Canonical rows require both endpoints.
@@ -490,15 +547,8 @@ export class GraphMaintenanceService {
             visibleEndpointIds.has(edge.from_id) && visibleEndpointIds.has(edge.to_id)
         ));
         const snapshot = { project_code: projectCode, entities: entityResult.rows, edges: visibleEdges };
-        const crossTenantLinks = visibleEdges
-            .filter((edge) => edge.rel_type === 'governs' && edge.payload?.cross_tenant === true)
-            .map((edge) => ({
-                operation: 'link_decision_subject',
-                subject_entity_id: edge.to_id,
-                target_project_code: edge.payload.target_project_code
-            }));
-        if (crossTenantLinks.length) {
-            snapshot.external_entities = await this.loadExternalEntities(client, access, crossTenantLinks, { lock });
+        if (externalEntitiesById.size) {
+            snapshot.external_entities = [...externalEntitiesById.values()].sort((a, b) => a.id.localeCompare(b.id));
         }
         snapshot.hash = hashGraphSnapshot(snapshot);
         return { project, snapshot };
