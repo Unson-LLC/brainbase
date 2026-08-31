@@ -238,11 +238,39 @@ describe('Cloudflare tenant runtime private bridge', () => {
             });
         });
 
-        const response = await handleTenantRuntimeBridgeRequest(request(), ENV, { fetchImpl });
+        const logger = { warn: vi.fn() };
+        const response = await handleTenantRuntimeBridgeRequest(request(), ENV, { fetchImpl, logger });
 
         expect(response.status).toBe(409);
         expect(response.headers.get('content-type')).toContain('application/problem+json');
         await expect(response.text()).resolves.toBe(problemBody);
+        expect(logger.warn).toHaveBeenCalledWith(JSON.stringify({
+            event: 'tenant_runtime_upstream_problem', status: 409,
+            code: 'TENANT_CONTEXT_INVALID', scope_reason: null, required_action: null
+        }));
+    });
+
+    it('logs only the safe classification fields from an upstream scope problem', async () => {
+        const logger = { warn: vi.fn() };
+        const fetchImpl = vi.fn(async () => Response.json({
+            status: 403,
+            code: 'CREDENTIAL_LEASE_SCOPE_MISMATCH',
+            details: {
+                scope_reason: 'provider_forwarder_unavailable',
+                required_action: 'contact_operator',
+                secret: 'must-not-be-logged'
+            }
+        }, { status: 403, headers: { 'content-type': 'application/problem+json' } }));
+
+        const response = await handleTenantRuntimeBridgeRequest(request(), ENV, { fetchImpl, logger });
+
+        expect(response.status).toBe(403);
+        expect(logger.warn).toHaveBeenCalledWith(JSON.stringify({
+            event: 'tenant_runtime_upstream_problem', status: 403,
+            code: 'CREDENTIAL_LEASE_SCOPE_MISMATCH',
+            scope_reason: 'provider_forwarder_unavailable', required_action: 'contact_operator'
+        }));
+        expect(logger.warn.mock.calls.flat().join(' ')).not.toContain('must-not-be-logged');
     });
 
     it('buffers the complete upstream body before returning it downstream', async () => {
