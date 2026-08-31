@@ -36,6 +36,20 @@ afterEach(() => {
 });
 
 describe('ontology writer inventory vocabulary contract', () => {
+    it('classifies every Graph maintenance service vocabulary literal in the repository manifest', () => {
+        expect(verifyWriterInventory({ rootDir: process.cwd() })).toMatchObject({
+            classifications: {
+                'server/services/graph-maintenance-service.js': {
+                    mode: 'runtime_guarded',
+                    vocabulary: {
+                        types: expect.arrayContaining(['decision', 'person', 'product', 'project']),
+                        relations: expect.arrayContaining(['governs', 'member_of'])
+                    }
+                }
+            }
+        });
+    });
+
     it('accepts writer literals classified by the manifest', () => {
         const rootDir = fixture({
             source: "upsertGraphEntity({ entityType: 'app' }); upsertGraphEdge({ relType: 'owned_by' });",

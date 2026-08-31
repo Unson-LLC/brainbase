@@ -17,6 +17,7 @@ Graph管理者として、プロジェクト単位のSnapshotを検証すると�
 - [ ] AC-003: 参照先projectが権限外、endpointが欠損、またはorganizationが異なる通常EdgeはSnapshotへ公開せず、識別子を含まない抑止件数と理由を返す。
 - [ ] AC-004: 既存のcanonical cross-tenant `governs`契約は維持し、旧Snapshotのscope markerなし`external_entities`もcross-tenantとしてfail closedに検証する。
 - [ ] AC-005: Snapshot再読込時にsame-organization参照をorganization・project access・versionまで再検証し、driftをhashへ反映する。
+- [ ] AC-006: Graph maintenance serviceが使用する`person`・`product`・`member_of`をwriter inventoryへ明示し、未申告のGraph語彙を引き続き拒否する。
 
 ## 検証対象
 
@@ -25,6 +26,7 @@ Graph管理者として、プロジェクト単位のSnapshotを検証すると�
 - 抑止された通常Edgeは、endpoint IDを漏らさず件数と理由だけを監査できる。
 - 非canonical cross-tenant Edgeは`cross_tenant_edge`のまま拒否される。
 - markerなしの旧cross-tenant Snapshot互換性を維持する。
+- Ontology writer inventoryが保守サービスの使用語彙を過不足なく分類する。
 
 ## 非対象
 

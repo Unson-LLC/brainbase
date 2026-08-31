@@ -27,6 +27,7 @@
 - 隠した通常Edgeの監査証跡は集約値だけとし、endpoint識別子や所属scopeを漏らさない。
 - canonical cross-tenant endpointが欠損・権限外ならSnapshot全体をfail closedにする。
 - `suppression_summary`導入前のPlanとHuman Gateは自動補完しない。現在のSnapshotからPlanを再生成し、識別子なしの抑止集計を確認して再承認する。
+- Graph maintenance serviceがEntity参照解決で使う`person`・`product`・`member_of`はwriter inventoryで明示し、未申告語彙の検出はfail closedを維持する。
 
 ## 採用しなかった案
 
@@ -40,7 +41,7 @@
 
 ## 展開と確認
 
-1. Unit testでsame-organization・権限外・cross-tenant互換を固定する。
+1. Unit testでsame-organization・権限外・cross-tenant互換とwriter inventoryの許可語彙を固定する。
 2. Graph maintenance service/engineを同一SHAで展開する。
 3. 本番反映後に`graph_validate(project_code=brainbase)`を読み戻し、既存8件のfalse orphanが解消し、新しい権限漏れがないことを確認する。
 

@@ -164,6 +164,43 @@
   },
   "clauses": [
     {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "Graph maintenance serviceが使用するperson・product・member_ofをwriter inventoryへ明示し、未申告のGraph語彙を拒否する。",
+      "rationale": "保守サービスの新しい参照解決語彙を許可しつつ、Graph writer境界をfail closedに保つ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-006"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "config/ontology/writer-inventory.json",
+            "anchor": "server/services/graph-maintenance-service.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/ontology-writer-inventory.test.js",
+            "case": "classifies every Graph maintenance service vocabulary literal in the repository manifest"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/ontology-writer-inventory.test.js",
+            "must_cover": "classifies every Graph maintenance service vocabulary literal in the repository manifest"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-31T22:09:56+09:00",
+      "last_revised_at": "2026-08-31T22:09:56+09:00"
+    },
+    {
       "id": "C-001",
       "type": "contract",
       "statement": "同一organizationかつcallerが参照先projectへ明示アクセスできる跨project endpointをmetadata-only external entityとして解決する。",
