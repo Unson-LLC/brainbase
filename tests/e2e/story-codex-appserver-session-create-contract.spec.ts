@@ -94,6 +94,9 @@ test.describe('story-codex-appserver-session-create retirement contract', () => 
     expect(runbook).toContain('## 4. 旧セッション作成導線とFocusEngineModal互換導線を確認する');
     expect(runbook).toContain('Session Launch Pickerはretiredかつ到達不能');
     expect(runbook).toContain('FocusEngineModalが表示');
+    expect(runbook).toContain('Modal不在時は直ちに');
+    expect(runbook).toContain('Workspace Setup selector moduleは、個人のlocal pathを扱う別Capabilityの互換・契約surface');
+    expect(runbook).not.toContain('正式Project Catalog consumer');
     expect(workspaceSetupContract).toContain('Workspace Setupはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする');
     expect(workspaceSetupContract).not.toContain('Session Launch Pickerはruntime catalog');
   });

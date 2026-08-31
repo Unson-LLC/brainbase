@@ -528,7 +528,7 @@
       "statement": "Project Provisioning has no production browser UI. The server-side session.create/static endpoint and Session Launch Picker are retired and unreachable. During migration, an old NocoDB START_TASK event may reach the retained FocusEngineModal only as a downstream compatibility consumer; engine selection (or a missing Modal) fails closed to a Codex migration notice and does not call session APIs. The retained Workspace Setup selector module owns explicit per-user local.path as a separate compatibility/contract surface, is not currently served by a production static route, and its synthetic-host test is not production browser E2E evidence. Codex app/CLI owns task and worktree creation.",
       "rationale": "Retired session creation must not remain a shadow Catalog or task-creation route; the legacy NocoDB compatibility path must not reach the retired API. Formal registration stays on Skill/CLI/API/MCP, personal workspace paths remain outside organization facts, and compatibility tests must not be reported as production UI evidence.",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "index": 15, "ac_id": "AC-16", "text_snippet": "旧NocoDB START_TASKからFocusEngineModalへ到達し得るが互換導線として移行案内へfail-closedし、正式Project Catalog consumerはWorkspace Setupだけに限定する" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 15, "ac_id": "AC-16", "text_snippet": "Project Provisioningは本番ブラウザUIを持たない。保持されるWorkspace Setup selector moduleは、個人のlocal pathを扱う別Capabilityの互換・契約surfaceである" }],
         "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "境界・非対象" }],
         "code_refs": [
           { "file": "public/modules/app/event-listeners-mixin.js", "anchor": "EVENTS.CREATE_SESSION" },
@@ -540,6 +540,7 @@
         ],
         "test_refs": [
           { "file": "tests/e2e/story-inline-session-creation-pr-gate.spec.ts", "case": "desktop/mobileの旧入口が移行案内を表示し、Pickerもsession APIも呼ばない" },
+          { "file": "tests/e2e/story-nocodb-task-start-retirement.spec.js", "case": "FocusEngineModalがないNocoDBタスク開始は即時にCodex移行案内へfail-closedする" },
           { "file": "tests/e2e/story-nocodb-task-start-retirement.spec.js", "case": "NocoDB開始ボタンからエンジン選択後に移行案内へfail-closedし、session APIを呼ばない" },
           { "file": "tests/ui/ui-setup-mixin.test.js", "case": "Workspace Setupが必要なRegistry projectをdisabled optionとして表示する" },
           { "file": "tests/e2e/story-project-runtime-catalog-ux.spec.js", "case": "loaded grant-scoped catalog renders selectable, workspace-missing, and workspace setup states" }
@@ -548,6 +549,7 @@
       "verifiable_by": {
         "test_pattern": [
         { "file_glob": "tests/e2e/story-inline-session-creation-pr-gate.spec.ts", "must_cover": "desktop/mobileの旧入口が移行案内を表示し、Pickerもsession APIも呼ばない" },
+        { "file_glob": "tests/e2e/story-nocodb-task-start-retirement.spec.js", "must_cover": "FocusEngineModalがないNocoDBタスク開始は即時にCodex移行案内へfail-closedする" },
         { "file_glob": "tests/e2e/story-nocodb-task-start-retirement.spec.js", "must_cover": "NocoDB開始ボタンからエンジン選択後に移行案内へfail-closedし、session APIを呼ばない" },
         { "file_glob": "tests/e2e/story-project-runtime-catalog-ux.spec.js", "must_cover": "loaded grant-scoped catalog renders selectable, workspace-missing, and workspace setup states" }
         ]
