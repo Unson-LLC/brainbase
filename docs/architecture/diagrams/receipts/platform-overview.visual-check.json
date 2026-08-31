@@ -5,7 +5,7 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "/home/salestailor/actions-runner/Unson-LLC-linux/_work/_temp/archify-visual-33368180602-render/platform-overview.html",
+    "path": "/home/salestailor/actions-runner/Unson-LLC-linux-3/_work/_temp/archify-visual-33368909299-render/platform-overview.html",
     "sha256": "652110d142cf4491970bd22548bfc65123fedcac30e2d8752830ae2ed00c62ee",
     "bytes": 722709
   },
@@ -15,7 +15,7 @@
   },
   "chrome": {
     "status": "available",
-    "executable": "/home/salestailor/actions-runner/Unson-LLC-linux/_work/_temp/chrome-33368180602-render/opt/google/chrome/google-chrome"
+    "executable": "/home/salestailor/actions-runner/Unson-LLC-linux-3/_work/_temp/chrome-33368909299-render/opt/google/chrome/google-chrome"
   },
   "diagnostics": [],
   "containment": {
