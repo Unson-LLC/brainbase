@@ -166,6 +166,7 @@
       "from": "operating-surface",
       "to": "organization-runtime",
       "label": "MCP / API / Web",
+      "labelAt": [314, 174],
       "variant": "emphasis"
     },
     {
@@ -179,12 +180,16 @@
       "id": "kernel-to-oss",
       "from": "shared-kernel",
       "to": "oss-local-profile",
+      "fromSide": "bottom",
+      "toSide": "top",
       "variant": "emphasis"
     },
     {
       "id": "oss-to-local-ssot",
       "from": "oss-local-profile",
-      "to": "local-personal-ssot"
+      "to": "local-personal-ssot",
+      "fromSide": "bottom",
+      "toSide": "top"
     },
     {
       "id": "organization-to-sources",
@@ -196,6 +201,7 @@
       "from": "organization-runtime",
       "to": "company-authority",
       "label": "tenant context",
+      "labelAt": [1005, 180],
       "variant": "security"
     },
     {
@@ -222,12 +228,16 @@
       "id": "governed-to-mana",
       "from": "governed-execution",
       "to": "mana-runtime",
+      "fromSide": "bottom",
+      "toSide": "top",
       "variant": "dashed"
     },
     {
       "id": "mana-to-sors",
       "from": "mana-runtime",
       "to": "external-sors",
+      "fromSide": "bottom",
+      "toSide": "top",
       "variant": "security"
     }
   ],
