@@ -750,7 +750,7 @@ describe('GraphMaintenanceService authorization', () => {
         expect(replaceSnapshot).not.toHaveBeenCalled();
     });
 
-    it('旧MCP clientは単一DecisionのApply Gateだけを新規記録できる', async () => {
+    it('旧Decision集合は単一Decisionだけ互換受理し、抑止集計のない旧Gateは再承認を要求する', async () => {
         const makePlan = (ids) => {
             const before = { project_code: 'brainbase', entities: ids.map((id) => ({
                 id, entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member',
@@ -767,7 +767,7 @@ describe('GraphMaintenanceService authorization', () => {
                 operations: ids.map((id) => ({ operation: 'retire_entity', entity_id: id, expected_version: 1 }))
             };
         };
-        const record = async (plan, receiptId) => {
+        const record = async (plan, receiptId, { omitSuppressionSummary = false } = {}) => {
             let service;
             const client = { query: vi.fn(async (sql, params) => {
                 if (sql.includes('SELECT id, code, organization_id FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
@@ -779,12 +779,15 @@ describe('GraphMaintenanceService authorization', () => {
             service = new GraphMaintenanceService({ infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) } });
             const legacyScope = { ...service.formatPlan(plan).apply_human_gate_scope };
             delete legacyScope.decision_ids;
+            if (omitSuppressionSummary) delete legacyScope.suppression_summary;
             return service.recordHumanGateReceipt({
                 organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
             }, { projectCode: 'brainbase', decisionId: 'decision_1', receiptId, evidence: { operation_scope: legacyScope } });
         };
         await expect(record(makePlan(['decision_1']), 'gate_legacy_single'))
             .resolves.toMatchObject({ receipt_id: 'gate_legacy_single', status: 'approved' });
+        await expect(record(makePlan(['decision_1']), 'gate_pre_suppression', { omitSuppressionSummary: true }))
+            .rejects.toMatchObject({ code: 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID', status: 400 });
         await expect(record(makePlan(['decision_1', 'decision_2']), 'gate_legacy_multi'))
             .rejects.toMatchObject({ code: 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH', status: 409 });
     });

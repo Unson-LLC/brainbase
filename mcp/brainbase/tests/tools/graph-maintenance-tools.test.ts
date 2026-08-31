@@ -297,6 +297,46 @@ describe('Graph maintenance MCP tools', () => {
     assert.deepEqual(applyScopeSchema.properties.decision_ids, {
       type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, uniqueItems: true,
     });
+    assert.ok(applyScopeSchema.required.includes('suppression_summary'));
+    assert.deepEqual(applyScopeSchema.properties.suppression_summary, {
+      type: 'object',
+      properties: {
+        before: {
+          type: 'object',
+          properties: {
+            edge_count: { type: 'integer', minimum: 0 },
+            reasons: {
+              type: 'object',
+              properties: {
+                noncanonical_cross_tenant_marker: { type: 'integer', minimum: 0 },
+                unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 0 },
+              },
+              additionalProperties: false,
+            },
+          },
+          required: ['edge_count', 'reasons'],
+          additionalProperties: false,
+        },
+        after: {
+          type: 'object',
+          properties: {
+            edge_count: { type: 'integer', minimum: 0 },
+            reasons: {
+              type: 'object',
+              properties: {
+                noncanonical_cross_tenant_marker: { type: 'integer', minimum: 0 },
+                unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 0 },
+              },
+              additionalProperties: false,
+            },
+          },
+          required: ['edge_count', 'reasons'],
+          additionalProperties: false,
+        },
+      },
+      required: ['before', 'after'],
+      additionalProperties: false,
+    });
     assert.equal(applyScopeSchema.additionalProperties, false);
 
     const planTool = graphMaintenanceTools.find((tool) => tool.name === 'graph_plan_mutations');

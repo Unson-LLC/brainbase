@@ -14,6 +14,8 @@
         "server/sql/info-ssot-rls.sql",
         "server/services/graph-maintenance-engine.js",
         "server/services/graph-maintenance-service.js",
+        "mcp/brainbase/src/tools/graph-maintenance-tools.ts",
+        "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
         "tests/server/services/graph-maintenance-engine.test.js",
         "tests/server/services/graph-maintenance-postgres.integration.test.js",
         "tests/server/services/graph-maintenance-service.test.js",

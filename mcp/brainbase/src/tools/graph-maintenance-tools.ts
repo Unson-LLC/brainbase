@@ -11,6 +11,29 @@ const operationNames = [
   'retire_edge', 'normalize_alias',
 ] as const;
 const planId = { plan_id: { type: 'string', minLength: 1 } } as const;
+const suppressionReasonCounts = {
+  type: 'object',
+  properties: {
+    noncanonical_cross_tenant_marker: { type: 'integer', minimum: 0 },
+    unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 0 },
+  },
+  additionalProperties: false,
+} as const;
+const suppressionSummary = {
+  type: 'object',
+  properties: {
+    edge_count: { type: 'integer', minimum: 0 },
+    reasons: suppressionReasonCounts,
+  },
+  required: ['edge_count', 'reasons'],
+  additionalProperties: false,
+} as const;
+const suppressionSummaryTransition = {
+  type: 'object',
+  properties: { before: suppressionSummary, after: suppressionSummary },
+  required: ['before', 'after'],
+  additionalProperties: false,
+} as const;
 const humanGateOperationScope = {
   oneOf: [
     {
@@ -46,8 +69,9 @@ const humanGateOperationScope = {
         after_snapshot_hash: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
         operations_fingerprint: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
         diff_fingerprint: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
+        suppression_summary: suppressionSummaryTransition,
       },
-      required: ['operation', 'decision_id', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint'],
+      required: ['operation', 'decision_id', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint', 'suppression_summary'],
       additionalProperties: false,
     },
     {

@@ -26,6 +26,7 @@
 - 欠損・権限外endpointを持つEdgeは、修復前データを削除せずSnapshotから隠す。
 - 隠した通常Edgeの監査証跡は集約値だけとし、endpoint識別子や所属scopeを漏らさない。
 - canonical cross-tenant endpointが欠損・権限外ならSnapshot全体をfail closedにする。
+- `suppression_summary`導入前のPlanとHuman Gateは自動補完しない。現在のSnapshotからPlanを再生成し、識別子なしの抑止集計を確認して再承認する。
 
 ## 採用しなかった案
 
@@ -42,5 +43,7 @@
 1. Unit testでsame-organization・権限外・cross-tenant互換を固定する。
 2. Graph maintenance service/engineを同一SHAで展開する。
 3. 本番反映後に`graph_validate(project_code=brainbase)`を読み戻し、既存8件のfalse orphanが解消し、新しい権限漏れがないことを確認する。
+
+導入前に未適用だったPlanは破棄し、導入後のSnapshotで再Plan・再承認する。旧Gateを新しい抑止状態へ暗黙に流用しない。
 
 手順3は未デプロイのPRでは完了扱いにしない。
