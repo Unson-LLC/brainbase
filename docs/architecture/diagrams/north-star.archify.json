@@ -6,7 +6,7 @@
     "output": "generated/north-star.html",
     "quality_profile": "showcase",
     "viewBox": [
-      1380,
+      1100,
       900
     ],
     "views": [
@@ -63,13 +63,13 @@
       "id": "human-governance",
       "type": "external",
       "label": "Human Governance",
-      "sublabel": "基準・Accountability・Human Gate",
+      "sublabel": "基準・責任・Human Gate",
       "pos": [
-        40,
+        30,
         80
       ],
       "size": [
-        210,
+        180,
         78
       ],
       "tag": "SETS CRITERIA"
@@ -78,13 +78,13 @@
       "id": "agent-runtime",
       "type": "cloud",
       "label": "Agent & Mana Runtime",
-      "sublabel": "MCP・Companion・channels・orchestration",
+      "sublabel": "MCP・Mana・channels",
       "pos": [
-        40,
+        30,
         250
       ],
       "size": [
-        210,
+        180,
         78
       ],
       "tag": "EXPLORES & EXECUTES"
@@ -92,14 +92,14 @@
     {
       "id": "authority-plane",
       "type": "security",
-      "label": "Authority & Policy Plane",
-      "sublabel": "identity・scope・RACI・delegation・quota",
+      "label": "Authority & Policy",
+      "sublabel": "identity・scope・RACI・quota",
       "pos": [
-        320,
+        250,
         77
       ],
       "size": [
-        240,
+        190,
         84
       ],
       "tag": "SHARED GUARD"
@@ -108,13 +108,13 @@
       "id": "context-plane",
       "type": "backend",
       "label": "Context Plane",
-      "sublabel": "canonical source・provenance・temporal validity",
+      "sublabel": "source・provenance・validity",
       "pos": [
-        320,
+        250,
         246
       ],
       "size": [
-        240,
+        190,
         86
       ],
       "tag": "WHAT IS TRUE NOW"
@@ -123,13 +123,13 @@
       "id": "judgment-plane",
       "type": "backend",
       "label": "Judgment Plane",
-      "sublabel": "DAG selection・counterargument・autonomy",
+      "sublabel": "DAG・反証・autonomy",
       "pos": [
-        610,
+        475,
         246
       ],
       "size": [
-        240,
+        190,
         86
       ],
       "tag": "WHAT TO DO"
@@ -137,14 +137,14 @@
     {
       "id": "dag-registry",
       "type": "messagebus",
-      "label": "Domain Judgment Registry",
-      "sublabel": "typed DAG・evidence・evaluation contracts",
+      "label": "Judgment Registry",
+      "sublabel": "typed DAG・evidence contract",
       "pos": [
-        610,
+        475,
         431
       ],
       "size": [
-        240,
+        190,
         82
       ],
       "tag": "SELECT & COMPOSE"
@@ -153,13 +153,13 @@
       "id": "domain-packs",
       "type": "backend",
       "label": "Domain Judgment Packs",
-      "sublabel": "VibePro・Zeims・sales・marketing・back office",
+      "sublabel": "VibePro・Zeims・business",
       "pos": [
-        610,
+        475,
         610
       ],
       "size": [
-        240,
+        190,
         84
       ],
       "tag": "DOMAIN-OWNED"
@@ -167,14 +167,14 @@
     {
       "id": "execution-plane",
       "type": "cloud",
-      "label": "Bounded Execution Plane",
-      "sublabel": "skills・tools・connectors・Human Action",
+      "label": "Bounded Execution",
+      "sublabel": "skills・tools・connectors",
       "pos": [
-        900,
+        700,
         247
       ],
       "size": [
-        240,
+        190,
         84
       ],
       "tag": "AUTHORIZED ONLY"
@@ -183,13 +183,13 @@
       "id": "systems-of-record",
       "type": "external",
       "label": "Systems of Record",
-      "sublabel": "GitHub・CRM・ledger・contracts・vaults",
+      "sublabel": "GitHub・CRM・ledger・vault",
       "pos": [
-        900,
+        700,
         430
       ],
       "size": [
-        240,
+        190,
         84
       ],
       "tag": "FINAL STATE"
@@ -197,14 +197,14 @@
     {
       "id": "receipts",
       "type": "database",
-      "label": "Judgment / Run / Outcome Receipts",
-      "sublabel": "immutable lineage・usage・external readback",
+      "label": "Outcome Receipts",
+      "sublabel": "judgment・run・usage・readback",
       "pos": [
-        895,
+        695,
         611
       ],
       "size": [
-        250,
+        200,
         82
       ],
       "tag": "REPLAYABLE"
@@ -213,13 +213,13 @@
       "id": "organization-memory",
       "type": "database",
       "label": "Organization Memory",
-      "sublabel": "Graph・work ledger・validated knowledge",
+      "sublabel": "Graph・ledger・knowledge",
       "pos": [
-        1170,
+        920,
         430
       ],
       "size": [
-        180,
+        160,
         84
       ],
       "tag": "CANONICAL"
@@ -228,13 +228,13 @@
       "id": "learning-plane",
       "type": "backend",
       "label": "Learning Plane",
-      "sublabel": "evaluate・promote・scope・version",
+      "sublabel": "evaluate・promote・version",
       "pos": [
-        1170,
+        920,
         609
       ],
       "size": [
-        180,
+        160,
         86
       ],
       "tag": "GET BETTER"
@@ -243,13 +243,13 @@
       "id": "personal-memory",
       "type": "database",
       "label": "Personal Vaults",
-      "sublabel": "owner-controlled raw memory",
+      "sublabel": "owner-controlled memory",
       "pos": [
-        1170,
+        920,
         760
       ],
       "size": [
-        180,
+        160,
         82
       ],
       "tag": "SEPARATE"
@@ -264,7 +264,7 @@
       "variant": "security",
       "route": "straight",
       "labelAt": [
-        285,
+        230,
         60
       ]
     },
@@ -276,7 +276,7 @@
       "variant": "emphasis",
       "route": "straight",
       "labelAt": [
-        195,
+        170,
         205
       ]
     },
@@ -288,7 +288,7 @@
       "variant": "emphasis",
       "route": "straight",
       "labelAt": [
-        285,
+        230,
         230
       ]
     },
@@ -300,7 +300,7 @@
       "variant": "security",
       "route": "straight",
       "labelAt": [
-        505,
+        405,
         205
       ]
     },
@@ -312,7 +312,7 @@
       "variant": "emphasis",
       "route": "straight",
       "labelAt": [
-        585,
+        458,
         230
       ]
     },
@@ -324,7 +324,7 @@
       "variant": "security",
       "route": "straight",
       "labelAt": [
-        875,
+        683,
         230
       ]
     },
@@ -336,7 +336,7 @@
       "variant": "emphasis",
       "route": "straight",
       "labelAt": [
-        790,
+        630,
         385
       ]
     },
@@ -348,7 +348,7 @@
       "variant": "default",
       "route": "straight",
       "labelAt": [
-        790,
+        630,
         565
       ]
     },
@@ -360,7 +360,7 @@
       "variant": "emphasis",
       "route": "straight",
       "labelAt": [
-        1080,
+        855,
         385
       ]
     },
@@ -372,7 +372,7 @@
       "variant": "emphasis",
       "route": "straight",
       "labelAt": [
-        1080,
+        855,
         565
       ]
     },
@@ -384,7 +384,7 @@
       "variant": "emphasis",
       "route": "straight",
       "labelAt": [
-        1158,
+        908,
         590
       ]
     },
@@ -396,7 +396,7 @@
       "variant": "security",
       "route": "straight",
       "labelAt": [
-        1320,
+        1050,
         560
       ]
     },
@@ -408,7 +408,7 @@
       "variant": "security",
       "route": "straight",
       "labelAt": [
-        1110,
+        875,
         730
       ]
     }
