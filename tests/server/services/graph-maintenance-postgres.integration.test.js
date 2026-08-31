@@ -706,6 +706,24 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             });
             const isolatedService = new GraphMaintenanceService({ infoSSOTService: isolatedInfoSSOT });
             const mixedVisibilityAccess = { ...access, clearance: ['internal'] };
+            const { rows: forensicMembershipRows } = await isolatedInfoSSOT.withAccessContext(
+                { ...mixedVisibilityAccess, graphMaintenanceMode: true },
+                (client) => client.query(`
+                    SELECT id
+                    FROM graph_edges
+                    WHERE id = 'membership_mixed_hidden'
+                `)
+            );
+            expect(forensicMembershipRows).toEqual([{ id: 'membership_mixed_hidden' }]);
+            const { rows: ordinaryMembershipRows } = await isolatedInfoSSOT.withAccessContext(
+                { ...mixedVisibilityAccess, graphMaintenanceMode: false },
+                (client) => client.query(`
+                    SELECT id
+                    FROM graph_edges
+                    WHERE id = 'membership_mixed_hidden'
+                `)
+            );
+            expect(ordinaryMembershipRows).toEqual([]);
             const snapshot = await isolatedService.exportSnapshot(mixedVisibilityAccess, {
                 projectCode: 'brainbase'
             });
