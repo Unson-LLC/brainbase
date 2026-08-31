@@ -11,10 +11,14 @@ function jwt(payload: Record<string, unknown>): string {
 
 it('knowledge.resolveをtool listへ登録しAPI receiptを返す', async () => {
   assert.ok(serverTesting.tools.some((tool) => tool.name === 'brainbase_knowledge_resolve'));
-  assert.equal(knowledgeResolutionTools.length, 1);
-  assert.equal('recent_receipts' in (knowledgeResolutionTools[0].inputSchema.properties || {}), false);
-  assert.equal('repository' in (knowledgeResolutionTools[0].inputSchema.properties || {}), false);
-  assert.equal('suggested_path' in (knowledgeResolutionTools[0].inputSchema.properties || {}), false);
+  assert.deepEqual(
+    knowledgeResolutionTools.map((tool) => tool.name),
+    ['brainbase_knowledge_resolve', 'brainbase_knowledge_event_record'],
+  );
+  const resolutionTool = knowledgeResolutionTools[0];
+  assert.equal('recent_receipts' in (resolutionTool.inputSchema.properties || {}), false);
+  assert.equal('repository' in (resolutionTool.inputSchema.properties || {}), false);
+  assert.equal('suggested_path' in (resolutionTool.inputSchema.properties || {}), false);
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   const result = await handleKnowledgeResolutionToolCall('brainbase_knowledge_resolve', {
     project_code: 'brainbase', intent: 'UX知見を探す', audience: 'team', content_type: 'team_document',
