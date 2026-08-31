@@ -5,6 +5,8 @@
 **ステータス**: Design Phase
 **実装期間**: 8-12週間（Week 1-2からWeek 11-12）
 
+> API契約の正本は [API.md](./API.md) です。本書と差異がある場合は、認証・組織スコープ・レスポンス形式を含めて API.md を優先してください。
+
 ---
 
 ## 1. プロジェクト概要
@@ -99,9 +101,13 @@ AITMダッシュボード: 「何を決めるべきか」を提示
 ```
 1. ユーザー: ダッシュボード表示
    ↓
-2. Client: GET /api/brainbase（全セクションデータ取得）
+2. Client: Bearer認証付きで各セクションAPIを取得
+   - GET /api/brainbase/projects（認証組織・Project Grant対象、Catalog取得元状態付き）
+   - GET /api/brainbase/critical-alerts
+   - GET /api/brainbase/strategic-overview
+   - GET /api/brainbase/trends
    ↓
-3. Server: NocoDB API呼び出し
+3. Server: Project RegistryとNocoDB APIを各契約に従って呼び出し
    ↓
 4. Server: レスポンス返却（JSON）
    ↓
