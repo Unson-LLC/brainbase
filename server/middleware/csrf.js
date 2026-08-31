@@ -240,6 +240,18 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Knowledge event ingest is called by the MCP host with a non-cookie
+        // Bearer credential. Keep the exemption exact; the mounted route still
+        // enforces authentication, organization scope, and project access.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/knowledge/events'
+            && typeof req.headers?.authorization === 'string'
+            && /^Bearer \S+$/.test(req.headers.authorization)
+        ) {
+            return next();
+        }
+
         // Meeting-minutes context receipts are created by the mana runtime over
         // Bearer-authenticated server-to-server HTTP. Keep this exemption exact;
         // the mounted route still requires a service/internal identity and checks
