@@ -141,7 +141,11 @@ describe('npm tarball consumer smoke', () => {
           saveProcessExited: true,
           freshProcessReload: 'passed',
           immutable: true,
-          runnerInvocations: 0
+          runnerInvocations: 0,
+          moduleResolution: {
+            saver: 'node_modules/@unson/brainbase-mcp/dist/judgment-dag.js',
+            loader: 'node_modules/@unson/brainbase-mcp/dist/judgment-dag.js'
+          }
         },
         replayEvaluation: {
           historicalReplay: 'passed',
