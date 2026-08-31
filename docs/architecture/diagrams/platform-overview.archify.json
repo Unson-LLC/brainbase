@@ -166,7 +166,7 @@
       "from": "operating-surface",
       "to": "organization-runtime",
       "label": "MCP / API / Web",
-      "labelAt": [314, 174],
+      "labelAt": [500, 180],
       "variant": "emphasis"
     },
     {
@@ -201,7 +201,7 @@
       "from": "organization-runtime",
       "to": "company-authority",
       "label": "tenant context",
-      "labelAt": [1005, 180],
+      "labelAt": [1005, 60],
       "variant": "security"
     },
     {
@@ -209,6 +209,8 @@
       "from": "organization-sources",
       "to": "company-authority",
       "label": "company facts",
+      "fromSide": "top",
+      "toSide": "bottom",
       "variant": "security"
     },
     {
