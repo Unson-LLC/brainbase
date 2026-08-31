@@ -1,6 +1,6 @@
 # Brainbase Architecture Catalog
 
-このディレクトリは、組織版Brainbaseの設計判断、境界、実装Story、運用契約を保持します。
+このディレクトリは、Brainbase共通Kernelと組織版の設計判断、境界、実装Story、運用契約を保持します。
 
 文書数が増えたため、ファイル名順に読むのではなく、次の順で辿ってください。
 
@@ -8,7 +8,8 @@
 
 | View | 用途 | Source |
 |---|---|---|
-| CURRENT | 現在の主要component・正本・信頼境界 | [current.archify.json](diagrams/current.archify.json) |
+| PLATFORM OVERVIEW | OSS版と組織版の共有Kernel、包含関係、Mana、Domain Judgment Pack、完成度の境界 | [platform-overview.archify.json](diagrams/platform-overview.archify.json) |
+| CURRENT | 現在の組織版主要component・正本・信頼境界 | [current.archify.json](diagrams/current.archify.json) |
 | NORTH STAR | Organizational Intelligence PlaneとDomain Judgment Packの到達像 | [north-star.archify.json](diagrams/north-star.archify.json) |
 | DATA FLOW | Signal → Context → Judgment → Action → Learning | [data-flow.archify.json](diagrams/data-flow.archify.json) |
 
@@ -22,7 +23,7 @@ Repository rootの[ARCHITECTURE.md](../../ARCHITECTURE.md)から、生成HTML・
 - [Cloudflare Private Ingress](story-brainbase-cloudflare-private-ingress.md)
 - [Personal Vaultと組織イベントの境界](adr-personal-organization-memory-boundary.md)
 
-ここでは、Graph、PostgreSQL、Git、外部System of Record、Personal Vault、UI projectionの責務を定義します。
+ここでは、OSS Local Personal OS、Organization Graph、PostgreSQL、Git、外部System of Record、Personal Vault、UI projectionの責務を定義します。
 
 ## 3. Authority and execution safety
 
@@ -60,18 +61,21 @@ Brainbaseは一つの巨大な判断DAGではありません。共通Context・A
 
 - `accepted`: 現在の設計判断。後続文書にsupersedeされていない限り優先する。
 - `proposed`: 到達候補。実装済み・本番適用済みとは限らない。
+- `CURRENT`: 実装・検証済みの主要境界。
+- `FRONTIER`: 一部実装または設計は存在するが、Exit Gate・fresh E2E・production readbackのいずれかが未成立。
 - Story内のcode complete、deploy、production readback、E2Eは別の完了条件として扱う。
 - 同じ概念が複数文書にある場合、明示されたADR・Spec・machine-readable manifestを優先する。
 - UI・生成図・READMEはprojectionであり、詳細契約の正本を置換しない。
 
 ## 7. Updating the visual architecture
 
-1. 変更対象がCURRENT、NORTH STAR、DATA FLOWのどれかを決める。
-2. 関連ADR・Story・Specとコードをreadbackする。
+1. 変更対象がPLATFORM OVERVIEW、CURRENT、NORTH STAR、DATA FLOWのどれかを決める。
+2. 関連するOSS／組織版のADR・Story・Spec・コードをreadbackする。
 3. `diagrams/*.archify.json`を更新する。
 4. node/component IDを安定させ、viewのfocusとconnection参照を壊さない。
-5. Archify `validate`、`deliver`、`visual-check`を通す。
-6. 生成HTML・SVG・receiptは手編集せずCIに任せる。
-7. CURRENTに未実装要素を混ぜる場合、tagとcardで状態を明示する。
+5. Archify `validate`、`deliver`を通す。
+6. PLATFORM OVERVIEWは実Chromeによる`visual-check`も必須とする。
+7. 生成HTML・SVG・receiptは手編集せずCIに任せる。
+8. CURRENTに未実装要素を混ぜる場合、tagとcardで状態を明示する。
 
 詳細は[diagrams/README.md](diagrams/README.md)を参照してください。

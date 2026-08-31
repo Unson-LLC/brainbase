@@ -1,18 +1,23 @@
-# Brainbase Organization Edition Architecture
+# Brainbase Platform Architecture
 
 > **As of:** 2026-08-31  
-> **Scope:** `Unson-LLC/brainbase-unson` — 組織版Brainbase  
+> **Scope:** `Unson-LLC/brainbase` OSS版 + `Unson-LLC/brainbase-unson` 組織版  
 > **Visual source of truth:** `docs/architecture/diagrams/*.archify.json`
 
-Brainbaseのアーキテクチャを最短で把握する入口です。詳細設計は`docs/architecture/`配下のADR・Story・Specが正本であり、このページとArchify図はそれらを横断して読める投影です。
+Brainbase全体を最短で把握する入口です。詳細設計は各RepositoryのADR・Story・Specが正本であり、このページとArchify図はそれらを横断して読める投影です。
 
 ## Start here
 
 | View | 何が分かるか | Interactive HTML | Static SVG | Editable source |
 |---|---|---|---|---|
+| **PLATFORM OVERVIEW** | OSS版と組織版の共有Kernel、包含関係、Mana、Domain Judgment Pack、完成度の境界 | [platform-overview.html](docs/architecture/diagrams/generated/platform-overview.html) | [platform-overview.svg](docs/architecture/diagrams/generated/platform-overview.svg) | [platform-overview.archify.json](docs/architecture/diagrams/platform-overview.archify.json) |
 | **CURRENT** | 2026-08-31時点の組織版Brainbaseの主要構成、正本、信頼境界 | [current.html](docs/architecture/diagrams/generated/current.html) | [current.svg](docs/architecture/diagrams/generated/current.svg) | [current.archify.json](docs/architecture/diagrams/current.archify.json) |
 | **NORTH STAR** | Brainbaseを会社横断のOrganizational Intelligence Planeへ進化させる到達像 | [north-star.html](docs/architecture/diagrams/generated/north-star.html) | [north-star.svg](docs/architecture/diagrams/generated/north-star.svg) | [north-star.archify.json](docs/architecture/diagrams/north-star.archify.json) |
 | **DATA FLOW** | 組織シグナルが判断・実行・学習へ変わる一連の流れ | [data-flow.html](docs/architecture/diagrams/generated/data-flow.html) | [data-flow.svg](docs/architecture/diagrams/generated/data-flow.svg) | [data-flow.archify.json](docs/architecture/diagrams/data-flow.archify.json) |
+
+### PLATFORM OVERVIEW
+
+![Brainbase OSS and organization platform overview](docs/architecture/diagrams/generated/platform-overview.svg)
 
 ### CURRENT
 
@@ -28,9 +33,22 @@ Brainbaseのアーキテクチャを最短で把握する入口です。詳細�
 
 ## 一文で言うと
 
-**Brainbaseは、会社の情報を集めるだけのナレッジベースではない。正しい会社文脈と判断基準を解決し、誰が何をどこまで実行できるかを決め、結果を次の判断能力へ戻すOrganizational Intelligence / Control Planeである。**
+**Brainbaseは、個人・チーム・会社の正しい文脈と判断基準を解決し、AIがどこまで実行できるかを決め、結果を次の判断能力へ戻すJudgment Infrastructure / Organizational Intelligence Planeである。**
 
 人間は、誰のために、何を実現し、何を優先し、何を守るかを定める。AIは、その基準の中で探索・反証・実行し、結果と証跡を返す。
+
+## OSS版と組織版の関係
+
+| Product boundary | 責務 |
+|---|---|
+| **Shared OSS Judgment Kernel** | Ontology、Graph、Judgment DAG、事前検証、決定論的runner、artifact、replay primitiveを提供する共通Kernel |
+| **OSS Local-first Profile** | CLI、stdio MCP、agent-assisted onboarding、4つのローカル正本ファイルで個人・小規模利用を成立させる |
+| **brainbase-unson Organization Runtime** | OSS Kernelを固定commitで取り込み、Express、Web UI、MCP、組織サービス、組織正本を追加する |
+| **Organization Governance** | tenant、Company Authority、RACI、policy、approval、Personal→Organization昇格、監査境界を追加する |
+| **Mana Runtime** | Brainbaseが解決した権限を消費し、cadence、priority、stagnation detection、follow-throughを担うoperator |
+| **Domain Judgment Packs** | VibePro、Zeims、営業、マーケティング等の業務固有DAG・証拠契約・評価契約を提供する |
+
+OSS版と組織版は左右対称の別製品ではありません。**組織版は同じOSS Judgment Kernelを包含し、その外側へ組織統制とmanaged operationを追加する構造**です。
 
 ## 中核の責務分担
 
@@ -44,6 +62,7 @@ Brainbaseのアーキテクチャを最短で把握する入口です。詳細�
 
 ## 正本の境界
 
+- **OSS Local Personal OS SSOT**: `graph.json`、`relationships.json`、`personal-kg.jsonl`、`decisions.jsonl`。
 - **Organization Graph SSOT**: 現在有効な組織事実、Decision、RACI、関係。
 - **PostgreSQL + RLS**: canonical tenant、organization、project、Task、Knowledge Event、Usage、Receipt、権限台帳。
 - **Git**: immutable Ontology release、設計文書、仕様、Skill、runbook。
@@ -63,10 +82,11 @@ UI、runtime cache、Slack workspace名、project code、deployment名、agent�
 
 ## Statusの読み方
 
-- **CURRENT**は、acceptedな設計と実装済みの主要境界を中心に表します。
-- code／contractの存在と、特定tenantでのproduction provisioning／E2E完了は別に判定します。
-- **NORTH STAR**は到達像です。図にあること自体を「本番稼働済み」と解釈してはいけません。
-- 詳細な状態・受入条件・移行順序はリンク先のADR・Story・Milestoneを優先します。
+- **CURRENT**: 実装・検証済みの主要境界。
+- **FRONTIER**: 設計または一部実装は存在するが、該当MilestoneのExit Gateやproduction readbackが未成立。
+- **NORTH STAR**: 到達像。図にあること自体を本番稼働済みと解釈しない。
+- code、contract、provisioning、deployment、fresh E2E、production readbackは別々に判定する。
+- 詳細な状態・受入条件・移行順序はADR・Story・Milestoneを優先する。
 
 ## Canonical architecture decisions
 
@@ -88,11 +108,11 @@ Archify JSONが編集正本です。生成HTML・SVG・validation／delivery／v
 ARCHIFY_COMMIT=5de7275fe87a66a19d52a4d9b0b3a4f2a5a90115
 
 node /path/to/archify/archify/bin/archify.mjs validate architecture \
-  docs/architecture/diagrams/current.archify.json --quality showcase
+  docs/architecture/diagrams/platform-overview.archify.json --quality showcase
 
 node /path/to/archify/archify/bin/archify.mjs deliver architecture \
-  docs/architecture/diagrams/current.archify.json \
-  docs/architecture/diagrams/generated/current.html --quality showcase
+  docs/architecture/diagrams/platform-overview.archify.json \
+  docs/architecture/diagrams/generated/platform-overview.html --quality showcase
 ```
 
 更新ルールは[diagrams README](docs/architecture/diagrams/README.md)を参照してください。

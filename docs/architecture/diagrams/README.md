@@ -1,14 +1,15 @@
 # Brainbase Archify Diagrams
 
-このディレクトリでは、組織版Brainbaseの全体アーキテクチャをArchifyのtyped JSON IRで管理します。
+このディレクトリでは、Brainbase OSS版・組織版・将来到達像・判断データフローをArchifyのtyped JSON IRで管理します。
 
 ## Source of truth
 
-編集対象は次の3ファイルです。
+編集対象は次の4ファイルです。
 
 | File | Diagram type | Meaning |
 |---|---|---|
-| `current.archify.json` | `architecture` | accepted設計と実装済み主要境界を中心にした現在像 |
+| `platform-overview.archify.json` | `architecture` | OSS版と組織版の共有Kernel、包含関係、Mana、Domain Judgment Pack、CURRENT／FRONTIER／NORTH STAR |
+| `current.archify.json` | `architecture` | accepted設計と実装済み主要境界を中心にした組織版の現在像 |
 | `north-star.archify.json` | `architecture` | Organizational Intelligence Planeの到達像 |
 | `data-flow.archify.json` | `dataflow` | 組織シグナルから判断・実行・学習までの流れ |
 
@@ -16,13 +17,14 @@
 
 ## Generated outputs
 
-- `generated/current.html`: CURRENTのinteractive view
+- `generated/platform-overview.html`: OSS版と組織版を統合したinteractive view
+- `generated/current.html`: 組織版CURRENTのinteractive view
 - `generated/north-star.html`: NORTH STARのinteractive view
 - `generated/data-flow.html`: DATA FLOWのinteractive view
 - `generated/*.svg`: GitHub上で直接読めるstatic view
-- `receipts/*.validate.json`: schema・quality validation result
-- `receipts/*.deliver.json`: render delivery result
-- `receipts/*.visual-check.json`: browser-based visual check result
+- `receipts/*.validate.json`: schema・showcase quality validation result
+- `receipts/*.deliver.json`: atomic delivery resultとspecification／artifact hash
+- `receipts/platform-overview.visual-check.json`: 実Chromeによる4 desktop viewport・light／dark capture・containment result
 
 ## Pinned Archify
 
@@ -32,7 +34,7 @@
 5de7275fe87a66a19d52a4d9b0b3a4f2a5a90115
 ```
 
-pinを変更する場合は、3図すべてのvalidate、deliver、visual-checkと差分レビューを同じPRで行ってください。
+pinを変更する場合は、4図すべてのvalidate／deliverとPLATFORM OVERVIEWのvisual-checkを同じPRで行ってください。
 
 ## Local validation
 
@@ -45,6 +47,10 @@ SRC=docs/architecture/diagrams
 
 node "$ARCHIFY" doctor
 
+node "$ARCHIFY" validate architecture "$SRC/platform-overview.archify.json" --quality showcase
+node "$ARCHIFY" deliver architecture "$SRC/platform-overview.archify.json" "$SRC/generated/platform-overview.html" --quality showcase
+node "$ARCHIFY" visual-check "$SRC/generated/platform-overview.html" --json
+
 node "$ARCHIFY" validate architecture "$SRC/current.archify.json" --quality showcase
 node "$ARCHIFY" deliver architecture "$SRC/current.archify.json" "$SRC/generated/current.html" --quality showcase
 
@@ -56,6 +62,16 @@ node "$ARCHIFY" deliver dataflow "$SRC/data-flow.archify.json" "$SRC/generated/d
 ```
 
 ## Modeling rules
+
+### PLATFORM OVERVIEW
+
+- OSS版と組織版を左右対称の別製品として描かない。
+- Shared OSS Judgment KernelとOSS Local-first Profileを分ける。
+- 組織版は同じOSS packageをconsumeし、Server・組織正本・ガバナンス・managed operationを追加する構造として描く。
+- PostgreSQL、Company Authority、Approval、ManaをOSS共通Kernelへ含めない。
+- CURRENT、FRONTIER、NORTH STARをtagで明示し、箱の存在を本番完了とみなさない。
+- Manaをauthorityの作者として描かず、Brainbaseが解決した権限を消費するoperatorとして描く。
+- Domain Judgment PackはBrainbase Kernelが統治する業務固有DAGとして描く。
 
 ### CURRENT
 
@@ -87,10 +103,10 @@ component／node／connection／flow IDは、配置変更だけで不用意に�
 
 `.github/workflows/archify-diagrams.yml`は、Archify JSONまたはworkflow変更時に次を行います。
 
-1. pinned Archifyを取得し`doctor`を実行
-2. 3図を`showcase`品質でvalidate
-3. self-contained HTMLをdeliver
-4. bounded visual check
+1. isolated run directoryへpinned Archifyを取得し`doctor`を実行
+2. 4図を`showcase`品質でvalidate
+3. 4図のself-contained HTMLをdeliver
+4. PLATFORM OVERVIEWを実Chromeで1440×900、1600×1000、1920×1080、2048×1320に対してvisual-check
 5. HTML内のSVGをstatic SVGとして抽出
 6. generated assetsとreceiptを`[archify-generated]` commitで同じbranchへ書き戻す
 
