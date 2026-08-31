@@ -244,29 +244,34 @@ export class AuthController {
             const tokenPayload = await this.authService.exchangeCode(String(code), req);
             logger.info(`[AUTH] exchangeCode ok=${tokenPayload?.ok}`);
             let userInfo = null;
-            if (this.authService.slackMode !== 'oauth') {
+            const providerMode = this.authService.authProvider?.mode || this.authService.slackMode;
+            if (providerMode !== 'oauth') {
                 const accessToken = tokenPayload.access_token;
                 if (!accessToken) {
-                    return res.status(401).json({ error: 'Slack access token missing' });
+                    const label = this.authService.authProvider ? 'Provider' : 'Slack';
+                    return res.status(401).json({ error: `${label} access token missing` });
                 }
                 userInfo = await this.authService.fetchUserInfo(accessToken);
             }
 
-            const { slackUserId, slackWorkspaceId } = this.authService.resolveSlackIdentity(tokenPayload, userInfo);
-            logger.info(`[AUTH] callback identity: uid=${slackUserId} wid=${slackWorkspaceId} mode=${this.authService.slackMode} tkeys=${Object.keys(tokenPayload||{}).join(',')} authedUser=${JSON.stringify(tokenPayload?.authed_user)} team=${JSON.stringify(tokenPayload?.team)}`);
-            if (!slackUserId || !slackWorkspaceId) {
-                return res.status(401).json({ error: 'Slack identity could not be resolved' });
+            const identity = this.authService.resolveExternalIdentity
+                ? this.authService.resolveExternalIdentity(tokenPayload, userInfo)
+                : { provider: 'slack', subject: this.authService.resolveSlackIdentity(tokenPayload, userInfo).slackUserId, tenantId: this.authService.resolveSlackIdentity(tokenPayload, userInfo).slackWorkspaceId };
+            if (!identity.subject || !identity.tenantId) {
+                const label = identity.provider === 'slack' ? 'Slack' : 'External';
+                return res.status(401).json({ error: `${label} identity could not be resolved` });
             }
+            logger.info(`[AUTH] callback identity: provider=${identity.provider} tenant=${identity.tenantId}`);
 
             // Phase 1: PostgreSQLベース権限管理
-            const user = await this.authService.findUserBySlackId(slackUserId, slackWorkspaceId);
-            logger.info(`[AUTH] findUser: uid=${slackUserId} found=${!!user} name=${user?.name} role=${user?.role}`);
+            const user = this.authService.findUserByExternalIdentity
+                ? await this.authService.findUserByExternalIdentity(identity)
+                : await this.authService.findUserBySlackId(identity.subject, identity.tenantId);
+            logger.info(`[AUTH] findUser: provider=${identity.provider} found=${!!user} name=${user?.name} role=${user?.role}`);
             if (!user) {
                 await this.authService.createAuditLog({
-                    slackUserId,
-                    slackWorkspaceId,
                     eventType: 'AUTH_DENY',
-                    metadata: { reason: 'user_not_found_or_inactive' }
+                    metadata: { reason: 'user_not_found_or_inactive', provider: identity.provider, subject: identity.subject }
                 });
                 return res.status(403).json({ error: 'Access is not granted' });
             }
@@ -274,26 +279,28 @@ export class AuthController {
             // JWT発行（Phase 1仕様 + wiki access fields）
             const token = this.authService.issueToken({
                 sub: user.person_id,
-                slackUserId: user.slack_user_id,
+                authProvider: identity.provider,
+                providerSubject: identity.subject,
+                providerTenant: identity.tenantId,
+                email: identity.email,
                 level: user.access_level,
                 employmentType: user.employment_type,
                 role: user.role || 'member',
                 projectCodes: user.project_codes || [],
                 clearance: user.clearance || [],
-                organizationId: user.workspace_id,
-                slackWorkspaceId
+                organizationId: user.workspace_id
             });
             const refreshToken = this.authService.issueRefreshToken({
-                slackUserId,
-                slackWorkspaceId
+                authProvider: identity.provider,
+                providerSubject: identity.subject,
+                providerTenant: identity.tenantId
             });
 
             await this.authService.createAuditLog({
                 personId: user.person_id,
-                slackUserId,
-                slackWorkspaceId,
                 eventType: 'AUTH_LOGIN',
                 metadata: {
+                    provider: identity.provider,
                     level: user.access_level,
                     employment_type: user.employment_type,
                     workspace_id: user.workspace_id
@@ -307,8 +314,9 @@ export class AuthController {
                     level: user.access_level,
                     employmentType: user.employment_type,
                     personId: user.person_id,
-                    slackUserId: user.slack_user_id,
-                    workspaceId: slackWorkspaceId,
+                    authProvider: identity.provider,
+                    email: identity.email,
+                    workspaceId: identity.provider === 'slack' ? identity.tenantId : undefined,
                     organizationId: user.workspace_id,
                     name: user.name,
                     role: user.role,
@@ -483,60 +491,67 @@ export class AuthController {
                 return res.status(403).json({ error: 'Invalid code or code_verifier' });
             }
 
-            // Slack OAuth code exchangeでslackUserIdを取得
+            // 選択された認証プロバイダーでコードを交換する
             const tokenPayload = await this.authService.exchangeCode(String(code), req);
             let userInfo = null;
-            if (this.authService.slackMode !== 'oauth') {
+            const providerMode = this.authService.authProvider?.mode || this.authService.slackMode;
+            if (providerMode !== 'oauth') {
                 const accessToken = tokenPayload.access_token;
                 if (!accessToken) {
-                    return res.status(401).json({ error: 'Slack access token missing' });
+                    const label = this.authService.authProvider ? 'Provider' : 'Slack';
+                    return res.status(401).json({ error: `${label} access token missing` });
                 }
                 userInfo = await this.authService.fetchUserInfo(accessToken);
             }
 
-            const { slackUserId, slackWorkspaceId } = this.authService.resolveSlackIdentity(tokenPayload, userInfo);
-            if (!slackUserId || !slackWorkspaceId) {
-                return res.status(401).json({ error: 'Slack identity could not be resolved' });
+            const identity = this.authService.resolveExternalIdentity
+                ? this.authService.resolveExternalIdentity(tokenPayload, userInfo)
+                : { provider: 'slack', subject: this.authService.resolveSlackIdentity(tokenPayload, userInfo).slackUserId, tenantId: this.authService.resolveSlackIdentity(tokenPayload, userInfo).slackWorkspaceId };
+            if (!identity.subject || !identity.tenantId) {
+                const label = identity.provider === 'slack' ? 'Slack' : 'External';
+                return res.status(401).json({ error: `${label} identity could not be resolved` });
             }
 
             // PostgreSQLからユーザー情報取得
-            logger.info(`[AUTH] tokenExchange: findUserBySlackId uid=${slackUserId} wid=${slackWorkspaceId}`);
-            const user = await this.authService.findUserBySlackId(slackUserId, slackWorkspaceId);
+            logger.info(`[AUTH] tokenExchange: provider=${identity.provider}`);
+            const user = this.authService.findUserByExternalIdentity
+                ? await this.authService.findUserByExternalIdentity(identity)
+                : await this.authService.findUserBySlackId(identity.subject, identity.tenantId);
             logger.info(`[AUTH] tokenExchange: found=${!!user} name=${user?.name}`);
             if (!user) {
                 await this.authService.createAuditLog({
-                    slackUserId,
-                    slackWorkspaceId,
                     eventType: 'AUTH_DENY',
-                    metadata: { reason: 'user_not_found_or_inactive', source: 'token_exchange' }
+                    metadata: { reason: 'user_not_found_or_inactive', source: 'token_exchange', provider: identity.provider }
                 });
-                logger.info(`[AUTH] tokenExchange: DENY uid=${slackUserId}`);
+                logger.info(`[AUTH] tokenExchange: DENY provider=${identity.provider}`);
                 return res.status(403).json({ error: 'Access is not granted' });
             }
 
             // JWT発行（include wiki access fields from auth_grants）
             const token = this.authService.issueToken({
                 sub: user.person_id,
-                slackUserId: user.slack_user_id,
+                authProvider: identity.provider,
+                providerSubject: identity.subject,
+                providerTenant: identity.tenantId,
+                email: identity.email,
                 level: user.access_level,
                 employmentType: user.employment_type,
                 role: user.role || 'member',
                 projectCodes: user.project_codes || [],
                 clearance: user.clearance || [],
-                organizationId: user.workspace_id,
-                slackWorkspaceId
+                organizationId: user.workspace_id
             });
             const refreshToken = this.authService.issueRefreshToken({
-                slackUserId,
-                slackWorkspaceId
+                authProvider: identity.provider,
+                providerSubject: identity.subject,
+                providerTenant: identity.tenantId
             });
 
             await this.authService.createAuditLog({
                 personId: user.person_id,
-                slackUserId,
-                slackWorkspaceId,
                 eventType: 'AUTH_LOGIN',
                 metadata: {
+                    provider: identity.provider,
                     level: user.access_level,
                     employment_type: user.employment_type,
                     workspace_id: user.workspace_id,
@@ -622,16 +637,23 @@ export class AuthController {
         try {
             this.authService.assertReady();
             const { device_code } = req.body;
-            const slackUserId = req.access?.slackUserId;
-            const slackWorkspaceId = req.access?.slackWorkspaceId;
+            const identity = {
+                provider: req.access?.authProvider,
+                subject: req.access?.providerSubject,
+                tenantId: req.access?.providerTenant || null
+            };
             if (!device_code) {
                 return res.status(400).json({ error: 'device_code is required' });
             }
-            if (!slackUserId || !slackWorkspaceId) {
-                return res.status(403).json({ error: 'Authenticated Slack identity is required' });
+            if ((!identity.provider || !identity.subject) && req.access?.slackUserId && req.access?.slackWorkspaceId) {
+                this.authService.approveDeviceCode(String(device_code), String(req.access.slackUserId), String(req.access.slackWorkspaceId));
+                return res.json({ ok: true });
+            }
+            if (!identity.provider || !identity.subject) {
+                return res.status(403).json({ error: 'Authenticated external identity is required' });
             }
 
-            this.authService.approveDeviceCode(String(device_code), String(slackUserId), String(slackWorkspaceId));
+            this.authService.approveDeviceCode(String(device_code), identity);
             return res.json({ ok: true });
         } catch (error) {
             logger.error('Approve device failed', { error });

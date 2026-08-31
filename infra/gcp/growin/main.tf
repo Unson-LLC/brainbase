@@ -330,6 +330,8 @@ resource "google_secret_manager_secret" "runtime" {
     "brainbase-auth-state-secret",
     "brainbase-database-url",
     "brainbase-graph-api-token",
+    "brainbase-google-auth-client-id",
+    "brainbase-google-auth-client-secret",
     "brainbase-internal-api-secret",
     "brainbase-jwt-secret",
     "brainbase-mcp-http-bearer-token",
@@ -423,6 +425,8 @@ resource "google_cloud_run_v2_service" "api" {
           BRAINBASE_REFRESH_SECRET       = "brainbase-refresh-secret"
           BRAINBASE_SERVICE_TOKEN_SECRET = "brainbase-service-token-secret"
           INFO_SSOT_DATABASE_URL         = "brainbase-database-url"
+          GOOGLE_AUTH_CLIENT_ID          = "brainbase-google-auth-client-id"
+          GOOGLE_AUTH_CLIENT_SECRET      = "brainbase-google-auth-client-secret"
         }
         content {
           name = env.key
@@ -438,6 +442,14 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "BRAINBASE_VAR_DIR"
         value = "/tmp/brainbase"
+      }
+      env {
+        name  = "BRAINBASE_AUTH_PROVIDER"
+        value = "google-workspace"
+      }
+      env {
+        name  = "GOOGLE_WORKSPACE_ALLOWED_DOMAINS"
+        value = var.google_workspace_domain
       }
       env {
         name  = "BRAINBASE_PROJECT_CATALOG_MODE"

@@ -16,6 +16,12 @@ variable "environment" {
   default     = "production"
 }
 
+variable "google_workspace_domain" {
+  description = "GrowinのGoogle Workspaceでログインを許可するドメイン"
+  type        = string
+  default     = "growin.jp"
+}
+
 variable "database_tier" {
   description = "Cloud SQLのマシンタイプ"
   type        = string

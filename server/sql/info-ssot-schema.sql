@@ -74,8 +74,9 @@ CREATE TABLE IF NOT EXISTS auth_grants (
   id text PRIMARY KEY,
   person_id text REFERENCES people(id),
   person_name text NOT NULL,
-  slack_user_id text NOT NULL,
-  slack_workspace_id text NOT NULL,
+  slack_user_id text,
+  slack_workspace_id text,
+  organization_id text,
   role text NOT NULL,
   project_codes text[] NOT NULL DEFAULT ARRAY[]::text[],
   clearance text[] NOT NULL DEFAULT ARRAY[]::text[],
@@ -84,6 +85,16 @@ CREATE TABLE IF NOT EXISTS auth_grants (
   updated_at timestamptz NOT NULL DEFAULT NOW(),
   UNIQUE (slack_user_id, slack_workspace_id)
 );
+
+ALTER TABLE auth_grants ALTER COLUMN slack_user_id DROP NOT NULL;
+ALTER TABLE auth_grants ALTER COLUMN slack_workspace_id DROP NOT NULL;
+ALTER TABLE auth_grants ADD COLUMN IF NOT EXISTS organization_id text;
+
+UPDATE auth_grants ag
+SET organization_id = o.id
+FROM organizations o
+WHERE ag.organization_id IS NULL
+  AND ag.slack_workspace_id = o.workspace_id;
 
 -- External login identities are deliberately separate from Brainbase people and
 -- authorization grants. Adding Google, Entra ID, or passkeys must not change the
@@ -111,6 +122,8 @@ SELECT
   jsonb_build_object('migrated_from', 'auth_grants')
 FROM auth_grants
 WHERE person_id IS NOT NULL
+  AND slack_user_id IS NOT NULL
+  AND slack_workspace_id IS NOT NULL
 ON CONFLICT (provider, provider_subject, provider_tenant) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS auth_audit_logs (

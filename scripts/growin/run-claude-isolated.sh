@@ -9,7 +9,7 @@ command -v claude >/dev/null || { echo "Claude Code が必要です" >&2; exit 1
 command -v jq >/dev/null || { echo "jq が必要です" >&2; exit 1; }
 
 if [[ ! -f "$token_file" ]]; then
-  echo "Growin専用の個人認証を開始します。ブラウザでSlack認証を完了してください。"
+  echo "Growin専用の個人認証を開始します。ブラウザでGrowinのGoogle Workspace認証を完了してください。"
   BRAINBASE_API_URL="$api_url" BRAINBASE_TOKEN_FILE="$token_file" node scripts/auth-setup.mjs
 fi
 token="$(jq -er '.access_token | select(type == "string" and length > 0)' "$token_file")" || {

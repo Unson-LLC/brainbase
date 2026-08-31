@@ -173,7 +173,7 @@ export class DeviceAuthController {
 
         // Redirect to Slack OAuth
         const returnUrl = `/device?slack_callback=true`;
-        const authUrl = `/api/auth/slack/start?origin=${encodeURIComponent(returnUrl)}&redirect=${encodeURIComponent(returnUrl)}`;
+        const authUrl = `/api/auth/login/start?origin=${encodeURIComponent(returnUrl)}&redirect=${encodeURIComponent(returnUrl)}`;
 
         window.location.href = authUrl;
     }

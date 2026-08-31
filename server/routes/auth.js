@@ -7,7 +7,10 @@ export function createAuthRouter(authService) {
     const controller = new AuthController(authService);
 
     router.get('/slack/start', controller.slackStart);
+    router.get('/login/start', controller.slackStart);
+    router.get('/google/start', controller.slackStart);
     router.get('/slack/callback', controller.slackCallback);
+    router.get('/google/callback', controller.slackCallback);
     router.post('/token/exchange', controller.tokenExchange);
     router.post('/refresh', controller.refresh);
     router.post('/logout', requireAuth(authService), controller.logout);

@@ -18,11 +18,11 @@ Cloud RunのAPI・MCP・DBマイグレーションJobまで配備済みです。
 scripts/growin/run-claude-isolated.sh
 ```
 
-このランチャーは初回にGrowin専用APIのDevice Code Flowを開始し、Slackで本人確認します。取得した個人JWTは`~/.brainbase/growin/tokens.json`へ`0600`で保存し、MCPからGraph APIまで同じ本人情報を伝播します。共通Bearerは移行期間だけ`hybrid`モードで受け付け、個人認証の確認後に`brainbase-jwt`へ切り替えて廃止します。
+このランチャーは初回にGrowin専用APIのDevice Code Flowを開始し、GrowinのGoogle Workspaceで本人確認します。取得した個人JWTは`~/.brainbase/growin/tokens.json`へ`0600`で保存し、MCPからGraph APIまで同じ本人情報を伝播します。共通Bearerは移行期間だけ`hybrid`モードで受け付け、個人認証の確認後に`brainbase-jwt`へ切り替えて廃止します。
 
-認証プロバイダーはBrainbase人物・権限から分離されています。初期プロバイダーはSlackですが、Google Workspace、Microsoft Entra ID、パスキーへ切り替えても、人物ID・案件権限・監査モデルは変えません。`--strict-mcp-config`により、雲孫を含む利用者設定・プロジェクト設定のMCPを読みません。終了時に一時設定を削除します。
+認証プロバイダーはBrainbase人物・権限から分離されています。Growin環境ではGoogle Workspaceを選択し、確認済みの`growin.jp`メールアドレスをBrainbase人物へ対応付けます。将来Microsoft Entra IDやパスキーへ切り替えても、人物ID・案件権限・監査モデルは変えません。`--strict-mcp-config`により、雲孫を含む利用者設定・プロジェクト設定のMCPを読みません。終了時に一時設定を削除します。
 
-個人認証を有効化する前に、GrowinのSlackアプリ資格情報と、加藤さん・川村さんのSlack IDを`auth_grants`へ登録する必要があります。値が未確認の間は推測して登録しません。
+個人認証を有効化する前に、Google CloudでOAuthクライアントを作り、クライアントID・シークレットをSecret Managerへ登録します。利用者は、確認済みのGoogle Workspaceメールアドレスを`auth_identities`でBrainbase人物へ対応付け、`auth_grants`で権限を付与します。メールアドレスが未確認の人物は推測して登録しません。
 
 初期Graphの投入とリモートE2Eは次の順で実行します。秘密値は標準出力へ表示しません。
 
