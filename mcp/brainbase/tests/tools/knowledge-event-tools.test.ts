@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+
 import {
   canonicalKnowledgeEventJson,
   handleKnowledgeEventToolCall,
@@ -17,10 +19,10 @@ const SOURCE_REF = `github://Unson-LLC/vibepro@${HEAD_SHA}#${STORY_ID}`;
 const SUBJECT_ID = `vibepro:${STORY_ID}:${HEAD_SHA}`;
 const PARENT_EPISODE_ID = 'jep_vibepro_runtime_handoff_001';
 
-type FetchMock = ReturnType<typeof vi.fn> & typeof fetch;
+type FetchCall = { input: string | URL | Request; init?: RequestInit };
 type TestDependencies = KnowledgeEventToolDependencies & {
-  fetcher: FetchMock;
-  getToken: ReturnType<typeof vi.fn>;
+  calls: FetchCall[];
+  tokenReads: () => number;
   token: string;
 };
 
@@ -105,8 +107,10 @@ function dependencies(options: {
   responseStatus?: number;
 } = {}): TestDependencies {
   const token = options.token ?? serviceToken();
-  const getToken = vi.fn(async () => token);
-  const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+  let tokenReadCount = 0;
+  const calls: FetchCall[] = [];
+  const fetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    calls.push({ input, init });
     const url = String(input);
     if (url.endsWith('/api/knowledge/events')) {
       if (options.responseStatus && options.responseStatus >= 400) {
@@ -123,58 +127,49 @@ function dependencies(options: {
       }, 202);
     }
     return jsonResponse({ error: 'unexpected_route' }, 404);
-  }) as unknown as FetchMock;
+  };
   return {
     apiUrl: 'https://brainbase.example',
     configuredProjectCodes: options.configuredProjectCodes ?? [PROJECT_CODE],
-    tokenManager: { getToken },
-    fetch: fetcher,
-    fetcher,
-    getToken,
+    tokenManager: {
+      getToken: async () => {
+        tokenReadCount += 1;
+        return token;
+      },
+    },
+    fetch,
+    calls,
+    tokenReads: () => tokenReadCount,
     token,
   };
 }
 
-beforeEach(() => {
-  vi.restoreAllMocks();
-});
+function recordData(result: Awaited<ReturnType<typeof handleKnowledgeEventToolCall>>): Record<string, unknown> {
+  assert.ok(result);
+  assert.equal(result.status, 'ok');
+  assert.ok(result.data && typeof result.data === 'object');
+  return result.data as Record<string, unknown>;
+}
 
 describe('VibePro Knowledge Event MCP adapter', () => {
   it('publishes one strict candidate-only idempotent write tool', () => {
-    expect(knowledgeEventTools).toHaveLength(1);
-    expect(knowledgeEventTools[0]).toMatchObject({
-      name: 'brainbase_knowledge_event_record',
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-      inputSchema: {
-        type: 'object',
-        required: ['event'],
-        additionalProperties: false,
-        properties: {
-          event: {
-            additionalProperties: false,
-            properties: {
-              decision_authority: {
-                properties: {
-                  authorized: { const: false },
-                  graph_promotion_allowed: { const: false },
-                },
-              },
-              permission_snapshot: {
-                properties: {
-                  external_action: { const: false },
-                  graph_promotion: { const: false },
-                },
-              },
-            },
-          },
-        },
-      },
+    assert.equal(knowledgeEventTools.length, 1);
+    const tool = knowledgeEventTools[0];
+    assert.equal(tool.name, 'brainbase_knowledge_event_record');
+    assert.deepEqual(tool.annotations, {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
     });
+    const schema = tool.inputSchema as Record<string, any>;
+    assert.deepEqual(schema.required, ['event']);
+    assert.equal(schema.additionalProperties, false);
+    assert.equal(schema.properties.event.additionalProperties, false);
+    assert.equal(schema.properties.event.properties.decision_authority.properties.authorized.const, false);
+    assert.equal(schema.properties.event.properties.decision_authority.properties.graph_promotion_allowed.const, false);
+    assert.equal(schema.properties.event.properties.permission_snapshot.properties.external_action.const, false);
+    assert.equal(schema.properties.event.properties.permission_snapshot.properties.graph_promotion.const, false);
   });
 
   it('validates and records the exact event through authenticated project scope', async () => {
@@ -185,61 +180,56 @@ describe('VibePro Knowledge Event MCP adapter', () => {
       { event },
       deps,
     );
+    const data = recordData(result);
 
-    expect(result).toMatchObject({
-      status: 'ok',
-      scope: { project_codes: [PROJECT_CODE] },
-      data: {
-        schema_version: 'brainbase-vibepro-knowledge-event-record-receipt.v1',
-        status: 'recorded',
-        event_id: event.event_id,
-        project_code: PROJECT_CODE,
-        story_id: STORY_ID,
-        candidate_id: 'kc_vibepro_learning_001',
-        processing_stage: 'retrievable',
-        candidate_only: true,
-        graph_promoted: false,
-        external_action_executed: false,
-      },
-    });
-    expect(JSON.stringify(result)).not.toContain(deps.token);
-    expect(JSON.stringify(result)).not.toContain('/Users/');
-    expect(deps.getToken).toHaveBeenCalledTimes(1);
-    expect(deps.fetcher).toHaveBeenCalledTimes(1);
+    assert.equal(result?.scope.project_codes[0], PROJECT_CODE);
+    assert.equal(data.schema_version, 'brainbase-vibepro-knowledge-event-record-receipt.v1');
+    assert.equal(data.status, 'recorded');
+    assert.equal(data.event_id, event.event_id);
+    assert.equal(data.project_code, PROJECT_CODE);
+    assert.equal(data.story_id, STORY_ID);
+    assert.equal(data.candidate_id, 'kc_vibepro_learning_001');
+    assert.equal(data.processing_stage, 'retrievable');
+    assert.equal(data.candidate_only, true);
+    assert.equal(data.graph_promoted, false);
+    assert.equal(data.external_action_executed, false);
+    assert.equal(JSON.stringify(result).includes(deps.token), false);
+    assert.equal(JSON.stringify(result).includes('/Users/'), false);
+    assert.equal(deps.tokenReads(), 1);
+    assert.equal(deps.calls.length, 1);
 
-    const eventRequest = deps.fetcher.mock.calls[0] as unknown as [string | URL | Request, RequestInit];
-    expect(String(eventRequest[0])).toBe('https://brainbase.example/api/knowledge/events');
-    expect(JSON.parse(String(eventRequest[1].body))).toEqual(event);
-    expect(eventRequest[1].headers).toMatchObject({
-      Authorization: `Bearer ${deps.token}`,
-      'x-brainbase-projects': PROJECT_CODE,
-      'x-brainbase-organization-id': ORGANIZATION_ID,
-    });
+    const eventRequest = deps.calls[0];
+    assert.equal(String(eventRequest.input), 'https://brainbase.example/api/knowledge/events');
+    assert.deepEqual(JSON.parse(String(eventRequest.init?.body)), event);
+    const headers = eventRequest.init?.headers as Record<string, string>;
+    assert.equal(headers.Authorization, `Bearer ${deps.token}`);
+    assert.equal(headers['x-brainbase-projects'], PROJECT_CODE);
+    assert.equal(headers['x-brainbase-organization-id'], ORGANIZATION_ID);
   });
 
   it('returns already_recorded for an idempotent backend replay', async () => {
-    const result = await handleKnowledgeEventToolCall(
+    const data = recordData(await handleKnowledgeEventToolCall(
       'brainbase_knowledge_event_record',
       { event: buildEvent() },
       dependencies({ idempotent: true }),
-    );
-    expect(result).toMatchObject({ status: 'ok', data: { status: 'already_recorded' } });
+    ));
+    assert.equal(data.status, 'already_recorded');
   });
 
   it('fails before authentication when body hash or authority is tampered', async () => {
     const bodyTampered = buildEvent() as unknown as Record<string, unknown>;
     bodyTampered.body_hash = 'd'.repeat(64);
     const bodyDeps = dependencies();
-    await expect(handleKnowledgeEventToolCall(
+    const bodyResult = await handleKnowledgeEventToolCall(
       'brainbase_knowledge_event_record',
       { event: bodyTampered },
       bodyDeps,
-    )).resolves.toMatchObject({
-      status: 'error',
-      error: { code: 'knowledge_event_invalid', message: expect.stringContaining('body_hash') },
-    });
-    expect(bodyDeps.getToken).not.toHaveBeenCalled();
-    expect(bodyDeps.fetcher).not.toHaveBeenCalled();
+    );
+    assert.equal(bodyResult?.status, 'error');
+    assert.equal(bodyResult?.error?.code, 'knowledge_event_invalid');
+    assert.match(bodyResult?.error?.message ?? '', /body_hash/);
+    assert.equal(bodyDeps.tokenReads(), 0);
+    assert.equal(bodyDeps.calls.length, 0);
 
     const authorityTampered = buildEvent() as unknown as Record<string, unknown>;
     authorityTampered.permission_snapshot = {
@@ -247,21 +237,23 @@ describe('VibePro Knowledge Event MCP adapter', () => {
       graph_promotion: true,
     };
     const authorityDeps = dependencies();
-    await expect(handleKnowledgeEventToolCall(
+    const authorityResult = await handleKnowledgeEventToolCall(
       'brainbase_knowledge_event_record',
       { event: authorityTampered },
       authorityDeps,
-    )).resolves.toMatchObject({
-      status: 'error',
-      error: { code: 'knowledge_event_invalid', message: expect.stringContaining('graph_promotion') },
-    });
-    expect(authorityDeps.getToken).not.toHaveBeenCalled();
-    expect(authorityDeps.fetcher).not.toHaveBeenCalled();
+    );
+    assert.equal(authorityResult?.status, 'error');
+    assert.equal(authorityResult?.error?.code, 'knowledge_event_invalid');
+    assert.match(authorityResult?.error?.message ?? '', /graph_promotion/);
+    assert.equal(authorityDeps.tokenReads(), 0);
+    assert.equal(authorityDeps.calls.length, 0);
   });
 
   it('rejects sensitive summaries, unsorted evidence, and mismatched source bindings', () => {
-    expect(() => validateVibeProKnowledgeEvent(buildEvent('api_key=super-secret-value')))
-      .toThrow(/sensitive content/);
+    assert.throws(
+      () => validateVibeProKnowledgeEvent(buildEvent('api_key=super-secret-value')),
+      /sensitive content/,
+    );
 
     const unsorted = buildEvent() as unknown as Record<string, unknown>;
     const unsortedPayload = unsorted.payload as Record<string, unknown>;
@@ -269,42 +261,38 @@ describe('VibePro Knowledge Event MCP adapter', () => {
       ...(unsortedPayload.verification_evidence as Record<string, unknown>),
       passing_kinds: ['unit', 'integration'],
     };
-    expect(() => validateVibeProKnowledgeEvent(unsorted)).toThrow(/sorted by Unicode code point/);
+    assert.throws(() => validateVibeProKnowledgeEvent(unsorted), /sorted by Unicode code point/);
 
     const mismatched = buildEvent() as unknown as Record<string, unknown>;
     mismatched.source_pointer = {
       uri: `vibepro://another/repository/${STORY_ID}?sha=${HEAD_SHA}`,
     };
-    expect(() => validateVibeProKnowledgeEvent(mismatched)).toThrow(/source_pointer/);
+    assert.throws(() => validateVibeProKnowledgeEvent(mismatched), /source_pointer/);
   });
 
   it('fails closed when project or service-token organization scope is missing', async () => {
     const inaccessible = dependencies({ configuredProjectCodes: ['another-project'] });
-    await expect(handleKnowledgeEventToolCall(
+    const inaccessibleResult = await handleKnowledgeEventToolCall(
       'brainbase_knowledge_event_record',
       { event: buildEvent() },
       inaccessible,
-    )).resolves.toMatchObject({
-      status: 'error',
-      error: { code: 'brainbase_project_not_accessible' },
-    });
-    expect(inaccessible.fetcher).not.toHaveBeenCalled();
+    );
+    assert.equal(inaccessibleResult?.status, 'error');
+    assert.equal(inaccessibleResult?.error?.code, 'brainbase_project_not_accessible');
+    assert.equal(inaccessible.calls.length, 0);
 
     const organizationMissing = dependencies({
       token: serviceToken({ organizationId: undefined }),
     });
-    await expect(handleKnowledgeEventToolCall(
+    const organizationResult = await handleKnowledgeEventToolCall(
       'brainbase_knowledge_event_record',
       { event: buildEvent() },
       organizationMissing,
-    )).resolves.toMatchObject({
-      status: 'error',
-      error: {
-        code: 'knowledge_event_organization_context_invalid',
-        message: expect.stringContaining('organization context'),
-      },
-    });
-    expect(organizationMissing.fetcher).not.toHaveBeenCalled();
+    );
+    assert.equal(organizationResult?.status, 'error');
+    assert.equal(organizationResult?.error?.code, 'knowledge_event_organization_context_invalid');
+    assert.match(organizationResult?.error?.message ?? '', /organization context/);
+    assert.equal(organizationMissing.calls.length, 0);
   });
 
   it('fails closed when the backend reports Graph promotion or incomplete indexing', async () => {
@@ -313,26 +301,18 @@ describe('VibePro Knowledge Event MCP adapter', () => {
       { event: buildEvent() },
       dependencies({ graphEntityId: 'dec_forbidden' }),
     );
-    expect(promoted).toMatchObject({
-      status: 'error',
-      error: {
-        code: 'knowledge_event_record_failed',
-        message: expect.stringContaining('unexpectedly promoted'),
-      },
-    });
+    assert.equal(promoted?.status, 'error');
+    assert.equal(promoted?.error?.code, 'knowledge_event_record_failed');
+    assert.match(promoted?.error?.message ?? '', /unexpectedly promoted/);
 
     const incomplete = await handleKnowledgeEventToolCall(
       'brainbase_knowledge_event_record',
       { event: buildEvent() },
       dependencies({ processingStage: 'candidate_created' }),
     );
-    expect(incomplete).toMatchObject({
-      status: 'error',
-      error: {
-        code: 'knowledge_event_record_failed',
-        message: expect.stringContaining('candidate indexing'),
-      },
-    });
+    assert.equal(incomplete?.status, 'error');
+    assert.equal(incomplete?.error?.code, 'knowledge_event_record_failed');
+    assert.match(incomplete?.error?.message ?? '', /candidate indexing/);
   });
 
   it('preserves backend HTTP errors without presenting a successful receipt', async () => {
@@ -341,17 +321,13 @@ describe('VibePro Knowledge Event MCP adapter', () => {
       { event: buildEvent() },
       dependencies({ responseStatus: 403 }),
     );
-    expect(result).toMatchObject({
-      status: 'error',
-      error: {
-        code: 'knowledge_event_failed',
-        message: 'backend rejected event',
-        http_status: 403,
-      },
-    });
+    assert.equal(result?.status, 'error');
+    assert.equal(result?.error?.code, 'knowledge_event_failed');
+    assert.equal(result?.error?.message, 'backend rejected event');
+    assert.equal(result?.error?.http_status, 403);
   });
 
   it('returns null for unrelated tools', async () => {
-    await expect(handleKnowledgeEventToolCall('brainbase_search', {}, dependencies())).resolves.toBeNull();
+    assert.equal(await handleKnowledgeEventToolCall('brainbase_search', {}, dependencies()), null);
   });
 });
