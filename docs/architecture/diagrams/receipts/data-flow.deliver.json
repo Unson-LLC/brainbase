@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "/home/salestailor/actions-runner/Unson-LLC-linux-4/_work/brainbase-unson/brainbase-unson/docs/architecture/diagrams/data-flow.archify.json",
+  "output": "/home/salestailor/actions-runner/Unson-LLC-linux-4/_work/brainbase-unson/brainbase-unson/docs/architecture/diagrams/generated/data-flow.html",
+  "specification": {
+    "sha256": "2ecfe66a41ff42bb5ce82394804e198e380a2953f05bcf6f4339e15c43132ca9",
+    "bytes": 5636
+  },
+  "artifact": {
+    "sha256": "8be266be52e8f66bf7f3288829039bb5f4c56cc0de09e9d9dc809eccecc6b8c7",
+    "bytes": 716818
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

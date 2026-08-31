@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/home/salestailor/actions-runner/Unson-LLC-linux-4/_work/brainbase-unson/brainbase-unson/docs/architecture/diagrams/current.archify.json",
+  "output": "/home/salestailor/actions-runner/Unson-LLC-linux-4/_work/brainbase-unson/brainbase-unson/docs/architecture/diagrams/generated/current.html",
+  "specification": {
+    "sha256": "095089e5f52a46ca3382ff34372ed0d4ee9945350fcbf435e239e52003a4dc6c",
+    "bytes": 10439
+  },
+  "artifact": {
+    "sha256": "fe5b08dc9b2e1d8c0c6aeb354dadf9ff001753905eb1c615b41f1cb27544336b",
+    "bytes": 728386
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}
