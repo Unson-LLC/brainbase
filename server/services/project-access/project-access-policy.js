@@ -134,7 +134,6 @@ export class ProjectAccessPolicy {
             throw AppError.validation(`org '${orgId}' is not a known Graph org reference`);
         }
         const projectCatalog = this._projectCatalog(actor);
-        if (projectCatalog.size === 0) return;
         const normalizedOrg = normalizeProjectKey(orgId);
         const orgKeys = new Set();
         for (const [projectId, projectConfig] of projectCatalog.entries()) {

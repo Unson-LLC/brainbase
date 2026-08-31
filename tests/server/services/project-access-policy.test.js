@@ -116,6 +116,23 @@ describe('ProjectAccessPolicy', () => {
         expect(policy.canAccessProject('growin-ai', actor)).toBe(true);
     });
 
+    it('loadedな空のorganization catalogでは未知のorg参照を拒否する', async () => {
+        const configParser = {
+            runForOrganization: vi.fn(async (_organizationId, callback) => callback()),
+            getProjects: vi.fn(async () => ({
+                source: { status: 'loaded', mode: 'registry_scoped' },
+                projects: []
+            }))
+        };
+        const policy = new ProjectAccessPolicy({ configParser });
+        const actor = { organizationId: 'org-empty', role: 'admin' };
+
+        await policy.prepare(actor);
+
+        expect(() => policy.assertOrgReferenceAllowed('unknown-org', actor))
+            .toThrow("org 'unknown-org' is not a known Graph org reference");
+    });
+
     it('Registry unavailable時はfallback projectをmember accessや選択の根拠にしない', async () => {
         const configParser = {
             runForOrganization: vi.fn(async (_organizationId, callback) => callback()),
