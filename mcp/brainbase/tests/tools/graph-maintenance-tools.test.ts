@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import Ajv from 'ajv';
 import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from '../../src/tools/graph-maintenance-tools.js';
 import { __testing as serverTesting } from '../../src/server.js';
 
@@ -148,6 +149,23 @@ describe('Graph maintenance MCP tools', () => {
     assert.ok(applyTool);
     assert.deepEqual(applyTool.inputSchema.required, ['project_code', 'plan_id', 'snapshot_hash']);
     assert.ok('human_gate_receipt' in applyTool.inputSchema.properties);
+  });
+
+  it('Apply receiptのsuppression_summaryはzero-count reasonを拒否する', () => {
+    const receiptTool = graphMaintenanceTools.find((tool) => tool.name === 'graph_record_human_gate_receipt');
+    const scopeSchema = receiptTool?.inputSchema.properties?.evidence?.properties?.operation_scope;
+    assert.ok(scopeSchema && 'oneOf' in scopeSchema);
+    const applyScopeSchema = scopeSchema.oneOf.find((variant: any) => (
+      variant.properties.operation.enum[0] === 'apply_plan'
+    ));
+    assert.ok(applyScopeSchema);
+    const suppressionSummarySchema = applyScopeSchema.properties.suppression_summary;
+    const validate = new Ajv({ strict: false }).compile(suppressionSummarySchema);
+
+    assert.equal(validate({
+      before: { edge_count: 1, reasons: { noncanonical_cross_tenant_marker: 0 } },
+      after: { edge_count: 0, reasons: {} },
+    }), false);
   });
 
   it('RESTの非2xx応答をstatus/error/http_statusへ変換する', async () => {
@@ -308,8 +326,8 @@ describe('Graph maintenance MCP tools', () => {
             reasons: {
               type: 'object',
               properties: {
-                noncanonical_cross_tenant_marker: { type: 'integer', minimum: 0 },
-                unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 0 },
+                noncanonical_cross_tenant_marker: { type: 'integer', minimum: 1 },
+                unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 1 },
               },
               additionalProperties: false,
             },
@@ -324,8 +342,8 @@ describe('Graph maintenance MCP tools', () => {
             reasons: {
               type: 'object',
               properties: {
-                noncanonical_cross_tenant_marker: { type: 'integer', minimum: 0 },
-                unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 0 },
+                noncanonical_cross_tenant_marker: { type: 'integer', minimum: 1 },
+                unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 1 },
               },
               additionalProperties: false,
             },

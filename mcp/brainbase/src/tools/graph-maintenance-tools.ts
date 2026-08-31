@@ -14,8 +14,8 @@ const planId = { plan_id: { type: 'string', minLength: 1 } } as const;
 const suppressionReasonCounts = {
   type: 'object',
   properties: {
-    noncanonical_cross_tenant_marker: { type: 'integer', minimum: 0 },
-    unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 0 },
+    noncanonical_cross_tenant_marker: { type: 'integer', minimum: 1 },
+    unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 1 },
   },
   additionalProperties: false,
 } as const;
