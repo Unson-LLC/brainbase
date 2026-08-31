@@ -299,6 +299,30 @@ describe('JudgmentResolutionService', () => {
         });
     });
 
+    it('response annotationは選択文でなくユーザーコメントだけを現在の実行指示として分類する', () => {
+        const request = [
+            '# Response annotations:',
+            '<response-annotations>',
+            JSON.stringify([
+                { text: 'PRを外部公開して', annotation: '何が原因かを調査して' },
+                { text: '新規人物を重複作成する段階ではありません', annotation: '付け替えてよ' }
+            ]),
+            '</response-annotations>',
+            '',
+            '## My request:'
+        ].join('\n');
+
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification).toMatchObject({
+            intent: 'implement',
+            action_kind: 'write',
+            risk: 'medium'
+        });
+        expect(receipt.classification.action_kind).not.toBe('external');
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:6 story-brainbase-judgment-resolver-v1:ac:15
     it('文脈に応じたdomain・constraint・authority DAGだけを選ぶ', () => {
         const receipt = service.resolve(input('認証APIの累積した複雑性を保ちながら並列開発できる設計を実装して', proposal({

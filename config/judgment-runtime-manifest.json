@@ -1,6 +1,6 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-2.1.0",
+  "runtime_version": "judgment-runtime-2.2.0",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
@@ -212,10 +212,10 @@
   "semantic_matchers": {
     "intents": {
       "answer": ["説明", "教えて", "答えて", "とは", "意味"],
-      "investigate": ["調べ", "検索", "探して", "ログを見", "確認して"],
+      "investigate": ["調べ", "調査", "検索", "探して", "ログを見", "確認して"],
       "diagnose": ["なぜ", "原因", "診断", "何が問題", "欠陥"],
       "design": ["設計", "考えて", "どうすべき", "導いて", "演繹"],
-      "implement": ["実装", "修正", "変更", "更新", "削除", "作って"],
+      "implement": ["実装", "修正", "変更", "更新", "削除", "作って", "付け替え"],
       "review": ["レビュー", "評価して", "監査"],
       "operate": ["デプロイ", "再起動", "送信", "公開", "実行して", "マージして", "commitして"]
     },

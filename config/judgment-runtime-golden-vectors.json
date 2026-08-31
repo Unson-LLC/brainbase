@@ -6,8 +6,8 @@
     "expected_sha256": "720c426a8d984447034a85227cf9eb25e3fed20b27af6c41c246c2be8edac67f"
   },
   "manifest": {
-    "runtime_version": "judgment-runtime-2.1.0",
-    "expected_sha256": "9a820b15ec76ffd1306c0193968d7634aa39e9b99baafe4537f91b7ab6afd2b3"
+    "runtime_version": "judgment-runtime-2.2.0",
+    "expected_sha256": "b5a7f993bb10d87c1811aae1662b010f0090c6c592e8f6cb9c7fc11ff7674afc"
   },
   "binding": {
     "request": {

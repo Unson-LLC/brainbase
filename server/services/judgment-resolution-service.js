@@ -205,7 +205,27 @@ function includesRequestedEffectTerm(request, terms) {
     });
 }
 
+function responseAnnotationCommands(request) {
+    const commands = [];
+    for (const match of request.matchAll(/<response-annotations>([\s\S]*?)<\/response-annotations>/giu)) {
+        let annotations;
+        try {
+            annotations = JSON.parse(match[1]);
+        } catch {
+            continue;
+        }
+        if (!Array.isArray(annotations)) continue;
+        for (const entry of annotations) {
+            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+            if (typeof entry.annotation !== 'string' || !entry.annotation.trim()) continue;
+            commands.push(entry.annotation.trim());
+        }
+    }
+    return commands;
+}
+
 function classificationRequest(request) {
+    const annotationCommands = responseAnnotationCommands(request);
     const withoutStructuredMaterial = request
         .replace(/<response-annotations>[\s\S]*?<\/response-annotations>/giu, ' ')
         .replace(/```[\s\S]*?```/gu, ' ')
@@ -216,7 +236,7 @@ function classificationRequest(request) {
         || /(?:^|\n)\s*(?:\d{1,2}:\d{2}|\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{4}\.\d{2}\.\d{2}\s+.+曜日)/u.test(paragraph)
     ));
     const commandParagraphs = materialStart < 0 ? paragraphs : paragraphs.slice(0, materialStart);
-    return commandParagraphs.join('\n\n').trim();
+    return [...commandParagraphs, ...annotationCommands].join('\n\n').trim();
 }
 
 function sortByOrder(values, order) {

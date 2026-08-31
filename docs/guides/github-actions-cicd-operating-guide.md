@@ -65,14 +65,14 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 
 | ジョブ名 | トリガー | 目的 | ワークフロー | ランナー |
 |---|---|---|---|---|
-| Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、Personal Knowledge署名境界、実PostgreSQL migration、顧客データを使わないスモーク証跡契約を検証する | `.github/workflows/graph-writer-contract.yml` | `ubuntu-latest` |
-| VibePro Graphify影響ゲート | `develop`・`main`へのPull Request | Graph影響を伴う変更にGraphify証跡を要求する | `.github/workflows/vibepro-graphify-impact.yml` | `ubuntu-latest` |
-| VibePro Graph SSOT（マージ前） | `develop`・`main`へのPull Request | チェッカーの単体テスト、Ontology履歴、外部Graph SSOTを検証する | `.github/workflows/vibepro-graph-ssot.yml` | `ubuntu-latest` |
-| VibePro Ontology（push後） | `develop`・`main`・`session/**`へのpush | マージ後を含む実際のpush履歴でOntology公開契約を再検証する | `.github/workflows/vibepro-graph-ssot.yml` | `ubuntu-latest` |
-| VibePro Graph SSOT（定期） | 毎日09:45（日本時間）・手動実行 | 外部Graph SSOTのドリフトを検出する | `.github/workflows/vibepro-graph-ssot.yml` | `ubuntu-latest` |
-| VibePro Score Evidence（マージ前） | `develop`・`main`へのPull Request | 変更されたscore証跡、開発DAG、Story・Architecture・Specの追跡関係を検証する | `.github/workflows/vibepro-score-run.yml` | `ubuntu-latest` |
-| VibePro Score Evidence（push後） | `develop`・`main`・`session/**`へのpush | `before..sha`の全変更を使い、直接pushとマージ後のscore証跡を再検証する | `.github/workflows/vibepro-score-run.yml` | `ubuntu-latest` |
-| VibePro Score Evidence（手動） | 手動実行 | 単体テストとワークフロー疎通を確認する。変更ファイル集合は空として扱うため、score成果物・DAG・文書追跡の検証証跡には使わない | `.github/workflows/vibepro-score-run.yml` | `ubuntu-latest` |
+| Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、Personal Knowledge署名境界、実PostgreSQL migration、顧客データを使わないスモーク証跡契約を検証する | `.github/workflows/graph-writer-contract.yml` | `self-hosted`（Linux / WSL） |
+| VibePro Graphify影響ゲート | `develop`・`main`へのPull Request | Graph影響を伴う変更にGraphify証跡を要求する | `.github/workflows/vibepro-graphify-impact.yml` | `self-hosted`（Linux / WSL） |
+| VibePro Graph SSOT（マージ前） | `develop`・`main`へのPull Request | チェッカーの単体テスト、Ontology履歴、外部Graph SSOTを検証する | `.github/workflows/vibepro-graph-ssot.yml` | `self-hosted`（Linux / WSL） |
+| VibePro Ontology（push後） | `develop`・`main`・`session/**`へのpush | マージ後を含む実際のpush履歴でOntology公開契約を再検証する | `.github/workflows/vibepro-graph-ssot.yml` | `self-hosted`（Linux / WSL） |
+| VibePro Graph SSOT（定期） | 毎日09:45（日本時間）・手動実行 | 外部Graph SSOTのドリフトを検出する | `.github/workflows/vibepro-graph-ssot.yml` | `self-hosted`（Linux / WSL） |
+| VibePro Score Evidence（マージ前） | `develop`・`main`へのPull Request | 変更されたscore証跡、開発DAG、Story・Architecture・Specの追跡関係を検証する | `.github/workflows/vibepro-score-run.yml` | `self-hosted`（Linux / WSL） |
+| VibePro Score Evidence（push後） | `develop`・`main`・`session/**`へのpush | `before..sha`の全変更を使い、直接pushとマージ後のscore証跡を再検証する | `.github/workflows/vibepro-score-run.yml` | `self-hosted`（Linux / WSL） |
+| VibePro Score Evidence（手動） | 手動実行 | 単体テストとワークフロー疎通を確認する。変更ファイル集合は空として扱うため、score成果物・DAG・文書追跡の検証証跡には使わない | `.github/workflows/vibepro-score-run.yml` | `self-hosted`（Linux / WSL） |
 
 Graph書き込み契約ジョブに秘密情報は不要。テスト用のローカルHTTPサーバーとCI内の使い捨てPostgreSQLだけを使い、本番Graphへの書き込みは行わない。Personal Knowledge本番スモークは、別途署名済みsynthetic fixtureと明示的な実行環境を必要とし、CIの契約ジョブからはfixture検証だけを実行する。
 

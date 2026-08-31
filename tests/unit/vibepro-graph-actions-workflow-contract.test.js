@@ -6,6 +6,7 @@ import yaml from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const selfHostedLinuxRunner = ['self-hosted', 'Linux', 'X64', 'wsl-linux'];
 
 function loadWorkflow(name) {
   return yaml.load(fs.readFileSync(path.join(repoRoot, '.github/workflows', name), 'utf8'));
@@ -22,7 +23,7 @@ function expectNodeActionsWithoutPackageCache(job) {
 }
 
 describe('VibePro Graph Actions workflow contract', () => {
-  it('Graphify ImpactをGitHub-hosted runnerでPRごとに排他実行する', () => {
+  it('Graphify ImpactをLinuxセルフホストrunnerでPRごとに排他実行する', () => {
     const workflow = loadWorkflow('vibepro-graphify-impact.yml');
     const job = workflow.jobs['graphify-impact'];
 
@@ -33,7 +34,7 @@ describe('VibePro Graph Actions workflow contract', () => {
     });
     expect(workflow.on.pull_request.branches).toEqual(['main', 'develop']);
     expect(workflow.on.push).toBeUndefined();
-    expect(job['runs-on']).toBe('ubuntu-latest');
+    expect(job['runs-on']).toEqual(selfHostedLinuxRunner);
     expect(job['timeout-minutes']).toBe(10);
     expectNodeActionsWithoutPackageCache(job);
     expect(job.steps.map((step) => step.run).filter(Boolean).join('\n'))
@@ -55,7 +56,7 @@ describe('VibePro Graph Actions workflow contract', () => {
     expect(workflow.on.push.branches).toEqual(['main', 'develop', 'session/**']);
 
     for (const job of [prJob, pushJob, driftJob]) {
-      expect(job['runs-on']).toBe('ubuntu-latest');
+      expect(job['runs-on']).toEqual(selfHostedLinuxRunner);
       expect(job['timeout-minutes']).toBe(10);
       expectNodeActionsWithoutPackageCache(job);
     }

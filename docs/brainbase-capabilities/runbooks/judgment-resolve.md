@@ -25,6 +25,8 @@ Judgment Resolver is a Host lifecycle boundary. Every Codex turn opens one judgm
 
 ## Autonomy contract
 
+For implement/operate requests, Stop also rejects an answer that only states a pending remediation target or future fix without completion or no-change evidence. It records trigger `unfinished_safe_work`, displays `🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています`, and requires the episode-bound `🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓` line on the successful retry. This is a deterministic unfinished-work boundary; it does not change `content_verification_status=not_evaluated` into semantic verification.
+
 The initial receipt fixes `autonomy_decision` deterministically. Low/medium-risk in-scope work is `continue`; high/critical risk, external action, unresolved classification, or policy conflict is `escalate`. New runtime receipts supersede the legacy Stop-time model evaluator, which remains only for already-open legacy episodes during rollout.
 
 Stop does not ask another model to grade the answer. It mechanically checks that a `continue` turn did not hand routine work back as an unnecessary question. Runtime escalation is allowed only for `irreversible_action`, `missing_authority`, `owner_value_choice`, `required_input_unavailable`, or `evidenced_terminal_blocker`, using an exact `⚠️ 確認が必要[reason_code]:` line. An `escalate` turn must ask one necessary question with the Resolver reason. This contract never grants action permission.

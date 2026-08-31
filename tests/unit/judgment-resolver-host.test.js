@@ -1520,6 +1520,77 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
+    it('continueの実装依頼で修正方針だけ説明して終了した場合はStopが作業を継続させる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-outcome-continue', turn_id: 'turn-outcome-continue', prompt: '原因を調査して付け替えてよ', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+
+        const blocked = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '直す対象はデータではなく検証処理です。検証時に正式Entityを解決すれば、偽の孤立判定を解消できます。'
+            ].join('\n')
+        }, { env });
+
+        expect(blocked.output).toMatchObject({ decision: 'block' });
+        expect(blocked.output.systemMessage).toBe(
+            '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'
+        );
+        expect(blocked.output.reason).toContain('修正方針の説明だけで終了せず');
+        expect(blocked.continuation).toMatchObject({
+            missing_capabilities: expect.arrayContaining(['autonomy.continuation']),
+            autonomy_continuation: {
+                count: 1,
+                trigger_code: 'unfinished_safe_work',
+                reason_code: 'routine_in_scope',
+                status: 'requested'
+            }
+        });
+
+        const completed = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓',
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
+                '検証処理を修正しました。回帰テストも完了しました。'
+            ].join('\n')
+        }, { env });
+
+        expect(completed.final).toMatchObject({
+            completion_status: 'complete',
+            autonomy_compliance_status: 'continued',
+            autonomy_continuation: {
+                count: 1,
+                trigger_code: 'unfinished_safe_work',
+                reason_code: 'routine_in_scope',
+                status: 'completed'
+            }
+        });
+    });
+
     it('journalに差し戻しがないturnではAIが自律継続監査を自己申告しても採用しない', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
@@ -1716,6 +1787,10 @@ describe('Codex Judgment Resolver Host', () => {
             autonomy_continuation_progress_line_digest: hash('🔁 確認不要と判定しました。回答を差し戻して処理を続けています'),
             autonomy_continuation_complete_line: '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
             autonomy_continuation_complete_line_digest: hash('🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓'),
+            outcome_continuation_progress_line: '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています',
+            outcome_continuation_progress_line_digest: hash('🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'),
+            outcome_continuation_complete_line: '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓',
+            outcome_continuation_complete_line_digest: hash('🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓'),
             stop_repair_complete_line: '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
             stop_repair_complete_line_digest: hash('🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'),
             repair_body_policy: 'preserve'

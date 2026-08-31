@@ -34,6 +34,7 @@ description: Brainbase管理対象turnを1つのjudgment episodeとして扱い�
 ## Completion and failure
 
 - selected node、required capability、ユーザー依頼が完了したら、Hostが保存したowner監査行を先頭に各一回表示して最終応答を返す。
+- `continue`の実装・操作依頼で、回答本文が修正対象や将来の解消方法だけを述べ、実行完了または変更不要の根拠を示さない場合は`unfinished_safe_work`として差し戻す。途中表示は`🔁 未完了と判定しました`、完了監査は`🔁 実行継続`として不要質問の差し戻しと区別する。これは未完停止を検出する決定的な完了契約であり、内容の真偽検証ではない。
 - managed/resolvedという状態だけを理由に処理を止めない。
 - active nodeまたは明示された調査・実装・操作が未完なら継続する。
 - Host pre-turnが`unmanaged`ならmodel生成は始めない。modelが後からResolverを呼んで回復したことにしない。
