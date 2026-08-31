@@ -42,6 +42,23 @@ jobs:
           echo "ARCHIFY_ROOT=$ARCHIFY_ROOT" >> "$GITHUB_ENV"
           node "$ARCHIFY_ROOT/archify/bin/archify.mjs" doctor
 
+      - name: Validate and deliver diagrams
+        run: |
+          set -euo pipefail
+          ARCHIFY="$ARCHIFY_ROOT/archify/bin/archify.mjs"
+          SRC=docs/architecture/diagrams
+          OUT=${SRC}/generated
+          RECEIPTS=${SRC}/receipts
+          mkdir -p "$OUT" "$RECEIPTS"
+
+          for name in platform-overview current north-star; do
+            node "$ARCHIFY" validate architecture "$SRC/$name.archify.json" --quality showcase --json | tee "$RECEIPTS/$name.validate.json"
+            node "$ARCHIFY" deliver architecture "$SRC/$name.archify.json" "$OUT/$name.html" --quality showcase --json | tee "$RECEIPTS/$name.deliver.json"
+          done
+
+          node "$ARCHIFY" validate dataflow "$SRC/data-flow.archify.json" --quality showcase --json | tee "$RECEIPTS/data-flow.validate.json"
+          node "$ARCHIFY" deliver dataflow "$SRC/data-flow.archify.json" "$OUT/data-flow.html" --quality showcase --json | tee "$RECEIPTS/data-flow.deliver.json"
+
       - name: Prepare Chrome for bounded visual checks
         run: |
           set -euo pipefail
@@ -64,23 +81,6 @@ jobs:
           echo "ARCHIFY_CHROME=$CHROME" >> "$GITHUB_ENV"
           "$CHROME" --version
 
-      - name: Validate and deliver diagrams
-        run: |
-          set -euo pipefail
-          ARCHIFY="$ARCHIFY_ROOT/archify/bin/archify.mjs"
-          SRC=docs/architecture/diagrams
-          OUT=${SRC}/generated
-          RECEIPTS=${SRC}/receipts
-          mkdir -p "$OUT" "$RECEIPTS"
-
-          for name in current platform-overview north-star; do
-            node "$ARCHIFY" validate architecture "$SRC/$name.archify.json" --quality showcase --json | tee "$RECEIPTS/$name.validate.json"
-            node "$ARCHIFY" deliver architecture "$SRC/$name.archify.json" "$OUT/$name.html" --quality showcase --json | tee "$RECEIPTS/$name.deliver.json"
-          done
-
-          node "$ARCHIFY" validate dataflow "$SRC/data-flow.archify.json" --quality showcase --json | tee "$RECEIPTS/data-flow.validate.json"
-          node "$ARCHIFY" deliver dataflow "$SRC/data-flow.archify.json" "$OUT/data-flow.html" --quality showcase --json | tee "$RECEIPTS/data-flow.deliver.json"
-
       - name: Run real browser visual checks
         run: |
           set -euo pipefail
@@ -91,7 +91,7 @@ jobs:
           rm -rf "$VISUAL_ROOT"
           mkdir -p "$VISUAL_ROOT"
 
-          for name in current platform-overview north-star data-flow; do
+          for name in platform-overview current north-star data-flow; do
             cp "$SRC/generated/$name.html" "$VISUAL_ROOT/$name.html"
             node "$ARCHIFY" visual-check "$VISUAL_ROOT/$name.html" --json | tee "$RECEIPTS/$name.visual-check.json"
           done
@@ -103,7 +103,7 @@ jobs:
           const fs = require('node:fs');
           const path = require('node:path');
           const dir = 'docs/architecture/diagrams/generated';
-          for (const name of ['current', 'platform-overview', 'north-star', 'data-flow']) {
+          for (const name of ['platform-overview', 'current', 'north-star', 'data-flow']) {
             const html = fs.readFileSync(path.join(dir, `${name}.html`), 'utf8');
             const match = html.match(/<svg\b[\s\S]*?<\/svg>/i);
             if (!match) throw new Error(`No SVG found in ${name}.html`);
@@ -117,7 +117,7 @@ jobs:
           }
           NODE
 
-          for name in current platform-overview north-star data-flow; do
+          for name in platform-overview current north-star data-flow; do
             test -s "docs/architecture/diagrams/generated/$name.svg"
           done
 
