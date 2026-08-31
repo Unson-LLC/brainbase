@@ -584,11 +584,21 @@ Company Brainを複数組織で継続運用できるenterprise productにする�
 このsnapshotは開始時の参考であり、各orchestrator runでGitHubから再判定する。
 
 - T0: 基盤実装とproduction provisioning codeは存在するが、本番schema / bridge / OAuth / exact E2Eのreadbackが完了条件。
-- J0: architectureとroadmapはaccepted。runtime kernelは未完。
+- J0: deterministic runnerとrun recordに加え、exact local HEAD `684f8c45c7c99d720c4acd7eca90dcda151c6196`でcontent-addressed save、検証付きreload、fresh-process package consumerまで検証済み。組織版exact/pinned consumerは`not_collected`のため、statusは`implementing`のまま。
 - A0: company authority runtimeの実装は存在するが、cross-repo fresh E2Eと全consumer cutoverを完了条件とする。
 - P0: owner no-fallbackとowner/org review分離は進行済み。normalized payload、Graph publication、scope promotionの完走は未完。
 - C0: OSS superset inventoryとCLI/MCP compatibilityのstackが存在するが、完全上位互換の完成宣言は禁止。
 - D0以降: 上流contractを使った実運用証拠を作る段階。
+
+### 9.1 J0 exact local execution evidence — 2026-08-31
+
+`story-j0-durable-run-artifact-contract`を`upstream/develop@76021adcf22c92833136b5481bf3a72b736bdb4b`起点のbranch `codex/j0/durable-run-artifact-contract-reconcile`で実装し、HEAD `684f8c45c7c99d720c4acd7eca90dcda151c6196`へ固定した。VibeProは`0.2.0-beta.17`を使用し、切替・downgrade・installは行っていない。
+
+- content-addressed saveと検証付きreloadは、focused 3 files / 35 tests、typecheck、build、full 47 files / 469 tests、E2E 2 files / 2 testsでpassした。
+- fresh package consumerはsaver process終了後に別loader processが同一artifactを再読込し、runner再実行0回を確認した。
+- 独立差分reviewは4指摘をclosedとし、AC-001〜AC-005に追加blocking findingなしと判定した。
+- ADR-022が要求する組織版のexact/pinned package consumer smokeは`not_collected`である。類似実装やローカルtarball consumerを代替証拠にしない。
+- このHEADはローカルcommitであり、merge・公開・deploy・本番変更の証拠ではない。J0は`implementing`を維持し、work packageを`done`へ昇格しない。
 
 ## 10. Live external delivery reconciliation — 2026-08-25
 

@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "title": "Brainbase Program Master Roadmap",
-  "updated_at": "2026-08-25",
+  "updated_at": "2026-08-31",
   "authority_markdown": "docs/management/milestones/brainbase-program-master-roadmap.md",
   "authority": "cross_repository_dependency_order_and_completion_gates",
   "status_vocabulary": [
@@ -302,6 +302,39 @@
       }
     ]
   },
+  "current_execution_evidence": [
+    {
+      "program_id": "J0",
+      "captured_at": "2026-08-31",
+      "status": "implementing",
+      "repository": "Unson-LLC/brainbase",
+      "story_id": "story-j0-durable-run-artifact-contract",
+      "branch": "codex/j0/durable-run-artifact-contract-reconcile",
+      "base_sha": "76021adcf22c92833136b5481bf3a72b736bdb4b",
+      "head_sha": "684f8c45c7c99d720c4acd7eca90dcda151c6196",
+      "vibepro_version": "0.2.0-beta.17",
+      "exit_gate_evidence": {
+        "deterministic_dag": "passed",
+        "negative_preflight": "passed",
+        "durable_run_artifact": "verified_at_exact_local_head",
+        "organization_semantic_consumer": "not_collected"
+      },
+      "verification": [
+        "focused: 3 files / 35 tests passed",
+        "typecheck: passed",
+        "build: passed",
+        "full: 47 files / 469 tests passed",
+        "e2e: 2 files / 2 tests passed",
+        "fresh package consumer: saver process exited before loader process verified the same artifact with zero runner invocations",
+        "independent delta review: four findings closed; no additional blocker for AC-001 through AC-005"
+      ],
+      "program_effect": "no_status_promotion",
+      "blockers": [
+        "ADR-022 exact/pinned organization-edition package consumer smoke is not collected",
+        "local unmerged head is not external delivery provenance"
+      ]
+    }
+  ],
   "work_packages": [
     {
       "id": "R0",
