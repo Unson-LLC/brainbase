@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { CredentialBroker } from '../../../../server/services/multitenant/credential-broker.js';
-import { expectContractError } from './test-helpers.js';
+import { expectContractError, expectContractErrorAsync } from './test-helpers.js';
 
 const binding = {
     tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -181,5 +181,130 @@ describe('CredentialBroker PostgreSQL ownership', () => {
         expect(forward).toHaveBeenCalledOnce();
         expect(JSON.stringify(result)).not.toContain(lease.lease_token);
         expect(JSON.stringify(result)).not.toContain(credentialMaterial.toString('base64'));
+    });
+
+    it('明示許可されたcredentialless operationだけproviderが異なるleaseでもempty credentialでforwardする', async () => {
+        const materialize = vi.fn(async () => Buffer.from('should-not-materialize'));
+        const forward = vi.fn(async ({ credential }) => {
+            expect(Buffer.isBuffer(credential)).toBe(true);
+            expect(credential.length).toBe(0);
+            return {
+                status: 200,
+                response_encoding: 'json',
+                content_type: 'application/json',
+                body: { ok: true }
+            };
+        });
+        const broker = new CredentialBroker({
+            credentialMaterializer: { materialize },
+            providerForwarders: {
+                'brainbase.tasks': {
+                    provider: 'brainbase',
+                    requiresCredential: () => false,
+                    allowsBindingProviderMismatch: (operation) => operation === 'tasks.create',
+                    forward
+                }
+            },
+            leaseId: () => 'lease_01ARZ3NDEKTSV4RRFFQ69G5FC0',
+            leaseToken: () => 'credentialless-forward-token'
+        });
+        broker.register({ ...binding, provider: 'slack' });
+        const lease = broker.issueLease(leaseRequest({ binding: { audience: 'brainbase.tasks' } }));
+
+        await expect(broker.forwardProviderRequest({
+            ...lease.binding,
+            lease_id: lease.lease_id,
+            lease_token: lease.lease_token,
+            provider_operation: 'tasks.create',
+            request: { body: { title: 'credentialless' } }
+        })).resolves.toMatchObject({
+            provider: 'brainbase',
+            status: 200,
+            body: { ok: true }
+        });
+        expect(materialize).not.toHaveBeenCalled();
+        expect(forward).toHaveBeenCalledOnce();
+    });
+
+    it('明示許可のないcredentialless operationはprovider mismatchを拒否する', async () => {
+        const materialize = vi.fn();
+        const forward = vi.fn();
+        const broker = new CredentialBroker({
+            credentialMaterializer: { materialize },
+            providerForwarders: {
+                'files.slack.com': {
+                    provider: 'slack',
+                    requiresCredential: () => false,
+                    allowsBindingProviderMismatch: () => false,
+                    forward
+                }
+            }
+        });
+        broker.register({ ...binding, provider: 'brainbase' });
+        const lease = broker.issueLease(leaseRequest({ binding: { audience: 'files.slack.com' } }));
+
+        await expectContractErrorAsync(() => broker.forwardProviderRequest({
+            ...lease.binding,
+            lease_id: lease.lease_id,
+            lease_token: lease.lease_token,
+            provider_operation: 'slack.files.upload_binary',
+            request: { body: 'payload' }
+        }), { code: 'CREDENTIAL_LEASE_SCOPE_MISMATCH', status: 403 });
+        expect(materialize).not.toHaveBeenCalled();
+        expect(forward).not.toHaveBeenCalled();
+    });
+
+    it('未知のcredentialless operationはprovider mismatchを拒否する', async () => {
+        const forward = vi.fn();
+        const broker = new CredentialBroker({
+            providerForwarders: {
+                'brainbase.tasks': {
+                    provider: 'brainbase',
+                    requiresCredential: () => false,
+                    allowsBindingProviderMismatch: (operation) => operation === 'tasks.create',
+                    forward
+                }
+            }
+        });
+        broker.register({ ...binding, provider: 'slack' });
+        const lease = broker.issueLease(leaseRequest({ binding: { audience: 'brainbase.tasks' } }));
+
+        await expectContractErrorAsync(() => broker.forwardProviderRequest({
+            ...lease.binding,
+            lease_id: lease.lease_id,
+            lease_token: lease.lease_token,
+            provider_operation: 'tasks.unknown',
+            request: { body: {} }
+        }), { code: 'CREDENTIAL_LEASE_SCOPE_MISMATCH', status: 403 });
+        expect(forward).not.toHaveBeenCalled();
+    });
+
+    it('credential-required operationはprovider mismatchを403で拒否しmaterializer/forwarderを呼ばない', async () => {
+        const materialize = vi.fn(async () => Buffer.from('should-not-materialize'));
+        const forward = vi.fn();
+        const broker = new CredentialBroker({
+            credentialMaterializer: { materialize },
+            providerForwarders: {
+                'api.openai.com': {
+                    provider: 'openai',
+                    requiresCredential: () => true,
+                    forward
+                }
+            },
+            leaseId: () => 'lease_01ARZ3NDEKTSV4RRFFQ69G5FC1',
+            leaseToken: () => 'credential-required-mismatch-token'
+        });
+        broker.register({ ...binding, provider: 'slack' });
+        const lease = broker.issueLease(leaseRequest({ binding: { audience: 'api.openai.com' } }));
+
+        await expectContractErrorAsync(() => broker.forwardProviderRequest({
+            ...lease.binding,
+            lease_id: lease.lease_id,
+            lease_token: lease.lease_token,
+            provider_operation: 'responses.create',
+            request: { body: { input: 'should reject' } }
+        }), { code: 'CREDENTIAL_LEASE_SCOPE_MISMATCH', status: 403 });
+        expect(materialize).not.toHaveBeenCalled();
+        expect(forward).not.toHaveBeenCalled();
     });
 });

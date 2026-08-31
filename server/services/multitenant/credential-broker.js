@@ -236,14 +236,10 @@ export class CredentialBroker {
             };
         }
         const forwarder = this.providerForwarders[binding.audience];
-        if (!forwarder || typeof forwarder.forward !== 'function'
-            || (binding.provider && forwarder.provider !== binding.provider)) {
-            const scopeReason = !forwarder || typeof forwarder.forward !== 'function'
-                ? 'provider_forwarder_unavailable'
-                : 'provider_forwarder_mismatch';
+        if (!forwarder || typeof forwarder.forward !== 'function') {
             console.error(JSON.stringify({
                 event: 'credential_lease_scope_mismatch',
-                scope_reason: scopeReason,
+                scope_reason: 'provider_forwarder_unavailable',
                 audience: binding.audience,
                 binding_provider: binding.provider ?? null,
                 forwarder_provider: forwarder?.provider ?? null,
@@ -251,10 +247,26 @@ export class CredentialBroker {
             }));
             throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', {
                 status: 403,
-                details: { scope_reason: scopeReason }
+                details: { scope_reason: 'provider_forwarder_unavailable' }
             });
         }
         const requiresCredential = forwarder.requiresCredential?.(input.provider_operation) !== false;
+        const allowsBindingProviderMismatch = !requiresCredential
+            && forwarder.allowsBindingProviderMismatch?.(input.provider_operation) === true;
+        if (binding.provider && forwarder.provider !== binding.provider && !allowsBindingProviderMismatch) {
+            console.error(JSON.stringify({
+                event: 'credential_lease_scope_mismatch',
+                scope_reason: 'provider_forwarder_mismatch',
+                audience: binding.audience,
+                binding_provider: binding.provider,
+                forwarder_provider: forwarder.provider ?? null,
+                provider_operation: input.provider_operation
+            }));
+            throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', {
+                status: 403,
+                details: { scope_reason: 'provider_forwarder_mismatch' }
+            });
+        }
         const materialize = typeof this.credentialMaterializer === 'function'
             ? this.credentialMaterializer
             : this.credentialMaterializer?.materialize?.bind(this.credentialMaterializer);

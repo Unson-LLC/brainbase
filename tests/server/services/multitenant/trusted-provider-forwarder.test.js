@@ -474,4 +474,57 @@ describe('trusted provider HTTP forwarder', () => {
         expect(forwarders['api.provider.example']).toMatchObject({ provider: 'openai' });
         expect(JSON.stringify(forwarders)).not.toContain(providerCredential);
     });
+
+    it('credentialless cross-provider許可はoperation単位で明示しcredential付き操作では拒否する', () => {
+        const credentiallessEnv = {
+            BRAINBASE_TENANT_PROVIDER_FORWARDERS_JSON: JSON.stringify({
+                'bb.unson.jp': {
+                    provider: 'brainbase',
+                    base_url: 'https://bb.unson.jp',
+                    operations: {
+                        'brainbase.tasks.create': {
+                            method: 'POST',
+                            path: '/api/companion/tasks',
+                            body_encoding: 'json',
+                            response_encoding: 'json',
+                            credential_placement: 'none',
+                            allow_binding_provider_mismatch: true,
+                            fixed_headers: { 'x-internal-api-key': 'internal-test-secret' }
+                        }
+                    }
+                }
+            })
+        };
+        const forwarder = createTrustedProviderForwardersFromEnv({
+            env: credentiallessEnv,
+            fetchImpl: vi.fn()
+        })['bb.unson.jp'];
+
+        expect(forwarder.requiresCredential('brainbase.tasks.create')).toBe(false);
+        expect(forwarder.allowsBindingProviderMismatch('brainbase.tasks.create')).toBe(true);
+        expect(forwarder.allowsBindingProviderMismatch('unknown')).toBe(false);
+
+        const credentialRequiredEnv = {
+            BRAINBASE_TENANT_PROVIDER_FORWARDERS_JSON: JSON.stringify({
+                'api.provider.example': {
+                    provider: 'openai',
+                    base_url: 'https://api.provider.example',
+                    operations: {
+                        'responses.create': {
+                            method: 'POST',
+                            path: '/v1/responses',
+                            body_encoding: 'json',
+                            response_encoding: 'json',
+                            credential_placement: 'bearer',
+                            allow_binding_provider_mismatch: true
+                        }
+                    }
+                }
+            })
+        };
+        expect(() => createTrustedProviderForwardersFromEnv({
+            env: credentialRequiredEnv,
+            fetchImpl: vi.fn()
+        })).toThrow('Trusted provider operation configuration is invalid');
+    });
 });
