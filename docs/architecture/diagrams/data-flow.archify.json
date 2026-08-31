@@ -21,14 +21,14 @@
     {"label":"Act & Learn"}
   ],
   "nodes": [
-    {"id":"organization-inputs","type":"external","label":"Organization Inputs","sublabel":"intent・Slack・meeting・docs・PR・SoR","stage":0,"row":0,"tag":"MIXED TRUST","width":150},
-    {"id":"secure-binding","type":"security","label":"Secure Tenant Binding","sublabel":"identity・org・project・resource","stage":1,"row":2,"tag":"FAIL CLOSED","width":150},
-    {"id":"canonical-context","type":"database","label":"Canonical Context","sublabel":"fact・Decision・RACI・policy・candidate","stage":2,"row":1,"tag":"SIGNED CONTEXT","width":155},
-    {"id":"judgment-resolver","type":"backend","label":"Judgment Resolver","sublabel":"Domain DAG・反証・risk・stop","stage":2,"row":3,"tag":"DECISION PACKET","width":155},
-    {"id":"authority-gate","type":"security","label":"Authority / Human Gate","sublabel":"auto・approval・human_action・deny","stage":3,"row":1,"tag":"ACCOUNTABLE","width":150},
-    {"id":"authorized-action","type":"backend","label":"Authorized Action","sublabel":"agent・skill・tool・connector・human","stage":3,"row":3,"tag":"BOUNDED","width":150},
-    {"id":"external-readback","type":"database","label":"Readback & Receipt","sublabel":"state・error・usage・cost・outcome","stage":4,"row":1,"tag":"MEASURED","width":150},
-    {"id":"reviewed-learning","type":"database","label":"Reviewed Learning","sublabel":"Graph・practice・policy・DAG version","stage":4,"row":3,"tag":"PROMOTED","width":150}
+    {"id":"organization-inputs","type":"external","label":"Organization Inputs","sublabel":"intent・signals・SoR","stage":0,"row":0,"tag":"MIXED TRUST","width":150},
+    {"id":"secure-binding","type":"security","label":"Secure Tenant Binding","sublabel":"identity・org・project","stage":1,"row":2,"tag":"FAIL CLOSED","width":150},
+    {"id":"canonical-context","type":"database","label":"Canonical Context","sublabel":"fact・Decision・RACI","stage":2,"row":1,"tag":"SIGNED CONTEXT","width":155},
+    {"id":"judgment-resolver","type":"backend","label":"Judgment Resolver","sublabel":"DAG・反証・risk・stop","stage":2,"row":3,"tag":"DECISION PACKET","width":155},
+    {"id":"authority-gate","type":"security","label":"Authority / Human Gate","sublabel":"auto・approval・human・deny","stage":3,"row":1,"tag":"ACCOUNTABLE","width":150},
+    {"id":"authorized-action","type":"backend","label":"Authorized Action","sublabel":"agent・skill・tool・human","stage":3,"row":3,"tag":"BOUNDED","width":150},
+    {"id":"external-readback","type":"database","label":"Readback & Receipt","sublabel":"state・usage・cost・outcome","stage":4,"row":1,"tag":"MEASURED","width":150},
+    {"id":"reviewed-learning","type":"database","label":"Reviewed Learning","sublabel":"Graph・practice・policy・DAG","stage":4,"row":3,"tag":"PROMOTED","width":150}
   ],
   "flows": [
     {"id":"inputs-binding","from":"organization-inputs","to":"secure-binding","label":"identity付き入力","classification":"untrusted / authoritative / personal","variant":"emphasis","route":"auto","labelAt":[100,205]},
