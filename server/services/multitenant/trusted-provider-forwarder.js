@@ -10,6 +10,7 @@ const MAX_CONFIGURED_BYTES = 64 * 1024 * 1024;
 const OPERATION_FIELDS = new Set([
     'method', 'path', 'path_params', 'query', 'body_encoding', 'response_encoding',
     'credential_placement', 'credential_username', 'fixed_headers', 'credential_url_hosts',
+    'allow_binding_provider_mismatch',
     'credential_url_path_pattern', 'target_url_hosts', 'target_url_path_pattern',
     'max_request_bytes', 'max_response_bytes'
 ]);
@@ -187,10 +188,14 @@ function normalizeOperation(name, definition, { hasBaseUrl }) {
     const responseEncoding = definition.response_encoding;
     const credentialPlacement = definition.credential_placement;
     const credentialUsername = definition.credential_username;
+    const allowBindingProviderMismatch = definition.allow_binding_provider_mismatch === true;
     if (!METHODS.has(method) || typeof path !== 'string' || !path.startsWith('/')
         || path.includes('?') || path.includes('#') || path.includes('\\')
         || !BODY_ENCODINGS.has(bodyEncoding) || !RESPONSE_ENCODINGS.has(responseEncoding)
         || !CREDENTIAL_PLACEMENTS.has(credentialPlacement)
+        || (definition.allow_binding_provider_mismatch !== undefined
+            && typeof definition.allow_binding_provider_mismatch !== 'boolean')
+        || (allowBindingProviderMismatch && credentialPlacement !== 'none')
         || (credentialPlacement === 'basic'
             && (typeof credentialUsername !== 'string' || credentialUsername.length === 0
                 || credentialUsername.length > 128 || /[:\r\n]/u.test(credentialUsername)))
@@ -215,6 +220,7 @@ function normalizeOperation(name, definition, { hasBaseUrl }) {
         response_encoding: responseEncoding,
         credential_placement: credentialPlacement,
         credential_username: credentialUsername ?? null,
+        allow_binding_provider_mismatch: allowBindingProviderMismatch,
         fixed_headers: normalizeHeaders(definition.fixed_headers),
         credential_url_hosts: credentialUrlHosts,
         credential_url_path_pattern: definition.credential_url_path_pattern === undefined
@@ -410,6 +416,9 @@ export function createTrustedHttpProviderForwarder({
         provider,
         requiresCredential(operation) {
             return operationAllowlist[operation]?.credential_placement !== 'none';
+        },
+        allowsBindingProviderMismatch(operation) {
+            return operationAllowlist[operation]?.allow_binding_provider_mismatch === true;
         },
         async forward({ credential, operation, request }) {
             const definition = operationAllowlist[operation];
