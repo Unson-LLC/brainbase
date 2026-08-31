@@ -5,9 +5,10 @@
     "caller": "codex",
     "stage": "planning_contract_preparation"
   },
-  "planning_status": "needs_review",
+  "planning_status": "superseded",
   "dependency_state": "j0_merge_source_locked",
   "implementation_ready": false,
+  "superseded_by": "story-r1-replay-evaluation-primitives",
   "scope_boundary_contract": {
     "contract_type": "local_single_owner_non_hosted",
     "owner_model": "single_local_owner",

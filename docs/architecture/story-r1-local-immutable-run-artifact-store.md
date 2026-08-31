@@ -1,9 +1,9 @@
 ---
 architecture_id: story-r1-local-immutable-run-artifact-store
 story_id: story-r1-local-immutable-run-artifact-store
-status: proposed_needs_review
-planning_status: needs_review
-dependency_state: j0_merge_source_locked
+status: superseded
+planning_status: superseded
+dependency_state: j0_done
 owner_model: single_local_owner
 deployment_mode: local_non_hosted
 sharing_boundary: none
@@ -17,6 +17,8 @@ j0_source_lock:
 ---
 
 # R1 ローカル不変run artifact store Architecture
+
+> **2026-08-31 supersession**: このplanning architectureは実装対象ではない。J0が最小artifact契約を完了し、R1 Roadmap/M3本体は`docs/architecture/story-r1-replay-evaluation-primitives.md`へ移した。以下は旧planning lineageとしてのみ保持する。
 
 ## J0 primitiveとの境界（2026-08-31）
 

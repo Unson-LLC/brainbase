@@ -121,6 +121,18 @@
         "started_at": "2026-08-31",
         "due_at": null,
         "contract_type": "package_consumer_compatibility"
+      },
+      {
+        "story_id": "story-r1-replay-evaluation-primitives",
+        "title": "R1 不変履歴のreplayとevaluation primitives",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": "2026-08-31",
+        "due_at": null,
+        "contract_type": "local_single_owner_non_hosted"
       }
     ],
     "current_story_id": "story-m2-codex-proxy-judgment-loop"

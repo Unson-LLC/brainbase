@@ -1,10 +1,11 @@
 {
   "task_id": "r1-local-immutable-run-artifact-store",
   "story_id": "story-r1-local-immutable-run-artifact-store",
-  "status": "planned",
-  "planning_status": "needs_review",
-  "work_package_status": "planned",
-  "execution_lane": "contract_preparation",
+  "status": "superseded",
+  "superseded_by": "r1-replay-evaluation-primitives",
+  "planning_status": "superseded",
+  "work_package_status": "superseded",
+  "execution_lane": "archived_planning_lineage",
   "implementation_ready": false,
   "responsibility_reconciliation": {
     "date": "2026-08-31",
@@ -36,7 +37,7 @@
   },
   "dependency": {
     "work_package": "J0",
-    "status": "j0_merge_source_locked",
+    "status": "superseded_by_j0_done_and_r1_replay_evaluation",
     "hard_dependency_done_required_for_implementation": true,
     "source_lock_required": true,
     "resolution_conditions": [
