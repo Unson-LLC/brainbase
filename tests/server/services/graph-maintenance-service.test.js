@@ -59,6 +59,52 @@ describe('GraphMaintenanceService authorization', () => {
         });
     });
 
+    it('Edge抑止集計をPlan差分・Apply Gate・Receiptへ識別子なしで固定する', async () => {
+        const suppression = {
+            edge_count: 1,
+            reasons: { unresolved_or_inaccessible_endpoint: 1 }
+        };
+        const before = {
+            project_code: 'brainbase',
+            entities: [{
+                id: 'decision_1', entity_type: 'decision', project_code: 'brainbase',
+                payload: { title: 'before' }, version: 1
+            }],
+            edges: [],
+            suppression_summary: suppression
+        };
+        before.hash = hashGraphSnapshot(before);
+        const after = structuredClone(before);
+        after.entities[0].payload.title = 'after';
+        after.entities[0].version = 2;
+        after.hash = hashGraphSnapshot(after);
+        const row = {
+            id: 'plan_suppression_audit', project_id: 'project_brainbase', status: 'planned',
+            snapshot_id: 'snapshot_suppression_audit', base_snapshot_hash: before.hash,
+            after_snapshot_hash: after.hash, reason: 'suppression audit', idempotency_key: 'suppression-audit-1',
+            operations: [{ operation: 'patch_entity', entity_id: 'decision_1', expected_version: 1, patch: { title: 'after' } }],
+            before_snapshot: before, after_snapshot: after
+        };
+        const expectedTransition = { before: suppression, after: suppression };
+        const plan = service.formatPlan(row);
+
+        expect(plan.diff_summary.suppression_summary).toEqual(expectedTransition);
+        expect(plan.apply_human_gate_scope.suppression_summary).toEqual(expectedTransition);
+        expect(JSON.stringify(plan.diff_summary)).not.toContain('hidden_endpoint_id');
+        expect(JSON.stringify(plan.apply_human_gate_scope)).not.toContain('hidden_endpoint_id');
+
+        const client = { query: vi.fn(async (_sql, params) => ({ rows: [{
+            receipt_id: params[0], plan_id: params[1], receipt_type: params[4], status: 'completed',
+            before_hash: params[5], after_hash: params[6], result: JSON.parse(params[7])
+        }] })) };
+        const receipt = await service.createReceipt(client, {
+            organizationId: 'org_1', personId: 'person_1'
+        }, row, 'apply', before.hash, after.hash);
+
+        expect(receipt.result.suppression_summary).toEqual(expectedTransition);
+        expect(JSON.stringify(receipt.result)).not.toContain('hidden_endpoint_id');
+    });
+
     it('Project subject metadataを認証済みCatalog正本へ束縛する', async () => {
         const configParser = {
             checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } })),

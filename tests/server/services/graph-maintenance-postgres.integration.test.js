@@ -724,6 +724,75 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
+    it('抑止Edgeの集計をPlan・Human Gate・Apply readback・Receiptへ識別子なしで伝播する', async () => {
+        const sourceOnlyAccess = { ...access, projectCodes: ['brainbase'] };
+        const baseline = await service.exportSnapshot(sourceOnlyAccess, { projectCode: 'brainbase' });
+        const summary = {
+            edge_count: 1,
+            reasons: { unresolved_or_inaccessible_endpoint: 1 }
+        };
+        const transition = { before: summary, after: summary };
+        expect(baseline.suppression_summary).toEqual(summary);
+
+        const plan = await service.planMutations(sourceOnlyAccess, {
+            projectCode: 'brainbase',
+            snapshotId: baseline.snapshot_id,
+            idempotencyKey: 'suppression-audit-db-roundtrip-1',
+            reason: 'Suppressed edge audit propagation acceptance',
+            operations: [{
+                operation: 'patch_entity',
+                entity_id: 'decision_rehome',
+                expected_version: 1,
+                patch: { suppression_audit_marker: 'verified' }
+            }]
+        });
+
+        expect(plan.diff_summary.suppression_summary).toEqual(transition);
+        expect(plan.apply_human_gate_scope.suppression_summary).toEqual(transition);
+        expect(JSON.stringify(plan.diff_summary)).not.toContain('edge_restricted_endpoint');
+        expect(JSON.stringify(plan.diff_summary)).not.toContain('project_vibepro_restricted');
+        expect(JSON.stringify(plan.apply_human_gate_scope)).not.toContain('edge_restricted_endpoint');
+        expect(JSON.stringify(plan.apply_human_gate_scope)).not.toContain('project_vibepro_restricted');
+
+        const applyGate = await service.recordHumanGateReceipt(sourceOnlyAccess, {
+            projectCode: 'brainbase',
+            decisionId: 'decision_rehome',
+            receiptId: 'gate_suppression_audit_apply_1',
+            evidence: { operation_scope: plan.apply_human_gate_scope }
+        });
+        const applyReceipt = await service.applyPlan(sourceOnlyAccess, {
+            projectCode: 'brainbase',
+            planId: plan.plan_id,
+            snapshotHash: plan.snapshot_hash,
+            humanGateReceipt: applyGate.receipt_id
+        });
+        expect(applyReceipt.result.suppression_summary).toEqual(transition);
+        expect(JSON.stringify(applyReceipt.result)).not.toContain('edge_restricted_endpoint');
+        expect(JSON.stringify(applyReceipt.result)).not.toContain('project_vibepro_restricted');
+
+        const appliedSnapshot = await service.exportSnapshot(sourceOnlyAccess, { projectCode: 'brainbase' });
+        expect(appliedSnapshot.snapshot_hash).toBe(plan.after_snapshot_hash);
+        expect(appliedSnapshot.suppression_summary).toEqual(summary);
+
+        const receipts = await service.getPlanReceipt(sourceOnlyAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id
+        });
+        expect(receipts.receipts).toEqual([
+            expect.objectContaining({
+                receipt_type: 'apply',
+                result: expect.objectContaining({ suppression_summary: transition })
+            })
+        ]);
+
+        const rollbackReceipt = await service.rollbackPlan(sourceOnlyAccess, {
+            projectCode: 'brainbase', planId: plan.plan_id, applyReceiptId: applyReceipt.receipt_id
+        });
+        expect(rollbackReceipt.result.suppression_summary).toEqual(transition);
+        const restored = await service.exportSnapshot(sourceOnlyAccess, { projectCode: 'brainbase' });
+        expect(restored.snapshot_hash).toBe(baseline.snapshot_hash);
+        expect(restored.suppression_summary).toEqual(summary);
+    });
+
     it('複合scope rehomeをApplyしRollbackで全rowsを復元する', async () => {
         const plan = await service.planMutations(access, {
             projectCode: 'brainbase',

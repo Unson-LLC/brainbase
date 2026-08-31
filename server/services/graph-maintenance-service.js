@@ -62,10 +62,13 @@ const HUMAN_GATE_LINK_SCOPE_KEYS = new Set([
 const HUMAN_GATE_RETIRE_SCOPE_KEYS = new Set(['operation', 'decision_id', 'decision_expected_version']);
 const HUMAN_GATE_APPLY_SCOPE_KEYS = new Set([
     'operation', 'decision_id', 'decision_ids', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash',
-    'operations_fingerprint', 'diff_fingerprint'
+    'operations_fingerprint', 'diff_fingerprint', 'suppression_summary'
 ]);
 const HUMAN_GATE_SCOPE_KEYS = new Set([
     ...HUMAN_GATE_LINK_SCOPE_KEYS, ...HUMAN_GATE_RETIRE_SCOPE_KEYS, ...HUMAN_GATE_APPLY_SCOPE_KEYS
+]);
+const SUPPRESSION_REASON_KEYS = new Set([
+    'noncanonical_cross_tenant_marker', 'unresolved_or_inaccessible_endpoint'
 ]);
 const SECRET_KEY_PATTERN = /(?:authorization|bearer|cookie|credential|password|secret|token|api[_-]?key)/i;
 const SECRET_VALUE_PATTERN = /(?:\bBearer\s+[A-Za-z0-9._~+\/-]+=*|-----BEGIN [A-Z ]*PRIVATE KEY-----|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})/;
@@ -138,7 +141,8 @@ function validateHumanGateEvidence(evidence) {
         const applyCommonShape = scope.operation === 'apply_plan'
             && ['decision_id', 'plan_id'].every((key) => typeof scope[key] === 'string' && scope[key].length > 0)
             && ['base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint']
-                .every((key) => typeof scope[key] === 'string' && hashPattern.test(scope[key]));
+                .every((key) => typeof scope[key] === 'string' && hashPattern.test(scope[key]))
+            && suppressionTransitionIsValid(scope.suppression_summary);
         const applyDecisionSetShape = applyCommonShape
             && Array.isArray(scope.decision_ids) && scope.decision_ids.length > 0
             && scope.decision_ids.every((id) => typeof id === 'string' && id.length > 0)
@@ -182,7 +186,8 @@ function applyHumanGateScope(plan, decisionIds) {
         base_snapshot_hash: plan.base_snapshot_hash,
         after_snapshot_hash: plan.after_snapshot_hash,
         operations_fingerprint: fingerprint(plan.operations),
-        diff_fingerprint: fingerprint(planDiffSummary(plan.before_snapshot, plan.after_snapshot))
+        diff_fingerprint: fingerprint(planDiffSummary(plan.before_snapshot, plan.after_snapshot)),
+        suppression_summary: suppressionTransition(plan.before_snapshot, plan.after_snapshot)
     };
 }
 
@@ -275,6 +280,42 @@ function changedRecords(before = [], after = [], limit = 100) {
     };
 }
 
+function normalizeSuppressionSummary(snapshot = {}) {
+    const raw = snapshot?.suppression_summary;
+    const reasons = {};
+    for (const [reason, count] of Object.entries(raw?.reasons || {}).sort(([left], [right]) => left.localeCompare(right))) {
+        if (SUPPRESSION_REASON_KEYS.has(reason) && Number.isSafeInteger(count) && count > 0) reasons[reason] = count;
+    }
+    const reasonCount = Object.values(reasons).reduce((sum, count) => sum + count, 0);
+    const edgeCount = Number.isSafeInteger(raw?.edge_count) && raw.edge_count >= 0
+        ? raw.edge_count
+        : reasonCount;
+    return { edge_count: edgeCount, reasons };
+}
+
+function suppressionTransition(before, after) {
+    return {
+        before: normalizeSuppressionSummary(before),
+        after: normalizeSuppressionSummary(after)
+    };
+}
+
+function suppressionTransitionIsValid(summary) {
+    if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return false;
+    if (Object.keys(summary).length !== 2 || !summary.before || !summary.after) return false;
+    return ['before', 'after'].every((side) => {
+        const value = summary[side];
+        const reasonEntries = Object.entries(value?.reasons || {});
+        return value && typeof value === 'object' && !Array.isArray(value)
+            && Object.keys(value).length === 2
+            && Number.isSafeInteger(value.edge_count) && value.edge_count >= 0
+            && value.reasons && typeof value.reasons === 'object' && !Array.isArray(value.reasons)
+            && reasonEntries.every(([reason, count]) => SUPPRESSION_REASON_KEYS.has(reason)
+                && Number.isSafeInteger(count) && count > 0)
+            && reasonEntries.reduce((sum, [, count]) => sum + count, 0) === value.edge_count;
+    });
+}
+
 function planDiffSummary(before, after) {
     const beforeValidation = validateGraphSnapshot(before);
     const afterValidation = validateGraphSnapshot(after);
@@ -283,6 +324,7 @@ function planDiffSummary(before, after) {
     return {
         entities: changedRecords(before.entities, after.entities),
         edges: changedRecords(before.edges, after.edges),
+        suppression_summary: suppressionTransition(before, after),
         validation: {
             before_valid: beforeValidation.valid, after_valid: afterValidation.valid,
             issue_count_before: beforeValidation.issues.length, issue_count_after: afterValidation.issues.length,
@@ -629,6 +671,11 @@ export class GraphMaintenanceService {
         return { project, snapshot };
     }
 
+    /**
+     * @deprecated Internal legacy row loader. Apply and rollback use loadSnapshot so
+     * external_entities and suppression_summary retain their canonical contract.
+     * Do not use this helper for a maintenance readback or receipt decision.
+     */
     async loadSnapshotImage(client, access, image, { lock = false, baseline = null } = {}) {
         assertValidSnapshot(image, 'Graph snapshot image is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
@@ -1103,7 +1150,14 @@ export class GraphMaintenanceService {
 
     async createReceipt(client, access, plan, type, beforeHash, afterHash) {
         const receiptId = `gmr_${randomUUID()}`;
-        const result = { operation_count: plan.operations.length, reason: plan.reason, idempotency_key: plan.idempotency_key };
+        const result = {
+            operation_count: plan.operations.length,
+            reason: plan.reason,
+            idempotency_key: plan.idempotency_key,
+            suppression_summary: type === 'rollback'
+                ? suppressionTransition(plan.after_snapshot, plan.before_snapshot)
+                : suppressionTransition(plan.before_snapshot, plan.after_snapshot)
+        };
         const { rows } = await client.query(
             `INSERT INTO graph_maintenance_receipts
              (id, plan_id, organization_id, project_id, receipt_type, status, before_hash, after_hash, result, actor_id)
