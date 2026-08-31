@@ -306,33 +306,40 @@
     {
       "program_id": "J0",
       "captured_at": "2026-08-31",
-      "status": "implementing",
+      "status": "done",
       "repository": "Unson-LLC/brainbase",
+      "organization_repository": "Unson-LLC/brainbase-unson",
       "story_id": "story-j0-durable-run-artifact-contract",
-      "branch": "codex/j0/durable-run-artifact-contract-reconcile",
-      "base_sha": "76021adcf22c92833136b5481bf3a72b736bdb4b",
-      "head_sha": "684f8c45c7c99d720c4acd7eca90dcda151c6196",
+      "branch": "codex/j0/durable-run-artifact-evidence-close",
+      "base_sha": "93e7b946a0b93bd61b61bd1f151e863fca4ac819",
+      "implementation_head_sha": "684f8c45c7c99d720c4acd7eca90dcda151c6196",
+      "public_consumer_head_sha": "9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae",
+      "organization_consumer_head_sha": "b7c953fa0081a1e02c0aa465aabf54054a3d96a2",
+      "organization_consumer_merge_sha": "4dbdff9b2825edb5ff3d1fded1b7603fc27c86ee",
+      "head_sha": "928ea432427e068e95771159df4ca4f5d2af584a",
+      "merge_sha": "18b6401c584e48ae6e7feed319836e74dc3d0910",
       "vibepro_version": "0.2.0-beta.17",
       "exit_gate_evidence": {
         "deterministic_dag": "passed",
         "negative_preflight": "passed",
-        "durable_run_artifact": "verified_at_exact_local_head",
-        "organization_semantic_consumer": "not_collected"
+        "durable_run_artifact": "passed_at_exact_merged_public_head",
+        "organization_semantic_consumer": "passed_at_exact_pinned_organization_head"
       },
       "verification": [
         "focused: 3 files / 35 tests passed",
         "typecheck: passed",
         "build: passed",
-        "full: 47 files / 469 tests passed",
+        "full: 48 files / 471 tests passed",
         "e2e: 2 files / 2 tests passed",
+        "npm pack --dry-run --ignore-scripts: passed",
         "fresh package consumer: saver process exited before loader process verified the same artifact with zero runner invocations",
-        "independent delta review: four findings closed; no additional blocker for AC-001 through AC-005"
+        "public PR #490 merged durable artifact implementation; PR #491 merged exact Git package consumer build lifecycle; PR #492 merged Story and Task exit-gate closure",
+        "organization PR #1335 exact-pinned public commit 9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae; two-process consumer smoke 2/2 passed with no public source copy or semantic fork",
+        "independent final review: no blocking finding for local runner and durable artifact AC-001 through AC-006",
+        "post-merge organization Graph writer run was superseded and cancelled by later develop pushes; it is not counted as success"
       ],
-      "program_effect": "no_status_promotion",
-      "blockers": [
-        "ADR-022 exact/pinned organization-edition package consumer smoke is not collected",
-        "local unmerged head is not external delivery provenance"
-      ]
+      "program_effect": "promote_to_done",
+      "blockers": []
     }
   ],
   "work_packages": [

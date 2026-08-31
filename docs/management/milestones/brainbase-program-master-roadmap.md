@@ -584,21 +584,23 @@ Company Brainを複数組織で継続運用できるenterprise productにする�
 このsnapshotは開始時の参考であり、各orchestrator runでGitHubから再判定する。
 
 - T0: 基盤実装とproduction provisioning codeは存在するが、本番schema / bridge / OAuth / exact E2Eのreadbackが完了条件。
-- J0: deterministic runnerとrun recordに加え、exact local HEAD `684f8c45c7c99d720c4acd7eca90dcda151c6196`でcontent-addressed save、検証付きreload、fresh-process package consumerまで検証済み。組織版exact/pinned consumerは`not_collected`のため、statusは`implementing`のまま。
+- J0: `done`。deterministic runner、content-addressed save、検証付きreload、fresh-process package consumerを公開版PR #490/#491でmergeし、組織版PR #1335が公開commitをexact pinして同じAPIをsemantic forkなしでconsumeした。公開版PR #492でStory/TaskのExit Gate証跡を閉じた。
 - A0: company authority runtimeの実装は存在するが、cross-repo fresh E2Eと全consumer cutoverを完了条件とする。
 - P0: owner no-fallbackとowner/org review分離は進行済み。normalized payload、Graph publication、scope promotionの完走は未完。
 - C0: OSS superset inventoryとCLI/MCP compatibilityのstackが存在するが、完全上位互換の完成宣言は禁止。
 - D0以降: 上流contractを使った実運用証拠を作る段階。
 
-### 9.1 J0 exact local execution evidence — 2026-08-31
+### 9.1 J0 exact execution and consumer evidence — 2026-08-31
 
-`story-j0-durable-run-artifact-contract`を`upstream/develop@76021adcf22c92833136b5481bf3a72b736bdb4b`起点のbranch `codex/j0/durable-run-artifact-contract-reconcile`で実装し、HEAD `684f8c45c7c99d720c4acd7eca90dcda151c6196`へ固定した。VibeProは`0.2.0-beta.17`を使用し、切替・downgrade・installは行っていない。
+`story-j0-durable-run-artifact-contract`を`upstream/develop@76021adcf22c92833136b5481bf3a72b736bdb4b`起点のbranch `codex/j0/durable-run-artifact-contract-reconcile`で実装し、HEAD `684f8c45c7c99d720c4acd7eca90dcda151c6196`へ固定した。VibeProは`0.2.0-beta.17`を使用し、切替・downgrade・installは行っていない。実装は公開版PR #490でmergeされ、exact Git package consumerのbuild lifecycleをPR #491でmergeした。
 
-- content-addressed saveと検証付きreloadは、focused 3 files / 35 tests、typecheck、build、full 47 files / 469 tests、E2E 2 files / 2 testsでpassした。
+- 公開版`upstream/develop@93e7b946a0b93bd61b61bd1f151e863fca4ac819`でcontent-addressed saveと検証付きreloadを再検証し、focused 3 files / 35 tests、typecheck、build、full 48 files / 471 tests、E2E 2 files / 2 tests、`npm pack --dry-run --ignore-scripts`がpassした。
 - fresh package consumerはsaver process終了後に別loader processが同一artifactを再読込し、runner再実行0回を確認した。
-- 独立差分reviewは4指摘をclosedとし、AC-001〜AC-005に追加blocking findingなしと判定した。
-- ADR-022が要求する組織版のexact/pinned package consumer smokeは`not_collected`である。類似実装やローカルtarball consumerを代替証拠にしない。
-- このHEADはローカルcommitであり、merge・公開・deploy・本番変更の証拠ではない。J0は`implementing`を維持し、work packageを`done`へ昇格しない。
+- 組織版PR #1335は公開版`9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae`をexact pinし、process Aのsave後に独立process Bがrunner再実行0回で同じ公開APIからreloadする2/2 smokeをpassした。組織版HEADは`b7c953fa0081a1e02c0aa465aabf54054a3d96a2`、merge SHAは`4dbdff9b2825edb5ff3d1fded1b7603fc27c86ee`で、公開sourceの複製やsemantic forkはない。
+- 最終独立read-only reviewはlocal runnerとdurable artifactのAC-001〜AC-006にblocking findingなしと判定した。レビュアー自身は外部PR/CIを再取得しておらず、orchestratorがPR #490/#491/#492/#1335のstate、exact SHA、required checksを別途readbackした。
+- 公開版PR #492はHEAD `928ea432427e068e95771159df4ca4f5d2af584a`、merge SHA `18b6401c584e48ae6e7feed319836e74dc3d0910`でStory/Taskを`done`へ閉じた。CIのCloudflare資格情報確認、deploy、公開site readbackはskipされ、npm公開・deploy・本番変更は行っていない。
+- 組織版merge直後のGraph writer runは後続`develop` pushによるconcurrency supersedeでcancelledとなったためsuccessへ数えない。PR #1335のmerge前required checksはすべてpassしている。
+- R0は完了済みであり、J0の4つのExit Gate（決定論的実行、negative preflight、run artifact/version再読込、組織版no-fork consumer）が揃ったため、J0 work packageを`done`へ昇格する。
 
 ## 10. Live external delivery reconciliation — 2026-08-25
 
