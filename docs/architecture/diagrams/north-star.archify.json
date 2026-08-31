@@ -1,0 +1,660 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Brainbase Organization Edition — NORTH STAR Architecture",
+    "output": "generated/north-star.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1380,
+      930
+    ],
+    "views": [
+      {
+        "id": "organizational-intelligence",
+        "label": "組織知能の三平面",
+        "focus": [
+          "context-plane",
+          "judgment-plane",
+          "learning-plane",
+          "authority-plane"
+        ],
+        "note": "BrainbaseはContext・Judgment・Learningを、共通のAuthority・Scope・Receipt契約で結ぶOrganizational Intelligence Planeになる。"
+      },
+      {
+        "id": "domain-packs",
+        "label": "業務別判断DAG",
+        "focus": [
+          "dag-registry",
+          "vibepro-pack",
+          "zeims-pack",
+          "business-packs"
+        ],
+        "note": "開発・税務・営業等を一枚岩のDAGにせず、各Domain Judgment Packの意味と証拠契約をBrainbaseが選択・接続・統治する。"
+      },
+      {
+        "id": "bounded-autonomy",
+        "label": "自律実行の境界",
+        "focus": [
+          "human-governance",
+          "agent-runtime",
+          "authority-plane",
+          "execution-plane",
+          "receipts"
+        ],
+        "note": "AIは承認済み範囲だけで探索・反証・実行し、外部readbackとReceiptを返す。自己権限付与はできない。"
+      },
+      {
+        "id": "learning-loop",
+        "label": "組織学習ループ",
+        "focus": [
+          "execution-plane",
+          "receipts",
+          "learning-plane",
+          "organization-memory"
+        ],
+        "note": "結果と予測差をcandidateとして評価し、証拠・scope・authorityが揃った学習だけをDAG・policy・practiceへ昇格する。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "human-governance",
+      "type": "external",
+      "label": "Human Governance",
+      "sublabel": "基準・Accountability・Human Gate",
+      "pos": [
+        45,
+        95
+      ],
+      "size": [
+        205,
+        78
+      ],
+      "tag": "SETS CRITERIA"
+    },
+    {
+      "id": "agent-runtime",
+      "type": "cloud",
+      "label": "Agent & Mana Runtime",
+      "sublabel": "channel-independent orchestration",
+      "pos": [
+        45,
+        300
+      ],
+      "size": [
+        205,
+        78
+      ],
+      "tag": "EXECUTES"
+    },
+    {
+      "id": "surfaces",
+      "type": "frontend",
+      "label": "Operating Surfaces",
+      "sublabel": "MCP・Companion・minimal Web・channels",
+      "pos": [
+        45,
+        515
+      ],
+      "size": [
+        215,
+        78
+      ]
+    },
+    {
+      "id": "authority-plane",
+      "type": "security",
+      "label": "Authority & Policy Plane",
+      "sublabel": "identity・scope・RACI・delegation・quota",
+      "pos": [
+        335,
+        90
+      ],
+      "size": [
+        235,
+        84
+      ],
+      "tag": "SHARED GUARD"
+    },
+    {
+      "id": "context-plane",
+      "type": "backend",
+      "label": "Context Plane",
+      "sublabel": "canonical source・provenance・temporal validity",
+      "pos": [
+        335,
+        270
+      ],
+      "size": [
+        235,
+        86
+      ],
+      "tag": "WHAT IS TRUE NOW"
+    },
+    {
+      "id": "judgment-plane",
+      "type": "backend",
+      "label": "Judgment Plane",
+      "sublabel": "DAG selection・counterargument・autonomy",
+      "pos": [
+        335,
+        455
+      ],
+      "size": [
+        235,
+        86
+      ],
+      "tag": "WHAT TO DO"
+    },
+    {
+      "id": "learning-plane",
+      "type": "backend",
+      "label": "Learning Plane",
+      "sublabel": "candidate・evaluation・promotion・versioning",
+      "pos": [
+        335,
+        650
+      ],
+      "size": [
+        235,
+        86
+      ],
+      "tag": "GET BETTER"
+    },
+    {
+      "id": "dag-registry",
+      "type": "messagebus",
+      "label": "Domain Judgment Registry",
+      "sublabel": "typed DAG・evidence・evaluation contracts",
+      "pos": [
+        650,
+        250
+      ],
+      "size": [
+        235,
+        82
+      ],
+      "tag": "SELECT & COMPOSE"
+    },
+    {
+      "id": "vibepro-pack",
+      "type": "backend",
+      "label": "VibePro Pack",
+      "sublabel": "development Judgment DAGs",
+      "pos": [
+        650,
+        410
+      ],
+      "size": [
+        200,
+        74
+      ],
+      "tag": "DEVELOPMENT"
+    },
+    {
+      "id": "zeims-pack",
+      "type": "backend",
+      "label": "Zeims Pack",
+      "sublabel": "tax & accounting Judgment DAGs",
+      "pos": [
+        650,
+        525
+      ],
+      "size": [
+        200,
+        74
+      ],
+      "tag": "TAX"
+    },
+    {
+      "id": "business-packs",
+      "type": "backend",
+      "label": "Business Domain Packs",
+      "sublabel": "sales・marketing・back office・legal",
+      "pos": [
+        650,
+        640
+      ],
+      "size": [
+        220,
+        78
+      ],
+      "tag": "FUTURE"
+    },
+    {
+      "id": "execution-plane",
+      "type": "cloud",
+      "label": "Bounded Execution Plane",
+      "sublabel": "skills・tools・connectors・Human Action",
+      "pos": [
+        950,
+        285
+      ],
+      "size": [
+        235,
+        84
+      ],
+      "tag": "AUTHORIZED ONLY"
+    },
+    {
+      "id": "systems-of-record",
+      "type": "external",
+      "label": "Systems of Record",
+      "sublabel": "GitHub・CRM・ledger・contracts・vaults",
+      "pos": [
+        950,
+        500
+      ],
+      "size": [
+        235,
+        84
+      ],
+      "tag": "FINAL STATE"
+    },
+    {
+      "id": "receipts",
+      "type": "database",
+      "label": "Judgment / Run / Outcome Receipts",
+      "sublabel": "immutable lineage・usage・readback",
+      "pos": [
+        950,
+        680
+      ],
+      "size": [
+        245,
+        82
+      ],
+      "tag": "REPLAYABLE"
+    },
+    {
+      "id": "organization-memory",
+      "type": "database",
+      "label": "Organization Memory",
+      "sublabel": "Graph・work ledger・validated knowledge",
+      "pos": [
+        1215,
+        285
+      ],
+      "size": [
+        150,
+        84
+      ],
+      "tag": "CANONICAL"
+    },
+    {
+      "id": "personal-memory",
+      "type": "database",
+      "label": "Personal Vaults",
+      "sublabel": "owner-controlled raw memory",
+      "pos": [
+        1215,
+        620
+      ],
+      "size": [
+        150,
+        82
+      ],
+      "tag": "SEPARATE"
+    }
+  ],
+  "connections": [
+    {
+      "id": "human-authority",
+      "from": "human-governance",
+      "to": "authority-plane",
+      "label": "目的・優先順位・守る境界",
+      "variant": "security",
+      "route": "straight",
+      "labelAt": [
+        300,
+        78
+      ]
+    },
+    {
+      "id": "human-runtime",
+      "from": "human-governance",
+      "to": "agent-runtime",
+      "label": "委任・承認・介入",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        145,
+        235
+      ]
+    },
+    {
+      "id": "surfaces-runtime",
+      "from": "surfaces",
+      "to": "agent-runtime",
+      "label": "request / notification / decision packet",
+      "variant": "default",
+      "route": "straight",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        145,
+        446
+      ]
+    },
+    {
+      "id": "runtime-context",
+      "from": "agent-runtime",
+      "to": "context-plane",
+      "label": "observed identity + intent",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelAt": [
+        293,
+        254
+      ]
+    },
+    {
+      "id": "authority-context",
+      "from": "authority-plane",
+      "to": "context-plane",
+      "label": "scope・access・valid revision",
+      "variant": "security",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        455,
+        222
+      ]
+    },
+    {
+      "id": "context-judgment",
+      "from": "context-plane",
+      "to": "judgment-plane",
+      "label": "bounded canonical context",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        455,
+        408
+      ]
+    },
+    {
+      "id": "judgment-learning",
+      "from": "judgment-plane",
+      "to": "learning-plane",
+      "label": "assumptions・criteria・expected outcome",
+      "variant": "default",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        455,
+        598
+      ]
+    },
+    {
+      "id": "judgment-registry",
+      "from": "judgment-plane",
+      "to": "dag-registry",
+      "label": "select / compose / conflict-check",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          610,
+          498
+        ],
+        [
+          610,
+          290
+        ]
+      ],
+      "labelAt": [
+        610,
+        386
+      ]
+    },
+    {
+      "id": "registry-vibepro",
+      "from": "dag-registry",
+      "to": "vibepro-pack",
+      "label": "typed contract",
+      "variant": "default",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        755,
+        372
+      ]
+    },
+    {
+      "id": "registry-zeims",
+      "from": "dag-registry",
+      "to": "zeims-pack",
+      "label": "typed contract",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          890,
+          292
+        ],
+        [
+          890,
+          562
+        ]
+      ],
+      "labelAt": [
+        890,
+        496
+      ]
+    },
+    {
+      "id": "registry-business",
+      "from": "dag-registry",
+      "to": "business-packs",
+      "label": "typed contract",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          915,
+          292
+        ],
+        [
+          915,
+          679
+        ]
+      ],
+      "labelAt": [
+        915,
+        610
+      ]
+    },
+    {
+      "id": "judgment-execution",
+      "from": "judgment-plane",
+      "to": "execution-plane",
+      "label": "signed plan + autonomy boundary",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          915,
+          498
+        ],
+        [
+          915,
+          327
+        ]
+      ],
+      "labelAt": [
+        915,
+        416
+      ]
+    },
+    {
+      "id": "authority-execution",
+      "from": "authority-plane",
+      "to": "execution-plane",
+      "label": "auto / approval / human_action / deny",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [
+        [
+          1070,
+          132
+        ],
+        [
+          1070,
+          255
+        ]
+      ],
+      "labelAt": [
+        1070,
+        210
+      ]
+    },
+    {
+      "id": "execution-sors",
+      "from": "execution-plane",
+      "to": "systems-of-record",
+      "label": "tool / skill / connector",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1070,
+        435
+      ]
+    },
+    {
+      "id": "sors-receipts",
+      "from": "systems-of-record",
+      "to": "receipts",
+      "label": "external readback + measured outcome",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1070,
+        630
+      ]
+    },
+    {
+      "id": "receipts-learning",
+      "from": "receipts",
+      "to": "learning-plane",
+      "label": "evidence + prediction delta",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          905,
+          720
+        ],
+        [
+          610,
+          690
+        ]
+      ],
+      "labelAt": [
+        760,
+        708
+      ]
+    },
+    {
+      "id": "context-memory",
+      "from": "context-plane",
+      "to": "organization-memory",
+      "label": "canonical retrieval",
+      "variant": "default",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1195,
+          313
+        ]
+      ],
+      "labelAt": [
+        1100,
+        300
+      ]
+    },
+    {
+      "id": "learning-memory",
+      "from": "learning-plane",
+      "to": "organization-memory",
+      "label": "approved practice / policy / DAG version",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "bottom",
+      "via": [
+        [
+          1200,
+          694
+        ],
+        [
+          1200,
+          398
+        ]
+      ],
+      "labelAt": [
+        1200,
+        555
+      ]
+    },
+    {
+      "id": "personal-learning",
+      "from": "personal-memory",
+      "to": "learning-plane",
+      "label": "consented sanitized candidate",
+      "variant": "security",
+      "route": "straight",
+      "labelAt": [
+        910,
+        790
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Brainbaseの製品中心",
+      "items": [
+        "一つの巨大DAGではなく、会社横断のContext・Judgment・Learning基盤",
+        "Domain Judgment Packを選択・接続・統治し、共通scope・authority・receiptを強制する",
+        "会社の知識だけでなく『どう判断し、なぜ止まり、結果からどう改善したか』を資産化する"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "役割分担",
+      "items": [
+        "人間は主語・目的・優先順位・守る境界を定める",
+        "AIは選択肢探索・最強反証・承認済み範囲の実行・結果回収を担う",
+        "Domain製品は業務意味、SoRは最終事実、Brainbaseは共通判断統治を担う"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "非目標",
+      "items": [
+        "Brainbaseを万能Workflow Builder、Secret Vault、GitHub／CRM／会計台帳の代替にしない",
+        "raw AI output、chain-of-thought、個人原文、すべてのPRコメントを組織知識へ自動昇格しない",
+        "AgentやManaに自己権限付与、cross-tenant fallback、証跡なしの外部作用を許さない"
+      ]
+    }
+  ]
+}

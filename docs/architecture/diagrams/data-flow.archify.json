@@ -1,0 +1,469 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Brainbase Organization Signal → Judgment → Action → Learning Flow",
+    "output": "generated/data-flow.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1180,
+      940
+    ],
+    "views": [
+      {
+        "id": "bind",
+        "label": "入力を会社文脈へ束縛",
+        "focus": [
+          "human-request",
+          "org-signals",
+          "system-facts",
+          "secure-ingress",
+          "tenant-binding"
+        ],
+        "note": "外部入力はtenantや権限を主張できても決定できない。認証済みidentityとresourceをBrainbaseが正本へ束縛する。"
+      },
+      {
+        "id": "resolve",
+        "label": "正しい文脈とDAGを解決",
+        "focus": [
+          "tenant-binding",
+          "canonical-context",
+          "knowledge-candidate",
+          "dag-selection"
+        ],
+        "note": "Graph・Task・Decision・文書・SoRをprovenance付きで解決し、raw signalはcandidateのまま扱う。"
+      },
+      {
+        "id": "decide",
+        "label": "反証と権限判断",
+        "focus": [
+          "dag-selection",
+          "judgment-resolver",
+          "authority-gate"
+        ],
+        "note": "適用DAG、必要証拠、反証、stop conditionを評価し、auto／approval／human_action／denyを決める。"
+      },
+      {
+        "id": "learn",
+        "label": "実行結果を組織能力へ戻す",
+        "focus": [
+          "authorized-action",
+          "external-readback",
+          "receipts",
+          "reviewed-learning"
+        ],
+        "note": "外部readbackと予測差をReceiptへ固定し、レビュー済み学習だけをGraph・practice・policy・DAGへ昇格する。"
+      }
+    ]
+  },
+  "stages": [
+    {
+      "label": "Sources"
+    },
+    {
+      "label": "Bind & Guard"
+    },
+    {
+      "label": "Resolve"
+    },
+    {
+      "label": "Judge"
+    },
+    {
+      "label": "Act & Learn"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "human-request",
+      "type": "external",
+      "label": "Human / Agent Request",
+      "sublabel": "goal・question・requested action",
+      "stage": 0,
+      "row": 0,
+      "tag": "INTENT",
+      "width": 165
+    },
+    {
+      "id": "org-signals",
+      "type": "frontend",
+      "label": "Organization Signals",
+      "sublabel": "Slack・meeting・docs・PR・incident",
+      "stage": 0,
+      "row": 2,
+      "tag": "OBSERVED",
+      "width": 165
+    },
+    {
+      "id": "system-facts",
+      "type": "external",
+      "label": "Systems of Record",
+      "sublabel": "GitHub・CRM・ledger・contract・vault",
+      "stage": 0,
+      "row": 4,
+      "tag": "AUTHORITATIVE",
+      "width": 165
+    },
+    {
+      "id": "secure-ingress",
+      "type": "security",
+      "label": "MCP / Private Ingress",
+      "sublabel": "auth・allowlist・service trust",
+      "stage": 1,
+      "row": 0,
+      "tag": "FAIL CLOSED",
+      "width": 160
+    },
+    {
+      "id": "tenant-binding",
+      "type": "security",
+      "label": "Tenant & Resource Binding",
+      "sublabel": "person・org・project・capability",
+      "stage": 1,
+      "row": 3,
+      "tag": "SIGNED CONTEXT",
+      "width": 170
+    },
+    {
+      "id": "canonical-context",
+      "type": "database",
+      "label": "Canonical Context",
+      "sublabel": "Graph・Task・Decision・policy・provenance",
+      "stage": 2,
+      "row": 0,
+      "tag": "CURRENT",
+      "width": 175
+    },
+    {
+      "id": "knowledge-candidate",
+      "type": "messagebus",
+      "label": "Knowledge Event Candidate",
+      "sublabel": "immutable event・scope・evidence",
+      "stage": 2,
+      "row": 2,
+      "tag": "NOT YET TRUTH",
+      "width": 180
+    },
+    {
+      "id": "dag-selection",
+      "type": "backend",
+      "label": "Domain DAG Selection",
+      "sublabel": "VibePro・Zeims・business packs",
+      "stage": 2,
+      "row": 4,
+      "tag": "TYPED CONTRACT",
+      "width": 175
+    },
+    {
+      "id": "judgment-resolver",
+      "type": "backend",
+      "label": "Judgment Resolver",
+      "sublabel": "options・counterargument・stop conditions",
+      "stage": 3,
+      "row": 1,
+      "tag": "DECISION PACKET",
+      "width": 180
+    },
+    {
+      "id": "authority-gate",
+      "type": "security",
+      "label": "Authority / Human Gate",
+      "sublabel": "auto・approval・human_action・deny",
+      "stage": 3,
+      "row": 4,
+      "tag": "ACCOUNTABLE",
+      "width": 180
+    },
+    {
+      "id": "authorized-action",
+      "type": "cloud",
+      "label": "Authorized Action",
+      "sublabel": "agent・skill・tool・connector",
+      "stage": 4,
+      "row": 0,
+      "tag": "BOUNDED",
+      "width": 165
+    },
+    {
+      "id": "external-readback",
+      "type": "external",
+      "label": "External Readback",
+      "sublabel": "final state・error・partial・no data",
+      "stage": 4,
+      "row": 2,
+      "tag": "MEASURED",
+      "width": 165
+    },
+    {
+      "id": "receipts",
+      "type": "database",
+      "label": "Usage & Operation Receipt",
+      "sublabel": "correlation・cost・outcome・lineage",
+      "stage": 4,
+      "row": 4,
+      "tag": "IMMUTABLE",
+      "width": 175
+    },
+    {
+      "id": "reviewed-learning",
+      "type": "database",
+      "label": "Reviewed Learning",
+      "sublabel": "Graph・practice・policy・DAG version",
+      "stage": 4,
+      "row": 6,
+      "tag": "PROMOTED",
+      "width": 175
+    }
+  ],
+  "flows": [
+    {
+      "id": "request-ingress",
+      "from": "human-request",
+      "to": "secure-ingress",
+      "label": "observed identity + intent",
+      "classification": "untrusted request",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelAt": [
+        190,
+        120
+      ]
+    },
+    {
+      "id": "signals-ingress",
+      "from": "org-signals",
+      "to": "secure-ingress",
+      "label": "event / transcript / change",
+      "classification": "raw signal",
+      "variant": "default",
+      "route": "auto",
+      "labelAt": [
+        190,
+        315
+      ]
+    },
+    {
+      "id": "ingress-binding",
+      "from": "secure-ingress",
+      "to": "tenant-binding",
+      "label": "authenticated subject",
+      "classification": "verified identity",
+      "variant": "security",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        350,
+        305
+      ]
+    },
+    {
+      "id": "binding-context",
+      "from": "tenant-binding",
+      "to": "canonical-context",
+      "label": "allowed scope + revisions",
+      "classification": "signed execution context",
+      "variant": "security",
+      "route": "auto",
+      "labelAt": [
+        480,
+        315
+      ]
+    },
+    {
+      "id": "signals-candidate",
+      "from": "org-signals",
+      "to": "knowledge-candidate",
+      "label": "capture with scope / provenance",
+      "classification": "candidate only",
+      "variant": "default",
+      "route": "straight",
+      "labelAt": [
+        380,
+        390
+      ]
+    },
+    {
+      "id": "facts-context",
+      "from": "system-facts",
+      "to": "canonical-context",
+      "label": "bounded authoritative read",
+      "classification": "operational fact",
+      "variant": "emphasis",
+      "route": "auto",
+      "labelAt": [
+        400,
+        545
+      ]
+    },
+    {
+      "id": "context-resolver",
+      "from": "canonical-context",
+      "to": "judgment-resolver",
+      "label": "relevant current facts",
+      "classification": "canonical evidence",
+      "variant": "emphasis",
+      "route": "auto",
+      "labelAt": [
+        690,
+        225
+      ]
+    },
+    {
+      "id": "candidate-resolver",
+      "from": "knowledge-candidate",
+      "to": "judgment-resolver",
+      "label": "unverified signal with caveat",
+      "classification": "candidate evidence",
+      "variant": "dashed",
+      "route": "auto",
+      "labelAt": [
+        690,
+        375
+      ]
+    },
+    {
+      "id": "context-dag",
+      "from": "canonical-context",
+      "to": "dag-selection",
+      "label": "domain・project・risk",
+      "classification": "selection context",
+      "variant": "default",
+      "route": "auto",
+      "labelAt": [
+        585,
+        420
+      ]
+    },
+    {
+      "id": "dag-resolver",
+      "from": "dag-selection",
+      "to": "judgment-resolver",
+      "label": "typed nodes・required evidence",
+      "classification": "judgment contract",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        755,
+        485
+      ]
+    },
+    {
+      "id": "resolver-authority",
+      "from": "judgment-resolver",
+      "to": "authority-gate",
+      "label": "proposal・反証・risk・stop reason",
+      "classification": "decision packet",
+      "variant": "security",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        850,
+        435
+      ]
+    },
+    {
+      "id": "authority-action",
+      "from": "authority-gate",
+      "to": "authorized-action",
+      "label": "approved effects only",
+      "classification": "authorized action",
+      "variant": "security",
+      "route": "auto",
+      "labelAt": [
+        985,
+        400
+      ]
+    },
+    {
+      "id": "action-readback",
+      "from": "authorized-action",
+      "to": "external-readback",
+      "label": "execute then verify final state",
+      "classification": "external side effect",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1060,
+        300
+      ]
+    },
+    {
+      "id": "readback-receipt",
+      "from": "external-readback",
+      "to": "receipts",
+      "label": "success / failure / partial / no data",
+      "classification": "measured outcome",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1060,
+        520
+      ]
+    },
+    {
+      "id": "receipt-learning",
+      "from": "receipts",
+      "to": "reviewed-learning",
+      "label": "evaluate prediction delta and recurrence",
+      "classification": "learning candidate",
+      "variant": "default",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1060,
+        735
+      ]
+    },
+    {
+      "id": "learning-context",
+      "from": "reviewed-learning",
+      "to": "canonical-context",
+      "label": "approved Graph / policy / practice update",
+      "classification": "promoted knowledge",
+      "variant": "security",
+      "route": "auto",
+      "labelAt": [
+        770,
+        835
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "一回のAI対話で減らすもの",
+      "items": [
+        "人間へ何度も聞き返す前に、Brainbaseが本人なら採る／止める基準と根拠を解決する",
+        "ただし基準不明、越権、不可逆、高リスクは無理に補完せず、判断packetを一回で人間へ上げる",
+        "人間の認知負荷を減らす対象は『必要な判断』ではなく『既知の判断の再説明』である"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "証跡が目的ではない",
+      "items": [
+        "Receiptは作業完了を装う証拠集めではなく、判断と外部結果を結び次回の判断を改善する入力",
+        "未取得、部分取得、no data、失敗を成功や0件へ丸めない",
+        "結果が次のDAG・policy・practice改善へ戻らなければ学習ループは閉じていない"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "自動昇格しないもの",
+      "items": [
+        "raw transcript、個人原文、chain-of-thought、unverified hypothesis",
+        "owner同意だけで未レビューの個人知識をOrganization Graphへ入れること",
+        "cross-tenant fallback、default project補完、agent自身による権限・成功判定"
+      ]
+    }
+  ]
+}
