@@ -67,8 +67,8 @@ AITM (AI Technical Management) Dashboard APIは、プロジェクト管理・健
 | `/system` | GET | システム情報 | - |
 | `/system-health` | GET | システムヘルス | - |
 | `/storage` | GET | ストレージ情報 | - |
-| `/tasks` | GET | タスク管理ステータス | - |
-| `/worktrees` | GET | Worktree情報 | - |
+| `/tasks` | GET | 履歴契約（現行routeなし） | - |
+| `/worktrees` | GET | 廃止済み（HTTP 410） | - |
 | `/projects` | GET | 認証組織・Project Grant範囲の健全性スコア | - |
 | `/projects/:id/stats` | GET | 指定プロジェクトの統計 | - |
 | `/critical-alerts` | GET | Critical Alerts取得 | 5分 |
@@ -88,7 +88,7 @@ AITM (AI Technical Management) Dashboard APIは、プロジェクト管理・健
 
 **リクエスト**:
 ```bash
-curl http://localhost:3005/api/brainbase \
+curl http://127.0.0.1:31013/api/brainbase \
   -H 'Authorization: Bearer <token>'
 ```
 
@@ -289,7 +289,7 @@ curl http://127.0.0.1:31013/api/brainbase/worktrees
 
 **リクエスト**:
 ```bash
-curl http://localhost:3005/api/brainbase/projects \
+curl http://127.0.0.1:31013/api/brainbase/projects \
   -H 'Authorization: Bearer <token>'
 ```
 
@@ -806,7 +806,7 @@ LOG_LEVEL=debug npm run dev
 # APIレスポンス時間計測
 curl -w "@curl-format.txt" -o /dev/null -s \
   -H 'Authorization: Bearer <token>' \
-  http://localhost:3005/api/brainbase/projects
+  http://127.0.0.1:31013/api/brainbase/projects
 ```
 
 ### Q2: NocoDB APIエラーが発生した場合は？
