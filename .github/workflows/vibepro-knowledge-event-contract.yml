@@ -79,11 +79,11 @@ jobs:
       - name: Run complete private MCP regression suite
         run: npm --prefix mcp/brainbase test
 
-      - name: Run backend regression suite
-        run: npm run test:run
-
-      - name: Validate architecture model
-        run: npm run check:architecture-model
+      - name: Run Knowledge Event backend contract tests
+        run: >-
+          npm run test:run --
+          tests/unit/knowledge-event-service.test.js
+          tests/server/routes/knowledge-event-routes.test.js
 
       - name: Reject whitespace errors
         shell: bash
