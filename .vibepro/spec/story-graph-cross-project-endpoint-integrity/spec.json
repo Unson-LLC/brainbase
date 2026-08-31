@@ -188,6 +188,14 @@
           }
         ]
       },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "同一organizationで参照権限のある跨project endpointをmetadata-only参照として解決する"
+          }
+        ]
+      },
       "confidence": 0.99,
       "first_seen_at": "2026-08-31T00:38:42.012Z",
       "last_revised_at": "2026-08-31T00:38:42.012Z"
@@ -214,6 +222,14 @@
           {
             "file": "tests/server/services/graph-maintenance-service.test.js",
             "case": "同一organizationでも参照先projectが権限外ならEdgeとendpointを公開しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "同一organizationでも参照先projectが権限外ならEdgeとendpointを公開しない"
           }
         ]
       },
@@ -246,6 +262,22 @@
           }
         ]
       },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "cross-tenant markerとmarkerなし旧Snapshotは非canonical Edgeを拒否する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-engine.test.js",
+            "must_cover": "cross-tenant markerとmarkerなし旧Snapshotは非canonical Edgeを拒否する"
+          }
+        ]
+      },
       "confidence": 0.99,
       "first_seen_at": "2026-08-31T00:38:42.012Z",
       "last_revised_at": "2026-08-31T00:38:42.012Z"
@@ -272,6 +304,14 @@
           {
             "file": "tests/server/services/graph-maintenance-service.test.js",
             "case": "同一organizationで参照権限のある跨project endpointをmetadata-only参照として解決する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "同一organizationで参照権限のある跨project endpointをmetadata-only参照として解決する"
           }
         ]
       },
