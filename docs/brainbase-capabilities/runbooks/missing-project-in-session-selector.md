@@ -13,10 +13,12 @@ If the project is missing here, fix `/Users/ksato/workspace/config.yml` or confi
 ## 2. Confirm Active Catalog Visibility
 
 ```bash
-curl -s http://127.0.0.1:31013/api/brainbase/projects | jq '.[] | select(.id=="tech-knight")'
+curl -s http://127.0.0.1:31013/api/brainbase/projects \
+  -H 'Authorization: Bearer <token>' \
+  | jq 'if .source.status != "loaded" then error("project catalog is not loaded") else .projects[] | select(.id=="tech-knight") end'
 ```
 
-If present here but not in the selector, the problem is not the dashboard project API.
+If `source.status` is not `loaded`, treat visibility as unconfirmed and restore Registry/auth connectivity first. If the project is present here but not in the selector, the problem is not the dashboard project API.
 
 ## 3. Check Selector Rules
 

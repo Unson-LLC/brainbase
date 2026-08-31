@@ -67,7 +67,7 @@ AITM (AI Technical Management) Dashboard APIは、プロジェクト管理・健
 | `/storage` | GET | ストレージ情報 | - |
 | `/tasks` | GET | タスク管理ステータス | - |
 | `/worktrees` | GET | Worktree情報 | - |
-| `/projects` | GET | 全プロジェクトの健全性スコア | - |
+| `/projects` | GET | 認証組織・Project Grant範囲の健全性スコア | - |
 | `/projects/:id/stats` | GET | 指定プロジェクトの統計 | - |
 | `/critical-alerts` | GET | Critical Alerts取得 | 5分 |
 | `/strategic-overview` | GET | 戦略的意思決定支援情報 | 5分 |

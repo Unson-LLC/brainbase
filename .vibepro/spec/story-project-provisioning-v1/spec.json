@@ -468,14 +468,22 @@
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 11, "ac_id": "AC-12", "text_snippet": "Project Registryを実行時Project Catalogへ接続し、登録後のアクセス判定へ反映する" }],
         "architecture_refs": [{ "file": "docs/architecture/story-project-provisioning-v1.md", "section": "Architecture" }],
-        "code_refs": [{ "file": "server/services/project-provisioning/project-registry-catalog-adapter.js", "anchor": "getProjects" }],
+        "code_refs": [
+          { "file": "server/services/project-provisioning/project-registry-catalog-adapter.js", "anchor": "getProjects" },
+          { "file": "server/routes/brainbase/overview-routes.js", "anchor": "router.get('/', projectCatalogAuthGuard" },
+          { "file": "docs/projects/aitm/API.md", "anchor": "GET /api/brainbase" }
+        ],
         "test_refs": [
           { "file": "tests/server/services/project-registry-catalog-adapter.test.js", "case": "catalog readをorganization contextで分離する" },
+          { "file": "tests/server/routes/project-runtime-catalog.test.js", "case": "/api/brainbaseは認証済みreq.accessのorganizationでcatalogを読みsourceを保持する" },
+          { "file": "tests/server/bootstrap/project-provisioning-health.test.js", "case": "registerApiRoutesは/api/brainbase rootへCatalog認証を配線しorganization contextを渡す" },
           { "file": "tests/ui/project-mapping-runtime-catalog.test.js", "case": "Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする" }
         ]
       },
       "verifiable_by": { "test_pattern": [
         { "file_glob": "tests/server/services/project-registry-catalog-adapter.test.js", "must_cover": "catalog readをorganization contextで分離する" },
+        { "file_glob": "tests/server/routes/project-runtime-catalog.test.js", "must_cover": "/api/brainbaseは認証済みreq.accessのorganizationでcatalogを読みsourceを保持する" },
+        { "file_glob": "tests/server/bootstrap/project-provisioning-health.test.js", "must_cover": "registerApiRoutesは/api/brainbase rootへCatalog認証を配線しorganization contextを渡す" },
         { "file_glob": "tests/ui/project-mapping-runtime-catalog.test.js", "must_cover": "Session Launch Pickerはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする" }
       ] },
       "confidence": 1,
