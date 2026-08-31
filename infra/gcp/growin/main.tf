@@ -365,6 +365,12 @@ resource "google_cloud_run_v2_service" "api" {
   deletion_protection = true
   labels              = var.labels
 
+  lifecycle {
+    # Cloud Run reports an empty service-level scaling block as explicit zeros.
+    # Instance bounds are managed by template.scaling below.
+    ignore_changes = [scaling]
+  }
+
   template {
     service_account = google_service_account.runtime.email
     timeout         = "300s"
@@ -469,6 +475,12 @@ resource "google_cloud_run_v2_service" "mcp" {
   ingress             = "INGRESS_TRAFFIC_ALL"
   deletion_protection = true
   labels              = var.labels
+
+  lifecycle {
+    # Cloud Run reports an empty service-level scaling block as explicit zeros.
+    # Instance bounds are managed by template.scaling below.
+    ignore_changes = [scaling]
+  }
 
   template {
     service_account = google_service_account.runtime.email
