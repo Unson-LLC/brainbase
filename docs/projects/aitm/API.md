@@ -51,9 +51,9 @@ AITM (AI Technical Management) Dashboard APIは、プロジェクト管理・健
 
 ## 3. 認証
 
-**現在**: 認証なし（内部ツール）
+**現在**: Bearer token認証が必須です。`/api/brainbase` と `/api/brainbase/projects` は、認証された組織と明示的なProject Grantの範囲だけを返します。
 
-**将来**: APIキーベース認証を検討（Phase 3）
+以前の未認証アクセスは廃止しました。既存の内部クライアントも `Authorization: Bearer <token>` を付け、未認証時の `401` を認証エラーとして扱ってください。
 
 ---
 
@@ -86,7 +86,8 @@ AITM (AI Technical Management) Dashboard APIは、プロジェクト管理・健
 
 **リクエスト**:
 ```bash
-curl http://localhost:3005/api/brainbase
+curl http://localhost:3005/api/brainbase \
+  -H 'Authorization: Bearer <token>'
 ```
 
 **レスポンス**:

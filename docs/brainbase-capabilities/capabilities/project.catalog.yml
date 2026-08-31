@@ -8,6 +8,7 @@ surfaces:
     - brainbase_projects
   api:
     - GET /api/config/projects
+    - GET /api/brainbase
     - GET /api/brainbase/projects
   code:
     - server/routes/config.js
@@ -30,6 +31,7 @@ visibility_rules:
   - archived projects remain in config but should not appear in active selectors.
   - session_select:false hides a project from session creation even if it is active.
   - /api/brainbase/projects requires a verified token and only returns active projects in access.projectCodes.
+  - /api/brainbase requires a verified token and carries the authenticated organization into its project catalog summary; unauthenticated callers receive 401.
   - brainbase_projects intersects JWT projectCodes with BRAINBASE_PROJECT_CODES; callers cannot expand scope through tool arguments.
   - brainbase_projects returns status ok, unavailable, or error together with scope and audit evidence.
   - Project Catalogの正本パスはhost runtimeがConfigParserへ注入し、個人の絶対パスへ固定しない。
@@ -39,6 +41,7 @@ visibility_rules:
 verification:
   commands:
     - curl -s http://127.0.0.1:31013/api/config/projects -H 'Authorization: Bearer <token>'
+    - curl -s http://127.0.0.1:31013/api/brainbase -H 'Authorization: Bearer <token>'
     - curl -s http://127.0.0.1:31013/api/brainbase/projects -H 'Authorization: Bearer <token>'
     - cd mcp/brainbase && npm test
   expected:
@@ -46,6 +49,7 @@ verification:
     - tech-knight exists in /api/config/projects and /api/brainbase/projects when present in the actor grant
     - projects without NocoDB mappings are returned as healthStatus: unmapped
     - an unauthenticated /api/brainbase/projects request returns 401
+    - an unauthenticated /api/brainbase request returns 401
     - brainbase_projects exposes only the intersection of token and configured project scopes
     - Graph subjectとして投影するprojectのnameとcatalog_versionがProject Catalogから保持される
     - a short grant such as growin does not authorize growin-payroll

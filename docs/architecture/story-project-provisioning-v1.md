@@ -10,7 +10,7 @@
 
 完了判定では各stepのReceiptだけを信用せず、Registry、組織別の実行時Catalog、Graph validation、全Auth Grant、Repositoryの現状態を改めて読戻します。Catalog adapterが未接続、Registryがunavailable、または一つでも不一致・取得不能なら`active`へ遷移しません。ロールバックで完了済みの外部事実を消さず、`partial_failed`からforward-onlyで再開します。
 
-`GET /api/config`はローカルパスを含むWorkspace Setup用のlegacy topology面として維持します。セッション選択UIはここからローカルパスだけを読み、認証済み`GET /api/config/projects`から組織・Grantで絞られた実行時Project Catalogを取得して選択肢を確定します。Grantはproject ID、明示alias、GitHub repository名の完全一致だけを許可し、prefix一致で別projectへ拡張しません。`GET /api/brainbase/projects`も同じ認証済みCatalog面です。Registry unavailable時はlegacyへ退避しても`source.status: unavailable`を応答へ残し、確認済み成功へ丸めません。UIはCatalogの認証失敗・取得不能時にlegacy選択肢を残さず、選択可能一覧をfail-closedにします。Registryには存在してもWorkspace Setupにローカルpathがないprojectは、推測pathで起動せず「ワークスペース設定が必要」な無効選択肢として表示します。
+`GET /api/config`はローカルパスを含むWorkspace Setup用のlegacy topology面として維持します。セッション選択UIはここからローカルパスだけを読み、認証済み`GET /api/config/projects`から組織・Grantで絞られた実行時Project Catalogを取得して選択肢を確定します。Grantはproject ID、明示alias、GitHub repository名の完全一致だけを許可し、prefix一致で別projectへ拡張しません。`GET /api/brainbase`と`GET /api/brainbase/projects`も同じ認証済みCatalog面で、未認証アクセスは401とします。Registry unavailable時はlegacyへ退避しても`source.status: unavailable`を応答へ残し、確認済み成功へ丸めません。UIはCatalogの認証失敗・取得不能時にlegacy選択肢を残さず、選択可能一覧をfail-closedにします。Registryには存在してもWorkspace Setupにローカルpathがないprojectは、推測pathで起動せず「ワークスペース設定が必要」な無効選択肢として表示します。
 
 プロセス終了でrunが`applying`に残った場合、通常の`apply`は再取得しません。明示的な`resume`だけが、最終更新から5分を超えたstale runを原子的に再claimできます。これにより稼働中runとの二重実行を避けつつ、クラッシュ後の復旧経路を保ちます。
 
