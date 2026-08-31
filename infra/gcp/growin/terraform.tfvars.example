@@ -1,0 +1,5 @@
+project_id                 = "brainbase-505912"
+region                     = "asia-northeast1"
+environment                = "production"
+database_tier              = "db-custom-1-3840"
+database_availability_type = "REGIONAL"
