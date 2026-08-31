@@ -2,7 +2,7 @@
   "task_id": "r1-replay-evaluation-primitives",
   "story_id": "story-r1-replay-evaluation-primitives",
   "title": "R1 不変履歴のreplayとevaluation primitives",
-  "status": "verified_pending_program_update",
+  "status": "done",
   "dependency_state": "j0_done",
   "source_lock": {
     "implementation_head": "684f8c45c7c99d720c4acd7eca90dcda151c6196",
@@ -25,7 +25,7 @@
     "implementation": "completed",
     "verification": "completed",
     "independent_review": "completed",
-    "program_update": "pending"
+    "program_update": "completed"
   },
   "verification_evidence": {
     "focused": "3 files / 41 tests passed",
@@ -36,7 +36,9 @@
     "diff_check": "passed",
     "packed_consumer": "1/1 passed after tarball install",
     "independent_boundary_review": "PASS after two P1 fixes; blocking findings 0",
-    "independent_exit_gate_review": "three gates passed; blocking findings 0; no unknown, partial, or skipped evidence counted as success"
+    "independent_exit_gate_review": "three gates passed; blocking findings 0; no unknown, partial, or skipped evidence counted as success",
+    "public_delivery": "PR #493 merged as f73bfb41278bf8983c1d23dc8cb5be6c0e3379a1 after required check passed; upstream/develop readback matched",
+    "program_update": "brainbase-unson PR #1342 merged as 29f09bd47ba8e0a84e4a11d6e9950034ff2d7715 after required checks passed; canonical Roadmap records R1 done"
   },
   "non_goals": ["artifact store lock/index/fsync hardening","RFC 8785 or schema migration","runner binary registry or network retrieval","persistent evaluation database","CLI/MCP/HTTP/UI/deploy/package publication"]
 }

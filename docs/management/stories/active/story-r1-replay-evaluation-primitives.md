@@ -1,10 +1,10 @@
 ---
 story_id: story-r1-replay-evaluation-primitives
 title: R1 不変履歴のreplayとevaluation primitives
-status: verified
+status: done
 planning_status: accepted
-work_package_status: verified_pending_program_update
-execution_lane: pr_handoff
+work_package_status: done
+execution_lane: closed
 dependency_state: j0_done
 implementation_ready: true
 source:
@@ -69,4 +69,4 @@ AC-001〜AC-008の実証後にのみStoryとTaskをdoneへ更新する。R1 Prog
 - 独立boundary review: 初回P1 2件を修正後、delta reviewでblocking 0 / PASS
 - 独立Exit Gate review: 3 Gateすべてpass、blocking 0、unknown/partial/skippedの成功扱いなし
 
-実装とACはverifiedである。public PR/CI/mergeと正本Roadmap更新は未実施のため、Program R1はまだdoneではない。
+公開版PR #493はrequired check `validate-and-publish` pass後にmergeされ、merge SHA `f73bfb41278bf8983c1d23dc8cb5be6c0e3379a1`を`upstream/develop`でreadbackした。Program正本PR #1342もrequired checks pass後にmergeされ、merge SHA `29f09bd47ba8e0a84e4a11d6e9950034ff2d7715`でR1を`done`へ昇格した。これによりStory、Task、Programの完了条件が揃った。
