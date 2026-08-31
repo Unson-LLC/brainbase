@@ -126,7 +126,7 @@
         "story_id": "story-r1-replay-evaluation-primitives",
         "title": "R1 不変履歴のreplayとevaluation primitives",
         "ssot": "local",
-        "status": "active",
+        "status": "done",
         "horizon": null,
         "view": null,
         "period": null,
