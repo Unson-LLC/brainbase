@@ -42,3 +42,23 @@ variable "labels" {
     managed_by  = "terraform"
   }
 }
+
+variable "release_git_sha" {
+  description = "配置するソースの完全なGit SHA"
+  type        = string
+}
+
+variable "api_image" {
+  description = "Brainbase APIのコンテナイメージ"
+  type        = string
+}
+
+variable "mcp_image" {
+  description = "Brainbase MCPのコンテナイメージ"
+  type        = string
+}
+
+variable "migrate_image" {
+  description = "DBマイグレーション用コンテナイメージ"
+  type        = string
+}

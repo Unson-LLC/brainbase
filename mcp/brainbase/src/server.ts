@@ -185,6 +185,10 @@ export function isAuthorizedMcpHttpRequest(authorization: string | undefined, ex
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+export function isPublicMcpHttpEndpoint(method: string | undefined, url: string | undefined): boolean {
+  return method === 'GET' && url === '/health';
+}
+
 async function dispatchRemoteJudgmentHook(
   payload: Record<string, unknown>,
   projectCode: string,
@@ -1267,20 +1271,20 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     const host = process.env.MCP_HTTP_HOST || '127.0.0.1';
 
     const httpServer = http.createServer(async (req, res) => {
-      if (req.method === 'GET' && req.url === '/health') {
+      if (isPublicMcpHttpEndpoint(req.method, req.url)) {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('ok');
         return;
       }
+      if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
+        res.writeHead(401, {
+          'Content-Type': 'application/json',
+          'WWW-Authenticate': 'Bearer',
+        });
+        res.end(JSON.stringify({ error: 'unauthorized' }));
+        return;
+      }
       if (req.method === 'POST' && req.url === REMOTE_JUDGMENT_HOOK_PATH) {
-        if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
-          res.writeHead(401, {
-            'Content-Type': 'application/json',
-            'WWW-Authenticate': 'Bearer',
-          });
-          res.end(JSON.stringify({ error: 'unauthorized' }));
-          return;
-        }
         const chunks: Buffer[] = [];
         let size = 0;
         for await (const chunk of req) {
@@ -1350,12 +1354,6 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         res.end();
         return;
       }
-      if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
-        res.writeHead(401, { 'Content-Type': 'application/json', 'WWW-Authenticate': 'Bearer' });
-        res.end(JSON.stringify({ error: 'unauthorized' }));
-        return;
-      }
-
       let body: unknown;
       if (req.method === 'POST') {
         const chunks: Buffer[] = [];

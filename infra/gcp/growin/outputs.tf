@@ -37,3 +37,13 @@ output "audit_bucket" {
   description = "監査証跡用バケット"
   value       = google_storage_bucket.audit.name
 }
+
+output "api_url" {
+  description = "Brainbase API URL"
+  value       = google_cloud_run_v2_service.api.uri
+}
+
+output "mcp_url" {
+  description = "Brainbase MCP URL"
+  value       = google_cloud_run_v2_service.mcp.uri
+}
