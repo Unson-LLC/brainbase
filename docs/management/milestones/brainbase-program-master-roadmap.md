@@ -605,7 +605,7 @@ Company Brainを複数組織で継続運用できるenterprise productにする�
 
 ### 9.2 R1 exact replay and evaluation evidence — 2026-08-31
 
-`story-r1-replay-evaluation-primitives`をJ0 closure merge `18b6401c584e48ae6e7feed319836e74dc3d0910`起点のbranch `codex/r1/local-immutable-run-artifact-contract`で実装し、HEAD `330586fac86a89a1de23ae87f9788e386e51963c`へ固定した。VibeProは`0.2.0-beta.17`を明示Story IDで使用し、current Storyの切替・downgrade・installは行っていない。公開版PR #493のrequired check `validate-and-publish`がpassし、merge SHA `f73bfb41278bf8983c1d23dc8cb5be6c0e3379a1`を`upstream/develop`でreadbackした。
+`story-r1-replay-evaluation-primitives`をJ0 closure merge `18b6401c584e48ae6e7feed319836e74dc3d0910`起点のbranch `codex/r1/local-immutable-run-artifact-contract`で実装し、HEAD `330586fac86a89a1de23ae87f9788e386e51963c`へ固定した。VibeProは`0.2.0-beta.17`を明示Story IDで使用し、current Storyの切替・downgrade・installは行っていない。公開版PR #493のrequired check `validate-and-publish`がpassし、merge SHA `f73bfb41278bf8983c1d23dc8cb5be6c0e3379a1`を`upstream/develop`でreadbackした。正本RoadmapのR1昇格後、公開版closure PR #494も同checkのpass後にmergeし、Story、Task、VibePro evidenceの`done`とmerge SHA `c782bffb0e018e0752cb875b2424c3280f0a9f21`を`upstream/develop`でreadbackした。
 
 - historical replayはcontent-addressed artifact IDとrecordを再照合し、保存済みDAG/inputと記録済みrunner versionを使う。runner registrationはdata propertyから一度だけcaptureし、version不一致・accessor・偽artifact IDではrunner呼出し前にfail-closedとなる。
 - outcomeはrun artifactを書き換えず別content-addressed attachmentとして束縛する。同一contextのbaseline/candidateだけをimmutable event setへ取り込み、明示したgoal、metric、data-only scoring contractでoverallとnode calibrationを比較する。

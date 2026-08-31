@@ -352,6 +352,9 @@
       "head_sha": "330586fac86a89a1de23ae87f9788e386e51963c",
       "merge_sha": "f73bfb41278bf8983c1d23dc8cb5be6c0e3379a1",
       "pull_request": 493,
+      "closure_head_sha": "b6281bb0855b61caf6f2b3a8daddaef49d7af9fe",
+      "closure_merge_sha": "c782bffb0e018e0752cb875b2424c3280f0a9f21",
+      "closure_pull_request": 494,
       "vibepro_version": "0.2.0-beta.17",
       "exit_gate_evidence": {
         "historical_context_replay": "passed_at_exact_merged_public_head",
@@ -366,6 +369,7 @@
         "e2e: 2 files / 2 tests passed",
         "packed tarball consumer: 1/1 passed after install, exercising historical and candidate replay, outcome attachment, immutable event set and comparison",
         "public PR #493 required check validate-and-publish passed before merge",
+        "public closure PR #494 required check validate-and-publish passed before merge; Story, Task and VibePro evidence are done at c782bffb0e018e0752cb875b2424c3280f0a9f21",
         "independent boundary delta review: PASS after two P1 fixes; blocking findings 0",
         "independent Exit Gate review: all three R1 gates passed; blocking findings 0; unknown, partial and skipped evidence were not counted as success",
         "npm publication, deploy, production changes and permission or contract changes were not performed"
