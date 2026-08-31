@@ -409,6 +409,7 @@ resource "google_cloud_run_v2_service" "api" {
 
       dynamic "env" {
         for_each = {
+          AUTH_SESSION_SECRET            = "brainbase-auth-session-secret"
           BRAINBASE_AUTH_SESSION_SECRET  = "brainbase-auth-session-secret"
           BRAINBASE_AUTH_STATE_SECRET    = "brainbase-auth-state-secret"
           BRAINBASE_INTERNAL_API_SECRET  = "brainbase-internal-api-secret"
@@ -435,6 +436,10 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "BRAINBASE_PROJECT_CATALOG_MODE"
         value = "disabled"
+      }
+      env {
+        name  = "CANONICAL_TASK_BACKEND"
+        value = "postgres"
       }
       env {
         name  = "NODE_ENV"
