@@ -2,7 +2,7 @@
 title: Brainbase Program Master Roadmap
 status: active
 date: 2026-08-20
-updated_at: 2026-08-25
+updated_at: 2026-08-31
 scope:
   - Unson-LLC/brainbase
   - Unson-LLC/brainbase-unson
@@ -585,6 +585,7 @@ Company Brainを複数組織で継続運用できるenterprise productにする�
 
 - T0: 基盤実装とproduction provisioning codeは存在するが、本番schema / bridge / OAuth / exact E2Eのreadbackが完了条件。
 - J0: `done`。deterministic runner、content-addressed save、検証付きreload、fresh-process package consumerを公開版PR #490/#491でmergeし、組織版PR #1335が公開commitをexact pinして同じAPIをsemantic forkなしでconsumeした。公開版PR #492でStory/TaskのExit Gate証跡を閉じた。
+- R1: `done`。公開版PR #493でhistorical replay、別outcome attachment、同一event set上の新旧version比較、node calibration、event-set immutabilityをmergeし、3つのExit Gateと独立reviewをexact merged HEADでpassした。
 - A0: company authority runtimeの実装は存在するが、cross-repo fresh E2Eと全consumer cutoverを完了条件とする。
 - P0: owner no-fallbackとowner/org review分離は進行済み。normalized payload、Graph publication、scope promotionの完走は未完。
 - C0: OSS superset inventoryとCLI/MCP compatibilityのstackが存在するが、完全上位互換の完成宣言は禁止。
@@ -601,6 +602,17 @@ Company Brainを複数組織で継続運用できるenterprise productにする�
 - 公開版PR #492はHEAD `928ea432427e068e95771159df4ca4f5d2af584a`、merge SHA `18b6401c584e48ae6e7feed319836e74dc3d0910`でStory/Taskを`done`へ閉じた。CIのCloudflare資格情報確認、deploy、公開site readbackはskipされ、npm公開・deploy・本番変更は行っていない。
 - 組織版merge直後のGraph writer runは後続`develop` pushによるconcurrency supersedeでcancelledとなったためsuccessへ数えない。PR #1335のmerge前required checksはすべてpassしている。
 - R0は完了済みであり、J0の4つのExit Gate（決定論的実行、negative preflight、run artifact/version再読込、組織版no-fork consumer）が揃ったため、J0 work packageを`done`へ昇格する。
+
+### 9.2 R1 exact replay and evaluation evidence — 2026-08-31
+
+`story-r1-replay-evaluation-primitives`をJ0 closure merge `18b6401c584e48ae6e7feed319836e74dc3d0910`起点のbranch `codex/r1/local-immutable-run-artifact-contract`で実装し、HEAD `330586fac86a89a1de23ae87f9788e386e51963c`へ固定した。VibeProは`0.2.0-beta.17`を明示Story IDで使用し、current Storyの切替・downgrade・installは行っていない。公開版PR #493のrequired check `validate-and-publish`がpassし、merge SHA `f73bfb41278bf8983c1d23dc8cb5be6c0e3379a1`を`upstream/develop`でreadbackした。
+
+- historical replayはcontent-addressed artifact IDとrecordを再照合し、保存済みDAG/inputと記録済みrunner versionを使う。runner registrationはdata propertyから一度だけcaptureし、version不一致・accessor・偽artifact IDではrunner呼出し前にfail-closedとなる。
+- outcomeはrun artifactを書き換えず別content-addressed attachmentとして束縛する。同一contextのbaseline/candidateだけをimmutable event setへ取り込み、明示したgoal、metric、data-only scoring contractでoverallとnode calibrationを比較する。
+- focused 3 files / 41 tests、full 49 files / 478 tests、E2E 2 files / 2 tests、typecheck、build、`git diff --check`、packed tarball consumer 1/1がpassした。consumerはinstall済みpackageからhistorical/candidate replay、outcome、event set、comparisonを実行した。
+- 初回独立boundary reviewのP1 2件は原因分離後に最小修正し、negative testとdelta reviewでblocking 0 / PASSを確認した。別の独立Exit Gate reviewは3 Gateすべてpass、blocking 0と判定し、unknown、partial、skippedを成功へ数えていない。
+- npm公開、deploy、本番変更、権限・契約変更は実施していない。R1 Exit Gateはlocal/public package primitiveの完了条件であり、未実施productionを成功へ読み替えていない。
+- J0は`done`であり、R1の3つのExit Gate（当時contextでの再実行、履歴改変なしの新旧比較、event-set immutability）がexact merged HEADで揃ったため、R1 work packageを`done`へ昇格する。
 
 ## 10. Live external delivery reconciliation — 2026-08-25
 
