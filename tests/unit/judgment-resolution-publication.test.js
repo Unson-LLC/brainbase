@@ -92,14 +92,14 @@ describe('judgment resolver publication surfaces', () => {
         expect(capability).toContain('mcp: []');
         expect(capability).toContain('POST http://127.0.0.1:39002/host/judgment/resolve');
         expect(runbook).toContain('structural filtering');
-        expect(runbook).toContain('records only direct `mcp__brainbase__*` outcomes');
+        expect(runbook).toContain('records every completed tool call as execution evidence');
         expect(runbook).toContain('satisfies the execution requirement even when the result is `unconfirmed` or the tool fails');
         expect(runbook).toContain('Only `resolved` qualifies as successful');
         expect(spec).toContain('Resolver determines classification');
         expect(spec).toContain('Plain non-follow-up matcher misses use the `general/answer` fallback instead');
         expect(spec).toContain('one authentic exact `mcp__brainbase__brainbase_knowledge_resolve` `PostToolUse` event regardless of response outcome');
         expect(architecture).toContain('trust-boundary defect');
-        expect(architecture).toContain('local file reads and other connectors are not yet covered');
+        expect(architecture).toContain('Every completed call produces a non-visible execution event');
         expect(story).toContain('model-callable toolとして公開しない');
         expect(story).toContain('Brainbase knowledge/retrieval toolを0..N回');
         expect(story).toContain('initial/final receiptは判断と監査の証拠');
@@ -187,7 +187,7 @@ describe('judgment resolver publication surfaces', () => {
 
         expect(readme).toContain('Codex Host opens one canonical-context-bound judgment episode');
         expect(readme).toContain('internal-LLM-free Resolver deterministically selects the initial route');
-        expect(readme).toContain('0..N actual Brainbase calls recorded through `PostToolUse`');
+        expect(readme).toContain('`PostToolUse` records all completed tool calls as execution evidence');
         expect(readme).toContain('one non-authorizing receipt');
         expect(readme).toContain('Claude Code remains a future Host-adapter candidate');
     });

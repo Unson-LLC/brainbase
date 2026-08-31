@@ -40,7 +40,7 @@ updated_at: 2026-08-28
 - [ ] AC-004: 同じorphan turnのactive再Stopは非zero終了や新規task作成要求を返さず、immutableな`audit_degraded` receiptを保存して有限回で終了する。
 - [ ] AC-005: `audit_degraded`は`complete`、`task_complete`、Brainbase参照成功、action authorizationとして扱わず、後続turnのprior finalized judgmentにも採用しない。
 - [ ] AC-006: active再Stopで警告行または本文保持が不完全でも監査失敗をreceiptへ明記し、Hook処理自体は無限再生成・人手復旧待ちへ戻さない。
-- [ ] AC-007: identity欠損、Brainbase PostToolUseの`tool_use_id`欠損、episode schema/digest矛盾、project/authority矛盾は対象を安全に束縛できないため、従来どおりterminal failureにする。非Brainbase toolは監査対象外として無変更で無視する。
+- [ ] AC-007: identity欠損、Brainbase PostToolUseの`tool_use_id`欠損、episode schema/digest矛盾、project/authority矛盾は対象を安全に束縛できないため、従来どおりterminal failureにする。runtime 2.3ではidentityと`tool_use_id`が揃う非Brainbase toolをowner非表示のcompletion evidenceとして記録し、不完全な一般toolは無変更で無視する。
 - [ ] AC-008: orphan診断にはraw IDや回答本文を保存せず、session/turn digest、journal root digest、Host digest、同sessionのepisode候補数、active再Stopか、検証可能な正規ISO timestampを残す。
 - [ ] AC-009: episodeへ結合できないBrainbase PostToolUseはdigest-only markerと可視警告を残し、Stopのone-shot修復状態は消費しない。markerの再読込時はschema、digest、正規ISO timestampを検証する。
 - [ ] AC-010: 正常なepisodeのrequired knowledge、owner監査行、本文保持、exactly-one complete final契約は変更しない。
