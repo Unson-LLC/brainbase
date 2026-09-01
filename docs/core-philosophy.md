@@ -3,9 +3,9 @@
 <!-- brainbase:public-message:start -->
 ## Central promise
 
-> **一般論ではなく、あなたの判断基準から始まるAI。**
+> **AIとの仕事を、毎回ゼロから始めない。**
 
-Brainbaseは、仕事の前提、優先順位、過去の判断とその理由をローカルの正本に置き、CodexやClaude Codeが新しいセッションでも同じ文脈から考え始められるようにするOSSです。
+Brainbaseは、仕事の目的、関係者、過去の決定、判断基準を特定のチャットやAIに閉じ込めず、ローカルの正本として管理するOSSです。CodexやClaude Codeは、新しいセッションでも保存した前提を参照できます。
 
 ## Human and AI responsibility
 

@@ -23,7 +23,7 @@ const judgmentSystem = await read('guide/judgment-system.html');
 const status = await read('guide/status.html');
 const mcpTools = await read('reference/mcp-tools.html');
 
-requireText(index, '一般論ではなく、あなたの判断基準から始まるAI。', 'index.html');
+requireText(index, 'AIとの仕事を、毎回ゼロから始めない。', 'index.html');
 requireText(index, 'Brainbaseを理解する', 'index.html');
 requireText(grandDesign, 'Brainbaseがある場合', 'guide/grand-design.html');
 requireText(grandDesign, '/assets/brainbase-grand-design.svg', 'guide/grand-design.html');
