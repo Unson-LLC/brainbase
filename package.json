@@ -40,7 +40,6 @@
     "dist",
     "contracts",
     "docs/architecture/judgment-dag-core.md",
-    "docs/architecture/judgment-value-proof-surface.md",
     "docs/management/judgment-dag-milestones.md",
     "README.md",
     "LICENSE",
