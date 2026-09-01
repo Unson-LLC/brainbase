@@ -119,6 +119,18 @@
           },
           {
             "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "does not verify a claimed artifact from canonical readback alone"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "does not verify a claimed artifact when the execution event names another artifact"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "does not treat a readback before execution as verification of the changed artifact"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
             "case": "does not let an unrelated successful write certify a canonical readback outcome"
           },
           {
@@ -328,7 +340,8 @@
       "layer": "unit",
       "covers": [
         "MCP input validation",
-        "projection truth boundary",
+        "projection truth boundary including execution/readback/value-proof ordering",
+        "readback-only and different-artifact execution rejection",
         "Host receipt rendering"
       ]
     },
