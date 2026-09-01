@@ -35,3 +35,5 @@ Brainbase OSSの利用者として、`executeJudgmentDAG`が返した完全な`J
 ## 完了条件
 
 AC-001〜AC-005は公開版PR #490と#491、公開版`upstream/develop`の`93e7b946a0b93bd61b61bd1f151e863fca4ac819`でfocused 3 files/35 tests、full 48 files/471 tests、E2E 2/2、typecheck、build、fresh package consumer E2Eをpassした。AC-006は組織版PR #1335で公開版`9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae`をexact pinし、process Aのsave後に独立process Bがrunnerを起動せず同じ公開APIから検証付きreloadする2/2 smokeをpassした。組織版実装HEADは`b7c953fa0081a1e02c0aa465aabf54054a3d96a2`、merge SHAは`4dbdff9b2825edb5ff3d1fded1b7603fc27c86ee`であり、公開sourceの複製やsemantic forkはない。
+
+2026-08-31のlatest-head再監査で、従来のfresh tarball証跡はchild processのpackage解決先を明示検証していないというblocking findingを受けた。`upstream/develop@c782bffb0e018e0752cb875b2424c3280f0a9f21`起点のcommit `7d8421baaa340e314a02601a631bbd6b22aa0aa5`で、saverとloaderをfresh consumer rootから起動し、両processの`@unson/brainbase-mcp/judgment-dag`解決先が同consumerのinstalled tarball配下であることをfail-closedで検証した。fresh tarball consumer 1/1、J0 focused 6 files/64 tests、full 49 files/478 tests、E2E 2/2、typecheck、buildがpassし、独立delta reviewもblocking 0と判定した。これはJ0の既存runtime semanticsやR1責務を変更せず、AC-005の実行証跡だけを強化する。

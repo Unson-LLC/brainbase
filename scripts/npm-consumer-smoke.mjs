@@ -293,21 +293,26 @@ if (JSON.stringify(runnerRecord.nodes) !== JSON.stringify(expectedRunnerNodeReco
 }
 
 const runArtifactRoot = await mkdtemp(path.join(tmpdir(), 'brainbase-j0-run-artifact-'));
-const freshSaverPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fresh-run-artifact-saver.mjs');
-const freshLoaderPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fresh-run-artifact-loader.mjs');
-const runRecordInputPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fresh-run-artifact-record.json');
+const consumerRoot = path.dirname(fileURLToPath(import.meta.url));
+const installedPackageRoot = path.join(consumerRoot, 'node_modules/@unson/brainbase-mcp');
+const freshSaverPath = path.join(consumerRoot, 'fresh-run-artifact-saver.mjs');
+const freshLoaderPath = path.join(consumerRoot, 'fresh-run-artifact-loader.mjs');
+const runRecordInputPath = path.join(consumerRoot, 'fresh-run-artifact-record.json');
 let runArtifact;
 let replayEvaluation;
 try {
   const saverSource = [
     "import { readFile } from 'node:fs/promises';",
+    "import { fileURLToPath } from 'node:url';",
     "import { saveJudgmentDAGRunArtifact } from '@unson/brainbase-mcp/judgment-dag';",
     "const [root, recordPath] = process.argv.slice(2);",
     "const record = JSON.parse(await readFile(recordPath, 'utf8'));",
     "const receipt = await saveJudgmentDAGRunArtifact({ root, record });",
-    "process.stdout.write(JSON.stringify(receipt));"
+    "const modulePath = fileURLToPath(import.meta.resolve('@unson/brainbase-mcp/judgment-dag'));",
+    "process.stdout.write(JSON.stringify({ receipt, modulePath }));"
   ].join('\\n');
   const loaderSource = [
+    "import { fileURLToPath } from 'node:url';",
     "import { loadJudgmentDAGRunArtifact } from '@unson/brainbase-mcp/judgment-dag';",
     "const [root, artifact_id] = process.argv.slice(2);",
     "const record = await loadJudgmentDAGRunArtifact({ root, artifact_id });",
@@ -316,7 +321,8 @@ try {
     "  seen.add(value);",
     "  return Object.isFrozen(value) && Object.values(value).every((child) => isDeeplyFrozen(child, seen));",
     "};",
-    "process.stdout.write(JSON.stringify({ record, immutable: isDeeplyFrozen(record), runnerInvocations: 0 }));"
+    "const modulePath = fileURLToPath(import.meta.resolve('@unson/brainbase-mcp/judgment-dag'));",
+    "process.stdout.write(JSON.stringify({ record, immutable: isDeeplyFrozen(record), runnerInvocations: 0, modulePath }));"
   ].join('\\n');
   await writeFile(runRecordInputPath, JSON.stringify(runnerRecord));
   await writeFile(freshSaverPath, saverSource);
@@ -334,7 +340,8 @@ try {
       freshSaveProcess.stderr
     ].filter(Boolean).join('\\n'));
   }
-  const receipt = JSON.parse(freshSaveProcess.stdout);
+  const saved = JSON.parse(freshSaveProcess.stdout);
+  const receipt = saved.receipt;
   const freshProcess = spawnSync(process.execPath, [freshLoaderPath, runArtifactRoot, receipt.artifact_id], {
     cwd: path.dirname(fileURLToPath(import.meta.url)),
     encoding: 'utf8',
@@ -349,6 +356,12 @@ try {
     ].filter(Boolean).join('\\n'));
   }
   const reloaded = JSON.parse(freshProcess.stdout);
+  const installedPackageBoundary = path.resolve(installedPackageRoot) + path.sep;
+  for (const [label, modulePath] of [['saver', saved.modulePath], ['loader', reloaded.modulePath]]) {
+    if (typeof modulePath !== 'string' || !path.resolve(modulePath).startsWith(installedPackageBoundary)) {
+      throw new Error(label + ' resolved Judgment DAG outside the fresh tarball installation');
+    }
+  }
   if (!isDeepStrictEqual(reloaded.record, runnerRecord)) {
     throw new Error('fresh process did not reload the exact run record');
   }
@@ -362,7 +375,11 @@ try {
     saveProcessExited: true,
     freshProcessReload: 'passed',
     immutable: reloaded.immutable,
-    runnerInvocations: reloaded.runnerInvocations
+    runnerInvocations: reloaded.runnerInvocations,
+    moduleResolution: {
+      saver: path.relative(consumerRoot, saved.modulePath).split(path.sep).join('/'),
+      loader: path.relative(consumerRoot, reloaded.modulePath).split(path.sep).join('/')
+    }
   };
 
   const historicalReplay = await replayJudgmentDAGRun({
