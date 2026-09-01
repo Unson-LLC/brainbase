@@ -4,6 +4,8 @@
 **作成日**: 2026-01-11
 **対象**: フロントエンド開発者、API統合担当者
 
+> **現行契約の範囲**: 本書で現行の正本として扱うのは、Project Catalogを返す `GET /api/brainbase`、`GET /api/brainbase/projects` と、その認証・組織・Project Grant・取得元状態の契約です。その他のAITM Phase 1 API例には履歴記述が含まれるため、実装時は現行routeとCapability定義を確認してください。
+
 ---
 
 ## 目次
@@ -36,24 +38,24 @@ AITM (AI Technical Management) Dashboard APIは、プロジェクト管理・健
 
 | 環境 | Base URL |
 |------|----------|
-| 開発 | `http://localhost:3005` |
-| 本番 | `https://brainbase.unson.jp` |
+| ローカル正本 | `http://127.0.0.1:31013` |
+| 本番 | `https://bb.unson.jp` |
 
 **エンドポイントプレフィックス**: `/api/brainbase`
 
 **例**:
 ```
-開発: http://localhost:3005/api/brainbase/projects
-本番: https://brainbase.unson.jp/api/brainbase/projects
+ローカル: http://127.0.0.1:31013/api/brainbase/projects
+本番: https://bb.unson.jp/api/brainbase/projects
 ```
 
 ---
 
 ## 3. 認証
 
-**現在**: 認証なし（内部ツール）
+**現在**: Project Catalogを返す `GET /api/brainbase` と `GET /api/brainbase/projects` の2面はBearer token認証が必須です。認証された組織と明示的なProject Grantの範囲だけを返します。他の既存エンドポイントの認証契約は、この変更の対象外です。
 
-**将来**: APIキーベース認証を検討（Phase 3）
+以前の未認証アクセスは廃止しました。既存の内部クライアントも `Authorization: Bearer <token>` を付け、未認証時の `401` を認証エラーとして扱ってください。
 
 ---
 
@@ -65,9 +67,9 @@ AITM (AI Technical Management) Dashboard APIは、プロジェクト管理・健
 | `/system` | GET | システム情報 | - |
 | `/system-health` | GET | システムヘルス | - |
 | `/storage` | GET | ストレージ情報 | - |
-| `/tasks` | GET | タスク管理ステータス | - |
-| `/worktrees` | GET | Worktree情報 | - |
-| `/projects` | GET | 全プロジェクトの健全性スコア | - |
+| `/tasks` | GET | 履歴契約（現行routeなし） | - |
+| `/worktrees` | GET | 廃止済み（HTTP 410） | - |
+| `/projects` | GET | 認証組織・Project Grant範囲の健全性スコア | - |
 | `/projects/:id/stats` | GET | 指定プロジェクトの統計 | - |
 | `/critical-alerts` | GET | Critical Alerts取得 | 5分 |
 | `/strategic-overview` | GET | 戦略的意思決定支援情報 | 5分 |
@@ -86,18 +88,24 @@ AITM (AI Technical Management) Dashboard APIは、プロジェクト管理・健
 
 **リクエスト**:
 ```bash
-curl http://localhost:3005/api/brainbase
+curl http://127.0.0.1:31013/api/brainbase \
+  -H 'Authorization: Bearer <token>'
 ```
 
 **レスポンス**:
 ```json
 {
-  "success": true,
-  "version": "1.0.0",
-  "uptime": "2h 35m 12s",
-  "message": "brainbase API is running"
+  "github": { "status": "connected" },
+  "system": { "status": "healthy" },
+  "projects": [
+    { "id": "growin-project", "name": "Growin", "healthScore": 92 }
+  ],
+  "source": { "status": "loaded", "mode": "registry_scoped" },
+  "timestamp": "2026-09-01T00:00:00.000Z"
 }
 ```
+
+`projects` は認証された組織とProject Grantで絞られます。`source.status` が `loaded` でない場合は、確認済みの空一覧として扱わないでください。
 
 ---
 
@@ -210,7 +218,9 @@ curl http://localhost:3005/api/brainbase/storage
 
 ---
 
-### 5.5 GET /api/brainbase/tasks
+### 5.5 GET /api/brainbase/tasks（履歴契約・現行routeなし）
+
+> このendpointは現行runtimeに存在しません。以下はPhase 1案の履歴例であり、実装・疎通確認には使用しないでください。
 
 **概要**: タスク管理ステータスを取得
 
@@ -250,31 +260,22 @@ curl http://localhost:3005/api/brainbase/tasks
 
 ---
 
-### 5.6 GET /api/brainbase/worktrees
+### 5.6 GET /api/brainbase/worktrees（廃止済み）
 
-**概要**: Worktree情報を取得
+**概要**: Worktree情報APIは廃止済みです。Codex appとCLIのtask/worktree statusを使用してください。
 
 **リクエスト**:
 ```bash
-curl http://localhost:3005/api/brainbase/worktrees
+curl http://127.0.0.1:31013/api/brainbase/worktrees
 ```
 
 **レスポンス**:
 ```json
 {
-  "total": 3,
-  "active": 2,
-  "uncommitted": 1,
-  "list": [
-    {
-      "branch": "session/session-1767361754399",
-      "path": "/Users/ksato/workspace/shared/.worktrees/session-1767361754399-brainbase"
-    },
-    {
-      "branch": "feature/dashboard-v2",
-      "path": "/Users/ksato/workspace/shared/.worktrees/feature-dashboard-v2"
-    }
-  ]
+  "error": "capability_retired",
+  "capability": "brainbase.worktree-status",
+  "owner": "Codex app and CLI",
+  "replacement": "Use Codex task and worktree status directly"
 }
 ```
 
@@ -284,45 +285,33 @@ curl http://localhost:3005/api/brainbase/worktrees
 
 ### 6.1 GET /api/brainbase/projects
 
-**概要**: 全プロジェクトの健全性スコアを取得（NocoDB実データ使用）
+**概要**: 認証された組織とProject Grantの範囲にあるプロジェクトの健全性スコアを取得（NocoDB実データ使用）
 
 **リクエスト**:
 ```bash
-curl http://localhost:3005/api/brainbase/projects
+curl http://127.0.0.1:31013/api/brainbase/projects \
+  -H 'Authorization: Bearer <token>'
 ```
 
 **レスポンス**:
 ```json
-[
-  {
-    "id": "brainbase",
-    "name": "brainbase",
-    "healthScore": 92,
-    "overdue": 2,
-    "blocked": 1,
-    "completionRate": 75,
-    "manaScore": 92
-  },
-  {
-    "id": "salestailor",
-    "name": "salestailor",
-    "healthScore": 85,
-    "overdue": 3,
-    "blocked": 2,
-    "completionRate": 68,
-    "manaScore": 92
-  },
-  {
-    "id": "zeims",
-    "name": "zeims",
-    "healthScore": 78,
-    "overdue": 5,
-    "blocked": 3,
-    "completionRate": 60,
-    "manaScore": 92
-  }
-]
+{
+  "source": { "status": "loaded", "mode": "registry_scoped" },
+  "projects": [
+    {
+      "id": "growin-project",
+      "name": "Growin",
+      "healthScore": 92,
+      "overdue": 2,
+      "blocked": 1,
+      "completionRate": 75,
+      "manaScore": 92
+    }
+  ]
+}
 ```
+
+Registry-backed runtimeでは `source` 付きのenvelopeを返します。`source.status` が `unavailable` または `error` の場合、`projects` を確認済みの全件・0件として扱わないでください。
 
 **Health Score計算式**:
 ```
@@ -815,7 +804,9 @@ clearCache('');
 LOG_LEVEL=debug npm run dev
 
 # APIレスポンス時間計測
-curl -w "@curl-format.txt" -o /dev/null -s http://localhost:3005/api/brainbase/projects
+curl -w "@curl-format.txt" -o /dev/null -s \
+  -H 'Authorization: Bearer <token>' \
+  http://127.0.0.1:31013/api/brainbase/projects
 ```
 
 ### Q2: NocoDB APIエラーが発生した場合は？

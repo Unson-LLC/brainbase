@@ -114,6 +114,37 @@ ALTER TABLE graph_entities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE graph_entities FORCE ROW LEVEL SECURITY;
 ALTER TABLE graph_edges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE graph_edges FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_registry ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_registry FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_runs FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_steps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_steps FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS project_registry_organization_isolation ON project_registry;
+CREATE POLICY project_registry_organization_isolation ON project_registry
+  FOR ALL
+  USING (organization_id = current_setting('app.organization_id', true))
+  WITH CHECK (organization_id = current_setting('app.organization_id', true));
+
+DROP POLICY IF EXISTS project_provisioning_runs_organization_isolation ON project_provisioning_runs;
+CREATE POLICY project_provisioning_runs_organization_isolation ON project_provisioning_runs
+  FOR ALL
+  USING (organization_id = current_setting('app.organization_id', true))
+  WITH CHECK (organization_id = current_setting('app.organization_id', true));
+
+DROP POLICY IF EXISTS project_provisioning_steps_organization_isolation ON project_provisioning_steps;
+CREATE POLICY project_provisioning_steps_organization_isolation ON project_provisioning_steps
+  FOR ALL
+  USING (organization_id = current_setting('app.organization_id', true))
+  WITH CHECK (
+    organization_id = current_setting('app.organization_id', true)
+    AND EXISTS (
+      SELECT 1 FROM project_provisioning_runs r
+      WHERE r.run_id = project_provisioning_steps.run_id
+        AND r.organization_id = project_provisioning_steps.organization_id
+    )
+  );
 
 DROP POLICY IF EXISTS info_decisions_select ON decisions;
 CREATE POLICY info_decisions_select ON decisions
@@ -498,16 +529,42 @@ END $do$;
 CREATE POLICY info_graph_edges_select ON graph_edges
   FOR SELECT
   USING (
-    app_current_role_rank() >= app_role_rank(role_min)
-    AND sensitivity = ANY(app_clearance())
-    AND EXISTS (
-      SELECT 1 FROM projects p
-      WHERE p.id = graph_edges.project_id
-        AND p.code = ANY(app_project_codes())
+    (
+      (
+        current_setting('app.graph_maintenance_mode', true) = 'true'
+        AND rel_type = 'member_of'
+        AND lifecycle_status = 'active'
+      )
+      OR (
+        app_current_role_rank() >= app_role_rank(role_min)
+        AND sensitivity = ANY(app_clearance())
+      )
+    )
+    AND (
+      EXISTS (
+        SELECT 1 FROM projects p
+        WHERE p.id = graph_edges.project_id
+          AND p.code = ANY(app_project_codes())
+      )
+      -- Maintenance must see every active membership when proving that a
+      -- projectless Person belongs to exactly one organization. Snapshot
+      -- queries still select only source-project edges and redact unresolved
+      -- endpoints before returning any data.
+      OR (
+        current_setting('app.graph_maintenance_mode', true) = 'true'
+        AND rel_type = 'member_of'
+        AND lifecycle_status = 'active'
+      )
     )
     AND (
       rel_type = 'member_of'
       OR app_graph_edge_scope_visible(from_id, to_id, rel_type, payload, role_min, sensitivity)
+      -- Graph maintenance loads only rows whose own project passed the
+      -- preceding project-code check. This bounded forensic exception lets
+      -- the service count and redact inaccessible endpoints instead of
+      -- silently dropping them. It never relaxes INSERT/UPDATE checks, and
+      -- ordinary Graph reads never set this transaction-local flag.
+      OR current_setting('app.graph_maintenance_mode', true) = 'true'
     )
   );
 
@@ -560,6 +617,9 @@ CREATE POLICY info_graph_edges_update ON graph_edges
     AND (
       rel_type = 'member_of'
       OR app_graph_edge_scope_visible(from_id, to_id, rel_type, payload, role_min, sensitivity)
+      -- Permit maintenance transactions to lock legacy rows for a stable
+      -- snapshot. WITH CHECK below still rejects an invalid post-update row.
+      OR current_setting('app.graph_maintenance_mode', true) = 'true'
     )
     AND app_graph_edge_source_project_matches(from_id, rel_type, project_id, payload)
   )

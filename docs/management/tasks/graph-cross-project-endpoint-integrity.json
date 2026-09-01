@@ -1,0 +1,38 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-cross-project-endpoint-integrity",
+  "tasks": [
+    {
+      "task_id": "TASK-GRAPH-XPROJECT-ENDPOINT-001",
+      "story_id": "story-graph-cross-project-endpoint-integrity",
+      "title": "同一組織の跨プロジェクト参照をSnapshotで安全に解決する",
+      "allowed_paths": [
+        "docs/architecture/story-graph-cross-project-endpoint-integrity.md",
+        "docs/management/stories/active/story-graph-cross-project-endpoint-integrity.md",
+        "docs/management/tasks/graph-cross-project-endpoint-integrity.json",
+        ".vibepro/spec/story-graph-cross-project-endpoint-integrity/spec.json",
+        "config/ontology/writer-inventory.json",
+        "mcp/brainbase/package.json",
+        "mcp/brainbase/package-lock.json",
+        "server/sql/info-ssot-rls.sql",
+        "server/services/graph-maintenance-engine.js",
+        "server/services/graph-maintenance-service.js",
+        "mcp/brainbase/src/tools/graph-maintenance-tools.ts",
+        "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+        "tests/server/services/graph-maintenance-engine.test.js",
+        "tests/server/services/graph-maintenance-postgres.integration.test.js",
+        "tests/server/services/graph-maintenance-service.test.js",
+        "tests/server/services/personal-knowledge-schema.test.js",
+        "tests/server/scripts/ontology-writer-inventory.test.js"
+      ],
+      "acceptance_criteria": [
+        "同一organizationかつ明示project accessのendpointをmetadata-only参照として解決しorphansを0にする",
+        "欠損・権限外・別organizationの通常Edgeを公開せずredacted集約証跡を返す",
+        "既存cross-tenant governs契約とmarkerなし旧Snapshot互換性を維持する",
+        "Graph maintenance serviceのperson・product・member_ofをwriter inventoryへ明示し未申告語彙の拒否を維持する"
+      ],
+      "depends_on": [],
+      "status": "accepted"
+    }
+  ]
+}

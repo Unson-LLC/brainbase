@@ -12,6 +12,7 @@ import {
     showPromotion
 } from './learning.js';
 import { sync, pull, push, wikiStatus } from './sync.js';
+import { runProjectProvisioning } from './project-provisioning.js';
 import { configureProject, createProject, inspectProject, reconcileProject } from './project.js';
 
 const [,, command, subcommand, ...restArgs] = process.argv;
@@ -35,6 +36,11 @@ Usage:
   brainbase learn show ID  候補を1件表示する
   brainbase learn apply ID 候補を保存先に応じて正式登録・手順化する
   brainbase learn reject ID [--reason TEXT] 候補を今回は見送る
+  brainbase project provision check --manifest FILE
+  brainbase project provision plan --manifest FILE --idempotency-key KEY
+  brainbase project provision approve RUN_ID --gates GATE,... --review-ref RECEIPT
+  brainbase project provision apply|resume RUN_ID
+  brainbase project provision status|verify RUN_ID
   brainbase project create project.yml
   brainbase project configure PROJECT_CODE config.yml
   brainbase project inspect PROJECT_CODE
@@ -101,6 +107,10 @@ async function main() {
                 break;
 
             case 'project':
+                if (subcommand === 'provision') {
+                    await runProjectProvisioning(restArgs[0], restArgs.slice(1));
+                    break;
+                }
                 switch (subcommand) {
                     case 'create': await createProject(restArgs); break;
                     case 'configure': await configureProject(restArgs); break;
@@ -108,6 +118,9 @@ async function main() {
                     case 'reconcile': await reconcileProject(restArgs); break;
                     default:
                         console.log([
+                            'Project Provisioning:',
+                            '  brainbase project provision [check|plan|approve|apply|status|verify|resume]',
+                            '',
                             'Project登録と能力別構成:',
                             '  brainbase project create <project.yml>',
                             '  brainbase project configure <project-code> <config.yml>',

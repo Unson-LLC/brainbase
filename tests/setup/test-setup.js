@@ -14,7 +14,10 @@ const TEST_PROJECTS = [
     { id: 'aitle', name: 'aitle' },
     { id: 'mana', name: 'mana' },
     { id: 'back-office', name: 'back-office' }
-];
+].map((project) => ({
+    ...project,
+    local: { path: `projects/${project.id}` }
+}));
 
 const buildConfigResponse = () => ({
     ok: true,

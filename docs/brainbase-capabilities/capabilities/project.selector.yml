@@ -1,17 +1,19 @@
 id: project.selector
-name: Session creation project selector
-purpose: Decide which projects appear in the Session Launch Picker project dropdown.
+name: Workspace Setup project selector
+purpose: Describe the retained Workspace Setup compatibility and contract consumer of the authenticated Project Catalog; this is not a formal Project Catalog or Project Provisioning entry and is not currently served by a production static route.
 surfaces:
   ui:
-    - "#session-launch-project-select"
-    - "#session-launch-picker"
+    - "#session-project-select (Workspace Setup)"
+  compatibility_consumer:
+    - "#session-project-select (Workspace Setup)"
   api:
-    - GET /api/config
+    - GET /api/config/projects (authenticated runtime Project Catalog)
+    - GET /api/config (Workspace Setup local topology only)
   code:
     - public/modules/app/ui-setup-mixin.js
-    - public/modules/app/session-creation-mixin.js
     - public/modules/project-mapping.js
   data:
+    - runtime project catalog source/status
     - config.projects.projects
     - auth.access.projectCodes
     - auth_grants.project_codes
@@ -19,23 +21,34 @@ depends_on:
   - project.catalog
   - auth.grants
 visibility_rules:
+  - "Project Provisioning has no production browser UI. The retained selector module is a compatibility/contract surface and its synthetic-host browser test is not production browser E2E evidence."
+  - "The browser Session Launch Picker and server-side session creation are retired under session.create; this capability owns only Workspace Setup selection."
+  - "Fetch project candidates from the authenticated runtime Catalog (`GET /api/config/projects`); `/api/config` is local Workspace Setup data and never an access/catalog fallback."
   - Add general as the first option.
   - Exclude archived projects.
   - Exclude projects with session_select:false.
-  - If auth.access.projectCodes is empty, treat access as unrestricted.
-  - If projectCodes is non-empty, match project id, hyphenless project id, GitHub repo slug, app parent id, and configured prefix aliases.
+  - "If auth.access.projectCodes is empty, treat access as unrestricted within the authenticated catalog."
+  - "If projectCodes is non-empty, match only exact normalized project ID, explicit alias, or GitHub repository name; do not infer hyphenless IDs, parent IDs, or prefixes."
+  - "A candidate is selectable only when explicit `local.path` is configured for the current Workspace; otherwise show a disabled Workspace Setup required option and never guess a path."
+  - "Authentication, transport, Registry, or source.status unavailable failure is fail-closed: show status/error and retain only general; never re-add requested project outside returned candidates."
+  - "A loaded catalog with zero projects is shown as confirmed_empty with a 0件 message; it is not presented as an ordinary loaded list or as an unavailable state."
+  - Workspace Setup and Connected-world Onboarding are separate capabilities.
 verification:
   commands:
-    - node scripts/manual-check-session-selector.mjs zeims
+    - npm run test:run -- tests/ui/project-mapping-runtime-catalog.test.js tests/ui/ui-setup-mixin.test.js tests/unit/project-mapping.test.js
+    - npx playwright test --config tests/e2e/project-provisioning.playwright.config.js
   expected:
-    - getSessionSelectableProjects(['salestailor']) includes salestailor-app
-    - getSessionSelectableProjects(['zeims']) includes zeims-app
-    - getSessionSelectableProjects(['techknight']) includes tech-knight
-    - getSessionSelectableProjects(['ncom']) includes ncom-catalyst
+    - "runtime Catalog loaded candidates are the only selectable source"
+    - "exact ID, explicit alias, and GitHub repository grants are accepted; short prefix grants are rejected"
+    - "projects without explicit local.path are shown as disabled Workspace Setup required options and have no guessed path"
+    - "401, non-401, fetch exception, and source unavailable failures leave only general and expose an unavailable/error status"
+    - "a loaded catalog with zero projects exposes confirmed_empty and a 0件 status message"
+    - "a requested project outside runtime Workspace Setup candidates falls back to general"
 common_failures:
-  - techknight in auth_grants does not exactly match tech-knight in config.
-  - ncom in auth_grants does not exactly match ncom-catalyst in config.
-  - grant updates are correct but the browser still has stale JWT/localStorage access.
+  - grant updates are correct but Workspace Setup still has stale JWT/localStorage access.
+  - The legacy /api/config topology is accidentally used as the runtime Catalog or access fallback.
+  - A project without explicit local.path is given a guessed path.
+  - A short project grant is treated as a prefix and expands access.
   - Browser module cache still holds an older project-mapping.js.
 runbooks:
   - ../runbooks/missing-project-in-session-selector.md

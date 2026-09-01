@@ -5,6 +5,8 @@
 **ステータス**: Design Phase
 **実装期間**: 8-12週間（Week 1-2からWeek 11-12）
 
+> Project Catalog API契約の正本は [API.mdの認証・プロジェクト管理API](./API.md#3-認証) です。実行環境と接続先は [Canonical 31013 launchd runtime](../../brainbase-capabilities/capabilities/runtime.launchd.yml) と [Lightsail production runtime](../../brainbase-capabilities/capabilities/runtime.lightsail.yml)、個々の実装面は現行routeを優先してください。
+
 ---
 
 ## 1. プロジェクト概要
@@ -99,9 +101,13 @@ AITMダッシュボード: 「何を決めるべきか」を提示
 ```
 1. ユーザー: ダッシュボード表示
    ↓
-2. Client: GET /api/brainbase（全セクションデータ取得）
+2. Client: Bearer認証付きで各セクションAPIを取得
+   - GET /api/brainbase/projects（認証組織・Project Grant対象、Catalog取得元状態付き）
+   - GET /api/brainbase/critical-alerts
+   - GET /api/brainbase/strategic-overview
+   - GET /api/brainbase/trends
    ↓
-3. Server: NocoDB API呼び出し
+3. Server: Project RegistryとNocoDB APIを各契約に従って呼び出し
    ↓
 4. Server: レスポンス返却（JSON）
    ↓
@@ -439,7 +445,7 @@ healthScore = Math.round(
 | `/api/brainbase/critical-alerts` | GET | Critical Alertsデータ取得 |
 | `/api/brainbase/strategic-overview` | GET | Strategic Overviewデータ取得 |
 | `/api/brainbase/trends` | GET | トレンドデータ取得（パラメータ: project_id, days） |
-| `/api/brainbase/projects` | GET | 全プロジェクトの健全性スコア取得 |
+| `/api/brainbase/projects` | GET | 認証組織かつProject Grant対象のプロジェクト一覧取得（Catalog取得元状態を含む） |
 
 ### 7.2 `/api/brainbase/critical-alerts`
 

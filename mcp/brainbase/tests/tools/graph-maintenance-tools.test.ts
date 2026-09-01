@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import Ajv from 'ajv';
 import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from '../../src/tools/graph-maintenance-tools.js';
 import { __testing as serverTesting } from '../../src/server.js';
 
@@ -150,6 +151,23 @@ describe('Graph maintenance MCP tools', () => {
     assert.ok('human_gate_receipt' in applyTool.inputSchema.properties);
   });
 
+  it('Apply receiptのsuppression_summaryはzero-count reasonを拒否する', () => {
+    const receiptTool = graphMaintenanceTools.find((tool) => tool.name === 'graph_record_human_gate_receipt');
+    const scopeSchema = receiptTool?.inputSchema.properties?.evidence?.properties?.operation_scope;
+    assert.ok(scopeSchema && 'oneOf' in scopeSchema);
+    const applyScopeSchema = scopeSchema.oneOf.find((variant: any) => (
+      variant.properties.operation.enum[0] === 'apply_plan'
+    ));
+    assert.ok(applyScopeSchema);
+    const suppressionSummarySchema = applyScopeSchema.properties.suppression_summary;
+    const validate = new Ajv({ strict: false }).compile(suppressionSummarySchema);
+
+    assert.equal(validate({
+      before: { edge_count: 1, reasons: { noncanonical_cross_tenant_marker: 0 } },
+      after: { edge_count: 0, reasons: {} },
+    }), false);
+  });
+
   it('RESTの非2xx応答をstatus/error/http_statusへ変換する', async () => {
     const cases = [
       { name: 'graph_export_snapshot', args: { project_code: 'brainbase' } },
@@ -296,6 +314,46 @@ describe('Graph maintenance MCP tools', () => {
     assert.equal(applyScopeSchema.required.includes('decision_ids'), false);
     assert.deepEqual(applyScopeSchema.properties.decision_ids, {
       type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, uniqueItems: true,
+    });
+    assert.ok(applyScopeSchema.required.includes('suppression_summary'));
+    assert.deepEqual(applyScopeSchema.properties.suppression_summary, {
+      type: 'object',
+      properties: {
+        before: {
+          type: 'object',
+          properties: {
+            edge_count: { type: 'integer', minimum: 0 },
+            reasons: {
+              type: 'object',
+              properties: {
+                noncanonical_cross_tenant_marker: { type: 'integer', minimum: 1 },
+                unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 1 },
+              },
+              additionalProperties: false,
+            },
+          },
+          required: ['edge_count', 'reasons'],
+          additionalProperties: false,
+        },
+        after: {
+          type: 'object',
+          properties: {
+            edge_count: { type: 'integer', minimum: 0 },
+            reasons: {
+              type: 'object',
+              properties: {
+                noncanonical_cross_tenant_marker: { type: 'integer', minimum: 1 },
+                unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 1 },
+              },
+              additionalProperties: false,
+            },
+          },
+          required: ['edge_count', 'reasons'],
+          additionalProperties: false,
+        },
+      },
+      required: ['before', 'after'],
+      additionalProperties: false,
     });
     assert.equal(applyScopeSchema.additionalProperties, false);
 

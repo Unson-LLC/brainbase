@@ -4,7 +4,7 @@ purpose: Control who can log in and which project codes are visible to that user
 surfaces:
   ui:
     - Slack OAuth login
-    - Session creation project selector
+    - Workspace Setup project selector
     - Wiki and Graph access
   mcp:
     - brainbase_projects

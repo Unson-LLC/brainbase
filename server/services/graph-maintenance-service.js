@@ -22,6 +22,43 @@ function plannedEdgeId(organizationId, projectCode, idempotencyKey, index) {
     return `edg_maint_${createHash('sha256').update(`${organizationId}\u0000${projectCode}\u0000${idempotencyKey}\u0000${index}`).digest('hex').slice(0, 32)}`;
 }
 
+function hasCrossTenantMarker(edge) {
+    return edge?.payload?.cross_tenant !== undefined || edge?.payload?.target_project_code !== undefined;
+}
+
+function isCanonicalCrossTenantEdge(edge) {
+    return edge?.rel_type === 'governs'
+        && edge?.payload?.cross_tenant === true
+        && typeof edge?.payload?.target_project_code === 'string'
+        && edge.payload.target_project_code.length > 0
+        && edge?.role_min === 'ceo'
+        && edge?.sensitivity === 'restricted';
+}
+
+function hasInvalidCanonicalCrossTenantEndpoints(snapshot) {
+    const entitiesById = new Map([
+        ...(Array.isArray(snapshot?.entities) ? snapshot.entities : []),
+        ...(Array.isArray(snapshot?.external_entities) ? snapshot.external_entities : [])
+    ].map((entity) => [entity?.id, entity]));
+    return (Array.isArray(snapshot?.edges) ? snapshot.edges : []).some((edge) => {
+        if (!isCanonicalCrossTenantEdge(edge)) return false;
+        const source = entitiesById.get(edge.from_id);
+        const target = entitiesById.get(edge.to_id);
+        if (!source || !target) return true;
+        return source.entity_type !== 'decision'
+            || source.lifecycle_status !== 'active'
+            || target.entity_type !== 'product'
+            || target.reference_scope === 'same_organization'
+            || target.lifecycle_status !== 'active';
+    });
+}
+
+function assertCanonicalCrossTenantEndpoints(snapshot) {
+    if (hasInvalidCanonicalCrossTenantEndpoints(snapshot)) {
+        throw new Error('Decision subject target is missing or inaccessible');
+    }
+}
+
 function humanGateOperationScope(operation) {
     if (operation.operation === 'retire_entity') {
         return {
@@ -49,10 +86,13 @@ const HUMAN_GATE_LINK_SCOPE_KEYS = new Set([
 const HUMAN_GATE_RETIRE_SCOPE_KEYS = new Set(['operation', 'decision_id', 'decision_expected_version']);
 const HUMAN_GATE_APPLY_SCOPE_KEYS = new Set([
     'operation', 'decision_id', 'decision_ids', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash',
-    'operations_fingerprint', 'diff_fingerprint'
+    'operations_fingerprint', 'diff_fingerprint', 'suppression_summary'
 ]);
 const HUMAN_GATE_SCOPE_KEYS = new Set([
     ...HUMAN_GATE_LINK_SCOPE_KEYS, ...HUMAN_GATE_RETIRE_SCOPE_KEYS, ...HUMAN_GATE_APPLY_SCOPE_KEYS
+]);
+const SUPPRESSION_REASON_KEYS = new Set([
+    'noncanonical_cross_tenant_marker', 'unresolved_or_inaccessible_endpoint'
 ]);
 const SECRET_KEY_PATTERN = /(?:authorization|bearer|cookie|credential|password|secret|token|api[_-]?key)/i;
 const SECRET_VALUE_PATTERN = /(?:\bBearer\s+[A-Za-z0-9._~+\/-]+=*|-----BEGIN [A-Z ]*PRIVATE KEY-----|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})/;
@@ -125,7 +165,8 @@ function validateHumanGateEvidence(evidence) {
         const applyCommonShape = scope.operation === 'apply_plan'
             && ['decision_id', 'plan_id'].every((key) => typeof scope[key] === 'string' && scope[key].length > 0)
             && ['base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint']
-                .every((key) => typeof scope[key] === 'string' && hashPattern.test(scope[key]));
+                .every((key) => typeof scope[key] === 'string' && hashPattern.test(scope[key]))
+            && suppressionTransitionIsValid(scope.suppression_summary);
         const applyDecisionSetShape = applyCommonShape
             && Array.isArray(scope.decision_ids) && scope.decision_ids.length > 0
             && scope.decision_ids.every((id) => typeof id === 'string' && id.length > 0)
@@ -169,7 +210,8 @@ function applyHumanGateScope(plan, decisionIds) {
         base_snapshot_hash: plan.base_snapshot_hash,
         after_snapshot_hash: plan.after_snapshot_hash,
         operations_fingerprint: fingerprint(plan.operations),
-        diff_fingerprint: fingerprint(planDiffSummary(plan.before_snapshot, plan.after_snapshot))
+        diff_fingerprint: fingerprint(planDiffSummary(plan.before_snapshot, plan.after_snapshot)),
+        suppression_summary: suppressionTransition(plan.before_snapshot, plan.after_snapshot)
     };
 }
 
@@ -206,6 +248,19 @@ function actor(access) {
 
 function uniqueIds(records) {
     return [...new Set(records.map((record) => record.id))];
+}
+
+function externalEntityProjection(entity, referenceScope) {
+    return {
+        id: entity.id,
+        entity_type: entity.entity_type,
+        project_code: entity.project_code,
+        ...(referenceScope ? { reference_scope: referenceScope } : {}),
+        role_min: entity.role_min,
+        sensitivity: entity.sensitivity,
+        lifecycle_status: entity.lifecycle_status,
+        version: entity.version
+    };
 }
 
 function snapshotProjectCodes(snapshot) {
@@ -249,20 +304,59 @@ function changedRecords(before = [], after = [], limit = 100) {
     };
 }
 
+function normalizeSuppressionSummary(snapshot = {}) {
+    const raw = snapshot?.suppression_summary;
+    const reasons = {};
+    for (const [reason, count] of Object.entries(raw?.reasons || {}).sort(([left], [right]) => left.localeCompare(right))) {
+        if (SUPPRESSION_REASON_KEYS.has(reason) && Number.isSafeInteger(count) && count > 0) reasons[reason] = count;
+    }
+    const reasonCount = Object.values(reasons).reduce((sum, count) => sum + count, 0);
+    const edgeCount = Number.isSafeInteger(raw?.edge_count) && raw.edge_count >= 0
+        ? raw.edge_count
+        : reasonCount;
+    return { edge_count: edgeCount, reasons };
+}
+
+function suppressionTransition(before, after) {
+    return {
+        before: normalizeSuppressionSummary(before),
+        after: normalizeSuppressionSummary(after)
+    };
+}
+
+function suppressionTransitionIsValid(summary) {
+    if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return false;
+    if (Object.keys(summary).length !== 2 || !summary.before || !summary.after) return false;
+    return ['before', 'after'].every((side) => {
+        const value = summary[side];
+        const reasonEntries = Object.entries(value?.reasons || {});
+        return value && typeof value === 'object' && !Array.isArray(value)
+            && Object.keys(value).length === 2
+            && Number.isSafeInteger(value.edge_count) && value.edge_count >= 0
+            && value.reasons && typeof value.reasons === 'object' && !Array.isArray(value.reasons)
+            && reasonEntries.every(([reason, count]) => SUPPRESSION_REASON_KEYS.has(reason)
+                && Number.isSafeInteger(count) && count > 0)
+            && reasonEntries.reduce((sum, [, count]) => sum + count, 0) === value.edge_count;
+    });
+}
+
 function planDiffSummary(before, after) {
     const beforeValidation = validateGraphSnapshot(before);
     const afterValidation = validateGraphSnapshot(after);
-    const count = (validation, category) => validation.issues.filter((issue) => issue.category === category).length;
+    const count = (validation, ...categories) => validation.issues
+        .filter((issue) => categories.includes(issue.category)).length;
     return {
         entities: changedRecords(before.entities, after.entities),
         edges: changedRecords(before.edges, after.edges),
+        suppression_summary: suppressionTransition(before, after),
         validation: {
             before_valid: beforeValidation.valid, after_valid: afterValidation.valid,
             issue_count_before: beforeValidation.issues.length, issue_count_after: afterValidation.issues.length,
             issue_count_delta: afterValidation.issues.length - beforeValidation.issues.length,
-            orphan_count_before: count(beforeValidation, 'orphan_entity'),
-            orphan_count_after: count(afterValidation, 'orphan_entity'),
-            orphan_count_delta: count(afterValidation, 'orphan_entity') - count(beforeValidation, 'orphan_entity')
+            orphan_count_before: count(beforeValidation, 'orphan', 'orphan_entity'),
+            orphan_count_after: count(afterValidation, 'orphan', 'orphan_entity'),
+            orphan_count_delta: count(afterValidation, 'orphan', 'orphan_entity')
+                - count(beforeValidation, 'orphan', 'orphan_entity')
         }
     };
 }
@@ -387,12 +481,21 @@ export class GraphMaintenanceService {
         return rows[0];
     }
 
-    async loadExternalEntities(client, access, operations, { lock = false } = {}) {
+    async loadExternalEntities(client, access, operations, { lock = false, sourceEntities = null } = {}) {
         const links = operations.filter((operation) => operation.operation === 'link_decision_subject');
         if (!links.length) return [];
         if (access.role !== 'ceo') throw new Error('Cross-tenant Decision subject link requires ceo role');
         const requestedCodes = [...new Set(links.map((operation) => operation.target_project_code))];
         if (requestedCodes.some((code) => !access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
+        if (Array.isArray(sourceEntities)) {
+            for (const link of links) {
+                if (!link.decision_id) continue;
+                const source = sourceEntities.find((entity) => entity.id === link.decision_id);
+                if (!source || source.entity_type !== 'decision' || source.lifecycle_status !== 'active') {
+                    throw new Error('Decision subject target is missing or inaccessible');
+                }
+            }
+        }
         const ids = [...new Set(links.map((operation) => operation.subject_entity_id))];
         const suffix = lock ? ' FOR UPDATE' : '';
         const { rows } = await client.query(
@@ -402,6 +505,7 @@ export class GraphMaintenanceService {
              FROM graph_entities ge JOIN projects p ON p.id=ge.project_id
              WHERE ge.id=ANY($1::text[]) AND p.code=ANY($2::text[])
                AND p.organization_id IS NOT NULL
+               AND ge.entity_type='product' AND ge.lifecycle_status='active'
              ORDER BY ge.id${suffix}`,
             [ids, requestedCodes]
         );
@@ -409,6 +513,9 @@ export class GraphMaintenanceService {
         for (const link of links) {
             const target = rows.find((row) => row.id === link.subject_entity_id);
             if (!target || target.project_code !== link.target_project_code) throw new Error('Product target scope mismatch');
+            if (target.entity_type !== 'product' || target.lifecycle_status !== 'active') {
+                throw new Error('Decision subject target is missing or inaccessible');
+            }
         }
         const sourceOrganizationId = access.organizationId || access.tenantId;
         if (rows.some((row) => row.organization_id === sourceOrganizationId)) {
@@ -418,28 +525,80 @@ export class GraphMaintenanceService {
     }
 
     async loadExternalEntitiesFromImage(client, access, image, { lock = false } = {}) {
+        assertCanonicalCrossTenantEndpoints(image);
         const expected = image.external_entities || [];
         if (!expected.length) return [];
-        if (access.role !== 'ceo') throw new Error('Cross-tenant Decision subject link requires ceo role');
+        const crossTenantExpected = expected.filter((entity) => entity.reference_scope !== 'same_organization');
+        if (crossTenantExpected.length && access.role !== 'ceo') {
+            throw new Error('Cross-tenant Decision subject link requires ceo role');
+        }
         const codes = [...new Set(expected.map((entity) => entity.project_code))];
         if (codes.some((code) => !access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
-        const suffix = lock ? ' FOR UPDATE' : '';
+        const suffix = lock ? ' FOR UPDATE OF ge' : '';
         const { rows } = await client.query(
-            `SELECT ge.id, ge.entity_type, p.code AS project_code, p.organization_id,
+            `SELECT ge.id, ge.entity_type,
+                    COALESCE(p.code, membership_scope.project_code) AS project_code,
+                    COALESCE(p.organization_id, membership_scope.organization_id) AS organization_id,
                     ge.role_min,
                     ge.sensitivity, ge.lifecycle_status, ge.version
-             FROM graph_entities ge JOIN projects p ON p.id=ge.project_id
-             WHERE ge.id=ANY($1::text[]) AND p.code=ANY($2::text[])
-               AND p.organization_id IS NOT NULL
+             FROM graph_entities ge
+             LEFT JOIN projects p ON p.id=ge.project_id
+             LEFT JOIN LATERAL (
+               SELECT MIN(membership_project.code) FILTER (
+                        WHERE membership_project.code=ANY($2::text[])
+                          AND app_role_rank($4::text) >= app_role_rank(membership.role_min)
+                          AND membership.sensitivity=ANY($3::text[])
+                      ) AS project_code,
+                      MIN(membership_project.organization_id) AS organization_id
+               FROM graph_edges membership
+               JOIN projects membership_project ON membership_project.id=membership.project_id
+               WHERE ge.project_id IS NULL AND ge.entity_type='person'
+                 AND membership.from_id=ge.id AND membership.rel_type='member_of'
+                 AND membership.lifecycle_status='active'
+               HAVING COUNT(DISTINCT membership_project.organization_id)=1
+                  AND COUNT(*) FILTER (
+                        WHERE membership_project.code=ANY($2::text[])
+                          AND app_role_rank($4::text) >= app_role_rank(membership.role_min)
+                          AND membership.sensitivity=ANY($3::text[])
+                      ) > 0
+             ) membership_scope ON TRUE
+             WHERE ge.id=ANY($1::text[])
+               AND COALESCE(p.code, membership_scope.project_code)=ANY($2::text[])
+               AND COALESCE(p.organization_id, membership_scope.organization_id) IS NOT NULL
+               AND app_graph_entity_organization_id(ge.id)=COALESCE(p.organization_id, membership_scope.organization_id)
+               AND (ge.id <> ALL($5::text[])
+                    OR (ge.entity_type='product' AND ge.lifecycle_status='active'))
              ORDER BY ge.id${suffix}`,
-            [externalEntityIds(image), codes]
+            [externalEntityIds(image), codes, access.clearance || ['internal'], access.role,
+                crossTenantExpected.map((entity) => entity.id)]
         );
         if (rows.length !== expected.length) throw new Error('Decision subject target is missing or inaccessible');
         const sourceOrganizationId = access.organizationId || access.tenantId;
-        if (rows.some((row) => row.organization_id === sourceOrganizationId)) {
-            throw new Error('Decision subject target must belong to a different tenant organization');
+        for (const entity of expected) {
+            const target = rows.find((row) => row.id === entity.id);
+            if (!target || target.project_code !== entity.project_code) throw new Error('Product target scope mismatch');
+            const sameOrganization = target.organization_id === sourceOrganizationId;
+            if (entity.reference_scope === 'same_organization' && !sameOrganization) {
+                throw new Error('Same-organization endpoint must belong to the source organization');
+            }
+            if (entity.reference_scope !== 'same_organization' && sameOrganization) {
+                throw new Error('Decision subject target must belong to a different tenant organization');
+            }
+            if (entity.reference_scope !== 'same_organization'
+                && (target.entity_type !== 'product' || target.lifecycle_status !== 'active')) {
+                throw new Error('Decision subject target is missing or inaccessible');
+            }
         }
-        return rows;
+        return rows.map((row) => {
+            const entity = expected.find((item) => item.id === row.id);
+            if (entity.reference_scope === 'same_organization') {
+                return externalEntityProjection(row, entity.reference_scope);
+            }
+            return {
+                ...row,
+                ...(entity.reference_scope ? { reference_scope: entity.reference_scope } : {})
+            };
+        });
     }
 
     async loadSnapshot(client, access, projectCode, { lock = false, includeProjectCodes = [] } = {}) {
@@ -462,48 +621,107 @@ export class GraphMaintenanceService {
                         gx.role_min, gx.sensitivity, gx.lifecycle_status, gx.version
                  FROM graph_edges gx JOIN projects p ON p.id = gx.project_id
                  WHERE gx.project_id=ANY($1::text[])
-                   AND (
-                     NOT (gx.payload ? 'target_project_code' OR gx.payload ? 'cross_tenant')
-                     OR (
-                       $2::text='ceo'
-                       AND gx.rel_type='governs'
-                       AND gx.payload->>'cross_tenant'='true'
-                       AND gx.role_min='ceo'
-                       AND gx.sensitivity='restricted'
-                       AND gx.payload->>'target_project_code'=ANY($3::text[])
-                     )
-                   )
                  ORDER BY gx.id${suffix}`,
-                [projectIds, access.role, access.projectCodes]
+                [projectIds]
             )
         ]);
+        const localEndpointIds = new Set(entityResult.rows.map((entity) => entity.id));
         const endpointIds = [...new Set(edgeResult.rows.flatMap((edge) => [edge.from_id, edge.to_id]))];
-        const endpointResult = endpointIds.length ? await client.query(
-            `SELECT ge.id FROM graph_entities ge WHERE ge.id=ANY($1::text[])`,
-            [endpointIds]
+        const unresolvedEndpointIds = endpointIds.filter((id) => !localEndpointIds.has(id));
+        const organizationId = access.organizationId || access.tenantId;
+        const endpointLockSuffix = lock ? ' FOR UPDATE OF ge' : '';
+        const sameOrganizationResult = unresolvedEndpointIds.length ? await client.query(
+            `SELECT ge.id, ge.entity_type,
+                    COALESCE(p.code, membership_scope.project_code) AS project_code,
+                    COALESCE(p.organization_id, membership_scope.organization_id) AS organization_id,
+                    ge.role_min, ge.sensitivity, ge.lifecycle_status, ge.version
+             FROM graph_entities ge
+             LEFT JOIN projects p ON p.id=ge.project_id
+             LEFT JOIN LATERAL (
+               SELECT MIN(membership_project.code) FILTER (
+                        WHERE membership_project.code=ANY($3::text[])
+                          AND membership_project.organization_id=$2
+                          AND app_role_rank($5::text) >= app_role_rank(membership.role_min)
+                          AND membership.sensitivity=ANY($4::text[])
+                      ) AS project_code,
+                      MIN(membership_project.organization_id) AS organization_id
+               FROM graph_edges membership
+               JOIN projects membership_project ON membership_project.id=membership.project_id
+               WHERE ge.project_id IS NULL AND ge.entity_type='person'
+                 AND membership.from_id=ge.id AND membership.rel_type='member_of'
+                 AND membership.lifecycle_status='active'
+               HAVING COUNT(DISTINCT membership_project.organization_id)=1
+                  AND COUNT(*) FILTER (
+                        WHERE membership_project.code=ANY($3::text[])
+                          AND membership_project.organization_id=$2
+                          AND app_role_rank($5::text) >= app_role_rank(membership.role_min)
+                          AND membership.sensitivity=ANY($4::text[])
+                      ) > 0
+             ) membership_scope ON TRUE
+             WHERE ge.id=ANY($1::text[])
+               AND COALESCE(p.organization_id, membership_scope.organization_id)=$2
+               AND COALESCE(p.code, membership_scope.project_code)=ANY($3::text[])
+               AND app_graph_entity_organization_id(ge.id)=COALESCE(p.organization_id, membership_scope.organization_id)
+             ORDER BY ge.id${endpointLockSuffix}`,
+            [unresolvedEndpointIds, organizationId, access.projectCodes, access.clearance || ['internal'], access.role]
         ) : { rows: [] };
-        const visibleEndpointIds = new Set(endpointResult.rows.map((row) => row.id));
+        const sameOrganizationExternalEntities = sameOrganizationResult.rows
+            .map((entity) => externalEntityProjection(entity, 'same_organization'));
+        const crossTenantLinks = edgeResult.rows
+            .filter((edge) => isCanonicalCrossTenantEdge(edge)
+                && access.role === 'ceo'
+                && access.projectCodes.includes(edge.payload.target_project_code))
+            .map((edge) => ({
+                operation: 'link_decision_subject',
+                decision_id: edge.from_id,
+                subject_entity_id: edge.to_id,
+                target_project_code: edge.payload.target_project_code
+            }));
+        const crossTenantExternalEntities = crossTenantLinks.length
+            ? await this.loadExternalEntities(client, access, crossTenantLinks, { lock, sourceEntities: entityResult.rows })
+            : [];
+        const externalEntitiesById = new Map([
+            ...sameOrganizationExternalEntities,
+            ...crossTenantExternalEntities
+        ].filter((entity) => !localEndpointIds.has(entity.id)).map((entity) => [entity.id, entity]));
+        const visibleEndpointIds = new Set([...localEndpointIds, ...externalEntitiesById.keys()]);
         // Legacy rows with an unresolved or inaccessible endpoint stay in the
         // database for forensic repair, but must never disclose that endpoint
         // through a maintenance snapshot. Canonical rows require both endpoints.
         const visibleEdges = edgeResult.rows.filter((edge) => (
-            visibleEndpointIds.has(edge.from_id) && visibleEndpointIds.has(edge.to_id)
+            (!hasCrossTenantMarker(edge) || isCanonicalCrossTenantEdge(edge))
+            && visibleEndpointIds.has(edge.from_id)
+            && visibleEndpointIds.has(edge.to_id)
         ));
         const snapshot = { project_code: projectCode, entities: entityResult.rows, edges: visibleEdges };
-        const crossTenantLinks = visibleEdges
-            .filter((edge) => edge.rel_type === 'governs' && edge.payload?.cross_tenant === true)
-            .map((edge) => ({
-                operation: 'link_decision_subject',
-                subject_entity_id: edge.to_id,
-                target_project_code: edge.payload.target_project_code
-            }));
-        if (crossTenantLinks.length) {
-            snapshot.external_entities = await this.loadExternalEntities(client, access, crossTenantLinks, { lock });
+        if (externalEntitiesById.size) {
+            snapshot.external_entities = [...externalEntitiesById.values()].sort((a, b) => a.id.localeCompare(b.id));
+        }
+        const visibleEdgeIds = new Set(visibleEdges.map((edge) => edge.id));
+        const suppressedEdges = edgeResult.rows.filter((edge) => !visibleEdgeIds.has(edge.id));
+        const suppressedEdgeCount = suppressedEdges.length;
+        if (suppressedEdgeCount > 0) {
+            const reasons = {};
+            for (const edge of suppressedEdges) {
+                const reason = hasCrossTenantMarker(edge) && !isCanonicalCrossTenantEdge(edge)
+                    ? 'noncanonical_cross_tenant_marker'
+                    : 'unresolved_or_inaccessible_endpoint';
+                reasons[reason] = (reasons[reason] || 0) + 1;
+            }
+            snapshot.suppression_summary = {
+                edge_count: suppressedEdgeCount,
+                reasons
+            };
         }
         snapshot.hash = hashGraphSnapshot(snapshot);
         return { project, snapshot };
     }
 
+    /**
+     * @deprecated Internal legacy row loader. Apply and rollback use loadSnapshot so
+     * external_entities and suppression_summary retain their canonical contract.
+     * Do not use this helper for a maintenance readback or receipt decision.
+     */
     async loadSnapshotImage(client, access, image, { lock = false, baseline = null } = {}) {
         assertValidSnapshot(image, 'Graph snapshot image is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
@@ -583,6 +801,7 @@ export class GraphMaintenanceService {
             );
             const stored = snapshotRows[0];
             if (!stored) throw new Error('Unknown snapshot');
+            assertCanonicalCrossTenantEndpoints(stored.snapshot);
             const catalogBoundOperations = await this.bindProjectCatalogOperations(access, input.operations || [], {
                 snapshot: stored.snapshot
             });
@@ -634,7 +853,9 @@ export class GraphMaintenanceService {
                 );
                 if (collision.rows.length) throw new Error('planned edge id conflict');
             }
-            const externalEntities = await this.loadExternalEntities(client, access, normalizedOperations, { lock: true });
+            const externalEntities = await this.loadExternalEntities(client, access, normalizedOperations, {
+                lock: true, sourceEntities: stored.snapshot.entities
+            });
             const planningSnapshot = structuredClone(stored.snapshot);
             const localEntityIds = new Set(planningSnapshot.entities.map((entity) => entity.id));
             const externalOnlyEntities = externalEntities.filter((entity) => !localEntityIds.has(entity.id));
@@ -824,6 +1045,7 @@ export class GraphMaintenanceService {
     }
 
     async replaceSnapshot(client, access, snapshot, { baseline = null } = {}) {
+        assertCanonicalCrossTenantEndpoints(snapshot);
         assertValidSnapshot(snapshot, 'Graph snapshot is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
         const codes = snapshotProjectCodes(snapshot);
@@ -978,7 +1200,14 @@ export class GraphMaintenanceService {
 
     async createReceipt(client, access, plan, type, beforeHash, afterHash) {
         const receiptId = `gmr_${randomUUID()}`;
-        const result = { operation_count: plan.operations.length, reason: plan.reason, idempotency_key: plan.idempotency_key };
+        const result = {
+            operation_count: plan.operations.length,
+            reason: plan.reason,
+            idempotency_key: plan.idempotency_key,
+            suppression_summary: type === 'rollback'
+                ? suppressionTransition(plan.after_snapshot, plan.before_snapshot)
+                : suppressionTransition(plan.before_snapshot, plan.after_snapshot)
+        };
         const { rows } = await client.query(
             `INSERT INTO graph_maintenance_receipts
              (id, plan_id, organization_id, project_id, receipt_type, status, before_hash, after_hash, result, actor_id)
@@ -1108,7 +1337,10 @@ export class GraphMaintenanceService {
                 ...structural,
                 valid: structural.valid === true && ontology?.valid === true,
                 ontology,
-                snapshot_hash: snapshot.hash
+                snapshot_hash: snapshot.hash,
+                ...(snapshot.suppression_summary
+                    ? { suppression_summary: snapshot.suppression_summary }
+                    : {})
             };
         });
     }

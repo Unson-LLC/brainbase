@@ -38,6 +38,65 @@ import { RenameModal } from '../ui/modals/rename-modal.js';
 
 const LEARNING_HEALTH_DISMISS_KEY = 'brainbase.learningHealth.dismissedIssueKey';
 
+function fallbackProjectCatalogStatusMessage(source = {}) {
+    if (source.status === 'authentication_required') {
+        return 'プロジェクト一覧を取得できません。認証が必要です。generalのみ選択できます。';
+    }
+    if (source.status === 'request_failed') {
+        const httpStatus = Number.isInteger(source.http_status) ? `（HTTP ${source.http_status}）` : '';
+        return `プロジェクト一覧を取得できません${httpStatus}。generalのみ選択できます。`;
+    }
+    if (source.status === 'confirmed_empty') {
+        return 'プロジェクト一覧の取得は完了しましたが、権限のあるプロジェクトは0件です。generalのみ選択できます。';
+    }
+    if (source.status === 'loaded' && source.enrichment_status === 'unavailable') {
+        return 'プロジェクト一覧を読み込みましたが、ローカルのワークスペース設定を確認できません。一覧は利用できますが、未設定のプロジェクトはワークスペース設定が必要です。';
+    }
+    if (source.status === 'loaded') return '権限のあるプロジェクト一覧を読み込みました。';
+    return 'プロジェクト一覧を取得できません。generalのみ選択できます。';
+}
+
+function renderProjectCatalogStatus(projectSelect, source, getStatusMessage) {
+    if (!projectSelect) return;
+
+    let statusElement = document.getElementById('session-project-catalog-status');
+    if (!statusElement) {
+        statusElement = document.createElement('p');
+        statusElement.id = 'session-project-catalog-status';
+        statusElement.className = 'project-catalog-status';
+        projectSelect.insertAdjacentElement('afterend', statusElement);
+    }
+
+    const normalizedSource = source && typeof source === 'object'
+        ? source
+        : { status: 'unknown' };
+    const isConfirmed = normalizedSource.status === 'loaded'
+        || normalizedSource.status === 'confirmed_empty';
+    const isPartial = normalizedSource.status === 'loaded'
+        && normalizedSource.enrichment_status === 'unavailable';
+    statusElement.textContent = typeof getStatusMessage === 'function'
+        ? getStatusMessage(normalizedSource)
+        : fallbackProjectCatalogStatusMessage(normalizedSource);
+    statusElement.dataset.status = normalizedSource.status || 'unknown';
+    statusElement.dataset.severity = isPartial
+        ? 'warning'
+        : normalizedSource.status === 'confirmed_empty'
+        ? 'info'
+        : isConfirmed ? 'success' : 'error';
+    statusElement.hidden = false;
+    statusElement.setAttribute('role', isConfirmed ? 'status' : 'alert');
+    statusElement.setAttribute('aria-live', isConfirmed ? 'polite' : 'assertive');
+}
+
+function resetProjectSelectToGeneral(projectSelect) {
+    projectSelect.innerHTML = '';
+    const generalOption = document.createElement('option');
+    generalOption.value = 'general';
+    generalOption.textContent = 'general';
+    projectSelect.appendChild(generalOption);
+    projectSelect.value = 'general';
+}
+
 export function applyUiSetupMixin(AppClass) {
     AppClass.prototype.ensureTopBannerStack = function() {
         let stack = document.getElementById('top-banner-stack');
@@ -644,7 +703,13 @@ export function applyUiSetupMixin(AppClass) {
         }
 
         try {
-            const { getSessionSelectableProjects, projectMappingReady } = await import('../project-mapping.js');
+            const {
+                getSessionSelectableProjects,
+                getProjectsRequiringWorkspaceSetup,
+                getRuntimeProjectCatalogSource,
+                getRuntimeProjectCatalogStatusMessage,
+                projectMappingReady
+            } = await import('../project-mapping.js');
             await projectMappingReady;
             const projects = getSessionSelectableProjects(this.authManager?.access?.projectCodes);
             console.log('[App] Initializing project select with projects:', projects);
@@ -666,9 +731,28 @@ export function applyUiSetupMixin(AppClass) {
                 projectSelect.appendChild(option);
             });
 
-            projectSelect.value = selectedProject;
+            getProjectsRequiringWorkspaceSetup().forEach((proj) => {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = `${proj}（ワークスペース設定が必要）`;
+                option.disabled = true;
+                projectSelect.appendChild(option);
+            });
+
+            projectSelect.value = projects.includes(selectedProject) || selectedProject === 'general'
+                ? selectedProject
+                : 'general';
+            renderProjectCatalogStatus(
+                projectSelect,
+                typeof getRuntimeProjectCatalogSource === 'function'
+                    ? getRuntimeProjectCatalogSource()
+                    : { status: 'unknown' },
+                getRuntimeProjectCatalogStatusMessage
+            );
         } catch (error) {
             console.warn('[App] Failed to refresh project select:', error);
+            resetProjectSelectToGeneral(projectSelect);
+            renderProjectCatalogStatus(projectSelect, { status: 'unavailable' });
         }
     };
 }

@@ -1660,6 +1660,7 @@ describe('ExternalRunnerIngestService', () => {
             configParser: {
                 async getProjects() {
                     return {
+                        source: { status: 'loaded', mode: 'registry_scoped' },
                         projects: [{ id: 'brainbase', session_select: true }]
                     };
                 }
@@ -1701,7 +1702,8 @@ describe('ExternalRunnerIngestService', () => {
                 person_id: 'keigo',
                 projectCodes: ['brainbase'],
                 role: 'member',
-                authSource: 'test'
+                authSource: 'test',
+                organizationId: 'brainbase'
             }
         );
 
@@ -1734,7 +1736,10 @@ describe('ExternalRunnerIngestService', () => {
             runner,
             configParser: {
                 async getProjects() {
-                    return { projects: [{ id: 'brainbase', session_select: true }] };
+                    return {
+                        source: { status: 'loaded', mode: 'registry_scoped' },
+                        projects: [{ id: 'brainbase', session_select: true }]
+                    };
                 }
             }
         });
@@ -1763,7 +1768,13 @@ describe('ExternalRunnerIngestService', () => {
         const resolved = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-ceo',
             { resolution: 'approved' },
-            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+            {
+                person_id: 'keigo',
+                projectCodes: ['brainbase'],
+                role: 'member',
+                authSource: 'test',
+                organizationId: 'brainbase'
+            }
         );
 
         expect(resolved.human_step).toMatchObject({ status: 'approved' });
@@ -1795,7 +1806,10 @@ describe('ExternalRunnerIngestService', () => {
             runner,
             configParser: {
                 async getProjects() {
-                    return { projects: [{ id: 'brainbase', session_select: true }] };
+                    return {
+                        source: { status: 'loaded', mode: 'registry_scoped' },
+                        projects: [{ id: 'brainbase', session_select: true }]
+                    };
                 }
             }
         });
@@ -1823,14 +1837,26 @@ describe('ExternalRunnerIngestService', () => {
         const first = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-cso-1',
             { resolution: 'approved' },
-            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+            {
+                person_id: 'keigo',
+                projectCodes: ['brainbase'],
+                role: 'member',
+                authSource: 'test',
+                organizationId: 'brainbase'
+            }
         );
         expect(first.resumed_run).toMatchObject({ status: 'waiting_human', closure_state: 'open' });
 
         const second = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-cso-2',
             { resolution: 'approved' },
-            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+            {
+                person_id: 'keigo',
+                projectCodes: ['brainbase'],
+                role: 'member',
+                authSource: 'test',
+                organizationId: 'brainbase'
+            }
         );
         expect(second.resumed_run).toMatchObject({ status: 'success', closure_state: 'closed' });
 
@@ -1848,7 +1874,10 @@ describe('ExternalRunnerIngestService', () => {
             runner,
             configParser: {
                 async getProjects() {
-                    return { projects: [{ id: 'brainbase', session_select: true }] };
+                    return {
+                        source: { status: 'loaded', mode: 'registry_scoped' },
+                        projects: [{ id: 'brainbase', session_select: true }]
+                    };
                 }
             }
         });
@@ -1871,7 +1900,13 @@ describe('ExternalRunnerIngestService', () => {
         const rejected = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-retro',
             { resolution: 'rejected' },
-            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+            {
+                person_id: 'keigo',
+                projectCodes: ['brainbase'],
+                role: 'member',
+                authSource: 'test',
+                organizationId: 'brainbase'
+            }
         );
 
         expect(rejected.resumed_run).toMatchObject({ status: 'cancelled', closure_state: 'closed' });

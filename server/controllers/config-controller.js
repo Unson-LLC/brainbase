@@ -5,6 +5,7 @@
  */
 import { asyncHandler } from '../lib/async-handler.js';
 import { AppError } from '../lib/errors.js';
+import { filterProjectsForAccess } from '../services/project-access/project-code-matcher.js';
 
 /** @typedef {any} Request */
 /** @typedef {any} Response */
@@ -14,8 +15,9 @@ export class ConfigController {
      * @param {any} configParser
      * @param {any} configService
      */
-    constructor(configParser, configService, runtimePaths = null) {
+    constructor(configParser, configService, runtimePaths = null, projectCatalogParser = configParser) {
         this.configParser = configParser;
+        this.projectCatalogParser = projectCatalogParser;
         this.configService = configService;
         this.runtimePaths = runtimePaths;
     }
@@ -67,8 +69,31 @@ export class ConfigController {
     /** GET /api/config/projects */
     /** @param {Request} req @param {Response} res */
     getProjects = asyncHandler(async (req, res) => {
-        const projects = await this.configParser.getProjects();
-        res.json(projects);
+        const organizationId = req.access?.organizationId || req.access?.tenantId || null;
+        const isRuntimeCatalog = typeof this.projectCatalogParser?.runForOrganization === 'function';
+        if (isRuntimeCatalog && !organizationId) {
+            return res.json({
+                projects: [],
+                source: { status: 'organization_context_required', mode: 'registry_scope_required' }
+            });
+        }
+        const catalog = organizationId && this.projectCatalogParser?.runForOrganization
+            ? await this.projectCatalogParser.runForOrganization(
+                organizationId,
+                () => this.projectCatalogParser.getProjects()
+            )
+            : await this.projectCatalogParser.getProjects();
+        const source = catalog?.source || (isRuntimeCatalog
+            ? { status: 'runtime_catalog_source_required', mode: 'runtime_catalog_source_required' }
+            : null);
+        const projects = isRuntimeCatalog && source?.status !== 'loaded'
+            ? []
+            : filterProjectsForAccess(catalog.projects || [], req.access || {});
+        res.json({
+            ...catalog,
+            ...(source ? { source } : {}),
+            projects
+        });
     });
 
     /** POST /api/config/project-profiles */
@@ -165,7 +190,13 @@ export class ConfigController {
      */
     /** @param {Request} req @param {Response} res */
     checkIntegrity = asyncHandler(async (req, res) => {
-        const integrity = await this.configParser.checkIntegrity();
+        const organizationId = req.access?.organizationId || req.access?.tenantId || null;
+        const integrity = organizationId && this.projectCatalogParser?.runForOrganization
+            ? await this.projectCatalogParser.runForOrganization(
+                organizationId,
+                () => this.projectCatalogParser.checkIntegrity()
+            )
+            : await this.projectCatalogParser.checkIntegrity();
 
         res.json({
             ...integrity,

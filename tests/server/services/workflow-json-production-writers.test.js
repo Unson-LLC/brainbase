@@ -40,6 +40,7 @@ function makeService(repository) {
         async getProjects() {
             return {
                 root: '/workspace',
+                source: { status: 'loaded', mode: 'registry_scoped' },
                 projects: [{ id: 'salestailor', session_select: true }]
             };
         }
@@ -49,7 +50,8 @@ function makeService(repository) {
         sub: 'keigo',
         person_id: 'keigo',
         role: 'admin',
-        projectCodes: ['salestailor']
+        projectCodes: ['salestailor'],
+        organizationId: 'salestailor'
     };
     return { service, actor };
 }

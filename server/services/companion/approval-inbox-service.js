@@ -117,7 +117,7 @@ export class CompanionApprovalInboxService {
     }
 
     async list({ projectId = null, limit = 100 } = {}, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         const runs = this.repository.listRuns({ projectId, limit: null })
             .filter((run) => this.projectAccessPolicy.canAccessProject(run.project_id, actor));

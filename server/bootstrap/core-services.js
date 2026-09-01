@@ -69,6 +69,7 @@ import {
 import { createAutomationRuntimeServices } from '../services/automation-runtime/automation-runtime-services.js';
 import { createTenantRuntimeServicesFromEnv } from '../services/multitenant/tenant-runtime-services.js';
 import { createSlackInstallationControlPlaneFromEnv } from './slack-installation-control-plane.js';
+import { createProjectProvisioningService } from '../services/project-provisioning/project-provisioning-service.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -108,6 +109,9 @@ export function createCoreServices({
     );
     const configService = new ConfigService(configPath, projectsRoot, configParser);
     const infoSSOTService = new InfoSSOTService();
+    const projectProvisioningService = infoSSOTService.pool
+        ? createProjectProvisioningService({ infoSSOTService, configParser })
+        : null;
     let tenantRuntimeServices = createTenantRuntimeServicesFromEnv({
         env: process.env,
         pool: infoSSOTService.pool
@@ -228,7 +232,9 @@ export function createCoreServices({
         handlers: createDefaultWorkflowHandlers()
     });
     const meetingTaskOwnerResolver = new MeetingTaskOwnerResolver({ infoSSOTService });
-    const projectAccessPolicy = new ProjectAccessPolicy({ configParser });
+    const projectAccessPolicy = new ProjectAccessPolicy({
+        configParser: projectProvisioningService?.runtimeCatalog || configParser
+    });
     const automationRuntime = createAutomationRuntimeServices({
         repository: workflowRepository,
         runner: workflowRunner,
@@ -368,6 +374,7 @@ export function createCoreServices({
         configParser,
         configService,
         infoSSOTService,
+        projectProvisioningService,
         tenantRuntimeServices,
         canonicalTaskStoreConfig,
         canonicalTaskReadiness,

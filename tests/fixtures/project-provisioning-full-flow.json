@@ -1,0 +1,19 @@
+{
+  "schema_version": "project-provisioning.v1",
+  "project_code": "acceptance-full-flow",
+  "display_name": "Acceptance Full Flow",
+  "kind": "client",
+  "catalog_version": 1,
+  "session_select": true,
+  "organization_entity_id": "org_unson",
+  "owner_person_id": "person_owner",
+  "initial_grants": [
+    {
+      "person_id": "person_owner",
+      "role": "gm"
+    }
+  ],
+  "repository": {
+    "mode": "none"
+  }
+}

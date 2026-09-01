@@ -374,5 +374,77 @@ BEGIN
   END IF;
 END $$;
 
+-- Project Provisioning v1. Read-only checks never create this schema at request time.
+CREATE TABLE IF NOT EXISTS project_registry (
+  project_code text PRIMARY KEY,
+  organization_id text NOT NULL,
+  display_name text NOT NULL,
+  kind text NOT NULL,
+  catalog_version integer NOT NULL CHECK (catalog_version > 0),
+  lifecycle_status text NOT NULL DEFAULT 'active',
+  session_select boolean NOT NULL DEFAULT true,
+  organization_entity_id text NOT NULL,
+  owner_person_id text NOT NULL,
+  repository jsonb NOT NULL DEFAULT '{"mode":"none"}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS project_provisioning_runs (
+  run_id text PRIMARY KEY,
+  organization_id text NOT NULL,
+  project_code text NOT NULL,
+  idempotency_key text NOT NULL,
+  manifest_fingerprint text NOT NULL,
+  manifest jsonb NOT NULL,
+  plan jsonb NOT NULL,
+  state text NOT NULL CHECK (state IN ('draft','planned','applying','active','partial_failed','manual_intervention_required')),
+  actor jsonb NOT NULL DEFAULT '{}'::jsonb,
+  human_gate_receipt jsonb,
+  receipt jsonb,
+  failure jsonb,
+  attempt integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (organization_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS project_provisioning_steps (
+  run_id text NOT NULL REFERENCES project_provisioning_runs(run_id),
+  organization_id text NOT NULL,
+  step_name text NOT NULL,
+  state text NOT NULL CHECK (state IN ('pending','applying','completed','failed','manual_intervention_required')),
+  attempt integer NOT NULL DEFAULT 0,
+  receipt jsonb,
+  failure jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (run_id, step_name)
+);
+
+ALTER TABLE project_provisioning_steps ADD COLUMN IF NOT EXISTS organization_id text;
+UPDATE project_provisioning_steps s
+SET organization_id = r.organization_id
+FROM project_provisioning_runs r
+WHERE r.run_id = s.run_id AND s.organization_id IS NULL;
+ALTER TABLE project_provisioning_steps ALTER COLUMN organization_id SET NOT NULL;
+
+CREATE OR REPLACE FUNCTION prevent_project_provisioning_receipt_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $body$
+BEGIN
+  IF OLD.receipt IS NOT NULL AND NEW.receipt IS DISTINCT FROM OLD.receipt THEN
+    RAISE EXCEPTION 'project provisioning receipt is immutable';
+  END IF;
+  IF OLD.human_gate_receipt IS NOT NULL AND NEW.human_gate_receipt IS DISTINCT FROM OLD.human_gate_receipt THEN
+    RAISE EXCEPTION 'project provisioning human gate receipt is immutable';
+  END IF;
+  RETURN NEW;
+END;
+$body$;
+
+DROP TRIGGER IF EXISTS project_provisioning_receipts_no_mutation ON project_provisioning_runs;
+CREATE TRIGGER project_provisioning_receipts_no_mutation
+  BEFORE UPDATE ON project_provisioning_runs
+  FOR EACH ROW EXECUTE FUNCTION prevent_project_provisioning_receipt_mutation();
+
 -- RLS policies are intentionally omitted here.
 -- Apply RLS with app.role/app.project_codes/app.clearance when enabling Policy Gate.

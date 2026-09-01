@@ -1,0 +1,41 @@
+name: プロジェクト登録契約
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-provisioning-contract-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: プロジェクト登録契約
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          package-manager-cache: false
+      - run: npm ci
+      - name: Run type check
+        run: npm run typecheck
+      - name: Run PostgreSQL, API, CLI, and MCP integration
+        run: npm run test:integration:project-provisioning
+      - name: Install Chrome for Playwright
+        run: npx playwright install --with-deps chrome
+      - name: Run Project Provisioning browser contract
+        run: npx playwright test --config tests/e2e/project-provisioning.playwright.config.js

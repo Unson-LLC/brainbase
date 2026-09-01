@@ -1,6 +1,45 @@
-# Spec: Codex App Server backed session creation
+---
+spec_id: codex-appserver-session-create-spec
+title: Retired Codex App Server backed session creation specification
+source_story: docs/stories/story-codex-appserver-session-create.md
+source_architecture: docs/architecture/codex-appserver-session-create-architecture.md
+status: retired
+retired_reason: Brainbase-owned Session Launch Picker and session-creation APIs were retired; Codex app/CLI owns task and worktree creation.
+historical_lineage:
+  capability: codex.app-server
+  current_boundary: project.provisioning
+  successor_owner: Codex app/CLI
+updated_at: 2026-09-01
+---
 
-## Requirements
+# Retired spec: Codex App Server backed session creation
+
+> Retired historical specification. REQ-* and scenario entries below preserve
+> the former Brainbase session-creation contract as historical evidence only;
+> they are not current MUST requirements. Project Provisioning is the current
+> project-registration boundary. The Session Launch Picker and Brainbase
+> `/api/sessions` creation APIs are retired and unreachable, while Codex
+> app/CLI owns task and worktree creation.
+
+## Current contract
+
+This retired spec defines no current Brainbase session-creation contract.
+
+- Project Provisioning owns project identity, Registry/Graph registration, and
+  explicit access grants.
+- The server-side `session.create`/static endpoint and browser Session Launch
+  Picker are retired and unreachable; neither is a Project Provisioning entry
+  point or acceptance-evidence surface. No current flow calls the former
+  `/api/sessions` creation APIs.
+- Codex app/CLI owns task and worktree creation and ownership.
+- Workspace Setup only consumes the authenticated Project Catalog for a user's
+  local path.
+
+## Historical requirements (retired)
+
+All requirements in this section are historical MUST requirements from the
+retired implementation slice. They must not be read as current runtime
+requirements or as permission to restore the retired picker/API path.
 
 - **REQ-1**: `SessionService._createRegularSession()` MUST send `codexAppServer: true` to `/api/sessions/start` when `engine === "codex"`.
 - **REQ-2**: `SessionController.start()` MUST pass `codexAppServer: true` to `runtimeLifecycle.startTtyd()` only when `engine === "codex"` and the request explicitly asks for Codex App Server.
@@ -15,7 +54,7 @@
 - **REQ-11**: If Codex App Server metadata is not persisted after runtime startup, the controller MUST stop the just-started runtime before reporting failure.
 - **REQ-12**: Codex App Server metadata wait defaults MUST tolerate cold startup latency; the timeout and polling interval MUST be configurable by environment variables for local operations.
 
-## Workflow Scenarios
+## Historical workflow scenarios (retired)
 
 - **S-1 regular-codex-create**: Browser launch picker -> `SessionService._createRegularSession()` -> `/api/sessions/start` -> `runtimeLifecycle.startTtyd({ engine: "codex", codexAppServer: true })` -> persisted non-stale App Server thread metadata -> success response with `codexAppServer.threadId` -> session switch keeps the interactive terminal route by default.
 - **S-2 worktree-codex-create**: Browser launch picker with worktree -> `/api/sessions/create-with-worktree` -> pending startup shell -> `runtimeLifecycle.startTtyd({ engine: "codex", codexAppServer: true })` -> persisted non-stale App Server thread metadata -> ready startup state -> session switch keeps the interactive terminal route by default.
@@ -25,7 +64,7 @@
 - **S-6 cache-display-preservation**: Cached or reloaded sessions retain `session.codexAppServer` metadata so display-route derivation remains stable after state reload.
 - **S-7 cold-start-wait**: A requested Codex App Server session may take longer than five seconds to emit `thread/started`; controller defaults wait 45 seconds and polls every 250ms before treating metadata as failed.
 
-## Verification
+## Historical verification record (retired)
 
 - Unit: server start handler passes `codexAppServer` and returns App Server thread metadata.
 - Unit: session service sends `codexAppServer: true` for regular Codex creation.

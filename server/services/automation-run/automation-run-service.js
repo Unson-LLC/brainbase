@@ -184,19 +184,21 @@ export class AutomationRunService {
     }
 
     async runWorkflow(workflowId, options = {}) {
-        await this.ensureDefaultWorkflows();
-        await this.prepareProjectAccess();
-        const workflow = this.repository.getWorkflow(workflowId);
-        if (!workflow) throw AppError.notFound('workflow', workflowId);
-        if (isRunReceiptWorkflow(workflow)) throw AppError.notFound('workflow', workflowId);
-        await this.assertProjectSelectable(workflow.project_id);
-        this.assertProjectAccess(workflow.project_id, {
+        const actor = {
             sub: options.actorId,
             person_id: options.actorId,
             projectCodes: options.projectCodes || [],
             role: options.role,
-            authSource: options.authSource
-        });
+            authSource: options.authSource,
+            organizationId: options.organizationId || options.organization_id || options.tenantId || null
+        };
+        await this.ensureDefaultWorkflows();
+        await this.prepareProjectAccess(actor);
+        const workflow = this.repository.getWorkflow(workflowId);
+        if (!workflow) throw AppError.notFound('workflow', workflowId);
+        if (isRunReceiptWorkflow(workflow)) throw AppError.notFound('workflow', workflowId);
+        await this.assertProjectSelectable(workflow.project_id, actor);
+        this.assertProjectAccess(workflow.project_id, actor);
         if (workflow.enabled === false) {
             throw AppError.validation(`workflow '${workflowId}' is disabled`);
         }
@@ -205,7 +207,7 @@ export class AutomationRunService {
     }
 
     async rerun(runId, options = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const previous = this.repository.getRun(runId);
         if (!previous) throw AppError.notFound('workflow_run', runId);
         if (isRunReceiptRun(previous)) throw AppError.notFound('workflow_run', runId);
@@ -217,6 +219,7 @@ export class AutomationRunService {
             projectCodes: actor.projectCodes || [],
             role: actor.role,
             authSource: actor.authSource,
+            organizationId: actor.organizationId || actor.organization_id || actor.tenantId || null,
             parentRunId: runId,
             triggerType: 'retry',
             env: previous.env
@@ -225,7 +228,7 @@ export class AutomationRunService {
 
     async getRun(runId, actor = {}) {
         await this._reconcileCanonicalTaskCheckpoints({ runId });
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const run = this.repository.getRun(runId);
         if (!run) throw AppError.notFound('workflow_run', runId);
         if (isRunReceiptRun(run)) throw AppError.notFound('workflow_run', runId);
@@ -607,7 +610,7 @@ export class AutomationRunService {
     }
 
     async resolveHumanStep(stepId, input = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         let initialStep = this.repository.getHumanStep(stepId);
         if (!initialStep) throw AppError.notFound('workflow_human_step', stepId);
         if (input.run_id && input.run_id !== initialStep.workflow_run_id) {
@@ -806,6 +809,7 @@ export class AutomationRunService {
             projectCodes: actor.projectCodes || [],
             role: actor.role,
             authSource: actor.authSource,
+            organizationId: actor.organizationId || actor.organization_id || actor.tenantId || actor.tenant_id || null,
             parentRunId: step.workflow_run_id,
             triggerType: 'human_resume',
             env: previousRun?.env || 'local',

@@ -129,6 +129,7 @@ describe('Info SSOT RLS deployment contract', () => {
         expect(invocations[0]).toMatch(/-Atq/u);
         expect(invocations[0]).toMatch(/ON_ERROR_STOP=1/u);
         expect(invocations[0]).toMatch(/info-ssot-schema\.sql/u);
+        expect(invocations[0]).toMatch(/project-provisioning-schema\.sql/u);
         expect(invocations[0]).toMatch(/info-ssot-rls\.sql/u);
         expect(invocations[0]).toMatch(/info-ssot-readback\.sql/u);
         expect(invocations[0]).toMatch(/info-ssot-negative-smoke\.sql/u);
@@ -192,7 +193,8 @@ describe('Info SSOT RLS deployment contract', () => {
         const readbackSql = await readFile(path.join(repoRoot, 'server/sql/info-ssot-readback.sql'), 'utf8');
         const smokeSql = await readFile(path.join(repoRoot, 'server/sql/info-ssot-negative-smoke.sql'), 'utf8');
 
-        for (const table of ['decisions', 'events', 'raci_assignments', 'graph_entities', 'graph_edges']) {
+        for (const table of ['decisions', 'events', 'raci_assignments', 'graph_entities', 'graph_edges',
+            'project_registry', 'project_provisioning_runs', 'project_provisioning_steps']) {
             expect(readbackSql).toContain(table);
         }
         expect(readbackSql).toContain('INFO_SSOT_READBACK_OK');
@@ -200,6 +202,7 @@ describe('Info SSOT RLS deployment contract', () => {
         expect(smokeSql).toMatch(/rel_type,\s+project_id/u);
         expect(smokeSql).toContain("'governs'");
         expect(smokeSql).toContain('wrong-owner');
+        expect(smokeSql).toContain('cross-organization project registry fixture was readable');
         expect(smokeSql).toContain('fixture residual');
         expect(smokeSql).toMatch(/raise exception/iu);
     });
