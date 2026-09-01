@@ -439,6 +439,10 @@ describe('Judgment Resolver Host value proof integration', () => {
       last_assistant_message: `${ownerLine}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n\n⚠️ 確認が必要[owner_value_choice]: 契約上限をいくらにするか？` }, { env });
     expect(result.output.systemMessage).toContain('人間判断が必要です');
     expect(result.output.systemMessage).toContain('判断: 契約上限をいくらにするか');
+    expect(result.output.systemMessage).toContain('AIで決めない理由: 金銭条件の価値判断になるため');
+    expect(result.output.systemMessage).toContain('A. 30万円\n   影響: 利益率を優先');
+    expect(result.output.systemMessage).toContain('B. 50万円\n   影響: 受注率を優先');
+    expect(result.output.systemMessage).not.toContain('要確認: 人間判断が必要');
 
     const turnRef = hash(payload.turn_id);
     const attentionPath = join(root, 'journal', hash(payload.session_id), `${turnRef}.value-proof-attention.json`);

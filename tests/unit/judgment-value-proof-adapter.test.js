@@ -362,7 +362,9 @@ describe('judgment value proof organization adapter', () => {
 
     expect(renderJudgmentValueProofSurface(proof)).toContain('AIで決めない理由');
     expect(renderJudgmentValueProofSurface(proof)).toContain('影響: 利益率を守れるが受注可能性が下がる');
-    expect(projectJudgmentValueProofCompanionAttention(proof)?.kind).toBe('human_decision');
+    const attention = projectJudgmentValueProofCompanionAttention(proof);
+    expect(attention?.kind).toBe('human_decision');
+    expect(renderJudgmentValueProofAttentionSurface(attention)).toBeNull();
   });
 
   it('ignores failed attempts but rejects multiple successful value proof events', () => {

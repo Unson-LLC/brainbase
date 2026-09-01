@@ -333,6 +333,10 @@ export function renderJudgmentValueProofSurface(proof) {
 
 export function renderJudgmentValueProofAttentionSurface(attention) {
   if (!attention) return null;
+  // The human-decision surface already contains the question, reason, options,
+  // and their impacts. Keep the immutable attention artifact for audit/replay,
+  // but do not render a second, less detailed copy to the user.
+  if (attention.kind === 'human_decision') return null;
   return [
     `要確認: ${attention.title}`,
     `内容: ${attention.summary}`,
