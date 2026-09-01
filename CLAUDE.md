@@ -5,11 +5,11 @@ This repository contains the OSS Brainbase judgment substrate and its local-firs
 
 Brainbase's public promise is:
 
-> **会社の判断を、属人化させない。**
+> **一般論ではなく、あなたの判断基準から始まるAI。**
 >
-> Brainbaseは、経営者や担当者の判断基準、過去の決定、その理由を会社に残し、AIや次の担当者が同じ前提で考え、動けるようにする仕組みです。
+> Brainbaseは、仕事の前提、優先順位、過去の判断とその理由をローカルの正本に置き、CodexやClaude Codeが新しいセッションでも同じ文脈から考え始められるようにするOSSです。
 
-The product boundary is explicit: 人間が、目的と判断基準、任せてよい範囲を決める。 AIは、それをもとに調べ、選択肢を比較し、見落としを指摘し、許可された仕事を進める。
+The product boundary is explicit: 人間は、仕事の目的、判断基準、任せてよい範囲を決める。 AIは、それらを参照して選択肢を比較し、見落としを指摘し、許可された範囲を進める。
 <!-- brainbase:public-message:end -->
 
 - Keep the repository UI-free. Do not add browser UI, session dashboards, xterm, launchd runtime, workflow mission control, or Unson internal operations.

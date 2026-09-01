@@ -4,8 +4,11 @@
 
 ## Unreleased — develop
 
-- 公開コピーを「会社の判断を、属人化させない。」へ更新
-- BrainbaseをPersonal Onboarding Kitだけでなく、判断を人間・AI・組織へ引き継ぐ仕組みとして説明
+- 公開コピーを「一般論ではなく、あなたの判断基準から始まるAI。」へ更新
+- 現行OSSのローカル優先・単一所有者向け価値を、組織版の将来価値より先に説明
+- 毎回の説明、最初のズレ、特定AIへの文脈依存を減らす利用者価値をトップページへ追加
+- CodexやClaude Codeは思考・実行を担い、Brainbaseは仕事の前提と判断基準の正本を担う境界を明示
+- 個人で判断基盤を育て、権限・承認・例外・監査が必要な段階でOrganization / Enterpriseへアップグレードする経路を追加
 - 人間が目的・判断基準・委任範囲を決め、AIが探索・比較・反証・承認範囲の実行を担う境界を明示
 - Judgment DAGの利用者向け説明とReleased / Develop / Plannedの状態ページを追加
 - `public-message.json`からREADME、manual、Core Philosophy、agent instructions、package descriptionを同期

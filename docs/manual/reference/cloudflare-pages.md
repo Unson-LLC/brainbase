@@ -22,7 +22,7 @@ pull requestからはdeployしません。
 
 上記の検証に加えて、`docs/.vitepress/dist`をCloudflare Pages project `brainbase`へdeployします。その後、公開URLをreadbackし、次を確認します。
 
-- 「会社の判断を、属人化させない。」が表示される
+- 「一般論ではなく、あなたの判断基準から始まるAI。」が表示される
 - システム構成ページと構成図が取得できる
 - オントロジーページと概念図が取得できる
 - 状態ページとMCP referenceが取得できる

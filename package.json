@@ -1,7 +1,7 @@
 {
   "name": "@unson/brainbase-mcp",
   "version": "0.4.1",
-  "description": "Local-first Brainbase MCP for preserving decision context and helping humans and AI work from the same judgment criteria.",
+  "description": "Local-first Brainbase MCP that preserves work context and judgment criteria so AI agents can start from the user's own premises across sessions.",
   "type": "module",
   "license": "MIT",
   "repository": {

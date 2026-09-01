@@ -5,7 +5,7 @@ const attempts = Number(process.env.PUBLIC_READBACK_ATTEMPTS ?? 12);
 const delayMs = Number(process.env.PUBLIC_READBACK_DELAY_MS ?? 5000);
 
 const checks = [
-  { path: '/', required: ['会社の判断を、属人化させない。', 'Brainbaseを理解する'] },
+  { path: '/', required: ['一般論ではなく、あなたの判断基準から始まるAI。', 'Brainbaseを理解する'] },
   { path: '/guide/architecture', required: ['仕組みとシステム構成', '意味と事実の中核', 'resolve_entity'] },
   { path: '/guide/ontology', required: ['オントロジーとは', 'オントロジー、Graph、Judgment DAGの違い'] },
   { path: '/guide/status', required: ['Released — v0.4.0', 'Planned — 未実装または未完成'] },

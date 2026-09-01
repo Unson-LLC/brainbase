@@ -3,14 +3,14 @@
 <!-- brainbase:public-message:start -->
 ## Central promise
 
-> **会社の判断を、属人化させない。**
+> **一般論ではなく、あなたの判断基準から始まるAI。**
 
-Brainbaseは、経営者や担当者の判断基準、過去の決定、その理由を会社に残し、AIや次の担当者が同じ前提で考え、動けるようにする仕組みです。
+Brainbaseは、仕事の前提、優先順位、過去の判断とその理由をローカルの正本に置き、CodexやClaude Codeが新しいセッションでも同じ文脈から考え始められるようにするOSSです。
 
 ## Human and AI responsibility
 
-- **Human:** 人間が、目的と判断基準、任せてよい範囲を決める。Human authority defines who the judgment is for, what it prioritizes, what it protects, and what may be delegated.
-- **AI:** AIは、それをもとに調べ、選択肢を比較し、見落としを指摘し、許可された仕事を進める。AI must search broadly, surface the strongest counterargument, preserve evidence, and stay inside approved execution boundaries.
+- **Human:** 人間は、仕事の目的、判断基準、任せてよい範囲を決める。Human authority defines who the judgment is for, what it prioritizes, what it protects, and what may be delegated.
+- **AI:** AIは、それらを参照して選択肢を比較し、見落としを指摘し、許可された範囲を進める。AI must search broadly, surface the strongest counterargument, preserve evidence, and stay inside approved execution boundaries.
 
 A judgment is not correct in the abstract. It is correct or incorrect only relative to an explicit subject, objective, priority, protected constraint, and authority boundary.
 <!-- brainbase:public-message:end -->
