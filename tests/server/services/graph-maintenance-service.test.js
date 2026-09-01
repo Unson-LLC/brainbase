@@ -5,6 +5,23 @@ import { hashGraphSnapshot, validateGraphSnapshot } from '../../../server/servic
 const service = new GraphMaintenanceService({ infoSSOTService: {} });
 
 describe('GraphMaintenanceService authorization', () => {
+    it('組織Graphに存在する認可済みproject codeだけを返す', async () => {
+        const client = {
+            query: vi.fn(async (_sql, values) => {
+                expect(values).toEqual(['org_unson', ['aitle', 'brainbase', 'growin-project']]);
+                return { rows: [{ code: 'brainbase' }, { code: 'growin-project' }] };
+            })
+        };
+        const scopedService = new GraphMaintenanceService({
+            infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) }
+        });
+
+        await expect(scopedService.listAccessibleProjectCodes({
+            organizationId: 'org_unson', role: 'ceo',
+            projectCodes: ['growin-project', 'aitle', 'brainbase']
+        })).resolves.toEqual(['brainbase', 'growin-project']);
+    });
+
     it('Validate応答へ識別子を含まないEdge抑止集計を伝播する', async () => {
         const snapshot = {
             project_code: 'brainbase',

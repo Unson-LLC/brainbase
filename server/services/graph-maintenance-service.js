@@ -469,6 +469,23 @@ export class GraphMaintenanceService {
         if (!['gm', 'ceo'].includes(access.role)) throw new Error('Graph maintenance requires gm or ceo role');
     }
 
+    async listAccessibleProjectCodes(access) {
+        if (!access?.organizationId && !access?.tenantId) throw new Error('Signed tenant authorization with organization is required');
+        if (!['gm', 'ceo'].includes(access.role)) throw new Error('Graph maintenance requires gm or ceo role');
+        const requestedCodes = [...new Set((access.projectCodes || []).filter(Boolean))].sort();
+        if (!requestedCodes.length) return [];
+        const organizationId = access.organizationId || access.tenantId;
+        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+            const { rows } = await client.query(
+                `SELECT code FROM projects
+                 WHERE organization_id = $1 AND code = ANY($2::text[])
+                 ORDER BY code`,
+                [organizationId, requestedCodes]
+            );
+            return rows.map((row) => row.code);
+        });
+    }
+
     async resolveProject(client, access, projectCode, { lock = false } = {}) {
         this.assertMaintenanceAccess(access, projectCode);
         const organizationId = access.organizationId || access.tenantId;
