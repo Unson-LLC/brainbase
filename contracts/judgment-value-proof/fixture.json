@@ -47,7 +47,7 @@
   },
   "human_decision": null,
   "feedback": {
-    "status": "pending",
+    "status": "none",
     "summary": null,
     "evidence_ref": null
   }
