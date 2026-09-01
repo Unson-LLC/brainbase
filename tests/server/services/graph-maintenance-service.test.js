@@ -5,6 +5,106 @@ import { hashGraphSnapshot, validateGraphSnapshot } from '../../../server/servic
 const service = new GraphMaintenanceService({ infoSSOTService: {} });
 
 describe('GraphMaintenanceService authorization', () => {
+    it('Validate応答へ識別子を含まないEdge抑止集計を伝播する', async () => {
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [],
+            edges: [],
+            suppression_summary: {
+                edge_count: 1,
+                reasons: { unresolved_or_inaccessible_endpoint: 1 }
+            }
+        };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const validatingService = new GraphMaintenanceService({
+            infoSSOTService: {
+                withAccessContext: async (_access, callback) => callback({}),
+                validateOntology: vi.fn(() => ({ valid: true }))
+            }
+        });
+        validatingService.loadSnapshot = vi.fn(async () => ({ snapshot }));
+
+        const result = await validatingService.validate({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, { projectCode: 'brainbase' });
+
+        expect(result).toMatchObject({
+            valid: true,
+            snapshot_hash: snapshot.hash,
+            suppression_summary: snapshot.suppression_summary
+        });
+        expect(JSON.stringify(result)).not.toContain('hidden_entity');
+    });
+
+    it('Plan差分はvalidatorのorphan categoryを孤立件数へ集計する', () => {
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [{ id: 'entity_a', entity_type: 'person', project_code: 'brainbase', payload: {}, version: 1 }],
+            edges: [{
+                id: 'edge_orphan', from_id: 'entity_a', to_id: 'missing_entity', rel_type: 'knows',
+                project_code: 'brainbase', payload: {}, version: 1
+            }]
+        };
+        const plan = service.formatPlan({
+            id: 'plan_orphan_count', status: 'planned', snapshot_id: 'snapshot_1',
+            base_snapshot_hash: 'before', after_snapshot_hash: 'after', reason: 'count regression',
+            idempotency_key: 'count-regression', operations: [], before_snapshot: snapshot,
+            after_snapshot: structuredClone(snapshot)
+        });
+
+        expect(plan.diff_summary.validation).toMatchObject({
+            orphan_count_before: 1,
+            orphan_count_after: 1,
+            orphan_count_delta: 0
+        });
+    });
+
+    it('Edge抑止集計をPlan差分・Apply Gate・Receiptへ識別子なしで固定する', async () => {
+        const suppression = {
+            edge_count: 1,
+            reasons: { unresolved_or_inaccessible_endpoint: 1 }
+        };
+        const before = {
+            project_code: 'brainbase',
+            entities: [{
+                id: 'decision_1', entity_type: 'decision', project_code: 'brainbase',
+                payload: { title: 'before' }, version: 1
+            }],
+            edges: [],
+            suppression_summary: suppression
+        };
+        before.hash = hashGraphSnapshot(before);
+        const after = structuredClone(before);
+        after.entities[0].payload.title = 'after';
+        after.entities[0].version = 2;
+        after.hash = hashGraphSnapshot(after);
+        const row = {
+            id: 'plan_suppression_audit', project_id: 'project_brainbase', status: 'planned',
+            snapshot_id: 'snapshot_suppression_audit', base_snapshot_hash: before.hash,
+            after_snapshot_hash: after.hash, reason: 'suppression audit', idempotency_key: 'suppression-audit-1',
+            operations: [{ operation: 'patch_entity', entity_id: 'decision_1', expected_version: 1, patch: { title: 'after' } }],
+            before_snapshot: before, after_snapshot: after
+        };
+        const expectedTransition = { before: suppression, after: suppression };
+        const plan = service.formatPlan(row);
+
+        expect(plan.diff_summary.suppression_summary).toEqual(expectedTransition);
+        expect(plan.apply_human_gate_scope.suppression_summary).toEqual(expectedTransition);
+        expect(JSON.stringify(plan.diff_summary)).not.toContain('hidden_endpoint_id');
+        expect(JSON.stringify(plan.apply_human_gate_scope)).not.toContain('hidden_endpoint_id');
+
+        const client = { query: vi.fn(async (_sql, params) => ({ rows: [{
+            receipt_id: params[0], plan_id: params[1], receipt_type: params[4], status: 'completed',
+            before_hash: params[5], after_hash: params[6], result: JSON.parse(params[7])
+        }] })) };
+        const receipt = await service.createReceipt(client, {
+            organizationId: 'org_1', personId: 'person_1'
+        }, row, 'apply', before.hash, after.hash);
+
+        expect(receipt.result.suppression_summary).toEqual(expectedTransition);
+        expect(JSON.stringify(receipt.result)).not.toContain('hidden_endpoint_id');
+    });
+
     it('Project subject metadataを認証済みCatalog正本へ束縛する', async () => {
         const configParser = {
             checkIntegrity: vi.fn(async () => ({ applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } })),
@@ -650,7 +750,7 @@ describe('GraphMaintenanceService authorization', () => {
         expect(replaceSnapshot).not.toHaveBeenCalled();
     });
 
-    it('旧MCP clientは単一DecisionのApply Gateだけを新規記録できる', async () => {
+    it('旧Decision集合は単一Decisionだけ互換受理し、抑止集計のない旧Gateは再承認を要求する', async () => {
         const makePlan = (ids) => {
             const before = { project_code: 'brainbase', entities: ids.map((id) => ({
                 id, entity_type: 'decision', project_code: 'brainbase', payload: {}, role_min: 'member',
@@ -667,7 +767,7 @@ describe('GraphMaintenanceService authorization', () => {
                 operations: ids.map((id) => ({ operation: 'retire_entity', entity_id: id, expected_version: 1 }))
             };
         };
-        const record = async (plan, receiptId) => {
+        const record = async (plan, receiptId, { omitSuppressionSummary = false } = {}) => {
             let service;
             const client = { query: vi.fn(async (sql, params) => {
                 if (sql.includes('SELECT id, code, organization_id FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
@@ -679,12 +779,15 @@ describe('GraphMaintenanceService authorization', () => {
             service = new GraphMaintenanceService({ infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) } });
             const legacyScope = { ...service.formatPlan(plan).apply_human_gate_scope };
             delete legacyScope.decision_ids;
+            if (omitSuppressionSummary) delete legacyScope.suppression_summary;
             return service.recordHumanGateReceipt({
                 organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm', authSource: 'bearer', personId: 'person_1'
             }, { projectCode: 'brainbase', decisionId: 'decision_1', receiptId, evidence: { operation_scope: legacyScope } });
         };
         await expect(record(makePlan(['decision_1']), 'gate_legacy_single'))
             .resolves.toMatchObject({ receipt_id: 'gate_legacy_single', status: 'approved' });
+        await expect(record(makePlan(['decision_1']), 'gate_pre_suppression', { omitSuppressionSummary: true }))
+            .rejects.toMatchObject({ code: 'GRAPH_HUMAN_GATE_EVIDENCE_INVALID', status: 400 });
         await expect(record(makePlan(['decision_1', 'decision_2']), 'gate_legacy_multi'))
             .rejects.toMatchObject({ code: 'GRAPH_HUMAN_GATE_SCOPE_MISMATCH', status: 409 });
     });
@@ -939,6 +1042,372 @@ describe('GraphMaintenanceService authorization', () => {
         await expect(multiScopeService.loadSnapshot(client, {
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
         }, 'brainbase', { includeProjectCodes: ['vibepro'] })).rejects.toThrow('Access denied for project: vibepro');
+    });
+
+    it('同一organizationで参照権限のある跨project endpointをmetadata-only参照として解決する', async () => {
+        const localEntity = {
+            id: 'project_brainbase_entity', entity_type: 'project', project_code: 'brainbase', payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const externalPerson = {
+            id: 'per_yajima_tsuyoshi', entity_type: 'person', project_code: 'techknight', organization_id: 'org_1',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 3
+        };
+        const edge = {
+            id: 'edge_yajima_member_of', from_id: externalPerson.id, to_id: localEntity.id, rel_type: 'member_of',
+            project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localEntity] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [externalPerson] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+        const { snapshot } = await scoped.loadSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'techknight'], role: 'gm'
+        }, 'brainbase');
+
+        expect(snapshot.entities).toEqual([localEntity]);
+        expect(snapshot.edges).toEqual([edge]);
+        expect(snapshot.external_entities).toEqual([{
+            id: externalPerson.id, entity_type: 'person', project_code: 'techknight', reference_scope: 'same_organization',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 3
+        }]);
+        expect(snapshot.external_entities[0]).not.toHaveProperty('payload');
+        expect(validateGraphSnapshot(snapshot)).toMatchObject({ valid: true, counts: { orphans: 0 } });
+    });
+
+    it('projectless Personをactive member_ofのproject経由でmetadata-only参照として解決する', async () => {
+        const localEntity = {
+            id: 'project_brainbase_entity', entity_type: 'project', project_code: 'brainbase', payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const projectlessPerson = {
+            id: 'per_yajima_tsuyoshi', entity_type: 'person', project_code: 'techknight', organization_id: 'org_1',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 3
+        };
+        const edge = {
+            id: 'edge_yajima_member_of', from_id: projectlessPerson.id, to_id: localEntity.id, rel_type: 'member_of',
+            project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localEntity] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [projectlessPerson] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+        const { snapshot } = await scoped.loadSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'techknight'], role: 'gm'
+        }, 'brainbase');
+
+        const endpointQuery = client.query.mock.calls.find(([sql]) => sql.includes('WHERE ge.id=ANY'));
+        expect(endpointQuery?.[0]).toContain("ge.entity_type='person'");
+        expect(endpointQuery?.[0]).toContain("membership.rel_type='member_of'");
+        expect(endpointQuery?.[0]).toContain('COUNT(DISTINCT membership_project.organization_id)=1');
+        expect(endpointQuery?.[0]).toContain('membership.sensitivity=ANY($4::text[])');
+        expect(snapshot.edges).toEqual([edge]);
+        expect(snapshot.external_entities).toEqual([{
+            id: projectlessPerson.id, entity_type: 'person', project_code: 'techknight',
+            reference_scope: 'same_organization', role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 3
+        }]);
+        expect(validateGraphSnapshot(snapshot)).toMatchObject({ valid: true, counts: { orphans: 0 } });
+    });
+
+    it('複数organizationに所属するprojectless Personを保守Snapshotでも解決しない', async () => {
+        const localEntity = {
+            id: 'project_brainbase_entity', entity_type: 'project', project_code: 'brainbase', payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const edge = {
+            id: 'edge_ambiguous_person', from_id: 'person_multi_org', to_id: localEntity.id, rel_type: 'member_of',
+            project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localEntity] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) {
+                expect(sql).toContain('COUNT(DISTINCT membership_project.organization_id)=1');
+                return { rows: [] };
+            }
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+        const { snapshot } = await scoped.loadSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'techknight'], role: 'gm', clearance: ['internal']
+        }, 'brainbase');
+
+        expect(snapshot.edges).toEqual([]);
+        expect(snapshot).not.toHaveProperty('external_entities');
+        expect(snapshot.suppression_summary).toEqual({
+            edge_count: 1,
+            reasons: { unresolved_or_inaccessible_endpoint: 1 }
+        });
+        expect(JSON.stringify(snapshot)).not.toContain('person_multi_org');
+    });
+
+    it('非canonical scope marker Edgeを識別子なしの理由付きで抑止する', async () => {
+        const localEntities = [{
+            id: 'decision_local', entity_type: 'decision', project_code: 'brainbase', payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        }, {
+            id: 'project_local', entity_type: 'project', project_code: 'brainbase', payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        }];
+        const edge = {
+            id: 'edge_noncanonical_marker', from_id: 'decision_local', to_id: 'project_local',
+            rel_type: 'related_to', project_code: 'brainbase',
+            payload: { cross_tenant: true, target_project_code: 'aitle' },
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: localEntities };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+        const { snapshot } = await scoped.loadSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'aitle'], role: 'gm'
+        }, 'brainbase');
+
+        expect(snapshot.edges).toEqual([]);
+        expect(snapshot.suppression_summary).toEqual({
+            edge_count: 1,
+            reasons: { noncanonical_cross_tenant_marker: 1 }
+        });
+        expect(JSON.stringify(snapshot)).not.toContain(edge.id);
+        const edgeQuery = client.query.mock.calls.find(([sql]) => sql.includes('SELECT gx.id, gx.from_id'));
+        expect(edgeQuery?.[0]).not.toContain("NOT (gx.payload ? 'target_project_code'");
+    });
+
+    it('同一organizationでも参照先projectが権限外ならEdgeとendpointを公開しない', async () => {
+        const localEntity = {
+            id: 'project_brainbase_entity', entity_type: 'project', project_code: 'brainbase', payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const edge = {
+            id: 'edge_hidden_member_of', from_id: 'person_hidden', to_id: localEntity.id, rel_type: 'member_of',
+            project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localEntity] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [{
+                id: localEntity.id, entity_type: localEntity.entity_type, project_code: localEntity.project_code,
+                organization_id: 'org_1', role_min: localEntity.role_min, sensitivity: localEntity.sensitivity,
+                lifecycle_status: localEntity.lifecycle_status, version: localEntity.version
+            }] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+        const { snapshot } = await scoped.loadSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, 'brainbase');
+
+        expect(snapshot.edges).toEqual([]);
+        expect(snapshot).not.toHaveProperty('external_entities');
+        expect(snapshot.suppression_summary).toEqual({
+            edge_count: 1,
+            reasons: { unresolved_or_inaccessible_endpoint: 1 }
+        });
+        expect(JSON.stringify(snapshot)).not.toContain('person_hidden');
+    });
+
+    it('通常Edgeの別organization endpointはorganization境界で解決せず公開しない', async () => {
+        const localEntity = {
+            id: 'project_brainbase_entity', entity_type: 'project', project_code: 'brainbase', payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const edge = {
+            id: 'edge_cross_org_noncanonical', from_id: 'person_other_org', to_id: localEntity.id,
+            rel_type: 'member_of', project_code: 'brainbase', payload: {}, role_min: 'member',
+            sensitivity: 'internal', lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localEntity] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+        const access = {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'other_project'], role: 'gm'
+        };
+        const { snapshot } = await scoped.loadSnapshot(client, access, 'brainbase');
+
+        const endpointQuery = client.query.mock.calls.find(([sql]) => sql.includes('WHERE ge.id=ANY'));
+        expect(endpointQuery?.[0]).toContain('COALESCE(p.organization_id, membership_scope.organization_id)=$2');
+        expect(endpointQuery?.[0]).toContain('COALESCE(p.code, membership_scope.project_code)=ANY($3::text[])');
+        expect(endpointQuery?.[1]).toEqual([
+            ['person_other_org'], 'org_1', access.projectCodes, ['internal'], access.role
+        ]);
+        expect(snapshot.edges).toEqual([]);
+        expect(snapshot).not.toHaveProperty('external_entities');
+        expect(snapshot.suppression_summary).toEqual({
+            edge_count: 1,
+            reasons: { unresolved_or_inaccessible_endpoint: 1 }
+        });
+        expect(JSON.stringify(snapshot)).not.toContain('person_other_org');
+    });
+
+    it('canonical cross-tenant endpointが欠損していればSnapshot全体をfail closedにする', async () => {
+        const localDecision = {
+            id: 'decision_local', entity_type: 'decision', project_code: 'brainbase', payload: {},
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1
+        };
+        const edge = {
+            id: 'edge_missing_subject', from_id: localDecision.id, to_id: 'product_missing', rel_type: 'governs',
+            project_code: 'brainbase', payload: { cross_tenant: true, target_project_code: 'aitle' },
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localDecision] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+
+        await expect(scoped.loadSnapshot(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'aitle'], role: 'ceo'
+        }, 'brainbase')).rejects.toThrow('Decision subject target is missing or inaccessible');
+    });
+
+    it.each([
+        ['source type', { entity_type: 'person' }, {}],
+        ['source lifecycle', { lifecycle_status: 'retired' }, {}],
+        ['target type', {}, { entity_type: 'person' }],
+        ['target lifecycle', {}, { lifecycle_status: 'retired' }]
+    ])('existing canonical cross-tenant Edge with invalid endpoint is fail-closed without identifiers (%s)', async (_caseName, sourcePatch, targetPatch) => {
+        const localDecision = {
+            id: 'decision_invalid_endpoint', entity_type: 'decision', project_code: 'brainbase', payload: {},
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1,
+            ...sourcePatch
+        };
+        const target = {
+            id: 'product_invalid_endpoint', entity_type: 'product', project_code: 'aitle', organization_id: 'org_other',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1,
+            ...targetPatch
+        };
+        const edge = {
+            id: 'edge_invalid_endpoint', from_id: localDecision.id, to_id: target.id, rel_type: 'governs',
+            project_code: 'brainbase', payload: { cross_tenant: true, target_project_code: 'aitle' },
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('SELECT id, code, organization_id FROM projects')) {
+                return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_source' }] };
+            }
+            if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localDecision] };
+            if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
+            if (sql.includes('WHERE ge.id=ANY')) return { rows: [target] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const scoped = new GraphMaintenanceService({ infoSSOTService: {} });
+
+        let error;
+        try {
+            await scoped.loadSnapshot(client, {
+                organizationId: 'org_source', projectCodes: ['brainbase', 'aitle'], role: 'ceo'
+            }, 'brainbase');
+        } catch (caught) {
+            error = caught;
+        }
+        expect(error).toBeInstanceOf(Error);
+        expect(error.message).toBe('Decision subject target is missing or inaccessible');
+        expect(error.message).not.toContain(localDecision.id);
+        expect(error.message).not.toContain(target.id);
+        expect(error.message).not.toContain(edge.id);
+    });
+
+    it.each([
+        ['source type', { entity_type: 'person' }, {}],
+        ['source lifecycle', { lifecycle_status: 'retired' }, {}],
+        ['target type', {}, { entity_type: 'person' }],
+        ['target reference scope', {}, { reference_scope: 'same_organization' }],
+        ['target lifecycle', {}, { lifecycle_status: 'retired' }]
+    ])('existing canonical cross-tenant Edge image with invalid endpoint is fail-closed without identifiers (%s)', async (_caseName, sourcePatch, targetPatch) => {
+        const localDecision = {
+            id: 'decision_invalid_image_endpoint', entity_type: 'decision', project_code: 'brainbase', payload: {},
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1,
+            ...sourcePatch
+        };
+        const expected = {
+            id: 'product_invalid_image_endpoint', entity_type: 'product', project_code: 'aitle',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1,
+            ...targetPatch
+        };
+        const target = {
+            ...expected, organization_id: 'org_other', ...targetPatch
+        };
+        const edge = {
+            id: 'edge_invalid_image_endpoint', from_id: localDecision.id, to_id: expected.id, rel_type: 'governs',
+            project_code: 'brainbase', payload: { cross_tenant: true, target_project_code: 'aitle' },
+            role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1
+        };
+        const client = { query: vi.fn(async () => ({ rows: [target] })) };
+        const image = {
+            project_code: 'brainbase', entities: [localDecision], edges: [edge], external_entities: [expected]
+        };
+
+        let error;
+        try {
+            await service.loadExternalEntitiesFromImage(client, {
+                organizationId: 'org_source', projectCodes: ['brainbase', 'aitle'], role: 'ceo'
+            }, image);
+        } catch (caught) {
+            error = caught;
+        }
+        expect(error).toBeInstanceOf(Error);
+        expect(error.message).toBe('Decision subject target is missing or inaccessible');
+        expect(error.message).not.toContain(localDecision.id);
+        expect(error.message).not.toContain(expected.id);
+        expect(error.message).not.toContain(edge.id);
+    });
+
+    it('same-organization external endpointのreadbackはGMでも許可しscope markerを維持する', async () => {
+        const expected = {
+            id: 'per_yajima_tsuyoshi', entity_type: 'person', project_code: 'techknight',
+            reference_scope: 'same_organization', role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 3
+        };
+        const client = { query: vi.fn(async () => ({ rows: [{
+            ...expected, organization_id: 'org_1', reference_scope: undefined
+        }] })) };
+
+        const readback = await service.loadExternalEntitiesFromImage(client, {
+            organizationId: 'org_1', projectCodes: ['brainbase', 'techknight'], role: 'gm'
+        }, { project_code: 'brainbase', entities: [], edges: [], external_entities: [expected] }, { lock: true });
+
+        expect(readback).toEqual([expected]);
+        expect(client.query.mock.calls[0][0]).toContain('FOR UPDATE');
     });
 
     it.each([
