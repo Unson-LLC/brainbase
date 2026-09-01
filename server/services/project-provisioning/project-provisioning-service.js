@@ -228,7 +228,7 @@ export class ProjectProvisioningService {
                 error.statusCode = 503;
                 throw error;
             }
-            const repository = await this.repositoryBootstrap.read(manifest.repository);
+            const repository = await this.repositoryBootstrap.read(manifest.repository, { organizationId });
             repositoryState = repository
                 ? { mode: manifest.repository.mode, status: 'exists', repository }
                 : { mode: manifest.repository.mode, status: 'missing' };
@@ -448,9 +448,9 @@ export class ProjectProvisioningService {
                 throw error;
             }
             if (manifest.repository.mode === 'link_existing') {
-                return this.repositoryBootstrap.link(manifest.repository);
+                return this.repositoryBootstrap.link(manifest.repository, { organizationId });
             }
-            return this.repositoryBootstrap.create(manifest.repository);
+            return this.repositoryBootstrap.create(manifest.repository, { organizationId });
         }
         const applyGraph = async () => {
             const access = {
@@ -499,8 +499,9 @@ export class ProjectProvisioningService {
 
     async verify(actor, runId) {
         const run = await this.status(actor, runId);
+        const organizationId = actor.organizationId || actor.tenantId;
         const project = await this.repository.getProject(
-            run.manifest.project_code, actor.organizationId || actor.tenantId
+            run.manifest.project_code, organizationId
         );
         const incomplete = run.steps.filter((step) => step.state !== 'completed').map((step) => step.step_name);
         const failures = [];
@@ -519,7 +520,7 @@ export class ProjectProvisioningService {
         let catalogReadback = null;
         if (this.catalogAdapter) {
             catalogReadback = await this.catalogAdapter.runForOrganization(
-                actor.organizationId || actor.tenantId,
+                organizationId,
                 () => this.catalogAdapter.getProjects()
             );
             const catalogProject = catalogReadback.projects?.find((candidate) => candidate.id === run.manifest.project_code);
@@ -550,13 +551,16 @@ export class ProjectProvisioningService {
         for (const grant of run.manifest.initial_grants) {
             const readback = await this.authGrantService.readProjectGrant?.({
                 personId: grant.person_id, role: grant.role, projectCode: run.manifest.project_code,
-                organizationId: actor.organizationId || actor.tenantId
+                organizationId
             });
             if (!readback) failures.push({ layer: 'auth_grants', code: 'grant_readback_missing', person_id: grant.person_id, role: grant.role });
         }
         let repositoryReadback = null;
         if (run.manifest.repository.mode !== 'none') {
-            repositoryReadback = await this.repositoryBootstrap?.read(run.manifest.repository);
+            repositoryReadback = await this.repositoryBootstrap?.read(
+                run.manifest.repository,
+                { organizationId }
+            );
             if (!repositoryReadback
                 || repositoryReadback.visibility !== run.manifest.repository.visibility
                 || repositoryReadback.repo !== run.manifest.repository.repo

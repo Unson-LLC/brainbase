@@ -60,7 +60,7 @@ describe('project provisioning CLI', () => {
         mockCsrfAndRequest({
             run_id: 'run-1',
             state: 'manual_intervention_required',
-            missing_gates: ['manifest_plan_approval', 'repository_create']
+            failure: { missing_gates: ['manifest_plan_approval', 'repository_create'] }
         });
         vi.spyOn(console, 'log').mockImplementation(() => {});
 

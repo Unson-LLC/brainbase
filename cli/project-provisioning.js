@@ -110,7 +110,7 @@ export async function runProjectProvisioning(subcommand, args) {
         assertArgs(args, { positionals: 1 });
         const result = await request(`/runs/${runId}/${subcommand}`, { method: 'POST', body: {} });
         if (result.state === 'manual_intervention_required') {
-            throw new Error(`manual_intervention_required: approve exactly these gates, then run resume: ${(result.missing_gates || []).join(',')}`);
+            throw new Error(`manual_intervention_required: approve exactly these gates, then run resume: ${(result.failure?.missing_gates || []).join(',')}`);
         }
         return result;
     }

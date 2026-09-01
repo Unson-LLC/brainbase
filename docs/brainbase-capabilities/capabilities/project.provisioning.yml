@@ -34,6 +34,7 @@ visibility_rules:
   - Every Plan requires manifest_plan_approval for the complete Manifest and diff; Repository create, public visibility, and broad grants add narrower gates.
   - Apply and resume never accept approvals in their request body; approval is recorded through the dedicated approve surface before execution.
   - A run becomes active only after Registry, Graph, every requested Auth Grant, and GitHub repository state are read back and verified.
+  - GitHub read/link/create resolves `organization_id` through `PROJECT_PROVISIONING_GITHUB_BINDINGS`; each binding declares the only allowed owner and a `token_env`, and missing or cross-organization bindings fail before network access.
   - "The server-side `session.create`/static endpoint and browser Session Launch Picker are retired and unreachable; neither is a Project Provisioning entry point or acceptance-evidence surface."
   - "Project Provisioning has no production browser UI. The retained Workspace Setup selector module is a separate compatibility/contract surface not currently served by a production static route; synthetic-host tests are not production browser E2E evidence."
   - "Desktop and mobile legacy CREATE_SESSION actions show the Codex migration notice without opening the Picker or calling session APIs."
@@ -62,6 +63,7 @@ verification:
 common_failures:
   - An initial person has no active Auth Grant with the requested role.
   - Repository create is requested without an approved Human Gate or configured Repository Bootstrap adapter.
+  - `PROJECT_PROVISIONING_GITHUB_BINDINGS` is missing, invalid, points to an unset `token_env`, or binds the organization to a different GitHub owner.
   - Project code already exists with a different canonical identity.
 runbooks:
   - ../../../.claude/skills/project-provisioning/SKILL.md

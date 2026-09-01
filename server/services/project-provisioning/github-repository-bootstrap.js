@@ -7,27 +7,72 @@ function githubError(message, code, statusCode, details) {
 }
 
 export class GitHubRepositoryBootstrap {
-    constructor({ token = process.env.GITHUB_TOKEN, fetchImpl = globalThis.fetch, apiBase = 'https://api.github.com' } = {}) {
-        this.token = token;
+    constructor({ organizationBindings, env = process.env, fetchImpl = globalThis.fetch, apiBase = 'https://api.github.com' } = {}) {
+        this.organizationBindings = organizationBindings ?? this.parseOrganizationBindings(env);
         this.fetch = fetchImpl;
         this.apiBase = apiBase.replace(/\/$/u, '');
     }
 
-    headers() {
+    parseOrganizationBindings(env) {
+        const raw = String(env.PROJECT_PROVISIONING_GITHUB_BINDINGS || '').trim();
+        if (!raw) return {};
+        let configured;
+        try {
+            configured = JSON.parse(raw);
+        } catch {
+            throw githubError(
+                'PROJECT_PROVISIONING_GITHUB_BINDINGS must be valid JSON',
+                'PROJECT_PROVISIONING_REPOSITORY_ORGANIZATION_BINDING_INVALID',
+                503
+            );
+        }
+        return Object.fromEntries(Object.entries(configured).map(([organizationId, binding]) => [
+            organizationId,
+            {
+                owner: String(binding?.owner || '').trim(),
+                token: String(env[String(binding?.token_env || '')] || '')
+            }
+        ]));
+    }
+
+    resolveBinding(repository, { organizationId } = {}) {
+        const normalizedOrganizationId = String(organizationId || '').trim();
+        const binding = this.organizationBindings[normalizedOrganizationId];
+        if (!normalizedOrganizationId || !binding?.owner) {
+            throw githubError(
+                'GitHub repository organization binding is required',
+                'PROJECT_PROVISIONING_REPOSITORY_ORGANIZATION_BINDING_REQUIRED',
+                503,
+                { organization_id: normalizedOrganizationId || null }
+            );
+        }
+        if (binding.owner.toLowerCase() !== String(repository.owner || '').trim().toLowerCase()) {
+            throw githubError(
+                'GitHub repository owner is not authorized for this organization',
+                'PROJECT_PROVISIONING_REPOSITORY_OWNER_FORBIDDEN',
+                403,
+                { organization_id: normalizedOrganizationId, expected_owner: binding.owner }
+            );
+        }
+        return binding;
+    }
+
+    headers(token) {
         return {
             Accept: 'application/vnd.github+json',
             'X-GitHub-Api-Version': '2022-11-28',
-            ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
         };
     }
 
-    async read(repository) {
-        if (repository.visibility === 'private' && !this.token) {
-            throw githubError('GITHUB_TOKEN is required to verify a private repository', 'PROJECT_PROVISIONING_REPOSITORY_READBACK_UNAVAILABLE', 503);
+    async read(repository, context) {
+        const { token } = this.resolveBinding(repository, context);
+        if (repository.visibility === 'private' && !token) {
+            throw githubError('An organization-scoped GitHub token is required to verify a private repository', 'PROJECT_PROVISIONING_REPOSITORY_READBACK_UNAVAILABLE', 503);
         }
         const response = await this.fetch(
             `${this.apiBase}/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.repo)}`,
-            { headers: this.headers() }
+            { headers: this.headers(token) }
         );
         if (response.status === 404) return null;
         if (!response.ok) {
@@ -47,8 +92,8 @@ export class GitHubRepositoryBootstrap {
         };
     }
 
-    async link(repository) {
-        const readback = await this.read(repository);
+    async link(repository, context) {
+        const readback = await this.read(repository, context);
         if (!readback) {
             throw githubError('GitHub repository does not exist', 'PROJECT_PROVISIONING_REPOSITORY_NOT_FOUND', 409);
         }
@@ -61,11 +106,12 @@ export class GitHubRepositoryBootstrap {
         return { mode: 'link_existing', status: 'verified', ...readback };
     }
 
-    async create(repository) {
-        if (!this.token) {
-            throw githubError('GITHUB_TOKEN is required for Repository Bootstrap', 'PROJECT_PROVISIONING_REPOSITORY_BOOTSTRAP_UNAVAILABLE', 503);
+    async create(repository, context) {
+        const { token } = this.resolveBinding(repository, context);
+        if (!token) {
+            throw githubError('An organization-scoped GitHub token is required for Repository Bootstrap', 'PROJECT_PROVISIONING_REPOSITORY_BOOTSTRAP_UNAVAILABLE', 503);
         }
-        const existing = await this.read(repository);
+        const existing = await this.read(repository, context);
         if (existing) {
             if (existing.visibility !== repository.visibility) {
                 throw githubError('Existing GitHub repository visibility differs from Manifest', 'PROJECT_PROVISIONING_REPOSITORY_VISIBILITY_MISMATCH', 409);
@@ -74,7 +120,7 @@ export class GitHubRepositoryBootstrap {
         }
         const response = await this.fetch(`${this.apiBase}/orgs/${encodeURIComponent(repository.owner)}/repos`, {
             method: 'POST',
-            headers: { ...this.headers(), 'Content-Type': 'application/json' },
+            headers: { ...this.headers(token), 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 name: repository.repo,
                 private: repository.visibility !== 'public',
@@ -86,7 +132,7 @@ export class GitHubRepositoryBootstrap {
                 github_status: response.status
             });
         }
-        const readback = await this.read(repository);
+        const readback = await this.read(repository, context);
         if (!readback || readback.visibility !== repository.visibility) {
             throw githubError('GitHub repository create readback failed', 'PROJECT_PROVISIONING_REPOSITORY_READBACK_FAILED', 502);
         }
