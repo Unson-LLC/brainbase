@@ -1,7 +1,7 @@
 {
   "name": "@unson/brainbase-mcp",
   "version": "0.4.1",
-  "description": "Local-first Brainbase MCP that turns the user's judgment criteria into a shared decision substrate for deeper reasoning and parallel work across supported AI agents.",
+  "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
   "repository": {
