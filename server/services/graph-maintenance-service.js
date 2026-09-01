@@ -5,6 +5,7 @@ import {
     hashGraphSnapshot,
     validateGraphSnapshot
 } from './graph-maintenance-engine.js';
+import { assertCatalogProjectSubjectMutation, lockProjectGraphIdentity } from './project-graph-identity-lock.js';
 
 function canonicalJson(value) {
     if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -1072,6 +1073,9 @@ export class GraphMaintenanceService {
         assertValidSnapshot(snapshot, 'Graph snapshot is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
         const codes = snapshotProjectCodes(snapshot);
+        for (const entityId of uniqueIds(snapshot.entities).sort()) {
+            await lockProjectGraphIdentity(client, entityId);
+        }
         const projects = await client.query(
             `SELECT id, code FROM projects WHERE code = ANY($1::text[]) AND organization_id = $2 FOR UPDATE`,
             [codes, organizationId]
@@ -1079,6 +1083,16 @@ export class GraphMaintenanceService {
         if (projects.rows.length !== codes.length || !codes.every((code) => access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
         const projectIds = new Map(projects.rows.map((row) => [row.code, row.id]));
         const authorizedProjectIds = [...projectIds.values()];
+        for (const entity of [...snapshot.entities].sort((left, right) => left.id.localeCompare(right.id))) {
+            await assertCatalogProjectSubjectMutation(client, {
+                id: entity.id,
+                entityType: entity.entity_type,
+                projectId: projectIds.get(entity.project_code),
+                payload: entity.payload,
+                lifecycleStatus: entity.lifecycle_status,
+                allowCompatible: true
+            });
+        }
         const entityIds = uniqueIds(snapshot.entities);
         const edgeIds = uniqueIds(snapshot.edges);
         if (entityIds.length) {

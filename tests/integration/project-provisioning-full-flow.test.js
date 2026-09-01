@@ -431,14 +431,14 @@ async function insertGraphProjectSubject({
     );
 }
 
-async function waitForAdvisoryLockWaiter() {
+async function waitForAdvisoryLockWaiter(expected = 1) {
     for (let attempt = 0; attempt < 200; attempt += 1) {
         const { rows } = await adminPool.query(
             `SELECT COUNT(*)::integer AS waiting
              FROM pg_locks
              WHERE locktype='advisory' AND granted=false`
         );
-        if (rows[0]?.waiting > 0) return;
+        if (rows[0]?.waiting >= expected) return;
         await new Promise((resolve) => setTimeout(resolve, 10));
     }
     throw new Error('project Graph identity apply did not wait for the concurrent writer');
@@ -1204,6 +1204,77 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
             step_count: 4,
             completed_step_count: 0
         });
+    }, 300_000);
+
+    it('受入れE2E: 汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない', async () => {
+        const productionService = createProjectProvisioningService({ infoSSOTService });
+        const projectCode = 'acceptance-generic-writer-race';
+        const manifest = projectManifest(projectCode, 'Acceptance Generic Writer Race');
+        const planned = await productionService.plan(actorAccess, manifest, {
+            idempotencyKey: 'acceptance-generic-writer-race'
+        });
+        await productionService.approve(actorAccess, planned.run_id, {
+            approvedGates: ['manifest_plan_approval'],
+            reviewRef: 'acceptance-generic-writer-race-review'
+        });
+
+        const blocker = await adminPool.connect();
+        let committed = false;
+        try {
+            await blocker.query('BEGIN');
+            await blocker.query(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0::bigint))',
+                [`brainbase:project-graph-identity:${projectCode}`]
+            );
+            const applyPromise = productionService.apply(actorAccess, planned.run_id);
+            await waitForAdvisoryLockWaiter(1);
+            const genericWriteAssertion = expect(infoSSOTService.createOrUpdateGraphEntity({
+                ...actorAccess,
+                projectCodes: ['brainbase', projectCode]
+            }, {
+                id: projectCode,
+                entityType: 'project',
+                projectCode: 'brainbase',
+                payload: {
+                    name: 'Generic Writer Corruption',
+                    catalog_project_id: projectCode,
+                    catalog_version: 999,
+                    source_ref: `project-catalog:${projectCode}@999`
+                },
+                roleMin: 'member',
+                sensitivity: 'internal'
+            })).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_CATALOG_SUBJECT_PROTECTED',
+                statusCode: 409,
+                details: { entity_id: projectCode, reason: 'generic_writer_forbidden' }
+            });
+            await waitForAdvisoryLockWaiter(2);
+            await blocker.query('COMMIT');
+            committed = true;
+
+            await expect(applyPromise).resolves.toMatchObject({ state: 'active' });
+            await genericWriteAssertion;
+        } finally {
+            if (!committed) await blocker.query('ROLLBACK').catch(() => {});
+            blocker.release();
+        }
+
+        const state = await readNoWriteState(projectCode);
+        expect(state.registry).toMatchObject([{
+            project_code: projectCode,
+            display_name: 'Acceptance Generic Writer Race',
+            catalog_version: 1
+        }]);
+        expect(state.entities).toMatchObject([{
+            id: projectCode,
+            entity_type: 'project',
+            payload: {
+                name: 'Acceptance Generic Writer Race',
+                catalog_project_id: projectCode,
+                catalog_version: 1,
+                source_ref: `project-catalog:${projectCode}@1`
+            }
+        }]);
     }, 300_000);
 
     it('acceptance-e2e-full-provisioning-flow-missing: real PostgreSQL/factory flow preserves auth, CSRF, scope, and durable resume', async () => {

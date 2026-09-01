@@ -16,4 +16,64 @@ export async function lockProjectGraphIdentity(client, entityId) {
     );
 }
 
+function catalogSubjectError(entityId, reason) {
+    const error = new Error(`Project Catalog subject is protected: ${entityId}`);
+    error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_PROTECTED';
+    error.status = 409;
+    error.statusCode = 409;
+    error.details = { entity_id: entityId, reason };
+    return error;
+}
+
+/**
+ * Protect a registered Project's canonical Graph subject from generic writers.
+ *
+ * The Project Catalog is optional in deployments that only install Info SSOT,
+ * so the relation check intentionally precedes the catalog query. When the
+ * catalog exists, callers must either reject the mutation outright or prove
+ * that a Graph Maintenance snapshot preserves the exact catalog projection.
+ */
+export async function assertCatalogProjectSubjectMutation(client, {
+    id,
+    entityType,
+    projectId,
+    payload = {},
+    lifecycleStatus = 'active',
+    allowCompatible = false
+}) {
+    await lockProjectGraphIdentity(client, id);
+    const relation = await client.query(
+        "SELECT to_regclass('public.project_registry') AS project_registry"
+    );
+    if (!relation.rows[0]?.project_registry) return { protected: false };
+
+    const catalog = await client.query(
+        `SELECT pr.project_code, pr.display_name, pr.catalog_version,
+                EXISTS (
+                    SELECT 1 FROM projects scope
+                    WHERE scope.id=$2 AND scope.organization_id=pr.organization_id
+                ) AS project_scope_compatible
+         FROM project_registry pr
+         JOIN projects p
+           ON p.code=pr.project_code AND p.organization_id=pr.organization_id
+         WHERE pr.project_code=$1
+         FOR UPDATE OF pr, p`,
+        [id, projectId]
+    );
+    const project = catalog.rows[0];
+    if (!project) return { protected: false };
+    if (!allowCompatible) throw catalogSubjectError(id, 'generic_writer_forbidden');
+
+    const expectedSourceRef = `project-catalog:${project.project_code}@${project.catalog_version}`;
+    const compatible = entityType === 'project'
+        && project.project_scope_compatible === true
+        && lifecycleStatus === 'active'
+        && payload?.catalog_project_id === project.project_code
+        && payload?.catalog_version === project.catalog_version
+        && payload?.source_ref === expectedSourceRef
+        && String(payload?.name || '').trim() === String(project.display_name || '').trim();
+    if (!compatible) throw catalogSubjectError(id, 'catalog_projection_mismatch');
+    return { protected: true, compatible: true };
+}
+
 export { PROJECT_GRAPH_IDENTITY_LOCK_PREFIX };

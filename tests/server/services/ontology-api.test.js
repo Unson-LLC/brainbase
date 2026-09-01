@@ -354,7 +354,8 @@ describe('InfoSSOTService ontology API', () => {
             }
         );
 
-        const lockCalls = calls.filter(({ text }) => text.includes('pg_advisory_xact_lock'));
+        const lockCalls = calls.filter(({ text, params }) => text.includes('pg_advisory_xact_lock')
+            && String(params[0]).startsWith('ontology-aggregate:'));
         expect(lockCalls.map(({ params }) => params[0])).toEqual([
             'ontology-aggregate:app:new-concurrent',
             'ontology-aggregate:org:z-owner'

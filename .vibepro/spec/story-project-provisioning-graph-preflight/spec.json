@@ -18,8 +18,8 @@
       "ambiguity_behavior": "deny"
     },
     "propagation": {
-      "required_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply"],
-      "verified_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply"]
+      "required_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply", "Info SSOT generic Graph writers"],
+      "verified_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply", "Info SSOT generic Graph writers"]
     },
     "resources": [{
       "name": "Graph project subject identity",
@@ -29,7 +29,7 @@
       "trust_zone": "Brainbase PostgreSQL",
       "residue_policy": "read-only preflight; no new residue",
       "data_owner": "Brainbase Graph SSOT",
-      "credential_scope": "authenticated organization and explicit project grants"
+      "credential_scope": "trusted internal preflight projection within the authenticated organization; explicit project grants enforced before reuse details leave the service"
     }],
     "credentials": {
       "lookup_key": "organization_id",
@@ -59,7 +59,7 @@
     "verification": {
       "scanner_coverage": "unverified",
       "evidence": {
-        "propagation_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply"],
+        "propagation_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply", "Info SSOT generic Graph writers"],
         "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate", "incompatible_identity", "inaccessible_existing_scope"],
         "graph": {
           "tenant_key": "organization_id",
@@ -173,6 +173,24 @@
         "test": ["existing display-name and alias conflicts remain check failures", "Graph maintenance receives only authorized project scopes"],
         "test_pattern": [{"file_glob": "tests/**/project-provisioning*.test.js", "must_cover": "display nameのGraph identity collision"}]
       },
+      "confidence": 1
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "Every Graph writer that can target an entity ID shares the Project identity transaction lock; registered Project Catalog subjects reject generic writes and Graph Maintenance accepts only an exact active catalog projection.",
+      "rationale": "A preflight-only lock cannot protect the canonical subject when another authenticated Graph writer can update the same global ID.",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004", "text_snippet": "Graph適用時のtenant guardは弱めない"}],
+        "architecture_refs": [{"file": "docs/architecture/story-project-provisioning-graph-preflight.md", "section": "Architecture"}],
+        "code_refs": [
+          {"file": "server/services/project-graph-identity-lock.js", "anchor": "assertCatalogProjectSubjectMutation"},
+          {"file": "server/services/info-ssot-service.js", "anchor": "upsertGraphEntity"},
+          {"file": "server/services/graph-maintenance-service.js", "anchor": "replaceSnapshot"}
+        ],
+        "test_refs": [{"file": "tests/integration/project-provisioning-full-flow.test.js", "case": "汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない"}]
+      },
+      "verifiable_by": {"test": ["real PostgreSQL serializes provisioning and generic Graph writes on the same entity ID and preserves the catalog subject"]},
       "confidence": 1
     },
     {
