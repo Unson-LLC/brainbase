@@ -18,7 +18,7 @@ Brainbase組織版の運用者として、公開OSSのJ0 run artifact契約を�
 
 ## 受け入れ基準
 
-- [x] AC-001: `@unson/brainbase-mcp`を公開側の検証済みcommit `9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae`へnpmのGitHub exact dependencyでpinする。
+- [x] AC-001: `@unson/brainbase-mcp`を公開側の検証済みcommit `d51550260407bff7782c1a621fa13b12ce9fbfa6`へnpmのGitHub exact dependencyでpinする。
 - [x] AC-002: 組織版consumerが公開subpath `@unson/brainbase-mcp/judgment-dag`だけをimportし、artifact storeのsource copyまたはsemantic forkを追加しない。
 - [x] AC-003: process Aでrun recordを保存し、独立したprocess Bで同一artifactを検証付きreloadできる。
 - [x] AC-004: reload後もrun input、DAG、execution order、runner versions、node input/outputが一致し、reload中にrunnerを再実行しない。

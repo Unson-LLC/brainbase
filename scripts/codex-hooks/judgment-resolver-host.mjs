@@ -23,11 +23,21 @@ import {
     toKnowledgeEventFromJudgmentEpisode
 } from '../../server/services/routine-runtime/judgment-event-adapter.js';
 import {
+    buildJudgmentValueProofProjection,
+    extractJudgmentValueProofInput,
+    judgmentValueProofDigest,
+    latestJudgmentValueProofEvent,
+    projectJudgmentValueProofCompanionAttention,
+    renderJudgmentValueProofAttentionSurface,
+    renderJudgmentValueProofSurface
+} from '../../server/services/routine-runtime/judgment-value-proof-adapter.js';
+import {
     enqueueJudgmentKnowledgeEvent,
     resolveJudgmentKnowledgeEventOutboxPath
 } from '../../server/services/routine-runtime/judgment-event-outbox.js';
 import {
     evaluateJudgmentAutonomy,
+    extractHumanDecisionQuestion,
     renderJudgmentAutonomyContinuation
 } from './judgment-autonomy.mjs';
 
@@ -88,8 +98,10 @@ const AUTONOMY_REASON_CODES = new Set([
     'routine_in_scope', 'classification_missing', 'policy_conflict', 'risk_or_external'
 ]);
 const AUTONOMY_MARKER_PATTERN = /^⚠️ 確認が必要\[([a-z_]+)\]:\s*\S/u;
+const AUTONOMY_QUESTION_PATTERN = /^⚠️ 確認が必要\[([a-z_]+)\]:\s*(.+)$/u;
 const STRUCTURED_STOP_STATE_PATTERN = /^<!-- brainbase-stop-state:(\{.*\}) -->$/u;
 const JUDGMENT_STATE_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_state_record';
+const JUDGMENT_VALUE_PROOF_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_value_proof_record';
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -267,6 +279,8 @@ function journalPaths(sessionRef, turnId, env) {
         auditDegraded: join(directory, `${turnRef}.audit-degraded.json`),
         auditOrphanEvents: join(directory, `${turnRef}.audit-orphan-events`),
         final: join(directory, `${turnRef}.final.json`),
+        valueProof: join(directory, `${turnRef}.value-proof.json`),
+        valueProofAttention: join(directory, `${turnRef}.value-proof-attention.json`),
         transitionDatabase: join(directory, `${turnRef}.transition.sqlite`)
     };
 }
@@ -923,6 +937,7 @@ function judgmentStopStateData(response) {
 
 function eventKind(toolName) {
     const exactToolName = String(toolName);
+    if (exactToolName === JUDGMENT_VALUE_PROOF_TOOL_NAME) return 'value_proof';
     if (exactToolName === CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'].exactTool) return 'route';
     const name = exactToolName.replace(/^mcp__brainbase__/u, '');
     if (/(?:create|update|transition|delete|write|record|link|unlink)/iu.test(name)) return 'write';
@@ -994,6 +1009,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const toolUseId = typeof payload?.tool_use_id === 'string' ? payload.tool_use_id : '';
     const brainbaseTool = /^mcp__brainbase__/u.test(toolName);
     const judgmentStateTool = toolName === JUDGMENT_STATE_TOOL_NAME;
+    const judgmentValueProofTool = toolName === JUDGMENT_VALUE_PROOF_TOOL_NAME;
     if (!toolName) return null;
     if (!identity) {
         if (brainbaseTool) throw new Error('judgment_episode_identity_missing');
@@ -1011,7 +1027,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
     const callScope = brainbaseTool ? toolCallScope(toolName, inputValue) : 'tool execution';
     const resultCount = responseCount(responseValue);
-    const fallbackKind = judgmentStateTool ? 'state' : brainbaseTool ? eventKind(toolName) : 'execution';
+    const fallbackKind = judgmentStateTool ? 'state' : judgmentValueProofTool ? 'value_proof' : brainbaseTool ? eventKind(toolName) : 'execution';
     const retrieval = ['search', 'retrieve'].includes(fallbackKind)
         ? retrievalAudit(responseValue)
         : null;
@@ -1019,6 +1035,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
     const stopState = kind === 'state' ? judgmentStopStateData(responseValue) : null;
+    const valueProofInput = kind === 'value_proof' ? extractJudgmentValueProofInput(responseValue) : null;
     const requestedStopState = kind === 'state' ? {
         schema_version: 'brainbase-stop-state-v1',
         status: record(inputValue)?.status,
@@ -1029,17 +1046,31 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         allowTransportSuccess: ['search', 'retrieve'].includes(kind),
         allowExplicitSuccess: !['write', 'route'].includes(kind) || !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
-        semanticSuccess: kind === 'route'
-            ? resolution?.status === 'resolved'
-            : kind === 'state'
-                ? Boolean(stopState && canonicalJson(stopState) === canonicalJson(requestedStopState))
-                : Boolean(taskResult)
+        semanticSuccess: kind === 'value_proof'
+            ? Boolean(valueProofInput)
+            : kind === 'route'
+                ? resolution?.status === 'resolved'
+                : kind === 'state'
+                    ? Boolean(stopState && canonicalJson(stopState) === canonicalJson(requestedStopState))
+                    : Boolean(taskResult)
     });
     const satisfiesKnowledgeExecution = kind === 'route';
     const retrievalResult = success && ['search', 'retrieve'].includes(kind)
         ? retrieval?.outcome ?? null
         : null;
-    const safeMetadata = stopState ? { stop_state: stopState } : resolution ? {
+    const patchText = toolName === 'apply_patch'
+        ? typeof inputValue === 'string'
+            ? inputValue
+            : typeof record(inputValue)?.patch === 'string'
+                ? inputValue.patch
+                : ''
+        : '';
+    const executionArtifactRefs = patchText
+        ? [...new Set([...patchText.matchAll(/^\*\*\* (?:Add|Update) File: (.+)$/gmu)]
+            .map((match) => match[1].trim())
+            .filter((value) => value && !value.includes('\0')))]
+        : [];
+    const safeMetadata = valueProofInput ? { value_proof: valueProofInput } : stopState ? { stop_state: stopState } : resolution ? {
         resolution_id: resolution.resolution_id,
         status: resolution.status,
         source_class: resolution.source_class ?? null,
@@ -1048,6 +1079,11 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             path: typeof resolution.canonical_location.path === 'string' ? resolution.canonical_location.path : null
         } : null,
         retrieval_capability: typeof resolution.retrieval_capability === 'string' ? resolution.retrieval_capability : null
+    } : ['search', 'retrieve'].includes(kind) ? {
+        subject_ref: callScope,
+        retrieval_outcome: retrievalResult
+    } : kind === 'execution' && executionArtifactRefs.length > 0 ? {
+        artifact_refs: executionArtifactRefs
     } : {};
     const operationLabel = kind === 'write'
         ? '書込'
@@ -1056,7 +1092,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             : kind === 'retrieve'
                 ? '取得'
                 : '呼出';
-    const displayLine = !brainbaseTool || judgmentStateTool
+    const displayLine = !brainbaseTool || judgmentStateTool || judgmentValueProofTool
         ? null
         : kind === 'route'
         ? routeDisplayLine(inputValue, resolution, success)
@@ -1098,6 +1134,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                 if (error?.code !== 'ENOENT') throw error;
             }
             return createImmutableJson(target, marker, 'judgment_orphan_tool_event_conflict');
+        }
+        if (judgmentValueProofTool && !valueProofRolloutEnabled(episode, env)) {
+            throw new Error('judgment_value_proof_rollout_disabled');
         }
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
@@ -1343,6 +1382,24 @@ function normalizedAnswerBody(answer, expectedLines) {
     return bodyLines.join('\n');
 }
 
+function waitingHumanQuestion(answer, expectedLines, stopState) {
+    const marker = String(answer).replaceAll('\r\n', '\n').split('\n')
+        .map((line) => line.trim())
+        .map((line) => line.match(AUTONOMY_QUESTION_PATTERN))
+        .find(Boolean);
+    if (marker && marker[1] === stopState?.runtime_reason_code) return marker[2].trim();
+    const body = normalizedAnswerBody(answer, expectedLines);
+    return extractHumanDecisionQuestion(body);
+}
+
+function displayedQuestion(answerBody) {
+    const extracted = extractHumanDecisionQuestion(answerBody);
+    if (extracted) return extracted;
+    return String(answerBody).split('\n')
+        .map((line) => line.trim())
+        .find((line) => /[?？]$/u.test(line)) ?? null;
+}
+
 function runtimeAtLeast(receipt, major, minor) {
     const match = String(receipt?.runtime_version ?? '').match(/^judgment-runtime-(\d+)\.(\d+)\.(\d+)$/u);
     if (!match) return false;
@@ -1391,6 +1448,7 @@ function requestsUserInput(body) {
         .filter((line) => !/^(?:必要なら|必要であれば|ご希望なら|希望があれば|必要に応じて)/u.test(line));
     return relevant.some((line) => (
         /(?:どちら|どれ|どうしますか|何を選びますか|よろしいですか|進めてもいいですか|進めてもよいですか)[^。]*[?？]?$/u.test(line)
+        || /(?:か、|か，)[^?？]*か[?？]$/u.test(line)
         || /(?:(?:確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え)(?:しますか|しましょうか)|(?:進め|続け)ますか)[?？]?$/u.test(line)
         || /(?:教えて|選んで|決めて|判断して|承認して|確認して|入力して|提示して|付与して)(?:ください|もらえますか|いただけますか)[。！!？?]?$/u.test(line)
     ));
@@ -1416,6 +1474,8 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
     const bodyLines = body.split('\n').map((line) => line.trim()).filter(Boolean);
     const markerMatch = bodyLines[0]?.match(AUTONOMY_MARKER_PATTERN) ?? null;
     const markerReason = markerMatch?.[1] ?? null;
+    const asks = requestsUserInput(body);
+    const proposedHumanQuestion = asks ? displayedQuestion(body) : null;
     if (journalStopStateRequired(receipt)) {
         if (answer?.replaceAll('\r\n', '\n').split('\n').some((line) => STRUCTURED_STOP_STATE_PATTERN.test(line.trim()))) {
             return { status: null, violation: '回答本文からbrainbase-stop-stateのHTMLコメントを削除し、状態は専用toolだけで記録する' };
@@ -1428,7 +1488,8 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
             return {
                 status: null,
                 violation: `最終回答を作る前の最後のtool callとして${exactTool}を正確に1回実行し、回答本文には状態を表示しない`,
-                triggerCode: 'unfinished_safe_work'
+                triggerCode: 'unfinished_safe_work',
+                question: proposedHumanQuestion
             };
         }
         if (events.at(-1) !== latestStateEvent) {
@@ -1452,7 +1513,7 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
             }
             return { status: 'runtime_escalated', violation: null, stopState: state, stateSource: 'journal' };
         }
-        const successfulEvidence = events.filter((event) => event.event_kind !== 'state' && event.success);
+        const successfulEvidence = events.filter((event) => !['state', 'value_proof'].includes(event.event_kind) && event.success);
         if (state.runtime_reason_code !== null || successfulEvidence.length === 0) {
             return {
                 status: null,
@@ -1492,7 +1553,7 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
             }
             return { status: 'runtime_escalated', violation: null, stopState: state };
         }
-        const successfulEvidence = events.filter((event) => event.success);
+        const successfulEvidence = events.filter((event) => !['state', 'value_proof'].includes(event.event_kind) && event.success);
         if (state.runtime_reason_code !== null || successfulEvidence.length === 0) {
             return {
                 status: null,
@@ -1508,7 +1569,6 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
             evidenceEventCount: successfulEvidence.length
         };
     }
-    const asks = requestsUserInput(body);
     const unfinishedSafeWork = leavesRequestedWorkUnfinished(body, receipt);
 
     if (contract.decision === 'continue') {
@@ -1522,7 +1582,8 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
             return {
                 status: null,
                 violation: 'Brainbase自律判断はcontinueです。高リスク等の許可理由がないためユーザーへ判断を返さず、安全な範囲で作業を継続する',
-                triggerCode: 'unnecessary_user_question'
+                triggerCode: 'unnecessary_user_question',
+                question: proposedHumanQuestion
             };
         }
         if (unfinishedSafeWork) {
@@ -1586,6 +1647,38 @@ function existingFinal(paths, episode) {
         return entry;
     } catch (error) {
         if (error?.code === 'ENOENT') return null;
+        throw error;
+    }
+}
+
+function existingJudgmentValueProof(paths, finalized = null) {
+    if (!finalized?.value_proof_digest) return null;
+    try {
+        const proof = readJson(paths.valueProof);
+        const digest = judgmentValueProofDigest(proof);
+        if (finalized?.value_proof_digest && finalized.value_proof_digest !== digest) {
+            throw new Error('judgment_value_proof_digest_mismatch');
+        }
+        return proof;
+    } catch (error) {
+        if (error?.code === 'ENOENT') {
+            if (finalized?.value_proof_digest) throw new Error('judgment_value_proof_missing');
+            return null;
+        }
+        throw error;
+    }
+}
+
+function verifyExistingJudgmentValueProofAttention(paths, finalized = null) {
+    if (!finalized?.value_proof_attention_digest) return null;
+    try {
+        const attention = readJson(paths.valueProofAttention);
+        if (sha256(canonicalJson(attention)) !== finalized.value_proof_attention_digest) {
+            throw new Error('judgment_value_proof_attention_digest_mismatch');
+        }
+        return attention;
+    } catch (error) {
+        if (error?.code === 'ENOENT') throw new Error('judgment_value_proof_attention_missing');
         throw error;
     }
 }
@@ -1822,6 +1915,20 @@ function autonomyRolloutEnabled(episode, env) {
     return Boolean(projectCode) && allowlist.has(projectCode);
 }
 
+function valueProofRolloutEnabled(episode, env) {
+    const mode = String(env.BRAINBASE_JUDGMENT_VALUE_PROOF_MODE || 'off').trim().toLowerCase();
+    if (mode === 'enabled') return true;
+    if (mode !== 'canary') return false;
+    const projectCode = String(
+        episode?.initial_route_receipt?.project_code
+        || env.BRAINBASE_JUDGMENT_PROJECT_CODE
+        || ''
+    ).trim();
+    const allowlist = new Set(String(env.BRAINBASE_JUDGMENT_VALUE_PROOF_CANARY_PROJECTS || '')
+        .split(',').map((value) => value.trim()).filter(Boolean));
+    return Boolean(projectCode) && allowlist.has(projectCode);
+}
+
 function autonomyRequestForTurn(payload, env, identity) {
     if (typeof payload.prompt === 'string' && payload.prompt.trim()) return payload.prompt;
     const transcript = readCanonicalTranscript(payload, env);
@@ -1916,12 +2023,17 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     try { existingContinuation = readJson(paths.continuation); } catch (error) {
         if (error?.code !== 'ENOENT') throw error;
     }
-    const completedAuditOutput = () => ({
-        systemMessage: requiredAuditLines(episode, events, existingContinuation).join('\n')
-    });
+    const completedAuditOutput = (valueProof = null, valueProofAttention = null) => {
+        const auditBlock = requiredAuditLines(episode, events, existingContinuation).join('\n');
+        const valueSurface = renderJudgmentValueProofSurface(valueProof);
+        const attentionSurface = renderJudgmentValueProofAttentionSurface(valueProofAttention);
+        return { systemMessage: [auditBlock, valueSurface, attentionSurface].filter(Boolean).join('\n\n') };
+    };
     const finalized = existingFinal(paths, episode);
     if (finalized) {
         verifyFinalStopRepair(finalized, existingContinuation, episodeAuditContract(episode));
+        const finalizedValueProof = existingJudgmentValueProof(paths, finalized);
+        const finalizedValueProofAttention = verifyExistingJudgmentValueProofAttention(paths, finalized);
         const qualifyingCount = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve')).length;
         const eventSetDigest = finalized.schema_version === 'brainbase-judgment-episode-final-v1'
             ? sha256(canonicalJson(events.map((entry) => entry.event_fingerprint).sort(compareCodePoints)))
@@ -1933,7 +2045,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         }
         enqueueFinalKnowledgeEvent(payload, finalized, env);
         return {
-            output: completedAuditOutput(),
+            output: completedAuditOutput(finalizedValueProof, finalizedValueProofAttention),
             final: finalized,
             auditRepairWasAlreadyActive: existingContinuation !== null
         };
@@ -1949,7 +2061,12 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines)
         || unauthorizedContinuationAudit
         || unauthorizedStopRepairAudit;
-    const autonomyCompliance = autonomyAnswerCompliance(answer, expectedAuditLines, episode.initial_route_receipt, events);
+    const autonomyCompliance = autonomyAnswerCompliance(
+        answer,
+        expectedAuditLines,
+        episode.initial_route_receipt,
+        events
+    );
     const missingAutonomyCompliance = autonomyCompliance.violation !== null;
     const auditContract = episodeAuditContract(episode);
     const autonomyContinuationRequested = ['unnecessary_user_question', 'unfinished_safe_work']
@@ -1992,7 +2109,16 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                         count: 1,
                         trigger_code: autonomyCompliance.triggerCode,
                         reason_code: autonomyContract.reasonCode,
-                        status: 'requested'
+                        status: 'requested',
+                        ...(autonomyCompliance.question ? {
+                            interruption_candidate: {
+                                resolution: 'continued_without_human',
+                                question_display_text: autonomyCompliance.question,
+                                question_digest: `sha256:${sha256(autonomyCompliance.question)}`,
+                                reason_code: autonomyContract.reasonCode,
+                                source: 'autonomy_continuation'
+                            }
+                        } : {})
                     }
                 } : {})
             };
@@ -2051,9 +2177,45 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         };
     }
     const safeAnswer = sanitizeJudgmentAnswer(answer);
+    const finalizedAt = new Date().toISOString();
+    const valueProofEvent = valueProofRolloutEnabled(episode, env)
+        ? latestJudgmentValueProofEvent(events)
+        : null;
+    const waitingHumanQuestionText = autonomyCompliance.stopState?.status === 'waiting_human'
+        ? waitingHumanQuestion(answer ?? '', expectedAuditLines, autonomyCompliance.stopState)
+        : null;
+    const interruptionCandidate = valueProofEvent?.safe_metadata?.value_proof?.interruption?.resolution === 'human_required'
+        ? waitingHumanQuestionText ? {
+            resolution: 'human_required',
+            question_display_text: waitingHumanQuestionText,
+            question_digest: `sha256:${sha256(waitingHumanQuestionText)}`,
+            reason_code: autonomyCompliance.stopState?.runtime_reason_code ?? null,
+            source: 'waiting_human_answer'
+        } : null
+        : existingContinuation?.autonomy_continuation?.interruption_candidate ?? null;
+    const valueProof = buildJudgmentValueProofProjection({
+        turnRef: paths.turnRef,
+        valueProofEvent,
+        events,
+        stopState: autonomyCompliance.stopState ?? null,
+        finalizedAt: valueProofEvent?.recorded_at ?? finalizedAt,
+        interruptionCandidate
+    });
+    const valueProofDigest = valueProof ? judgmentValueProofDigest(valueProof) : null;
+    const valueProofAttention = projectJudgmentValueProofCompanionAttention(valueProof);
+    if (valueProof) {
+        createImmutableJson(paths.valueProof, valueProof, 'judgment_value_proof_conflict');
+    }
+    if (valueProofAttention) {
+        createImmutableJson(
+            paths.valueProofAttention,
+            valueProofAttention,
+            'judgment_value_proof_attention_conflict'
+        );
+    }
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
-        finalized_at: new Date().toISOString(),
+        finalized_at: finalizedAt,
         completion_status: 'complete',
         protocol_status: 'audit_protocol_complete',
         content_verification_status: 'not_evaluated',
@@ -2083,6 +2245,13 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 status: 'completed'
             }
         } : {}),
+        ...(valueProof ? {
+            value_proof_digest: valueProofDigest,
+            value_proof_state: valueProof.state
+        } : {}),
+        ...(valueProofAttention ? {
+            value_proof_attention_digest: sha256(canonicalJson(valueProofAttention))
+        } : {}),
         answer_digest: answer === null ? null : sha256(answer),
         ...(safeAnswer?.sensitive
             ? { redaction_status: 'needs_redaction' }
@@ -2093,7 +2262,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
     enqueueFinalKnowledgeEvent(payload, final, env);
     return {
-        output: completedAuditOutput(),
+        output: completedAuditOutput(valueProof, valueProofAttention),
         final,
         auditRepairWasAlreadyActive: existingContinuation !== null
     };
@@ -2279,7 +2448,8 @@ export function successOutput(
     args,
     receipt,
     ownerAudit = buildOwnerAudit(args, receipt),
-    auditContract = buildAuditContract(receipt)
+    auditContract = buildAuditContract(receipt),
+    env = process.env
 ) {
     const ownerReferenceLine = ownerAudit.display_line;
     const requiredCapabilityInstructions = requiredCapabilityActionContracts(receipt)
@@ -2306,6 +2476,10 @@ export function successOutput(
         ...autonomyInstructions,
         ...implementationWorkflowInstructions,
         ...requiredCapabilityInstructions,
+        ...(journalStopStateRequired(receipt) && valueProofRolloutEnabled({ initial_route_receipt: receipt }, env) ? [
+            'Brainbaseが本当に人間判断を必要とした場合、またはHostが直前のStopで不要な確認質問を差し戻した場合だけ、全作業と検証の後にmcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。continued_without_humanでは、差し戻された質問文を一字一句同じquestion_display_textとして使う。canonical_readbackのsubject_refは実行成果物のrefと実際の取得入力に完全一致させ、結果ありの取得だけを指定する。先行する中断候補がない単なる代理判断ではvalue proofを記録しない。raw tool response、秘密情報、内部監査ログは入れない。',
+            'value proofを記録した場合も、その後にmcp__brainbase__brainbase_judgment_state_recordを実行し、状態toolを必ず最後のtool callにする。'
+        ] : []),
         ...(journalStopStateRequired(receipt) ? [
             '実装・操作turnの状態は回答本文へ書かない。全作業と検証の完了後、最終回答を作る直前の最後のtool callとしてmcp__brainbase__brainbase_judgment_state_recordを正確に1回実行する。安全な作業が残る間はstatus=pending・pending_safe_work=true、人間確認が必須ならstatus=waiting_humanと許可理由、完了時はstatus=completed・pending_safe_work=false・runtime_reason_code=nullを渡す。HTMLコメントや自然文へ状態をコピーしない。'
         ] : []),
@@ -2353,7 +2527,7 @@ export async function processHookPayload(payload, dependencies = {}) {
         const episode = await startEpisode(payload, dependencies);
         await dependencies.onEpisodeStarted?.(episode);
         return successOutput(
-            {}, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode)
+            {}, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode), dependencies.env ?? process.env
         );
     }
     if (eventName === 'PostToolUse') {

@@ -1,0 +1,362 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-judgment-value-proof-consumer",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "組織版はCore PR #497のmerge SHAを固定し、公開judgment-value-proof subpathを利用する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-value-proof-consumer.md",
+            "section": "責務境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "package.json"
+          },
+          {
+            "file": "server/services/routine-runtime/judgment-value-proof-adapter.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/j0-organization-pinned-artifact-consumer.test.js",
+            "case": "pins the public package to the verified exact commit in manifest and lock"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/j0-organization-pinned-artifact-consumer.test.js",
+            "must_cover": "exact commit"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-01T10:42:20.849Z",
+      "last_revised_at": "2026-09-01T10:42:20.849Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "MCP toolは判断、実行、結果、根拠、証拠参照を構造化入力として検証し、安全なmetadataだけを返す",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-value-proof-consumer.md",
+            "section": "データ経路"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/tools/judgment-value-proof-tools.ts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/judgment-value-proof-tools.test.ts",
+            "case": "normalizes a delegated decision without copying raw tool output"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/tools/judgment-value-proof-tools.test.ts",
+            "must_cover": "without copying raw tool output"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-01T10:42:20.849Z",
+      "last_revised_at": "2026-09-01T10:42:20.849Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "各成果物が同一turnの実行eventと、その実行後の結果あり読み戻しeventの両方へsubject_ref、event順序、入出力digestで束縛されないoutcome_verifiedはunconfirmedへ落とし、取得だけの実行自己申告や実行前の古い読み戻しを許さず、不明値を0へ変換しない",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-value-proof-consumer.md",
+            "section": "真実性境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/routine-runtime/judgment-value-proof-adapter.js",
+            "anchor": "buildJudgmentValueProofProjection"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "downgrades a claimed verified outcome to unconfirmed when evidence is absent"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "does not verify a claimed artifact from canonical readback alone"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "does not verify a claimed artifact when the execution event names another artifact"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "does not treat a readback before execution as verification of the changed artifact"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "does not let an unrelated successful write certify a canonical readback outcome"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "does not let an unrelated successful retrieve certify another artifact outcome"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "does not treat no-result or transport-only retrievals as verified readbacks"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-value-proof-adapter.test.js",
+            "must_cover": "unconfirmed"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-01T10:42:20.849Z",
+      "last_revised_at": "2026-09-01T13:10:00.000Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "Judgment Resolver Hostはintent_idをturnへ、decision_attempt_idを採用value proof eventへ決定的に束縛し、同一episodeで実際に捕捉した中断候補、event、Stop状態からProjectionを作り、Core Renderer出力を既存監査ブロックの後へ追加する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-value-proof-consumer.md",
+            "section": "データ経路"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "finalizeEpisodeLocked"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host-value-proof.test.js",
+            "case": "records a hidden structured event and appends a result-first receipt after the legacy audit block"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host-value-proof.test.js",
+            "case": "fails closed when a persisted attention artifact is modified"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "builds a portable verified projection only when referenced execution evidence exists"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host-value-proof.test.js",
+            "must_cover": "Brainbase判断レシート"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-01T10:42:20.849Z",
+      "last_revised_at": "2026-09-01T10:42:20.849Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "組織版はCore SchemaとRendererを複製せず、human_requiredを通常完了へ丸めない",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-value-proof-consumer.md",
+            "section": "責務境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/routine-runtime/judgment-value-proof-adapter.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "renders a real human decision with reason and impact instead of a generic question"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-value-proof-adapter.test.js",
+            "must_cover": "waiting_human"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-01T10:42:20.849Z",
+      "last_revised_at": "2026-09-01T10:42:20.849Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "continued_without_humanはHostが実際に差し戻した質問と完全一致する場合だけ生成し、human_requiredはwaiting_humanの表示質問と一致する場合だけ生成する",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "ac_id": "AC-009" },
+          { "kind": "acceptance_criteria", "ac_id": "AC-010" }
+        ],
+        "architecture_refs": [
+          { "file": "docs/architecture/story-judgment-value-proof-consumer.md", "section": "真実性境界" }
+        ],
+        "code_refs": [
+          { "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "finalizeEpisodeLocked" },
+          { "file": "server/services/routine-runtime/judgment-value-proof-adapter.js", "anchor": "verifiedInterruptionCandidate" }
+        ],
+        "test_refs": [
+          { "file": "tests/integration/judgment-resolver-host-entrypoint.test.js", "case": "実際に差し戻した質問だけを入口から判断レシートへ投影する" },
+          { "file": "tests/unit/judgment-value-proof-adapter.test.js", "case": "rejects confirmation-savings claims that are not bound to the Host interruption candidate" },
+          { "file": "tests/unit/judgment-resolver-host-value-proof.test.js", "case": "renders human_required through the Host only when it matches the waiting-human question" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js", "must_cover": "実際に差し戻した質問" },
+          { "file_glob": "tests/unit/judgment-resolver-host-value-proof.test.js", "must_cover": "human_required" }
+        ]
+      },
+      "first_seen_at": "2026-09-01T10:42:20.849Z",
+      "last_revised_at": "2026-09-01T11:59:00.000Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "表示は既定OFFで、明示的な全体有効化またはproject allowlistによるcanaryでのみ有効になる",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "ac_id": "AC-011" }
+        ],
+        "architecture_refs": [
+          { "file": "docs/architecture/story-judgment-value-proof-consumer.md", "section": "展開境界" }
+        ],
+        "code_refs": [
+          { "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "valueProofRolloutEnabled" },
+          { "file": ".github/workflows/judgment-value-proof-consumer.yml" }
+        ],
+        "test_refs": [
+          { "file": "tests/unit/judgment-resolver-host-value-proof.test.js", "case": "keeps value proof default-off until a canary or enabled rollout is selected" }
+          ,{ "file": "tests/unit/judgment-resolver-host-value-proof.test.js", "case": "enables value proof canary only for an allowlisted project" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/unit/judgment-resolver-host-value-proof.test.js", "must_cover": "default-off" }
+        ]
+      },
+      "first_seen_at": "2026-09-01T11:59:00.000Z",
+      "last_revised_at": "2026-09-01T11:59:00.000Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "既存VibePro証跡を削除せず、検証CIは読み取り専用でブランチを自己更新しない",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "ac_id": "AC-008" }
+        ],
+        "architecture_refs": [
+          { "file": "docs/architecture/story-judgment-value-proof-consumer.md", "section": "責務境界" }
+        ],
+        "code_refs": [
+          { "file": ".github/workflows/judgment-value-proof-consumer.yml" }
+        ],
+        "test_refs": [
+          { "file": "tests/unit/judgment-resolver-host-value-proof.test.js", "case": "keeps the judgment value proof CI read-only and free of branch self-updates" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/unit/judgment-resolver-host-value-proof.test.js", "must_cover": "read-only" }
+        ]
+      },
+      "first_seen_at": "2026-09-01T12:20:00.000Z",
+      "last_revised_at": "2026-09-01T12:20:00.000Z"
+    }
+  ],
+  "planned_test_suites": [
+    {
+      "layer": "unit",
+      "covers": [
+        "MCP input validation",
+        "projection truth boundary including execution/readback/value-proof ordering",
+        "readback-only and different-artifact execution rejection",
+        "Host receipt rendering"
+      ]
+    },
+    {
+      "layer": "integration",
+      "covers": [
+        "Core merge SHA pin",
+        "public subpath import",
+        "Hook entrypoint interruption provenance"
+      ]
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-09-01T10:42:20.848Z",
+  "previous_spec_id": null
+}

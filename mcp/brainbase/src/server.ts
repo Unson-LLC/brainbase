@@ -51,6 +51,7 @@ import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from './tools/g
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
 import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
 import { judgmentStateTools, handleJudgmentStateToolCall } from './tools/judgment-state-tools.js';
+import { judgmentValueProofTools, handleJudgmentValueProofToolCall } from './tools/judgment-value-proof-tools.js';
 import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
 import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
@@ -1035,6 +1036,7 @@ const publishedTools = annotateToolCapabilities([
   ...onboardingTools,
   ...graphMaintenanceTools,
   ...judgmentResolutionTools,
+  ...judgmentValueProofTools,
   ...judgmentStateTools,
   ...knowledgeResolutionTools,
   ...meetingMinutesContextTools,
@@ -1220,6 +1222,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           tokenManager: globalTokenManager,
         }),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleJudgmentValueProofToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentStateToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),

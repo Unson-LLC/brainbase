@@ -9,6 +9,7 @@ import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { canonicalJson } from '../../scripts/codex-hooks/judgment-resolver-host.mjs';
+import { handleJudgmentValueProofToolCall } from '../../mcp/brainbase/src/tools/judgment-value-proof-tools.ts';
 
 const REPO_ROOT = process.cwd();
 const temporaryPaths = [];
@@ -1353,5 +1354,92 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             stop_state: { status: 'completed', evidence_event_count: 1, source: 'journal' }
         });
         expect(String(final.final_summary ?? '')).not.toContain('brainbase-stop-state');
+    }, 20_000);
+
+    it('実際に差し戻した質問だけを入口から判断レシートへ投影する', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({ management_status: 'managed', receipt: {
+                    resolution_id: 'jr_value_proof_entrypoint', runtime_version: 'judgment-runtime-2.4.0',
+                    turn_id: args.turn_id, request_digest: hash(canonicalJson(args)),
+                    context_digest: hash(canonicalJson(args.conversation_context)), status: 'resolved',
+                    host_binding: { status: 'managed' },
+                    classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                    classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium' },
+                    selected_dag_ids: ['engineering.v1', 'authority.v1'], active_node_definitions: [],
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                    allowed_runtime_escalation_reasons: ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
+                } }));
+            });
+        });
+        const identity = { session_id: 'session-value-proof-entrypoint', turn_id: 'turn-value-proof-entrypoint' };
+        const env = { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journal,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'enabled' };
+        const started = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '既存の正本を更新して'
+        }) });
+        const context = JSON.parse(started.stdout).hookSpecificOutput.additionalContext;
+        expect(context).toContain('brainbase_judgment_value_proof_record');
+        const ownerLine = context.split('\n').find((line) => line.startsWith('🧠 判断参照:'));
+        const zeroLine = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
+        const question = '既存文書を更新するか、新規文書を作るか？';
+        const interrupted = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: false,
+            last_assistant_message: `${ownerLine}\n${zeroLine}\n\n${question}`
+        }) });
+        expect(JSON.parse(interrupted.stdout)).toMatchObject({ decision: 'block' });
+
+        const proofInput = {
+            schema_version: 'brainbase-judgment-value-proof-input-v1',
+            interruption: { resolution: 'continued_without_human', question_display_text: question, reason_code: 'routine_in_scope' },
+            decision: { summary: '既存SSOTを最小更新する', work_impact: '確認で止めずに更新を完了した', basis: [] },
+            execution: { summary: '既存文書を更新した', artifact_refs: [{ kind: 'document', ref: 'docs/example.md', label: '更新済み正本' }] },
+            outcome: { status: 'outcome_verified', summary: '更新内容を読み戻して確認した', evidence_refs: [
+                { kind: 'tool_event', tool_use_id: 'entrypoint-execution', subject_ref: 'docs/example.md', label: '正本更新' },
+                { kind: 'canonical_readback', tool_use_id: 'entrypoint-evidence', subject_ref: 'docs/example.md', label: '正本読み戻し' }
+            ] },
+            human_decision: null, feedback_requested: false
+        };
+        const { schema_version: _schemaVersion, ...proofToolArgs } = proofInput;
+        const proofToolResponse = await handleJudgmentValueProofToolCall(
+            'brainbase_judgment_value_proof_record',
+            proofToolArgs,
+        );
+        expect(proofToolResponse).toEqual({ status: 'ok', data: proofInput });
+        let readbackLine = null;
+        for (const event of [
+            { tool_name: 'apply_patch', tool_use_id: 'entrypoint-execution', tool_input: { patch: '*** Begin Patch\n*** Update File: docs/example.md\n@@\n-old\n+new\n*** End Patch' }, tool_response: { success: true } },
+            { tool_name: 'mcp__brainbase__get_context', tool_use_id: 'entrypoint-evidence', tool_input: { topic: 'docs/example.md' }, tool_response: { content: [{ type: 'text', text: ['Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.', 'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.', '📚 Brainbase取得: docs/example.md → 結果を取得 ✓'].join('\n') }], structuredContent: { items: [{ id: 'updated-ssot' }] } } },
+            { tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record', tool_use_id: 'entrypoint-proof', tool_input: proofToolArgs, tool_response: proofToolResponse },
+            { tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'entrypoint-state',
+                tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+                tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } } }
+        ]) {
+            const recorded = await run('bash', [wrapper], { env, input: JSON.stringify({ hook_event_name: 'PostToolUse', ...identity, ...event }) });
+            expect(recorded).toMatchObject({ code: 0, stderr: '' });
+            if (event.tool_use_id === 'entrypoint-evidence') {
+                readbackLine = JSON.parse(recorded.stdout).systemMessage;
+            }
+        }
+        const completed = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+            last_assistant_message: [ownerLine, readbackLine,
+                '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓',
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓', '', '更新と検証を完了しました。'].join('\n')
+        }) });
+        expect(completed).toMatchObject({ code: 0, stderr: '' });
+        const output = JSON.parse(completed.stdout).systemMessage;
+        expect(output).toContain('Brainbase判断レシート');
+        expect(output).toContain('結果: 更新内容を読み戻して確認した');
+        expect(output).toContain('判断: 既存SSOTを最小更新する');
+        expect(readFileSync(join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.value-proof.json`), 'utf8')).toContain(hash(question));
     }, 20_000);
 });

@@ -805,10 +805,18 @@ describe('Codex Judgment Resolver Host', () => {
         expect(countedResult.display_line).toBe(
             '📚 Brainbase検索: search「counted-result」→ 結果を取得 ✓'
         );
+        expect(noResult.safe_metadata).toEqual({
+            subject_ref: 'exact-safe-query', retrieval_outcome: 'no_result'
+        });
+        expect(searchResult.safe_metadata).toEqual({
+            subject_ref: '判断', retrieval_outcome: 'result'
+        });
+        expect(retrieved.safe_metadata).toEqual({
+            subject_ref: 'glossary_term', retrieval_outcome: 'result'
+        });
         for (const event of [noResult, searchResult, retrieved]) {
             expect(event.display_line).not.toContain('response-controlled');
             expect(event.display_line).not.toContain('sk-response-secret');
-            expect(event.safe_metadata).toEqual({});
         }
     });
 
@@ -2015,7 +2023,12 @@ describe('Codex Judgment Resolver Host', () => {
 
     it('continueでも許可理由を明示した限定質問と、完了後の任意提案は通す', async () => {
         const root = temporaryDirectory();
-        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const env = {
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'canary',
+            BRAINBASE_JUDGMENT_PROJECT_CODE: 'brainbase',
+            BRAINBASE_JUDGMENT_VALUE_PROOF_CANARY_PROJECTS: 'brainbase'
+        };
         const makeEpisode = async (suffix) => {
             const payload = { session_id: `session-autonomy-${suffix}`, turn_id: `turn-autonomy-${suffix}`, prompt: '修正して', cwd: process.cwd() };
             const args = buildJudgmentRequest(payload, { env });
@@ -2053,7 +2066,8 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 completed.episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '修正とテストを完了しました。必要なら差分も説明できます。'
+                '修正とテストを完了しました。必要なら差分も説明できます。',
+                '設計ノートの見出し: なぜこの境界が必要か？'
             ].join('\n')
         }, { env });
         expect(optional.final).toMatchObject({ autonomy_compliance_status: 'continued' });
