@@ -53,6 +53,72 @@ describe('GraphMaintenanceService authorization', () => {
         expect(JSON.stringify(result)).not.toContain('hidden_entity');
     });
 
+    it('Ontology required relationの検証対象をactive local Entityへ限定する', async () => {
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [
+                { id: 'decision_active', entity_type: 'decision', lifecycle_status: 'active', payload: { status: 'decided' } },
+                { id: 'decision_retired', entity_type: 'decision', lifecycle_status: 'retired', payload: { status: 'decided' } },
+                { id: 'decision_superseded', entity_type: 'decision', lifecycle_status: 'superseded', payload: { status: 'decided' } }
+            ],
+            external_entities: [
+                { id: 'app_external', entity_type: 'app', lifecycle_status: 'active', payload: {} }
+            ],
+            edges: []
+        };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const validateOntology = vi.fn(({ snapshot: ontologySnapshot }) => {
+            const targets = new Set(ontologySnapshot.required_relation_validation_entity_ids
+                || ontologySnapshot.entities.map((item) => item.id));
+            const violations = ontologySnapshot.entities
+                .filter((item) => targets.has(item.id))
+                .map((item) => ({
+                    code: item.type === 'app' ? 'CON-APP-OWNER-001' : 'CON-DECISION-DECIDER-001',
+                    entity_id: item.id
+                }));
+            return { valid: violations.length === 0, violations };
+        });
+        const validatingService = new GraphMaintenanceService({
+            infoSSOTService: {
+                withAccessContext: async (_access, callback) => callback({}),
+                validateOntology
+            }
+        });
+        validatingService.loadSnapshot = vi.fn(async () => ({ snapshot }));
+
+        const result = await validatingService.validate({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, { projectCode: 'brainbase' });
+
+        expect(validateOntology).toHaveBeenCalledWith({ snapshot: expect.objectContaining({
+            required_relation_validation_entity_ids: ['decision_active'],
+            entities: expect.arrayContaining([
+                expect.objectContaining({ id: 'decision_retired' }),
+                expect.objectContaining({ id: 'decision_superseded' }),
+                expect.objectContaining({ id: 'app_external' })
+            ])
+        }) });
+        expect(result.ontology.violations).toEqual([
+            { code: 'CON-DECISION-DECIDER-001', entity_id: 'decision_active' }
+        ]);
+        expect(result.ontology.violations).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ entity_id: 'decision_retired' }),
+            expect.objectContaining({ entity_id: 'decision_superseded' }),
+            expect.objectContaining({ entity_id: 'app_external' })
+        ]));
+        expect(result.required_relation_scope_summary).toEqual({
+            included: { active_local_entities: 1 },
+            excluded: {
+                retired_local_entities: 1,
+                superseded_local_entities: 1,
+                external_metadata_entities: 1
+            }
+        });
+        expect(JSON.stringify(result.required_relation_scope_summary)).not.toContain('decision_retired');
+        expect(JSON.stringify(result.required_relation_scope_summary)).not.toContain('decision_superseded');
+        expect(JSON.stringify(result.required_relation_scope_summary)).not.toContain('app_external');
+    });
+
     it('Plan差分はvalidatorのorphan categoryを孤立件数へ集計する', () => {
         const snapshot = {
             project_code: 'brainbase',

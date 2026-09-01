@@ -168,6 +168,12 @@ export class OntologyKernel {
         const validationEntities = validationEntityIds
             ? entities.filter((entity) => validationEntityIds.has(entity.id))
             : entities;
+        const requiredRelationValidationEntityIds = Array.isArray(snapshot?.required_relation_validation_entity_ids)
+            ? new Set(snapshot.required_relation_validation_entity_ids)
+            : validationEntityIds;
+        const requiredRelationValidationEntities = requiredRelationValidationEntityIds
+            ? entities.filter((entity) => requiredRelationValidationEntityIds.has(entity.id))
+            : entities;
         const violations = validationEntities.flatMap((entity) => this.validateEntity(entity, { deferRequiredRelations: true }).violations);
         for (const edge of edges) {
             const from = byId.get(edge.from_id);
@@ -206,7 +212,7 @@ export class OntologyKernel {
         }
         for (const rule of this.manifest.constraints) {
             if (!['required_relation', 'required_relation_when'].includes(rule.kind)) continue;
-            for (const entity of validationEntities.filter((item) => (item.type || item.entity_type) === rule.target)) {
+            for (const entity of requiredRelationValidationEntities.filter((item) => (item.type || item.entity_type) === rule.target)) {
                 if (rule.kind === 'required_relation_when' && !matchesWhen(entity.payload, rule.when)) continue;
                 const alternatives = rule.alternatives || [{ relation: rule.relation, direction: 'outgoing' }];
                 const hasRelation = alternatives.some((alternative) => edges.some((edge) => {

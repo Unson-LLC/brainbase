@@ -1345,16 +1345,35 @@ export class GraphMaintenanceService {
         return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
             const { snapshot } = await this.loadSnapshot(client, access, projectCode, { includeProjectCodes });
             const structural = validateGraphSnapshot(snapshot);
+            const activeLocalEntityIds = snapshot.entities
+                .filter((item) => item.lifecycle_status === 'active')
+                .map((item) => item.id);
+            const requiredRelationScopeSummary = {
+                included: {
+                    active_local_entities: activeLocalEntityIds.length
+                },
+                excluded: {
+                    retired_local_entities: snapshot.entities
+                        .filter((item) => item.lifecycle_status === 'retired')
+                        .length,
+                    superseded_local_entities: snapshot.entities
+                        .filter((item) => item.lifecycle_status === 'superseded')
+                        .length,
+                    external_metadata_entities: (snapshot.external_entities || []).length
+                }
+            };
             const ontology = this.infoSSOTService.validateOntology({ snapshot: {
                 entities: [...snapshot.entities, ...(snapshot.external_entities || [])]
                     .map((item) => ({ id: item.id, type: item.entity_type, payload: item.payload || {} })),
-                edges: snapshot.edges.filter((item) => item.lifecycle_status === 'active').map((item) => ({ from_id: item.from_id, to_id: item.to_id, relation: item.rel_type }))
+                edges: snapshot.edges.filter((item) => item.lifecycle_status === 'active').map((item) => ({ from_id: item.from_id, to_id: item.to_id, relation: item.rel_type })),
+                required_relation_validation_entity_ids: activeLocalEntityIds
             } });
             return {
                 ...structural,
                 valid: structural.valid === true && ontology?.valid === true,
                 ontology,
                 snapshot_hash: snapshot.hash,
+                required_relation_scope_summary: requiredRelationScopeSummary,
                 ...(snapshot.suppression_summary
                     ? { suppression_summary: snapshot.suppression_summary }
                     : {})

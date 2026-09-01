@@ -887,10 +887,28 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             version: 2
         });
         expect(appliedSnapshot.edges).toHaveLength(2);
-        await expect(service.validate(access, { projectCode: 'brainbase', includeProjectCodes: ['vibepro'] })).resolves.toMatchObject({
-            valid: true,
-            ontology: { valid: true, verification: 'verified', ontology_version: '1.1.0' }
+        const crossScopeValidation = await service.validate(access, {
+            projectCode: 'brainbase', includeProjectCodes: ['vibepro']
         });
+        expect(crossScopeValidation).toMatchObject({
+            valid: true,
+            ontology: { valid: true, verification: 'verified', ontology_version: '1.1.0' },
+            required_relation_scope_summary: {
+                included: {
+                    active_local_entities: appliedSnapshot.entities
+                        .filter((entity) => entity.lifecycle_status === 'active').length
+                },
+                excluded: {
+                    retired_local_entities: appliedSnapshot.entities
+                        .filter((entity) => entity.lifecycle_status === 'retired').length,
+                    superseded_local_entities: appliedSnapshot.entities
+                        .filter((entity) => entity.lifecycle_status === 'superseded').length,
+                    external_metadata_entities: appliedSnapshot.external_entities?.length || 0
+                }
+            }
+        });
+        expect(crossScopeValidation.required_relation_scope_summary.included.active_local_entities)
+            .toBeGreaterThan(0);
 
         await expect(service.getPlanReceipt(access, {
             projectCode: 'brainbase',
