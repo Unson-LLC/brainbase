@@ -13,8 +13,14 @@ surfaces:
     - GET /api/config/projects
     - GET /api/brainbase
     - GET /api/brainbase/projects
+    - POST /api/config/project-profiles
+    - PUT /api/config/project-profiles/:projectCode
+    - GET /api/config/project-profiles/:projectCode/inspect
+    - POST /api/config/project-profiles/:projectCode/reconcile
   code:
     - server/routes/config.js
+    - server/services/project-profile-service.js
+    - cli/project.js
     - server/routes/brainbase/overview-routes.js
     - mcp/brainbase/src/tools/control-plane-tools.ts
     - mcp/brainbase/src/server.ts
@@ -44,6 +50,13 @@ visibility_rules:
   - Project Catalogの正本パスはhost runtimeがConfigParserへ注入し、個人の絶対パスへ固定しない。
   - Graph MaintenanceでProjectをbusiness subjectへ投影するprojectは、空でないnameと正の整数catalog_versionを持つ。
   - Graph projectionのsource_refはproject-catalog:<id>@<catalog_version>としてサーバーが導出し、呼び出し元の自己申告値を採用しない。
+  - Project Profileはproject_code、name、organization、created_byの4項目で登録でき、外部能力の未設定を登録拒否理由にしない。
+  - 各能力のdesired_stateはenabled、disabled、deferred、unspecifiedのいずれかとし、Project全体のready/not_readyへ集約しない。
+  - enabledの能力だけ必要設定を点検し、未設定は能力単位のunconfigured、設定済みで実接続証跡がない場合はunverifiedとして返す。
+  - readyは信頼できる検証処理のevidence_idとverified_atがある場合だけ返し、登録・構成入力によるverificationの自己申告は拒否する。
+  - Project Profileの作成は署名済みorganization/tenant一致、既存Projectの操作はorganization/tenantとprojectCodesの両方を検証する。
+  - unspecifiedと関係者候補は警告または候補として可視化し、自動追加やProject登録の拒否をしない。
+  - Project Profile APIの成功はlocal catalogへの登録確認であり、Graph、authorization grants、cross-tenant referenceの検証成功を意味しない。
 verification:
   commands:
     - curl -s http://127.0.0.1:31013/api/config/projects -H 'Authorization: Bearer <token>'
@@ -65,6 +78,11 @@ verification:
     - Registry or catalog authentication failure remains unavailable/error and never falls back to the legacy topology
     - Workspace Setup renders a loaded zero-project catalog as confirmed_empty with a 0件 message
     - Graph and GitHub writer assertions use test fakes or adapter doubles; production writes are out of scope and production E2E is unverified
+    - 最小4項目だけでProject Profileを登録できる
+    - disabledとdeferredの能力は設定不足扱いにならない
+    - enabledだが必要設定がない能力はProjectを残したままunconfiguredになる
+    - enabledで必要設定だけが揃った能力はunverifiedとなり、検証証跡がある場合だけreadyになる
+    - unspecifiedの能力と未完了のpeopleは警告になる
 common_failures:
   - A project exists in the local /api/config topology but is absent from the authenticated runtime catalog or actor grant.
   - A project exists in config but has no NocoDB mapping, so health data is N/A.

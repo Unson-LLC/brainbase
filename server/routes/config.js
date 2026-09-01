@@ -18,12 +18,35 @@ export function requireConfigAuth(req, res, next) {
     return next();
 }
 
+export function requireProjectProfileAuth(req, res, next) {
+    const actor = req.actor || req.user || req.auth;
+    const access = req.access;
+    if (!actor?.sub && !access?.personId && !access?.role) {
+        return res.status(401).json({
+            error: { code: 'UNAUTHORIZED', message: '認証が必要です' }
+        });
+    }
+    return next();
+}
+
 export function requireConfigWriteRole(req, res, next) {
     const actor = req.actor || req.user || req.auth || {};
     const access = req.access || {};
     const role = actor.role || access.role || 'member';
     if (!['gm', 'ceo'].includes(role)) {
         return res.status(403).json({ error: 'role required: gm or ceo', actual: role });
+    }
+    return next();
+}
+
+export function requireProjectProfileWriteRole(req, res, next) {
+    const actor = req.actor || req.user || req.auth || {};
+    const access = req.access || {};
+    const role = actor.role || access.role || 'member';
+    if (!['gm', 'ceo'].includes(role)) {
+        return res.status(403).json({
+            error: { code: 'FORBIDDEN', message: 'GMまたはCEOの権限が必要です', details: { actual_role: role } }
+        });
     }
     return next();
 }
@@ -38,6 +61,8 @@ export function createConfigRouter(configParser, configService, runtimePaths = n
     );
     const authGuard = options.authGuard || requireConfigAuth;
     const writeGuard = options.writeGuard || requireConfigWriteRole;
+    const profileAuthGuard = options.profileAuthGuard || requireProjectProfileAuth;
+    const profileWriteGuard = options.profileWriteGuard || requireProjectProfileWriteRole;
 
     // GET /api/config - すべての設定を取得
     router.get('/', controller.getAll);
@@ -56,6 +81,12 @@ export function createConfigRouter(configParser, configService, runtimePaths = n
     router.post('/projects', authGuard, writeGuard, controller.upsertProject);
     router.put('/projects/:projectId', authGuard, writeGuard, controller.upsertProject);
     router.delete('/projects/:projectId', authGuard, writeGuard, controller.deleteProject);
+
+    // Project Profile lifecycle: minimal create, capability configuration, inspection, reconciliation
+    router.post('/project-profiles', profileAuthGuard, profileWriteGuard, controller.createProjectProfile);
+    router.put('/project-profiles/:projectCode', profileAuthGuard, profileWriteGuard, controller.configureProjectProfile);
+    router.get('/project-profiles/:projectCode/inspect', profileAuthGuard, controller.inspectProjectProfile);
+    router.post('/project-profiles/:projectCode/reconcile', profileAuthGuard, profileWriteGuard, controller.reconcileProjectProfile);
 
     // GET /api/config/github - GitHub設定を取得
     router.get('/github', controller.getGitHub);

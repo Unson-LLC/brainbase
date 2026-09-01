@@ -817,7 +817,7 @@ describe('workflow routes', () => {
 
         expect(res.body).toMatchObject({
             code: 'parse_failure',
-            message: 'Malformed JSON payload'
+            message: 'JSONの形式が正しくありません'
         });
         expect(repository.ledger.runs).toHaveLength(0);
         expect(repository.ledger.outputs).toHaveLength(0);

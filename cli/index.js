@@ -13,6 +13,7 @@ import {
 } from './learning.js';
 import { sync, pull, push, wikiStatus } from './sync.js';
 import { runProjectProvisioning } from './project-provisioning.js';
+import { configureProject, createProject, inspectProject, reconcileProject } from './project.js';
 
 const [,, command, subcommand, ...restArgs] = process.argv;
 
@@ -40,6 +41,10 @@ Usage:
   brainbase project provision approve RUN_ID --gates GATE,... --review-ref RECEIPT
   brainbase project provision apply|resume RUN_ID
   brainbase project provision status|verify RUN_ID
+  brainbase project create project.yml
+  brainbase project configure PROJECT_CODE config.yml
+  brainbase project inspect PROJECT_CODE
+  brainbase project reconcile PROJECT_CODE candidates.yml
   brainbase help           このヘルプを表示する
 `;
 
@@ -102,10 +107,34 @@ async function main() {
                 break;
 
             case 'project':
-                if (subcommand !== 'provision') {
-                    throw new Error('Usage: brainbase project provision [check|plan|approve|apply|status|verify|resume]');
+                if (subcommand === 'provision') {
+                    await runProjectProvisioning(restArgs[0], restArgs.slice(1));
+                    break;
                 }
-                await runProjectProvisioning(restArgs[0], restArgs.slice(1));
+                switch (subcommand) {
+                    case 'create': await createProject(restArgs); break;
+                    case 'configure': await configureProject(restArgs); break;
+                    case 'inspect': await inspectProject(restArgs); break;
+                    case 'reconcile': await reconcileProject(restArgs); break;
+                    default:
+                        console.log([
+                            'Project Provisioning:',
+                            '  brainbase project provision [check|plan|approve|apply|status|verify|resume]',
+                            '',
+                            'Project登録と能力別構成:',
+                            '  brainbase project create <project.yml>',
+                            '  brainbase project configure <project-code> <config.yml>',
+                            '  brainbase project inspect <project-code>',
+                            '  brainbase project reconcile <project-code> <candidates.yml>',
+                            '',
+                            '能力の利用意図:',
+                            '  enabled     利用する（設定と検証が必要）',
+                            '  disabled    意図的に利用しない',
+                            '  deferred    後で導入する',
+                            '  unspecified 方針が未指定',
+                            '未指定や未検証は警告として表示し、安全上の不整合だけを拒否します。'
+                        ].join('\n'));
+                }
                 break;
 
             case 'help':

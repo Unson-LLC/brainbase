@@ -22,6 +22,10 @@ export class ConfigController {
         this.runtimePaths = runtimePaths;
     }
 
+    _projectAccess(req) {
+        return req.access || {};
+    }
+
     /**
      * GET /api/config
      * すべての設定を取得
@@ -92,6 +96,54 @@ export class ConfigController {
         });
     });
 
+    /** POST /api/config/project-profiles */
+    /** @param {Request} req @param {Response} res */
+    createProjectProfile = asyncHandler(async (req, res) => {
+        this._requireConfigService();
+        const access = this._projectAccess(req);
+        const project = await this.configService.createProjectProfile(req.body || {}, access);
+        const inspection = this.configService.inspectProjectRecord(project);
+        res.status(201).json({ ok: true, project, inspection });
+    });
+
+    /** PUT /api/config/project-profiles/:projectCode */
+    /** @param {Request} req @param {Response} res */
+    configureProjectProfile = asyncHandler(async (req, res) => {
+        this._requireConfigService();
+        const project = await this.configService.configureProjectProfile(
+            req.params.projectCode,
+            req.body || {},
+            this._projectAccess(req)
+        );
+        const inspection = await this.configService.inspectProjectProfile(
+            req.params.projectCode,
+            this._projectAccess(req)
+        );
+        res.json({ ok: true, project, inspection });
+    });
+
+    /** GET /api/config/project-profiles/:projectCode/inspect */
+    /** @param {Request} req @param {Response} res */
+    inspectProjectProfile = asyncHandler(async (req, res) => {
+        this._requireConfigService();
+        res.json(await this.configService.inspectProjectProfile(
+            req.params.projectCode,
+            this._projectAccess(req)
+        ));
+    });
+
+    /** POST /api/config/project-profiles/:projectCode/reconcile */
+    /** @param {Request} req @param {Response} res */
+    reconcileProjectProfile = asyncHandler(async (req, res) => {
+        this._requireConfigService();
+        const result = await this.configService.reconcileProjectProfile(
+            req.params.projectCode,
+            req.body?.people_candidates,
+            this._projectAccess(req)
+        );
+        res.json(result);
+    });
+
     /** POST /api/config/projects, PUT /api/config/projects/:projectId */
     /** @param {Request} req @param {Response} res */
     upsertProject = asyncHandler(async (req, res) => {
@@ -112,7 +164,7 @@ export class ConfigController {
             local_path: payload.local_path,
             glob_include: glob,
             archived: payload.archived
-        });
+        }, this._projectAccess(req));
 
         res.json({ ok: true });
     });
@@ -121,7 +173,7 @@ export class ConfigController {
     /** @param {Request} req @param {Response} res */
     deleteProject = asyncHandler(async (req, res) => {
         this._requireConfigService();
-        await this.configService.deleteProject(req.params.projectId);
+        await this.configService.deleteProject(req.params.projectId, this._projectAccess(req));
         res.json({ ok: true });
     });
 
@@ -264,14 +316,14 @@ export class ConfigController {
             owner: payload.owner,
             repo: payload.repo,
             branch: payload.branch
-        });
+        }, this._projectAccess(req));
         res.json({ ok: true, github: mapping });
     });
 
     /** DELETE /api/config/github/:projectId */
     /** @param {Request} req @param {Response} res */
     deleteGitHub = asyncHandler(async (req, res) => {
-        await this.configService.deleteGitHubMapping(req.params.projectId);
+        await this.configService.deleteGitHubMapping(req.params.projectId, this._projectAccess(req));
         res.json({ ok: true });
     });
 
@@ -286,14 +338,14 @@ export class ConfigController {
             nocodb_project_id: payload.nocodb_project_id,
             base_name: payload.base_name,
             url: payload.url
-        });
+        }, this._projectAccess(req));
         res.json({ ok: true, nocodb: mapping });
     });
 
     /** DELETE /api/config/nocodb/:projectId */
     /** @param {Request} req @param {Response} res */
     deleteNocoDB = asyncHandler(async (req, res) => {
-        await this.configService.deleteNocoDBMapping(req.params.projectId);
+        await this.configService.deleteNocoDBMapping(req.params.projectId, this._projectAccess(req));
         res.json({ ok: true });
     });
 
