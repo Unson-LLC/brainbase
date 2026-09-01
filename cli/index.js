@@ -12,6 +12,7 @@ import {
     showPromotion
 } from './learning.js';
 import { sync, pull, push, wikiStatus } from './sync.js';
+import { configureProject, createProject, inspectProject, reconcileProject } from './project.js';
 
 const [,, command, subcommand, ...restArgs] = process.argv;
 
@@ -34,6 +35,10 @@ Usage:
   brainbase learn show ID  候補を1件表示する
   brainbase learn apply ID 候補を保存先に応じて正式登録・手順化する
   brainbase learn reject ID [--reason TEXT] 候補を今回は見送る
+  brainbase project create project.yml
+  brainbase project configure PROJECT_CODE config.yml
+  brainbase project inspect PROJECT_CODE
+  brainbase project reconcile PROJECT_CODE candidates.yml
   brainbase help           このヘルプを表示する
 `;
 
@@ -92,6 +97,30 @@ async function main() {
                     }
                     default:
                         console.log('Usage: brainbase learn [add|ingest-reviews|daily|inbox|dedupe-existing|show|apply|reject]');
+                }
+                break;
+
+            case 'project':
+                switch (subcommand) {
+                    case 'create': await createProject(restArgs); break;
+                    case 'configure': await configureProject(restArgs); break;
+                    case 'inspect': await inspectProject(restArgs); break;
+                    case 'reconcile': await reconcileProject(restArgs); break;
+                    default:
+                        console.log([
+                            'Project登録と能力別構成:',
+                            '  brainbase project create <project.yml>',
+                            '  brainbase project configure <project-code> <config.yml>',
+                            '  brainbase project inspect <project-code>',
+                            '  brainbase project reconcile <project-code> <candidates.yml>',
+                            '',
+                            '能力の利用意図:',
+                            '  enabled     利用する（設定と検証が必要）',
+                            '  disabled    意図的に利用しない',
+                            '  deferred    後で導入する',
+                            '  unspecified 方針が未指定',
+                            '未指定や未検証は警告として表示し、安全上の不整合だけを拒否します。'
+                        ].join('\n'));
                 }
                 break;
 

@@ -1,6 +1,6 @@
 import path from 'path';
 import { Pool } from 'pg';
-import { createConfigRouter } from '../routes/config.js';
+import { createConfigRouter, requireProjectProfileWriteRole } from '../routes/config.js';
 import { createScheduleRouter } from '../routes/schedule.js';
 import { createBrainbaseRouter } from '../routes/brainbase.js';
 import { createNocoDBRouter } from '../routes/nocodb.js';
@@ -274,7 +274,9 @@ export function registerApiRoutes(app, {
         replacement: 'Use Codex task state directly; historical Brainbase records are frozen'
     }));
     app.use('/api/config', createConfigRouter(configParser, configService, runtimePaths, {
-        authGuard: requireAuth(authService)
+        authGuard: requireAuth(authService),
+        profileAuthGuard: requireAuth(authService, { structuredErrors: true }),
+        profileWriteGuard: requireProjectProfileWriteRole
     }));
     app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
     app.use('/api/sessions', createRetiredCapabilityRouter({

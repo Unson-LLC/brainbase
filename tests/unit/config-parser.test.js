@@ -39,6 +39,28 @@ projects:
       }));
     });
 
+    it('legacy project catalogからProject Profileのtenant情報と接続意図を除外する', async () => {
+      fs.readFile.mockResolvedValue(`
+projects:
+  - id: growin
+    project_code: growin
+    name: Growin向けBrainbase
+    organization: unson
+    created_by: keigo
+    capabilities:
+      slack:
+        desired_state: enabled
+        primary_channel_id: C123
+    people:
+      owner: [keigo]
+    success_criteria: success
+`);
+
+      const catalog = await parser.getProjects();
+
+      expect(catalog.projects[0]).toEqual({ id: 'growin', name: 'Growin向けBrainbase' });
+    });
+
     it('required catalog missing is an integrity error, not a valid empty catalog', async () => {
       const missing = new Error('ENOENT: no such file or directory');
       missing.code = 'ENOENT';

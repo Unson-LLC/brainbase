@@ -36,7 +36,7 @@ export function errorHandler(err, req, res, next) {
         return res.status(400).json({
             error: 'parse_failure',
             code: 'parse_failure',
-            message: 'Malformed JSON payload',
+            message: 'JSONの形式が正しくありません',
             timestamp: new Date().toISOString()
         });
     }

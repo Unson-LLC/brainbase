@@ -105,7 +105,7 @@ describe('errorHandler middleware', () => {
         expect(res._body).toMatchObject({
             error: 'parse_failure',
             code: 'parse_failure',
-            message: 'Malformed JSON payload'
+            message: 'JSONの形式が正しくありません'
         });
         expect(next).not.toHaveBeenCalled();
     });

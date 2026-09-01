@@ -22,8 +22,10 @@ export const ErrorCodes = {
     // 認証・認可 (401/403)
     UNAUTHORIZED: { code: 'UNAUTHORIZED', statusCode: 401 },
     FORBIDDEN: { code: 'FORBIDDEN', statusCode: 403 },
+    CROSS_TENANT_CANDIDATE: { code: 'CROSS_TENANT_CANDIDATE', statusCode: 403 },
 
     // リソース不在 (404)
+    PROJECT_NOT_FOUND: { code: 'PROJECT_NOT_FOUND', statusCode: 404 },
     SESSION_NOT_FOUND: { code: 'SESSION_NOT_FOUND', statusCode: 404 },
     TASK_NOT_FOUND: { code: 'TASK_NOT_FOUND', statusCode: 404 },
     SCHEDULE_NOT_FOUND: { code: 'SCHEDULE_NOT_FOUND', statusCode: 404 },
