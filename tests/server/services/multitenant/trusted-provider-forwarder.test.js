@@ -527,4 +527,87 @@ describe('trusted provider HTTP forwarder', () => {
             fetchImpl: vi.fn()
         })).toThrow('Trusted provider operation configuration is invalid');
     });
+
+    it('server-owned bearerと固定MCP Acceptをtenant credentialへ混ぜずに転送する', async () => {
+        const serviceToken = randomBytes(32).toString('base64url');
+        const fetchImpl = vi.fn(async (_url, init) => {
+            const headers = new Headers(init.headers);
+            if (headers.get('accept') !== 'application/json, text/event-stream') {
+                return {
+                    status: 406,
+                    headers: { get: () => 'application/json' },
+                    json: async () => ({ error: 'Not Acceptable' })
+                };
+            }
+            return {
+                status: 200,
+                headers: { get: () => 'application/json' },
+                json: async () => ({ jsonrpc: '2.0', result: { tools: [] }, id: 1 })
+            };
+        });
+        const env = {
+            MCP_HTTP_BEARER_TOKEN: serviceToken,
+            BRAINBASE_TENANT_PROVIDER_FORWARDERS_JSON: JSON.stringify({
+                'bb.unson.jp': {
+                    provider: 'brainbase',
+                    base_url: 'https://bb.unson.jp/runtime-mcp',
+                    operations: {
+                        'brainbase.mcp.post': {
+                            method: 'POST',
+                            path: '/mcp',
+                            body_encoding: 'json',
+                            response_encoding: 'json',
+                            credential_placement: 'none',
+                            allow_binding_provider_mismatch: true,
+                            service_bearer_env: 'MCP_HTTP_BEARER_TOKEN',
+                            fixed_headers: {
+                                accept: 'application/json, text/event-stream',
+                                'content-type': 'application/json'
+                            }
+                        }
+                    }
+                }
+            })
+        };
+        const forwarder = createTrustedProviderForwardersFromEnv({ env, fetchImpl })['bb.unson.jp'];
+
+        const result = await forwarder.forward({
+            credential: Buffer.alloc(0),
+            operation: 'brainbase.mcp.post',
+            request: { body: { jsonrpc: '2.0', method: 'tools/list', params: {}, id: 1 } }
+        });
+
+        const headers = new Headers(fetchImpl.mock.calls[0][1].headers);
+        expect(headers.get('authorization')).toBe(`Bearer ${serviceToken}`);
+        expect(headers.get('accept')).toBe('application/json, text/event-stream');
+        expect(forwarder.requiresCredential('brainbase.mcp.post')).toBe(false);
+        expect(forwarder.allowsBindingProviderMismatch('brainbase.mcp.post')).toBe(true);
+        expect(result.status).toBe(200);
+        expect(JSON.stringify(result)).not.toContain(serviceToken);
+    });
+
+    it('server-owned bearerは未定義envとtenant credential placementの併用を拒否する', () => {
+        const operation = {
+            method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+            credential_placement: 'none', allow_binding_provider_mismatch: true,
+            service_bearer_env: 'MCP_HTTP_BEARER_TOKEN',
+            fixed_headers: { accept: 'application/json, text/event-stream' }
+        };
+        const envFor = (definition, token) => ({
+            ...(token ? { MCP_HTTP_BEARER_TOKEN: token } : {}),
+            BRAINBASE_TENANT_PROVIDER_FORWARDERS_JSON: JSON.stringify({
+                'bb.unson.jp': {
+                    provider: 'brainbase', base_url: 'https://bb.unson.jp/runtime-mcp',
+                    operations: { 'brainbase.mcp.post': definition }
+                }
+            })
+        });
+
+        expect(() => createTrustedProviderForwardersFromEnv({ env: envFor(operation), fetchImpl: vi.fn() }))
+            .toThrow('Trusted provider service bearer configuration is invalid');
+        expect(() => createTrustedProviderForwardersFromEnv({
+            env: envFor({ ...operation, credential_placement: 'bearer' }, 'service-token'),
+            fetchImpl: vi.fn()
+        })).toThrow('Trusted provider operation configuration is invalid');
+    });
 });

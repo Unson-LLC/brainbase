@@ -10,6 +10,7 @@ const MAX_CONFIGURED_BYTES = 64 * 1024 * 1024;
 const OPERATION_FIELDS = new Set([
     'method', 'path', 'path_params', 'query', 'body_encoding', 'response_encoding',
     'credential_placement', 'credential_username', 'fixed_headers', 'credential_url_hosts',
+    'service_bearer_env',
     'allow_binding_provider_mismatch',
     'credential_url_path_pattern', 'target_url_hosts', 'target_url_path_pattern',
     'max_request_bytes', 'max_response_bytes'
@@ -177,7 +178,7 @@ function normalizeHosts(value, name) {
     return Object.freeze(value.map((host) => host.toLowerCase()));
 }
 
-function normalizeOperation(name, definition, { hasBaseUrl }) {
+function normalizeOperation(name, definition, { hasBaseUrl, env }) {
     if (!name || !isObject(definition)
         || Object.keys(definition).some((field) => !OPERATION_FIELDS.has(field))) {
         throw new Error('Trusted provider operation configuration is invalid');
@@ -189,6 +190,7 @@ function normalizeOperation(name, definition, { hasBaseUrl }) {
     const credentialPlacement = definition.credential_placement;
     const credentialUsername = definition.credential_username;
     const allowBindingProviderMismatch = definition.allow_binding_provider_mismatch === true;
+    const serviceBearerEnv = definition.service_bearer_env;
     if (!METHODS.has(method) || typeof path !== 'string' || !path.startsWith('/')
         || path.includes('?') || path.includes('#') || path.includes('\\')
         || !BODY_ENCODINGS.has(bodyEncoding) || !RESPONSE_ENCODINGS.has(responseEncoding)
@@ -196,6 +198,8 @@ function normalizeOperation(name, definition, { hasBaseUrl }) {
         || (definition.allow_binding_provider_mismatch !== undefined
             && typeof definition.allow_binding_provider_mismatch !== 'boolean')
         || (allowBindingProviderMismatch && credentialPlacement !== 'none')
+        || (serviceBearerEnv !== undefined
+            && (credentialPlacement !== 'none' || !ENV_NAME.test(serviceBearerEnv)))
         || (credentialPlacement === 'basic'
             && (typeof credentialUsername !== 'string' || credentialUsername.length === 0
                 || credentialUsername.length > 128 || /[:\r\n]/u.test(credentialUsername)))
@@ -220,6 +224,15 @@ function normalizeOperation(name, definition, { hasBaseUrl }) {
         response_encoding: responseEncoding,
         credential_placement: credentialPlacement,
         credential_username: credentialUsername ?? null,
+        service_bearer: serviceBearerEnv === undefined
+            ? null
+            : (() => {
+                const value = env?.[serviceBearerEnv];
+                if (typeof value !== 'string' || value.length === 0) {
+                    throw new Error('Trusted provider service bearer configuration is invalid');
+                }
+                return Buffer.from(value, 'utf8');
+            })(),
         allow_binding_provider_mismatch: allowBindingProviderMismatch,
         fixed_headers: normalizeHeaders(definition.fixed_headers),
         credential_url_hosts: credentialUrlHosts,
@@ -396,7 +409,8 @@ export function createTrustedHttpProviderForwarder({
     baseUrl,
     operations,
     fetchImpl = globalThis.fetch,
-    allowInsecureLocalhost = false
+    allowInsecureLocalhost = false,
+    env = process.env
 } = {}) {
     if (typeof provider !== 'string' || provider.length === 0 || !isObject(operations)
         || Object.keys(operations).length === 0 || typeof fetchImpl !== 'function') {
@@ -409,7 +423,7 @@ export function createTrustedHttpProviderForwarder({
     const operationAllowlist = Object.freeze(Object.fromEntries(
         Object.entries(operations).map(([name, definition]) => [
             name,
-            normalizeOperation(name, definition, { hasBaseUrl: Boolean(trustedBaseUrl) })
+            normalizeOperation(name, definition, { hasBaseUrl: Boolean(trustedBaseUrl), env })
         ])
     ));
     return Object.freeze({
@@ -450,6 +464,14 @@ export function createTrustedHttpProviderForwarder({
                 headers['Idempotency-Key'] = request.idempotency_key;
             }
             const additionalCredentialEncodings = [];
+            if (definition.service_bearer) {
+                headers.authorization = `Bearer ${definition.service_bearer.toString('utf8')}`;
+                additionalCredentialEncodings.push(
+                    definition.service_bearer,
+                    definition.service_bearer.toString('utf8'),
+                    headers.authorization
+                );
+            }
             if (body !== undefined && !headers['content-type']) {
                 headers['content-type'] = definition.body_encoding === 'json'
                     ? 'application/json'
@@ -540,7 +562,8 @@ export function createTrustedProviderForwardersFromEnv({ env = process.env, fetc
             provider: definition.provider,
             baseUrl: definition.base_url,
             operations: definition.operations,
-            fetchImpl
+            fetchImpl,
+            env
         })];
     })));
 }
