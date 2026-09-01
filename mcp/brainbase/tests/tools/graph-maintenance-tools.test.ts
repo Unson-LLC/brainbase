@@ -278,10 +278,20 @@ describe('Graph maintenance MCP tools', () => {
       project_code: 'brainbase', include_project_codes: ['vibepro'],
     }, deps(async (_url, init) => {
       validateBody = JSON.parse(String(init?.body));
-      return new Response(JSON.stringify({ valid: true }));
+      return new Response(JSON.stringify({
+        valid: true,
+        required_relation_scope_summary: {
+          included: { active_local_entities: 3 },
+          excluded: { retired_local_entities: 1, superseded_local_entities: 1, external_metadata_entities: 2 },
+        },
+      }));
     }, ['brainbase', 'vibepro']));
     assert.equal(validated?.status, 'ok');
     assert.deepEqual(validateBody, { project_code: 'brainbase', include_project_codes: ['vibepro'] });
+    assert.deepEqual(validated?.data.required_relation_scope_summary, {
+      included: { active_local_entities: 3 },
+      excluded: { retired_local_entities: 1, superseded_local_entities: 1, external_metadata_entities: 2 },
+    });
 
     let fetched = false;
     const denied = await handleGraphMaintenanceToolCall('graph_plan_mutations', {
