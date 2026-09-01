@@ -1,0 +1,75 @@
+id: project.provisioning
+name: Project Provisioning
+purpose: Canonical project identity, Project Registry, Graph subject, and explicit auth grants are planned, applied, verified, and resumed through one auditable state machine.
+status: implemented_contract_live_e2e_unverified
+surfaces:
+  cli:
+    - brainbase project provision check|plan|approve|apply|status|verify|resume
+  api:
+    - POST /api/project-provisioning/check
+    - POST /api/project-provisioning/plan
+    - GET /api/project-provisioning/runs/:runId
+    - POST /api/project-provisioning/runs/:runId/approve
+    - POST /api/project-provisioning/runs/:runId/apply
+    - POST /api/project-provisioning/runs/:runId/verify
+    - POST /api/project-provisioning/runs/:runId/resume
+  code:
+    - server/services/project-provisioning/project-provisioning-service.js
+    - server/routes/project-provisioning.js
+    - cli/project-provisioning.js
+  data:
+    - project_registry
+    - project_provisioning_runs
+    - project_provisioning_steps
+depends_on:
+  - graph.ssot
+  - auth.grants
+  - project.catalog
+visibility_rules:
+  - Only a signed gm or ceo with an organization scope may plan or apply provisioning.
+  - The Manifest never contains local_path; local paths belong to per-user Workspace Setup.
+  - Check is read-only and reports writes_performed: 0.
+  - Initial grants add one project code to an existing active organization- and role-matched Auth Grant through AuthGrantService.
+  - Auth Grant receipts mark JWT refresh as required and return the granted project code for readback.
+  - Every Plan requires manifest_plan_approval for the complete Manifest and diff; Repository create, public visibility, and broad grants add narrower gates.
+  - Apply and resume never accept approvals in their request body; approval is recorded through the dedicated approve surface before execution.
+  - A run becomes active only after Registry, Graph, every requested Auth Grant, and GitHub repository state are read back and verified.
+  - GitHub read/link/create resolves `organization_id` through `PROJECT_PROVISIONING_GITHUB_BINDINGS`; each binding declares the only allowed owner and a `token_env`, and missing or cross-organization bindings fail before network access.
+  - "The server-side `session.create`/static endpoint and browser Session Launch Picker are retired and unreachable; neither is a Project Provisioning entry point or acceptance-evidence surface."
+  - "Project Provisioning has no production browser UI. The retained Workspace Setup selector module is a separate compatibility/contract surface not currently served by a production static route; synthetic-host tests are not production browser E2E evidence."
+  - "Desktop and mobile legacy CREATE_SESSION actions show the Codex migration notice without opening the Picker or calling session APIs."
+  - Codex app/CLI owns task and worktree creation and ownership; per-user local paths remain in separate Workspace Setup.
+  - Project Registry, run, and step rows use FORCE RLS with transaction-local app.organization_id; no-context runtime callers cannot enumerate Registry rows.
+  - The CLI obtains a session-bound CSRF token for every mutation and does not use a broad Bearer exemption.
+  - Connected-world Onboarding starts only after the provisioning run is active.
+state_machine:
+  - draft
+  - planned
+  - applying
+  - active
+  - partial_failed
+  - manual_intervention_required
+verification:
+  commands:
+    - npm run test:run -- tests/server/services/project-provisioning-manifest.test.js tests/server/services/project-provisioning-service.test.js tests/server/routes/project-provisioning.test.js
+    - npm run typecheck
+  expected:
+    - Unknown Manifest fields and local_path fail closed.
+    - The same idempotency key replays the same run and rejects a different Manifest.
+    - Completed steps are retained after partial failure and resume continues forward.
+    - Only resume may atomically reclaim an applying run that has been stale for more than five minutes.
+    - Human Gate approval requires a bearer-authenticated person and is bound to the run fingerprint and exact required gates.
+    - Active requires Registry, Graph, Auth Grant, repository boundary, and Receipt verification.
+common_failures:
+  - An initial person has no active Auth Grant with the requested role.
+  - Repository create is requested without an approved Human Gate or configured Repository Bootstrap adapter.
+  - `PROJECT_PROVISIONING_GITHUB_BINDINGS` is missing, invalid, points to an unset `token_env`, or binds the organization to a different GitHub owner.
+  - Project code already exists with a different canonical identity.
+runbooks:
+  - ../../../.claude/skills/project-provisioning/SKILL.md
+evidence_boundary:
+  local_contract_tests: implemented_with_graph_and_github_test_fakes
+  postgres_integration: verified_local_postgres_16_container_with_external_writer_fakes
+  production_graph_writes: out_of_scope
+  production_github_writes: out_of_scope
+  production_e2e: unverified

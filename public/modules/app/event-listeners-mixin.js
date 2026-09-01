@@ -1,10 +1,9 @@
 import { appStore } from '../core/store.js';
 import { eventBus, EVENTS } from '../core/event-bus.js';
 import { markDoneAsRead } from '../session-indicators.js';
-import { showSuccess, showError, showInfo } from '../toast.js';
+import { showError, showInfo } from '../toast.js';
 import { scheduleAfterNextPaint } from './schedule-after-next-paint.js';
 import { recordRecentFileOpen } from '../session-ui-state.js';
-import { getTaskDeadline } from '../ui-helpers.js';
 import { showConfirm } from '../confirm-modal.js';
 
 export function applyEventListenersMixin(AppClass) {
@@ -253,102 +252,25 @@ export function applyEventListenersMixin(AppClass) {
         const unsub1f = eventBus.on(EVENTS.SESSION_PAUSED, refreshUiSummaries);
         const unsub1g = eventBus.on(EVENTS.SESSION_RESUMED, refreshUiSummaries);
 
-        // Start task: create session and switch to it
+        // The NocoDB task-start event is retained as a compatibility consumer
+        // during the migration. It may still open the old engine picker, but
+        // selecting an engine must fail closed before reaching SessionService.
         const unsub2 = eventBus.onAsync(EVENTS.START_TASK, async (event) => {
-            const { task: taskObj, engine } = event.detail;
+            const { task, engine } = event.detail || {};
 
-            try {
-                // Step 1: Task objectを取得
-                let task = taskObj;
-
-                if (!task) {
-                    console.error('No task provided to START_TASK event');
-                    showError('No task provided');
-                    return;
-                }
-
-                // Step 2: エンジン未指定なら選択モーダルを開く
-                if (!engine) {
-                    if (this.modals?.focusEngineModal) {
-                        this.modals.focusEngineModal.open(task);
-                        return;
-                    }
-                    console.warn('FocusEngineModal not available, falling back to Claude engine.');
-                }
-
-                const resolvedEngine = engine || 'claude';
-
-                // Step 3: セッション名を生成
-                const sessionName = task.title || task.name || `Task: ${task.id}`;
-
-                // Step 4: プロジェクト名を取得
-                const project = task.project;
-                if (!project) {
-                    console.error('Task has no project:', task);
-                    showError('Task has no project');
-                    return;
-                }
-
-                // Step 5: セッション作成
-                console.log('Creating session for task:', task.id, 'project:', project);
-
-                // タスクコンテキストを構築（議事録から登録されたタスクの場合）
-                const taskTitle = task.title || task.name || 'Untitled';
-                const deadline = getTaskDeadline(task);
-                const taskLines = [
-                    '以下のタスクを対応してください。',
-                    `ID: ${task.id}`,
-                    `プロジェクト: ${project}`,
-                    `タイトル: ${taskTitle}`,
-                    deadline ? `期限: ${deadline}` : '',
-                    task.assignee ? `担当者: ${task.assignee}` : '',
-                    task.description ? `説明: ${task.description}` : ''
-                ].filter(Boolean);
-                let initialCommand = taskLines.join('\n');
-                if (task.context || task.meetingTitle) {
-                    const contextParts = [];
-                    if (task.context) {
-                        contextParts.push(`## 背景\n${task.context}`);
-                    }
-                    if (task.meetingTitle || task.meetingDate) {
-                        const meetingInfo = task.meetingTitle || '';
-                        const dateInfo = task.meetingDate ? `(${task.meetingDate})` : '';
-                        contextParts.push(`会議: ${meetingInfo} ${dateInfo}`.trim());
-                    }
-                    if (contextParts.length > 0) {
-                        initialCommand += '\n\n' + contextParts.join('\n\n');
-                    }
-                }
-
-                const newSession = await this.sessionService.createSession({
-                    project: project,
-                    name: sessionName,
-                    initialCommand: initialCommand,  // タスクコンテキストを自動読み込み
-                    engine: resolvedEngine,
-                    useWorktree: true  // デフォルトでworktree使用
-                });
-
-                console.log('Session created for task:', task.id, '→', newSession.id);
-                showSuccess(`Session "${sessionName}" created`);
-
-                // Step 6: タスクステータスを「進行中」に更新（NocoDBタスクのみ）
-                try {
-                    await this.nocodbTaskService.updateStatus(task.id, 'in_progress');
-                    console.log('Task status updated to in_progress:', task.id);
-                } catch (statusError) {
-                    // ステータス更新失敗はログのみ（セッション作成は成功しているため）
-                    console.warn('Failed to update task status:', statusError);
-                }
-
-                // Step 7: セッション切り替え
-                eventBus.emit(EVENTS.SESSION_CHANGED, {
-                    sessionId: newSession.id
-                });
-
-            } catch (error) {
-                console.error('Failed to start task:', error);
-                showError(`Failed to start task: ${error.message}`);
+            if (!task) {
+                console.error('No task provided to START_TASK event');
+                showError('No task provided');
+                return;
             }
+
+            if (!engine && this.modals?.focusEngineModal) {
+                this.modals.focusEngineModal.open(task);
+                return;
+            }
+
+            console.info('Retired Brainbase task start requested:', task.id, engine || 'unspecified');
+            showInfo('新しいタスクはCodexアプリから作成してください。Brainbaseのセッション作成は廃止されました。');
         });
 
         // Edit task: open task edit modal
@@ -358,11 +280,12 @@ export function applyEventListenersMixin(AppClass) {
             this.modals.taskEditModal.open(task);
         });
 
-        // Create session: choose immutable startup settings before the composer opens.
+        // Brainbase no longer owns task/session creation. Keep the legacy event
+        // fail-closed so old buttons cannot reach the retired /api/sessions API.
         const unsub4 = eventBus.on(EVENTS.CREATE_SESSION, (event) => {
-            const { project } = event.detail;
-            console.log('Create session requested for project:', project);
-            this.openSessionLaunchPicker(project);
+            const { project } = event.detail || {};
+            console.info('Retired Brainbase session creation requested for project:', project);
+            showInfo('新しいタスクはCodexアプリから作成してください。Brainbaseのセッション作成は廃止されました。');
         });
 
         // Worktree fallback: warn user when session falls back to main workspace

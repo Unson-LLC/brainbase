@@ -53,7 +53,12 @@ export function requireProjectProfileWriteRole(req, res, next) {
 
 export function createConfigRouter(configParser, configService, runtimePaths = null, options = {}) {
     const router = express.Router();
-    const controller = new ConfigController(configParser, configService, runtimePaths);
+    const controller = new ConfigController(
+        configParser,
+        configService,
+        runtimePaths,
+        options.projectCatalogParser || configParser
+    );
     const authGuard = options.authGuard || requireConfigAuth;
     const writeGuard = options.writeGuard || requireConfigWriteRole;
     const profileAuthGuard = options.profileAuthGuard || requireProjectProfileAuth;
@@ -72,7 +77,7 @@ export function createConfigRouter(configParser, configService, runtimePaths = n
     router.get('/slack/members', controller.getMembers);
 
     // GET /api/config/projects - プロジェクトを取得
-    router.get('/projects', controller.getProjects);
+    router.get('/projects', authGuard, controller.getProjects);
     router.post('/projects', authGuard, writeGuard, controller.upsertProject);
     router.put('/projects/:projectId', authGuard, writeGuard, controller.upsertProject);
     router.delete('/projects/:projectId', authGuard, writeGuard, controller.deleteProject);

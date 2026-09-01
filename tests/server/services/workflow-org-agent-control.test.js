@@ -23,6 +23,7 @@ function makeService({
         async getProjects() {
             return {
                 root: '/workspace',
+                source: { status: 'loaded', mode: 'legacy_fixture' },
                 projects: [
                     { id: 'unson', session_select: true, aliases: ['unson-os'] },
                     { id: 'salestailor', session_select: true, aliases: ['sales-tailor'] },
@@ -36,6 +37,7 @@ function makeService({
     const actor = {
         sub: 'keigo',
         person_id: 'keigo',
+        organizationId: 'salestailor',
         role: 'admin',
         projectCodes: ['unson', 'salestailor']
     };
@@ -1712,6 +1714,7 @@ describe('automation control runtime boundaries', () => {
             actorId: actor.person_id,
             projectCodes: actor.projectCodes,
             role: actor.role,
+            organizationId: actor.organizationId,
             triggerType: 'manual'
         })).rejects.toThrow('meeting-review-package-ingest workflows cannot be manually run');
 
@@ -1744,6 +1747,7 @@ describe('automation control runtime boundaries', () => {
             actorId: noAccessActor.person_id,
             projectCodes: noAccessActor.projectCodes,
             role: noAccessActor.role,
+            organizationId: noAccessActor.organizationId,
             triggerType: 'manual'
         })).rejects.toMatchObject({
             statusCode: 403,

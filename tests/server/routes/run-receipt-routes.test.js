@@ -62,6 +62,7 @@ function createApp({
     authSource = 'internal',
     projectCodes = ['brainbase'],
     role = 'member',
+    organizationId = 'brainbase',
     repository = new InMemoryWorkflowRepository(),
     lockAcquireTimeoutMs = 100,
     routineLivenessService = null
@@ -72,12 +73,23 @@ function createApp({
         lockAcquireTimeoutMs,
         lockRetryMs: 1
     });
-    const workflowService = new TestAutomationRuntime({ repository, runner: {}, configParser: null });
+    const workflowService = new TestAutomationRuntime({
+        repository,
+        runner: {},
+        configParser: {
+            async getProjects() {
+                return {
+                    source: { status: 'loaded', mode: 'registry_scoped' },
+                    projects: [{ id: 'brainbase', session_select: true }]
+                };
+            }
+        }
+    });
     app.use(express.json());
     app.use((req, _res, next) => {
         req.authSource = authSource;
         req.auth = { sub: 'route-test', role };
-        req.access = { personId: 'route-test', role, projectCodes };
+        req.access = { personId: 'route-test', role, projectCodes, organizationId };
         next();
     });
     app.use('/api/run-receipts', createRunReceiptRouter({

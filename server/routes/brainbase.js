@@ -27,6 +27,7 @@ export function createBrainbaseRouter(options = {}) {
         storageService = new StorageService(),
         nocodbService = new NocoDBService(),
         configParser,
+        projectCatalogParser = configParser,
         projectsRoot,
         infoSSOTService,
         wikiService,
@@ -48,6 +49,7 @@ export function createBrainbaseRouter(options = {}) {
         storageService,
         nocodbService,
         configParser,
+        projectCatalogParser,
         projectCatalogAuthGuard
     }));
 

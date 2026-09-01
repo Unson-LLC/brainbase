@@ -17,7 +17,7 @@ Each file under `capabilities/` should use the same fields:
 
 ```yaml
 id: project.selector
-name: Session project selector
+name: Workspace Setup project selector
 purpose: What user or agent goal this capability serves
 surfaces:
   ui: []
@@ -41,7 +41,7 @@ troubleshooting: []
 | `runtime.launchd` | Canonical port `31013` is managed by launchd and syncs selected paths from `origin/develop` before startup. |
 | `runtime.lightsail` | Production SSOT on `bb.unson.jp` runs from `/home/ubuntu/brainbase` under systemd (`brainbase-ssot.service`); deploy is manual ff-merge + restart. |
 | `project.catalog` | Defines the configured project catalog, authenticated grant scope, MCP status envelope, and audit evidence. |
-| `project.selector` | Defines which projects appear in the session creation dropdown. |
+| `project.selector` | Defines which projects appear in the Workspace Setup selector. |
 | `auth.grants` | Defines user project access through `auth_grants.project_codes` and JWT/localStorage access payloads. |
 | `session.create` | Historical record of retired Brainbase session/worktree creation. Codex owns this lifecycle. |
 | `terminal.transport` | Historical record of retired Brainbase xterm/tmux/ttyd transport. |

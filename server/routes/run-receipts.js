@@ -32,7 +32,8 @@ function actorFromRequest(req) {
         person_id: req.access?.personId || req.auth?.person_id || req.auth?.sub || null,
         projectCodes: Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [],
         role: req.access?.role || req.auth?.role || null,
-        authSource: req.authSource || null
+        authSource: req.authSource || null,
+        organizationId: req.access?.organizationId || req.access?.tenantId || null
     };
 }
 

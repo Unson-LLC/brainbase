@@ -114,6 +114,37 @@ ALTER TABLE graph_entities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE graph_entities FORCE ROW LEVEL SECURITY;
 ALTER TABLE graph_edges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE graph_edges FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_registry ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_registry FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_runs FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_steps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_steps FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS project_registry_organization_isolation ON project_registry;
+CREATE POLICY project_registry_organization_isolation ON project_registry
+  FOR ALL
+  USING (organization_id = current_setting('app.organization_id', true))
+  WITH CHECK (organization_id = current_setting('app.organization_id', true));
+
+DROP POLICY IF EXISTS project_provisioning_runs_organization_isolation ON project_provisioning_runs;
+CREATE POLICY project_provisioning_runs_organization_isolation ON project_provisioning_runs
+  FOR ALL
+  USING (organization_id = current_setting('app.organization_id', true))
+  WITH CHECK (organization_id = current_setting('app.organization_id', true));
+
+DROP POLICY IF EXISTS project_provisioning_steps_organization_isolation ON project_provisioning_steps;
+CREATE POLICY project_provisioning_steps_organization_isolation ON project_provisioning_steps
+  FOR ALL
+  USING (organization_id = current_setting('app.organization_id', true))
+  WITH CHECK (
+    organization_id = current_setting('app.organization_id', true)
+    AND EXISTS (
+      SELECT 1 FROM project_provisioning_runs r
+      WHERE r.run_id = project_provisioning_steps.run_id
+        AND r.organization_id = project_provisioning_steps.organization_id
+    )
+  );
 
 DROP POLICY IF EXISTS info_decisions_select ON decisions;
 CREATE POLICY info_decisions_select ON decisions

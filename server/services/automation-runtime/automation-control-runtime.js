@@ -141,7 +141,7 @@ export class AutomationControlRuntime {
     }
 
     async listRoleAgentInstances({ orgId = null, projectId = null, roleArchetypeId = null } = {}, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         return {
             role_agent_instances: this.repository.listRoleAgentInstances({ orgId, projectId, roleArchetypeId })
@@ -150,11 +150,11 @@ export class AutomationControlRuntime {
     }
 
     async createRoleAgentInstance(input, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         const orgId = requireInputString(input, 'org_id', 'orgId');
         const projectId = requireInputString(input, 'project_id', 'projectId');
-        await this.projectAccessPolicy.assertProjectSelectable(projectId);
-        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        await this.projectAccessPolicy.assertProjectSelectable(projectId, actor);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId, actor);
         this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         const roleArchetypeId = requireInputString(input, 'role_archetype_id', 'roleArchetypeId');
         const id = readOptionalString(input, 'id') || createStableId('rai', orgId, projectId, roleArchetypeId);
@@ -187,7 +187,7 @@ export class AutomationControlRuntime {
     }
 
     async listWorkflowTemplates({ orgId = null, projectId = null, workflowKind = null } = {}, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         return {
             workflow_templates: this.repository.listWorkflowTemplates({ orgId, projectId, workflowKind })
@@ -196,16 +196,16 @@ export class AutomationControlRuntime {
     }
 
     async createWorkflowTemplate(input, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         const orgId = readOptionalString(input, 'org_id', 'orgId');
         const projectId = readOptionalString(input, 'project_id', 'projectId');
         if (projectId) {
-            await this.projectAccessPolicy.assertProjectSelectable(projectId);
+            await this.projectAccessPolicy.assertProjectSelectable(projectId, actor);
             this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         } else if (!this._actorCanManageGlobalWorkflowTemplate(actor)) {
             throw AppError.forbidden('project_id is required for workflow_template creation');
         }
-        if (orgId) this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        if (orgId) this.projectAccessPolicy.assertOrgReferenceAllowed(orgId, actor);
         const id = readOptionalString(input, 'id') || createStableId('wft', orgId, projectId, readString(input, 'name'));
         const template = await this._transaction(() => {
             const item = this.repository.upsertWorkflowTemplate({
@@ -235,7 +235,7 @@ export class AutomationControlRuntime {
     }
 
     async listWorkflowBindings({ orgId = null, projectId = null, roleAgentInstanceId = null } = {}, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         return {
             workflow_bindings: this.repository.listWorkflowBindings({ orgId, projectId, roleAgentInstanceId })
@@ -244,11 +244,11 @@ export class AutomationControlRuntime {
     }
 
     async createWorkflowBinding(input, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         const orgId = requireInputString(input, 'org_id', 'orgId');
         const projectId = requireInputString(input, 'project_id', 'projectId');
-        await this.projectAccessPolicy.assertProjectSelectable(projectId);
-        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        await this.projectAccessPolicy.assertProjectSelectable(projectId, actor);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId, actor);
         this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         const roleAgentInstanceId = requireInputString(input, 'role_agent_instance_id', 'roleAgentInstanceId');
         const workflowTemplateId = requireInputString(input, 'workflow_template_id', 'workflowTemplateId');
@@ -303,7 +303,7 @@ export class AutomationControlRuntime {
     }
 
     async listWorkflowTriggers({ orgId = null, projectId = null, workflowBindingId = null, triggerType = null } = {}, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         return {
             workflow_triggers: this.repository.listWorkflowTriggers({ orgId, projectId, workflowBindingId, triggerType })
@@ -312,11 +312,11 @@ export class AutomationControlRuntime {
     }
 
     async createWorkflowTrigger(input, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         const orgId = requireInputString(input, 'org_id', 'orgId');
         const projectId = requireInputString(input, 'project_id', 'projectId');
-        await this.projectAccessPolicy.assertProjectSelectable(projectId);
-        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        await this.projectAccessPolicy.assertProjectSelectable(projectId, actor);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId, actor);
         this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         const workflowBindingId = requireInputString(input, 'workflow_binding_id', 'workflowBindingId');
         const binding = this.repository.getWorkflowBinding(workflowBindingId);
@@ -357,7 +357,7 @@ export class AutomationControlRuntime {
     }
 
     async listLoopIntents({ orgId = null, projectId = null, workflowBindingId = null, triggerId = null } = {}, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         return {
             loop_intents: this.repository.listLoopIntents({ orgId, projectId, workflowBindingId, triggerId })
@@ -367,11 +367,11 @@ export class AutomationControlRuntime {
     }
 
     async createLoopIntent(input, actor = {}) {
-        await this.projectAccessPolicy.prepare();
+        await this.projectAccessPolicy.prepare(actor);
         const orgId = requireInputString(input, 'org_id', 'orgId');
         const projectId = requireInputString(input, 'project_id', 'projectId');
-        await this.projectAccessPolicy.assertProjectSelectable(projectId);
-        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        await this.projectAccessPolicy.assertProjectSelectable(projectId, actor);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId, actor);
         this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         const workflowBindingId = requireInputString(input, 'workflow_binding_id', 'workflowBindingId');
         const binding = this.repository.getWorkflowBinding(workflowBindingId);
