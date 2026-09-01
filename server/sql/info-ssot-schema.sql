@@ -446,5 +446,20 @@ CREATE TRIGGER project_provisioning_receipts_no_mutation
   BEFORE UPDATE ON project_provisioning_runs
   FOR EACH ROW EXECUTE FUNCTION prevent_project_provisioning_receipt_mutation();
 
+CREATE OR REPLACE FUNCTION prevent_project_provisioning_step_receipt_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $body$
+BEGIN
+  IF OLD.receipt IS NOT NULL AND NEW.receipt IS DISTINCT FROM OLD.receipt THEN
+    RAISE EXCEPTION 'project provisioning step receipt is immutable';
+  END IF;
+  RETURN NEW;
+END;
+$body$;
+
+DROP TRIGGER IF EXISTS project_provisioning_step_receipts_no_mutation ON project_provisioning_steps;
+CREATE TRIGGER project_provisioning_step_receipts_no_mutation
+  BEFORE UPDATE ON project_provisioning_steps
+  FOR EACH ROW EXECUTE FUNCTION prevent_project_provisioning_step_receipt_mutation();
+
 -- RLS policies are intentionally omitted here.
 -- Apply RLS with app.role/app.project_codes/app.clearance when enabling Policy Gate.

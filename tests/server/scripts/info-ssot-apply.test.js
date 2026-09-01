@@ -198,6 +198,8 @@ describe('Info SSOT RLS deployment contract', () => {
             expect(readbackSql).toContain(table);
         }
         expect(readbackSql).toContain('INFO_SSOT_READBACK_OK');
+        expect(readbackSql).toContain('prevent_project_provisioning_step_receipt_mutation');
+        expect(readbackSql).toContain('project_provisioning_step_receipts_no_mutation');
         expect(smokeSql).toContain('INFO_SSOT_NEGATIVE_SMOKE_OK');
         expect(smokeSql).toMatch(/rel_type,\s+project_id/u);
         expect(smokeSql).toContain("'governs'");
@@ -216,6 +218,7 @@ describe('Info SSOT RLS deployment contract', () => {
 
         expect(runbook).toContain('API/MCPを再起動する前');
         expect(runbook).toContain('INFO_SSOT_NEGATIVE_SMOKE_OK');
+        expect(runbook).toContain('test -r server/sql/project-provisioning-schema.sql');
         expect(runbook).toContain(': "${ROLLBACK_SHA:?');
         expect(runbook).toContain('INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA"');
         expect(runbook).toContain('INFO_SSOT_OPERATION_MODE="apply"');

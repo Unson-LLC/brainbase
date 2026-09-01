@@ -21,6 +21,7 @@ grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
 grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
 test -r scripts/info-ssot-apply.sh
 test -r server/sql/info-ssot-schema.sql
+test -r server/sql/project-provisioning-schema.sql
 test -r server/sql/info-ssot-rls.sql
 test -r server/sql/info-ssot-readback.sql
 test -r server/sql/info-ssot-negative-smoke.sql

@@ -49,6 +49,72 @@ $$;
 
 REVOKE ALL ON FUNCTION project_code_collision_sources(text, text) FROM PUBLIC;
 
+-- Probe a globally unique Graph entity id before Project Registry writes. The
+-- caller receives the Project subject only inside its own organization. For a
+-- cross-organization match, the function exposes only that the id is occupied.
+DROP FUNCTION IF EXISTS project_graph_identity_probe(text, text);
+
+CREATE OR REPLACE FUNCTION project_graph_identity_probe(p_entity_id text)
+RETURNS TABLE(
+  scope_relation text,
+  entity_id text,
+  entity_type text,
+  lifecycle_status text,
+  project_code text,
+  entity_version integer,
+  display_name text,
+  catalog_project_id text,
+  catalog_version integer,
+  source_ref text
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  scoped_organization_id text := nullif(current_setting('app.organization_id', true), '');
+BEGIN
+  IF scoped_organization_id IS NULL THEN
+    RAISE EXCEPTION 'project graph identity probe requires app.organization_id'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    CASE WHEN p.organization_id = scoped_organization_id
+      THEN 'same_organization'::text ELSE 'other_organization'::text END,
+    ge.id,
+    CASE WHEN p.organization_id = scoped_organization_id THEN ge.entity_type ELSE NULL END,
+    CASE WHEN p.organization_id = scoped_organization_id THEN ge.lifecycle_status ELSE NULL END,
+    CASE WHEN p.organization_id = scoped_organization_id THEN p.code ELSE NULL END,
+    CASE WHEN p.organization_id = scoped_organization_id THEN ge.version ELSE NULL END,
+    CASE WHEN p.organization_id = scoped_organization_id THEN ge.payload->>'name' ELSE NULL END,
+    CASE WHEN p.organization_id = scoped_organization_id THEN ge.payload->>'catalog_project_id' ELSE NULL END,
+    CASE WHEN p.organization_id = scoped_organization_id
+      AND ge.payload->>'catalog_version' ~ '^[1-9][0-9]*$'
+      THEN (ge.payload->>'catalog_version')::integer ELSE NULL END,
+    CASE WHEN p.organization_id = scoped_organization_id THEN ge.payload->>'source_ref' ELSE NULL END
+  FROM public.graph_entities ge
+  LEFT JOIN public.projects p ON p.id = ge.project_id
+  WHERE ge.id = p_entity_id
+  LIMIT 1;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION project_graph_identity_probe(text) FROM PUBLIC;
+
+-- The production API normally connects as brainbase_app.  Keep the grant
+-- explicit when that role exists, while allowing schema bootstrap/readback in
+-- installations that use a different runtime role.
+DO $project_graph_identity_runtime_grant$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'brainbase_app') THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION project_graph_identity_probe(text) TO brainbase_app';
+  END IF;
+END
+$project_graph_identity_runtime_grant$;
+
 CREATE OR REPLACE FUNCTION claim_project_code(p_project_code text, p_organization_id text)
 RETURNS void
 LANGUAGE plpgsql
@@ -133,3 +199,18 @@ DROP TRIGGER IF EXISTS project_provisioning_receipts_no_mutation ON project_prov
 CREATE TRIGGER project_provisioning_receipts_no_mutation
   BEFORE UPDATE ON project_provisioning_runs
   FOR EACH ROW EXECUTE FUNCTION prevent_project_provisioning_receipt_mutation();
+
+CREATE OR REPLACE FUNCTION prevent_project_provisioning_step_receipt_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.receipt IS NOT NULL AND NEW.receipt IS DISTINCT FROM OLD.receipt THEN
+    RAISE EXCEPTION 'project provisioning step receipt is immutable';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS project_provisioning_step_receipts_no_mutation ON project_provisioning_steps;
+CREATE TRIGGER project_provisioning_step_receipts_no_mutation
+  BEFORE UPDATE ON project_provisioning_steps
+  FOR EACH ROW EXECUTE FUNCTION prevent_project_provisioning_step_receipt_mutation();

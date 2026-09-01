@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { lockProjectGraphIdentity } from '../project-graph-identity-lock.js';
 
 function parse(row) {
     return row ? { ...row, plan: row.plan || {}, manifest: row.manifest || {}, steps: row.steps || [] } : null;
@@ -34,17 +35,56 @@ export class PgProjectProvisioningRepository {
         this.infoSSOTService = infoSSOTService;
     }
 
-    async withOrganization(organizationId, handler) {
+    async withOrganization(organizationId, handler, { client = null } = {}) {
         if (!String(organizationId || '').trim()) {
             const error = new Error('Project Registry access requires organizationId');
             error.code = 'PROJECT_PROVISIONING_ORGANIZATION_REQUIRED';
             error.statusCode = 409;
             throw error;
         }
+        if (client) {
+            // A shared client is already inside the caller's transaction and
+            // access context. Re-entering InfoSSOT here would overwrite its
+            // transaction-local RLS settings (notably during Graph writes).
+            return handler(client);
+        }
         if (!this.infoSSOTService?.withAccessContext) return handler(this.pool);
-        return this.infoSSOTService.withAccessContext({
-            role: 'ceo', projectCodes: [], clearance: [], organizationId
-        }, handler);
+        const access = { role: 'ceo', projectCodes: [], clearance: [], organizationId };
+        return this.infoSSOTService.withAccessContext(access, handler);
+    }
+
+    async withOrganizationTransaction(organizationId, handler) {
+        if (!String(organizationId || '').trim()) {
+            const error = new Error('Project Registry access requires organizationId');
+            error.code = 'PROJECT_PROVISIONING_ORGANIZATION_REQUIRED';
+            error.statusCode = 409;
+            throw error;
+        }
+        if (typeof this.pool.connect !== 'function') {
+            throw new Error('Project Registry transaction requires a PostgreSQL client pool');
+        }
+        const client = await this.pool.connect();
+        let transactionStarted = false;
+        try {
+            await client.query('BEGIN');
+            transactionStarted = true;
+            const access = { role: 'ceo', projectCodes: [], clearance: [], organizationId };
+            const result = this.infoSSOTService?.withAccessContext
+                ? await this.infoSSOTService.withAccessContext(access, handler, { client })
+                : await handler(client);
+            await client.query('COMMIT');
+            transactionStarted = false;
+            return result;
+        } catch (error) {
+            if (transactionStarted) await client.query('ROLLBACK').catch(() => {});
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
+    async acquireProjectGraphIdentityLock(entityId, client) {
+        return lockProjectGraphIdentity(client, entityId);
     }
 
     async getProject(projectCode, organizationId) {
@@ -63,11 +103,19 @@ export class PgProjectProvisioningRepository {
         return rows;
     }
 
-    async listProjects(organizationId) {
+    async findProjectSubjectIdentity(entityId, organizationId, { client = null } = {}) {
+        const { rows } = await this.withOrganization(organizationId, (client) => client.query(
+            'SELECT * FROM project_graph_identity_probe($1)',
+            [entityId]
+        ), { client });
+        return rows[0] || null;
+    }
+
+    async listProjects(organizationId, { client = null } = {}) {
         const { rows } = await this.withOrganization(organizationId, (client) => client.query(
             'SELECT * FROM project_registry WHERE organization_id=$1 ORDER BY project_code',
             [organizationId]
-        ));
+        ), { client });
         return rows;
     }
 
@@ -250,6 +298,7 @@ export class PgProjectProvisioningRepository {
     }
 
     async setStep(runId, organizationId, stepName, state, payload = {}) {
+        const { client = null } = payload;
         const { rowCount } = await this.withOrganization(organizationId, (client) => client.query(
             `UPDATE project_provisioning_steps SET state=$4, attempt=attempt+1,
              receipt=COALESCE($5::jsonb,receipt), failure=$6::jsonb, updated_at=now()
@@ -259,12 +308,13 @@ export class PgProjectProvisioningRepository {
              RETURNING run_id`,
             [runId, organizationId, stepName, state, payload.receipt ? JSON.stringify(payload.receipt) : null,
                 payload.failure ? JSON.stringify(payload.failure) : null, payload.executionToken || null]
-        ));
+        ), { client });
         if (payload.executionToken && rowCount === 0) throw staleExecutionError(runId);
     }
 
-    async upsertProject(manifest, { organizationId }) {
+    async upsertProject(manifest, { organizationId, client = null }) {
         return this.withOrganization(organizationId, async (client) => {
+            await lockProjectGraphIdentity(client, manifest.project_code);
             try {
                 await client.query('SELECT claim_project_code($1,$2)', [manifest.project_code, organizationId]);
             } catch (cause) {
@@ -306,6 +356,6 @@ export class PgProjectProvisioningRepository {
                     JSON.stringify(manifest.repository)]
             );
             return saved.rows[0];
-        });
+        }, { client });
     }
 }

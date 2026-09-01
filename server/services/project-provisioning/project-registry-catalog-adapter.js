@@ -7,12 +7,17 @@ export class ProjectRegistryCatalogAdapter {
         this.organizationContext = new AsyncLocalStorage();
     }
 
-    runForOrganization(organizationId, callback) {
-        return this.organizationContext.run(organizationId, callback);
+    runForOrganization(organizationId, callback, { client = null } = {}) {
+        return this.organizationContext.run({ organizationId, client }, callback);
+    }
+
+    context() {
+        const value = this.organizationContext.getStore();
+        return typeof value === 'string' ? { organizationId: value, client: null } : (value || {});
     }
 
     async checkIntegrity() {
-        const organizationId = this.organizationContext.getStore();
+        const { organizationId, client } = this.context();
         if (!organizationId) {
             try {
                 const available = await this.repository.checkAvailability?.();
@@ -28,7 +33,9 @@ export class ProjectRegistryCatalogAdapter {
             }
         }
         try {
-            await this.repository.listProjects(organizationId);
+            await this.repository.listProjects(
+                organizationId, ...(client ? [{ client }] : [])
+            );
             return { applicability: 'applicable', source: { status: 'loaded' }, summary: { errors: 0 } };
         } catch (error) {
             return {
@@ -40,7 +47,7 @@ export class ProjectRegistryCatalogAdapter {
     }
 
     async getProjects() {
-        const organizationId = this.organizationContext.getStore();
+        const { organizationId, client } = this.context();
         // Never query the multi-tenant registry without an explicit organization.
         // Legacy callers must use the local config parser explicitly; this adapter
         // is the runtime catalog boundary and therefore has no authority without
@@ -53,7 +60,9 @@ export class ProjectRegistryCatalogAdapter {
         }
         let rows;
         try {
-            rows = await this.repository.listProjects(organizationId);
+            rows = await this.repository.listProjects(
+                organizationId, ...(client ? [{ client }] : [])
+            );
         } catch (error) {
             // Do not flatten database outages, timeouts, or migration gaps into
             // a confirmed empty catalog. The Registry is the membership authority,

@@ -469,13 +469,19 @@ export class GraphMaintenanceService {
         if (!['gm', 'ceo'].includes(access.role)) throw new Error('Graph maintenance requires gm or ceo role');
     }
 
-    async listAccessibleProjectCodes(access) {
+    withMaintenanceContext(access, handler, client = null) {
+        const scopedAccess = { ...access, graphMaintenanceMode: true };
+        if (client) return this.infoSSOTService.withAccessContext(scopedAccess, handler, { client });
+        return this.infoSSOTService.withAccessContext(scopedAccess, handler);
+    }
+
+    async listAccessibleProjectCodes(access, { client = null } = {}) {
         if (!access?.organizationId && !access?.tenantId) throw new Error('Signed tenant authorization with organization is required');
         if (!['gm', 'ceo'].includes(access.role)) throw new Error('Graph maintenance requires gm or ceo role');
         const requestedCodes = [...new Set((access.projectCodes || []).filter(Boolean))].sort();
         if (!requestedCodes.length) return [];
         const organizationId = access.organizationId || access.tenantId;
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+        return this.withMaintenanceContext(access, async (client) => {
             const { rows } = await client.query(
                 `SELECT code FROM projects
                  WHERE organization_id = $1 AND code = ANY($2::text[])
@@ -483,7 +489,7 @@ export class GraphMaintenanceService {
                 [organizationId, requestedCodes]
             );
             return rows.map((row) => row.code);
-        });
+        }, client);
     }
 
     async resolveProject(client, access, projectCode, { lock = false } = {}) {
@@ -792,8 +798,8 @@ export class GraphMaintenanceService {
         return snapshot;
     }
 
-    async exportSnapshot(access, { projectCode, includeProjectCodes = [] }) {
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+    async exportSnapshot(access, { projectCode, includeProjectCodes = [] }, { client = null } = {}) {
+        return this.withMaintenanceContext(access, async (client) => {
             const { project, snapshot } = await this.loadSnapshot(client, access, projectCode, { includeProjectCodes });
             const snapshotId = `gms_${randomUUID()}`;
             await client.query(
@@ -803,12 +809,12 @@ export class GraphMaintenanceService {
                 [snapshotId, access.organizationId || access.tenantId, project.id, snapshot.hash, JSON.stringify(snapshot), actor(access)]
             );
             return { snapshot_id: snapshotId, snapshot_hash: snapshot.hash, ...snapshot };
-        });
+        }, client);
     }
 
-    async planMutations(access, input) {
+    async planMutations(access, input, { client = null } = {}) {
         this.assertMaintenanceAccess(access, input.projectCode);
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+        return this.withMaintenanceContext(access, async (client) => {
             const organizationId = access.organizationId || access.tenantId;
             const { rows: snapshotRows } = await client.query(
                 `SELECT s.*, p.code AS project_code FROM graph_maintenance_snapshots s
@@ -965,7 +971,7 @@ export class GraphMaintenanceService {
                 throw new Error('idempotency key payload conflict');
             }
             return this.formatPlan(concurrent.rows[0]);
-        });
+        }, client);
     }
 
     async recordHumanGateReceipt(access, { projectCode, decisionId, receiptId, evidence = {} }) {
@@ -1126,9 +1132,9 @@ export class GraphMaintenanceService {
         }
     }
 
-    async applyPlan(access, { projectCode, planId, snapshotHash, humanGateReceipt }) {
+    async applyPlan(access, { projectCode, planId, snapshotHash, humanGateReceipt }, { client = null } = {}) {
         this.assertMaintenanceAccess(access, projectCode);
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+        return this.withMaintenanceContext(access, async (client) => {
             const organizationId = access.organizationId || access.tenantId;
             const { rows } = await client.query(
                 `SELECT p.*, pr.code AS project_code FROM graph_maintenance_plans p
@@ -1195,7 +1201,7 @@ export class GraphMaintenanceService {
             const receipt = await this.createReceipt(client, access, plan, 'apply', plan.base_snapshot_hash, readback.hash);
             await client.query(`UPDATE graph_maintenance_plans SET status='applied', applied_at=NOW() WHERE id=$1`, [planId]);
             return receipt;
-        });
+        }, client);
     }
 
     async findReceipt(client, planId, type, { organizationId, projectCode } = {}) {
@@ -1235,9 +1241,9 @@ export class GraphMaintenanceService {
         return rows[0];
     }
 
-    async getPlanReceipt(access, { projectCode, planId }) {
+    async getPlanReceipt(access, { projectCode, planId }, { client = null } = {}) {
         this.assertMaintenanceAccess(access, projectCode);
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+        return this.withMaintenanceContext(access, async (client) => {
             const { rows } = await client.query(
                 `SELECT r.id AS receipt_id, r.plan_id, r.receipt_type, r.status, r.before_hash, r.after_hash, r.result, r.created_at
                  FROM graph_maintenance_receipts r
@@ -1253,7 +1259,7 @@ export class GraphMaintenanceService {
             );
             if (!rows.length) throw new Error('Plan receipt is required');
             return { plan_id: planId, receipts: rows };
-        });
+        }, client);
     }
 
     async rollbackPlan(access, { projectCode, planId, applyReceiptId }) {
@@ -1341,8 +1347,8 @@ export class GraphMaintenanceService {
         });
     }
 
-    async validate(access, { projectCode, includeProjectCodes = [] }) {
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+    async validate(access, { projectCode, includeProjectCodes = [] }, { client = null } = {}) {
+        return this.withMaintenanceContext(access, async (client) => {
             const { snapshot } = await this.loadSnapshot(client, access, projectCode, { includeProjectCodes });
             const structural = validateGraphSnapshot(snapshot);
             const activeLocalEntityIds = snapshot.entities
@@ -1378,6 +1384,6 @@ export class GraphMaintenanceService {
                     ? { suppression_summary: snapshot.suppression_summary }
                     : {})
             };
-        });
+        }, client);
     }
 }

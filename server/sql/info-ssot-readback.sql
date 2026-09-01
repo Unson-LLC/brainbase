@@ -104,9 +104,43 @@ BEGIN
   IF to_regprocedure(format('%I.prevent_project_provisioning_receipt_mutation()', current_schema())) IS NULL THEN
     RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project provisioning receipt guard';
   END IF;
+  IF to_regprocedure(format('%I.prevent_project_provisioning_step_receipt_mutation()', current_schema())) IS NULL THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project provisioning step receipt guard';
+  END IF;
   IF to_regprocedure(format('%I.project_code_collision_sources(text,text)', current_schema())) IS NULL
-     OR to_regprocedure(format('%I.claim_project_code(text,text)', current_schema())) IS NULL THEN
+     OR to_regprocedure(format('%I.claim_project_code(text,text)', current_schema())) IS NULL
+     OR to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema())) IS NULL
+     OR to_regprocedure(format('%I.project_graph_identity_probe(text,text)', current_schema())) IS NOT NULL THEN
     RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project code claim functions';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE oid = to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema()))
+      AND prosecdef
+      AND provolatile = 's'
+      AND EXISTS (
+        SELECT 1 FROM unnest(coalesce(proconfig, ARRAY[]::text[])) AS setting
+        WHERE setting = 'search_path=pg_catalog, public'
+      )
+      AND NOT has_function_privilege(
+        'public',
+        to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema())),
+        'EXECUTE'
+      )
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project graph identity probe security contract mismatch';
+  END IF;
+  -- brainbase_app is the canonical production role, but local/staging
+  -- installations may intentionally use another role.  Validate the explicit
+  -- grant only when that role exists; PUBLIC remains denied above in all cases.
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'brainbase_app') THEN
+    IF NOT has_function_privilege(
+      'brainbase_app',
+      to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema())),
+      'EXECUTE'
+    ) THEN
+      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: brainbase_app cannot execute project graph identity probe';
+    END IF;
   END IF;
   IF EXISTS (
     SELECT 1 FROM information_schema.role_table_grants
@@ -121,6 +155,14 @@ BEGIN
       AND NOT tgisinternal
   ) THEN
     RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project provisioning receipt trigger';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = to_regclass(format('%I.project_provisioning_steps', current_schema()))
+      AND tgname = 'project_provisioning_step_receipts_no_mutation'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project provisioning step receipt trigger';
   END IF;
 END
 $project_provisioning_readback$;
