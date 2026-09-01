@@ -21,6 +21,7 @@ Brainbase利用者として、AIが自分へ確認せずに進めた判断、ま
 - [x] AC-009: 「確認を省略した」という表示は、Hostが同一turnで実際に差し戻した質問と一致する場合だけ生成する。
 - [x] AC-010: `human_required`は、同一turnの`waiting_human`状態と最終回答に表示した質問が一致する場合だけ生成する。
 - [x] AC-011: 本番展開は既定OFFとし、明示的な全体有効化またはproject allowlistによるcanaryだけで表示する。
+- [x] AC-012: runtime 2.4で必要なknowledgeと最終状態が揃い、Host監査行だけが欠けた場合は、Stop再入へ依存せず初回Stopで監査を補完してfinal receiptを確定する。
 
 ## 対象外
 

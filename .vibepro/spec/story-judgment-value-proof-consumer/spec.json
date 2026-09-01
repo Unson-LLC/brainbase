@@ -157,7 +157,7 @@
     {
       "id": "C-003",
       "type": "contract",
-      "statement": "Judgment Resolver Hostはintent_idをturnへ、decision_attempt_idを採用value proof eventへ決定的に束縛し、同一episodeで実際に捕捉した中断候補、event、Stop状態からProjectionを作り、Core Renderer出力を既存監査ブロックの後へ追加する",
+      "statement": "Judgment Resolver Hostはintent_idをturnへ、decision_attempt_idを採用value proof eventへ決定的に束縛し、同一episodeで実際に捕捉した中断候補、event、Stop状態からProjectionを作り、Core Renderer出力を既存監査ブロックの後へ追加する。runtime 2.4以降の状態eventは記録時点でHost確定autonomy契約と照合し、内部journal toolを実Brainbase参照件数へ算入しない",
       "origin": {
         "story_refs": [
           {
@@ -167,12 +167,24 @@
           {
             "kind": "acceptance_criteria",
             "ac_id": "AC-004"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-010"
           }
         ],
         "architecture_refs": [
           {
             "file": "docs/architecture/story-judgment-value-proof-consumer.md",
             "section": "データ経路"
+          },
+          {
+            "file": "docs/architecture/story-judgment-value-proof-consumer.md",
+            "section": "真実性境界"
           }
         ],
         "code_refs": [
@@ -193,6 +205,26 @@
           {
             "file": "tests/unit/judgment-value-proof-adapter.test.js",
             "case": "builds a portable verified projection only when referenced execution evidence exists"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "runtime 2.4のescalateはHost確定理由と異なるjournal状態をPostToolUseで拒否する"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "runtime 2.4のescalateはcompleted状態による確認必須判断の迂回をPostToolUseとStopで拒否する"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "runtime 2.4のescalateは安全な作業が残るpendingを受理しStopで継続を要求する"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "内部journal toolだけを使った場合も実Brainbase呼び出し0回の表示を要求する"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "runtime 2.4のescalateはHost確定理由のjournal状態からfinal receiptを確定する"
           }
         ]
       },
@@ -205,7 +237,7 @@
         ]
       },
       "first_seen_at": "2026-09-01T10:42:20.849Z",
-      "last_revised_at": "2026-09-01T10:42:20.849Z"
+      "last_revised_at": "2026-09-02T00:47:30.000Z"
     },
     {
       "id": "INV-002",
@@ -335,6 +367,32 @@
       },
       "first_seen_at": "2026-09-01T12:20:00.000Z",
       "last_revised_at": "2026-09-01T12:20:00.000Z"
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "runtime 2.4で必要なknowledgeとstateが揃いHost監査行だけが欠けた場合は、Stop再入に依存せず初回StopのHost出力で監査を補完してfinal receiptを確定する",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "ac_id": "AC-012" }
+        ],
+        "architecture_refs": [
+          { "file": "docs/architecture/story-judgment-value-proof-consumer.md", "section": "真実性境界" }
+        ],
+        "code_refs": [
+          { "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "finalizeEpisodeLocked" }
+        ],
+        "test_refs": [
+          { "file": "tests/integration/judgment-resolver-host-entrypoint.test.js", "case": "必要なknowledge/stateが揃い監査行だけ欠けた初回Stopを同じStopで確定する" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js", "must_cover": "同じStopで確定する" }
+        ]
+      },
+      "first_seen_at": "2026-09-02T02:00:00.000Z",
+      "last_revised_at": "2026-09-02T02:00:00.000Z"
     }
   ],
   "planned_test_suites": [

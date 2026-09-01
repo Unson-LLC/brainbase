@@ -935,6 +935,31 @@ function judgmentStopStateData(response) {
     return null;
 }
 
+function judgmentStopStateContract(state, receipt) {
+    const contract = verifyAutonomyContract(receipt);
+    if (!state || !contract) return { valid: Boolean(state), expectedReason: null };
+    if (contract.decision === 'escalate' && state.status === 'completed') {
+        return { valid: false, expectedReason: contract.reasonCode };
+    }
+    if (state.status === 'completed') {
+        return { valid: state.pending_safe_work === false && state.runtime_reason_code === null, expectedReason: null };
+    }
+    if (state.status === 'pending') {
+        return { valid: state.pending_safe_work === true && state.runtime_reason_code === null, expectedReason: null };
+    }
+    const expectedReason = contract.decision === 'escalate' ? contract.reasonCode : null;
+    const reasonAllowed = expectedReason !== null
+        ? state.runtime_reason_code === expectedReason
+        : contract.allowedRuntimeReasons.includes(state.runtime_reason_code);
+    return { valid: state.pending_safe_work === false && reasonAllowed, expectedReason };
+}
+
+function waitingHumanReasonAllowed(contract, reasonCode) {
+    return contract.decision === 'escalate'
+        ? reasonCode === contract.reasonCode
+        : contract.allowedRuntimeReasons.includes(reasonCode);
+}
+
 function eventKind(toolName) {
     const exactToolName = String(toolName);
     if (exactToolName === JUDGMENT_VALUE_PROOF_TOOL_NAME) return 'value_proof';
@@ -1042,7 +1067,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         pending_safe_work: record(inputValue)?.pending_safe_work,
         runtime_reason_code: record(inputValue)?.runtime_reason_code
     } : null;
-    const success = responseSucceeded(responseValue, {
+    const responseSuccess = responseSucceeded(responseValue, {
         allowTransportSuccess: ['search', 'retrieve'].includes(kind),
         allowExplicitSuccess: !['write', 'route'].includes(kind) || !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
@@ -1055,7 +1080,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                     : Boolean(taskResult)
     });
     const satisfiesKnowledgeExecution = kind === 'route';
-    const retrievalResult = success && ['search', 'retrieve'].includes(kind)
+    const retrievalResult = responseSuccess && ['search', 'retrieve'].includes(kind)
         ? retrieval?.outcome ?? null
         : null;
     const patchText = toolName === 'apply_patch'
@@ -1095,8 +1120,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const displayLine = !brainbaseTool || judgmentStateTool || judgmentValueProofTool
         ? null
         : kind === 'route'
-        ? routeDisplayLine(inputValue, resolution, success)
-        : `${success ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success
+        ? routeDisplayLine(inputValue, resolution, responseSuccess)
+        : `${responseSuccess ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${responseSuccess
             ? retrievalResult === 'no_result'
                 ? '該当なし（不在確定ではない）'
                 : retrievalResult === 'result'
@@ -1164,6 +1189,15 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             })
             .filter(Number.isSafeInteger)
             .reduce((maximum, sequence) => Math.max(maximum, sequence), -1) + 1;
+        const stateContract = judgmentStateTool
+            ? judgmentStopStateContract(stopState, episode.initial_route_receipt)
+            : { valid: true, expectedReason: null };
+        const success = responseSuccess && stateContract.valid;
+        const systemMessage = judgmentStateTool && responseSuccess && !stateContract.valid
+            ? stateContract.expectedReason
+                ? `Brainbase状態を修正してください。status=waiting_humanではruntime_reason_code=${stateContract.expectedReason}をHost確定理由と一字一句一致させ、状態toolを最後にもう一度実行してください。`
+                : 'Brainbase状態を修正してください。completedはpending_safe_work=false・runtime_reason_code=null、pendingはpending_safe_work=true・runtime_reason_code=null、waiting_humanは許可された理由コードを使ってください。'
+            : null;
         const entry = {
             schema_version: 'brainbase-judgment-tool-event-v1',
             recorded_at: new Date().toISOString(),
@@ -1178,7 +1212,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             event_fingerprint: fingerprint,
             query_excerpt: callScope,
             safe_metadata: safeMetadata,
-            display_line: displayLine
+            display_line: displayLine,
+            system_message: systemMessage
         };
         return createImmutableJson(target, entry, 'judgment_tool_event_conflict');
     }, env);
@@ -1499,15 +1534,22 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
                 triggerCode: 'unfinished_safe_work', stopState: state
             };
         }
+        if (contract.decision === 'escalate' && state.status === 'completed') {
+            return {
+                status: null,
+                violation: `Host確定判断は人間確認必須です。${exactTool}はwaiting_humanでruntime_reason_code=${contract.reasonCode}を記録するか、安全な作業が残る間はpendingを記録する`,
+                stopState: state
+            };
+        }
         if (state.status === 'pending' || state.pending_safe_work) {
             return {
                 status: null,
-                violation: 'Brainbase自律判断はcontinueです。journal状態が未完了のため、安全な範囲の実装・操作・検証まで継続する',
+                violation: 'journal状態が未完了です。Hostが確定した境界を維持し、安全な範囲の実装・操作・検証まで継続する',
                 triggerCode: 'unfinished_safe_work', stopState: state
             };
         }
         if (state.status === 'waiting_human') {
-            if (!contract.allowedRuntimeReasons.includes(state.runtime_reason_code)
+            if (!waitingHumanReasonAllowed(contract, state.runtime_reason_code)
                 || markerReason !== state.runtime_reason_code) {
                 return { status: null, violation: 'journalのwaiting_human状態と許可された実行時確認理由を正確な確認行で一致させる', stopState: state };
             }
@@ -1538,16 +1580,23 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
                 stopStateError: parsed.error
             };
         }
+        if (contract.decision === 'escalate' && state.status === 'completed') {
+            return {
+                status: null,
+                violation: `Host確定判断は人間確認必須です。構造化状態はwaiting_humanでruntime_reason_code=${contract.reasonCode}を記録するか、安全な作業が残る間はpendingを記録する`,
+                stopState: state
+            };
+        }
         if (state.status === 'pending' || state.pending_safe_work) {
             return {
                 status: null,
-                violation: 'Brainbase自律判断はcontinueです。構造化状態が未完了のため、安全な範囲の実装・操作・検証まで継続する',
+                violation: '構造化状態が未完了です。Hostが確定した境界を維持し、安全な範囲の実装・操作・検証まで継続する',
                 triggerCode: 'unfinished_safe_work',
                 stopState: state
             };
         }
         if (state.status === 'waiting_human') {
-            if (!contract.allowedRuntimeReasons.includes(state.runtime_reason_code)
+            if (!waitingHumanReasonAllowed(contract, state.runtime_reason_code)
                 || markerReason !== state.runtime_reason_code) {
                 return { status: null, violation: '構造化waiting_human状態と許可された実行時確認理由を正確な確認行で一致させる', stopState: state };
             }
@@ -2078,7 +2127,18 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 && typeof auditContract?.outcome_continuation_complete_line === 'string'));
     const answerBodyBinding = activeAnswerBodyBinding(existingContinuation, expectedAuditLines);
     const missingAnswerBody = !answerBodyMatchesBinding(answer, expectedAuditLines, answerBodyBinding);
-    if (missingKnowledge || missingOwnerAudit || missingAnswerBody || missingAutonomyCompliance) {
+    const hostCanCompleteOwnerAudit = missingOwnerAudit
+        && journalStopStateRequired(episode.initial_route_receipt)
+        && !missingKnowledge
+        && !missingAnswerBody
+        && !missingAutonomyCompliance
+        && !unauthorizedContinuationAudit
+        && !unauthorizedStopRepairAudit
+        && existingContinuation === null;
+    if (missingKnowledge
+        || (missingOwnerAudit && !hostCanCompleteOwnerAudit)
+        || missingAnswerBody
+        || missingAutonomyCompliance) {
         const missingCapabilities = [
             ...(missingKnowledge ? ['knowledge.resolve'] : []),
             ...(missingOwnerAudit ? ['owner.audit.display'] : []),
@@ -2223,8 +2283,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         event_count: events.length,
         qualifying_event_count: qualifyingEvents.length,
         event_set_digest: orderedEventSetDigest(events),
-        owner_audit_complete: !missingOwnerAudit,
+        owner_audit_complete: !missingOwnerAudit || hostCanCompleteOwnerAudit,
         owner_audit_line_count: expectedAuditLines.length,
+        owner_audit_source: hostCanCompleteOwnerAudit ? 'stop_hook_system_message' : 'assistant_answer',
         autonomy_compliance_status: autonomyCompliance.status,
         ...(autonomyCompliance.stopState ? {
             stop_state: {
@@ -2470,6 +2531,9 @@ export function successOutput(
                 'この自律判断は通常の権限・承認を置き換えません。'
             ]
             : [];
+    const internalJournalToolNames = valueProofRolloutEnabled({ initial_route_receipt: receipt }, env)
+        ? 'brainbase_judgment_state_recordとbrainbase_judgment_value_proof_record'
+        : 'brainbase_judgment_state_record';
     const context = [
         'Brainbase Judgment Resolver Host opened one judgment episode before model generation. The route receipt fixes the current intent and active DAG for this episode; it is not the final episode receipt.',
         'The Host-fixed initial route and classification are immutable for this episode; do not recalculate or change them.',
@@ -2481,7 +2545,7 @@ export function successOutput(
             'value proofを記録した場合も、その後にmcp__brainbase__brainbase_judgment_state_recordを実行し、状態toolを必ず最後のtool callにする。'
         ] : []),
         ...(journalStopStateRequired(receipt) ? [
-            '実装・操作turnの状態は回答本文へ書かない。全作業と検証の完了後、最終回答を作る直前の最後のtool callとしてmcp__brainbase__brainbase_judgment_state_recordを正確に1回実行する。安全な作業が残る間はstatus=pending・pending_safe_work=true、人間確認が必須ならstatus=waiting_humanと許可理由、完了時はstatus=completed・pending_safe_work=false・runtime_reason_code=nullを渡す。HTMLコメントや自然文へ状態をコピーしない。'
+            `実装・操作turnの状態は回答本文へ書かない。全作業と検証の完了後、最終回答を作る直前の最後のtool callとしてmcp__brainbase__brainbase_judgment_state_recordを正確に1回実行する。安全な作業が残る間はstatus=pending・pending_safe_work=true、人間確認が必須ならstatus=waiting_human${autonomy?.decision === 'escalate' ? `・runtime_reason_code=${autonomy.reasonCode}としてHost確定理由と一字一句一致させる` : '・runtime_reason_codeを許可された理由コードと一致させる'}、完了時はstatus=completed・pending_safe_work=false・runtime_reason_code=nullを渡す。HTMLコメントや自然文へ状態をコピーしない。`
         ] : []),
         ...(structuredStopStateRequired(receipt) ? [
             '実装・操作turnの実行状態は自然文から推測しません。最終回答の末尾に次の非表示状態を正確に1件だけ置く: <!-- brainbase-stop-state:{"schema_version":"brainbase-stop-state-v1","status":"completed","pending_safe_work":false,"runtime_reason_code":null} -->。安全な作業が残る間はstatusをpending、pending_safe_workをtrueにする。人間確認が必須ならstatusをwaiting_humanにし、runtime_reason_codeを許可された確認理由と一致させる。completedは同一episodeに成功したPostToolUse実行証跡があり、安全な作業が残っていない場合だけ使う。'
@@ -2491,7 +2555,7 @@ export function successOutput(
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
         `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
         ...(typeof auditContract?.zero_call_display_line === 'string' ? [
-            `If this episode records zero actual Brainbase calls, add this exact line immediately after the judgment line:\n${auditContract.zero_call_display_line}\nIf any Brainbase call is recorded, omit that zero-call line and use the Host-generated PostToolUse audit lines instead.`
+            `If this episode records zero actual Brainbase knowledge, retrieval, or business-action calls, add this exact line immediately after the judgment line:\n${auditContract.zero_call_display_line}\n${internalJournalToolNames}は内部journal toolであり、実Brainbase呼び出しとして数えない。これらだけを実行した場合も実呼び出し0回の行を残す。If an actual Brainbase knowledge, retrieval, or business-action call is recorded, omit that zero-call line and use the Host-generated PostToolUse audit lines instead.`
         ] : []),
         'Intermediate commentary may omit the owner-visible audit block. Put the complete audit block only at the start of the final response, after all Brainbase tool calls are known.',
         'Do not alter, translate, summarize, omit, invent, or duplicate an owner-visible audit line. Include every Host-generated PostToolUse audit line after the judgment line in journal commit order and with recorded multiplicity.',
@@ -2535,7 +2599,11 @@ export async function processHookPayload(payload, dependencies = {}) {
         if (event?.schema_version === 'brainbase-judgment-orphan-tool-event-v1') {
             return { systemMessage: ORPHAN_TOOL_EVENT_WARNING };
         }
-        return typeof event?.display_line === 'string' ? { systemMessage: event.display_line } : {};
+        return typeof event?.system_message === 'string'
+            ? { systemMessage: event.system_message }
+            : typeof event?.display_line === 'string'
+                ? { systemMessage: event.display_line }
+                : {};
     }
     if (eventName === 'Stop') {
         const autonomyOutput = await evaluateAutonomyStop(payload, dependencies);

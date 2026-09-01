@@ -1356,6 +1356,88 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(String(final.final_summary ?? '')).not.toContain('brainbase-stop-state');
     }, 20_000);
 
+    it('runtime 2.4のescalateは実Hook入口で不正状態を可視拒否し、Host確定理由のwaiting_humanだけを完了させる', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({ management_status: 'managed', receipt: {
+                    resolution_id: 'jr_escalate_state_entrypoint', runtime_version: 'judgment-runtime-2.4.0',
+                    turn_id: args.turn_id, request_digest: hash(canonicalJson(args)), context_digest: hash(canonicalJson(args.conversation_context)),
+                    status: 'resolved', host_binding: { status: 'managed' },
+                    classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                    classification: { intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high' },
+                    selected_dag_ids: ['engineering.v1', 'authority.v1'], required_capabilities: [],
+                    active_node_definitions: [{ id: 'operate', kind: 'common', instruction: 'Confirm before production.' }],
+                    autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+                    allowed_runtime_escalation_reasons: []
+                } }));
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-escalate-state-entrypoint', turn_id: 'turn-escalate-state-entrypoint' };
+        const env = { ...process.env, BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`, BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+        const started = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '本番へ反映して'
+        }) });
+        const context = JSON.parse(started.stdout).hookSpecificOutput.additionalContext;
+        expect(context).toContain('runtime_reason_code=risk_or_externalとしてHost確定理由と一字一句一致させる');
+        const ownerLine = context.split('\n').find((line) => line.startsWith('🧠 判断参照:'));
+
+        const recordState = (toolUseId, status, runtimeReasonCode) => run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'PostToolUse', ...identity,
+                tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: toolUseId,
+                tool_input: { status, pending_safe_work: false, runtime_reason_code: runtimeReasonCode },
+                tool_response: { status: 'ok', data: {
+                    schema_version: 'brainbase-stop-state-v1', status,
+                    pending_safe_work: false, runtime_reason_code: runtimeReasonCode
+                } }
+            })
+        });
+
+        const completed = await recordState('tool-escalate-entrypoint-completed', 'completed', null);
+        expect(completed).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(completed.stdout).systemMessage).toContain('status=waiting_human');
+        expect(JSON.parse(completed.stdout).systemMessage).toContain('runtime_reason_code=risk_or_external');
+
+        const mismatched = await recordState(
+            'tool-escalate-entrypoint-mismatch',
+            'waiting_human',
+            'new_value_judgment_requires_human_choice'
+        );
+        expect(mismatched).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(mismatched.stdout).systemMessage).toContain('runtime_reason_code=risk_or_external');
+
+        const corrected = await recordState('tool-escalate-entrypoint-correct', 'waiting_human', 'risk_or_external');
+        expect(corrected).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(corrected.stdout)).toEqual({});
+
+        const answer = [
+            ownerLine,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '⚠️ 確認が必要[risk_or_external]: 本番へ反映してよいか承認してください。'
+        ].join('\n');
+        const stopped = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: false, last_assistant_message: answer
+        }) });
+        expect(stopped).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(stopped.stdout).systemMessage).toContain(ownerLine);
+        const final = JSON.parse(readFileSync(
+            join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`),
+            'utf8'
+        ));
+        expect(final).toMatchObject({
+            completion_status: 'complete', autonomy_compliance_status: 'runtime_escalated',
+            stop_state: { status: 'waiting_human', source: 'journal' }
+        });
+    }, 20_000);
+
     it('実際に差し戻した質問だけを入口から判断レシートへ投影する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
@@ -1441,5 +1523,117 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(output).toContain('結果: 更新内容を読み戻して確認した');
         expect(output).toContain('判断: 既存SSOTを最小更新する');
         expect(readFileSync(join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.value-proof.json`), 'utf8')).toContain(hash(question));
+    }, 20_000);
+
+    it('必要なknowledge/stateが揃い監査行だけ欠けた初回Stopを同じStopで確定する', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({ management_status: 'managed', receipt: {
+                    resolution_id: 'jr_audit_only_missing_entrypoint', runtime_version: 'judgment-runtime-2.4.0',
+                    turn_id: args.turn_id, request_digest: hash(canonicalJson(args)),
+                    context_digest: hash(canonicalJson(args.conversation_context)), status: 'resolved',
+                    host_binding: { status: 'managed' },
+                    classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                    classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium' },
+                    selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                    required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }],
+                    active_node_definitions: [{ id: 'implement', kind: 'common', instruction: 'Implement.' }],
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                    allowed_runtime_escalation_reasons: [
+                        'irreversible_action', 'missing_authority', 'owner_value_choice',
+                        'required_input_unavailable', 'evidenced_terminal_blocker'
+                    ]
+                } }));
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-audit-only-missing-entrypoint', turn_id: 'turn-audit-only-missing-entrypoint' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal
+        };
+        const started = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT,
+                prompt: '正本を確認して修正して'
+            })
+        });
+        expect(started).toMatchObject({ code: 0, stderr: '' });
+        const context = JSON.parse(started.stdout).hookSpecificOutput.additionalContext;
+        const ownerLine = context.split('\n').find((line) => line.startsWith('🧠 判断参照:'));
+        expect(ownerLine).toBeTruthy();
+
+        const route = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'PostToolUse', ...identity,
+                tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-audit-only-route',
+                tool_input: { intent: '正本を確認して修正する', audience: 'team', project_code: 'brainbase', content_type: 'team_document' },
+                tool_response: {
+                    status: 'ok', data: {
+                        resolution_id: 'kr_audit_only_entrypoint', status: 'resolved', source_class: 'owning_repo',
+                        canonical_location: { repository: 'project:brainbase', path: 'docs/' },
+                        retrieval_capability: 'repository.read', searched_scope: [], absence_confirmed: false,
+                        excluded_sources: [
+                            { source_class: 'wiki', reason: 'Wiki is a migration compatibility surface, not a canonical destination.' },
+                            { source_class: 'graph', reason: 'Graph stores canonical entities, terms, and decisions rather than document bodies.' },
+                            { source_class: 'team_drive', reason: 'Drive stores source files and large assets, not reviewed team knowledge.' },
+                            { source_class: 'personal_kg', reason: 'Personal KG is owner-only and cannot be the source of team knowledge.' },
+                            { source_class: 'workspace_home', reason: 'Workspace home is for runtime state, not durable knowledge.' }
+                        ]
+                    }
+                }
+            })
+        });
+        expect(route).toMatchObject({ code: 0, stderr: '' });
+        const routeLine = JSON.parse(route.stdout).systemMessage;
+        expect(routeLine).toMatch(/^📚 Brainbase参照先:/u);
+
+        const state = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'PostToolUse', ...identity,
+                tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-audit-only-state',
+                tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+                tool_response: { status: 'ok', data: {
+                    schema_version: 'brainbase-stop-state-v1', status: 'completed',
+                    pending_safe_work: false, runtime_reason_code: null
+                } }
+            })
+        });
+        expect(state).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(state.stdout)).toEqual({});
+
+        const firstStop = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: false,
+                last_assistant_message: '正本を確認し、修正と検証を完了しました。'
+            })
+        });
+        expect(firstStop).toMatchObject({ code: 0, stderr: '' });
+        const expectedAuditBlock = [ownerLine, routeLine].join('\n');
+        expect(JSON.parse(firstStop.stdout)).toEqual({ systemMessage: expectedAuditBlock });
+
+        const journalDirectory = join(journal, hash(identity.session_id));
+        const turnRef = hash(identity.turn_id);
+        expect(existsSync(join(journalDirectory, `${turnRef}.continuation.json`))).toBe(false);
+        expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.final.json`), 'utf8')))
+            .toMatchObject({
+                completion_status: 'complete',
+                event_count: 2,
+                qualifying_event_count: 1,
+                owner_audit_complete: true,
+                owner_audit_line_count: 2,
+                stop_state: { status: 'completed', evidence_event_count: 1, source: 'journal' }
+            });
     }, 20_000);
 });

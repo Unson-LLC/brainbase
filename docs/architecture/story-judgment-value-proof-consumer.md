@@ -24,6 +24,7 @@
 - 入力が無いturnはレシートを生成しない。
 - raw tool response、秘密情報、内部監査ログは表示Projectionへ入れない。
 - attention付随成果物はfinal receiptのdigestへ束縛し、再Stopで欠落または改ざんを検出する。
+- runtime 2.4で必要なknowledge/stateが揃いHost監査行だけが欠けた場合は、CodexのStop再入に依存せず、初回StopのHost出力で監査行を補完してfinal receiptを確定する。状態や実行契約の不一致は補完対象にしない。
 
 ## P0で検証済みにできる実行経路
 
