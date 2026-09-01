@@ -39,9 +39,10 @@ export async function assertCatalogProjectSubjectMutation(client, {
     projectId,
     payload = {},
     lifecycleStatus = 'active',
-    allowCompatible = false
+    allowCompatible = false,
+    identityLocked = false
 }) {
-    await lockProjectGraphIdentity(client, id);
+    if (!identityLocked) await lockProjectGraphIdentity(client, id);
     const relation = await client.query(
         "SELECT to_regclass('public.project_registry') AS project_registry"
     );

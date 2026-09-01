@@ -192,6 +192,9 @@
         ],
         "test_refs": [
           {"file": "tests/integration/project-provisioning-full-flow.test.js", "case": "受入れE2E: 汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない"},
+          {"file": "tests/server/services/graph-maintenance-service.test.js", "case": "applyPlanはplan行をロックする前に全entity IDを昇順でロックする"},
+          {"file": "tests/server/services/graph-maintenance-service.test.js", "case": "rollbackPlanはplan行をロックする前に全entity IDを昇順でロックする"},
+          {"file": "tests/server/services/graph-maintenance-service.test.js", "case": "applyPlanはidentity lock後にplanのentity集合が変わった場合は書込前に拒否する"},
           {"file": "tests/server/services/learning-service-memory-kernel.test.js", "case": "Project Catalog登録済みIDへのlegacy昇格を共通guardで拒否する"},
           {"file": "tests/unit/info-ssot-knowledge-graph-repository.test.js", "case": "supersedeDecisionは直接UPDATE前に共通Graph ID guardを通る"},
           {"file": "tests/unit/info-ssot-knowledge-graph-repository.test.js", "case": "retractDecisionは直接UPDATE前に共通Graph ID guardを通る"}
