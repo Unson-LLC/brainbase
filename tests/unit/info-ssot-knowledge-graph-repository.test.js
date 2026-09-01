@@ -90,7 +90,7 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
         expect(result).toMatchObject({ id: 'project_brainbase', edge_count: 1 });
     });
 
-    it.each(['supersedeDecision', 'retractDecision'])('%sは直接UPDATE前に共通Graph ID guardを通る', async (method) => {
+    const expectDirectDecisionUpdateToUseGuard = async (method) => {
         const client = {
             query: vi.fn(async (sql) => {
                 if (String(sql).includes("to_regclass('public.project_registry')")) {
@@ -119,5 +119,13 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
         const updateIndex = client.query.mock.calls.findIndex(([sql]) => String(sql).includes('UPDATE graph_entities'));
         expect(lockIndex).toBeGreaterThanOrEqual(0);
         expect(updateIndex).toBeGreaterThan(lockIndex);
+    };
+
+    it('supersedeDecisionは直接UPDATE前に共通Graph ID guardを通る', async () => {
+        await expectDirectDecisionUpdateToUseGuard('supersedeDecision');
+    });
+
+    it('retractDecisionは直接UPDATE前に共通Graph ID guardを通る', async () => {
+        await expectDirectDecisionUpdateToUseGuard('retractDecision');
     });
 });
