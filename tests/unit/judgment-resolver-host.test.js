@@ -329,6 +329,37 @@ describe('Codex Judgment Resolver Host', () => {
         expect(context).toContain('通常の権限・承認を置き換えません');
     });
 
+    it('escalate契約はjournal状態へHost確定理由をそのまま記録するよう初期指示する', () => {
+        const context = successOutput({ request: '本番へ反映して', conversation_context: { messages: [] } }, {
+            runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high' },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'risk_or_external',
+            allowed_runtime_escalation_reasons: []
+        }).hookSpecificOutput.additionalContext;
+
+        expect(context).toContain('status=waiting_human');
+        expect(context).toContain('runtime_reason_code=risk_or_external');
+        expect(context).toContain('Host確定理由と一字一句一致');
+    });
+
+    it('内部journal toolだけを使った場合も実Brainbase呼び出し0回の表示を要求する', () => {
+        const context = successOutput({ request: '修正して', conversation_context: { messages: [] } }, {
+            runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium' },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        }, undefined, undefined, { BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'enabled' }).hookSpecificOutput.additionalContext;
+
+        expect(context).toContain('brainbase_judgment_state_recordとbrainbase_judgment_value_proof_recordは内部journal tool');
+        expect(context).toContain('これらだけを実行した場合も実呼び出し0回');
+    });
+
     it('required capabilityの正確な実行契約を初期指示へ注入し、曖昧なResolver禁止文を使わない', () => {
         const args = { request: '正本を確認して', conversation_context: { messages: [] } };
         const requiredReceipt = {
@@ -1647,6 +1678,97 @@ describe('Codex Judgment Resolver Host', () => {
         expect(result.final).toBeNull();
     });
 
+    it('runtime 2.3の初回escalateは構造化状態でcompletedを拒否し、Host理由一致のwaiting_humanだけを確定する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const makeEpisode = async (suffix) => {
+            const payload = {
+                session_id: `session-structured-escalate-${suffix}`,
+                turn_id: `turn-structured-escalate-${suffix}`,
+                prompt: '本番へ反映して',
+                cwd: process.cwd()
+            };
+            const args = buildJudgmentRequest(payload, { env });
+            const receipt = {
+                ...validReceipt(args),
+                runtime_version: 'judgment-runtime-2.3.0',
+                classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
+                selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                autonomy_decision: 'escalate',
+                autonomy_reason_code: 'risk_or_external',
+                allowed_runtime_escalation_reasons: []
+            };
+            const episode = await startEpisode(payload, {
+                env,
+                fetchImpl: vi.fn().mockResolvedValue({
+                    ok: true,
+                    status: 200,
+                    json: async () => ({ management_status: 'managed', receipt })
+                })
+            });
+            return { payload, episode };
+        };
+        const answerFor = (episode, state, body) => [
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            body,
+            structuredStopState(state.status, {
+                pendingSafeWork: state.pendingSafeWork,
+                runtimeReasonCode: state.runtimeReasonCode
+            })
+        ].join('\n');
+
+        const completed = await makeEpisode('completed');
+        const completedResult = finalizeEpisode({
+            session_id: completed.payload.session_id,
+            turn_id: completed.payload.turn_id,
+            stop_hook_active: false,
+            last_assistant_message: answerFor(
+                completed.episode,
+                { status: 'completed' },
+                '本番反映は実行していません。'
+            )
+        }, { env });
+        expect(completedResult.output).toMatchObject({ decision: 'block' });
+        expect(completedResult.output.reason).toContain('Host確定判断は人間確認必須');
+        expect(completedResult.final).toBeNull();
+
+        const mismatched = await makeEpisode('mismatched');
+        const mismatchedResult = finalizeEpisode({
+            session_id: mismatched.payload.session_id,
+            turn_id: mismatched.payload.turn_id,
+            stop_hook_active: false,
+            last_assistant_message: answerFor(
+                mismatched.episode,
+                {
+                    status: 'waiting_human',
+                    runtimeReasonCode: 'new_value_judgment_requires_human_choice'
+                },
+                '⚠️ 確認が必要[risk_or_external]: 本番反映の承認を確認してください。'
+            )
+        }, { env });
+        expect(mismatchedResult.output).toMatchObject({ decision: 'block' });
+        expect(mismatchedResult.output.reason).toContain('構造化waiting_human状態と許可された実行時確認理由');
+        expect(mismatchedResult.final).toBeNull();
+
+        const exact = await makeEpisode('exact');
+        const exactResult = finalizeEpisode({
+            session_id: exact.payload.session_id,
+            turn_id: exact.payload.turn_id,
+            stop_hook_active: false,
+            last_assistant_message: answerFor(
+                exact.episode,
+                { status: 'waiting_human', runtimeReasonCode: 'risk_or_external' },
+                '⚠️ 確認が必要[risk_or_external]: 本番反映の承認を確認してください。'
+            )
+        }, { env });
+        expect(exactResult.final).toMatchObject({
+            completion_status: 'complete',
+            autonomy_compliance_status: 'runtime_escalated',
+            stop_state: { status: 'waiting_human', evidence_event_count: 0 }
+        });
+    });
+
     it('runtime 2.4のcompletedは回答本文へ状態を出さず、専用PostToolUseのjournal状態で完了する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
@@ -1694,6 +1816,163 @@ describe('Codex Judgment Resolver Host', () => {
         expect(result.final).toMatchObject({
             completion_status: 'complete', autonomy_compliance_status: 'continued', event_count: 2,
             stop_state: { status: 'completed', evidence_event_count: 1, source: 'journal' }
+        });
+    });
+
+    it('runtime 2.4のescalateはHost確定理由と異なるjournal状態をPostToolUseで拒否する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-escalate-state-mismatch', turn_id: 'turn-escalate-state-mismatch', prompt: '本番へ反映して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            allowed_runtime_escalation_reasons: []
+        };
+        await startEpisode(payload, {
+            env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+
+        const event = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-escalate-state-mismatch',
+            tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'new_value_judgment_requires_human_choice' },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'new_value_judgment_requires_human_choice' } }
+        }, { env });
+
+        expect(event).toMatchObject({ success: false });
+        expect(event.system_message).toContain('runtime_reason_code=risk_or_external');
+    });
+
+    it('runtime 2.4のescalateはcompleted状態による確認必須判断の迂回をPostToolUseとStopで拒否する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-escalate-state-completed', turn_id: 'turn-escalate-state-completed', prompt: '本番へ反映して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            allowed_runtime_escalation_reasons: []
+        };
+        const episode = await startEpisode(payload, {
+            env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+        recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'apply_patch', tool_use_id: 'tool-escalate-state-forbidden-action',
+            tool_input: { patch_digest: 'must-not-authorize' }, tool_response: { success: true }
+        }, { env });
+        const event = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-escalate-state-completed',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }, { env });
+        const stateEventsDirectory = join(
+            root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.events`
+        );
+        const stateEventPath = readdirSync(stateEventsDirectory)
+            .map((name) => join(stateEventsDirectory, name))
+            .find((path) => JSON.parse(readFileSync(path, 'utf8')).event_kind === 'state');
+        expect(stateEventPath).toBeTruthy();
+        const forgedLegacyEvent = JSON.parse(readFileSync(stateEventPath, 'utf8'));
+        forgedLegacyEvent.success = true;
+        forgedLegacyEvent.system_message = null;
+        writeFileSync(stateEventPath, `${JSON.stringify(forgedLegacyEvent)}\n`, 'utf8');
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '本番反映を完了しました。'
+            ].join('\n')
+        }, { env });
+
+        expect(event).toMatchObject({ success: false });
+        expect(event.system_message).toContain('runtime_reason_code=risk_or_external');
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.output.reason).toContain('Host確定判断は人間確認必須');
+        expect(result.final).toBeNull();
+    });
+
+    it('runtime 2.4のescalateは安全な作業が残るpendingを受理しStopで継続を要求する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-escalate-state-pending', turn_id: 'turn-escalate-state-pending', prompt: '本番へ反映して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            allowed_runtime_escalation_reasons: []
+        };
+        const episode = await startEpisode(payload, {
+            env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+        const event = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-escalate-state-pending',
+            tool_input: { status: 'pending', pending_safe_work: true, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'pending', pending_safe_work: true, runtime_reason_code: null } }
+        }, { env });
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '安全な範囲の確認作業を続けます。'
+            ].join('\n')
+        }, { env });
+
+        expect(event).toMatchObject({ success: true });
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.output.reason).toContain('journal状態が未完了');
+        expect(result.output.reason).toContain('Hostが確定した境界を維持');
+        expect(result.output.reason).not.toContain('自律判断はcontinue');
+        expect(result.final).toBeNull();
+    });
+
+    it('runtime 2.4のescalateはHost確定理由のjournal状態からfinal receiptを確定する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-escalate-state-final', turn_id: 'turn-escalate-state-final', prompt: '本番へ反映して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            allowed_runtime_escalation_reasons: []
+        };
+        const episode = await startEpisode(payload, {
+            env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+        const event = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-escalate-state-final',
+            tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'risk_or_external' },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'risk_or_external' } }
+        }, { env });
+        const answer = [
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '⚠️ 確認が必要[risk_or_external]: 本番へ反映してよいか承認してください。'
+        ].join('\n');
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: answer
+        }, { env });
+
+        expect(event).toMatchObject({ success: true });
+        expect(result.output.systemMessage).toContain(episode.owner_audit.display_line);
+        expect(result.final).toMatchObject({
+            completion_status: 'complete', autonomy_compliance_status: 'runtime_escalated',
+            stop_state: { status: 'waiting_human', source: 'journal' }
         });
     });
 

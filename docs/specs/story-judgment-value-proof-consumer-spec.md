@@ -30,6 +30,8 @@ Projectionにattention付随成果物がある場合、確定後の再Stopでも
 
 `human_required`は`waiting_human`へ投影し、理由、選択肢、各選択肢の影響を保持する。
 状態toolの`runtime_reason_code`と最終回答の確認行を照合し、表示質問が一致しなければ投影しない。
+Hostの初期判断が`escalate`の場合、状態toolの`completed`をPostToolUseとStopの両方で拒否し、`waiting_human`または安全な作業が残る間の`pending`だけを受理する。
+これはStoryのAC-006とAC-010、およびArchitectureの「真実性境界」にある`human_required`を完了へ丸めない契約を、状態記録と最終確定の両方へ適用するものである。
 
 ### SPEC-005 非複製
 
@@ -42,6 +44,10 @@ Projectionにattention付随成果物がある場合、確定後の再Stopでも
 ### SPEC-007 変更範囲
 
 既存のVibePro証跡を削除しない。CIは読み取り専用権限で検証だけを実行し、ブランチへのcommitやpushを行わない。
+
+### SPEC-008 単一Stopでの監査確定
+
+runtime 2.4の書き込み・外部操作turnで、必要なknowledge eventと最終state eventが揃い、回答本文と自律判断契約に違反がなく、Host監査行だけが欠けている場合は、Stopの再実行へ依存しない。初回Stopの`systemMessage`へ保存済み監査行を出力し、同じStopでfinal receiptを確定する。不足したknowledge、状態不一致、未完了作業、未許可の監査行は従来どおりfail-closedにする。
 
 ## テスト参照
 
