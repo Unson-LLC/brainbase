@@ -12,6 +12,9 @@ function fallbackProjectCatalogStatusMessage(source = {}) {
         const httpStatus = Number.isInteger(source.http_status) ? `（HTTP ${source.http_status}）` : '';
         return `プロジェクト一覧を取得できません${httpStatus}。generalのみ選択できます。`;
     }
+    if (source.status === 'loaded' && source.enrichment_status === 'unavailable') {
+        return 'プロジェクト一覧を読み込みましたが、ローカルのワークスペース設定を確認できません。一覧は利用できますが、未設定のプロジェクトはワークスペース設定が必要です。';
+    }
     if (source.status === 'loaded') return '権限のあるプロジェクト一覧を読み込みました。';
     return 'プロジェクト一覧を取得できません。generalのみ選択できます。';
 }
@@ -31,11 +34,12 @@ function renderProjectCatalogStatus(projectSelect, source, getStatusMessage) {
         ? source
         : { status: 'unknown' };
     const isLoaded = normalizedSource.status === 'loaded';
+    const isPartial = isLoaded && normalizedSource.enrichment_status === 'unavailable';
     statusElement.textContent = typeof getStatusMessage === 'function'
         ? getStatusMessage(normalizedSource)
         : fallbackProjectCatalogStatusMessage(normalizedSource);
     statusElement.dataset.status = normalizedSource.status || 'unknown';
-    statusElement.dataset.severity = isLoaded ? 'success' : 'error';
+    statusElement.dataset.severity = isPartial ? 'warning' : isLoaded ? 'success' : 'error';
     statusElement.hidden = false;
     statusElement.setAttribute('role', isLoaded ? 'status' : 'alert');
     statusElement.setAttribute('aria-live', isLoaded ? 'polite' : 'assertive');

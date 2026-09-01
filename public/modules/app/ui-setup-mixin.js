@@ -49,6 +49,9 @@ function fallbackProjectCatalogStatusMessage(source = {}) {
     if (source.status === 'confirmed_empty') {
         return 'プロジェクト一覧の取得は完了しましたが、権限のあるプロジェクトは0件です。generalのみ選択できます。';
     }
+    if (source.status === 'loaded' && source.enrichment_status === 'unavailable') {
+        return 'プロジェクト一覧を読み込みましたが、ローカルのワークスペース設定を確認できません。一覧は利用できますが、未設定のプロジェクトはワークスペース設定が必要です。';
+    }
     if (source.status === 'loaded') return '権限のあるプロジェクト一覧を読み込みました。';
     return 'プロジェクト一覧を取得できません。generalのみ選択できます。';
 }
@@ -69,11 +72,15 @@ function renderProjectCatalogStatus(projectSelect, source, getStatusMessage) {
         : { status: 'unknown' };
     const isConfirmed = normalizedSource.status === 'loaded'
         || normalizedSource.status === 'confirmed_empty';
+    const isPartial = normalizedSource.status === 'loaded'
+        && normalizedSource.enrichment_status === 'unavailable';
     statusElement.textContent = typeof getStatusMessage === 'function'
         ? getStatusMessage(normalizedSource)
         : fallbackProjectCatalogStatusMessage(normalizedSource);
     statusElement.dataset.status = normalizedSource.status || 'unknown';
-    statusElement.dataset.severity = normalizedSource.status === 'confirmed_empty'
+    statusElement.dataset.severity = isPartial
+        ? 'warning'
+        : normalizedSource.status === 'confirmed_empty'
         ? 'info'
         : isConfirmed ? 'success' : 'error';
     statusElement.hidden = false;

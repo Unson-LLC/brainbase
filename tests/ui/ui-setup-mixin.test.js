@@ -102,4 +102,21 @@ describe('ui setup mixin Workspace Setup selector', () => {
         expect([...document.getElementById('session-project-select').options].map((option) => option.value))
             .toEqual(['general']);
     });
+
+    it('Workspace Setupはローカル補完失敗を警告として表示する', async () => {
+        projectMapping.getRuntimeProjectCatalogSource.mockReturnValue({
+            status: 'loaded', enrichment_status: 'unavailable', enrichment_code: 'ENOENT'
+        });
+        projectMapping.getRuntimeProjectCatalogStatusMessage.mockReturnValue(
+            'プロジェクト一覧を読み込みましたが、ローカルのワークスペース設定を確認できません。'
+        );
+
+        const app = new TestApp();
+        app.authManager = { access: { projectCodes: [] } };
+        await app.refreshProjectSelect('general');
+
+        const status = document.getElementById('session-project-catalog-status');
+        expect(status.dataset.severity).toBe('warning');
+        expect(status.textContent).toContain('ローカルのワークスペース設定');
+    });
 });

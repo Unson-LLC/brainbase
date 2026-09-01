@@ -186,6 +186,25 @@ describe('applySessionCreationMixin', () => {
         expect(createSession).not.toHaveBeenCalled();
     });
 
+    it('session launchはローカル補完失敗を警告として表示する', async () => {
+        document.body.innerHTML = '<select id="session-launch-project-select"></select>';
+        getRuntimeProjectCatalogSource.mockReturnValue({
+            status: 'loaded', enrichment_status: 'unavailable', enrichment_code: 'ENOENT'
+        });
+        getRuntimeProjectCatalogStatusMessage.mockReturnValue(
+            'プロジェクト一覧を読み込みましたが、ローカルのワークスペース設定を確認できません。'
+        );
+
+        class App {}
+        applySessionCreationMixin(App);
+        const projectSelect = document.getElementById('session-launch-project-select');
+        await new App()._populateSessionProjectSelect(projectSelect, 'brainbase');
+
+        const status = document.getElementById('session-launch-project-catalog-status');
+        expect(status.dataset.severity).toBe('warning');
+        expect(status.textContent).toContain('ローカルのワークスペース設定');
+    });
+
     it('Session Launch Picker cancel時_セッション作成や状態永続化を実行しない', async () => {
         document.body.innerHTML = `
             <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden"></div>

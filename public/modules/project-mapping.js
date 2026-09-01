@@ -242,12 +242,15 @@ export function getRuntimeProjectCatalogSource() {
  * copy here makes both project selectors use the same wording without
  * exposing registry implementation details in the UI modules.
  *
- * @param {{status?: string, http_status?: number}|null} source
+ * @param {{status?: string, http_status?: number, enrichment_status?: string}|null} source
  * @returns {string}
  */
 export function getRuntimeProjectCatalogStatusMessage(source = getRuntimeProjectCatalogSource()) {
     const status = source?.status || 'unknown';
 
+    if (status === 'loaded' && source?.enrichment_status === 'unavailable') {
+        return 'プロジェクト一覧を読み込みましたが、ローカルのワークスペース設定を確認できません。一覧は利用できますが、未設定のプロジェクトはワークスペース設定が必要です。';
+    }
     if (status === 'loaded') {
         return '権限のあるプロジェクト一覧を読み込みました。';
     }

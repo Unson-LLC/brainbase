@@ -214,4 +214,35 @@ describe('project mapping runtime catalog', () => {
         expect(mapping.getRuntimeProjectCatalogStatusMessage()).toContain('権限のあるプロジェクトは0件です');
         expect(mapping.getSessionSelectableProjects([])).toEqual([]);
     });
+
+    it('Registry取得成功でもローカル補完失敗を通常成功に丸めない', async () => {
+        vi.stubGlobal('fetch', vi.fn(async (url) => {
+            if (url === '/api/config') {
+                return {
+                    ok: true,
+                    json: async () => ({ projects: { root: '/workspace', projects: [] } })
+                };
+            }
+            if (url === '/api/config/projects') {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        source: {
+                            status: 'loaded',
+                            enrichment_status: 'unavailable',
+                            enrichment_code: 'ENOENT'
+                        },
+                        projects: [{ id: 'registry-project', session_select: true }]
+                    })
+                };
+            }
+            throw new Error(`unexpected URL: ${url}`);
+        }));
+
+        const mapping = await import('../../public/modules/project-mapping.js');
+        await mapping.projectMappingReady;
+
+        expect(mapping.getRuntimeProjectCatalogStatusMessage()).toContain('ローカルのワークスペース設定');
+        expect(mapping.getRuntimeProjectCatalogStatusMessage()).toContain('確認できません');
+    });
 });
