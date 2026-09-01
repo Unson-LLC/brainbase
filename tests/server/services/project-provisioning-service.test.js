@@ -81,6 +81,9 @@ function createHarness({ failGrantOnce = false, authority, identityCollisions = 
     const repository = new MemoryRepository({ authority, identityCollisions });
     const graphCalls = [];
     const graphService = {
+        listAccessibleProjectCodes: vi.fn(async (access) => (
+            access.projectCodes.filter((code) => code !== 'aitle')
+        )),
         exportSnapshot: vi.fn(async () => { graphCalls.push('exportSnapshot'); return { snapshot_id: 'snap_1', snapshot_hash: 'hash_1', entities: structuredClone(graphEntities) }; }),
         planMutations: vi.fn(async () => { graphCalls.push('planMutations'); return { plan_id: 'gplan_1', snapshot_hash: 'hash_1' }; }),
         applyPlan: vi.fn(async () => { graphCalls.push('applyPlan'); return { receipt_id: 'apply_1' }; }),
@@ -504,7 +507,7 @@ describe('ProjectProvisioningService', () => {
             }
         };
         const { service, repository, graphService } = createHarness({ graphEntities: [existingSubject] });
-        const scopedActor = { ...actor, projectCodes: ['brainbase'] };
+        const scopedActor = { ...actor, projectCodes: ['brainbase', 'aitle'] };
         const plan = await service.plan(scopedActor, manifest, { idempotencyKey: 'growin-existing-subject' });
         await service.approve(scopedActor, plan.run_id, {
             approvedGates: ['manifest_plan_approval'], reviewRef: 'review-existing-subject'
@@ -513,7 +516,7 @@ describe('ProjectProvisioningService', () => {
         await service.apply(scopedActor, plan.run_id);
 
         expect(graphService.exportSnapshot).toHaveBeenCalledWith(expect.objectContaining({
-            projectCodes: expect.arrayContaining(['brainbase', manifest.project_code])
+            projectCodes: expect.arrayContaining(['brainbase', 'aitle', manifest.project_code])
         }), {
             projectCode: manifest.project_code,
             includeProjectCodes: ['brainbase']

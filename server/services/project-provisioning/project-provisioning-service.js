@@ -481,7 +481,10 @@ export class ProjectProvisioningService {
                 projectCodes: [...new Set([...(actor.projectCodes || []), manifest.project_code])],
                 role: actor.role
             };
-            const includeProjectCodes = (actor.projectCodes || []).filter((code) => code !== manifest.project_code);
+            const accessibleProjectCodes = this.graphService.listAccessibleProjectCodes
+                ? await this.graphService.listAccessibleProjectCodes(access)
+                : [manifest.project_code];
+            const includeProjectCodes = accessibleProjectCodes.filter((code) => code !== manifest.project_code);
             const snapshot = await this.graphService.exportSnapshot(access, {
                 projectCode: manifest.project_code,
                 includeProjectCodes
