@@ -6,8 +6,8 @@ ADR-022の一方向依存を、J0 run artifact契約の実consumerで証明す�
 
 ## 固定契約
 
-- manifest dependency: `github:Unson-LLC/brainbase#9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae`
-- installed resolution: `git+ssh://git@github.com/Unson-LLC/brainbase.git#9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae`
+- manifest dependency: `github:Unson-LLC/brainbase#d51550260407bff7782c1a621fa13b12ce9fbfa6`
+- installed resolution: `git+ssh://git@github.com/Unson-LLC/brainbase.git#d51550260407bff7782c1a621fa13b12ce9fbfa6`
 - import: `@unson/brainbase-mcp/judgment-dag`
 - save input: 既存directory rootと完全な`JudgmentDAGRunRecord`
 - load input: 同じrootとsave receiptの`artifact_id`

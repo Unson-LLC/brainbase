@@ -805,10 +805,18 @@ describe('Codex Judgment Resolver Host', () => {
         expect(countedResult.display_line).toBe(
             '📚 Brainbase検索: search「counted-result」→ 結果を取得 ✓'
         );
+        expect(noResult.safe_metadata).toEqual({
+            subject_ref: 'exact-safe-query', retrieval_outcome: 'no_result'
+        });
+        expect(searchResult.safe_metadata).toEqual({
+            subject_ref: '判断', retrieval_outcome: 'result'
+        });
+        expect(retrieved.safe_metadata).toEqual({
+            subject_ref: 'glossary_term', retrieval_outcome: 'result'
+        });
         for (const event of [noResult, searchResult, retrieved]) {
             expect(event.display_line).not.toContain('response-controlled');
             expect(event.display_line).not.toContain('sk-response-secret');
-            expect(event.safe_metadata).toEqual({});
         }
     });
 
