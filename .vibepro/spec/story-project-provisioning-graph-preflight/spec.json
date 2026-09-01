@@ -18,8 +18,8 @@
       "ambiguity_behavior": "deny"
     },
     "propagation": {
-      "required_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply", "Info SSOT generic Graph writers"],
-      "verified_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply", "Info SSOT generic Graph writers"]
+      "required_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply", "Info SSOT generic Graph writers", "LearningService legacy Graph promotion", "Knowledge Event direct decision updates"],
+      "verified_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply", "Info SSOT generic Graph writers", "LearningService legacy Graph promotion", "Knowledge Event direct decision updates"]
     },
     "resources": [{
       "name": "Graph project subject identity",
@@ -59,7 +59,7 @@
     "verification": {
       "scanner_coverage": "unverified",
       "evidence": {
-        "propagation_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply", "Info SSOT generic Graph writers"],
+        "propagation_surfaces": ["Project Provisioning service", "PostgreSQL identity probe", "Graph Maintenance apply", "Info SSOT generic Graph writers", "LearningService legacy Graph promotion", "Knowledge Event direct decision updates"],
         "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate", "incompatible_identity", "inaccessible_existing_scope"],
         "graph": {
           "tenant_key": "organization_id",
@@ -186,9 +186,15 @@
         "code_refs": [
           {"file": "server/services/project-graph-identity-lock.js", "anchor": "assertCatalogProjectSubjectMutation"},
           {"file": "server/services/info-ssot-service.js", "anchor": "upsertGraphEntity"},
-          {"file": "server/services/graph-maintenance-service.js", "anchor": "replaceSnapshot"}
+          {"file": "server/services/graph-maintenance-service.js", "anchor": "replaceSnapshot"},
+          {"file": "server/services/learning-service.js", "anchor": "promoteMemoryCandidateToGraph"},
+          {"file": "server/services/knowledge-event/info-ssot-knowledge-graph-repository.js", "anchor": "supersedeDecision"}
         ],
-        "test_refs": [{"file": "tests/integration/project-provisioning-full-flow.test.js", "case": "受入れE2E: 汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない"}]
+        "test_refs": [
+          {"file": "tests/integration/project-provisioning-full-flow.test.js", "case": "受入れE2E: 汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない"},
+          {"file": "tests/server/services/learning-service-memory-kernel.test.js", "case": "Project Catalog登録済みIDへのlegacy昇格を共通guardで拒否する"},
+          {"file": "tests/unit/info-ssot-knowledge-graph-repository.test.js", "case": "supersedeDecisionは直接UPDATE前に共通Graph ID guardを通る"}
+        ]
       },
       "verifiable_by": {
         "test": ["real PostgreSQL serializes provisioning and generic Graph writes on the same entity ID and preserves the catalog subject"],

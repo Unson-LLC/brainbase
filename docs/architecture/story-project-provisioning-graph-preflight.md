@@ -14,7 +14,7 @@ Repositoryは限定関数の結果と、既存のRLS-scoped display name／alias
 
 planは再利用元scopeとentity versionを保存します。applyはRegistry書込前に限定関数を再実行し、承認済みplan、現在のsubject、適用者のscopeが一致しない場合はrunを`planned`のまま拒否します。Graph stepの`assertCompatibleProjectSubject`とGraph Maintenanceのtenant guardも最終防御として残します。
 
-Project entity IDのadvisory transaction lockはProvisioning専用ではなく、Info SSOTの汎用entity/ontology commit writerとGraph Maintenance applyでも共有します。Project Catalogに登録済みのIDは汎用writerからの変更を409で拒否し、Graph MaintenanceだけがCatalogのproject ID・同一組織内の承認済み格納先scope・name・version・source・active状態に完全一致するprojectionを適用できます。既存subjectを承認済みsource scopeから再利用する契約は維持します。全writerはproject row等を更新する前にID lockを取得し、ロック順をID昇順へ固定します。
+Project entity IDのadvisory transaction lockはProvisioning専用ではなく、Info SSOTの汎用entity/ontology commit writer、Graph Maintenance apply、LearningServiceのlegacy Graph昇格、Knowledge Eventのdecision更新でも共有します。Project Catalogに登録済みのIDは汎用writerとlegacy writerからの変更を409で拒否し、Graph MaintenanceだけがCatalogのproject ID・同一組織内の承認済み格納先scope・name・version・source・active状態に完全一致するprojectionを適用できます。既存subjectを承認済みsource scopeから再利用する契約は維持します。全writerはproject row等を更新する前にID lockを取得し、ロック順をID昇順へ固定します。
 
 Graph新規作成後にGrantやRepositoryで失敗したrunは、再開時点では自分が作成したsubjectを観測します。この場合だけ、Graph stepが`completed`であり、新規作成用のplan/apply/validation Receiptが揃い、Graphから再取得したapply Receiptのplan ID・apply Receipt ID・対象project scope・`project-provisioning:{run_id}:graph` idempotency keyと、対象subjectのCatalog version・sourceがすべて一致することを確認して再開します。`already_materialized` Receipt、別run/planのReceipt、改変されたReceipt、別scopeのsubjectはこの例外に含めず、従来どおり明示scopeを要求します。
 
@@ -33,6 +33,8 @@ Graph新規作成後にGrantやRepositoryで失敗したrunは、再開時点で
 - `server/services/project-graph-identity-lock.js`: 全Graph writer共通のID lockとCatalog subject guard
 - `server/services/info-ssot-service.js`: 汎用writerからCatalog subjectへの直接変更を拒否
 - `server/services/graph-maintenance-service.js`: 完全一致projectionだけを共通lock下で適用
+- `server/services/learning-service.js`: legacy Graph昇格を共通lock/guardへ接続
+- `server/services/knowledge-event/info-ssot-knowledge-graph-repository.js`: decision直接更新を共通lock/guardへ接続
 - 対象unit／PostgreSQL統合試験
 
 自動rehome、所有権移管、Graph payloadの自動修正は行いません。

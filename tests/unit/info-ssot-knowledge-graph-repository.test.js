@@ -89,4 +89,35 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
         );
         expect(result).toMatchObject({ id: 'project_brainbase', edge_count: 1 });
     });
+
+    it.each(['supersedeDecision', 'retractDecision'])('%sは直接UPDATE前に共通Graph ID guardを通る', async (method) => {
+        const client = {
+            query: vi.fn(async (sql) => {
+                if (String(sql).includes("to_regclass('public.project_registry')")) {
+                    return { rows: [{ project_registry: null }] };
+                }
+                if (String(sql).includes('UPDATE graph_entities')) {
+                    return { rows: [{ id: 'decision_1', entity_type: 'decision', payload: {} }] };
+                }
+                return { rows: [] };
+            })
+        };
+        const infoSSOTService = {
+            withAccessContext: vi.fn(async (_access, work) => work(client))
+        };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+
+        await repository[method]({
+            id: 'decision_1',
+            event_id: 'event_1',
+            replacement_event_id: 'event_2',
+            replacement_candidate_id: 'candidate_2',
+            source_pointer: null
+        }, { client, access });
+
+        const lockIndex = client.query.mock.calls.findIndex(([sql]) => String(sql).includes('pg_advisory_xact_lock'));
+        const updateIndex = client.query.mock.calls.findIndex(([sql]) => String(sql).includes('UPDATE graph_entities'));
+        expect(lockIndex).toBeGreaterThanOrEqual(0);
+        expect(updateIndex).toBeGreaterThan(lockIndex);
+    });
 });

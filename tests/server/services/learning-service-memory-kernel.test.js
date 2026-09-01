@@ -172,6 +172,60 @@ describe('LearningService Graph promotion identity', () => {
         expect(result.graph_entity.id).toBe('decision_stable_1');
     });
 
+    it('Project Catalog登録済みIDへのlegacy昇格を共通guardで拒否する', async () => {
+        const client = {
+            query: vi.fn(async (sql) => {
+                if (String(sql).includes("to_regclass('public.project_registry')")) {
+                    return { rows: [{ project_registry: 'project_registry' }] };
+                }
+                if (String(sql).includes('FROM project_registry pr')) {
+                    return {
+                        rows: [{
+                            project_code: 'growin-project',
+                            display_name: 'Growin',
+                            catalog_version: 1,
+                            project_scope_compatible: true
+                        }]
+                    };
+                }
+                return { rows: [], rowCount: 1 };
+            }),
+            release: vi.fn()
+        };
+        const pool = {
+            query: vi.fn(async () => ({ rows: [], rowCount: 1 })),
+            connect: vi.fn(async () => client)
+        };
+        const ontologyRegistry = {
+            hasCurrent: () => false,
+            resolve: () => ({ kernel: { getType: vi.fn() } })
+        };
+        const service = new LearningService({ pool, ontologyRegistry });
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
+            ...legacyPayload(),
+            id: 'memcand_project_collision',
+            subject_type: 'project',
+            recommended_subject_id: 'growin-project',
+            promotion_status: 'approved',
+            redaction_status: 'none',
+            permission_snapshot: {},
+            evidence_ids: []
+        });
+
+        await expect(service.promoteMemoryCandidateToGraph('memcand_project_collision', {
+            actor_person_id: 'sato_keigo',
+            access: { role: 'member', projectCodes: ['brainbase'] }
+        })).rejects.toMatchObject({
+            code: 'GRAPH_PROJECT_CATALOG_SUBJECT_PROTECTED',
+            statusCode: 409,
+            details: { entity_id: 'growin-project', reason: 'generic_writer_forbidden' }
+        });
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('pg_advisory_xact_lock'))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO graph_entities'))).toBe(false);
+        expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+    });
+
     it('recommended_subject_id欠落時はGraph書込み前に拒否する', async () => {
         const pool = {
             query: vi.fn(),
