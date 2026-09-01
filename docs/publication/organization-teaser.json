@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0.0",
+  "candidate_id": "brainbase-organization-teaser-2026-09-01",
+  "status": "approved",
+  "source": {
+    "type": "human_approved_baseline",
+    "reference": "owner-approved-organization-teaser-and-email-only-waitlist",
+    "recorded_at": "2026-09-01T18:00:00+09:00"
+  },
+  "approval": {
+    "status": "approved",
+    "approved_by": "sintariran",
+    "approved_at": "2026-09-01T18:00:00+09:00",
+    "reason": "Owner approved an Organization teaser with a single visible email field instead of a full product page."
+  },
+  "copy": {
+    "eyebrow": "Brainbase Organization",
+    "tension": "任せたい。でも、勝手な判断は困る。",
+    "headline": "同じ判断を、何度も経営者に戻さない。",
+    "definition": "Brainbase Organizationは、個人版で育てた経営者や専門家の判断に、権限・承認・例外処理を加え、社員とAIが安全に再利用できるようにする組織版です。",
+    "standard_case": "既に決めた基準で答えられる仕事は、社員とAIが進めます。",
+    "exception_case": "新しい判断、基準が衝突する判断、高いリスクを伴う判断だけを、理由と選択肢をそろえて承認者へ戻します。",
+    "availability": "現在、非公開で開発・運用しながら、限定パイロットの先行案内を受け付けています。",
+    "email_label": "メールアドレス",
+    "email_placeholder": "you@company.com",
+    "cta": "先行案内を受け取る",
+    "submitting": "送信中…",
+    "success": "登録しました。製品公開時または限定パイロット募集時にご連絡します。",
+    "error": "送信できませんでした。時間をおいて再度お試しください。",
+    "privacy_note": "製品公開時および限定パイロット募集時のみご連絡します。送信にはFormspreeを利用します。",
+    "privacy_link_text": "プライバシーポリシー"
+  },
+  "form": {
+    "provider": "formspree",
+    "endpoint": "https://formspree.io/f/xdkgavwn",
+    "name": "brainbase_organization_waitlist",
+    "copy_variant": "organization_teaser_v1",
+    "subject": "Brainbase Organization 先行案内登録",
+    "consent_version": "2026-09-01",
+    "privacy_url": "https://www.unson.jp/privacy-policy"
+  }
+}
