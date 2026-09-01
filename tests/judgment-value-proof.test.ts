@@ -48,7 +48,7 @@ function verifiedProof(): JudgmentValueProof {
       }]
     },
     human_decision: null,
-    feedback: { status: 'pending', summary: null, evidence_ref: null }
+    feedback: { status: 'none', summary: null, evidence_ref: null }
   };
 }
 
@@ -70,7 +70,6 @@ describe('judgment value proof placement', () => {
     };
     proof.execution = { status: 'completed', summary: '通常回答を完了', artifact_refs: [] };
     proof.outcome = { status: 'not_applicable', summary: null, evidence_refs: [] };
-    proof.feedback = { status: 'none', summary: null, evidence_ref: null };
 
     expect(placeJudgmentValueProof(proof)).toEqual({
       agent_progress: 'silent',
@@ -95,13 +94,22 @@ describe('judgment value proof placement', () => {
   });
 
   it('renders outcome first and hides internal entity IDs from the default receipt', () => {
-    const receipt = renderJudgmentValueProofCompletion(verifiedProof());
+    const proof = verifiedProof();
+    const receipt = renderJudgmentValueProofCompletion(proof);
 
     expect(receipt).toMatch(/^Brainbase判断レシート\n結果:/u);
     expect(receipt).toContain('判断: 既存SSOTを最小更新する');
     expect(receipt).toContain('状態: 成果確認済み');
     expect(receipt).not.toContain('dec-example');
     expect(receipt).not.toContain('github://pull/142');
+    expect(projectJudgmentValueProofAttention(proof)).toBeNull();
+  });
+
+  it('routes explicit feedback requests to Companion without notifying every successful run', () => {
+    const proof = verifiedProof();
+    proof.feedback = { status: 'pending', summary: null, evidence_ref: null };
+
+    expect(projectJudgmentValueProofAttention(proof)?.kind).toBe('feedback_requested');
   });
 
   it('routes real owner decisions to agent text and Companion attention', () => {
@@ -130,7 +138,6 @@ describe('judgment value proof placement', () => {
         { id: 'B', label: '50万円', impact: '受注可能性は上がるが初月赤字の可能性がある' }
       ]
     };
-    proof.feedback = { status: 'none', summary: null, evidence_ref: null };
 
     expect(renderJudgmentHumanDecisionRequest(proof)).toContain('AIで決めない理由');
     expect(projectJudgmentValueProofAttention(proof)?.kind).toBe('human_decision');
@@ -166,7 +173,6 @@ describe('judgment value proof placement', () => {
       why_human: '新しいowner価値判断だから',
       options: []
     };
-    humanRequired.feedback = { status: 'none', summary: null, evidence_ref: null };
 
     const digest = renderJudgmentValueProofWeeklyDigest({
       period_label: '今週',
