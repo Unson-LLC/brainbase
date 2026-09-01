@@ -2061,7 +2061,7 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 completed.episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '修正とテストを完了しました。必要なら差分も説明できます。'
+                '修正とテストを完了しました。設計ノートには「なぜこの境界が必要か？」も記録済みです。必要なら差分も説明できます。'
             ].join('\n')
         }, { env });
         expect(optional.final).toMatchObject({ autonomy_compliance_status: 'continued' });

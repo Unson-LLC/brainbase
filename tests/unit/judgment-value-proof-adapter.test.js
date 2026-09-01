@@ -100,7 +100,7 @@ describe('judgment value proof organization adapter', () => {
       valueProofEvent: event,
       events: [
         { tool_use_id: 'execution-1', success: true, event_kind: 'execution', event_sequence: 0, input_digest: 'c'.repeat(64), response_digest: 'd'.repeat(64), safe_metadata: { artifact_refs: ['github://pull/142'] } },
-        { tool_use_id: 'readback-1', success: true, event_kind: 'retrieve', event_sequence: 1, query_excerpt: 'github://pull/142', input_digest: 'a'.repeat(64), response_digest: 'b'.repeat(64), safe_metadata: { subject_ref: 'github://pull/142', retrieval_outcome: 'result' } },
+        { tool_use_id: 'readback-1', success: true, event_kind: 'search', event_sequence: 1, query_excerpt: 'github://pull/142', input_digest: 'a'.repeat(64), response_digest: 'b'.repeat(64), safe_metadata: { subject_ref: 'github://pull/142', retrieval_outcome: 'result' } },
         event,
       ],
       interruptionCandidate: interruptionCandidate(),
@@ -121,7 +121,7 @@ describe('judgment value proof organization adapter', () => {
       valueProofEvent: event,
       events: [
         { tool_use_id: 'execution-1', success: true, event_kind: 'execution', event_sequence: 0, input_digest: 'c'.repeat(64), response_digest: 'd'.repeat(64), safe_metadata: { artifact_refs: ['github://pull/142'] } },
-        { tool_use_id: 'readback-1', success: true, event_kind: 'retrieve', event_sequence: 1, query_excerpt: 'github://pull/142', input_digest: 'a'.repeat(64), response_digest: 'b'.repeat(64), safe_metadata: { subject_ref: 'github://pull/142', retrieval_outcome: 'result' } },
+        { tool_use_id: 'readback-1', success: true, event_kind: 'search', event_sequence: 1, query_excerpt: 'github://pull/142', input_digest: 'a'.repeat(64), response_digest: 'b'.repeat(64), safe_metadata: { subject_ref: 'github://pull/142', retrieval_outcome: 'result' } },
         event,
       ],
       interruptionCandidate: interruptionCandidate(),

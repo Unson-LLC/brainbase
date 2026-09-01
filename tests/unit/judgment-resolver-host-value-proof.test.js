@@ -227,6 +227,73 @@ describe('Judgment Resolver Host value proof integration', () => {
     });
   });
 
+  it('persists and revalidates an unconfirmed receipt when canonical readback evidence is missing', async () => {
+    const root = temporaryDirectory();
+    const env = {
+      BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+      BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'enabled',
+    };
+    const payload = {
+      session_id: 'session-unconfirmed-proof', turn_id: 'turn-unconfirmed-proof',
+      prompt: '既存の正本を更新して', cwd: process.cwd(),
+    };
+    const args = buildJudgmentRequest(payload, { env });
+    const receipt = receiptFor(args);
+    await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }),
+    }) });
+    const ownerLine = buildOwnerReferenceLine(args, receipt);
+    const zeroCallLine = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
+    expect(finalizeEpisode({
+      hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+      stop_hook_active: false,
+      last_assistant_message: `${ownerLine}\n${zeroCallLine}\n\n既存文書を更新するか、新規文書を作るか？`,
+    }, { env }).output.decision).toBe('block');
+
+    recordBrainbaseToolUse({
+      hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+      tool_name: 'apply_patch', tool_use_id: 'execution-1',
+      tool_input: { patch: '*** Begin Patch\n*** Update File: docs/existing.md\n@@\n-old\n+new\n*** End Patch' },
+      tool_response: { success: true },
+    }, { env });
+    recordBrainbaseToolUse({
+      hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+      tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record', tool_use_id: 'value-proof-unconfirmed',
+      tool_input: valueProofInput(), tool_response: { status: 'ok', data: valueProofInput() },
+    }, { env });
+    recordBrainbaseToolUse({
+      hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+      tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'state-unconfirmed',
+      tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+      tool_response: { status: 'ok', data: {
+        schema_version: 'brainbase-stop-state-v1', status: 'completed',
+        pending_safe_work: false, runtime_reason_code: null,
+      } },
+    }, { env });
+
+    const result = finalizeEpisode({
+      hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+      stop_hook_active: true,
+      last_assistant_message: [
+        ownerLine, zeroCallLine,
+        '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓',
+        '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
+        '既存文書を更新しました。',
+      ].join('\n'),
+    }, { env });
+    expect(result.output.systemMessage).toContain('状態: 結果未確認');
+    const directory = join(root, 'journal', hash(payload.session_id));
+    const turnRef = hash(payload.turn_id);
+    expect(JSON.parse(readFileSync(join(directory, `${turnRef}.value-proof.json`), 'utf8')))
+      .toMatchObject({ state: 'unconfirmed', outcome: { status: 'unconfirmed' } });
+    expect(JSON.parse(readFileSync(join(directory, `${turnRef}.value-proof-attention.json`), 'utf8')))
+      .toMatchObject({ kind: 'outcome_unconfirmed' });
+    expect(() => finalizeEpisode({
+      hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+      stop_hook_active: true, last_assistant_message: result.output.systemMessage,
+    }, { env })).not.toThrow();
+  });
+
   it('instructs the model to record value proof before the existing final state tool', () => {
     const context = successOutput({
       request: '修正して', conversation_context: { messages: [] },

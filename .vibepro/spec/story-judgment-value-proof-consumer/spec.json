@@ -135,11 +135,11 @@
           },
           {
             "file": "tests/unit/judgment-value-proof-adapter.test.js",
-            "case": "does not let an unrelated successful retrieve certify a canonical readback outcome"
+            "case": "does not let an unrelated successful retrieve certify another artifact outcome"
           },
           {
             "file": "tests/unit/judgment-value-proof-adapter.test.js",
-            "case": "does not let a no-result or transport-only retrieve certify a canonical readback outcome"
+            "case": "does not treat no-result or transport-only retrievals as verified readbacks"
           }
         ]
       },
