@@ -1134,6 +1134,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             }
             return createImmutableJson(target, marker, 'judgment_orphan_tool_event_conflict');
         }
+        if (judgmentValueProofTool && !valueProofRolloutEnabled(episode, env)) {
+            throw new Error('judgment_value_proof_rollout_disabled');
+        }
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
         const finalized = existingFinal(paths, episode);
@@ -1438,13 +1441,13 @@ function parseStructuredStopState(answer) {
     return { state: validated, error: null };
 }
 
-function requestsUserInput(body, { allowBroadQuestionCapture = false } = {}) {
+function requestsUserInput(body) {
     if (typeof body !== 'string' || !body.trim()) return false;
     const relevant = body.split('\n').map((line) => line.trim()).filter(Boolean)
         .filter((line) => !/^(?:必要なら|必要であれば|ご希望なら|希望があれば|必要に応じて)/u.test(line));
     return relevant.some((line) => (
-        (allowBroadQuestionCapture && /[?？]$/u.test(line))
-        || /(?:どちら|どれ|どうしますか|何を選びますか|よろしいですか|進めてもいいですか|進めてもよいですか)[^。]*[?？]?$/u.test(line)
+        /(?:どちら|どれ|どうしますか|何を選びますか|よろしいですか|進めてもいいですか|進めてもよいですか)[^。]*[?？]?$/u.test(line)
+        || /(?:か、|か，)[^?？]*か[?？]$/u.test(line)
         || /(?:(?:確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え)(?:しますか|しましょうか)|(?:進め|続け)ますか)[?？]?$/u.test(line)
         || /(?:教えて|選んで|決めて|判断して|承認して|確認して|入力して|提示して|付与して)(?:ください|もらえますか|いただけますか)[。！!？?]?$/u.test(line)
     ));
@@ -1463,14 +1466,14 @@ function leavesRequestedWorkUnfinished(body, receipt) {
         || /(?:未実施|未完了|まだ[^。\n]{0,60}(?:していません|できていません)|作業が残っています)/u.test(body);
 }
 
-function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], { allowBroadQuestionCapture = false } = {}) {
+function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
     const contract = verifyAutonomyContract(receipt);
     if (!contract) return { status: 'legacy', violation: null };
     const body = normalizedAnswerBody(answer, expectedLines) ?? '';
     const bodyLines = body.split('\n').map((line) => line.trim()).filter(Boolean);
     const markerMatch = bodyLines[0]?.match(AUTONOMY_MARKER_PATTERN) ?? null;
     const markerReason = markerMatch?.[1] ?? null;
-    const asks = requestsUserInput(body, { allowBroadQuestionCapture });
+    const asks = requestsUserInput(body);
     const proposedHumanQuestion = asks ? displayedQuestion(body) : null;
     if (journalStopStateRequired(receipt)) {
         if (answer?.replaceAll('\r\n', '\n').split('\n').some((line) => STRUCTURED_STOP_STATE_PATTERN.test(line.trim()))) {
@@ -2060,8 +2063,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         answer,
         expectedAuditLines,
         episode.initial_route_receipt,
-        events,
-        { allowBroadQuestionCapture: valueProofRolloutEnabled(episode, env) }
+        events
     );
     const missingAutonomyCompliance = autonomyCompliance.violation !== null;
     const auditContract = episodeAuditContract(episode);

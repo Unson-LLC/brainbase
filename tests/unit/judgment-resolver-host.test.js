@@ -2023,7 +2023,12 @@ describe('Codex Judgment Resolver Host', () => {
 
     it('continueでも許可理由を明示した限定質問と、完了後の任意提案は通す', async () => {
         const root = temporaryDirectory();
-        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const env = {
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'canary',
+            BRAINBASE_JUDGMENT_PROJECT_CODE: 'brainbase',
+            BRAINBASE_JUDGMENT_VALUE_PROOF_CANARY_PROJECTS: 'brainbase'
+        };
         const makeEpisode = async (suffix) => {
             const payload = { session_id: `session-autonomy-${suffix}`, turn_id: `turn-autonomy-${suffix}`, prompt: '修正して', cwd: process.cwd() };
             const args = buildJudgmentRequest(payload, { env });

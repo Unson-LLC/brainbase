@@ -331,6 +331,33 @@ describe('Judgment Resolver Host value proof integration', () => {
     expect(context).not.toContain('brainbase_judgment_value_proof_record');
   });
 
+  it('rejects an unsolicited value proof event when the rollout is off', async () => {
+    const root = temporaryDirectory();
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const payload = {
+      session_id: 'session-value-proof-off',
+      turn_id: 'turn-value-proof-off',
+      prompt: '修正して',
+      cwd: process.cwd(),
+    };
+    const args = buildJudgmentRequest(payload, { env });
+    await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ management_status: 'managed', receipt: receiptFor(args) }),
+    }) });
+
+    expect(() => recordBrainbaseToolUse({
+      hook_event_name: 'PostToolUse',
+      session_id: payload.session_id,
+      turn_id: payload.turn_id,
+      tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record',
+      tool_use_id: 'value-proof-off',
+      tool_input: valueProofInput(),
+      tool_response: { status: 'ok', data: valueProofInput() },
+    }, { env })).toThrow('judgment_value_proof_rollout_disabled');
+  });
+
   it('enables value proof canary only for an allowlisted project', () => {
     const result = {
       runtime_version: 'judgment-runtime-2.4.0',
@@ -458,7 +485,10 @@ describe('Judgment Resolver Host value proof integration', () => {
 
   it('does not let a value-proof event satisfy the completed-work evidence requirement', async () => {
     const root = temporaryDirectory();
-    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const env = {
+      BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+      BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'enabled',
+    };
     const payload = {
       session_id: 'session-proof-only', turn_id: 'turn-proof-only',
       prompt: '実作業をして', cwd: process.cwd(),
