@@ -133,8 +133,28 @@
         "started_at": "2026-08-31",
         "due_at": null,
         "contract_type": "local_single_owner_non_hosted"
+      },
+      {
+        "story_id": "story-m3-judgment-value-proof-surface",
+        "title": "M3 代理判断の価値を日常会話で証明するportable surface",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": "2026-09-01",
+        "due_at": null,
+        "contract_type": "portable_projection_and_renderer",
+        "scope_boundary": {
+          "owner_model": "single_local_owner",
+          "deployment_mode": "portable_library",
+          "sharing_boundary": "consumer_defined",
+          "multi_tenancy_applicability": "not_applicable",
+          "boundary_reason": "The OSS slice defines only pure projection and rendering contracts; organization storage and delivery remain consumer adapters.",
+          "multi_tenancy_contract_created": false
+        }
       }
     ],
-    "current_story_id": "story-m2-codex-proxy-judgment-loop"
+    "current_story_id": "story-m3-judgment-value-proof-surface"
   }
 }

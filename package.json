@@ -19,11 +19,17 @@
       "types": "./dist/judgment-dag.d.ts",
       "import": "./dist/judgment-dag.js"
     },
+    "./judgment-value-proof": {
+      "types": "./dist/judgment-value-proof.d.ts",
+      "import": "./dist/judgment-value-proof.js"
+    },
     "./dist/*": "./dist/*",
     "./contracts/judgment-dag/schema.json": "./contracts/judgment-dag/schema.json",
     "./contracts/judgment-dag/fixture.json": "./contracts/judgment-dag/fixture.json",
     "./contracts/judgment-dag/source-lock.json": "./contracts/judgment-dag/source-lock.json",
     "./contracts/judgment-dag/digest.json": "./contracts/judgment-dag/digest.json",
+    "./contracts/judgment-value-proof/schema.json": "./contracts/judgment-value-proof/schema.json",
+    "./contracts/judgment-value-proof/fixture.json": "./contracts/judgment-value-proof/fixture.json",
     "./package.json": "./package.json"
   },
   "bin": {

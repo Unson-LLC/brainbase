@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brainbase.local/contracts/judgment-value-proof/v1/schema.json",
+  "title": "Brainbase Judgment Value Proof v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "intent_id",
+    "decision_attempt_id",
+    "recorded_at",
+    "state",
+    "interruption",
+    "decision",
+    "execution",
+    "outcome",
+    "human_decision",
+    "feedback"
+  ],
+  "properties": {
+    "schema_version": { "const": "brainbase-judgment-value-proof-v1" },
+    "intent_id": { "type": "string", "minLength": 1 },
+    "decision_attempt_id": { "type": "string", "minLength": 1 },
+    "recorded_at": { "type": "string", "format": "date-time" },
+    "state": {
+      "enum": ["captured", "executing", "waiting_human", "outcome_verified", "blocked", "unconfirmed"]
+    },
+    "interruption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resolution", "question_display_text", "question_digest", "reason_code", "human_reason"],
+      "properties": {
+        "resolution": { "enum": ["not_applicable", "continued_without_human", "human_required"] },
+        "question_display_text": { "type": ["string", "null"] },
+        "question_digest": { "type": ["string", "null"] },
+        "reason_code": { "type": ["string", "null"] },
+        "human_reason": { "type": ["string", "null"] }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "work_impact", "basis", "prior_learning_reused"],
+      "properties": {
+        "summary": { "type": ["string", "null"] },
+        "work_impact": { "type": ["string", "null"] },
+        "basis": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/basis" }
+        },
+        "prior_learning_reused": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "const": "unconfirmed" }
+          ]
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "artifact_refs"],
+      "properties": {
+        "status": { "enum": ["not_started", "executing", "completed", "blocked"] },
+        "summary": { "type": ["string", "null"] },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_ref" }
+        }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "evidence_refs"],
+      "properties": {
+        "status": { "enum": ["outcome_verified", "unconfirmed", "not_applicable"] },
+        "summary": { "type": ["string", "null"] },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence_ref" }
+        }
+      }
+    },
+    "human_decision": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["question", "why_human", "options"],
+          "properties": {
+            "question": { "type": "string", "minLength": 1 },
+            "why_human": { "type": "string", "minLength": 1 },
+            "options": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/human_option" }
+            }
+          }
+        }
+      ]
+    },
+    "feedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "evidence_ref"],
+      "properties": {
+        "status": { "enum": ["none", "pending", "accepted", "corrected", "next_time_ask", "reverted"] },
+        "summary": { "type": ["string", "null"] },
+        "evidence_ref": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/evidence_ref" }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "application"],
+      "properties": {
+        "entity_id": { "type": "string", "minLength": 1 },
+        "application": { "type": "string", "minLength": 1 }
+      }
+    },
+    "artifact_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "ref": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 }
+      }
+    },
+    "evidence_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref", "status"],
+      "properties": {
+        "kind": {
+          "enum": ["judgment_receipt", "autonomy_receipt", "tool_event", "artifact", "canonical_readback", "human_feedback"]
+        },
+        "ref": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["verified", "unconfirmed"] },
+        "label": { "type": "string", "minLength": 1 }
+      }
+    },
+    "human_option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "impact"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "impact": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

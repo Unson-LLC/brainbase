@@ -1,0 +1,14 @@
+{
+  "task_id": "task-m3-judgment-value-proof-surface",
+  "status": "active",
+  "story_id": "story-m3-judgment-value-proof-surface",
+  "spec_id": "spec-m3-judgment-value-proof-surface",
+  "architecture": "docs/architecture/judgment-value-proof-surface.md",
+  "canonical_story": "docs/management/stories/active/story-m3-judgment-value-proof-surface.md",
+  "contract_schema": "contracts/judgment-value-proof/schema.json",
+  "contract_fixture": "contracts/judgment-value-proof/fixture.json",
+  "implementation": "src/judgment-value-proof.ts",
+  "tests": ["tests/judgment-value-proof.test.ts"],
+  "created_at": "2026-09-01",
+  "updated_at": "2026-09-01"
+}

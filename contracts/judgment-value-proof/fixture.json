@@ -1,0 +1,54 @@
+{
+  "schema_version": "brainbase-judgment-value-proof-v1",
+  "intent_id": "intent_example",
+  "decision_attempt_id": "decision_attempt_example",
+  "recorded_at": "2026-09-01T00:00:00.000Z",
+  "state": "outcome_verified",
+  "interruption": {
+    "resolution": "continued_without_human",
+    "question_display_text": "新規文書を作るか、既存文書を更新するか",
+    "question_digest": "sha256:example-question",
+    "reason_code": "routine_reversible_work",
+    "human_reason": null
+  },
+  "decision": {
+    "summary": "既存SSOTを最小更新する",
+    "work_impact": "確認で作業を止めず、実装と検証まで継続した",
+    "basis": [
+      {
+        "entity_id": "dec_example",
+        "application": "正本が存在する場合は重複する文書を増やさない"
+      }
+    ],
+    "prior_learning_reused": true
+  },
+  "execution": {
+    "status": "completed",
+    "summary": "既存文書を更新してPRを作成した",
+    "artifact_refs": [
+      {
+        "kind": "pull_request",
+        "ref": "github://pull/142",
+        "label": "PR #142"
+      }
+    ]
+  },
+  "outcome": {
+    "status": "outcome_verified",
+    "summary": "PRを読み戻し、変更内容とテスト成功を確認した",
+    "evidence_refs": [
+      {
+        "kind": "canonical_readback",
+        "ref": "github://pull/142",
+        "status": "verified",
+        "label": "PR #142"
+      }
+    ]
+  },
+  "human_decision": null,
+  "feedback": {
+    "status": "none",
+    "summary": null,
+    "evidence_ref": null
+  }
+}

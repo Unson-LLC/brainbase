@@ -1,0 +1,36 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-m3-judgment-value-proof-surface",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "invariant",
+      "text": "Every value proof binds one intent_id and one decision_attempt_id and preserves evidence state without guessing."
+    },
+    {
+      "id": "AC-002",
+      "type": "behavior",
+      "text": "Ordinary Brainbase references are silent; delegated decisions render only during execution and completion."
+    },
+    {
+      "id": "AC-003",
+      "type": "behavior",
+      "text": "Human-required cases explain why AI will not decide and include options with impacts."
+    },
+    {
+      "id": "AC-004",
+      "type": "boundary",
+      "text": "Companion receives only human-required, blocked, unconfirmed-outcome, or feedback attention; Web receives none."
+    },
+    {
+      "id": "AC-005",
+      "type": "invariant",
+      "text": "Unavailable and unconfirmed evidence are never converted to zero or verified success."
+    },
+    {
+      "id": "AC-006",
+      "type": "security",
+      "text": "Default user rendering omits internal entity IDs, raw evidence refs, and tool response bodies."
+    }
+  ]
+}
