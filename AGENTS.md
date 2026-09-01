@@ -5,11 +5,11 @@ This repository contains the OSS Brainbase judgment substrate and its local-firs
 
 Brainbase's public promise is:
 
-> **AIとの仕事を、毎回ゼロから始めない。**
+> **自分の判断力を、ひとり分で終わらせない。**
 >
-> Brainbaseは、仕事の目的、関係者、過去の決定、判断基準を特定のチャットやAIに閉じ込めず、ローカルの正本として管理するOSSです。CodexやClaude Codeは、新しいセッションでも保存した前提を参照できます。
+> Brainbaseは、あなたの目的、優先順位、判断基準、過去の決定を、複数のAIが使えるローカルの判断OSにします。CodexやClaude Codeは、同じ判断軸から深く考え、調査・設計・執筆・開発を進められます。
 
-The product boundary is explicit: 人間は、仕事の目的、判断基準、任せてよい範囲を決める。 AIは、それらを参照して選択肢を比較し、見落としを指摘し、許可された範囲を進める。
+The product boundary is explicit: 人間は、目的、判断基準、任せてよい範囲を決める。 AIは、それらを参照して探索・反証し、許可された範囲の仕事を進める。
 <!-- brainbase:public-message:end -->
 
 - Keep the repository UI-free. Do not add browser UI, session dashboards, xterm, launchd runtime, workflow mission control, or Unson internal operations.
@@ -38,6 +38,6 @@ When a user asks to onboard Brainbase from Codex, Claude Code, or CodeCode, trea
 - `brainbase onboard:demo` is an optional local CLI preview. Never use its output, `ready: true`, `cli_sample_ready`, command latency, or a synthetic persona judgment as the onboarding completion signal.
 - Complete the first-value gate only when the human user personally recognizes value in the actual agent result. Record automated install-to-answer execution only as a candidate end-to-end journey.
 - Commands existing in the product are not enough. A completion report must still list unfinished operationalization: public skills placement, `ohayo` / `oyasumi` / `retro` routines, real MCP config merge, source allowlist / import / candidate review, and MCP `resolve_entity` / `get_context` / `search` verification.
-- Keep operationalization safe by default: generated skills, generated routines, and `onboard:install --dry-run` are previews until the user approves file writes, scheduler registration, and live config changes.
+- Keep operationalization safe by default: generated skills, generated routines, and `onboard:install --dry-run` are previews until the user approves file writes, scheduler registration, and live configuration changes.
 - Treat `brainbase onboard:install --target <agent> --dry-run` as configuration preview only. It is not onboarding completion, but real MCP installation is required before actual-agent value verification.
 - Do not modify `package-lock.json`, `tsconfig.json`, or dependency metadata just to onboard a user unless build or install actually fails and the fix is scoped.

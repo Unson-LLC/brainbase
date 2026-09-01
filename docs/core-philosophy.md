@@ -3,14 +3,14 @@
 <!-- brainbase:public-message:start -->
 ## Central promise
 
-> **AIとの仕事を、毎回ゼロから始めない。**
+> **自分の判断力を、ひとり分で終わらせない。**
 
-Brainbaseは、仕事の目的、関係者、過去の決定、判断基準を特定のチャットやAIに閉じ込めず、ローカルの正本として管理するOSSです。CodexやClaude Codeは、新しいセッションでも保存した前提を参照できます。
+Brainbaseは、あなたの目的、優先順位、判断基準、過去の決定を、複数のAIが使えるローカルの判断OSにします。CodexやClaude Codeは、同じ判断軸から深く考え、調査・設計・執筆・開発を進められます。
 
 ## Human and AI responsibility
 
-- **Human:** 人間は、仕事の目的、判断基準、任せてよい範囲を決める。Human authority defines who the judgment is for, what it prioritizes, what it protects, and what may be delegated.
-- **AI:** AIは、それらを参照して選択肢を比較し、見落としを指摘し、許可された範囲を進める。AI must search broadly, surface the strongest counterargument, preserve evidence, and stay inside approved execution boundaries.
+- **Human:** 人間は、目的、判断基準、任せてよい範囲を決める。Human authority defines who the judgment is for, what it prioritizes, what it protects, and what may be delegated.
+- **AI:** AIは、それらを参照して探索・反証し、許可された範囲の仕事を進める。AI must search broadly, surface the strongest counterargument, preserve evidence, and stay inside approved execution boundaries.
 
 A judgment is not correct in the abstract. It is correct or incorrect only relative to an explicit subject, objective, priority, protected constraint, and authority boundary.
 <!-- brainbase:public-message:end -->

@@ -22,7 +22,7 @@ pull requestからはdeployしません。
 
 上記の検証に加えて、`docs/.vitepress/dist`をCloudflare Pages project `brainbase`へdeployします。その後、公開URLをreadbackし、次を確認します。
 
-- 「AIとの仕事を、毎回ゼロから始めない。」が表示される
+- 「自分の判断力を、ひとり分で終わらせない。」が表示される
 - システム構成ページと構成図が取得できる
 - オントロジーページと概念図が取得できる
 - 状態ページとMCP referenceが取得できる

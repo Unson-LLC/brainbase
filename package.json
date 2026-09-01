@@ -1,7 +1,7 @@
 {
   "name": "@unson/brainbase-mcp",
   "version": "0.4.1",
-  "description": "Local-first Brainbase MCP that keeps work context and judgment criteria outside any single chat or model so supported AI agents can reuse the user's premises across sessions.",
+  "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
   "repository": {

@@ -42,7 +42,7 @@ describe('public-message publication contract', () => {
   it('keeps every checked-in projection synchronized with the approved baseline', async () => {
     const result = await syncPublicMessage(repoRoot, { write: false });
     expect(result.changedFiles).toEqual([]);
-    expect(result.message.copy.headline).toBe('AIとの仕事を、毎回ゼロから始めない。');
+    expect(result.message.copy.headline).toBe('自分の判断力を、ひとり分で終わらせない。');
   });
 
   it('requires an exact Graph snapshot and explicit approval for promotion candidates', async () => {
