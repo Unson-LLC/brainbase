@@ -196,6 +196,46 @@ describe('judgment value proof organization adapter', () => {
     expect(proof.state).toBe('unconfirmed');
   });
 
+  it('requires execution and a later readback for every claimed artifact', () => {
+    const input = valueProofInput({
+      execution: {
+        summary: '文書とPRを更新した',
+        artifact_refs: [
+          { kind: 'document', ref: 'repo://docs/concept.md', label: 'concept.md' },
+          { kind: 'pull_request', ref: 'github://pull/142', label: 'PR #142' },
+        ],
+      },
+      outcome: {
+        status: 'outcome_verified',
+        summary: '両方を確認したと主張した',
+        evidence_refs: [
+          { kind: 'tool_event', tool_use_id: 'execution-doc', subject_ref: 'repo://docs/concept.md', label: '文書更新' },
+          { kind: 'canonical_readback', tool_use_id: 'readback-doc', subject_ref: 'repo://docs/concept.md', label: '文書読戻し' },
+          { kind: 'tool_event', tool_use_id: 'execution-pr', subject_ref: 'github://pull/142', label: 'PR作成' },
+          { kind: 'canonical_readback', tool_use_id: 'readback-pr', subject_ref: 'github://pull/142', label: 'PR読戻し' },
+        ],
+      },
+    });
+    const event = { ...valueProofEvent(input), event_sequence: 4 };
+    const proof = buildJudgmentValueProofProjection({
+      turnRef: 'multi-artifact-partial', valueProofEvent: event,
+      events: [
+        { tool_use_id: 'execution-doc', success: true, event_kind: 'execution', event_sequence: 0, input_digest: '1'.repeat(64), response_digest: '2'.repeat(64), safe_metadata: { artifact_refs: ['repo://docs/concept.md'] } },
+        { tool_use_id: 'readback-doc', success: true, event_kind: 'retrieve', event_sequence: 1, query_excerpt: 'repo://docs/concept.md', input_digest: '3'.repeat(64), response_digest: '4'.repeat(64), safe_metadata: { subject_ref: 'repo://docs/concept.md', retrieval_outcome: 'result' } },
+        { tool_use_id: 'execution-pr', success: true, event_kind: 'execution', event_sequence: 2, input_digest: '5'.repeat(64), response_digest: '6'.repeat(64), safe_metadata: { artifact_refs: ['github://pull/142'] } },
+        { tool_use_id: 'readback-pr', success: true, event_kind: 'retrieve', event_sequence: 3, query_excerpt: 'github://pull/142', input_digest: '7'.repeat(64), response_digest: '8'.repeat(64), safe_metadata: { subject_ref: 'github://pull/142', retrieval_outcome: 'no_result' } },
+        event,
+      ],
+      interruptionCandidate: interruptionCandidate(), stopState: { status: 'completed' },
+      finalizedAt: '2026-09-01T00:00:00.000Z',
+    });
+
+    expect(proof.outcome.status).toBe('unconfirmed');
+    expect(proof.state).toBe('unconfirmed');
+    expect(proof.outcome.evidence_refs.map(({ status }) => status))
+      .toEqual(['verified', 'verified', 'verified', 'unconfirmed']);
+  });
+
   it('does not treat a readback before execution as verification of the changed artifact', () => {
     const event = { ...valueProofEvent(), event_sequence: 3 };
     const proof = buildJudgmentValueProofProjection({

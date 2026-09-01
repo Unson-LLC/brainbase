@@ -269,12 +269,14 @@
         ],
         "test_refs": [
           { "file": "tests/integration/judgment-resolver-host-entrypoint.test.js", "case": "実際に差し戻した質問だけを入口から判断レシートへ投影する" },
-          { "file": "tests/unit/judgment-value-proof-adapter.test.js", "case": "rejects confirmation-savings claims that are not bound to the Host interruption candidate" }
+          { "file": "tests/unit/judgment-value-proof-adapter.test.js", "case": "rejects confirmation-savings claims that are not bound to the Host interruption candidate" },
+          { "file": "tests/unit/judgment-resolver-host-value-proof.test.js", "case": "renders human_required through the Host only when it matches the waiting-human question" }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
-          { "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js", "must_cover": "実際に差し戻した質問" }
+          { "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js", "must_cover": "実際に差し戻した質問" },
+          { "file_glob": "tests/unit/judgment-resolver-host-value-proof.test.js", "must_cover": "human_required" }
         ]
       },
       "first_seen_at": "2026-09-01T10:42:20.849Z",
