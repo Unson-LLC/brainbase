@@ -9,6 +9,28 @@ import { PgProjectProvisioningRepository } from './project-provisioning-reposito
 import { ProjectRegistryCatalogAdapter } from './project-registry-catalog-adapter.js';
 
 const STEP_ORDER = ['registry', 'graph', 'auth_grants', 'repository'];
+
+function matchesProjectSubject(entity, manifest) {
+    return entity?.id === manifest.project_code
+        && entity.entity_type === 'project'
+        && entity.lifecycle_status === 'active'
+        && entity.payload?.catalog_project_id === manifest.project_code
+        && entity.payload?.catalog_version === manifest.catalog_version
+        && entity.payload?.source_ref === `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+        && entity.payload?.name === manifest.display_name;
+}
+
+function assertCompatibleProjectSubject(entities, manifest) {
+    const existing = entities.find((entity) => entity.id === manifest.project_code);
+    if (!existing) return null;
+    if (!matchesProjectSubject(existing, manifest)) {
+        const error = new Error('Existing Graph project subject does not match the Project Catalog identity');
+        error.code = 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT';
+        error.statusCode = 409;
+        throw error;
+    }
+    return existing;
+}
 const AUTHORITY_FIELDS = [
     'organization_exists',
     'owner_person_exists',
@@ -459,9 +481,19 @@ export class ProjectProvisioningService {
                 projectCodes: [...new Set([...(actor.projectCodes || []), manifest.project_code])],
                 role: actor.role
             };
-            const snapshot = await this.graphService.exportSnapshot(access, { projectCode: manifest.project_code });
-            if (snapshot.entities.some((entity) => entity.id === manifest.project_code)) {
-                return { status: 'already_materialized', snapshot_hash: snapshot.snapshot_hash };
+            const includeProjectCodes = (actor.projectCodes || []).filter((code) => code !== manifest.project_code);
+            const snapshot = await this.graphService.exportSnapshot(access, {
+                projectCode: manifest.project_code,
+                includeProjectCodes
+            });
+            const existingSubject = assertCompatibleProjectSubject(snapshot.entities, manifest);
+            if (existingSubject) {
+                return {
+                    status: 'already_materialized',
+                    snapshot_hash: snapshot.snapshot_hash,
+                    project_code: existingSubject.project_code,
+                    entity_version: existingSubject.version
+                };
             }
             const graphPlan = await this.graphService.planMutations(access, {
                 projectCode: manifest.project_code,

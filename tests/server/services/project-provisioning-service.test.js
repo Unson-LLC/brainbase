@@ -77,11 +77,11 @@ class MemoryRepository {
     }
 }
 
-function createHarness({ failGrantOnce = false, authority, identityCollisions = [] } = {}) {
+function createHarness({ failGrantOnce = false, authority, identityCollisions = [], graphEntities = [] } = {}) {
     const repository = new MemoryRepository({ authority, identityCollisions });
     const graphCalls = [];
     const graphService = {
-        exportSnapshot: vi.fn(async () => { graphCalls.push('exportSnapshot'); return { snapshot_id: 'snap_1', snapshot_hash: 'hash_1', entities: [] }; }),
+        exportSnapshot: vi.fn(async () => { graphCalls.push('exportSnapshot'); return { snapshot_id: 'snap_1', snapshot_hash: 'hash_1', entities: structuredClone(graphEntities) }; }),
         planMutations: vi.fn(async () => { graphCalls.push('planMutations'); return { plan_id: 'gplan_1', snapshot_hash: 'hash_1' }; }),
         applyPlan: vi.fn(async () => { graphCalls.push('applyPlan'); return { receipt_id: 'apply_1' }; }),
         getPlanReceipt: vi.fn(async () => { graphCalls.push('getPlanReceipt'); return { receipts: [{ id: 'apply_1' }] }; }),
@@ -486,6 +486,65 @@ describe('ProjectProvisioningService', () => {
         const stored = repository.runs.get(plan.run_id);
         expect(stored.steps.find((step) => step.step_name === 'graph').receipt).toMatchObject({
             plan_id: 'gplan_1', receipt: { receipts: [{ id: 'apply_1' }] }
+        });
+    });
+
+    it('同一組織の別scopeにある完全一致Project subjectを再利用する', async () => {
+        const existingSubject = {
+            id: manifest.project_code,
+            entity_type: 'project',
+            project_code: 'brainbase',
+            lifecycle_status: 'active',
+            version: 3,
+            payload: {
+                name: manifest.display_name,
+                catalog_project_id: manifest.project_code,
+                catalog_version: manifest.catalog_version,
+                source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+            }
+        };
+        const { service, repository, graphService } = createHarness({ graphEntities: [existingSubject] });
+        const scopedActor = { ...actor, projectCodes: ['brainbase'] };
+        const plan = await service.plan(scopedActor, manifest, { idempotencyKey: 'growin-existing-subject' });
+        await service.approve(scopedActor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-existing-subject'
+        });
+
+        await service.apply(scopedActor, plan.run_id);
+
+        expect(graphService.exportSnapshot).toHaveBeenCalledWith(expect.objectContaining({
+            projectCodes: expect.arrayContaining(['brainbase', manifest.project_code])
+        }), {
+            projectCode: manifest.project_code,
+            includeProjectCodes: ['brainbase']
+        });
+        expect(graphService.planMutations).not.toHaveBeenCalled();
+        expect(repository.runs.get(plan.run_id).steps.find((step) => step.step_name === 'graph').receipt).toMatchObject({
+            status: 'already_materialized', project_code: 'brainbase', entity_version: 3
+        });
+    });
+
+    it('同一IDでもCatalog identityが一致しないProject subjectは拒否する', async () => {
+        const { service } = createHarness({ graphEntities: [{
+            id: manifest.project_code,
+            entity_type: 'project',
+            project_code: 'brainbase',
+            lifecycle_status: 'active',
+            version: 1,
+            payload: { name: 'Different project', catalog_project_id: manifest.project_code, catalog_version: 1 }
+        }] });
+        const scopedActor = { ...actor, projectCodes: ['brainbase'] };
+        const plan = await service.plan(scopedActor, manifest, { idempotencyKey: 'growin-conflicting-subject' });
+        await service.approve(scopedActor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-conflicting-subject'
+        });
+
+        await expect(service.apply(scopedActor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT'
+        });
+        await expect(service.status(scopedActor, plan.run_id)).resolves.toMatchObject({
+            state: 'partial_failed',
+            failure: expect.objectContaining({ message: 'Existing Graph project subject does not match the Project Catalog identity' })
         });
     });
 });
