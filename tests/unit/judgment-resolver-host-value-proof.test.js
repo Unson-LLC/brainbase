@@ -282,6 +282,10 @@ describe('Judgment Resolver Host value proof integration', () => {
       ].join('\n'),
     }, { env });
     expect(result.output.systemMessage).toContain('状態: 結果未確認');
+    expect(result.output.systemMessage).toContain('聞かずに進めた確認: 既存文書を更新するか、新規文書を作るか？');
+    expect(result.output.systemMessage).toContain('実行範囲: 既存文書を更新し、テストを実行した');
+    expect(result.output.systemMessage).toContain('要確認: 実行結果を確認できていません');
+    expect(result.output.systemMessage).toContain('次の対応: 正本を読み戻す / 結果未確認のまま保持');
     const directory = join(root, 'journal', hash(payload.session_id));
     const turnRef = hash(payload.turn_id);
     expect(JSON.parse(readFileSync(join(directory, `${turnRef}.value-proof.json`), 'utf8')))

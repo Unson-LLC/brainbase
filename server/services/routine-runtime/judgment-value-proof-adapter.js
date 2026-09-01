@@ -315,9 +315,31 @@ export function judgmentValueProofDigest(proof) {
 
 export function renderJudgmentValueProofSurface(proof) {
   if (!proof) return null;
-  return proof.interruption.resolution === 'human_required'
+  const surface = proof.interruption.resolution === 'human_required'
     ? renderJudgmentHumanDecisionRequest(proof)
     : renderJudgmentValueProofCompletion(proof);
+  if (!surface || proof.interruption.resolution !== 'continued_without_human') return surface;
+  const lines = surface.split('\n');
+  const correctionIndex = lines.findIndex((line) => line.startsWith('修正する場合:'));
+  const insertionIndex = correctionIndex >= 0 ? correctionIndex : lines.length;
+  lines.splice(
+    insertionIndex,
+    0,
+    `聞かずに進めた確認: ${proof.interruption.question_display_text}`,
+    `実行範囲: ${proof.execution.summary ?? '記録なし'}`,
+  );
+  return lines.join('\n');
+}
+
+export function renderJudgmentValueProofAttentionSurface(attention) {
+  if (!attention) return null;
+  return [
+    `要確認: ${attention.title}`,
+    `内容: ${attention.summary}`,
+    ...(attention.suggested_actions.length > 0
+      ? [`次の対応: ${attention.suggested_actions.join(' / ')}`]
+      : []),
+  ].join('\n');
 }
 
 export function projectJudgmentValueProofCompanionAttention(proof) {

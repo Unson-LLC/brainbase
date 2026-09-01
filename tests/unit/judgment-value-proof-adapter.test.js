@@ -6,6 +6,7 @@ import {
   judgmentValueProofDigest,
   latestJudgmentValueProofEvent,
   projectJudgmentValueProofCompanionAttention,
+  renderJudgmentValueProofAttentionSurface,
   renderJudgmentValueProofSurface,
 } from '../../server/services/routine-runtime/judgment-value-proof-adapter.js';
 
@@ -131,8 +132,22 @@ describe('judgment value proof organization adapter', () => {
     expect(judgmentValueProofDigest(proof)).toMatch(/^sha256:[0-9a-f]{64}$/u);
     const surface = renderJudgmentValueProofSurface(proof);
     expect(surface).toMatch(/^Brainbase判断レシート\n結果:/u);
+    expect(surface).toContain('聞かずに進めた確認: 既存文書を更新するか、新規文書を作るか');
+    expect(surface).toContain('実行範囲: 既存文書を更新しPRを作成した');
     expect(surface).not.toContain('dec_example');
     expect(projectJudgmentValueProofCompanionAttention(proof)).toBeNull();
+  });
+
+  it('renders companion attention as an actionable user-facing warning', () => {
+    expect(renderJudgmentValueProofAttentionSurface({
+      title: '実行結果を確認できていません',
+      summary: '既存文書を更新した',
+      suggested_actions: ['正本を読み戻す', '結果未確認のまま保持'],
+    })).toBe([
+      '要確認: 実行結果を確認できていません',
+      '内容: 既存文書を更新した',
+      '次の対応: 正本を読み戻す / 結果未確認のまま保持',
+    ].join('\n'));
   });
 
   it('downgrades a claimed verified outcome to unconfirmed when evidence is absent', () => {

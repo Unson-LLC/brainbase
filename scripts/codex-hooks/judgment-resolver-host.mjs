@@ -28,6 +28,7 @@ import {
     judgmentValueProofDigest,
     latestJudgmentValueProofEvent,
     projectJudgmentValueProofCompanionAttention,
+    renderJudgmentValueProofAttentionSurface,
     renderJudgmentValueProofSurface
 } from '../../server/services/routine-runtime/judgment-value-proof-adapter.js';
 import {
@@ -2022,16 +2023,17 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     try { existingContinuation = readJson(paths.continuation); } catch (error) {
         if (error?.code !== 'ENOENT') throw error;
     }
-    const completedAuditOutput = (valueProof = null) => {
+    const completedAuditOutput = (valueProof = null, valueProofAttention = null) => {
         const auditBlock = requiredAuditLines(episode, events, existingContinuation).join('\n');
         const valueSurface = renderJudgmentValueProofSurface(valueProof);
-        return { systemMessage: [auditBlock, valueSurface].filter(Boolean).join('\n\n') };
+        const attentionSurface = renderJudgmentValueProofAttentionSurface(valueProofAttention);
+        return { systemMessage: [auditBlock, valueSurface, attentionSurface].filter(Boolean).join('\n\n') };
     };
     const finalized = existingFinal(paths, episode);
     if (finalized) {
         verifyFinalStopRepair(finalized, existingContinuation, episodeAuditContract(episode));
         const finalizedValueProof = existingJudgmentValueProof(paths, finalized);
-        verifyExistingJudgmentValueProofAttention(paths, finalized);
+        const finalizedValueProofAttention = verifyExistingJudgmentValueProofAttention(paths, finalized);
         const qualifyingCount = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve')).length;
         const eventSetDigest = finalized.schema_version === 'brainbase-judgment-episode-final-v1'
             ? sha256(canonicalJson(events.map((entry) => entry.event_fingerprint).sort(compareCodePoints)))
@@ -2043,7 +2045,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         }
         enqueueFinalKnowledgeEvent(payload, finalized, env);
         return {
-            output: completedAuditOutput(finalizedValueProof),
+            output: completedAuditOutput(finalizedValueProof, finalizedValueProofAttention),
             final: finalized,
             auditRepairWasAlreadyActive: existingContinuation !== null
         };
@@ -2260,7 +2262,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
     enqueueFinalKnowledgeEvent(payload, final, env);
     return {
-        output: completedAuditOutput(valueProof),
+        output: completedAuditOutput(valueProof, valueProofAttention),
         final,
         auditRepairWasAlreadyActive: existingContinuation !== null
     };
