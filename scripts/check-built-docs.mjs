@@ -23,9 +23,12 @@ const judgmentSystem = await read('guide/judgment-system.html');
 const status = await read('guide/status.html');
 const mcpTools = await read('reference/mcp-tools.html');
 
-requireText(index, '会社の判断を、属人化させない。', 'index.html');
-requireText(index, 'Brainbaseを理解する', 'index.html');
+requireText(index, '自分の判断力を、ひとり分で終わらせない。', 'index.html');
+requireText(index, '自分の判断を1つ、AIへ渡してみる', 'index.html');
+requireText(index, '判断は、あなたのまま。思考と実行は、並列に。', 'index.html');
+requireText(index, '同じ資料を読ませても、同じ判断にはならない', 'index.html');
 requireText(grandDesign, 'Brainbaseがある場合', 'guide/grand-design.html');
+requireText(grandDesign, 'Brainbaseが増幅する二つの能力', 'guide/grand-design.html');
 requireText(grandDesign, '/assets/brainbase-grand-design.svg', 'guide/grand-design.html');
 requireText(architecture, '意味と事実の中核', 'guide/architecture.html');
 requireText(architecture, 'resolve_entity', 'guide/architecture.html');

@@ -1,7 +1,7 @@
 {
   "name": "@unson/brainbase-mcp",
   "version": "0.4.1",
-  "description": "Local-first Brainbase MCP for preserving decision context and helping humans and AI work from the same judgment criteria.",
+  "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -57,10 +57,10 @@
     "test:e2e": "vitest run tests/e2e/brainbase-mcp-only-acceptance.spec.ts tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
     "docs:dev": "vitepress dev docs",
     "docs:sync": "node scripts/sync-public-message.mjs --write",
-    "docs:check": "node scripts/check-public-docs.mjs",
+    "docs:check": "node scripts/check-public-docs.mjs && node scripts/check-organization-teaser.mjs",
     "docs:build": "vitepress build docs",
-    "docs:smoke": "node scripts/check-built-docs.mjs",
-    "docs:verify-public": "node scripts/verify-public-site.mjs",
+    "docs:smoke": "node scripts/check-built-docs.mjs && node scripts/check-built-organization-teaser.mjs",
+    "docs:verify-public": "node scripts/verify-public-site.mjs && node scripts/verify-organization-teaser.mjs",
     "docs:promotion:plan": "node scripts/promote-public-message.mjs --plan",
     "docs:promotion:apply": "node scripts/promote-public-message.mjs --apply",
     "docs:preview": "vitepress preview docs",

@@ -4,9 +4,16 @@
 
 ## Unreleased — develop
 
-- 公開コピーを「会社の判断を、属人化させない。」へ更新
-- BrainbaseをPersonal Onboarding Kitだけでなく、判断を人間・AI・組織へ引き継ぐ仕組みとして説明
-- 人間が目的・判断基準・委任範囲を決め、AIが探索・比較・反証・承認範囲の実行を担う境界を明示
+- 公開コピーを「自分の判断力を、ひとり分で終わらせない。」へ更新
+- OSS版の中心価値を、資料検索や説明削減ではなく、本人の判断による壁打ちの深掘りと複数AIへの判断共有へ変更
+- 「頭のいい自分を、壁打ち相手にも、実行部隊にも。」を体験コピーとして追加
+- 自分らしさと判断品質を薄めず、調査・設計・執筆・開発を並列に進められる価値を具体化
+- Google Driveなどの資料連携との違いはメイン訴求から下げ、「共通の資料室」と「共通の判断OS」の違いとして本文で説明
+- Brainbaseはエージェントを増やす製品ではなく、Codex、Claude Code、Manaなどの対応エージェントへ同じ判断を渡す基盤だと明示
+- 主CTAを「自分の判断を1つ、AIへ渡してみる」へ変更
+- 現行OSSのローカル優先・単一所有者向け価値を、組織版の将来価値より先に説明
+- 個人で判断基盤を育て、権限・承認・例外・監査が必要な段階でOrganization / Enterpriseへアップグレードする経路を追加
+- 人間が目的・判断基準・委任範囲を決め、AIが探索・反証・承認範囲の実行を担う境界を明示
 - Judgment DAGの利用者向け説明とReleased / Develop / Plannedの状態ページを追加
 - `public-message.json`からREADME、manual、Core Philosophy、agent instructions、package descriptionを同期
 - Brainbase Graphのsnapshot hash付きcandidateから、review用PRを作るpromotion workflowを追加

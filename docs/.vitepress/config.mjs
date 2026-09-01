@@ -29,6 +29,7 @@ export default {
         ]
       },
       { text: '10分で試す', link: '/guide/quick-start' },
+      { text: '組織版', link: '/organization' },
       { text: '現在の状態', link: '/guide/status' },
       { text: 'リファレンス', link: '/reference/mcp-tools' },
       { text: 'GitHub', link: 'https://github.com/Unson-LLC/brainbase' }
@@ -43,6 +44,7 @@ export default {
             { text: '仕組みとシステム構成', link: '/guide/architecture' },
             { text: 'オントロジーとは', link: '/guide/ontology' },
             { text: 'Judgment DAGの考え方', link: '/guide/judgment-system' },
+            { text: '組織版の先行案内', link: '/organization' },
             { text: '現在の状態', link: '/guide/status' }
           ]
         },

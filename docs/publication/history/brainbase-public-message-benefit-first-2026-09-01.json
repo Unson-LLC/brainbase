@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "candidate_id": "brainbase-public-message-benefit-first-2026-09-01",
+  "status": "approved",
+  "source": {
+    "type": "human_approved_baseline",
+    "reference": "owner-approved-benefit-first-public-copy",
+    "recorded_at": "2026-09-01T13:08:38+09:00"
+  },
+  "approval": {
+    "status": "approved",
+    "approved_by": "sintariran",
+    "approved_at": "2026-09-01T13:08:38+09:00",
+    "reason": "Owner requested that the public copy be reconsidered from the customer benefit, target awareness, and catch-copy principles in Sales Copy Encyclopedia while preserving the current personal-first OSS boundary."
+  },
+  "copy": {
+    "headline": "AIとの仕事を、毎回ゼロから始めない。",
+    "short_definition": "同じ説明を繰り返さず、最初から本題へ。",
+    "definition": "Brainbaseは、仕事の目的、関係者、過去の決定、判断基準を特定のチャットやAIに閉じ込めず、ローカルの正本として管理するOSSです。CodexやClaude Codeは、新しいセッションでも保存した前提を参照できます。",
+    "human_role": "人間は、仕事の目的、判断基準、任せてよい範囲を決める。",
+    "ai_role": "AIは、それらを参照して選択肢を比較し、見落としを指摘し、許可された範囲を進める。",
+    "package_description": "Local-first Brainbase MCP that keeps work context and judgment criteria outside any single chat or model so supported AI agents can reuse the user's premises across sessions."
+  }
+}

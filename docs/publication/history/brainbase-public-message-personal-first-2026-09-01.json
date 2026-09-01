@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "candidate_id": "brainbase-public-message-personal-first-2026-09-01",
+  "status": "approved",
+  "source": {
+    "type": "human_approved_baseline",
+    "reference": "owner-approved-personal-first-public-copy",
+    "recorded_at": "2026-09-01T12:16:19+09:00"
+  },
+  "approval": {
+    "status": "approved",
+    "approved_by": "sintariran",
+    "approved_at": "2026-09-01T12:16:19+09:00",
+    "reason": "Owner requested that the public VitePress copy lead with the current local-first single-owner value and present organization use as an upgrade path."
+  },
+  "copy": {
+    "headline": "一般論ではなく、あなたの判断基準から始まるAI。",
+    "short_definition": "AIに、自分の仕事を毎回説明し直さない。",
+    "definition": "Brainbaseは、仕事の前提、優先順位、過去の判断とその理由をローカルの正本に置き、CodexやClaude Codeが新しいセッションでも同じ文脈から考え始められるようにするOSSです。",
+    "human_role": "人間は、仕事の目的、判断基準、任せてよい範囲を決める。",
+    "ai_role": "AIは、それらを参照して選択肢を比較し、見落としを指摘し、許可された範囲を進める。",
+    "package_description": "Local-first Brainbase MCP that preserves work context and judgment criteria so AI agents can start from the user's own premises across sessions."
+  }
+}

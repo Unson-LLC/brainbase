@@ -235,14 +235,14 @@ function renderHomeHero(copy) {
   tagline: ${yamlString(copy.definition)}
   image:
     src: /assets/brainbase-hero.webp
-    alt: 判断基準、決定理由、実行結果をBrainbaseへ残し、AIと人間が引き継ぐ流れ
+    alt: 一人の判断をBrainbaseへ置き、複数のAIが壁打ちと実行に再利用する流れ
   actions:
     - theme: brand
-      text: Brainbaseを理解する
-      link: /guide/grand-design
-    - theme: alt
-      text: 10分で試す
+      text: 自分の判断を1つ、AIへ渡してみる
       link: /guide/quick-start
+    - theme: alt
+      text: 複数のAIがどう動くかを見る
+      link: /guide/grand-design
     - theme: alt
       text: 現在の実装を見る
       link: /guide/status`;
@@ -254,7 +254,7 @@ function renderHomeBody(copy) {
 ${copy.human_role}  
 ${copy.ai_role}
 
-Brainbaseが残すのは、単なる資料の置き場所ではありません。何を目指し、誰のために、何を優先し、何を守り、なぜその判断を選んだのかを、次の人やAIが再利用できる形で残します。`;
+Brainbaseが増やすのは、AIの数そのものではありません。あなたの判断が届く範囲です。判断はあなたのまま、AIの探索力・反証力・処理能力を乗せ、考える深さと同時に進められる仕事を増やします。`;
 }
 
 function renderGrandDesign(copy) {
@@ -263,7 +263,7 @@ function renderGrandDesign(copy) {
 ${copy.human_role}  
 ${copy.ai_role}
 
-つまり、Brainbaseの目的はAIに情報を大量に渡すことではありません。**その人や会社なら、なぜそう判断するのかを引き継げる状態を作ること**です。`;
+つまり、Brainbaseの目的はAIに情報を大量に渡すことではありません。**一人分の判断力を、複数のAIが再利用できる実行能力へ変えること**です。`;
 }
 
 function renderJudgmentSystem(copy) {
