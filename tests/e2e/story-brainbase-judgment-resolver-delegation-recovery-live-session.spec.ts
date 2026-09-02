@@ -99,10 +99,11 @@ test('delegated fresh task proves post-generation recovery without impersonating
         .map((name) => readJson(join(eventDirectory, name)))
         .sort((left, right) => left.event_sequence - right.event_sequence);
     const successfulEvidence = events.filter((event) => event.success && !['state', 'value_proof'].includes(event.event_kind));
-    const readbacks = successfulEvidence.filter((event) => event.event_kind === 'retrieve');
+    const executions = successfulEvidence.filter((event) => ['execution', 'write'].includes(event.event_kind));
+    const readbacks = successfulEvidence.filter((event) => ['search', 'retrieve'].includes(event.event_kind));
     const valueProofEvents = events.filter((event) => event.success && event.event_kind === 'value_proof');
     const stateEvents = events.filter((event) => event.success && event.event_kind === 'state');
-    assert.ok(successfulEvidence.length > 0, 'Delegated recovery must retain successful execution evidence');
+    assert.ok(executions.length > 0, 'Delegated recovery must retain a successful bounded update event');
     assert.ok(readbacks.length > 0, 'Delegated recovery must retain a successful canonical readback');
     assert.equal(valueProofEvents.length, 1, 'Delegated continuation canary must record exactly one value proof');
     assert.equal(stateEvents.length, 1, 'Delegated completion must record exactly one final state event');
@@ -122,10 +123,21 @@ test('delegated fresh task proves post-generation recovery without impersonating
     assert.ok(Number.isFinite(finalizedAt), 'Final receipt must retain a valid timestamp');
     assert.ok(Date.now() - finalizedAt <= 60 * 60 * 1000, 'Delegated live evidence must be finalized within one hour');
 
-    const eventIds = new Set(successfulEvidence.map((event) => event.tool_use_id));
-    const proofRefs = valueProof.outcome?.evidence_refs || [];
-    assert.ok(proofRefs.some((ref: any) => ref.kind === 'canonical_readback' && eventIds.has(ref.tool_use_id)));
-    assert.ok(proofRefs.some((ref: any) => ref.kind === 'tool_event' && eventIds.has(ref.tool_use_id)));
+    const executionIds = new Set(executions.map((event) => event.tool_use_id));
+    const readbackIds = new Set(readbacks.map((event) => event.tool_use_id));
+    const proofInput = valueProofEvents[0]?.safe_metadata?.value_proof;
+    const proofRefs = proofInput?.outcome?.evidence_refs || [];
+    const executionRef = proofRefs.find((ref: any) => ref.kind === 'tool_event' && executionIds.has(ref.tool_use_id));
+    const readbackRef = proofRefs.find((ref: any) => ref.kind === 'canonical_readback' && readbackIds.has(ref.tool_use_id));
+    assert.ok(executionRef, 'Value proof must bind tool_event to execution/write evidence');
+    assert.ok(readbackRef, 'Value proof must bind canonical_readback to search/retrieve evidence');
+    assert.notEqual(executionRef.tool_use_id, readbackRef.tool_use_id, 'Update and readback must be different events');
+    const executionEvent = executions.find((event) => event.tool_use_id === executionRef.tool_use_id);
+    const readbackEvent = readbacks.find((event) => event.tool_use_id === readbackRef.tool_use_id);
+    assert.ok(executionEvent, 'Referenced update event must exist');
+    assert.ok(readbackEvent, 'Referenced canonical readback event must exist');
+    assert.equal(executionRef.subject_ref, readbackRef.subject_ref, 'Update and readback must bind the same artifact');
+    assert.ok(executionEvent.event_sequence < readbackEvent.event_sequence, 'Canonical readback must follow the update');
 
     const rendered = finalAnswer(entries, turnId);
     const expectedAudit = [episode.owner_audit.display_line, ...events.flatMap((event) => event.display_line ? [event.display_line] : [])];
