@@ -662,6 +662,19 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
     });
 
+    it('禁止だけの入力は肯定操作へ昇格しない', () => {
+        for (const request of [
+            'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。',
+            'Do not merge, deploy, or publish externally.'
+        ]) {
+            const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+            expect(receipt.classification).toMatchObject({ intent: 'answer', action_kind: 'none', risk: 'low' });
+            expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+            expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+        }
+    });
+
     it('明示的な人材採用はorganizationとして分類する', () => {
         const receipt = service.resolve(input('人材採用をレビューして', proposal({
             intent: 'review', domains: ['organization'], action_kind: 'read', risk: 'low'

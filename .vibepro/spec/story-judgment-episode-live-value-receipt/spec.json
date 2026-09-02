@@ -170,7 +170,7 @@
           },
           {
             "file": "tests/unit/judgment-resolution-service.test.js",
-            "case": "禁止だけの文を肯定された操作として分類しない"
+            "case": "禁止だけの入力は肯定操作へ昇格しない"
           }
         ]
       },
