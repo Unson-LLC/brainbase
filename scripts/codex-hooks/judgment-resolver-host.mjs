@@ -1156,8 +1156,14 @@ function publishedToolSemanticData(toolName, response, input) {
             const receipt = record(item.receipt);
             const identity = record(receipt?.identity);
             return item.status === 'ok' && ['resolved', 'confirmed_empty'].includes(receipt?.status)
-                && receipt?.receipt_id === expected?.receipt_id && identity?.run_id === expected?.run_id
-                && identity?.project_code === expected?.project_code && identity?.transcript_sha256 === expected?.transcript_sha256;
+                && nonEmptyString(expected?.receipt_id) && nonEmptyString(receipt?.receipt_id)
+                && receipt.receipt_id === expected.receipt_id
+                && nonEmptyString(expected?.run_id) && nonEmptyString(identity?.run_id)
+                && identity.run_id === expected.run_id
+                && nonEmptyString(expected?.project_code) && nonEmptyString(identity?.project_code)
+                && identity.project_code === expected.project_code
+                && nonEmptyString(expected?.transcript_sha256) && nonEmptyString(identity?.transcript_sha256)
+                && identity.transcript_sha256 === expected.transcript_sha256;
         }
         if (name === 'authorize_tenant_resource') {
             const resource = record(item.resource_ref);

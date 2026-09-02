@@ -149,7 +149,8 @@ function isStructuredFailure(result: string): boolean {
     const parsed = JSON.parse(result) as unknown;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
     const status = (parsed as Record<string, unknown>).status;
-    return status === 'error' || status === 'unavailable' || status === 'partial';
+    return typeof status === 'string'
+      && ['error', 'unavailable', 'partial', 'failed', 'failure', 'unknown'].includes(status);
   } catch {
     return false;
   }

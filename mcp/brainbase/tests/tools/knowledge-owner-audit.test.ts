@@ -101,7 +101,7 @@ describe('knowledge owner audit', () => {
   });
 
   it('does not claim successful retrieval for structured failures', () => {
-    for (const status of ['error', 'unavailable']) {
+    for (const status of ['error', 'unavailable', 'partial', 'failed', 'failure', 'unknown']) {
       const result = JSON.stringify({
         status,
         error: { code: `brainbase_api_${status}` },

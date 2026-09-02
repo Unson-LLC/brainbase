@@ -1560,6 +1560,49 @@ describe('Codex Judgment Resolver Host', () => {
         }
     });
 
+    it('meeting contextのrequestとresponseは全identity項目が揃わない限り意味的成功にしない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-meeting-contract-missing', turn_id: 'turn-meeting-contract-missing', prompt: '議事録コンテキスト契約を検証して', cwd: process.cwd() };
+        await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) }) }) });
+        const baseInput = { receipt_id: 'm1', run_id: 'run1', project_code: 'brainbase', transcript_sha256: 'b'.repeat(64) };
+        const baseResponse = {
+            status: 'ok',
+            receipt: {
+                receipt_id: 'm1',
+                status: 'resolved',
+                identity: { run_id: 'run1', project_code: 'brainbase', transcript_sha256: 'b'.repeat(64) }
+            }
+        };
+
+        for (const field of ['receipt_id', 'run_id', 'project_code', 'transcript_sha256']) {
+            const input = { ...baseInput };
+            const response = {
+                ...baseResponse,
+                receipt: { ...baseResponse.receipt, identity: { ...baseResponse.receipt.identity } }
+            };
+            if (field === 'receipt_id') {
+                delete input.receipt_id;
+                delete response.receipt.receipt_id;
+            } else {
+                delete input[field];
+                delete response.receipt.identity[field];
+            }
+
+            const event = recordBrainbaseToolUse({
+                hook_event_name: 'PostToolUse',
+                session_id: payload.session_id,
+                turn_id: payload.turn_id,
+                tool_name: 'mcp__brainbase__brainbase_get_meeting_minutes_context',
+                tool_use_id: `meeting-contract-missing-${field}`,
+                tool_input: input,
+                tool_response: withRetrievalAudit('brainbase_get_meeting_minutes_context', response)
+            }, { env });
+
+            expect(event, field).toMatchObject({ success: false, event_kind: 'retrieve' });
+        }
+    });
+
     it('公開MCPツールの検証済みresponse契約だけを意味的成功として採用する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
