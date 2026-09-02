@@ -5,6 +5,11 @@ import {
     hashGraphSnapshot,
     validateGraphSnapshot
 } from './graph-maintenance-engine.js';
+import {
+    assertCatalogProjectSubjectMutation,
+    lockProjectGraphIdentities,
+    lockProjectGraphIdentity
+} from './project-graph-identity-lock.js';
 
 function canonicalJson(value) {
     if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -250,6 +255,19 @@ function uniqueIds(records) {
     return [...new Set(records.map((record) => record.id))];
 }
 
+function planGraphEntityIds(plan) {
+    return [...new Set([
+        ...(plan?.before_snapshot?.entities || []).map((entity) => entity.id),
+        ...(plan?.after_snapshot?.entities || []).map((entity) => entity.id)
+    ].filter(Boolean))].sort();
+}
+
+async function lockPlanGraphIdentities(client, plan) {
+    const entityIds = planGraphEntityIds(plan);
+    await lockProjectGraphIdentities(client, entityIds);
+    return entityIds;
+}
+
 function externalEntityProjection(entity, referenceScope) {
     return {
         id: entity.id,
@@ -469,13 +487,19 @@ export class GraphMaintenanceService {
         if (!['gm', 'ceo'].includes(access.role)) throw new Error('Graph maintenance requires gm or ceo role');
     }
 
-    async listAccessibleProjectCodes(access) {
+    withMaintenanceContext(access, handler, client = null) {
+        const scopedAccess = { ...access, graphMaintenanceMode: true };
+        if (client) return this.infoSSOTService.withAccessContext(scopedAccess, handler, { client });
+        return this.infoSSOTService.withAccessContext(scopedAccess, handler);
+    }
+
+    async listAccessibleProjectCodes(access, { client = null } = {}) {
         if (!access?.organizationId && !access?.tenantId) throw new Error('Signed tenant authorization with organization is required');
         if (!['gm', 'ceo'].includes(access.role)) throw new Error('Graph maintenance requires gm or ceo role');
         const requestedCodes = [...new Set((access.projectCodes || []).filter(Boolean))].sort();
         if (!requestedCodes.length) return [];
         const organizationId = access.organizationId || access.tenantId;
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+        return this.withMaintenanceContext(access, async (client) => {
             const { rows } = await client.query(
                 `SELECT code FROM projects
                  WHERE organization_id = $1 AND code = ANY($2::text[])
@@ -483,7 +507,7 @@ export class GraphMaintenanceService {
                 [organizationId, requestedCodes]
             );
             return rows.map((row) => row.code);
-        });
+        }, client);
     }
 
     async resolveProject(client, access, projectCode, { lock = false } = {}) {
@@ -792,8 +816,8 @@ export class GraphMaintenanceService {
         return snapshot;
     }
 
-    async exportSnapshot(access, { projectCode, includeProjectCodes = [] }) {
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+    async exportSnapshot(access, { projectCode, includeProjectCodes = [] }, { client = null } = {}) {
+        return this.withMaintenanceContext(access, async (client) => {
             const { project, snapshot } = await this.loadSnapshot(client, access, projectCode, { includeProjectCodes });
             const snapshotId = `gms_${randomUUID()}`;
             await client.query(
@@ -803,12 +827,12 @@ export class GraphMaintenanceService {
                 [snapshotId, access.organizationId || access.tenantId, project.id, snapshot.hash, JSON.stringify(snapshot), actor(access)]
             );
             return { snapshot_id: snapshotId, snapshot_hash: snapshot.hash, ...snapshot };
-        });
+        }, client);
     }
 
-    async planMutations(access, input) {
+    async planMutations(access, input, { client = null } = {}) {
         this.assertMaintenanceAccess(access, input.projectCode);
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+        return this.withMaintenanceContext(access, async (client) => {
             const organizationId = access.organizationId || access.tenantId;
             const { rows: snapshotRows } = await client.query(
                 `SELECT s.*, p.code AS project_code FROM graph_maintenance_snapshots s
@@ -965,7 +989,7 @@ export class GraphMaintenanceService {
                 throw new Error('idempotency key payload conflict');
             }
             return this.formatPlan(concurrent.rows[0]);
-        });
+        }, client);
     }
 
     async recordHumanGateReceipt(access, { projectCode, decisionId, receiptId, evidence = {} }) {
@@ -1061,11 +1085,14 @@ export class GraphMaintenanceService {
         };
     }
 
-    async replaceSnapshot(client, access, snapshot, { baseline = null } = {}) {
+    async replaceSnapshot(client, access, snapshot, { baseline = null, identityLocksHeld = false } = {}) {
         assertCanonicalCrossTenantEndpoints(snapshot);
         assertValidSnapshot(snapshot, 'Graph snapshot is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
         const codes = snapshotProjectCodes(snapshot);
+        if (!identityLocksHeld) {
+            await lockProjectGraphIdentities(client, uniqueIds(snapshot.entities));
+        }
         const projects = await client.query(
             `SELECT id, code FROM projects WHERE code = ANY($1::text[]) AND organization_id = $2 FOR UPDATE`,
             [codes, organizationId]
@@ -1073,6 +1100,17 @@ export class GraphMaintenanceService {
         if (projects.rows.length !== codes.length || !codes.every((code) => access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
         const projectIds = new Map(projects.rows.map((row) => [row.code, row.id]));
         const authorizedProjectIds = [...projectIds.values()];
+        for (const entity of [...snapshot.entities].sort((left, right) => left.id.localeCompare(right.id))) {
+            await assertCatalogProjectSubjectMutation(client, {
+                id: entity.id,
+                entityType: entity.entity_type,
+                projectId: projectIds.get(entity.project_code),
+                payload: entity.payload,
+                lifecycleStatus: entity.lifecycle_status,
+                allowCompatible: true,
+                identityLocked: true
+            });
+        }
         const entityIds = uniqueIds(snapshot.entities);
         const edgeIds = uniqueIds(snapshot.edges);
         if (entityIds.length) {
@@ -1126,18 +1164,25 @@ export class GraphMaintenanceService {
         }
     }
 
-    async applyPlan(access, { projectCode, planId, snapshotHash, humanGateReceipt }) {
+    async applyPlan(access, { projectCode, planId, snapshotHash, humanGateReceipt }, { client = null } = {}) {
         this.assertMaintenanceAccess(access, projectCode);
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+        return this.withMaintenanceContext(access, async (client) => {
             const organizationId = access.organizationId || access.tenantId;
-            const { rows } = await client.query(
-                `SELECT p.*, pr.code AS project_code FROM graph_maintenance_plans p
+            const planScopeSql = `SELECT p.*, pr.code AS project_code FROM graph_maintenance_plans p
                  JOIN projects pr ON pr.id=p.project_id
-                 WHERE p.id=$1 AND p.organization_id=$2 AND pr.code=$3 FOR UPDATE`,
+                 WHERE p.id=$1 AND p.organization_id=$2 AND pr.code=$3`;
+            const preliminary = await client.query(planScopeSql, [planId, organizationId, projectCode]);
+            if (!preliminary.rows[0]) throw new Error('Unknown plan');
+            const lockedEntityIds = await lockPlanGraphIdentities(client, preliminary.rows[0]);
+            const { rows } = await client.query(
+                `${planScopeSql} FOR UPDATE`,
                 [planId, organizationId, projectCode]
             );
             const plan = rows[0];
             if (!plan) throw new Error('Unknown plan');
+            if (fingerprint(planGraphEntityIds(plan)) !== fingerprint(lockedEntityIds)) {
+                throw new Error('plan identity scope changed before lock');
+            }
             if (snapshotHash !== plan.base_snapshot_hash) throw new Error('snapshot hash mismatch');
             const existing = await this.findReceipt(client, planId, 'apply', { organizationId, projectCode });
             if (existing) return existing;
@@ -1182,7 +1227,10 @@ export class GraphMaintenanceService {
                 current.hash = hashGraphSnapshot(current);
             }
             if (current.hash !== plan.base_snapshot_hash) throw new Error('snapshot hash conflict');
-            await this.replaceSnapshot(client, access, plan.after_snapshot, { baseline: plan.before_snapshot });
+            await this.replaceSnapshot(client, access, plan.after_snapshot, {
+                baseline: plan.before_snapshot,
+                identityLocksHeld: true
+            });
             const { snapshot: readback } = await this.loadSnapshot(client, access, projectCode, {
                 lock: true,
                 includeProjectCodes: snapshotProjectCodes(plan.after_snapshot).filter((code) => code !== projectCode)
@@ -1195,7 +1243,7 @@ export class GraphMaintenanceService {
             const receipt = await this.createReceipt(client, access, plan, 'apply', plan.base_snapshot_hash, readback.hash);
             await client.query(`UPDATE graph_maintenance_plans SET status='applied', applied_at=NOW() WHERE id=$1`, [planId]);
             return receipt;
-        });
+        }, client);
     }
 
     async findReceipt(client, planId, type, { organizationId, projectCode } = {}) {
@@ -1235,9 +1283,9 @@ export class GraphMaintenanceService {
         return rows[0];
     }
 
-    async getPlanReceipt(access, { projectCode, planId }) {
+    async getPlanReceipt(access, { projectCode, planId }, { client = null } = {}) {
         this.assertMaintenanceAccess(access, projectCode);
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+        return this.withMaintenanceContext(access, async (client) => {
             const { rows } = await client.query(
                 `SELECT r.id AS receipt_id, r.plan_id, r.receipt_type, r.status, r.before_hash, r.after_hash, r.result, r.created_at
                  FROM graph_maintenance_receipts r
@@ -1253,19 +1301,26 @@ export class GraphMaintenanceService {
             );
             if (!rows.length) throw new Error('Plan receipt is required');
             return { plan_id: planId, receipts: rows };
-        });
+        }, client);
     }
 
     async rollbackPlan(access, { projectCode, planId, applyReceiptId }) {
         this.assertMaintenanceAccess(access, projectCode);
         return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
             const organizationId = access.organizationId || access.tenantId;
+            const planScopeSql = `SELECT p.*, pr.code AS project_code FROM graph_maintenance_plans p JOIN projects pr ON pr.id=p.project_id
+                 WHERE p.id=$1 AND p.organization_id=$2 AND pr.code=$3`;
+            const preliminary = await client.query(planScopeSql, [planId, organizationId, projectCode]);
+            if (!preliminary.rows[0]) throw new Error('Unknown plan');
+            const lockedEntityIds = await lockPlanGraphIdentities(client, preliminary.rows[0]);
             const { rows } = await client.query(
-                `SELECT p.*, pr.code AS project_code FROM graph_maintenance_plans p JOIN projects pr ON pr.id=p.project_id
-                 WHERE p.id=$1 AND p.organization_id=$2 AND pr.code=$3 FOR UPDATE`, [planId, organizationId, projectCode]
+                `${planScopeSql} FOR UPDATE`, [planId, organizationId, projectCode]
             );
             const plan = rows[0];
             if (!plan) throw new Error('Unknown plan');
+            if (fingerprint(planGraphEntityIds(plan)) !== fingerprint(lockedEntityIds)) {
+                throw new Error('plan identity scope changed before lock');
+            }
             const previousRollback = await this.findReceipt(client, planId, 'rollback', { organizationId, projectCode });
             if (previousRollback) return previousRollback;
             const applyReceipt = await this.findReceipt(client, planId, 'apply', { organizationId, projectCode });
@@ -1325,7 +1380,10 @@ export class GraphMaintenanceService {
                 const remains = await client.query(`SELECT id FROM graph_entities WHERE id=ANY($1::text[])`, [createdEntityIds]);
                 if (remains.rows.length) throw new Error('Graph rollback created-entity cleanup failed');
             }
-            await this.replaceSnapshot(client, access, plan.before_snapshot, { baseline: plan.before_snapshot });
+            await this.replaceSnapshot(client, access, plan.before_snapshot, {
+                baseline: plan.before_snapshot,
+                identityLocksHeld: true
+            });
             const { snapshot: readback } = await this.loadSnapshot(client, access, projectCode, {
                 lock: true,
                 includeProjectCodes: snapshotProjectCodes(plan.before_snapshot).filter((code) => code !== projectCode)
@@ -1341,8 +1399,8 @@ export class GraphMaintenanceService {
         });
     }
 
-    async validate(access, { projectCode, includeProjectCodes = [] }) {
-        return this.infoSSOTService.withAccessContext({ ...access, graphMaintenanceMode: true }, async (client) => {
+    async validate(access, { projectCode, includeProjectCodes = [] }, { client = null } = {}) {
+        return this.withMaintenanceContext(access, async (client) => {
             const { snapshot } = await this.loadSnapshot(client, access, projectCode, { includeProjectCodes });
             const structural = validateGraphSnapshot(snapshot);
             const activeLocalEntityIds = snapshot.entities
@@ -1378,6 +1436,6 @@ export class GraphMaintenanceService {
                     ? { suppression_summary: snapshot.suppression_summary }
                     : {})
             };
-        });
+        }, client);
     }
 }

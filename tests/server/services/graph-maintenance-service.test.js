@@ -688,6 +688,7 @@ describe('GraphMaintenanceService authorization', () => {
         };
         const client = { query: vi.fn(async (sql, params) => {
             if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
             if (sql.includes('FROM graph_maintenance_receipts')) {
                 if (method === 'rollbackPlan' && params[1] === 'apply') return { rows: [{ receipt_id: 'apply_1' }] };
                 return { rows: [] };
@@ -708,6 +709,87 @@ describe('GraphMaintenanceService authorization', () => {
         expect(createReceipt).not.toHaveBeenCalled();
         expect(client.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_maintenance_receipts'))).toBe(false);
         expect(receiptType).toBe(method === 'applyPlan' ? 'apply' : 'rollback');
+    });
+
+    const expectPlanIdentityLocksBeforeRowLock = async (method, input) => {
+        const plan = {
+            id: 'plan_lock_order', project_id: 'project_brainbase', organization_id: 'org_1',
+            project_code: 'brainbase', status: method === 'applyPlan' ? 'planned' : 'applied',
+            before_snapshot: { project_code: 'brainbase', entities: [{ id: 'entity_z' }], edges: [] },
+            after_snapshot: { project_code: 'brainbase', entities: [{ id: 'entity_a' }, { id: 'entity_z' }], edges: [] }
+        };
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('FROM graph_maintenance_plans')) {
+                if (sql.includes('FOR UPDATE')) throw new Error('stop after plan row lock');
+                return { rows: [plan] };
+            }
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
+            throw new Error(`unexpected query: ${sql}`);
+        }) };
+        const lockOrderService = new GraphMaintenanceService({
+            infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) }
+        });
+
+        await expect(lockOrderService[method]({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, input)).rejects.toThrow('stop after plan row lock');
+
+        const lockCalls = client.query.mock.calls
+            .filter(([sql]) => sql.includes('pg_try_advisory_xact_lock'));
+        expect(lockCalls.map(([, params]) => params[0])).toEqual([
+            'brainbase:project-graph-identity:entity_a',
+            'brainbase:project-graph-identity:entity_z'
+        ]);
+        const rowLockIndex = client.query.mock.calls.findIndex(([sql]) => (
+            sql.includes('FROM graph_maintenance_plans') && sql.includes('FOR UPDATE')
+        ));
+        const finalIdentityLockIndex = client.query.mock.calls.reduce((last, [sql], index) => (
+            sql.includes('pg_try_advisory_xact_lock') ? index : last
+        ), -1);
+        expect(finalIdentityLockIndex).toBeLessThan(rowLockIndex);
+    };
+
+    it('applyPlanはplan行をロックする前に全entity IDを昇順でロックする', async () => {
+        await expectPlanIdentityLocksBeforeRowLock('applyPlan', {
+            projectCode: 'brainbase', planId: 'plan_lock_order', snapshotHash: 'before'
+        });
+    });
+
+    it('rollbackPlanはplan行をロックする前に全entity IDを昇順でロックする', async () => {
+        await expectPlanIdentityLocksBeforeRowLock('rollbackPlan', {
+            projectCode: 'brainbase', planId: 'plan_lock_order', applyReceiptId: 'apply_1'
+        });
+    });
+
+    it('applyPlanはidentity lock後にplanのentity集合が変わった場合は書込前に拒否する', async () => {
+        const preliminaryPlan = {
+            id: 'plan_scope_drift', project_id: 'project_brainbase', organization_id: 'org_1',
+            project_code: 'brainbase', status: 'planned',
+            before_snapshot: { project_code: 'brainbase', entities: [{ id: 'entity_a' }], edges: [] },
+            after_snapshot: { project_code: 'brainbase', entities: [{ id: 'entity_a' }], edges: [] }
+        };
+        const lockedPlan = structuredClone(preliminaryPlan);
+        lockedPlan.after_snapshot.entities = [{ id: 'entity_b' }];
+        let planReads = 0;
+        const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('FROM graph_maintenance_plans')) {
+                planReads += 1;
+                return { rows: [planReads === 1 ? preliminaryPlan : lockedPlan] };
+            }
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
+            throw new Error(`mutation query must not run: ${sql}`);
+        }) };
+        const scopeDriftService = new GraphMaintenanceService({
+            infoSSOTService: { withAccessContext: async (_access, callback) => callback(client) }
+        });
+
+        await expect(scopeDriftService.applyPlan({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, {
+            projectCode: 'brainbase', planId: 'plan_scope_drift', snapshotHash: 'before'
+        })).rejects.toThrow('plan identity scope changed before lock');
+        expect(client.query.mock.calls.filter(([sql]) => sql.includes('pg_try_advisory_xact_lock')))
+            .toHaveLength(1);
     });
 
     it('複数Decisionを含むPlanはDecision集合に束縛した単一Human Gateで原子的にApplyする', async () => {
@@ -738,6 +820,7 @@ describe('GraphMaintenanceService authorization', () => {
         };
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
             if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
             if (sql.includes('FROM graph_maintenance_human_gate_receipts')) return { rows: [{
                 id: 'gate_multi', evidence: { operation_scope: multiDecisionService.formatPlan(plan).apply_human_gate_scope }
@@ -785,6 +868,7 @@ describe('GraphMaintenanceService authorization', () => {
         delete legacyScope.decision_ids;
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
             if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
             if (sql.includes('FROM graph_maintenance_human_gate_receipts')) return { rows: [{ id: 'gate_legacy', evidence: { operation_scope: legacyScope } }] };
             if (sql.includes('UPDATE graph_maintenance_plans')) return { rows: [] };
@@ -817,6 +901,7 @@ describe('GraphMaintenanceService authorization', () => {
         let legacyScope;
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
             if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
             if (sql.includes('FROM graph_maintenance_human_gate_receipts')) return { rows: [{ id: 'gate_legacy', evidence: { operation_scope: legacyScope } }] };
             throw new Error(`mutation query must not run: ${sql}`);
@@ -896,6 +981,7 @@ describe('GraphMaintenanceService authorization', () => {
         const receipt = { receipt_id: 'apply_existing', plan_id: plan.id, receipt_type: 'apply', status: 'completed' };
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
             if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [receipt] };
             throw new Error(`mutation query must not run: ${sql}`);
         }) };
@@ -907,7 +993,7 @@ describe('GraphMaintenanceService authorization', () => {
         }, {
             projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash
         })).resolves.toEqual(receipt);
-        expect(client.query).toHaveBeenCalledTimes(2);
+        expect(client.query).toHaveBeenCalledTimes(5);
     });
 
     it('既存Receiptの再取得はPlanのtenantとprojectに一致するものだけを返す', async () => {
@@ -950,7 +1036,7 @@ describe('GraphMaintenanceService authorization', () => {
             projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash
         })).rejects.toThrow('Plan is not applicable: applied');
         expect(receiptQuery.params).toEqual([plan.id, 'apply', 'org_1', 'brainbase']);
-        expect(client.query).toHaveBeenCalledTimes(2);
+        expect(client.query).toHaveBeenCalledTimes(3);
     });
 
     it('適用済みPlanでもbase snapshot hash不一致はReceipt readbackより先に拒否する', async () => {
@@ -978,7 +1064,7 @@ describe('GraphMaintenanceService authorization', () => {
         }, {
             projectCode: 'brainbase', planId: plan.id, snapshotHash: 'sha256:wrong'
         })).rejects.toThrow('snapshot hash mismatch');
-        expect(client.query).toHaveBeenCalledTimes(1);
+        expect(client.query).toHaveBeenCalledTimes(2);
     });
 
     it('replaceSnapshotは別tenantのedge IDを上書きしない', async () => {
@@ -991,7 +1077,9 @@ describe('GraphMaintenanceService authorization', () => {
             edges: [{ id: 'edge_owned_by_other_tenant', from_id: 'entity_a', to_id: 'entity_b', rel_type: 'knows', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 }]
         };
         const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
             if (sql.includes('SELECT id, code FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase' }] };
+            if (sql.includes("to_regclass('public.project_registry')")) return { rows: [{ project_registry: null }] };
             if (sql.includes('SELECT id FROM graph_entities')) return { rows: [] };
             if (sql.includes('SELECT id FROM graph_edges')) return { rows: [{ id: 'edge_owned_by_other_tenant' }] };
             throw new Error(`unexpected query: ${sql}`);
@@ -999,7 +1087,7 @@ describe('GraphMaintenanceService authorization', () => {
         await expect(service.replaceSnapshot(client, {
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
         }, snapshot)).rejects.toThrow('edge id tenant conflict');
-        expect(client.query).toHaveBeenCalledTimes(3);
+        expect(client.query).toHaveBeenCalledTimes(7);
     });
 
     it('replaceSnapshotは既存のorphanを増やさない変更を許容する', async () => {
@@ -1012,7 +1100,9 @@ describe('GraphMaintenanceService authorization', () => {
         after.entities[0].lifecycle_status = 'retired';
         after.entities[0].version = 2;
         const client = { query: vi.fn(async (sql) => {
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
             if (sql.includes('SELECT id, code FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase' }] };
+            if (sql.includes("to_regclass('public.project_registry')")) return { rows: [{ project_registry: null }] };
             if (sql.includes('SELECT id FROM graph_entities') || sql.includes('SELECT id FROM graph_edges')) return { rows: [] };
             if (sql.includes('INSERT INTO graph_entities') || sql.includes('INSERT INTO graph_edges')) return { rowCount: 1, rows: [] };
             throw new Error(`unexpected query: ${sql}`);
@@ -1020,7 +1110,7 @@ describe('GraphMaintenanceService authorization', () => {
         await expect(service.replaceSnapshot(client, {
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
         }, after, { baseline: before })).resolves.toBeUndefined();
-        expect(client.query).toHaveBeenCalledTimes(5);
+        expect(client.query).toHaveBeenCalledTimes(7);
     });
 
     it('rejects a stored plan snapshot whose content no longer matches its hash before mutation', async () => {
@@ -1041,6 +1131,7 @@ describe('GraphMaintenanceService authorization', () => {
         plan.after_snapshot.entities[0].payload.tampered = true;
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
             if (sql.includes('FROM graph_maintenance_receipts')) return { rows: [] };
             throw new Error(`mutation query must not run: ${sql}`);
         }) };
@@ -1048,7 +1139,7 @@ describe('GraphMaintenanceService authorization', () => {
         await expect(tamperService.applyPlan({ organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm' }, {
             projectCode: 'brainbase', planId: 'plan_tampered', snapshotHash: before.hash
         })).rejects.toThrow('stored plan snapshot hash mismatch');
-        expect(client.query).toHaveBeenCalledTimes(2);
+        expect(client.query).toHaveBeenCalledTimes(4);
     });
 
     it('rejects an introduced orphan that is absent from the immutable baseline', async () => {
@@ -1663,10 +1754,12 @@ describe('GraphMaintenanceService authorization', () => {
         let edgeExists = true;
         const client = { query: vi.fn(async (sql, params) => {
             if (sql.includes('FROM graph_maintenance_plans')) return { rows: [plan] };
+            if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [] };
             if (sql.includes('FROM graph_maintenance_receipts')) {
                 return params[1] === 'apply' ? { rows: [{ receipt_id: 'apply_1' }] } : { rows: [] };
             }
             if (sql.includes('SELECT id, code FROM projects') && sql.includes('ANY($1::text[])')) return { rows: [{ id: 'project_brainbase', code: 'brainbase' }] };
+            if (sql.includes("to_regclass('public.project_registry')")) return { rows: [{ project_registry: null }] };
             if (sql.includes('SELECT id, code, organization_id FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
             if (sql.includes('SELECT id FROM projects WHERE code=ANY')) return { rows: [{ id: 'project_brainbase' }] };
             if (sql.includes('SELECT ge.id, ge.entity_type')) return { rows: after.entities };

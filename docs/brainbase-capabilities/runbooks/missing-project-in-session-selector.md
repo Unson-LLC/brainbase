@@ -29,6 +29,16 @@ brainbase project provision verify <run-id>
 
 `status`と`verify`の結果で、Registry、Graph validation、Auth Grant、Repository boundary、runtime catalogの各readbackを個別に確認します。ReceiptやHTTP成功だけでは`active`や`verified: true`と判断しません。未確認・不一致・取得不能が一つでもあれば、完了扱いにせず原因を復旧してから`resume`または再検証します。
 
+`GRAPH_PROJECT_IDENTITY_BUSY`と`details.retryable: true`が返った場合は、一時的な同一IDロック競合です。恒久的なidentity conflictとしてmanifestを変更せず、先行処理の完了後に次を実行します。
+
+```bash
+brainbase project provision status <run-id>
+brainbase project provision resume <run-id>
+brainbase project provision verify <run-id>
+```
+
+`status`で先行処理やpartial failureの状態を読み戻してから`resume`し、最後に`verify`します。同じbusyが続く場合は自動成功扱いにせず、該当`entity_id`の実行中runとロック保持処理を調査します。
+
 ## 4. 旧セッション作成導線とFocusEngineModal互換導線を確認する
 
 desktop/mobileの新規セッション操作は`EVENTS.CREATE_SESSION`を発火し、現在のhandlerはPickerを開かずCodex移行案内へfail-closedします。NocoDBの旧タスク開始は`EVENTS.START_TASK`を発火し、移行期間中はFocusEngineModalを表示しますが、エンジン選択後は同じ案内へfail-closedします。次を確認します。

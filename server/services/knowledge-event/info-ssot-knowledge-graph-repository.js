@@ -1,3 +1,5 @@
+import { assertCatalogProjectSubjectMutation } from '../project-graph-identity-lock.js';
+
 export class InfoSSOTKnowledgeGraphRepository {
     constructor({ infoSSOTService }) {
         this.infoSSOTService = infoSSOTService;
@@ -126,6 +128,11 @@ export class InfoSSOTKnowledgeGraphRepository {
     async supersedeDecision(input, { client, access } = {}) {
         this._requireAccess(access);
         return this.infoSSOTService.withAccessContext(access, async (contextClient) => {
+            await assertCatalogProjectSubjectMutation(contextClient, {
+                id: input.id,
+                entityType: 'decision',
+                allowCompatible: false
+            });
             const { rows } = await contextClient.query(
                 `UPDATE graph_entities
                  SET payload = payload || jsonb_build_object(
@@ -153,6 +160,11 @@ export class InfoSSOTKnowledgeGraphRepository {
     async retractDecision(input, { client, access } = {}) {
         this._requireAccess(access);
         return this.infoSSOTService.withAccessContext(access, async (contextClient) => {
+            await assertCatalogProjectSubjectMutation(contextClient, {
+                id: input.id,
+                entityType: 'decision',
+                allowCompatible: false
+            });
             const { rows } = await contextClient.query(
                 `UPDATE graph_entities
                  SET payload = payload || jsonb_build_object(

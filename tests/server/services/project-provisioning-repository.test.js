@@ -35,6 +35,20 @@ describe('PgProjectProvisioningRepository', () => {
         expect(query.mock.calls[0][1]).toEqual(['growin-ai', 'org_a']);
     });
 
+    it('Graph同一IDは限定projectionのsecurity definer関数で書込前に照会する', async () => {
+        const row = {
+            scope_relation: 'same_organization', entity_id: 'growin-ai',
+            entity_type: 'project', project_code: 'brainbase'
+        };
+        const query = vi.fn(async () => ({ rows: [row] }));
+        const repository = new PgProjectProvisioningRepository({ pool: { query } });
+
+        await expect(repository.findProjectSubjectIdentity('growin-ai', 'org_a')).resolves.toEqual(row);
+
+        expect(query.mock.calls[0][0]).toBe('SELECT * FROM project_graph_identity_probe($1)');
+        expect(query.mock.calls[0][1]).toEqual(['growin-ai']);
+    });
+
     it('organization entity authority readback is joined to the authenticated organization', async () => {
         const query = vi.fn(async (sql) => {
             if (sql.includes('FROM organizations WHERE')) return { rows: [{ id: 'org_a' }] };

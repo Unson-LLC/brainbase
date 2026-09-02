@@ -10,8 +10,18 @@ const manifest = {
     repository: { mode: 'link_existing', owner: 'Unson-LLC', repo: 'growin-project' }
 };
 
+function materializedProjectIdentity(projectCode = manifest.project_code) {
+    return {
+        scope_relation: 'same_organization', entity_id: manifest.project_code,
+        entity_type: 'project', lifecycle_status: 'active', project_code: projectCode,
+        entity_version: 1, display_name: manifest.display_name,
+        catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+        source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+    };
+}
+
 class MemoryRepository {
-    constructor({ authority = {}, identityCollisions = [] } = {}) {
+    constructor({ authority = {}, identityCollisions = [], projectSubjectIdentity = null } = {}) {
         this.projects = new Map(); this.runs = new Map(); this.keys = new Map();
         this.authority = {
             organization_exists: true,
@@ -21,10 +31,12 @@ class MemoryRepository {
             ...authority
         };
         this.identityCollisions = identityCollisions;
+        this.projectSubjectIdentity = projectSubjectIdentity;
     }
     async getProject(code) { return this.projects.get(code) || null; }
     async verifyManifestAuthority() { return structuredClone(this.authority); }
     async findIdentityCollisions() { return structuredClone(this.identityCollisions); }
+    async findProjectSubjectIdentity() { return structuredClone(this.projectSubjectIdentity); }
     async savePlan(input) {
         const key = `${input.actor.organizationId}:${input.idempotencyKey}`;
         const existingId = this.keys.get(key);
@@ -77,17 +89,34 @@ class MemoryRepository {
     }
 }
 
-function createHarness({ failGrantOnce = false, authority, identityCollisions = [], graphEntities = [] } = {}) {
-    const repository = new MemoryRepository({ authority, identityCollisions });
+function createHarness({
+    failGrantOnce = false, authority, identityCollisions = [], projectSubjectIdentity = null,
+    graphEntities = []
+} = {}) {
+    const repository = new MemoryRepository({ authority, identityCollisions, projectSubjectIdentity });
     const graphCalls = [];
+    let lastGraphIdempotencyKey = null;
     const graphService = {
         listAccessibleProjectCodes: vi.fn(async (access) => (
             access.projectCodes.filter((code) => code !== 'aitle')
         )),
         exportSnapshot: vi.fn(async () => { graphCalls.push('exportSnapshot'); return { snapshot_id: 'snap_1', snapshot_hash: 'hash_1', entities: structuredClone(graphEntities) }; }),
-        planMutations: vi.fn(async () => { graphCalls.push('planMutations'); return { plan_id: 'gplan_1', snapshot_hash: 'hash_1' }; }),
+        planMutations: vi.fn(async (_access, input) => {
+            graphCalls.push('planMutations');
+            lastGraphIdempotencyKey = input.idempotencyKey;
+            return { plan_id: 'gplan_1', snapshot_hash: 'hash_1', idempotency_key: input.idempotencyKey };
+        }),
         applyPlan: vi.fn(async () => { graphCalls.push('applyPlan'); return { receipt_id: 'apply_1' }; }),
-        getPlanReceipt: vi.fn(async () => { graphCalls.push('getPlanReceipt'); return { receipts: [{ id: 'apply_1' }] }; }),
+        getPlanReceipt: vi.fn(async (_access, { planId }) => {
+            graphCalls.push('getPlanReceipt');
+            return {
+                plan_id: planId,
+                receipts: [{
+                    receipt_id: 'apply_1', plan_id: planId, receipt_type: 'apply', status: 'completed',
+                    result: { idempotency_key: lastGraphIdempotencyKey }
+                }]
+            };
+        }),
         validate: vi.fn(async () => { graphCalls.push('validate'); return { valid: true }; })
     };
     let failed = false;
@@ -128,6 +157,17 @@ function createHarness({ failGrantOnce = false, authority, identityCollisions = 
 }
 
 describe('ProjectProvisioningService', () => {
+    it('organizationIdとtenantIdが一致しないactorを曖昧なtenant identityとして拒否する', async () => {
+        const { service, repository } = createHarness();
+
+        await expect(service.check({ ...actor, tenantId: 'other-org' }, manifest)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_TENANT_IDENTITY_MISMATCH',
+            statusCode: 409
+        });
+        expect(repository.runs.size).toBe(0);
+        expect(repository.projects.size).toBe(0);
+    });
+
     it('checkは書き込みを行わない', async () => {
         const { service, repository } = createHarness();
         await expect(service.check(actor, manifest)).resolves.toMatchObject({ ok: true, writes_performed: 0 });
@@ -170,6 +210,83 @@ describe('ProjectProvisioningService', () => {
         });
     });
 
+    it('同一組織かつ完全一致するGraph Project subjectをpreflightで再利用可能と判定する', async () => {
+        const { service } = createHarness({
+            projectSubjectIdentity: {
+                scope_relation: 'same_organization', entity_id: manifest.project_code,
+                entity_type: 'project', lifecycle_status: 'active', project_code: 'brainbase',
+                entity_version: 3, display_name: manifest.display_name,
+                catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+                source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+            }
+        });
+
+        await expect(service.check({ ...actor, projectCodes: ['brainbase'] }, manifest)).resolves.toMatchObject({
+            ok: true,
+            graph_project_subject: { status: 'reusable', project_code: 'brainbase', entity_version: 3 },
+            writes_performed: 0
+        });
+    });
+
+    it('同一IDのGraph subjectがCatalog identityと一致しない場合は書込前に拒否する', async () => {
+        const { service } = createHarness({
+            projectSubjectIdentity: {
+                scope_relation: 'same_organization', entity_id: manifest.project_code,
+                entity_type: 'project', lifecycle_status: 'active', project_code: 'brainbase',
+                entity_version: 1, display_name: '別プロジェクト',
+                catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+                source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+            }
+        });
+
+        const result = await service.check({ ...actor, projectCodes: ['brainbase'] }, manifest);
+
+        expect(result).toMatchObject({
+            ok: false,
+            graph_project_subject: { status: 'conflict' },
+            writes_performed: 0
+        });
+        expect(result.collisions).toContainEqual({
+            field: 'graph_entity_id', value: manifest.project_code, source: 'graph_identity_conflict'
+        });
+    });
+
+    it('他組織の同一Graph IDはテナント情報を漏らさず書込前に拒否する', async () => {
+        const { service } = createHarness({
+            projectSubjectIdentity: {
+                scope_relation: 'other_organization', entity_id: manifest.project_code,
+                entity_type: null, lifecycle_status: null, project_code: null
+            }
+        });
+
+        const result = await service.check(actor, manifest);
+
+        expect(result.graph_project_subject).toEqual({ status: 'conflict' });
+        expect(result.collisions).toContainEqual({
+            field: 'graph_entity_id', value: manifest.project_code, source: 'graph_identity_conflict'
+        });
+        expect(JSON.stringify(result)).not.toContain('other_organization');
+    });
+
+    it('完全一致でも既存subjectのGraph scopeを持たないactorには再利用を許可しない', async () => {
+        const { service } = createHarness({
+            projectSubjectIdentity: {
+                scope_relation: 'same_organization', entity_id: manifest.project_code,
+                entity_type: 'project', lifecycle_status: 'active', project_code: 'brainbase',
+                entity_version: 3, display_name: manifest.display_name,
+                catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+                source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+            }
+        });
+
+        const result = await service.check(actor, manifest);
+
+        expect(result.graph_project_subject).toEqual({ status: 'conflict' });
+        expect(result.collisions).toContainEqual({
+            field: 'graph_project_scope', value: manifest.project_code, source: 'graph_scope_unavailable'
+        });
+    });
+
     it('authority readback依存が欠ける場合はfail closedする', async () => {
         const { service, repository } = createHarness();
         repository.verifyManifestAuthority = undefined;
@@ -186,6 +303,16 @@ describe('ProjectProvisioningService', () => {
 
         await expect(service.check(actor, manifest)).rejects.toMatchObject({
             code: 'PROJECT_PROVISIONING_IDENTITY_COLLISION_CHECK_UNAVAILABLE',
+            statusCode: 503
+        });
+    });
+
+    it('Graph同一ID preflight依存が欠ける場合はfail closedする', async () => {
+        const { service, repository } = createHarness();
+        repository.findProjectSubjectIdentity = undefined;
+
+        await expect(service.check(actor, manifest)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CHECK_UNAVAILABLE',
             statusCode: 503
         });
     });
@@ -236,6 +363,191 @@ describe('ProjectProvisioningService', () => {
         expect(resumed.state).toBe('active');
         expect(graphService.applyPlan).toHaveBeenCalledTimes(1);
         expect(resumed.receipt.verified).toBe(true);
+    });
+
+    it('Graph作成後の権限付与失敗は作成済みsubjectを自runの成果としてresumeする', async () => {
+        const { service, repository, graphService } = createHarness({ failGrantOnce: true });
+        const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-created-subject-resume' });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-created-subject-resume'
+        });
+        await expect(service.apply(actor, plan.run_id)).rejects.toThrow('temporary grant failure');
+        repository.projectSubjectIdentity = materializedProjectIdentity();
+
+        const resumed = await service.resume(actor, plan.run_id);
+
+        expect(resumed.state).toBe('active');
+        expect(graphService.applyPlan).toHaveBeenCalledTimes(1);
+        expect(resumed.receipt.verified).toBe(true);
+    });
+
+    it('旧planでもGraph作成完了Receiptと完全一致subjectがあれば後続失敗からresumeする', async () => {
+        const { service, repository, graphService } = createHarness({ failGrantOnce: true });
+        const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-legacy-created-subject-resume' });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-legacy-created-subject-resume'
+        });
+        await expect(service.apply(actor, plan.run_id)).rejects.toThrow('temporary grant failure');
+        delete repository.runs.get(plan.run_id).plan.preflight.graph_project_subject;
+        repository.projectSubjectIdentity = materializedProjectIdentity();
+
+        const resumed = await service.resume(actor, plan.run_id);
+
+        expect(resumed.state).toBe('active');
+        expect(graphService.applyPlan).toHaveBeenCalledTimes(1);
+        expect(resumed.receipt.verified).toBe(true);
+    });
+
+    it('Graph完了Receiptのplanが当該runのidempotency keyに結び付かない場合はresume例外を拒否する', async () => {
+        const { service, repository, graphService } = createHarness({ failGrantOnce: true });
+        const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-wrong-graph-plan-resume' });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-wrong-graph-plan-resume'
+        });
+        await expect(service.apply(actor, plan.run_id)).rejects.toThrow('temporary grant failure');
+        repository.projectSubjectIdentity = materializedProjectIdentity();
+        const graphStep = repository.runs.get(plan.run_id).steps.find((step) => step.step_name === 'graph');
+        graphStep.receipt.plan_id = 'gplan_other';
+        graphStep.receipt.apply.receipt_id = 'apply_other';
+        graphService.getPlanReceipt.mockResolvedValueOnce({
+            plan_id: 'gplan_other',
+            receipts: [{
+                receipt_id: 'apply_other', plan_id: 'gplan_other', receipt_type: 'apply', status: 'completed',
+                result: { idempotency_key: 'project-provisioning:another-run:graph' }
+            }]
+        });
+
+        await expect(service.resume(actor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_SCOPE_UNAVAILABLE'
+        });
+        expect(graphService.applyPlan).toHaveBeenCalledTimes(1);
+    });
+
+    it('Graph完了Receiptのapply receipt IDがfresh readbackと違う場合はresume例外を拒否する', async () => {
+        const { service, repository, graphService } = createHarness({ failGrantOnce: true });
+        const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-tampered-graph-receipt-resume' });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-tampered-graph-receipt-resume'
+        });
+        await expect(service.apply(actor, plan.run_id)).rejects.toThrow('temporary grant failure');
+        repository.projectSubjectIdentity = materializedProjectIdentity();
+        const graphStep = repository.runs.get(plan.run_id).steps.find((step) => step.step_name === 'graph');
+        graphStep.receipt.apply.receipt_id = 'apply_tampered';
+
+        await expect(service.resume(actor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_SCOPE_UNAVAILABLE'
+        });
+        expect(graphService.applyPlan).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+        ['project_code', 'other-project'],
+        ['catalog_version', manifest.catalog_version + 1],
+        ['source_ref', 'project-catalog:other-project@1'],
+        ['idempotency_key', 'project-provisioning:another-run:graph']
+    ])('Graph完了Receiptの%sが改変された場合はresume例外を拒否する', async (field, value) => {
+        const { service, repository, graphService } = createHarness({ failGrantOnce: true });
+        const plan = await service.plan(actor, manifest, { idempotencyKey: `growin-tampered-${field}` });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: `review-tampered-${field}`
+        });
+        await expect(service.apply(actor, plan.run_id)).rejects.toThrow('temporary grant failure');
+        repository.projectSubjectIdentity = materializedProjectIdentity();
+        const graphStep = repository.runs.get(plan.run_id).steps.find((step) => step.step_name === 'graph');
+        graphStep.receipt[field] = value;
+
+        await expect(service.resume(actor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_SCOPE_UNAVAILABLE'
+        });
+        expect(graphService.applyPlan).toHaveBeenCalledTimes(1);
+    });
+
+    it('Graph完了状態でも既存subject再利用Receiptは自run作成としてscopeを迂回しない', async () => {
+        const { service, repository } = createHarness({ failGrantOnce: true });
+        const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-reused-receipt-no-bypass' });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-reused-receipt-no-bypass'
+        });
+        await expect(service.apply(actor, plan.run_id)).rejects.toThrow('temporary grant failure');
+        repository.projectSubjectIdentity = materializedProjectIdentity();
+        repository.runs.get(plan.run_id).steps.find((step) => step.step_name === 'graph').receipt = {
+            status: 'already_materialized', project_code: manifest.project_code, entity_version: 1
+        };
+
+        await expect(service.resume(actor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_SCOPE_UNAVAILABLE'
+        });
+    });
+
+    it('旧planのGraph preflight欠落はfresh readbackで補いresumeできる', async () => {
+        const { service, repository } = createHarness();
+        const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-legacy-plan-resume' });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-legacy-plan'
+        });
+        delete repository.runs.get(plan.run_id).plan.preflight.graph_project_subject;
+
+        const resumed = await service.resume(actor, plan.run_id);
+
+        expect(resumed.state).toBe('active');
+        expect(resumed.receipt.verified).toBe(true);
+    });
+
+    it('旧planのGraph preflight欠落でも完全一致subjectをfresh readbackで再利用する', async () => {
+        const projectSubjectIdentity = {
+            scope_relation: 'same_organization', entity_id: manifest.project_code,
+            entity_type: 'project', lifecycle_status: 'active', project_code: 'brainbase',
+            entity_version: 3, display_name: manifest.display_name,
+            catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+            source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+        };
+        const existingSubject = {
+            id: manifest.project_code, entity_type: 'project', project_code: 'brainbase',
+            lifecycle_status: 'active', version: 3,
+            payload: {
+                name: manifest.display_name, catalog_project_id: manifest.project_code,
+                catalog_version: manifest.catalog_version,
+                source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+            }
+        };
+        const { service, repository, graphService } = createHarness({
+            graphEntities: [existingSubject], projectSubjectIdentity
+        });
+        const scopedActor = { ...actor, projectCodes: ['brainbase'] };
+        const plan = await service.plan(scopedActor, manifest, { idempotencyKey: 'growin-legacy-plan-reuse' });
+        await service.approve(scopedActor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-legacy-reuse'
+        });
+        delete repository.runs.get(plan.run_id).plan.preflight.graph_project_subject;
+
+        const resumed = await service.resume(scopedActor, plan.run_id);
+
+        expect(resumed.state).toBe('active');
+        expect(graphService.planMutations).not.toHaveBeenCalled();
+        expect(repository.runs.get(plan.run_id).steps.find((step) => step.step_name === 'graph').receipt)
+            .toMatchObject({ status: 'already_materialized', project_code: 'brainbase', entity_version: 3 });
+    });
+
+    it('旧planでもfresh readbackのGraph同一ID不整合はRegistry書込前に拒否する', async () => {
+        const { service, repository } = createHarness();
+        const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-legacy-plan-conflict' });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-legacy-conflict'
+        });
+        delete repository.runs.get(plan.run_id).plan.preflight.graph_project_subject;
+        repository.projectSubjectIdentity = {
+            scope_relation: 'same_organization', entity_id: manifest.project_code,
+            entity_type: 'project', lifecycle_status: 'active', project_code: 'brainbase',
+            entity_version: 3, display_name: 'Different project',
+            catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+            source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+        };
+
+        await expect(service.resume({ ...actor, projectCodes: ['brainbase'] }, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT'
+        });
+        expect(repository.projects.size).toBe(0);
+        await expect(service.status(actor, plan.run_id)).resolves.toMatchObject({ state: 'planned' });
     });
 
     it('repository createはHuman Gateなしで止まる', async () => {
@@ -488,11 +800,23 @@ describe('ProjectProvisioningService', () => {
         ]);
         const stored = repository.runs.get(plan.run_id);
         expect(stored.steps.find((step) => step.step_name === 'graph').receipt).toMatchObject({
-            plan_id: 'gplan_1', receipt: { receipts: [{ id: 'apply_1' }] }
+            plan_id: 'gplan_1',
+            project_code: manifest.project_code,
+            catalog_version: manifest.catalog_version,
+            source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`,
+            idempotency_key: `project-provisioning:${plan.run_id}:graph`,
+            receipt: { receipts: [{ receipt_id: 'apply_1', plan_id: 'gplan_1' }] }
         });
     });
 
     it('同一組織の別scopeにある完全一致Project subjectを再利用する', async () => {
+        const projectSubjectIdentity = {
+            scope_relation: 'same_organization', entity_id: manifest.project_code,
+            entity_type: 'project', lifecycle_status: 'active', project_code: 'brainbase',
+            entity_version: 3, display_name: manifest.display_name,
+            catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+            source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+        };
         const existingSubject = {
             id: manifest.project_code,
             entity_type: 'project',
@@ -506,7 +830,9 @@ describe('ProjectProvisioningService', () => {
                 source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
             }
         };
-        const { service, repository, graphService } = createHarness({ graphEntities: [existingSubject] });
+        const { service, repository, graphService } = createHarness({
+            graphEntities: [existingSubject], projectSubjectIdentity
+        });
         const scopedActor = { ...actor, projectCodes: ['brainbase', 'aitle'] };
         const plan = await service.plan(scopedActor, manifest, { idempotencyKey: 'growin-existing-subject' });
         await service.approve(scopedActor, plan.run_id, {
@@ -525,6 +851,89 @@ describe('ProjectProvisioningService', () => {
         expect(repository.runs.get(plan.run_id).steps.find((step) => step.step_name === 'graph').receipt).toMatchObject({
             status: 'already_materialized', project_code: 'brainbase', entity_version: 3
         });
+        expect(graphService.validate).toHaveBeenLastCalledWith(expect.anything(), { projectCode: 'brainbase' });
+    });
+
+    it('apply actorが承認済み再利用scopeを持たない場合はRegistry書込前に拒否する', async () => {
+        const projectSubjectIdentity = {
+            scope_relation: 'same_organization', entity_id: manifest.project_code,
+            entity_type: 'project', lifecycle_status: 'active', project_code: 'brainbase',
+            entity_version: 3, display_name: manifest.display_name,
+            catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+            source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+        };
+        const { service, repository } = createHarness({ projectSubjectIdentity });
+        const planningActor = { ...actor, projectCodes: ['brainbase'] };
+        const plan = await service.plan(planningActor, manifest, { idempotencyKey: 'growin-scope-drift' });
+        await service.approve(planningActor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-scope-drift'
+        });
+
+        await expect(service.apply(actor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_SCOPE_UNAVAILABLE'
+        });
+        expect(repository.projects.size).toBe(0);
+        await expect(service.status(planningActor, plan.run_id)).resolves.toMatchObject({ state: 'planned' });
+    });
+
+    it('承認後に再利用subjectのversionが変わった場合はRegistry書込前に拒否する', async () => {
+        const projectSubjectIdentity = {
+            scope_relation: 'same_organization', entity_id: manifest.project_code,
+            entity_type: 'project', lifecycle_status: 'active', project_code: 'brainbase',
+            entity_version: 3, display_name: manifest.display_name,
+            catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+            source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+        };
+        const { service, repository } = createHarness({ projectSubjectIdentity });
+        const scopedActor = { ...actor, projectCodes: ['brainbase'] };
+        const plan = await service.plan(scopedActor, manifest, { idempotencyKey: 'growin-version-drift' });
+        await service.approve(scopedActor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-version-drift'
+        });
+        repository.projectSubjectIdentity.entity_version = 4;
+
+        await expect(service.apply(scopedActor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_PREFLIGHT_STALE'
+        });
+        expect(repository.projects.size).toBe(0);
+        await expect(service.status(scopedActor, plan.run_id)).resolves.toMatchObject({ state: 'planned' });
+    });
+
+    it('再利用subjectがGraph step後に変化した場合は最終readbackでactive化しない', async () => {
+        const projectSubjectIdentity = {
+            scope_relation: 'same_organization', entity_id: manifest.project_code,
+            entity_type: 'project', lifecycle_status: 'active', project_code: 'brainbase',
+            entity_version: 3, display_name: manifest.display_name,
+            catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+            source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+        };
+        const existingSubject = {
+            id: manifest.project_code, entity_type: 'project', project_code: 'brainbase',
+            lifecycle_status: 'active', version: 3,
+            payload: {
+                name: manifest.display_name, catalog_project_id: manifest.project_code,
+                catalog_version: manifest.catalog_version,
+                source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+            }
+        };
+        const { service, repository, graphService } = createHarness({
+            graphEntities: [existingSubject], projectSubjectIdentity
+        });
+        const scopedActor = { ...actor, projectCodes: ['brainbase'] };
+        graphService.exportSnapshot.mockImplementationOnce(async () => {
+            repository.projectSubjectIdentity.entity_version = 4;
+            return { snapshot_id: 'snap_1', snapshot_hash: 'hash_1', entities: [structuredClone(existingSubject)] };
+        });
+        const plan = await service.plan(scopedActor, manifest, { idempotencyKey: 'growin-readback-drift' });
+        await service.approve(scopedActor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-readback-drift'
+        });
+
+        await expect(service.apply(scopedActor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_READBACK_FAILED',
+            details: expect.arrayContaining([{ layer: 'graph', code: 'reused_subject_readback_mismatch' }])
+        });
+        await expect(service.status(scopedActor, plan.run_id)).resolves.toMatchObject({ state: 'partial_failed' });
     });
 
     it('同一IDでもCatalog identityが一致しないProject subjectは拒否する', async () => {

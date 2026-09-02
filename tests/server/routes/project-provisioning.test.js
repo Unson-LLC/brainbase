@@ -109,6 +109,24 @@ describe('Project Provisioning routes', () => {
         expect(response.body.error.code).toBe('PROJECT_PROVISIONING_RUN_NOT_FOUND');
     });
 
+    it('Graph ID競合をretryable details付きの409として返す', async () => {
+        const error = Object.assign(new Error('Project Graph identity is busy'), {
+            code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+            statusCode: 409,
+            details: { entity_id: 'growin-ai', retryable: true }
+        });
+        const response = await request(app({ check: vi.fn(async () => { throw error; }) }))
+            .post('/api/project-provisioning/check')
+            .send({ project_code: 'growin-ai' });
+
+        expect(response.status).toBe(409);
+        expect(response.body.error).toEqual({
+            code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+            message: 'Project Graph identity is busy',
+            details: { entity_id: 'growin-ai', retryable: true }
+        });
+    });
+
     it('Human Gate承認を専用approve serviceへ渡す', async () => {
         const service = { approve: vi.fn(async (_actor, runId, input) => ({ runId, input })) };
         const response = await request(app(service)).post('/api/project-provisioning/runs/ppr_1/approve')
