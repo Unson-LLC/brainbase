@@ -185,7 +185,20 @@ function includesTerm(request, terms) {
 
 function includesPositiveCommandClause(request, terms) {
     const japaneseTerms = terms.filter((term) => !/^[a-z0-9_.-]+$/iu.test(term));
-    if (includesTerm(request, japaneseTerms)) return true;
+    const normalizedRequest = request.toLocaleLowerCase('ja');
+    const includesJapaneseCommand = japaneseTerms.some((term) => {
+        const normalizedTerm = term.toLocaleLowerCase('ja');
+        let offset = normalizedRequest.indexOf(normalizedTerm);
+        while (offset >= 0) {
+            const remainder = normalizedRequest.slice(offset + normalizedTerm.length);
+            if (/^(?:$|[\s、,;；。！？!?]|ください|下さい|くれ|もら|いただ|ほしい|欲しい|おいて|おけ|みて|みろ|から|その後|次に)/u.test(remainder)) {
+                return true;
+            }
+            offset = normalizedRequest.indexOf(normalizedTerm, offset + normalizedTerm.length);
+        }
+        return false;
+    });
+    if (includesJapaneseCommand) return true;
     const englishTerms = terms.filter((term) => /^[a-z0-9_.-]+$/iu.test(term));
     if (englishTerms.length === 0) return false;
     const commandPattern = englishTerms.map(escapeRegExp).join('|');

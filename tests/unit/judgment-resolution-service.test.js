@@ -683,7 +683,11 @@ describe('JudgmentResolutionService', () => {
 
     it.each([
         '外部送信は禁止です、更新は完了済みです。',
-        'Do not publish externally, and update is complete.'
+        'Do not publish externally, and update is complete.',
+        '外部送信は禁止です、更新してあります。',
+        '更新してあります、外部送信は禁止です。',
+        '外部送信は禁止です、実装しています。',
+        '実装しています、外部送信は禁止です。'
     ])('禁止節後の説明を肯定された操作へ昇格しない: %s', (request) => {
         const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
 
