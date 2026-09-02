@@ -300,7 +300,13 @@ describe('judgment resolver publication surfaces', () => {
 
     it('通常taskと委譲taskの本番証拠を別E2E・別rollback条件に保つ', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const story = read('docs/management/stories/active/story-brainbase-production-artifact-reconciliation.md');
+        const spec = read('docs/specs/story-brainbase-production-artifact-reconciliation-v1.md');
+        const machineSpec = JSON.parse(read('.vibepro/spec/story-brainbase-production-artifact-reconciliation/spec.json'));
+        const normalVerifier = 'tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts';
         const delegatedVerifier = 'tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts';
+        const normalCase = 'story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する';
+        const delegatedCase = 'delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit';
 
         expect(runbook).toContain('route_application=pre_generation');
         expect(runbook).toContain('episode_origin=stop_delegation_recovery');
@@ -310,6 +316,21 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain("Never substitute one path's evidence for the other");
         expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
         expect(read(delegatedVerifier)).toContain('Stop recovery must never claim pre-generation guidance');
+        expect(story).toContain('2つのfresh task');
+        expect(spec).toContain('2つの新しいCodexタスク');
+        expect(spec).toContain(normalVerifier);
+        expect(spec).toContain(delegatedVerifier);
+        for (const id of ['C-005', 'S-003']) {
+            const contract = machineSpec.clauses.find((entry) => entry.id === id);
+            expect(contract.origin.test_refs).toEqual(expect.arrayContaining([
+                { file: normalVerifier, case: normalCase },
+                { file: delegatedVerifier, case: delegatedCase }
+            ]));
+            expect(contract.verifiable_by.test_pattern).toEqual(expect.arrayContaining([
+                { file_glob: normalVerifier, must_cover: normalCase },
+                { file_glob: delegatedVerifier, must_cover: delegatedCase }
+            ]));
+        }
     });
 
     it('公開鍵override除去をforward-only修復としてrollback後も維持する', () => {

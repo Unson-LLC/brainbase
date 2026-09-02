@@ -1530,7 +1530,7 @@ describe('Codex Judgment Resolver Host', () => {
             ['graph_get_plan_receipt', {}, graph({ plan_id: 'p1', receipts: [receipt('apply')] })],
             ['graph_rollback_plan', {}, graph(receipt('rollback'))],
             ['graph_validate', {}, graph({ valid: true, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })],
-            ['graph_validate', { strict_collection: true }, graph({ valid: true, collection_complete: true, validation_scope: { strict_collection: true }, suppression_summary: { edge_count: 0, reasons: {} }, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })]
+            ['graph_validate', { strict_collection: true }, graph({ valid: true, collection_complete: true, validation_scope: { strict_collection: true }, suppression_summary: { edge_count: 0, reasons: {} }, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: { valid: true, violations: [] }, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })]
         ];
         for (const [name, input, response] of validCases) {
             expect(recordTool(name, input, response), name).toMatchObject({ success: true, event_kind: BRAINBASE_TOOL_KIND_BY_NAME[name] });
@@ -1548,7 +1548,12 @@ describe('Codex Judgment Resolver Host', () => {
             ['graph_rollback_plan', {}, graph({ receipt_type: 'rollback' })],
             ['graph_validate', {}, graph({ valid: true, snapshot_hash: snapshotHash })],
             ['graph_validate', { strict_collection: true }, graph({ valid: true, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })],
-            ['graph_validate', { strict_collection: true }, graph({ valid: true, collection_complete: false, validation_scope: { strict_collection: true }, suppression_summary: { edge_count: 1, reasons: { unresolved_or_inaccessible_endpoint: 1 } }, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })]
+            ['graph_validate', { strict_collection: true }, graph({ valid: true, collection_complete: false, validation_scope: { strict_collection: true }, suppression_summary: { edge_count: 1, reasons: { unresolved_or_inaccessible_endpoint: 1 } }, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })],
+            ['graph_validate', { strict_collection: true }, graph({ valid: false, collection_complete: true, validation_scope: { strict_collection: true }, suppression_summary: { edge_count: 0, reasons: {} }, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: { violations: [] }, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })],
+            ['graph_validate', { strict_collection: true }, graph({ valid: true, collection_complete: true, validation_scope: { strict_collection: true }, suppression_summary: { edge_count: 0, reasons: {} }, counts: { entities: 1, edges: 1, issues: 1, duplicates: 0, orphans: 0 }, issues: [{ code: 'broken_graph' }], ontology: { violations: [] }, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })],
+            ['graph_validate', { strict_collection: true }, graph({ valid: true, collection_complete: true, validation_scope: { strict_collection: true }, suppression_summary: { edge_count: 0, reasons: {} }, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: { violations: [{ code: 'ontology_violation' }] }, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })],
+            ['graph_validate', { strict_collection: true }, { status: 'partial', scope, data: validCases.at(-1)[2].data }],
+            ['graph_validate', { strict_collection: true }, { status: 'unknown', scope, data: validCases.at(-1)[2].data }]
         ];
         for (const [name, input, response] of invalidCases) {
             expect(recordTool(name, input, response), name).toMatchObject({ success: false, event_kind: BRAINBASE_TOOL_KIND_BY_NAME[name] });

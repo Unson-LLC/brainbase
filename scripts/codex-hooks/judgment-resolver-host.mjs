@@ -1014,7 +1014,7 @@ function responseSucceeded(response, {
         || item.ok === false
         || item.success === false
         || (Number.isSafeInteger(item.exit_code) && item.exit_code !== 0)
-        || ['error', 'unavailable', 'failed', 'failure'].includes(String(item.status).toLowerCase())
+        || ['error', 'unavailable', 'failed', 'failure', 'partial', 'unknown'].includes(String(item.status).toLowerCase())
         || (item.error !== undefined && item.error !== null && item.error !== false && item.status !== 'ok')
     ));
     if (failed) return false;
@@ -1122,13 +1122,16 @@ function graphToolContract(name, data, input = null) {
     if (name === 'graph_get_plan_receipt') return nonEmptyString(data.plan_id) && Array.isArray(data.receipts) && data.receipts.every((entry) => receiptContract(record(entry)));
     if (name === 'graph_validate') {
         const counts = record(data.counts);
-        const baseContractSatisfied = typeof data.valid === 'boolean' && nonEmptyString(data.snapshot_hash) && Array.isArray(data.issues)
+        const baseContractSatisfied = data.valid === true && nonEmptyString(data.snapshot_hash) && Array.isArray(data.issues)
             && Boolean(record(data.ontology)) && Boolean(record(data.required_relation_scope_summary))
             && ['entities', 'edges', 'issues', 'duplicates', 'orphans'].every((key) => Number.isFinite(counts?.[key]) && counts[key] >= 0);
         if (!baseContractSatisfied || record(input)?.strict_collection !== true) return baseContractSatisfied;
         const validationScope = record(data.validation_scope);
         const suppressionSummary = record(data.suppression_summary);
+        const ontology = record(data.ontology);
         return data.collection_complete === true && validationScope?.strict_collection === true
+            && data.issues.length === 0 && counts.issues === 0
+            && ontology?.valid === true && Array.isArray(ontology.violations) && ontology.violations.length === 0
             && suppressionSummary?.edge_count === 0;
     }
     return false;

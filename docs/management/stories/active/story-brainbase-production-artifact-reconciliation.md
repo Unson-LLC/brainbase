@@ -23,7 +23,7 @@ PR・マージ準備では、本番差分と正式commitのパッチ同一性、
 - AC-005: 再投影・再起動後、Ontology 1.1.0がGit信頼ストアで署名検証される。
 - AC-006: 通常の認可scope付き検証は従来互換を保ち、同一runの本番`graph_validate(project_code=brainbase, strict_collection=true)`がHTTP 200、`collection_complete=true`、構造違反0件、Ontology違反0件、抑止されたEdge 0件、`valid=true`を返す。
 - AC-007: PR成果物は`production_execution_status=not_run`を明示する。失敗・503・部分取得・不明を成功として扱わず、途中失敗は秘密値を含まない失敗Receiptへ失敗工程・変更有無・rollback要否を残し、専用rollback commitから旧SHA＋ホットフィックスの実効内容を`dirty=false`で復旧できる証跡を残す。rollback時も公開鍵override除去はforward-onlyとして維持し、秘密鍵・`key_id`と再投影済みLightsail設定の読戻しを必須にする。
-- AC-008: 4面の切替前状態とglobal Hookファイルを個別に保全する。反映後のfresh taskでJudgment episodeとowner auditを実証した状態を`judgment_lifecycle_active`とし、さらに実Brainbase tool event、実際の中断候補、権限内の継続、実行成果物と正本読戻し、value proof、complete final、Hook-visible transcript、ユーザー向け判断レシート一回表示を同一turnのevent IDとvalue-proof digestで照合できた場合だけ`proven_active`とする。失敗時は正本runbookの順序で4面を復旧する。
+- AC-008: 4面の切替前状態とglobal Hookファイルを個別に保全する。反映後に2つのfresh taskを作成する。通常taskでJudgment episodeとowner auditを実証した状態を`judgment_lifecycle_active`とする。別の委譲taskで、実Brainbase tool event、実際の中断候補、権限内の継続、実行成果物と正本読戻し、value proof、complete final、Hook-visible transcript、ユーザー向け判断レシート一回表示を同一turnのevent IDとvalue-proof digestで照合する。両taskの証拠が揃った場合だけ`proven_active`とする。失敗時は正本runbookの順序で4面を復旧する。
 
 ## 対象外
 

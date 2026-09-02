@@ -125,7 +125,7 @@
     {
       "id": "C-005",
       "type": "invariant",
-      "statement": "proven_activeは、同一turnのepisode、実Brainbase tool event、実際の中断候補、権限内の継続、実行成果物、正本読戻し、value proof、complete final、Hook-visible transcript、ユーザー向け判断レシート一回表示がevent IDとdigestで一意に対応する場合だけ成立する。",
+      "statement": "proven_activeは、通常のfresh taskでjudgment_lifecycle_activeを実証し、別のfresh taskで同一turnのepisode、実Brainbase tool event、実際の中断候補、権限内の継続、実行成果物、正本読戻し、value proof、complete final、Hook-visible transcript、ユーザー向け判断レシート一回表示がevent IDとdigestで一意に対応する場合だけ成立する。",
       "origin": {
         "story_refs": [
           {
@@ -143,6 +143,10 @@
         ],
         "test_refs": [
           {
+            "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
+          {
             "file": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
             "case": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
           }
@@ -150,6 +154,10 @@
       },
       "verifiable_by": {
         "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "must_cover": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
           {
             "file_glob": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
             "must_cover": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
@@ -186,6 +194,10 @@
         ],
         "test_refs": [
           {
+            "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
+          {
             "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
             "case": "accepts an empty audit result for the canonical internal judgment state tool form ${field}:${toolName}"
           },
@@ -205,6 +217,10 @@
       },
       "verifiable_by": {
         "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "must_cover": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
           {
             "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
             "must_cover": "accepts an empty audit result for the canonical internal judgment state tool form ${field}:${toolName}"
@@ -390,6 +406,10 @@
         ],
         "test_refs": [
           {
+            "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
+          {
             "file": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
             "case": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
           }
@@ -397,6 +417,10 @@
       },
       "verifiable_by": {
         "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "must_cover": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
           {
             "file_glob": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
             "must_cover": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"

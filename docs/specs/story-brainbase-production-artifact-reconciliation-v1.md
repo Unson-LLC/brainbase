@@ -38,12 +38,12 @@ merge後の配備receiptは、Global Codex lifecycle Hook、canonical local UI/A
 
 ## CL-005 fresh taskによる実動確認
 
-4実行面をmerge SHAへ揃えた後に新しいCodexタスクを作成する。同一turnのepisode、Brainbase tool event、complete final、Hook-visible transcript、ユーザー向け判断レシートが一意に対応した場合だけ`proven_active`とする。既存タスク、readiness、synthetic entrypoint testは代替にしない。
+4実行面をmerge SHAへ揃えた後に2つの新しいCodexタスクを作成する。通常taskでJudgment episodeと完全なowner auditを実証して`judgment_lifecycle_active`とする。別の委譲taskで、実際の中断候補、Brainbase tool event、権限内の継続、実行成果物、正本読戻し、value proof、complete final、Hook-visible transcript、ユーザー向け判断レシートを同一turnへ束縛する。両taskの証拠が一意に対応した場合だけ`proven_active`とする。既存タスク、readiness、synthetic entrypoint testは代替にしない。
 
 - Story: AC-002, AC-003, AC-007, AC-008
 - Regression: `tests/integration/judgment-resolver-host-entrypoint.test.js`で`create_thread`由来の委任入力、同一turnのvalue proof、complete final、`Brainbase判断レシート`のexact-once表示を固定する
-- Production acceptance: 4実行面をmerge SHAへ揃えた後のfresh Codex task id、exact merge SHA、episode/event/value-proof/final paths、Hook-visible transcriptを同一turnで読み戻す。synthetic regressionだけでは`proven_active`にしない
-- Existing live-session E2E: `tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts`は取得監査の`judgment_lifecycle_active`までを証明し、value proofと判断レシートのproduction acceptanceには数えない
+- Production acceptance: 通常taskを`tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts`で検証し、別の委譲taskを`tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts`で検証する。各fresh Codex task id、exact merge SHA、episode/event/value-proof/final paths、Hook-visible transcriptを対応するturnで読み戻す。synthetic regressionだけでは`proven_active`にしない
+- Normal live-session E2E: `tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts`は通常taskの取得監査と`judgment_lifecycle_active`までを証明し、value proofと判断レシートのproduction acceptanceには数えない
 
 ## CL-006 OntologyとGraphの同一run検証
 
