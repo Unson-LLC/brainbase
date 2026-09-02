@@ -18,6 +18,17 @@ describe('OSS Judgment DAG component roadmap governance', () => {
     expect(roadmap).toContain('governed_by_markdown_sha256: 167afb6d3fc57198c9f5ffca06fbafea968a5435af04f44b55017199b6d859fe');
     expect(roadmap).toContain('governed_by_json_sha256: f3e6e023060ef3976f367ed7efa62ac57f7091f517ea1ca1d13824d9e6ca429f');
     expect(roadmap).toContain('R0 / J0 / G0 / R1 / D0 / P0 / C0');
+    for (const [milestone, programPackage] of [
+      ['M0 Architecture lock', 'R0 + J0'],
+      ['M1 Local DAG kernel', 'J0'],
+      ['M2 Human + Agent judgment runners', 'G0'],
+      ['M3 Replay and evaluation', 'R1'],
+      ['M4 Brainbase Deployment dogfood', 'D0'],
+      ['M5 Scope promotion', 'P0'],
+      ['M6 Organization-ready primitives', 'G0 + C0'],
+    ]) {
+      expect(roadmap).toContain(`| ${milestone} | ${programPackage} |`);
+    }
     expect(roadmap).toContain('`planned` / `contract_ready` / `implementing` / `verified` / `production_proven` / `done`');
     expect(roadmap).toContain('hard dependencyを満たさないmilestoneを`done`にしない');
     expect(roadmap).toMatch(/文書のmergeだけを実装完了または`done`と扱わ(?:ない|ず)/u);
