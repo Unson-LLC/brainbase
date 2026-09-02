@@ -1428,6 +1428,7 @@ export class GraphMaintenanceService {
             } });
             return {
                 ...structural,
+                collection_complete: true,
                 valid: structural.valid === true && ontology?.valid === true,
                 ontology,
                 snapshot_hash: snapshot.hash,

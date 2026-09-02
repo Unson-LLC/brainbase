@@ -15,6 +15,7 @@
 - 切替前に4面のSHAとglobal Hookファイルを保全し、統合SHAへ揃えた後に各面のclean/readinessを確認する。
 - Infisical再投影後に`brainbase-ssot.service`を再起動し、checkout SHA、process SHA、API version、dirty状態を読み戻す。
 - Graph SSOTは変更せず、`graph_validate`を読み取り検証として実行する。
+- 本番収束は一つのrun IDへ束縛した秘密値非保持のReceiptを正本とする。Receiptは公開鍵overrideの変更前後の存在、秘密鍵・key_idの同一性、4面の個別SHA、Ontology 1.1.0のrepository verifierと本番readback、Graph ValidateのHTTP状態・`collection_complete`・構造/Ontology違反件数・`valid`を持つ。いずれかを取得できなければReceiptを`passed`として作らない。
 
 ## 実行順序
 
@@ -24,7 +25,7 @@
 4. 同runbookのpre-deployment rollback captureで、4面の現行SHAとglobal Hookファイルを個別に保全する。Lightsailのrollback SHAは旧SHA＋ホットフィックスを表すcleanな専用commitである。
 5. global Hook checkout、ローカル`:31013`、常駐MCP、本番Lightsailを統合SHAへ揃え、各面のclean/readinessを読み戻す。
 6. Infisicalの不正な公開鍵overrideだけを削除してproductionへ再投影し、Lightsailサービスを再起動する。
-7. health、version、dirty状態、journal、Ontology検証、Graph全体検証を同一runで読み戻す。
+7. health、version、dirty状態、journal、Ontology検証、Graph全体検証を同一runで読み戻し、秘密値を含まないproduction convergence Receiptへ固定する。
 8. Hook trust状態を確認し、必要ならowner承認後に作成したfresh taskでJudgment episode、実Brainbase event、完全なowner auditを実証する。
 
 手順1はPR前の静的・自動検証、手順2は前進デプロイの権限境界、手順3〜8はマージ後の本番実行である。手順3〜8の証跡をPR前の合格条件にはせず、反対に手順1〜2だけで本番完了とも報告しない。VibeProのPR成果物はPR時点の検証可能性を示し、本番readbackはマージ後の同一runで別途取得する。

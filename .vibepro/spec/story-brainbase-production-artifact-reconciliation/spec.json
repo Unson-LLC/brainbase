@@ -47,8 +47,8 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "index": 3,
-            "ac_id": "AC-004",
+            "index": 4,
+            "ac_id": "AC-005",
             "text_snippet": "Ontology 1.1.0の公開物をGit管理の信頼ストアで検証"
           }
         ],
@@ -88,7 +88,7 @@
     {
       "id": "S-001",
       "type": "scenario",
-      "statement": "Given 本番ホットフィックスが正式なPRへ統合され、本番4ファイルだけがpatch・content hash・専用rollback commitへ保全され4面の切替前状態が取得済み、When global Hook・ローカル31013・常駐MCP・Lightsailを統合SHAへ揃え不正な公開鍵overrideを除去する、Then 4面のSHA・clean・readinessが一致し、Ontology 1.1.0の署名検証と完全なGraph Validateが成功する。",
+      "statement": "Given 本番ホットフィックスが正式なPRへ統合され、本番4ファイルだけがpatch・content hash・専用rollback commitへ保全され4面の切替前状態が取得済み、When global Hook・ローカル31013・常駐MCP・Lightsailを統合SHAへ揃える、Then 4面のcheckout・稼働process・version/readinessが同じ統合SHAを示し対象checkoutがcleanである。",
       "origin": {
         "story_refs": [
           {
@@ -102,18 +102,6 @@
             "index": 2,
             "ac_id": "AC-003",
             "text_snippet": "4面それぞれのcheckout・稼働プロセス・version/readinessが同じSHA"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "index": 4,
-            "ac_id": "AC-005",
-            "text_snippet": "本番Graph全体検証がvalid=true"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "index": 5,
-            "ac_id": "AC-006",
-            "text_snippet": "PR・CI、4面のSHA/readiness、署名検証、Graph検証を同一run"
           }
         ],
         "architecture_refs": [
@@ -134,6 +122,10 @@
           {
             "file": "tests/server/services/ontology-registry.test.js",
             "case": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
           }
         ]
       },
@@ -150,11 +142,142 @@
           {
             "file_glob": "tests/server/services/ontology-registry.test.js",
             "must_cover": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
           }
         ]
       },
       "first_seen_at": "2026-09-02T04:46:51.325Z",
       "last_revised_at": "2026-09-02T05:40:58.443Z"
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "Given production Infisicalに不完全な公開鍵overrideと有効な秘密鍵・key_idが存在する、When sharedのONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEYだけを削除して再取得する、Then 公開鍵overrideは不在となり秘密鍵とkey_idは値を表示せず同一性が確認され、同一runの設定証跡へ保存される。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004",
+            "text_snippet": "production正本から不完全なONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEYだけを除去"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "境界"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:55:00.000Z",
+      "last_revised_at": "2026-09-02T05:55:00.000Z"
+    },
+    {
+      "id": "S-005",
+      "type": "scenario",
+      "statement": "Given 不完全なproduction公開鍵overrideが除去され修復済み環境が再投影された、When Git管理の信頼ストアでrepository verifierと本番Ontology 1.1.0 readbackを同じrunで実行する、Then 署名検証は成功し不正overrideへのfallbackは発生しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-005",
+            "text_snippet": "Ontology 1.1.0がGit信頼ストアで署名検証される"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "実行順序"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/ontology-registry.test.js",
+            "case": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/ontology-registry.test.js",
+            "must_cover": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:55:00.000Z",
+      "last_revised_at": "2026-09-02T05:55:00.000Z"
+    },
+    {
+      "id": "S-006",
+      "type": "scenario",
+      "statement": "Given 4面とOntologyが同一runの統合SHAへ収束済み、When production graph_validateをproject_code=brainbaseで実行する、Then HTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、valid=trueを同じGraph responseから機械判定しReceiptへ保存する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "ac_id": "AC-006",
+            "text_snippet": "同一runの本番graph_validateがHTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、valid=true"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "実行順序"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "Ontology required relationの検証対象をactive local Entityへ限定する"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "Ontology required relationの検証対象をactive local Entityへ限定する"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:55:00.000Z",
+      "last_revised_at": "2026-09-02T05:55:00.000Z"
     },
     {
       "id": "S-003",

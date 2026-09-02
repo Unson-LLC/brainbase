@@ -73,6 +73,47 @@ describe('judgment resolver publication surfaces', () => {
         );
     });
 
+    it('本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const convergence = runbook.slice(
+            runbook.indexOf('### Production convergence receipt'),
+            runbook.indexOf('### Verification')
+        );
+
+        expect(convergence).toContain('BRAINBASE_PRODUCTION_RUN_ID');
+        expect(convergence).toContain('ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
+        expect(convergence).toContain('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY');
+        expect(convergence).toContain('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID');
+        expect(convergence).toContain('public_key_override_present_before');
+        expect(convergence).toContain('public_key_override_present_after');
+        expect(convergence).toContain('private_key_preserved');
+        expect(convergence).toContain('key_id_preserved');
+        expect(convergence).toContain('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
+        expect(convergence).toContain('--type shared');
+        expect(convergence).toContain('global_hook_sha');
+        expect(convergence).toContain('local_ui_sha');
+        expect(convergence).toContain('mcp_runtime_sha');
+        expect(convergence).toContain('lightsail_sha');
+        expect(convergence).toContain('npm run ontology:verify');
+        expect(convergence).toContain('/api/info/graph/maintenance/validate');
+        expect(convergence).toContain('graph_http_status');
+        expect(convergence).toContain('collection_complete');
+        expect(convergence).toContain('structural_violation_count');
+        expect(convergence).toContain('ontology_violation_count');
+        expect(convergence).toContain('graph_valid');
+        expect(convergence).toContain('production-convergence-receipt.json');
+
+        expect(convergence.indexOf('public_key_override_present_before')).toBeLessThan(
+            convergence.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')
+        );
+        expect(convergence.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')).toBeLessThan(
+            convergence.indexOf('public_key_override_present_after')
+        );
+        expect(convergence.indexOf('npm run ontology:verify')).toBeLessThan(
+            convergence.indexOf('/api/info/graph/maintenance/validate')
+        );
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:14
     it('CLAUDEとAGENTSのalways-loaded Host contractを同一に保つ', () => {
         const claude = read('CLAUDE.md');

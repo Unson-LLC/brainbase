@@ -101,6 +101,7 @@ describe('GraphMaintenanceService authorization', () => {
         expect(result.ontology.violations).toEqual([
             { code: 'CON-DECISION-DECIDER-001', entity_id: 'decision_active' }
         ]);
+        expect(result.collection_complete).toBe(true);
         expect(result.ontology.violations).not.toEqual(expect.arrayContaining([
             expect.objectContaining({ entity_id: 'decision_retired' }),
             expect.objectContaining({ entity_id: 'decision_superseded' }),
