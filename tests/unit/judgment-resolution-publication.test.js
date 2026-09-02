@@ -200,6 +200,20 @@ describe('judgment resolver publication surfaces', () => {
         expect(read('.vibepro/pr/story-brainbase-production-artifact-reconciliation/pr-body.md')).toContain(marker);
     });
 
+    it('通常taskと委譲taskの本番証拠を別E2E・別rollback条件に保つ', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const delegatedVerifier = 'tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts';
+
+        expect(runbook).toContain('route_application=pre_generation');
+        expect(runbook).toContain('episode_origin=stop_delegation_recovery');
+        expect(runbook).toContain('route_application=post_generation_recovery');
+        expect(runbook).toContain(delegatedVerifier);
+        expect(runbook).toContain('never use a recovered Stop episode as evidence that `UserPromptSubmit` guided generation');
+        expect(runbook).toContain("Never substitute one path's evidence for the other");
+        expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
+        expect(read(delegatedVerifier)).toContain('Stop recovery must never claim pre-generation guidance');
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:14
     it('CLAUDEとAGENTSのalways-loaded Host contractを同一に保つ', () => {
         const claude = read('CLAUDE.md');
