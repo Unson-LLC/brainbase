@@ -599,6 +599,26 @@ describe('judgment resolver publication surfaces', () => {
             lightsail_projection_status: 'verified',
             hook_restore_status: 'not_started',
             hook_restored: false,
+            local_secret_cleanup_attempted: true,
+            local_secret_cleanup_confirmed: true,
+        });
+
+        const cleanupFailureRoot = mkdtempSync(join(tmpdir(), 'brainbase-local-secret-cleanup-'));
+        const cleanupFailure = spawnSync('bash', ['-c', `set -euo pipefail\ncleanup_rollback_secrets() { return 1; }\n${receiptTrap}\nROLLBACK_STAGE=test_local_secret_cleanup\nfalse`], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                BRAINBASE_ROLLBACK_STATE_DIR: cleanupFailureRoot,
+                TARGET_SHA: 'expected-production-sha',
+            },
+        });
+        expect(cleanupFailure.status).not.toBe(0);
+        expect(JSON.parse(readFileSync(join(cleanupFailureRoot, 'production-rollback.evidence.json'), 'utf8'))).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'test_local_secret_cleanup',
+            rollback_required: true,
+            local_secret_cleanup_attempted: true,
+            local_secret_cleanup_confirmed: false,
         });
 
         const changedRoot = mkdtempSync(join(tmpdir(), 'brainbase-hook-restore-receipt-'));
@@ -629,13 +649,15 @@ describe('judgment resolver publication surfaces', () => {
             },
         });
         expect(unknownReceipt.status).not.toBe(0);
-        expect(unknownReceipt.stderr).toContain('production rollback failed and Receipt status is unknown');
+        expect(unknownReceipt.stderr).toContain('status=unknown rollback_complete=false rollback_required=true');
+        expect(unknownReceipt.stderr).toContain('next_action=stop_and_inspect_saved_rollback_state');
         expect(runbook).toContain('ROLLBACK_STAGE=hook_restore');
         expect(runbook).toContain('ROLLBACK_STAGE=mcp_runtime_readiness');
         expect(runbook).toContain('ROLLBACK_STAGE=final_public_health');
         expect(runbook).toContain('ROLLBACK_COMPLETE=true\ntrap - EXIT');
         rmSync(root, { recursive: true, force: true });
         rmSync(changedRoot, { recursive: true, force: true });
+        rmSync(cleanupFailureRoot, { recursive: true, force: true });
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:14

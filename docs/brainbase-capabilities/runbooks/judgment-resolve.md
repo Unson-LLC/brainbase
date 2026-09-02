@@ -753,7 +753,11 @@ ROLLBACK_INFISICAL_CURRENT="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback-cur
 ROLLBACK_INFISICAL_FINAL="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback-final.json"
 ROLLBACK_ENV="$BRAINBASE_ROLLBACK_STATE_DIR/.env.infisical.rollback"
 cleanup_rollback_secrets() {
-  rm -f "$ROLLBACK_INFISICAL_CURRENT" "$ROLLBACK_INFISICAL_FINAL" "$ROLLBACK_ENV"
+  local cleanup_ok=true
+  rm -f "$ROLLBACK_INFISICAL_CURRENT" || cleanup_ok=false
+  rm -f "$ROLLBACK_INFISICAL_FINAL" || cleanup_ok=false
+  rm -f "$ROLLBACK_ENV" || cleanup_ok=false
+  test "$cleanup_ok" = true
 }
 trap cleanup_rollback_secrets EXIT
 require_git_root() {
@@ -963,11 +967,13 @@ write_incomplete_rollback_receipt() {
   if test "$code" -eq 0 || test "$ROLLBACK_COMPLETE" = true; then return; fi
   trap - EXIT
   set +e
-  cleanup_rollback_secrets
+  LOCAL_SECRET_CLEANUP_CONFIRMED=false
+  if cleanup_rollback_secrets; then LOCAL_SECRET_CLEANUP_CONFIRMED=true; fi
   if ! EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/production-rollback.evidence.json" \
   ROLLBACK_STAGE="$ROLLBACK_STAGE" \
   LIGHTSAIL_PROJECTION_STATUS="$LIGHTSAIL_PROJECTION_STATUS" \
-  HOOK_RESTORE_STATUS="$HOOK_RESTORE_STATUS" TARGET_SHA="$TARGET_SHA" node -e '
+  HOOK_RESTORE_STATUS="$HOOK_RESTORE_STATUS" TARGET_SHA="$TARGET_SHA" \
+  LOCAL_SECRET_CLEANUP_CONFIRMED="$LOCAL_SECRET_CLEANUP_CONFIRMED" node -e '
 const fs=require("node:fs");
 const evidence={
   status:"blocked",
@@ -981,6 +987,8 @@ const evidence={
   lightsail_projection_complete:process.env.LIGHTSAIL_PROJECTION_STATUS === "verified",
   hook_restore_status:process.env.HOOK_RESTORE_STATUS,
   hook_restored:process.env.HOOK_RESTORE_STATUS === "verified",
+  local_secret_cleanup_attempted:true,
+  local_secret_cleanup_confirmed:process.env.LOCAL_SECRET_CLEANUP_CONFIRMED === "true",
   next_action:"stop_and_inspect_saved_rollback_state"
 };
 const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
@@ -988,7 +996,7 @@ fs.writeFileSync(tmp,JSON.stringify(evidence)+"\n",{mode:0o600});
 fs.renameSync(tmp,process.env.EVIDENCE);
 '
   then
-    printf '[brainbase-runtime] production rollback failed and Receipt status is unknown; stage=%s\n' \
+    printf '[brainbase-runtime] status=unknown rollback_complete=false rollback_required=true stage=%s next_action=stop_and_inspect_saved_rollback_state\n' \
       "$ROLLBACK_STAGE" >&2
   fi
   exit "$code"
