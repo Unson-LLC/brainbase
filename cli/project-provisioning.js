@@ -73,7 +73,9 @@ async function request(path, { method = 'GET', body, idempotencyKey } = {}) {
         const code = payload.error?.code || String(response.status);
         const message = payload.error?.message || 'request failed';
         const details = payload.error?.details;
-        const error = new Error(`${code}: ${message}${details ? `\ndetails: ${JSON.stringify(details)}` : ''}`);
+        const error = new Error(
+            `HTTP ${response.status}: ${code}: ${message}${details ? `\ndetails: ${JSON.stringify(details)}` : ''}`
+        );
         error.code = code;
         error.statusCode = response.status;
         error.details = details;

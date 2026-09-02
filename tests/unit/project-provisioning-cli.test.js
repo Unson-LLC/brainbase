@@ -92,7 +92,9 @@ describe('project provisioning CLI', () => {
                 code: 'GRAPH_PROJECT_IDENTITY_BUSY',
                 statusCode: 409,
                 details: { entity_id: 'growin-ai', retryable: true },
-                message: expect.stringContaining('details: {"entity_id":"growin-ai","retryable":true}')
+                message: expect.stringMatching(
+                    /HTTP 409: GRAPH_PROJECT_IDENTITY_BUSY: Project Graph identity is busy\ndetails: \{"entity_id":"growin-ai","retryable":true\}/
+                )
             });
     });
 
