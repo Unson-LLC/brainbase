@@ -64,6 +64,37 @@ describe('GraphMaintenanceService authorization', () => {
         expect(JSON.stringify(strictResult)).not.toContain('hidden_entity');
     });
 
+    it('抑止0件のstrict本番収束は完全取得として成功しsnapshot hashを返す', async () => {
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [],
+            edges: [],
+            suppression_summary: { edge_count: 0, reasons: {} }
+        };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const validatingService = new GraphMaintenanceService({
+            infoSSOTService: {
+                withAccessContext: async (_access, callback) => callback({}),
+                validateOntology: vi.fn(() => ({ valid: true, violations: [] }))
+            }
+        });
+        validatingService.loadSnapshot = vi.fn(async () => ({ snapshot }));
+
+        const result = await validatingService.validate({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, { projectCode: 'brainbase', strictCollection: true });
+
+        expect(result).toMatchObject({
+            collection_complete: true,
+            valid: true,
+            snapshot_hash: snapshot.hash,
+            issues: [],
+            ontology: { valid: true, violations: [] },
+            validation_scope: { strict_collection: true },
+            suppression_summary: { edge_count: 0, reasons: {} }
+        });
+    });
+
     it('Ontology required relationの検証対象をactive local Entityへ限定する', async () => {
         const snapshot = {
             project_code: 'brainbase',
