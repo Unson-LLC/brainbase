@@ -43,8 +43,30 @@ GRANT EXECUTE ON FUNCTION project_code_collision_sources(text,text), project_gra
 REVOKE ALL ON project_code_claims FROM brainbase_project_it;
 SQL
 
-if ! "${PSQL[@]}" -c "SELECT has_function_privilege('brainbase_app', 'project_graph_identity_probe(text)', 'EXECUTE')" | grep -Fxq t; then
-  echo 'brainbase_app is missing project_graph_identity_probe EXECUTE privilege' >&2
+if ! "${PSQL[@]}" -c "SELECT has_function_privilege('brainbase_app', 'project_code_collision_sources(text,text)', 'EXECUTE') AND has_function_privilege('brainbase_app', 'project_graph_identity_probe(text)', 'EXECUTE') AND has_function_privilege('brainbase_app', 'claim_project_code(text,text)', 'EXECUTE')" | grep -Fxq t; then
+  echo 'brainbase_app is missing project provisioning function privileges' >&2
+  exit 1
+fi
+
+"${PSQL[@]}" <<'SQL' >/dev/null
+SET ROLE brainbase_app;
+SELECT set_config('app.organization_id','org_a',false);
+SELECT * FROM project_code_collision_sources('brainbase-app-smoke','org_a');
+SELECT claim_project_code('brainbase-app-smoke','org_a');
+SELECT * FROM project_graph_identity_probe('integration-graph-same');
+RESET ROLE;
+SQL
+
+# A runtime role created after the first migration has no implicit function
+# access. Reapplying the idempotent schema is the documented grant procedure.
+"${PSQL[@]}" -c "REVOKE EXECUTE ON FUNCTION project_code_collision_sources(text,text), project_graph_identity_probe(text), claim_project_code(text,text) FROM brainbase_app; DROP ROLE brainbase_app; CREATE ROLE brainbase_app NOLOGIN;" >/dev/null
+if "${PSQL[@]}" -c "SELECT has_function_privilege('brainbase_app', 'claim_project_code(text,text)', 'EXECUTE')" | grep -Fxq t; then
+  echo 'late-created brainbase_app unexpectedly inherited project provisioning privileges' >&2
+  exit 1
+fi
+"${PSQL[@]}" -f /workspace/server/sql/project-provisioning-schema.sql >/dev/null
+if ! "${PSQL[@]}" -c "SELECT has_function_privilege('brainbase_app', 'project_code_collision_sources(text,text)', 'EXECUTE') AND has_function_privilege('brainbase_app', 'project_graph_identity_probe(text)', 'EXECUTE') AND has_function_privilege('brainbase_app', 'claim_project_code(text,text)', 'EXECUTE')" | grep -Fxq t; then
+  echo 'schema reapply did not grant project provisioning functions to late-created brainbase_app' >&2
   exit 1
 fi
 

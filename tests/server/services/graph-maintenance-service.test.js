@@ -737,7 +737,9 @@ describe('GraphMaintenanceService authorization', () => {
         const lockCalls = client.query.mock.calls
             .filter(([sql]) => sql.includes('pg_advisory_xact_lock'));
         expect(lockCalls.map(([, params]) => params[0])).toEqual([
+            'brainbase:project-graph-identity:coordinator',
             'brainbase:project-graph-identity:entity_a',
+            'brainbase:project-graph-identity:coordinator',
             'brainbase:project-graph-identity:entity_z'
         ]);
         const rowLockIndex = client.query.mock.calls.findIndex(([sql]) => (
@@ -789,7 +791,7 @@ describe('GraphMaintenanceService authorization', () => {
             projectCode: 'brainbase', planId: 'plan_scope_drift', snapshotHash: 'before'
         })).rejects.toThrow('plan identity scope changed before lock');
         expect(client.query.mock.calls.filter(([sql]) => sql.includes('pg_advisory_xact_lock')))
-            .toHaveLength(1);
+            .toHaveLength(2);
     });
 
     it('複数Decisionを含むPlanはDecision集合に束縛した単一Human Gateで原子的にApplyする', async () => {
@@ -993,7 +995,7 @@ describe('GraphMaintenanceService authorization', () => {
         }, {
             projectCode: 'brainbase', planId: plan.id, snapshotHash: before.hash
         })).resolves.toEqual(receipt);
-        expect(client.query).toHaveBeenCalledTimes(5);
+        expect(client.query).toHaveBeenCalledTimes(7);
     });
 
     it('既存Receiptの再取得はPlanのtenantとprojectに一致するものだけを返す', async () => {
@@ -1087,7 +1089,7 @@ describe('GraphMaintenanceService authorization', () => {
         await expect(service.replaceSnapshot(client, {
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
         }, snapshot)).rejects.toThrow('edge id tenant conflict');
-        expect(client.query).toHaveBeenCalledTimes(7);
+        expect(client.query).toHaveBeenCalledTimes(9);
     });
 
     it('replaceSnapshotは既存のorphanを増やさない変更を許容する', async () => {
@@ -1110,7 +1112,7 @@ describe('GraphMaintenanceService authorization', () => {
         await expect(service.replaceSnapshot(client, {
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
         }, after, { baseline: before })).resolves.toBeUndefined();
-        expect(client.query).toHaveBeenCalledTimes(7);
+        expect(client.query).toHaveBeenCalledTimes(8);
     });
 
     it('rejects a stored plan snapshot whose content no longer matches its hash before mutation', async () => {
@@ -1139,7 +1141,7 @@ describe('GraphMaintenanceService authorization', () => {
         await expect(tamperService.applyPlan({ organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm' }, {
             projectCode: 'brainbase', planId: 'plan_tampered', snapshotHash: before.hash
         })).rejects.toThrow('stored plan snapshot hash mismatch');
-        expect(client.query).toHaveBeenCalledTimes(4);
+        expect(client.query).toHaveBeenCalledTimes(5);
     });
 
     it('rejects an introduced orphan that is absent from the immutable baseline', async () => {

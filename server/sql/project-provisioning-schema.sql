@@ -104,17 +104,6 @@ $$;
 
 REVOKE ALL ON FUNCTION project_graph_identity_probe(text) FROM PUBLIC;
 
--- The production API normally connects as brainbase_app.  Keep the grant
--- explicit when that role exists, while allowing schema bootstrap/readback in
--- installations that use a different runtime role.
-DO $project_graph_identity_runtime_grant$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'brainbase_app') THEN
-    EXECUTE 'GRANT EXECUTE ON FUNCTION project_graph_identity_probe(text) TO brainbase_app';
-  END IF;
-END
-$project_graph_identity_runtime_grant$;
-
 CREATE OR REPLACE FUNCTION claim_project_code(p_project_code text, p_organization_id text)
 RETURNS void
 LANGUAGE plpgsql
@@ -140,6 +129,18 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION claim_project_code(text, text) FROM PUBLIC;
+
+-- Project provisioning uses these three SECURITY DEFINER functions as one
+-- runtime contract. Grant them together when the canonical API role exists.
+-- If the role is created after this migration, rerun this schema (or the same
+-- three GRANT statements) before starting the service.
+DO $project_provisioning_runtime_grant$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'brainbase_app') THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION project_code_collision_sources(text, text), project_graph_identity_probe(text), claim_project_code(text, text) TO brainbase_app';
+  END IF;
+END
+$project_provisioning_runtime_grant$;
 
 CREATE TABLE IF NOT EXISTS project_provisioning_runs (
   run_id text PRIMARY KEY,

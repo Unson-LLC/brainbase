@@ -99,6 +99,7 @@ $info_ssot_readback$;
 DO $project_provisioning_readback$
 DECLARE
   required_table text;
+  required_function regprocedure;
 BEGIN
   -- Table, FORCE RLS, and policy checks are performed by the shared loop above.
   IF to_regprocedure(format('%I.prevent_project_provisioning_receipt_mutation()', current_schema())) IS NULL THEN
@@ -130,16 +131,31 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project graph identity probe security contract mismatch';
   END IF;
+  FOREACH required_function IN ARRAY ARRAY[
+    to_regprocedure(format('%I.project_code_collision_sources(text,text)', current_schema())),
+    to_regprocedure(format('%I.claim_project_code(text,text)', current_schema()))
+  ] LOOP
+    IF required_function IS NULL OR NOT EXISTS (
+      SELECT 1 FROM pg_proc
+      WHERE oid = required_function
+        AND prosecdef
+        AND EXISTS (
+          SELECT 1 FROM unnest(coalesce(proconfig, ARRAY[]::text[])) AS setting
+          WHERE setting = 'search_path=pg_catalog, public'
+        )
+        AND NOT has_function_privilege('public', required_function, 'EXECUTE')
+    ) THEN
+      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project provisioning function security contract mismatch';
+    END IF;
+  END LOOP;
   -- brainbase_app is the canonical production role, but local/staging
   -- installations may intentionally use another role.  Validate the explicit
   -- grant only when that role exists; PUBLIC remains denied above in all cases.
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'brainbase_app') THEN
-    IF NOT has_function_privilege(
-      'brainbase_app',
-      to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema())),
-      'EXECUTE'
-    ) THEN
-      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: brainbase_app cannot execute project graph identity probe';
+    IF NOT has_function_privilege('brainbase_app', to_regprocedure(format('%I.project_code_collision_sources(text,text)', current_schema())), 'EXECUTE')
+       OR NOT has_function_privilege('brainbase_app', to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema())), 'EXECUTE')
+       OR NOT has_function_privilege('brainbase_app', to_regprocedure(format('%I.claim_project_code(text,text)', current_schema())), 'EXECUTE') THEN
+      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: brainbase_app cannot execute project provisioning functions';
     END IF;
   END IF;
   IF EXISTS (

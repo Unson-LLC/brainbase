@@ -1386,6 +1386,7 @@ export class InfoSSOTService {
             throw new Error(`Unknown project: ${projectCode}`);
         }
         const id = this.generateId('prj');
+        await lockProjectGraphIdentity(client, id);
         await client.query(
             `INSERT INTO projects (id, code, name, organization_id)
              VALUES ($1, $2, $3, NULLIF(current_setting('app.organization_id', true), ''))`,

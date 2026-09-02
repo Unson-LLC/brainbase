@@ -14,7 +14,7 @@ Repositoryは限定関数の結果と、既存のRLS-scoped display name／alias
 
 planは再利用元scopeとentity versionを保存します。applyはRegistry書込前に限定関数を再実行し、承認済みplan、現在のsubject、適用者のscopeが一致しない場合はrunを`planned`のまま拒否します。Graph stepの`assertCompatibleProjectSubject`とGraph Maintenanceのtenant guardも最終防御として残します。
 
-Project entity IDのadvisory transaction lockはProvisioning専用ではなく、Info SSOTの汎用entity/ontology commit writer、Graph Maintenance apply/rollback、LearningServiceのlegacy Graph昇格、Knowledge Eventのdecision更新でも共有します。Project Catalogに登録済みのIDは汎用writerとlegacy writerからの変更を409で拒否し、Graph MaintenanceだけがCatalogのproject ID・同一組織内の承認済み格納先scope・name・version・source・active状態に完全一致するprojectionを適用できます。既存subjectを承認済みsource scopeから再利用する契約は維持します。全writerはproject row等を更新する前にID lockを取得し、ロック順をID昇順へ固定します。Graph Maintenanceはplanを予備読取してbefore/after imageの全IDを昇順でロックした後にplan行を`FOR UPDATE`で再取得し、ID集合が変化していないことを確認してからproject・entity・edgeへ進みます。
+Project entity IDのadvisory transaction lockはProvisioning専用ではなく、Info SSOTの汎用entity/ontology commit writer、Graph Maintenance apply/rollback、LearningServiceのlegacy Graph昇格、Knowledge Eventのdecision更新でも共有します。Project Catalogに登録済みのIDは汎用writerとlegacy writerからの変更を409で拒否し、Graph MaintenanceだけがCatalogのproject ID・同一組織内の承認済み格納先scope・name・version・source・active状態に完全一致するprojectionを適用できます。既存subjectを承認済みsource scopeから再利用する契約は維持します。全entity-row writerは共通の全体調整lockを最初に取得し、その後に対象ID lockを取ります。これにより複数writerが異なるID順で入っても循環待ちを作りません。新規project rowも共通lock取得後にだけ挿入します。Graph Maintenanceはplanを予備読取してbefore/after imageの全IDを昇順でロックした後にplan行を`FOR UPDATE`で再取得し、ID集合が変化していないことを確認してからproject・entity・edgeへ進みます。Edgeだけを書く経路はendpointのentity rowを変更しないため、endpoint認可と参照整合性を別guardで維持します。
 
 Graph新規作成後にGrantやRepositoryで失敗したrunは、再開時点では自分が作成したsubjectを観測します。この場合だけ、Graph stepが`completed`であり、新規作成用のplan/apply/validation Receiptが揃い、Graphから再取得したapply Receiptのplan ID・apply Receipt ID・対象project scope・`project-provisioning:{run_id}:graph` idempotency keyと、対象subjectのCatalog version・sourceがすべて一致することを確認して再開します。`already_materialized` Receipt、別run/planのReceipt、改変されたReceipt、別scopeのsubjectはこの例外に含めず、従来どおり明示scopeを要求します。
 
@@ -26,8 +26,8 @@ Graph新規作成後にGrantやRepositoryで失敗したrunは、再開時点で
 
 ## 変更境界
 
-- `server/sql/project-provisioning-schema.sql`: 限定readback関数
-- `server/sql/info-ssot-readback.sql`: 関数とsecurity contractのreadback
+- `server/sql/project-provisioning-schema.sql`: 限定readback関数と本番runtime roleへの3関数一括grant
+- `server/sql/info-ssot-readback.sql`: 関数、security contract、3関数grantのreadback
 - `server/services/project-provisioning/project-provisioning-repository.js`: ID probe
 - `server/services/project-provisioning/project-provisioning-service.js`: 書込前の互換性・scope判定
 - `server/services/project-graph-identity-lock.js`: 全Graph writer共通のID lockとCatalog subject guard

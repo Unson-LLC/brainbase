@@ -11,6 +11,7 @@ import { csrfMiddleware, csrfTokenHandler } from '../../server/middleware/csrf.j
 import { requireAuth } from '../../server/middleware/auth.js';
 import { createProjectProvisioningRouter } from '../../server/routes/project-provisioning.js';
 import { InfoSSOTService } from '../../server/services/info-ssot-service.js';
+import { lockProjectGraphIdentity } from '../../server/services/project-graph-identity-lock.js';
 import { createProjectProvisioningService } from '../../server/services/project-provisioning/project-provisioning-service.js';
 
 let serverUrl = '';
@@ -1204,6 +1205,36 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
             step_count: 4,
             completed_step_count: 0
         });
+    }, 300_000);
+
+    it('受入れE2E: 異なるID順のGraph writerも全体調整lockで循環待ちしない', async () => {
+        const first = await adminPool.connect();
+        const second = await adminPool.connect();
+        let firstCommitted = false;
+        let secondCommitted = false;
+        try {
+            await first.query('BEGIN');
+            await second.query('BEGIN');
+            await first.query("SET LOCAL lock_timeout = '5s'");
+            await second.query("SET LOCAL lock_timeout = '5s'");
+            await lockProjectGraphIdentity(first, 'entity_z');
+
+            const secondFirstLock = lockProjectGraphIdentity(second, 'entity_a');
+            await waitForAdvisoryLockWaiter(1);
+            await lockProjectGraphIdentity(first, 'entity_a');
+            await first.query('COMMIT');
+            firstCommitted = true;
+
+            await secondFirstLock;
+            await lockProjectGraphIdentity(second, 'entity_z');
+            await second.query('COMMIT');
+            secondCommitted = true;
+        } finally {
+            if (!firstCommitted) await first.query('ROLLBACK').catch(() => {});
+            if (!secondCommitted) await second.query('ROLLBACK').catch(() => {});
+            first.release();
+            second.release();
+        }
     }, 300_000);
 
     it('受入れE2E: 汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない', async () => {

@@ -30,6 +30,11 @@ test -r server/sql/info-ssot-negative-smoke.sql
 `INFO_SSOT_DATABASE_URL` はsystemd/Infisical等の秘密管理から注入する。値を`export`、echo、shell履歴へ残さない。
 `INFO_SSOT_ROLLBACK_SHA` は必須であり、適用前に記録した40桁SHAを渡す。未指定ならDBへ接続せず停止する。
 
+本番ロール `brainbase_app` をスキーマ適用後に作成した場合は、サービス起動前に
+`server/sql/project-provisioning-schema.sql` を再適用する。これにより
+`project_code_collision_sources`、`project_graph_identity_probe`、
+`claim_project_code` の3関数が一括で付与され、readbackでも照合される。
+
 ## 適用とreadback
 
 ```bash

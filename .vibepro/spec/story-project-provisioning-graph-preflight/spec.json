@@ -178,8 +178,8 @@
     {
       "id": "INV-003",
       "type": "invariant",
-      "statement": "Every Graph writer that can target an entity ID shares the Project identity transaction lock; registered Project Catalog subjects reject generic writes and Graph Maintenance accepts only an exact active catalog projection.",
-      "rationale": "A preflight-only lock cannot protect the canonical subject when another authenticated Graph writer can update the same global ID.",
+      "statement": "Every Graph writer that inserts, updates, or deletes a Graph entity row shares the Project identity transaction lock; registered Project Catalog subjects reject generic entity-row writes and Graph Maintenance accepts only an exact active catalog projection. Edge-only writes reference endpoints but do not mutate those endpoint entity rows, so endpoint authorization and referential integrity remain separate guards.",
+      "rationale": "A preflight-only lock cannot protect the canonical subject when another authenticated Graph writer can mutate the same global entity ID. Merely referencing an endpoint is not an entity-row mutation.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004", "text_snippet": "Graph適用時のtenant guardは弱めない"}],
         "architecture_refs": [{"file": "docs/architecture/story-project-provisioning-graph-preflight.md", "section": "Architecture"}],

@@ -1,4 +1,5 @@
 const PROJECT_GRAPH_IDENTITY_LOCK_PREFIX = 'brainbase:project-graph-identity:';
+const PROJECT_GRAPH_IDENTITY_COORDINATOR_LOCK = `${PROJECT_GRAPH_IDENTITY_LOCK_PREFIX}coordinator`;
 
 /**
  * Serialize the project provisioning Registry/Graph identity boundary.
@@ -10,6 +11,13 @@ const PROJECT_GRAPH_IDENTITY_LOCK_PREFIX = 'brainbase:project-graph-identity:';
 export async function lockProjectGraphIdentity(client, entityId) {
     const normalizedEntityId = String(entityId || '').trim();
     if (!normalizedEntityId) throw new Error('Project Graph identity lock requires entity id');
+    // Every Graph entity writer takes the same coordinator first. This keeps
+    // mixed writers from acquiring entity ids in opposite orders while still
+    // retaining the per-id lock used by provisioning/readback races.
+    await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0::bigint))',
+        [PROJECT_GRAPH_IDENTITY_COORDINATOR_LOCK]
+    );
     await client.query(
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0::bigint))',
         [`${PROJECT_GRAPH_IDENTITY_LOCK_PREFIX}${normalizedEntityId}`]
@@ -77,4 +85,4 @@ export async function assertCatalogProjectSubjectMutation(client, {
     return { protected: true, compatible: true };
 }
 
-export { PROJECT_GRAPH_IDENTITY_LOCK_PREFIX };
+export { PROJECT_GRAPH_IDENTITY_COORDINATOR_LOCK, PROJECT_GRAPH_IDENTITY_LOCK_PREFIX };
