@@ -167,3 +167,5 @@ mv -f -- "$RECEIPT_TMP" "$RECEIPT_PATH"
 RECEIPT_TMP=""
 
 echo "Info SSOT schema + RLS applied; receipt=${RECEIPT_PATH#"$REPO_ROOT/"}"
+# Cloud Run Jobではローカルファイルが終了時に消えるため、同じreceiptをCloud Loggingへ残す。
+echo "INFO_SSOT_APPLY_RECEIPT=$(tr -d '\n' < "$RECEIPT_PATH")"

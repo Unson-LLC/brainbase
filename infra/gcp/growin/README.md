@@ -35,15 +35,23 @@ unset BRAINBASE_SERVICE_TOKEN_SECRET
 scripts/growin/verify-remote-e2e.sh
 ```
 
-初期利用者の認証・権限登録Jobは、既定ではマイグレーション用イメージを再利用します。別イメージへ分ける場合だけ `auth_bootstrap_image` を指定します。Terraform適用後、確認済みアドレスを登録するときに明示実行します。
+初期利用者の認証・権限登録Jobは、既定ではマイグレーション用イメージを再利用します。別イメージへ分ける場合だけ `auth_bootstrap_image` を指定します。Terraform適用後、必ず先に `brainbase-migrate` を実行して成功ログと適用receiptを確認し、その後に確認済みアドレスを登録します。
 
 ```bash
+gcloud run jobs execute brainbase-migrate \
+  --project=brainbase-505912 \
+  --region=asia-northeast1 \
+  --account=k.sato.unson@gmail.com \
+  --wait
+
 gcloud run jobs execute brainbase-growin-auth-bootstrap \
   --project=brainbase-505912 \
   --region=asia-northeast1 \
   --account=k.sato.unson@gmail.com \
   --wait
 ```
+
+`release_git_sha` には今回の完全SHA、`rollback_git_sha` には確認済み旧安定版の完全SHAを別々に指定します。同じ値にはしません。GCPでの復旧手順は `docs/runbooks/growin-gcp-recovery.md` を参照します。
 
 ## 初期化
 

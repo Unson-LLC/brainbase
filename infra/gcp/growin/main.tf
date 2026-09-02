@@ -95,6 +95,25 @@ resource "google_service_account" "deployer" {
   description  = "Growin専用BrainbaseのCI/CD用"
 }
 
+resource "google_service_account" "auth_bootstrap" {
+  project      = var.project_id
+  account_id   = "brainbase-auth-bootstrap"
+  display_name = "Brainbase auth bootstrap"
+  description  = "Growin初期利用者の認証・権限登録Job専用"
+}
+
+resource "google_project_iam_member" "auth_bootstrap_roles" {
+  for_each = toset([
+    "roles/cloudsql.client",
+    "roles/cloudsql.instanceUser",
+    "roles/logging.logWriter",
+  ])
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.auth_bootstrap.email}"
+}
+
 resource "google_project_iam_member" "runtime_roles" {
   for_each = toset([
     "roles/cloudsql.client",
@@ -136,8 +155,9 @@ resource "google_project_iam_member" "deployer_roles" {
 
 resource "google_service_account_iam_member" "deployer_acts_as" {
   for_each = {
-    runtime = google_service_account.runtime.name
-    ingest  = google_service_account.ingest.name
+    runtime        = google_service_account.runtime.name
+    ingest         = google_service_account.ingest.name
+    auth_bootstrap = google_service_account.auth_bootstrap.name
   }
 
   service_account_id = each.value
@@ -359,6 +379,13 @@ resource "google_secret_manager_secret_iam_member" "runtime_access" {
   member    = "serviceAccount:${google_service_account.runtime.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "auth_bootstrap_database_access" {
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.runtime["brainbase-database-url"].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.auth_bootstrap.email}"
+}
+
 resource "google_cloud_run_v2_service" "api" {
   name                = "brainbase-api"
   project             = var.project_id
@@ -379,7 +406,9 @@ resource "google_cloud_run_v2_service" "api" {
 
     scaling {
       min_instance_count = 1
-      max_instance_count = 5
+      # Device Code Flowの状態は現段階ではプロセス内保持のため、パイロット中は1台に固定する。
+      # 複数台化は共有状態ストアへ移行してから行う。
+      max_instance_count = 1
     }
 
     vpc_access {
@@ -442,6 +471,10 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "BRAINBASE_VAR_DIR"
         value = "/tmp/brainbase"
+      }
+      env {
+        name  = "BRAINBASE_PUBLIC_URL"
+        value = var.api_public_url
       }
       env {
         name  = "BRAINBASE_AUTH_PROVIDER"
@@ -630,7 +663,7 @@ resource "google_cloud_run_v2_job" "migrate" {
         }
         env {
           name  = "INFO_SSOT_ROLLBACK_SHA"
-          value = var.release_git_sha
+          value = var.rollback_git_sha
         }
       }
     }
@@ -650,7 +683,7 @@ resource "google_cloud_run_v2_job" "auth_bootstrap" {
 
   template {
     template {
-      service_account = google_service_account.runtime.email
+      service_account = google_service_account.auth_bootstrap.email
       timeout         = "600s"
       max_retries     = 0
 
@@ -680,5 +713,8 @@ resource "google_cloud_run_v2_job" "auth_bootstrap" {
     }
   }
 
-  depends_on = [google_secret_manager_secret_iam_member.runtime_access]
+  depends_on = [
+    google_project_iam_member.auth_bootstrap_roles,
+    google_secret_manager_secret_iam_member.auth_bootstrap_database_access,
+  ]
 }

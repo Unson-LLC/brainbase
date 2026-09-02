@@ -39,6 +39,47 @@ describe('Growin auth bootstrap', () => {
         expect(source).toContain('else error("JSON-RPC result missing") end');
     });
 
+    it('keeps the pilot device flow on one API instance and provides its public URL', () => {
+        const terraform = fs.readFileSync(path.resolve('infra/gcp/growin/main.tf'), 'utf8');
+        const apiService = terraform.slice(
+            terraform.indexOf('resource "google_cloud_run_v2_service" "api"'),
+            terraform.indexOf('resource "google_cloud_run_v2_service" "mcp"')
+        );
+
+        expect(apiService).toContain('max_instance_count = 1');
+        expect(apiService).toContain('name  = "BRAINBASE_PUBLIC_URL"');
+        expect(apiService).toContain('value = var.api_public_url');
+    });
+
+    it('uses distinct release and rollback SHAs for migration receipts', () => {
+        const terraform = fs.readFileSync(path.resolve('infra/gcp/growin/main.tf'), 'utf8');
+        const migrateJob = terraform.slice(
+            terraform.indexOf('resource "google_cloud_run_v2_job" "migrate"'),
+            terraform.indexOf('resource "google_cloud_run_v2_job" "auth_bootstrap"')
+        );
+
+        expect(migrateJob).toContain('name  = "INFO_SSOT_GIT_SHA"\n          value = var.release_git_sha');
+        expect(migrateJob).toContain('name  = "INFO_SSOT_ROLLBACK_SHA"\n          value = var.rollback_git_sha');
+    });
+
+    it('runs auth bootstrap with its own least-privilege service account', () => {
+        const terraform = fs.readFileSync(path.resolve('infra/gcp/growin/main.tf'), 'utf8');
+        const authJob = terraform.slice(
+            terraform.indexOf('resource "google_cloud_run_v2_job" "auth_bootstrap"')
+        );
+
+        expect(terraform).toContain('resource "google_service_account" "auth_bootstrap"');
+        expect(terraform).toContain('auth_bootstrap = google_service_account.auth_bootstrap.name');
+        expect(authJob).toContain('service_account = google_service_account.auth_bootstrap.email');
+        expect(authJob).not.toContain('google_secret_manager_secret_iam_member.runtime_access');
+    });
+
+    it('prints the migration receipt to Cloud Logging compatible stdout', () => {
+        const source = fs.readFileSync(path.resolve('scripts/info-ssot-apply.sh'), 'utf8');
+
+        expect(source).toContain('echo "INFO_SSOT_APPLY_RECEIPT=$(tr -d');
+    });
+
     it('binds only confirmed Workspace addresses to canonical people', () => {
         expect(GROWIN_INITIAL_USERS).toEqual([
             {

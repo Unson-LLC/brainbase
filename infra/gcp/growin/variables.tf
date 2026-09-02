@@ -54,6 +54,17 @@ variable "release_git_sha" {
   type        = string
 }
 
+variable "rollback_git_sha" {
+  description = "障害時に戻す確認済みの旧安定版Git SHA"
+  type        = string
+}
+
+variable "api_public_url" {
+  description = "Google認証の確認URL生成に使うBrainbase API公開URL"
+  type        = string
+  default     = "https://brainbase-api-lmc74punpa-an.a.run.app"
+}
+
 variable "api_image" {
   description = "Brainbase APIのコンテナイメージ"
   type        = string

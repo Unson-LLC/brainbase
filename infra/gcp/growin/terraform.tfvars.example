@@ -3,3 +3,7 @@ region                     = "asia-northeast1"
 environment                = "production"
 database_tier              = "db-custom-1-3840"
 database_availability_type = "REGIONAL"
+
+# 実適用時は、今回の完全SHAと確認済み旧安定版の完全SHAを別々に指定する。
+release_git_sha  = "0000000000000000000000000000000000000000"
+rollback_git_sha = "1111111111111111111111111111111111111111"
