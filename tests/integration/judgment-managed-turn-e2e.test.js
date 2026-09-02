@@ -153,17 +153,26 @@ describe('managed judgment turn end to end', () => {
         expect(followUp.receipt.context_digest).toMatch(/^[a-f0-9]{64}$/u);
         expect(serviceCalls).toBe(2);
 
-        const clarification = await runTurn(input('それでいい', 'host-turn-e2e-3', { modelInterpretation: null }));
-        expect(clarification.execution_status).toBe('stopped');
-        expect(clarification.reason).toBe('brainbase_api_response_invalid');
-        expect(clarification.receipt).toBeNull();
+        // Host bootstrap call: the UserPromptSubmit hook has no model
+        // interpretation yet, so the server answers with an open
+        // needs_classification receipt that the Host must adopt, not reject.
+        const bootstrap = await runTurn(input('それでいい', 'host-turn-e2e-3', { modelInterpretation: null }));
+        expect(bootstrap.execution_status).toBe('continued');
+        expect(bootstrap.receipt.status).toBe('needs_classification');
+        expect(bootstrap.receipt).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'classification_missing',
+            reconciliation_reasons: ['model_interpretation_missing'],
+            unresolved: ['model_interpretation_missing']
+        });
+        expect(bootstrap.receipt.active_nodes).toContain('clarification');
 
         const outsideProject = await runTurn(input('意味を説明して', 'host-turn-e2e-4', { projectCode: 'outside-project' }));
         expect(outsideProject.execution_status).toBe('continued');
         expect(outsideProject.receipt.project_code).toBe('outside-project');
         expect(outsideProject.receipt.applicable_policies.some((policy) => policy.scope?.type === 'project')).toBe(false);
 
-        expect(consumedPlans).toHaveLength(3);
+        expect(consumedPlans).toHaveLength(4);
         for (const plan of consumedPlans) {
             expect(plan.activeNodeDefinitions.map((node) => node.id)).toEqual(plan.receipt.active_nodes);
         }

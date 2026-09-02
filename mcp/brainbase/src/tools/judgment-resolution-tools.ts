@@ -307,7 +307,11 @@ function isJudgmentReceipt(
   if (!isAcyclic(value.active_nodes, value.active_edges as string[][])) return false;
   if (!isStringArray(value.unresolved, { unique: true }) || !isStringArray(value.rationale, { nonEmpty: true })) return false;
   if (value.status === 'resolved' && (value.classification === null || value.unresolved.length !== 0)) return false;
-  if (value.status === 'needs_classification' && (value.classification !== null || value.classification_assurance !== 'unknown' || canonicalJson(value.unresolved) !== canonicalJson(['classification']))) return false;
+  // The server reports why classification is still open (for example
+  // model_interpretation_missing on the bootstrap call, or
+  // conversation_referent_missing) and mirrors those reasons into unresolved.
+  if (value.status === 'needs_classification' && (value.classification !== null || value.classification_assurance !== 'unknown'
+    || value.unresolved.length === 0 || canonicalJson(value.unresolved) !== canonicalJson(value.reconciliation_reasons))) return false;
   if (value.status === 'needs_policy_resolution' && (value.classification === null || canonicalJson(value.unresolved) !== canonicalJson(['policy_conflict']))) return false;
   const planValue = { ...value };
   delete planValue.resolution_id;
