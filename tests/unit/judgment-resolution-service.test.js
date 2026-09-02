@@ -682,6 +682,17 @@ describe('JudgmentResolutionService', () => {
     });
 
     it.each([
+        '外部送信は禁止です、更新は完了済みです。',
+        'Do not publish externally, and update is complete.'
+    ])('禁止節後の説明を肯定された操作へ昇格しない: %s', (request) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'answer', action_kind: 'none', risk: 'low' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+    });
+
+    it.each([
         ['不可逆操作をレビューして。', 'review', 'read', 'low'],
         ['禁止事項を更新して。', 'implement', 'write', 'medium'],
         ['No-code appを作ってください。', 'implement', 'write', 'medium']

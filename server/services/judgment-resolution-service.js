@@ -183,6 +183,21 @@ function includesTerm(request, terms) {
     });
 }
 
+function includesPositiveCommandClause(request, terms) {
+    const japaneseTerms = terms.filter((term) => !/^[a-z0-9_.-]+$/iu.test(term));
+    if (includesTerm(request, japaneseTerms)) return true;
+    const englishTerms = terms.filter((term) => /^[a-z0-9_.-]+$/iu.test(term));
+    if (englishTerms.length === 0) return false;
+    const commandPattern = englishTerms.map(escapeRegExp).join('|');
+    const match = new RegExp(
+        `^(?:please\\s+|(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?)?(?:${commandPattern})\\b`,
+        'iu'
+    ).exec(request.trim());
+    if (!match) return false;
+    const remainder = request.trim().slice(match[0].length);
+    return !/^\s+(?:is|are|was|were|has|have|had)\b/iu.test(remainder);
+}
+
 function includesRequestedEffectTerm(request, terms) {
     const normalized = request.toLocaleLowerCase('ja');
     return terms.some((term) => {
@@ -262,13 +277,16 @@ function positiveClassificationRequest(request, manifest) {
                 const positivePrefix = clauseBoundary >= 0
                     ? beforeNegation.slice(0, clauseBoundary).trim()
                     : '';
-                const keepPrefix = includesTerm(positivePrefix, positiveCommandTerms)
+                const keepPrefix = includesPositiveCommandClause(positivePrefix, positiveCommandTerms)
                     ? positivePrefix
                     : '';
                 const afterNegation = sentence.slice(japaneseBoundary.index + japaneseBoundary[0].length);
                 const tailBoundary = /^[、,;；]/u.exec(afterNegation);
-                const positiveTail = tailBoundary
+                const tailCandidate = tailBoundary
                     ? afterNegation.slice(tailBoundary[0].length).replace(/^[、,;；。！？\s]+/u, '')
+                    : '';
+                const positiveTail = includesPositiveCommandClause(tailCandidate, positiveCommandTerms)
+                    ? tailCandidate
                     : '';
                 return [keepPrefix, positiveTail].filter(Boolean).join('。');
             }
@@ -284,13 +302,16 @@ function positiveClassificationRequest(request, manifest) {
                     .replace(/\b(?:but|and)\s*$/iu, '')
                     .replace(/[,;:\s]+$/u, '')
                     .trim();
-                const keepPrefix = includesTerm(positivePrefix, positiveCommandTerms)
+                const keepPrefix = includesPositiveCommandClause(positivePrefix, positiveCommandTerms)
                     ? positivePrefix
                     : '';
                 const afterNegation = sentence.slice(englishBoundary.index + englishBoundary[0].length);
                 const tailBoundary = /(?:[;；]|,\s*(?:but|and(?: then)?)\s+)/iu.exec(afterNegation);
-                const positiveTail = tailBoundary
+                const tailCandidate = tailBoundary
                     ? afterNegation.slice(tailBoundary.index + tailBoundary[0].length).replace(/^[,.;:!?\s]+/u, '')
+                    : '';
+                const positiveTail = includesPositiveCommandClause(tailCandidate, positiveCommandTerms)
+                    ? tailCandidate
                     : '';
                 return [keepPrefix, positiveTail].filter(Boolean).join('. ');
             }
