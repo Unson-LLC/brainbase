@@ -121,6 +121,32 @@ describe('knowledge owner audit', () => {
     }
   });
 
+  it('does not claim successful retrieval for partial meeting context', () => {
+    const result = JSON.stringify({
+      status: 'partial',
+      receipt: {
+        receipt_id: 'receipt-partial',
+        status: 'partial',
+      },
+    });
+
+    assert.equal(
+      buildKnowledgeOwnerAudit(
+        'brainbase_get_meeting_minutes_context',
+        { run_id: 'run-partial' },
+        result,
+      ),
+      null,
+    );
+    const content = serverTesting.buildToolResponseContent(
+      'brainbase_get_meeting_minutes_context',
+      { run_id: 'run-partial' },
+      result,
+    );
+    assert.deepStrictEqual(content, [{ type: 'text', text: result }]);
+    assert.doesNotMatch(JSON.stringify(content), /結果を取得 ✓/u);
+  });
+
   it('appends exactly one audit block only when an actual retrieval ran', () => {
     const audit = buildKnowledgeOwnerAudit('search', { query: '公開方針' }, '1 result');
 
