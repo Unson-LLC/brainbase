@@ -1103,7 +1103,7 @@ function receiptContract(data, type = null) {
         && Boolean(record(data?.result)) && nonEmptyString(data?.created_at);
 }
 
-function graphToolContract(name, data) {
+function graphToolContract(name, data, input = null) {
     if (name === 'graph_export_snapshot') {
         return nonEmptyString(data.snapshot_id) && nonEmptyString(data.snapshot_hash) && nonEmptyString(data.project_code)
             && Array.isArray(data.entities) && Array.isArray(data.edges);
@@ -1122,9 +1122,14 @@ function graphToolContract(name, data) {
     if (name === 'graph_get_plan_receipt') return nonEmptyString(data.plan_id) && Array.isArray(data.receipts) && data.receipts.every((entry) => receiptContract(record(entry)));
     if (name === 'graph_validate') {
         const counts = record(data.counts);
-        return typeof data.valid === 'boolean' && nonEmptyString(data.snapshot_hash) && Array.isArray(data.issues)
+        const baseContractSatisfied = typeof data.valid === 'boolean' && nonEmptyString(data.snapshot_hash) && Array.isArray(data.issues)
             && Boolean(record(data.ontology)) && Boolean(record(data.required_relation_scope_summary))
             && ['entities', 'edges', 'issues', 'duplicates', 'orphans'].every((key) => Number.isFinite(counts?.[key]) && counts[key] >= 0);
+        if (!baseContractSatisfied || record(input)?.strict_collection !== true) return baseContractSatisfied;
+        const validationScope = record(data.validation_scope);
+        const suppressionSummary = record(data.suppression_summary);
+        return data.collection_complete === true && validationScope?.strict_collection === true
+            && suppressionSummary?.edge_count === 0;
     }
     return false;
 }
@@ -1161,7 +1166,7 @@ function publishedToolSemanticData(toolName, response, input) {
         if (name === 'brainbase_onboarding_get' && item.data === null) return true;
         const data = record(item.data);
         if (!data) return false;
-        if (name.startsWith('graph_')) return graphToolContract(name, data);
+        if (name.startsWith('graph_')) return graphToolContract(name, data, input);
         if (name === 'brainbase_bootstrap_config') {
             const config = record(data.bootstrap_config);
             const user = record(config?.user);
@@ -1319,7 +1324,8 @@ function routeDisplayLine(input, data, success) {
 
 export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
-    const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : '';
+    const toolNameValue = payload?.tool_name ?? payload?.toolName;
+    const toolName = typeof toolNameValue === 'string' ? toolNameValue : '';
     const toolUseId = typeof payload?.tool_use_id === 'string' ? payload.tool_use_id : '';
     const brainbaseTool = /^mcp__brainbase__/u.test(toolName);
     const judgmentStateTool = toolName === JUDGMENT_STATE_TOOL_NAME;

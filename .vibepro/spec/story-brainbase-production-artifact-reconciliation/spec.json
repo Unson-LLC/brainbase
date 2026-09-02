@@ -107,7 +107,7 @@
         "test_refs": [
           {
             "file": "tests/unit/judgment-resolver-host.test.js",
-            "case": "公開Brainbase toolの意味的成功をfail-closedで判定する"
+            "case": "公開MCPツールの検証済みresponse契約だけを意味的成功として採用する"
           }
         ]
       },
@@ -115,12 +115,12 @@
         "test_pattern": [
           {
             "file_glob": "tests/unit/judgment-resolver-host.test.js",
-            "must_cover": "公開Brainbase toolの意味的成功をfail-closedで判定する"
+            "must_cover": "公開MCPツールの検証済みresponse契約だけを意味的成功として採用する"
           }
         ]
       },
       "first_seen_at": "2026-09-02T05:00:00.000Z",
-      "last_revised_at": "2026-09-02T07:00:00.000Z"
+      "last_revised_at": "2026-09-02T14:15:00.000Z"
     },
     {
       "id": "C-005",
@@ -144,7 +144,7 @@
         "test_refs": [
           {
             "file": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
-            "case": "実行証拠、正本読戻し、value proof、final state、判断レシートを同一turnへ束縛する"
+            "case": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
           }
         ]
       },
@@ -152,12 +152,12 @@
         "test_pattern": [
           {
             "file_glob": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
-            "must_cover": "実行証拠、正本読戻し、value proof、final state、判断レシートを同一turnへ束縛する"
+            "must_cover": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
           }
         ]
       },
       "first_seen_at": "2026-09-02T05:00:00.000Z",
-      "last_revised_at": "2026-09-02T07:00:00.000Z"
+      "last_revised_at": "2026-09-02T14:15:00.000Z"
     },
     {
       "id": "S-001",
@@ -187,7 +187,7 @@
         "test_refs": [
           {
             "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
-            "case": "accepts an empty audit result for the internal judgment state tool"
+            "case": "accepts an empty audit result for the canonical internal judgment state tool form"
           },
           {
             "file": "tests/unit/judgment-resolver-host.test.js",
@@ -207,7 +207,7 @@
         "test_pattern": [
           {
             "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
-            "must_cover": "accepts an empty audit result for the internal judgment state tool"
+            "must_cover": "accepts an empty audit result for the canonical internal judgment state tool form"
           },
           {
             "file_glob": "tests/unit/judgment-resolver-host.test.js",
@@ -391,7 +391,7 @@
         "test_refs": [
           {
             "file": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
-            "case": "実行証拠、正本読戻し、value proof、final state、判断レシートを同一turnへ束縛する"
+            "case": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
           }
         ]
       },
@@ -399,7 +399,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
-            "must_cover": "実行証拠、正本読戻し、value proof、final state、判断レシートを同一turnへ束縛する"
+            "must_cover": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
           }
         ]
       },

@@ -1431,6 +1431,46 @@ describe('Codex Judgment Resolver Host', () => {
         expect(audited).toMatchObject({ success: true, event_kind: 'retrieve' });
     });
 
+    it('remoteのtoolName aliasもHostのjournalへ記録する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-tool-name-alias',
+            turn_id: 'turn-tool-name-alias',
+            prompt: 'Brainbaseを検索して',
+            cwd: process.cwd()
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    management_status: 'managed',
+                    receipt: validReceipt(buildJudgmentRequest(payload, { env }))
+                })
+            })
+        });
+
+        const event = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse',
+            session_id: payload.session_id,
+            turn_id: payload.turn_id,
+            toolName: 'mcp__brainbase__search',
+            tool_use_id: 'tool-name-alias',
+            tool_input: { query: 'toolName alias' },
+            tool_response: withRetrievalAudit('search', { status: 'ok', count: 1 })
+        }, { env });
+
+        expect(event).toMatchObject({
+            tool_name: 'mcp__brainbase__search',
+            tool_use_id: 'tool-name-alias',
+            event_kind: 'search',
+            success: true
+        });
+        expect(event.display_line).toContain('📚 Brainbase検索:');
+    });
+
     it('MCP公開ツール正本とHostのkind分類を双方向一致させる', () => {
         const source = readFileSync(join(process.cwd(), 'mcp/brainbase/src/tools/tool-annotations.ts'), 'utf8');
         const names = (constantName) => {
@@ -1489,7 +1529,8 @@ describe('Codex Judgment Resolver Host', () => {
             ['graph_apply_plan', {}, graph(receipt('apply'))],
             ['graph_get_plan_receipt', {}, graph({ plan_id: 'p1', receipts: [receipt('apply')] })],
             ['graph_rollback_plan', {}, graph(receipt('rollback'))],
-            ['graph_validate', {}, graph({ valid: true, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })]
+            ['graph_validate', {}, graph({ valid: true, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })],
+            ['graph_validate', { strict_collection: true }, graph({ valid: true, collection_complete: true, validation_scope: { strict_collection: true }, suppression_summary: { edge_count: 0, reasons: {} }, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })]
         ];
         for (const [name, input, response] of validCases) {
             expect(recordTool(name, input, response), name).toMatchObject({ success: true, event_kind: BRAINBASE_TOOL_KIND_BY_NAME[name] });
@@ -1505,7 +1546,9 @@ describe('Codex Judgment Resolver Host', () => {
             ['graph_apply_plan', {}, graph({ receipt_type: 'apply' })],
             ['graph_get_plan_receipt', {}, graph({ plan_id: 'p1', receipts: [{}] })],
             ['graph_rollback_plan', {}, graph({ receipt_type: 'rollback' })],
-            ['graph_validate', {}, graph({ valid: true, snapshot_hash: snapshotHash })]
+            ['graph_validate', {}, graph({ valid: true, snapshot_hash: snapshotHash })],
+            ['graph_validate', { strict_collection: true }, graph({ valid: true, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })],
+            ['graph_validate', { strict_collection: true }, graph({ valid: true, collection_complete: false, validation_scope: { strict_collection: true }, suppression_summary: { edge_count: 1, reasons: { unresolved_or_inaccessible_endpoint: 1 } }, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })]
         ];
         for (const [name, input, response] of invalidCases) {
             expect(recordTool(name, input, response), name).toMatchObject({ success: false, event_kind: BRAINBASE_TOOL_KIND_BY_NAME[name] });
