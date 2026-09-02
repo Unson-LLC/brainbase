@@ -608,8 +608,14 @@ describe('JudgmentResolutionService', () => {
     it.each([
         'ローカルファイルへ書いて、外部送信はしないでください。',
         '外部送信はしないでください。ローカルファイルへ書いてください。',
+        'ローカルファイルへ書いて、外部送信は禁止です。',
+        '外部送信は禁止です。ローカルファイルへ書いてください。',
         'Write the local file, but do not publish externally.',
         'Do not publish externally. Write the local file.',
+        'Write the local file, but never publish externally.',
+        'Never publish externally. Write the local file.',
+        'Write the local file; publishing externally is prohibited.',
+        'No external publishing. Write the local file.',
         'ローカルファイルを作って、外部送信はしないでください。',
         'ローカルファイルを削除して、外部送信はしないでください。',
         'Delete the local file, but do not publish externally.',
@@ -653,7 +659,11 @@ describe('JudgmentResolutionService', () => {
 
     it.each([
         'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。',
-        'Do not merge, deploy, or publish externally.'
+        '外部送信は行いません。',
+        '外部送信は不可です。',
+        'Do not merge, deploy, or publish externally.',
+        'Never publish externally.',
+        'Publishing externally is prohibited.'
     ])('禁止だけの文を肯定された操作として分類しない: %s', (request) => {
         const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
 

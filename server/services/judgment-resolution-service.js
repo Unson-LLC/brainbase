@@ -250,10 +250,15 @@ function positiveClassificationRequest(request, manifest) {
     return request
         .split(/(?<=[。！？.!?\n])/u)
         .map((sentence) => {
-            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください)/u.exec(sentence);
+            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください|しません|行いません|実行しません|禁止(?:です|されています)?|不可(?:です)?)/u.exec(sentence);
             if (japaneseBoundary) {
                 const beforeNegation = sentence.slice(0, japaneseBoundary.index);
-                const clauseBoundary = Math.max(beforeNegation.lastIndexOf('、'), beforeNegation.lastIndexOf(','));
+                const clauseBoundary = Math.max(
+                    beforeNegation.lastIndexOf('、'),
+                    beforeNegation.lastIndexOf(','),
+                    beforeNegation.lastIndexOf(';'),
+                    beforeNegation.lastIndexOf('；')
+                );
                 const positivePrefix = clauseBoundary >= 0
                     ? beforeNegation.slice(0, clauseBoundary).trim()
                     : '';
@@ -267,14 +272,20 @@ function positiveClassificationRequest(request, manifest) {
                     : '';
                 return [keepPrefix, positiveTail].filter(Boolean).join('。');
             }
-            const englishBoundary = /\b(?:do not|don't|must not)\b/iu.exec(sentence);
+            const englishBoundary = /\b(?:do not|don't|must not|never|no|is prohibited|are prohibited|is forbidden|are forbidden)\b/iu.exec(sentence);
             if (englishBoundary) {
-                const beforeNegation = sentence.slice(0, englishBoundary.index)
+                const beforeNegation = sentence.slice(0, englishBoundary.index);
+                const suffixProhibition = /^(?:is|are) (?:prohibited|forbidden)$/iu.test(englishBoundary[0]);
+                const clauseBoundary = Math.max(beforeNegation.lastIndexOf(','), beforeNegation.lastIndexOf(';'));
+                const positiveMaterial = suffixProhibition
+                    ? (clauseBoundary >= 0 ? beforeNegation.slice(0, clauseBoundary) : '')
+                    : beforeNegation;
+                const positivePrefix = positiveMaterial
                     .replace(/\b(?:but|and)\s*$/iu, '')
                     .replace(/[,;:\s]+$/u, '')
                     .trim();
-                const keepPrefix = includesTerm(beforeNegation, positiveCommandTerms)
-                    ? beforeNegation
+                const keepPrefix = includesTerm(positivePrefix, positiveCommandTerms)
+                    ? positivePrefix
                     : '';
                 const afterNegation = sentence.slice(englishBoundary.index + englishBoundary[0].length);
                 const tailBoundary = /(?:[;；]|,\s*(?:but|and then)\s+)/iu.exec(afterNegation);
