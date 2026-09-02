@@ -158,10 +158,14 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const generic = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
             tool_name: 'mcp__brainbase__get_context', tool_use_id: 'tool-generic',
-            tool_input: { topic: 'resolver' }, tool_response: { isError: false, content: [{ type: 'text', text: 'context' }] }
+            tool_input: { topic: 'resolver' }, tool_response: { isError: false, content: [{ type: 'text', text: [
+                'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
+                'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
+                '📚 Brainbase取得: Graphで「resolver」を取得 → 結果を取得 ✓'
+            ].join('\n') }] }
         }) });
         expect(JSON.parse(generic.stdout).systemMessage).toBe(
-            '📚 Brainbase取得: get_context「resolver」→ 正常応答を確認 ✓'
+            '📚 Brainbase取得: get_context「resolver」→ 結果を取得 ✓'
         );
         const genericLine = JSON.parse(generic.stdout).systemMessage;
 

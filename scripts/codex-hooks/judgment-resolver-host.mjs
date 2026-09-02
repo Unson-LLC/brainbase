@@ -1198,7 +1198,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         runtime_reason_code: record(inputValue)?.runtime_reason_code
     } : null;
     const responseSuccess = responseSucceeded(responseValue, {
-        allowTransportSuccess: brainbaseTool && kind === 'retrieve',
+        allowTransportSuccess: brainbaseTool && kind === 'retrieve' && Boolean(retrieval || controlPlaneRead),
         allowExplicitSuccess: !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
         semanticSuccess: ['search', 'retrieve'].includes(kind)

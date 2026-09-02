@@ -1387,6 +1387,29 @@ describe('Codex Judgment Resolver Host', () => {
         expect(recordEvent('generic-semantic-data', { status: 'ok', data: { approval_id: 'approval-1' } }, 'submit_approval')).toMatchObject({ success: false, event_kind: 'call' });
     });
 
+    it('監査なしのretrieve transport成功を業務結果として扱わず、監査付きretrieveだけを成功にする', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-retrieve-transport', turn_id: 'turn-retrieve-transport', prompt: 'Brainbaseの情報を取得して', cwd: process.cwd() };
+        await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) }) }) });
+        const recordRetrieve = (id, toolResponse) => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__get_context', tool_use_id: id,
+            tool_input: { topic: '判断' }, tool_response: toolResponse
+        }, { env });
+
+        const noAudit = recordRetrieve('retrieve-no-audit', { content: [{ type: 'text', text: '取得結果です' }] });
+        expect(noAudit).toMatchObject({ success: false, event_kind: 'retrieve' });
+
+        const audit = [
+            'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
+            'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
+            '📚 Brainbase取得: Graphで「判断」を取得 → 結果を取得 ✓'
+        ].join('\n');
+        const audited = recordRetrieve('retrieve-with-audit', { content: [{ type: 'text', text: audit }] });
+        expect(audited).toMatchObject({ success: true, event_kind: 'retrieve' });
+    });
+
     it('ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
