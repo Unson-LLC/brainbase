@@ -183,22 +183,58 @@ function includesTerm(request, terms) {
     });
 }
 
+function includesPositiveCommandClause(request, terms) {
+    const japaneseTerms = terms.filter((term) => !/^[a-z0-9_.-]+$/iu.test(term));
+    const normalizedRequest = request.toLocaleLowerCase('ja');
+    const includesJapaneseCommand = japaneseTerms.some((term) => {
+        const normalizedTerm = term.toLocaleLowerCase('ja');
+        let offset = normalizedRequest.indexOf(normalizedTerm);
+        while (offset >= 0) {
+            const remainder = normalizedRequest.slice(offset + normalizedTerm.length);
+            const endsCommand = /^(?:$|[\s、,;；。！？!?])/u.test(remainder)
+                || /^(?:(?:ください|下さい|くれ|ほしい|欲しい|おけ|みろ)|(?:おいて|みて)(?:ください|下さい)?|(?:もらえ|いただけ)(?:ます(?:か|でしょうか)|ません(?:か|でしょうか)|ないですか)|(?:もらいたい|いただきたい))(?=$|[\s、,;；。！？!?])/u.test(remainder);
+            if (endsCommand) {
+                return true;
+            }
+            offset = normalizedRequest.indexOf(normalizedTerm, offset + normalizedTerm.length);
+        }
+        return false;
+    });
+    if (includesJapaneseCommand) return true;
+    const englishTerms = terms.filter((term) => /^[a-z0-9_.-]+$/iu.test(term));
+    if (englishTerms.length === 0) return false;
+    const commandPattern = englishTerms.map(escapeRegExp).join('|');
+    const match = new RegExp(
+        `^(?:please\\s+|(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?|you\\s+must\\s+)?(?:${commandPattern})\\b`,
+        'iu'
+    ).exec(request.trim());
+    if (!match) return false;
+    const remainder = request.trim().slice(match[0].length);
+    return !/^\s+(?:is|are|was|were|has|have|had)\b/iu.test(remainder);
+}
+
 function includesRequestedEffectTerm(request, terms) {
     const normalized = request.toLocaleLowerCase('ja');
     return terms.some((term) => {
         const normalizedTerm = term.toLocaleLowerCase('ja');
-        if (/^[a-z0-9_.-]+$/u.test(normalizedTerm)) {
-            return new RegExp(`(?<![a-z0-9_])${escapeRegExp(normalizedTerm)}(?![a-z0-9_])`, 'u').test(normalized);
-        }
-
         let offset = 0;
         while (offset < normalized.length) {
-            const index = normalized.indexOf(normalizedTerm, offset);
+            const matcher = /^[a-z0-9_.-]+$/u.test(normalizedTerm)
+                ? new RegExp(`(?<![a-z0-9_])${escapeRegExp(normalizedTerm)}(?![a-z0-9_])`, 'gu')
+                : null;
+            if (matcher) matcher.lastIndex = offset;
+            const match = matcher?.exec(normalized);
+            const index = matcher ? (match?.index ?? -1) : normalized.indexOf(normalizedTerm, offset);
             if (index < 0) return false;
             const continuation = normalized.slice(index + normalizedTerm.length).trimStart();
             const isConditionalTeForm = normalizedTerm.endsWith('して')
                 && /^(?:も(?!ら)|しま|いる|いた|ある|あった|おり|はいけ|はなら|よい|良い|いい|問題ない|可能|でき)/u.test(continuation);
-            if (!isConditionalTeForm) return true;
+            const sentenceTail = continuation.split(/[。！？\n]/u, 1)[0];
+            const negation = /(?:は|を|も)?(?:実行|実施)?(?:しない(?:でください)?|しません|行わない(?:でください)?|禁止)/u.exec(sentenceTail);
+            const listPrefix = negation ? sentenceTail.slice(0, negation.index) : '';
+            const isNegated = /(?:do not|don't|must not)\s*$/u.test(normalized.slice(Math.max(0, index - 16), index))
+                || Boolean(negation && !/(?:して|し、|し,|した|する|してください|せよ|しろ)/u.test(listPrefix));
+            if (!isConditionalTeForm && !isNegated) return true;
             offset = index + normalizedTerm.length;
         }
         return false;
@@ -237,6 +273,67 @@ function classificationRequest(request) {
     ));
     const commandParagraphs = materialStart < 0 ? paragraphs : paragraphs.slice(0, materialStart);
     return [...commandParagraphs, ...annotationCommands].join('\n\n').trim();
+}
+
+function positiveClassificationRequest(request, manifest) {
+    const positiveCommandTerms = manifest.semantic_matchers.positive_commands;
+    return request
+        .split(/(?<=[。！？.!?\n])/u)
+        .map((sentence) => {
+            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください|しないこと|するな|避けてください|しません|行いません|実行しません|禁止(?:です|されています)?(?=[、,;；。！？\s]|$)|不可(?:です)?(?=[、,;；。！？\s]|$))/u.exec(sentence);
+            if (japaneseBoundary) {
+                const beforeNegation = sentence.slice(0, japaneseBoundary.index);
+                const clauseBoundary = Math.max(
+                    beforeNegation.lastIndexOf('、'),
+                    beforeNegation.lastIndexOf(','),
+                    beforeNegation.lastIndexOf(';'),
+                    beforeNegation.lastIndexOf('；')
+                );
+                const positivePrefix = clauseBoundary >= 0
+                    ? beforeNegation.slice(0, clauseBoundary).trim()
+                    : '';
+                const keepPrefix = includesPositiveCommandClause(positivePrefix, positiveCommandTerms)
+                    ? positivePrefix
+                    : '';
+                const afterNegation = sentence.slice(japaneseBoundary.index + japaneseBoundary[0].length);
+                const tailBoundary = /^[、,;；]/u.exec(afterNegation);
+                const tailCandidate = tailBoundary
+                    ? afterNegation.slice(tailBoundary[0].length).replace(/^[、,;；。！？\s]+/u, '')
+                    : '';
+                const positiveTail = includesPositiveCommandClause(tailCandidate, positiveCommandTerms)
+                    ? tailCandidate
+                    : '';
+                return [keepPrefix, positiveTail].filter(Boolean).join('。');
+            }
+            const englishBoundary = /\b(?:do not|don't|must not|never|no(?!-)|is prohibited|are prohibited|is forbidden|are forbidden)\b/iu.exec(sentence);
+            if (englishBoundary) {
+                const beforeNegation = sentence.slice(0, englishBoundary.index);
+                const suffixProhibition = /^(?:is|are) (?:prohibited|forbidden)$/iu.test(englishBoundary[0]);
+                const clauseBoundary = Math.max(beforeNegation.lastIndexOf(','), beforeNegation.lastIndexOf(';'));
+                const positiveMaterial = suffixProhibition
+                    ? (clauseBoundary >= 0 ? beforeNegation.slice(0, clauseBoundary) : '')
+                    : beforeNegation;
+                const positivePrefix = positiveMaterial
+                    .replace(/\b(?:but|and)\s*$/iu, '')
+                    .replace(/[,;:\s]+$/u, '')
+                    .trim();
+                const keepPrefix = includesPositiveCommandClause(positivePrefix, positiveCommandTerms)
+                    ? positivePrefix
+                    : '';
+                const afterNegation = sentence.slice(englishBoundary.index + englishBoundary[0].length);
+                const tailBoundary = /(?:[;；]|,\s*(?:but|and(?: then)?)\s+)/iu.exec(afterNegation);
+                const tailCandidate = tailBoundary
+                    ? afterNegation.slice(tailBoundary.index + tailBoundary[0].length).replace(/^[,.;:!?\s]+/u, '')
+                    : '';
+                const positiveTail = includesPositiveCommandClause(tailCandidate, positiveCommandTerms)
+                    ? tailCandidate
+                    : '';
+                return [keepPrefix, positiveTail].filter(Boolean).join('. ');
+            }
+            return sentence;
+        })
+        .join('')
+        .trim();
 }
 
 function sortByOrder(values, order) {
@@ -403,6 +500,7 @@ function validateManifest(manifest, lock) {
     for (const [key, terms] of Object.entries(matchers.domains)) validateStringTerms(terms, `judgment domain matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.signals)) validateStringTerms(terms, `judgment signal matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.safety)) validateStringTerms(terms, `judgment safety matcher ${key}`);
+    validateStringTerms(matchers.positive_commands, 'judgment positive command matcher');
     validateStringTerms(matchers.follow_up, 'judgment follow-up matcher');
     const autonomy = manifest.autonomy;
     if (!autonomy || autonomy.schema_version !== 'brainbase-autonomy-policy-v1') throw new TypeError('judgment autonomy policy is invalid');
@@ -568,6 +666,20 @@ function matchingIntent(text, manifest) {
     }) || null;
 }
 
+function includesFollowUpTerm(text, terms) {
+    const normalized = text.toLocaleLowerCase('ja');
+    return terms.some((term) => {
+        const normalizedTerm = term.toLocaleLowerCase('ja');
+        if (normalizedTerm === 'これ' || normalizedTerm === 'こちら') {
+            return new RegExp(`${escapeRegExp(normalizedTerm)}(?:は(?:[？?]|どう|何|どれ|どこ|いつ|誰|なぜ)|(?!は))`, 'u').test(normalized);
+        }
+        if (normalizedTerm === 'では') {
+            return /^(?:では)(?:[、,\s]|$)/u.test(normalized.trimStart());
+        }
+        return includesTerm(normalized, [normalizedTerm]);
+    });
+}
+
 function classificationFromPriorContext(input, manifest) {
     const context = input.conversation_context;
     if (!context) return null;
@@ -601,11 +713,11 @@ function classificationFromPriorContext(input, manifest) {
 
 function classify(input, manifest) {
     const matchers = manifest.semantic_matchers;
-    const request = classificationRequest(input.request);
+    const request = positiveClassificationRequest(classificationRequest(input.request), manifest);
     const detectedDomains = matchingKeys(request, matchers.domains, manifest.selectors.domain_order.filter((domain) => domain !== 'general'));
     const detectedSignals = matchingKeys(request, matchers.signals, manifest.selectors.signal_order);
     const detectedIntent = matchingIntent(request, manifest);
-    const followsPrior = includesTerm(request, matchers.follow_up);
+    const followsPrior = includesFollowUpTerm(request, matchers.follow_up);
     const prior = followsPrior ? classificationFromPriorContext(input, manifest) : null;
     const inheritedDomains = detectedDomains.length === 0 && prior ? prior.classification.domains.filter((domain) => domain !== 'general') : [];
     const inheritedSignals = detectedSignals.length === 0 && prior ? prior.classification.signals : [];

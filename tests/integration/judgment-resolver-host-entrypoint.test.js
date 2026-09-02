@@ -324,6 +324,91 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(exhausted.stderr).toContain('judgment_stop_repair_exhausted');
     }, 20_000);
 
+    it('Codex App委任turnはUserPromptSubmitなしでもStop前に同じturnのepisodeへ復元される', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const transcript = join(root, 'agent-created.jsonl');
+        const identity = { session_id: 'session-agent-created-entrypoint', turn_id: 'turn-agent-created-entrypoint' };
+        const prompt = 'Canonical Taskへ検証項目を登録してください。';
+        writeFileSync(transcript, [
+            JSON.stringify({ type: 'session_meta', payload: { id: identity.session_id } }),
+            JSON.stringify({
+                type: 'response_item',
+                payload: {
+                    type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
+                    output: [
+                        '<codex_delegation>',
+                        '  <source_thread_id>source-thread</source_thread_id>',
+                        `  <input>${prompt}</input>`,
+                        '</codex_delegation>'
+                    ].join('\n'),
+                    internal_chat_message_metadata_passthrough: { turn_id: identity.turn_id }
+                }
+            })
+        ].join('\n'));
+        let requestCount = 0;
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                requestCount += 1;
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({
+                    management_status: 'managed',
+                    receipt: {
+                        resolution_id: 'jr_agent_created_entrypoint',
+                        turn_id: args.turn_id,
+                        request_digest: hash(canonicalJson(args)),
+                        context_digest: hash(canonicalJson(args.conversation_context)),
+                        status: 'resolved', runtime_version: 'judgment-runtime-2.4.0',
+                        host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                        classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['operations'] },
+                        selected_dag_ids: ['operations.v1', 'authority.v1'],
+                        autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                        allowed_runtime_escalation_reasons: [
+                            'irreversible_action', 'missing_authority', 'owner_value_choice',
+                            'required_input_unavailable', 'evidenced_terminal_blocker'
+                        ],
+                        active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Complete the task.' }]
+                    }
+                }));
+            });
+        });
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal,
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root
+        };
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+
+        const stopped = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, transcript_path: transcript,
+                cwd: REPO_ROOT, stop_hook_active: false,
+                last_assistant_message: 'このタスクを登録してよいですか？'
+            })
+        });
+
+        expect(stopped).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(stopped.stdout)).toMatchObject({
+            decision: 'block',
+            systemMessage: '🔁 確認不要と判定しました。回答を差し戻して処理を続けています'
+        });
+        expect(requestCount).toBe(1);
+        const directory = join(journal, hash(identity.session_id));
+        const episodes = readdirSync(directory).filter((name) => name.endsWith('.episode.json'));
+        expect(episodes).toHaveLength(1);
+        expect(JSON.parse(readFileSync(join(directory, episodes[0]), 'utf8'))).toMatchObject({
+            schema_version: 'brainbase-judgment-episode-v1', state: 'open', request_text_digest: hash(prompt),
+            episode_origin: 'stop_delegation_recovery', route_application: 'post_generation_recovery'
+        });
+        expect(existsSync(join(directory, `${hash(identity.turn_id)}.audit-failure.json`))).toBe(false);
+    }, 20_000);
+
     // Traceability: story-judgment-audit-continuity-v1:ac:3
     // Traceability: story-judgment-audit-continuity-v1:ac:4
     it('orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない', async () => {
@@ -726,7 +811,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         expect(unrelated).toMatchObject({ code: 0, stderr: '', stdout: '{}\n' });
         expect(existsSync(journal)).toBe(false);
-    });
+    }, 20_000);
 
     // Traceability: story-judgment-audit-continuity-v1:ac:8
     it('orphan PostToolUseはdigest-only markerと可視警告を残し、Stopのone-shot状態を消費しない', async () => {
@@ -1388,6 +1473,24 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(context).toContain('runtime_reason_code=risk_or_externalとしてHost確定理由と一字一句一致させる');
         const ownerLine = context.split('\n').find((line) => line.startsWith('🧠 判断参照:'));
 
+        const prematureQuestion = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: false,
+            last_assistant_message: [
+                ownerLine,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '本番へ反映してよいですか？'
+            ].join('\n')
+        }) });
+        const prematureOutput = JSON.parse(prematureQuestion.stdout);
+        expect(prematureOutput).toMatchObject({ decision: 'block' });
+        expect(prematureOutput.reason).toContain('waiting_human');
+        expect(prematureOutput.systemMessage ?? '').not.toContain('🔁');
+        const continuation = JSON.parse(readFileSync(
+            join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.continuation.json`),
+            'utf8'
+        ));
+        expect(continuation.autonomy_continuation).toBeUndefined();
+
         const recordState = (toolUseId, status, runtimeReasonCode) => run('bash', [wrapper], {
             env,
             input: JSON.stringify({
@@ -1421,6 +1524,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const answer = [
             ownerLine,
             '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
             '⚠️ 確認が必要[risk_or_external]: 本番へ反映してよいか承認してください。'
         ].join('\n');
         const stopped = await run('bash', [wrapper], { env, input: JSON.stringify({
@@ -1441,6 +1545,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
     it('実際に差し戻した質問だけを入口から判断レシートへ投影する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
+        const transcript = join(root, 'delegated-session.jsonl');
         const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
         const hostUrl = await listen((request, response) => {
             let body = '';
@@ -1462,22 +1567,38 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             });
         });
         const identity = { session_id: 'session-value-proof-entrypoint', turn_id: 'turn-value-proof-entrypoint' };
+        const delegatedPrompt = '既存の正本を更新して';
+        writeFileSync(transcript, [
+            JSON.stringify({ type: 'session_meta', payload: { id: identity.session_id } }),
+            JSON.stringify({ type: 'response_item', payload: {
+                type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
+                output: `<codex_delegation><source_thread_id>source-thread</source_thread_id><input>${delegatedPrompt}</input></codex_delegation>`,
+                internal_chat_message_metadata_passthrough: { turn_id: identity.turn_id }
+            } })
+        ].join('\n'));
         const env = { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journal,
             BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
             BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'enabled' };
-        const started = await run('bash', [wrapper], { env, input: JSON.stringify({
-            hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '既存の正本を更新して'
-        }) });
-        const context = JSON.parse(started.stdout).hookSpecificOutput.additionalContext;
-        expect(context).toContain('brainbase_judgment_value_proof_record');
-        const ownerLine = context.split('\n').find((line) => line.startsWith('🧠 判断参照:'));
-        const zeroLine = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
         const question = '既存文書を更新するか、新規文書を作るか？';
         const interrupted = await run('bash', [wrapper], { env, input: JSON.stringify({
-            hook_event_name: 'Stop', ...identity, stop_hook_active: false,
-            last_assistant_message: `${ownerLine}\n${zeroLine}\n\n${question}`
+            hook_event_name: 'Stop', ...identity, transcript_path: transcript,
+            cwd: REPO_ROOT, stop_hook_active: false, last_assistant_message: question
         }) });
-        expect(JSON.parse(interrupted.stdout)).toMatchObject({ decision: 'block' });
+        const interruptedOutput = JSON.parse(interrupted.stdout);
+        expect(interruptedOutput).toMatchObject({ decision: 'block' });
+        expect(interruptedOutput.reason).toContain('brainbase_judgment_value_proof_record');
+        expect(interruptedOutput.reason).toContain('brainbase_judgment_state_record');
+        expect(interruptedOutput.reason.indexOf('brainbase_judgment_value_proof_record'))
+            .toBeLessThan(interruptedOutput.reason.indexOf('brainbase_judgment_state_record'));
+        expect(interruptedOutput.reason).toContain(question);
+        const episodePath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.episode.json`);
+        const episode = JSON.parse(readFileSync(episodePath, 'utf8'));
+        expect(episode).toMatchObject({
+            episode_origin: 'stop_delegation_recovery',
+            route_application: 'post_generation_recovery'
+        });
+        const ownerLine = episode.owner_audit.display_line;
 
         const proofInput = {
             schema_version: 'brainbase-judgment-value-proof-input-v1',
@@ -1514,15 +1635,21 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const completed = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: true,
             last_assistant_message: [ownerLine, readbackLine,
-                '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓',
+                '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
                 '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓', '', '更新と検証を完了しました。'].join('\n')
         }) });
         expect(completed).toMatchObject({ code: 0, stderr: '' });
         const output = JSON.parse(completed.stdout).systemMessage;
-        expect(output).toContain('Brainbase判断レシート');
+        expect(output.match(/Brainbase判断レシート/gu)).toHaveLength(1);
         expect(output).toContain('結果: 更新内容を読み戻して確認した');
         expect(output).toContain('判断: 既存SSOTを最小更新する');
         expect(readFileSync(join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.value-proof.json`), 'utf8')).toContain(hash(question));
+        expect(JSON.parse(readFileSync(
+            join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`), 'utf8'
+        ))).toMatchObject({
+            episode_origin: 'stop_delegation_recovery',
+            route_application: 'post_generation_recovery'
+        });
     }, 20_000);
 
     it('必要なknowledge/stateが揃い監査行だけ欠けた初回Stopを同じStopで確定する', async () => {

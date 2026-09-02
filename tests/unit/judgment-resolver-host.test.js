@@ -297,6 +297,10 @@ describe('Codex Judgment Resolver Host', () => {
             { request: '原因を調べて', conversation_context: { messages: [] } },
             { classification: { intent: 'diagnose', domains: ['engineering'], action_kind: 'read' } }
         ).hookSpecificOutput.additionalContext;
+        const localWriteContext = successOutput(
+            { request: '一時ファイルへ書いて', conversation_context: { messages: [] } },
+            { classification: { intent: 'implement', domains: ['general'], action_kind: 'write' } }
+        ).hookSpecificOutput.additionalContext;
 
         expect(implementContext).toContain(
             'Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.'
@@ -306,6 +310,9 @@ describe('Codex Judgment Resolver Host', () => {
             'Story → Spec → implement → affected tests → one review wave → GitHub PR → CI → merge'
         );
         expect(diagnoseContext).not.toContain(
+            'Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.'
+        );
+        expect(localWriteContext).not.toContain(
             'Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.'
         );
     });
@@ -461,6 +468,254 @@ describe('Codex Judgment Resolver Host', () => {
         expect(args.conversation_context.source_digest).toBe(hash(canonicalJson(withoutDigest)));
     });
 
+    it.each(['create_thread', 'send_message_to_thread'])(
+        'UserPromptSubmitがないCodex App %s委任turnをStopで復元し、不要な確認を差し戻す', async (delegationName) => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = `session-agent-created-${delegationName}`;
+        const turnId = `turn-agent-created-${delegationName}`;
+        const prompt = '安全な範囲で修正を完了してください。';
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            event('response_item', {
+                type: 'function_call_output',
+                name: delegationName,
+                namespace: 'codex_app',
+                output: [
+                    '<codex_delegation>',
+                    '  <source_thread_id>source-thread</source_thread_id>',
+                    `  <input>${prompt}</input>`,
+                    '</codex_delegation>'
+                ].join('\n'),
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            }),
+            event('response_item', {
+                type: 'message', role: 'assistant',
+                content: [{ type: 'output_text', text: 'このタスクを登録してよいですか？' }],
+                internal_chat_message_metadata_passthrough: { turn_id: turnId, phase: 'final_answer' }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const fetchImpl = vi.fn(async (_url, options) => {
+            const args = JSON.parse(options.body);
+            expect(args.conversation_context.messages.filter((message) => message.turn_id === turnId)).toEqual([
+                { sequence: 0, turn_id: turnId, role: 'user', phase: null, text: prompt }
+            ]);
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    management_status: 'managed',
+                    receipt: {
+                        ...validReceipt(args),
+                        runtime_version: 'judgment-runtime-2.4.0',
+                        classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+                        selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                        autonomy_decision: 'continue',
+                        autonomy_reason_code: 'routine_in_scope',
+                        allowed_runtime_escalation_reasons: [
+                            'irreversible_action', 'missing_authority', 'owner_value_choice',
+                            'required_input_unavailable', 'evidenced_terminal_blocker'
+                        ]
+                    }
+                })
+            };
+        });
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop',
+            session_id: sessionId,
+            turn_id: turnId,
+            transcript_path: transcript,
+            cwd: process.cwd(),
+            stop_hook_active: false,
+            last_assistant_message: 'このタスクを登録してよいですか？'
+        }, { env, fetchImpl });
+
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(result).toMatchObject({ decision: 'block' });
+        expect(result.systemMessage).toBe('🔁 確認不要と判定しました。回答を差し戻して処理を続けています');
+        expect(result.reason).toContain('不要な確認質問を回答本文に残さず');
+        const episodeFiles = readdirSync(join(root, 'journal', hash(sessionId)))
+            .filter((name) => name.endsWith('.episode.json'));
+        expect(episodeFiles).toHaveLength(1);
+        const episode = JSON.parse(readFileSync(join(root, 'journal', hash(sessionId), episodeFiles[0]), 'utf8'));
+        expect(episode.request_text_digest).toBe(hash(prompt));
+        expect(episode).toMatchObject({
+            episode_origin: 'stop_delegation_recovery',
+            route_application: 'post_generation_recovery'
+        });
+    });
+
+    it('確認質問を含まない最初のStopでも正規委任episodeを復元する', async () => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = 'session-delegation-no-question';
+        const turnId = 'turn-delegation-no-question';
+        const prompt = '安全な範囲で修正を完了してください。';
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            event('response_item', {
+                type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
+                output: `<codex_delegation><source_thread_id>source-thread</source_thread_id><input>${prompt}</input></codex_delegation>`,
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const fetchImpl = vi.fn(async (_url, options) => {
+            const args = JSON.parse(options.body);
+            return {
+                ok: true, status: 200, json: async () => ({
+                    management_status: 'managed',
+                    receipt: {
+                        ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+                        classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+                        selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                        autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                        allowed_runtime_escalation_reasons: [
+                            'irreversible_action', 'missing_authority', 'owner_value_choice',
+                            'required_input_unavailable', 'evidenced_terminal_blocker'
+                        ]
+                    }
+                })
+            };
+        });
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, cwd: process.cwd(), stop_hook_active: false,
+            last_assistant_message: '修正対象を確認しました。'
+        }, { env, fetchImpl });
+
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(result).toMatchObject({ decision: 'block' });
+        expect(result.reason).toContain('安全な範囲の作業結果を続けてください');
+        const episodePath = join(root, 'journal', hash(sessionId), `${hash(turnId)}.episode.json`);
+        expect(JSON.parse(readFileSync(episodePath, 'utf8'))).toMatchObject({
+            episode_origin: 'stop_delegation_recovery',
+            route_application: 'post_generation_recovery'
+        });
+        expect(existsSync(join(root, 'journal', hash(sessionId), `${hash(turnId)}.value-proof.json`))).toBe(false);
+    });
+
+    it.each([
+        ['別toolの出力', { name: 'exec_command', namespace: 'codex_app', output: '<codex_delegation><source_thread_id>x</source_thread_id><input>修正して</input></codex_delegation>' }],
+        ['別namespaceの出力', { name: 'create_thread', namespace: 'other_app', output: '<codex_delegation><source_thread_id>x</source_thread_id><input>修正して</input></codex_delegation>' }],
+        ['壊れた委任包み', { name: 'create_thread', namespace: 'codex_app', output: '<codex_delegation><input>修正して</input>' }],
+        ['別turnの委任', { name: 'send_message_to_thread', namespace: 'codex_app', output: '<codex_delegation><source_thread_id>x</source_thread_id><input>修正して</input></codex_delegation>', turn_id: 'turn-old' }]
+    ])('%sはStop時episodeへ推測採用しない', async (_label, delegated) => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = 'session-delegation-rejected';
+        const turnId = 'turn-current';
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            event('response_item', {
+                type: 'function_call_output',
+                name: delegated.name,
+                namespace: delegated.namespace,
+                output: delegated.output,
+                internal_chat_message_metadata_passthrough: { turn_id: delegated.turn_id ?? turnId }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const fetchImpl = vi.fn();
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, stop_hook_active: false,
+            last_assistant_message: '確認しますか？'
+        }, { env, fetchImpl });
+
+        expect(fetchImpl).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ decision: 'block' });
+        expect(result.reason).toContain('judgment_episode_not_found');
+    });
+
+    it('同一turnに委任候補が複数ある場合はStop時episodeへ推測採用しない', async () => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = 'session-multiple-delegations';
+        const turnId = 'turn-multiple-delegations';
+        const delegatedOutput = (prompt) =>
+            `<codex_delegation><source_thread_id>x</source_thread_id><input>${prompt}</input></codex_delegation>`;
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            event('response_item', {
+                type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
+                output: delegatedOutput('最初の依頼'),
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            }),
+            event('response_item', {
+                type: 'function_call_output', name: 'send_message_to_thread', namespace: 'codex_app',
+                output: delegatedOutput('後続の依頼'),
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const fetchImpl = vi.fn();
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, stop_hook_active: false,
+            last_assistant_message: '確認しますか？'
+        }, { env, fetchImpl });
+
+        expect(fetchImpl).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ decision: 'block' });
+        expect(result.reason).toContain('judgment_episode_not_found');
+    });
+
+    it('別session componentが混在するtranscriptは委任候補を採用しない', async () => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = 'session-current-component';
+        const turnId = 'turn-shared-across-components';
+        const delegation = (prompt) =>
+            `<codex_delegation><source_thread_id>x</source_thread_id><input>${prompt}</input></codex_delegation>`;
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            event('response_item', {
+                type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
+                output: delegation('CURRENT PROMPT'),
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            }),
+            event('session_meta', { id: 'foreign-session' }),
+            event('response_item', {
+                type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
+                output: delegation('FOREIGN PROMPT'),
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const fetchImpl = vi.fn();
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, stop_hook_active: false,
+            last_assistant_message: '確認しますか？'
+        }, { env, fetchImpl });
+
+        expect(fetchImpl).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ decision: 'block' });
+        expect(result.reason).toContain('judgment_episode_not_found');
+    });
+
     it('rolloutとroot sessionの複数metaがあっても一致済みsessionを維持する', () => {
         const root = temporaryDirectory();
         const transcript = join(root, 'session.jsonl');
@@ -489,6 +744,37 @@ describe('Codex Judgment Resolver Host', () => {
         expect(args.conversation_context.messages.map((message) => message.text)).toEqual([
             'Resolverの実装に進んで',
             'それでいい。修正して'
+        ]);
+    });
+
+    it('session aliasのbridgeが後に記録されても同じcomponentを順序非依存で復元する', () => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const rolloutSessionId = 'rollout-session-late-bridge';
+        const rootSessionId = 'root-session-before-bridge';
+        writeFileSync(transcript, [
+            event('session_meta', { id: rootSessionId, session_id: rootSessionId }),
+            event('response_item', {
+                type: 'message', role: 'user', content: [{ type: 'input_text', text: 'bridge前の正規依頼' }],
+                internal_chat_message_metadata_passthrough: { turn_id: 'turn-prior' }
+            }),
+            event('session_meta', { id: rolloutSessionId, session_id: rootSessionId })
+        ].join('\n'));
+
+        const args = buildJudgmentRequest({
+            session_id: rolloutSessionId, turn_id: 'turn-current', prompt: '続けて修正して',
+            transcript_path: transcript, cwd: process.cwd()
+        }, {
+            env: {
+                BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+                BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+            }
+        });
+
+        expect(args.conversation_context.completeness).toBe('complete');
+        expect(args.conversation_context.messages.map((message) => message.text)).toEqual([
+            'bridge前の正規依頼',
+            '続けて修正して'
         ]);
     });
 
@@ -600,6 +886,8 @@ describe('Codex Judgment Resolver Host', () => {
         expect(first).toMatchObject({
             schema_version: 'brainbase-judgment-episode-v1',
             state: 'open',
+            episode_origin: 'user_prompt_submit',
+            route_application: 'pre_generation',
             initial_route_receipt: { resolution_id: 'jr_host_test' }
         });
         const journalDirectory = join(root, 'journal', hash(payload.session_id));
@@ -1225,6 +1513,46 @@ describe('Codex Judgment Resolver Host', () => {
         expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(true);
     });
 
+    it.each([
+        ['両方欠落', (final) => { delete final.episode_origin; delete final.route_application; }],
+        ['片方欠落', (final) => { delete final.route_application; }],
+        ['値不一致', (final) => { final.route_application = 'post_generation_recovery'; }]
+    ])('lifecycle付きepisodeはfinal markerの%sをfail-closedにする', async (_label, mutate) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: `session-final-lifecycle-${_label}`,
+            turn_id: `turn-final-lifecycle-${_label}`,
+            prompt: '判断結果を返して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const answer = `${episode.owner_audit.display_line}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n回答`;
+        finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: answer
+        }, { env });
+        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
+        const final = JSON.parse(readFileSync(finalPath, 'utf8'));
+        mutate(final);
+        writeFileSync(finalPath, `${JSON.stringify(final, null, 2)}\n`);
+
+        expect(() => finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true, last_assistant_message: answer
+        }, { env })).toThrow('judgment_episode_final_lifecycle_mismatch');
+    });
+
     it('継続中にknowledge routeを取得すればcompleteとして一度だけ確定する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
@@ -1386,11 +1714,21 @@ describe('Codex Judgment Resolver Host', () => {
             session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: false, last_assistant_message: answer
         }, { env }).final;
+        const episodePath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.episode.json`);
         const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
-        writeFileSync(finalPath, `${JSON.stringify({
+        const legacyEpisode = JSON.parse(readFileSync(episodePath, 'utf8'));
+        delete legacyEpisode.episode_origin;
+        delete legacyEpisode.route_application;
+        writeFileSync(episodePath, `${JSON.stringify(legacyEpisode, null, 2)}\n`);
+        const legacyFinal = {
             ...created,
             schema_version: 'brainbase-judgment-episode-final-v1',
             event_set_digest: hash(canonicalJson([recorded.event_fingerprint].sort()))
+        };
+        delete legacyFinal.episode_origin;
+        delete legacyFinal.route_application;
+        writeFileSync(finalPath, `${JSON.stringify({
+            ...legacyFinal
         }, null, 2)}\n`);
 
         expect(finalizeEpisode({
