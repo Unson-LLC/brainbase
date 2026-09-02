@@ -39,6 +39,30 @@ function activeRegistryWith(overrides = {}) {
 }
 
 describe('InfoSSOTService ontology API', () => {
+    it('publishes the production receipt verification source without exposing key material', () => {
+        const previousPublicKey = process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        delete process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        try {
+            const result = new InfoSSOTService({
+                ontologyRegistry: new OntologyRegistry({ rootDir: sourceRoot })
+            }).describeOntology({ version: '1.1.0' });
+            expect(result).toMatchObject({
+                version: '1.1.0',
+                publication_verification: {
+                    status: 'verified',
+                    key_id: 'brainbase-ontology-production-2026-08-03',
+                    signature_algorithm: 'ed25519',
+                    trust_source: 'git_trust_store',
+                    receipt_digest: expect.stringMatching(/^[a-f0-9]{64}$/)
+                }
+            });
+            expect(JSON.stringify(result.publication_verification)).not.toContain('PUBLIC KEY');
+        } finally {
+            if (previousPublicKey === undefined) delete process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+            else process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY = previousPublicKey;
+        }
+    });
+
     it('describes an explicit immutable release with its digest', () => {
         const result = createService().describeOntology({ version: '1.0.0' });
         expect(result).toMatchObject({ version: '1.0.0', effective_status: 'proposed' });

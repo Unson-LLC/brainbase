@@ -196,46 +196,40 @@ describe('remote judgment Hook HTTP boundary', () => {
     });
   });
 
-  it('accepts an empty audit result for the internal judgment state tool', async () => {
-    const result = await handleRemoteJudgmentHookRequest(request({
-      body: Buffer.from(JSON.stringify({
-        hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
-        tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
-      })),
-      dispatch: async () => ({ output: {} }),
-    }));
-    assert.deepEqual(result, {
-      status: 200,
-      body: {
-        schema_version: '1', accepted: true,
-        hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
-        output: {},
-      },
-    });
-  });
-
-  it('rejects the exact internal state tool name when supplied through the camelCase alias', async () => {
-    const result = await handleRemoteJudgmentHookRequest(request({
-      body: Buffer.from(JSON.stringify({
-        hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
-        toolName: 'mcp__brainbase__brainbase_judgment_state_record',
-      })),
-      dispatch: async () => ({ output: {} }),
-    }));
-    assert.deepEqual(result, {
-      status: 503, body: { error: 'judgment_hook_audit_not_recorded' },
-    });
-  });
-
-  for (const [label, toolNameKey, toolName] of [
-    ['bare tool name', 'tool_name', 'brainbase_judgment_state_record'],
-    ['camelCase payload alias', 'toolName', 'brainbase_judgment_state_record'],
+  for (const [field, toolName] of [
+    ['tool_name', 'mcp__brainbase__brainbase_judgment_state_record'],
+    ['tool_name', 'brainbase_judgment_state_record'],
+    ['toolName', 'mcp__brainbase__brainbase_judgment_state_record'],
+    ['toolName', 'brainbase_judgment_state_record'],
   ] as const) {
-    it(`does not widen the empty-audit exception to ${label}`, async () => {
+    it(`accepts an empty audit result for the canonical internal judgment state tool form ${field}:${toolName}`, async () => {
       const result = await handleRemoteJudgmentHookRequest(request({
         body: Buffer.from(JSON.stringify({
           hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
-          [toolNameKey]: toolName,
+          [field]: toolName,
+        })),
+        dispatch: async () => ({ output: {} }),
+      }));
+      assert.deepEqual(result, {
+        status: 200,
+        body: {
+          schema_version: '1', accepted: true,
+          hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
+          output: {},
+        },
+      });
+    });
+  }
+
+  for (const toolName of [
+    'prefix_brainbase_judgment_state_record',
+    'brainbase_judgment_state_record_suffix',
+  ]) {
+    it(`rejects an empty audit result for a near-match internal tool name ${toolName}`, async () => {
+      const result = await handleRemoteJudgmentHookRequest(request({
+        body: Buffer.from(JSON.stringify({
+          hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
+          tool_name: toolName,
         })),
         dispatch: async () => ({ output: {} }),
       }));

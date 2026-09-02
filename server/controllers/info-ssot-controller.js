@@ -243,7 +243,8 @@ export class InfoSSOTController {
         try {
             res.json(await this.graphMaintenanceService.validate(this.maintenanceAccess(req), {
                 projectCode: req.body?.project_code,
-                includeProjectCodes: req.body?.include_project_codes
+                includeProjectCodes: req.body?.include_project_codes,
+                strictCollection: req.body?.strict_collection === true
             }));
         } catch (error) {
             logger.error('Failed to validate maintained Graph', { error });

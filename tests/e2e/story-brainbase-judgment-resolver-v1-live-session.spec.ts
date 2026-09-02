@@ -442,6 +442,8 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         .update(canonicalJson(runtimeManifest))
         .digest('hex');
     assert.equal(candidate.episode.state, 'open', 'Episode remains immutable after finalization');
+    assert.equal(candidate.episode.episode_origin, 'user_prompt_submit');
+    assert.equal(candidate.episode.route_application, 'pre_generation');
     assert.equal(candidate.episode.initial_route_receipt?.status, 'resolved');
     assert.equal(
         candidate.episode.initial_route_receipt?.runtime_version,

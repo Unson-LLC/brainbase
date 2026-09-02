@@ -141,12 +141,12 @@ describe('Graph maintenance REST/MCP contract', () => {
         const validated = await request(app)
             .post('/api/info/graph/maintenance/validate')
             .set({ ...bearerHeaders(), 'x-brainbase-projects': 'brainbase,vibepro' })
-            .send({ project_code: 'brainbase', include_project_codes: ['vibepro'] })
+            .send({ project_code: 'brainbase', include_project_codes: ['vibepro'], strict_collection: true })
             .expect(200);
         expect(validated.body).toEqual(responses.validate);
         expect(spies.validate).toHaveBeenCalledWith(
             expect.objectContaining({ organizationId: 'org_unson' }),
-            { projectCode: 'brainbase', includeProjectCodes: ['vibepro'] }
+            { projectCode: 'brainbase', includeProjectCodes: ['vibepro'], strictCollection: true }
         );
     });
 

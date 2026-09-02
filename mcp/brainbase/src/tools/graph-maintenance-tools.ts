@@ -169,7 +169,7 @@ export const graphMaintenanceTools: Tool[] = [
   },
   {
     name: 'graph_validate', description: 'Validate ontology, referential integrity, duplicates, orphans, versions, and snapshot hash.',
-    inputSchema: { type: 'object', properties: { ...project, include_project_codes: { type: 'array', items: { type: 'string', minLength: 1 }, uniqueItems: true } }, required: ['project_code'], additionalProperties: false },
+    inputSchema: { type: 'object', properties: { ...project, include_project_codes: { type: 'array', items: { type: 'string', minLength: 1 }, uniqueItems: true }, strict_collection: { type: 'boolean' } }, required: ['project_code'], additionalProperties: false },
   },
 ];
 
@@ -181,7 +181,7 @@ function requestFor(name: string, args: Record<string, unknown>) {
   if (name === 'graph_apply_plan') return { path: `/api/info/graph/maintenance/plans/${id}/apply`, method: 'POST', body: { project_code: args.project_code, snapshot_hash: args.snapshot_hash, human_gate_receipt: args.human_gate_receipt } };
   if (name === 'graph_get_plan_receipt') return { path: `/api/info/graph/maintenance/plans/${id}/receipt?project_code=${encodeURIComponent(String(args.project_code))}`, method: 'GET' };
   if (name === 'graph_rollback_plan') return { path: `/api/info/graph/maintenance/plans/${id}/rollback`, method: 'POST', body: { project_code: args.project_code, apply_receipt_id: args.apply_receipt_id } };
-  return { path: '/api/info/graph/maintenance/validate', method: 'POST', body: { project_code: args.project_code, ...(args.include_project_codes ? { include_project_codes: args.include_project_codes } : {}) } };
+  return { path: '/api/info/graph/maintenance/validate', method: 'POST', body: { project_code: args.project_code, ...(args.include_project_codes ? { include_project_codes: args.include_project_codes } : {}), ...(args.strict_collection === true ? { strict_collection: true } : {}) } };
 }
 
 export async function handleGraphMaintenanceToolCall(name: string, args: Record<string, unknown>, dependencies: Dependencies): Promise<ToolResult | null> {

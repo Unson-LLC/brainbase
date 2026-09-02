@@ -1,124 +1,55 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-brainbase-production-artifact-reconciliation",
-  "generated_by": {
-    "caller": "codex",
-    "stage": "architecture"
-  },
   "clauses": [
     {
-      "id": "C-001",
-      "type": "contract",
-      "statement": "本番4ファイルの差分は保全commitとpatch IDで一致し、Remote Hook、Judgment Host、Ontologyの対象テストと型検査が合格した場合だけPRへ進める",
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "本番固有の4ファイル差分は、削除や上書きの前に正式なGit commitとのpatch ID一致を確認し、対象限定のpatch・content hash・旧SHA・専用rollback commitとして保全されなければならない。許可外の差分が1件でもあれば停止する。",
       "origin": {
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-001"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-002"
+            "index": 0,
+            "ac_id": "AC-001",
+            "text_snippet": "本番4ファイルの差分を、内容とパッチ同一性を維持した正式なGit commitとして保全"
           }
         ],
         "architecture_refs": [
           {
             "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
-            "section": "証拠契約"
-          }
-        ],
-        "code_refs": [
-          {
-            "file": "mcp/brainbase/src/remote-judgment-hook-http.ts"
-          },
-          {
-            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+            "section": "境界"
           }
         ],
         "test_refs": [
           {
-            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
-            "case": "accepts an empty audit result for the internal judgment state tool"
-          },
-          {
-            "file": "tests/unit/judgment-resolver-host.test.js",
-            "case": "ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する"
-          },
-          {
-            "file": "tests/server/services/ontology-registry.test.js",
-            "case": "resolves the active repository release with the distributed public trust anchor"
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番hotfix退避先を複数行出力から1件だけ抽出し、不正markerを拒否する"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/unit/judgment-resolver-host.test.js",
-            "must_cover": "ClaudeのMCP response形状"
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番hotfix退避先を複数行出力から1件だけ抽出し、不正markerを拒否する"
           }
         ]
       },
-      "first_seen_at": "2026-09-02T09:38:00.205Z",
-      "last_revised_at": "2026-09-02T09:50:07.016Z"
+      "first_seen_at": "2026-09-02T05:06:53.526Z",
+      "last_revised_at": "2026-09-02T05:40:58.443Z"
     },
     {
-      "id": "INV-001",
+      "id": "INV-002",
       "type": "invariant",
-      "statement": "空のPostToolUse監査出力を受理する例外は完全名mcp__brainbase__brainbase_judgment_state_recordだけとし、短縮名、別名、他toolはfail closedにする",
+      "statement": "Ontology署名検証はGit管理の信頼ストアを使用し、不完全なproduction公開鍵overrideを成功へフォールバックしてはならない。",
       "origin": {
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-001"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-007"
-          }
-        ],
-        "architecture_refs": [
-          {
-            "file": "docs/architecture/story-remote-judgment-hook.md",
-            "section": "信頼境界"
-          }
-        ],
-        "code_refs": [
-          {
-            "file": "mcp/brainbase/src/remote-judgment-hook-http.ts",
-            "anchor": "isInternalJudgmentStateTool"
-          }
-        ],
-        "test_refs": [
-          {
-            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
-            "case": "accepts an empty audit result for the internal judgment state tool"
-          }
-        ]
-      },
-      "verifiable_by": {
-        "test_pattern": [
-          {
-            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
-            "must_cover": "empty-audit exception"
-          }
-        ]
-      },
-      "first_seen_at": "2026-09-02T09:38:00.205Z",
-      "last_revised_at": "2026-09-02T09:50:07.016Z"
-    },
-    {
-      "id": "C-002",
-      "type": "contract",
-      "statement": "Claude MCPのcontent block配列とJSON文字列はsearch、retrieve、route、write、state、value_proof、汎用callの各event kindで意味的成功条件を再検証し、監査行欠落、error状態、壊れたJSON、意味的証拠のないcallを成功にしない",
-      "origin": {
-        "story_refs": [
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-001"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-007"
+            "index": 4,
+            "ac_id": "AC-005",
+            "text_snippet": "Ontology 1.1.0の公開物をGit管理の信頼ストアで検証"
           }
         ],
         "architecture_refs": [
@@ -129,177 +60,8 @@
         ],
         "code_refs": [
           {
-            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
-            "anchor": "responseSucceeded"
-          },
-          {
-            "file": "server/services/routine-runtime/judgment-value-proof-adapter.js"
-          }
-        ],
-        "test_refs": [
-          {
-            "file": "tests/unit/judgment-resolver-host.test.js",
-            "case": "ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する"
-          },
-          {
-            "file": "tests/unit/judgment-resolver-host.test.js",
-            "case": "Claudeのcontent block配列を全Brainbase event kindで意味検証しfail-closedにする"
-          },
-          {
-            "file": "tests/unit/judgment-value-proof-adapter.test.js",
-            "case": "extracts a strict value proof from a Claude content block array"
-          }
-        ]
-      },
-      "verifiable_by": {
-        "test_pattern": [
-          {
-            "file_glob": "tests/unit/judgment-resolver-host.test.js",
-            "must_cover": "Claudeのcontent block配列を全Brainbase event kindで意味検証しfail-closedにする"
-          }
-        ]
-      },
-      "first_seen_at": "2026-09-02T09:38:00.205Z",
-      "last_revised_at": "2026-09-02T09:50:07.016Z"
-    },
-    {
-      "id": "C-003",
-      "type": "contract",
-      "statement": "merge後の配備receiptはGlobal Hook、local UI/API、persistent MCP Host bridge、Lightsailの各直前SHAとmerge SHAを保存し、各面のcheckoutまたはreconcile receipt、process、version、readinessを独立して検査し、不明値を成功へ丸めない",
-      "origin": {
-        "story_refs": [
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-002"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-003"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-007"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-008"
-          }
-        ],
-        "architecture_refs": [
-          {
-            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
-            "section": "証拠契約"
-          }
-        ],
-        "code_refs": [
-          {
-            "file": "scripts/launchd/brainbase-runtime-readiness.sh"
-          }
-        ],
-        "test_refs": [
-          {
-            "file": "tests/unit/runtime-worktree-launchd.test.js",
-            "case": "rejects an old API SHA and dirty API response before accepting the exact clean SHA"
-          }
-        ]
-      },
-      "verifiable_by": {
-        "test_pattern": []
-      },
-      "first_seen_at": "2026-09-02T09:38:00.205Z",
-      "last_revised_at": "2026-09-02T09:50:07.016Z"
-    },
-    {
-      "id": "C-005",
-      "type": "contract",
-      "statement": "4実行面をmerge SHAへ揃えた後に作成した新しいCodexタスクで、同一turnのepisode、Brainbase tool event、complete final、Hook-visible transcript、ユーザー向け判断レシートが一意に対応した場合だけproven_activeとする",
-      "origin": {
-        "story_refs": [
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-002"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-003"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-007"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-008"
-          }
-        ],
-        "architecture_refs": [
-          {
-            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
-            "section": "証拠契約"
-          },
-          {
-            "file": "docs/brainbase-capabilities/runbooks/judgment-resolve.md",
-            "section": "Verification"
-          }
-        ],
-        "code_refs": [
-          {
-            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
-          },
-          {
-            "file": "server/services/routine-runtime/judgment-value-proof-adapter.js"
-          }
-        ],
-        "test_refs": [
-          {
-            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
-            "case": "実際に差し戻した質問だけを入口から判断レシートへ投影する"
-          }
-        ]
-      },
-      "verifiable_by": {
-        "test_pattern": [
-          {
-            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
-            "must_cover": "実際に差し戻した質問だけを入口から判断レシートへ投影する"
-          }
-        ]
-      },
-      "first_seen_at": "2026-09-02T10:00:00.000Z",
-      "last_revised_at": "2026-09-02T10:27:00.000Z"
-    },
-    {
-      "id": "C-004",
-      "type": "contract",
-      "statement": "同一runでOntology 1.1.0のGit信頼ストア署名検証と本番graph_validateを実行し、HTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、valid=trueがすべて揃った場合だけ完了とする",
-      "origin": {
-        "story_refs": [
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-004"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-005"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-006"
-          },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-007"
-          }
-        ],
-        "architecture_refs": [
-          {
-            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
-            "section": "証拠契約"
-          }
-        ],
-        "code_refs": [
-          {
-            "file": "server/services/ontology-registry.js"
+            "file": "server/services/ontology-release-trust.js",
+            "anchor": "trustedPublicKeyPem"
           },
           {
             "file": "config/ontology/trusted-public-keys.json"
@@ -320,34 +82,380 @@
           }
         ]
       },
-      "first_seen_at": "2026-09-02T09:38:00.205Z",
-      "last_revised_at": "2026-09-02T09:50:07.016Z"
-    }
-  ],
-  "planned_test_suites": [
-    {
-      "layer": "unit",
-      "covers": [
-        "Claude MCP response failure boundaries",
-        "internal state tool exact-name exception"
-      ]
+      "first_seen_at": "2026-09-02T04:46:51.325Z",
+      "last_revised_at": "2026-09-02T05:40:58.443Z"
     },
     {
-      "layer": "integration",
-      "covers": [
-        "Remote Hook HTTP contract"
-      ]
+      "id": "C-002",
+      "type": "invariant",
+      "statement": "公開Brainbase toolの成功監査はtoolごとの意味的成功schemaで判定し、空・失敗・503・partial・unknown・transport envelopeだけを成功として表示してはならない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6,
+            "ac_id": "AC-007",
+            "text_snippet": "失敗・503・部分取得・不明を成功として扱わず"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "証拠契約"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "公開Brainbase toolの意味的成功をfail-closedで判定する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "公開Brainbase toolの意味的成功をfail-closedで判定する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:00:00.000Z",
+      "last_revised_at": "2026-09-02T07:00:00.000Z"
     },
     {
-      "layer": "e2e",
-      "covers": [
-        "four runtime surfaces exact SHA and readiness readback",
-        "fresh Codex task episode event final and visible judgment receipt",
-        "production Ontology and Graph validation"
-      ]
+      "id": "C-005",
+      "type": "invariant",
+      "statement": "proven_activeは、同一turnのepisode、実Brainbase tool event、実際の中断候補、権限内の継続、実行成果物、正本読戻し、value proof、complete final、Hook-visible transcript、ユーザー向け判断レシート一回表示がevent IDとdigestで一意に対応する場合だけ成立する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 7,
+            "ac_id": "AC-008",
+            "text_snippet": "同一turnで照合できた場合だけproven_active"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "証拠契約"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
+            "case": "実行証拠、正本読戻し、value proof、final state、判断レシートを同一turnへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
+            "must_cover": "実行証拠、正本読戻し、value proof、final state、判断レシートを同一turnへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:00:00.000Z",
+      "last_revised_at": "2026-09-02T07:00:00.000Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "Given 本番ホットフィックスが正式なPRへ統合され、本番4ファイルだけがpatch・content hash・専用rollback commitへ保全され4面の切替前状態が取得済み、When global Hook・ローカル31013・常駐MCP・Lightsailを統合SHAへ揃える、Then 4面のcheckout・稼働process・version/readinessが同じ統合SHAを示し対象checkoutがcleanである。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-002",
+            "text_snippet": "ホットフィックスをレビュー・CI済みのPRでdevelopへ統合"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-003",
+            "text_snippet": "4面それぞれのcheckout・稼働プロセス・version/readinessが同じSHA"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "実行順序"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "accepts an empty audit result for the internal judgment state tool"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する"
+          },
+          {
+            "file": "tests/server/services/ontology-registry.test.js",
+            "case": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "accepts an empty audit result for the internal judgment state tool"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する"
+          },
+          {
+            "file_glob": "tests/server/services/ontology-registry.test.js",
+            "must_cover": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T04:46:51.325Z",
+      "last_revised_at": "2026-09-02T05:40:58.443Z"
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "Given production Infisicalに不完全な公開鍵overrideと有効な秘密鍵・key_idが存在する、When sharedのONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEYだけを削除して再取得する、Then 公開鍵overrideは不在となり秘密鍵とkey_idは値を表示せず同一性が確認され、同一runの設定証跡へ保存される。この除去はforward-only incident remediationであり、コード/runtime rollbackでも復元しない。rollbackは変更前に秘密鍵・key_idのdriftをfail-closed検査して秘密値非保持のoperator Receiptを保存し、秘密一時ファイルを終了時に削除する。rollback後にoverride不在を再取得し、Lightsail転送物のchecksumをlive反映前に、target checksumを反映後に読戻す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004",
+            "text_snippet": "production正本から不完全なONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEYだけを除去"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "境界"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:55:00.000Z",
+      "last_revised_at": "2026-09-02T05:55:00.000Z"
+    },
+    {
+      "id": "S-005",
+      "type": "scenario",
+      "statement": "Given 不完全なproduction公開鍵overrideが除去され修復済み環境が再投影された、When Git管理の信頼ストアでrepository verifierと本番Ontology 1.1.0 readbackを同じrunで実行する、Then 署名検証は成功し不正overrideへのfallbackは発生しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-005",
+            "text_snippet": "Ontology 1.1.0がGit信頼ストアで署名検証される"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "実行順序"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/ontology-registry.test.js",
+            "case": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/ontology-registry.test.js",
+            "must_cover": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:55:00.000Z",
+      "last_revised_at": "2026-09-02T05:55:00.000Z"
+    },
+    {
+      "id": "S-006",
+      "type": "scenario",
+      "statement": "Given 4面とOntologyが同一runの統合SHAへ収束済み、When production graph_validateをproject_code=brainbase・strict_collection=trueで実行する、Then HTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、抑止されたEdge 0件、valid=true、snapshot_hashを同じGraph responseから機械判定し、抑止理由とともにReceiptへ保存する。通常の認可scope抑止はstrictを指定しない限り従来のvalid契約を保つ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "ac_id": "AC-006",
+            "text_snippet": "同一runの本番graph_validateがHTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、抑止されたEdge 0件、valid=true"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "実行順序"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "通常の認可scope抑止は互換を保ち、strict本番収束だけを失敗させる"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "cross-tenant認可scopeとstrict collectionを別契約として検証しDecision subjectをRollbackする"
+          },
+          {
+            "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "case": "strict Graph抑止失敗を識別子なしでMCP利用者へ伝播する"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "通常の認可scope抑止は互換を保ち、strict本番収束だけを失敗させる"
+          },
+          {
+            "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "must_cover": "cross-tenant認可scopeとstrict collectionを別契約として検証しDecision subjectをRollbackする"
+          },
+          {
+            "file_glob": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "must_cover": "strict Graph抑止失敗を識別子なしでMCP利用者へ伝播する"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:55:00.000Z",
+      "last_revised_at": "2026-09-02T06:40:00.000Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "Given 4面が統合SHAへ揃い必要なHook trust承認が完了済み、When 通常のfresh taskでJudgment episodeと完全なowner auditを実証し、別のfresh taskで実際の中断候補から権限内の継続、実行成果物、正本読戻し、value proof、complete final、ユーザー向け判断レシートまでを同一turnへ束縛する、Then 前者をjudgment_lifecycle_active、両方が一意に対応した状態だけをproven_activeとする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 7,
+            "ac_id": "AC-008",
+            "text_snippet": "fresh Codex taskでJudgment episodeと実Brainbase event"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "実行順序"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
+            "case": "実行証拠、正本読戻し、value proof、final state、判断レシートを同一turnへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
+            "must_cover": "実行証拠、正本読戻し、value proof、final state、判断レシートを同一turnへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:00:00.000Z",
+      "last_revised_at": "2026-09-02T05:40:58.443Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "Given PR成果物はproduction_execution_status=not_runであり、PR・CI・4面のSHA/readiness・署名・Graph検証・fresh task実証のいずれかが不一致、When 本番収束を判定する、Then 成功とは報告せず、途中失敗は秘密値を含まないReceiptへ失敗工程・変更有無・rollback要否・取得済み証跡を保存し、記録済みSHAとHookファイルを使い、Lightsailは専用rollback commitへ戻してcontent hashを照合する正本runbookの順序で復旧できる。公開鍵override除去はforward-onlyとして維持し、秘密鍵・key_idの同一性と修復済みLightsail環境ファイルをrollback後に読戻す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6,
+            "ac_id": "AC-007",
+            "text_snippet": "不一致なら成功とは報告せずrollback手順を使用"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "失敗時の扱い"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番hotfixの復旧証跡を検証してからmerge済みSHAへ切り替える"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束の途中失敗を秘密値なしのoperator向けreceiptへ固定する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番hotfixの復旧証跡を検証してからmerge済みSHAへ切り替える"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束の途中失敗を秘密値なしのoperator向けreceiptへ固定する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T04:46:51.325Z",
+      "last_revised_at": "2026-09-02T05:40:58.443Z"
     }
   ],
-  "open_questions": [],
-  "generated_at": "2026-09-02T09:50:07.015Z",
-  "previous_spec_id": "2026-09-02T09:47:03.288Z"
+  "generated_at": "2026-09-02T04:46:51.324Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": "2026-09-02T04:46:51.324Z"
 }

@@ -226,6 +226,29 @@ describe('Graph maintenance MCP tools', () => {
     assert.equal(result?.error?.http_status, 200);
   });
 
+  it('strict Graph抑止失敗を識別子なしでMCP利用者へ伝播する', async () => {
+    let body;
+    const payload = {
+      collection_complete: false,
+      valid: false,
+      validation_scope: { strict_collection: true },
+      snapshot_hash: `sha256:${'b'.repeat(64)}`,
+      suppression_summary: { edge_count: 1, reasons: { unresolved_or_inaccessible_endpoint: 1 } },
+    };
+    const result = await handleGraphMaintenanceToolCall('graph_validate', {
+      project_code: 'brainbase', strict_collection: true,
+    }, deps(async (_url, init) => {
+      body = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify(payload), { status: 200 });
+    }));
+
+    assert.deepEqual(body, { project_code: 'brainbase', strict_collection: true });
+    assert.deepEqual(result, {
+      status: 'ok', scope: { project_codes: ['brainbase'] }, data: payload,
+    });
+    assert.equal(JSON.stringify(result).includes('hidden_entity'), false);
+  });
+
   it('scope外projectはHTTPへ到達する前に拒否する', async () => {
     let fetched = false;
     const result = await handleGraphMaintenanceToolCall('graph_validate', { project_code: 'other' }, deps(async () => {

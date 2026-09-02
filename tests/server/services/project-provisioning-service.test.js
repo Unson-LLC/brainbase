@@ -91,7 +91,7 @@ class MemoryRepository {
 
 function createHarness({
     failGrantOnce = false, authority, identityCollisions = [], projectSubjectIdentity = null,
-    graphEntities = []
+    graphEntities = [], graphValidation = { valid: true }
 } = {}) {
     const repository = new MemoryRepository({ authority, identityCollisions, projectSubjectIdentity });
     const graphCalls = [];
@@ -117,7 +117,7 @@ function createHarness({
                 }]
             };
         }),
-        validate: vi.fn(async () => { graphCalls.push('validate'); return { valid: true }; })
+        validate: vi.fn(async () => { graphCalls.push('validate'); return structuredClone(graphValidation); })
     };
     let failed = false;
     const authGrantService = {
@@ -756,6 +756,30 @@ describe('ProjectProvisioningService', () => {
             code: 'PROJECT_PROVISIONING_READBACK_FAILED'
         });
         await expect(service.status(actor, plan.run_id)).resolves.toMatchObject({ state: 'partial_failed' });
+    });
+
+    it('通常の認可scope抑止はProject provisioningを失敗させない', async () => {
+        const graphValidation = {
+            valid: true,
+            collection_complete: true,
+            validation_scope: { strict_collection: false },
+            suppression_summary: {
+                edge_count: 1,
+                reasons: { unresolved_or_inaccessible_endpoint: 1 }
+            }
+        };
+        const { service, repository, graphService } = createHarness({ graphValidation });
+        const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-scoped-suppression' });
+        await service.approve(actor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-scoped-suppression'
+        });
+
+        await expect(service.apply(actor, plan.run_id)).resolves.toMatchObject({ state: 'active' });
+        expect(graphService.validate).toHaveBeenCalledWith(expect.anything(), {
+            projectCode: manifest.project_code
+        });
+        await expect(service.status(actor, plan.run_id)).resolves.toMatchObject({ state: 'active' });
+        expect(repository.runs.get(plan.run_id).failure).toBeUndefined();
     });
 
     it('runtime catalogの読戻しが欠ける場合はactiveへ遷移しない', async () => {

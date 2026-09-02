@@ -7,38 +7,36 @@
 ## 境界
 
 - 本番4ファイルの差分はパッチIDと対象テストで同一性を確認し、開発ブランチのcommitへ移す。
-- 本番checkoutへ直接commitを追加せず、VibePro PRとCIを通した`develop`を唯一のデプロイ元にする。
+- 本番の旧SHA＋4ファイル差分は、切替前に対象限定のpatch、content hash、専用rollback branchのcommitとして保存する。このcommitは復旧専用であり、デプロイ元にはしない。
+- 通常の本番checkoutへ直接機能commitを追加せず、VibePro PRとCIを通した`develop`を唯一の前進デプロイ元にする。
 - Ontologyの非機密公開鍵は`config/ontology/trusted-public-keys.json`を正本とする。
-- Infisical productionでは署名用の秘密鍵と`key_id`を維持し、重複して壊れている公開鍵overrideだけを除去する。
-- 再投影後に`brainbase-ssot.service`を再起動し、checkout SHA、process SHA、API version、dirty状態を読み戻す。
-- Judgment Hostの変更はLightsailだけでは有効にならない。Global Codex lifecycle Hook、canonical local UI/API、persistent MCP Host bridge、Lightsail Resolver API/serverを、`judgment-resolve.md`の4面契約に従って同じmerge SHAへ揃える。
-- 4面のreadinessは実タスクの証明ではない。反映後に作成した新しいCodexタスクのepisode、PostToolUse event、complete final、ユーザー向け判断レシートを同一turnで照合して初めて`proven_active`とする。
-- 判断レシートの派生経路は、Hostの意味的成功判定から`judgment-value-proof-adapter`によるprojection、owner journalの`value-proof.json`、Stop final、ユーザー向け表示の順とする。取得監査だけのlive-session E2Eは`judgment_lifecycle_active`までを証明し、この派生経路の代替にしない。
-- Graph SSOTは変更せず、`graph_validate`を読み取り検証として実行する。
+- Infisical productionでは署名用の秘密鍵と`key_id`を維持し、重複して壊れている公開鍵overrideだけを除去する。この除去はforward-only incident remediationとして扱い、コード/runtime rollbackでも復元しない。rollbackは変更前に秘密鍵・`key_id`のdriftをfail-closed検査してoperator Receiptを保存し、修復後にoverride不在を再取得する。秘密一時ファイルは終了時に削除し、Lightsail転送物のchecksumをlive反映前に、target checksumを反映後に読戻す。
+- Judgment Resolverの変更はglobal Hook checkout、ローカル`:31013`、常駐MCP、本番Lightsailの4面を一つの互換セットとして扱い、各面のSHAを推測せず個別に読み戻す。
+- 切替前に4面のSHAとglobal Hookファイルを保全し、統合SHAへ揃えた後に各面のclean/readinessを確認する。
+- 4面のreadinessと取得監査だけのfresh taskは`judgment_lifecycle_active`までを証明する。`proven_active`には、別のfresh taskで実際の中断候補、権限内の継続、実行成果物と正本読戻し、value proof、complete final、ユーザー向け判断レシートを同一turnへ束縛する。
+- 判断レシートはHostの意味的成功判定、`judgment-value-proof-adapter`、owner journalの`value-proof.json`、Stop final、ユーザー向け表示の順で派生させる。失敗、503、`partial`、不明値に成功監査を付けない。
+- Infisical再投影後に`brainbase-ssot.service`を再起動し、checkout SHA、process SHA、API version、dirty状態を読み戻す。
+- Graph SSOTは変更せず、本番収束でのみ`graph_validate(strict_collection=true)`を読み取り検証として実行する。通常の認可scopeによる意図的なEdge非表示は従来通り有効とし、strict検証で抑止されたEdgeの件数と理由をReceiptへ保存し、1件でもあれば収束成功にしない。
+- 本番収束は一つのrun IDへ束縛した秘密値非保持のReceiptを正本とする。Receiptは公開鍵overrideの変更前後の存在、秘密鍵・key_idの同一性、4面のcheckout/process SHA・dirty・readiness、Ontology 1.1.0のrepository/production digest・key_id・trust source・署名検証、Graph ValidateのDB `snapshot_hash`・strict scope・HTTP状態・`collection_complete`・構造/Ontology違反件数・`valid`を持つ。いずれかを取得できなければReceiptを`passed`として作らない。
 
 ## 実行順序
 
 1. 本番差分を開発ブランチへ再現し、パッチ同一性と対象テストを確認する。
 2. PR、CI、mergeを完了し、統合SHAを確定する。
-3. Infisicalの不正な公開鍵overrideを削除し、productionへ再投影する。
-4. 統合SHAを4実行面へデプロイし、各面を再起動またはreconcileする。
-5. 4面のSHA、health、version、dirty/readiness状態を独立して読み戻す。
-6. 反映後の新しいCodexタスクで同一turnのepisode、event、final、判断レシートを読み戻す。
-7. journal、Ontology検証、Graph全体検証を同一runで読み戻す。
+3. `judgment-resolve.md`のproduction dirty hotfix reconciliationを実行する。許可した4ファイル以外の差分がないこと、正式commitとのpatch ID一致を確認し、patch、content hash、旧SHAを退避して専用rollback commitを作る。本番checkoutがcleanにならなければ停止する。
+4. 同runbookのpre-deployment rollback captureで、4面の現行SHAとglobal Hookファイルを個別に保全する。Lightsailのrollback SHAは旧SHA＋ホットフィックスを表すcleanな専用commitである。
+5. global Hook checkout、ローカル`:31013`、常駐MCP、本番Lightsailを統合SHAへ揃え、各面のclean/readinessを読み戻す。
+6. Infisicalの不正な公開鍵overrideだけを削除してproductionへ再投影し、Lightsailサービスを再起動する。
+7. health、version、dirty状態、journal、Ontology検証、Graph全体検証を同一runで読み戻し、秘密値を含まないproduction convergence Receiptへ固定する。
+8. Hook trust状態を確認し、owner承認後に作成したfresh taskでJudgment lifecycleを実証する。続けて、実際の中断候補から成果物・正本読戻し・value proof・complete final・ユーザー向け判断レシートまで進む別のfresh taskを実証する。
 
-## 証拠契約
-
-- PR前は、本番4ファイルと保全commitのpatch ID、対象テスト、型検査をVibeProのverification/review artifactへ記録する。
-- merge後は、PR番号、CI結果、merge SHAと、4実行面それぞれで独立して観測した直前SHAを配備receiptへ記録する。一つの面のSHAから他面を推定しない。
-- 再投影後は、削除した公開鍵overrideの名前だけを記録し、秘密鍵と`key_id`の値は出力しない。Ontology 1.1.0の署名検証元がGit信頼ストアであることをreadbackで確認する。
-- 配備後は、Global Hook checkout、local `:31013`、MCP reconcile receipt、Lightsail checkout/public APIを個別に読み戻し、各SHAがmerge SHAと一致すること、Git checkoutを持つ面は`dirty=false`であることを同一receiptに保存する。
-- fresh task証拠は、反映後に作成した一つのCodexタスクのepisode/event/final/transcriptへ束縛し、判断レシートがユーザー向け最終回答に一度だけ表示されたことを確認する。readinessやsynthetic testを`proven_active`へ丸めない。
-- Graph検証は同一runの`graph_validate(project_code=brainbase)`レスポンスを保存し、HTTP 200、`collection_complete=true`、構造違反0件、Ontology違反0件、`valid=true`を個別に照合する。一つでも欠落または不一致なら成功としない。
-- 復旧証拠は、保全commit、4実行面それぞれの直前SHA、Hook設定、runtime pin、本番差分の回復用backup pathに束縛する。
+手順1はPR前の静的・自動検証、手順2は前進デプロイの権限境界、手順3〜8はマージ後の本番実行である。手順3〜8の証跡をPR前の合格条件にはせず、反対に手順1〜2だけで本番完了とも報告しない。VibeProのPR成果物には`production_execution_status=not_run`を明示し、PR時点の検証可能性だけを示す。本番readbackはマージ後の同一runで別途取得する。
 
 ## 失敗時の扱い
 
 - 差分同一性またはテストが不一致なら、本番checkoutを変更しない。
+- 本番に許可した4ファイル以外の変更がある、patch/content hashを退避できない、または専用rollback commit後もdirtyなら、通常の事前取得へ進まない。
 - CIまたはレビューが未完了なら、本番へデプロイしない。
+- 本番収束が途中で停止した場合は、失敗工程、設定変更有無、rollback要否、取得済み証跡パスを秘密値なしの失敗Receiptへ保存する。失敗Receiptも作れなければ状態を`unknown`としてoperatorへ表示する。
 - 再投影後に署名検証が失敗した場合はサービスを成功扱いせず、削除前の設定メタデータとGit信頼ストアを照合する。
-- デプロイ後の4面SHA、dirty/readiness状態、fresh task、Graph検証のいずれかが一致しない場合は、保全済みcommitと各面の直前SHAを使って復旧し、未確認として報告する。
+- デプロイ後のSHA、dirty状態、Graph検証、fresh task実証のいずれかが一致しない場合は、`judgment-resolve.md#rollback`の順序でローカルUI/MCP、Lightsail、global Hookを記録済み状態へ戻し、未確認として報告する。Lightsailは専用rollback commitへ戻して旧SHA＋ホットフィックスの実効内容を`dirty=false`で復元し、保存済みcontent hashと照合する。Infisicalの不正公開鍵override除去はforward-onlyとして維持し、秘密鍵・`key_id`の同一性と修復済み環境ファイルのLightsail再投影を読戻す。global Hookは最後に復旧し、owner journalは削除しない。
