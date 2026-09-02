@@ -98,6 +98,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(convergence).toContain('/api/info/graph/maintenance/validate');
         expect(convergence).toContain('graph_http_status');
         expect(convergence).toContain('collection_complete');
+        expect(convergence).toContain('suppressed_edge_count');
+        expect(convergence).toContain('suppression_reasons');
         expect(convergence).toContain('structural_violation_count');
         expect(convergence).toContain('ontology_violation_count');
         expect(convergence).toContain('graph_valid');
@@ -112,6 +114,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(convergence.indexOf('npm run ontology:verify')).toBeLessThan(
             convergence.indexOf('/api/info/graph/maintenance/validate')
         );
+
+        expect(convergence).toMatch(/suppressed_edge_count !== 0[\s\S]*?process\.exit\(1\)/u);
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:14

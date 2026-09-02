@@ -46,7 +46,8 @@ describe('GraphMaintenanceService authorization', () => {
         }, { projectCode: 'brainbase' });
 
         expect(result).toMatchObject({
-            valid: true,
+            collection_complete: false,
+            valid: false,
             snapshot_hash: snapshot.hash,
             suppression_summary: snapshot.suppression_summary
         });

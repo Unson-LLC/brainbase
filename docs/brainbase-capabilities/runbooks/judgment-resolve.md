@@ -482,15 +482,21 @@ GRAPH_BODY="$GRAPH_BODY" GRAPH_STATUS="$GRAPH_STATUS" node <<'NODE' \
   > "$BRAINBASE_PRODUCTION_RUN_DIR/graph.evidence.json"
 const fs = require('node:fs');
 const graph = JSON.parse(fs.readFileSync(process.env.GRAPH_BODY, 'utf8'));
+const suppressionSummary = graph.suppression_summary || {};
 const evidence = {
   graph_http_status: Number(process.env.GRAPH_STATUS),
   collection_complete: graph.collection_complete === true,
   structural_violation_count: Array.isArray(graph.issues) ? graph.issues.length : null,
   ontology_violation_count: Array.isArray(graph.ontology?.violations) ? graph.ontology.violations.length : null,
+  suppressed_edge_count: Number.isInteger(suppressionSummary.edge_count) ? suppressionSummary.edge_count : 0,
+  suppression_reasons: suppressionSummary.reasons && typeof suppressionSummary.reasons === 'object'
+    ? suppressionSummary.reasons
+    : {},
   graph_valid: graph.valid === true
 };
 if (evidence.graph_http_status !== 200 || !evidence.collection_complete
   || evidence.structural_violation_count !== 0 || evidence.ontology_violation_count !== 0
+  || evidence.suppressed_edge_count !== 0
   || !evidence.graph_valid) process.exit(1);
 process.stdout.write(JSON.stringify(evidence));
 NODE

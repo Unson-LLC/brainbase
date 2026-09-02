@@ -14,7 +14,7 @@
 - Judgment Resolverの変更はglobal Hook checkout、ローカル`:31013`、常駐MCP、本番Lightsailの4面を一つの互換セットとして扱い、各面のSHAを推測せず個別に読み戻す。
 - 切替前に4面のSHAとglobal Hookファイルを保全し、統合SHAへ揃えた後に各面のclean/readinessを確認する。
 - Infisical再投影後に`brainbase-ssot.service`を再起動し、checkout SHA、process SHA、API version、dirty状態を読み戻す。
-- Graph SSOTは変更せず、`graph_validate`を読み取り検証として実行する。
+- Graph SSOTは変更せず、`graph_validate`を読み取り検証として実行する。抑止されたEdgeの件数と理由もReceiptへ保存し、1件でもあれば収束成功にしない。
 - 本番収束は一つのrun IDへ束縛した秘密値非保持のReceiptを正本とする。Receiptは公開鍵overrideの変更前後の存在、秘密鍵・key_idの同一性、4面の個別SHA、Ontology 1.1.0のrepository verifierと本番readback、Graph ValidateのHTTP状態・`collection_complete`・構造/Ontology違反件数・`valid`を持つ。いずれかを取得できなければReceiptを`passed`として作らない。
 
 ## 実行順序

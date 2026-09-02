@@ -1426,10 +1426,12 @@ export class GraphMaintenanceService {
                 edges: snapshot.edges.filter((item) => item.lifecycle_status === 'active').map((item) => ({ from_id: item.from_id, to_id: item.to_id, relation: item.rel_type })),
                 required_relation_validation_entity_ids: activeLocalEntityIds
             } });
+            const suppressedEdgeCount = Number(snapshot.suppression_summary?.edge_count || 0);
+            const collectionComplete = suppressedEdgeCount === 0;
             return {
                 ...structural,
-                collection_complete: true,
-                valid: structural.valid === true && ontology?.valid === true,
+                collection_complete: collectionComplete,
+                valid: collectionComplete && structural.valid === true && ontology?.valid === true,
                 ontology,
                 snapshot_hash: snapshot.hash,
                 required_relation_scope_summary: requiredRelationScopeSummary,

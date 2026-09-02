@@ -237,14 +237,14 @@
     {
       "id": "S-006",
       "type": "scenario",
-      "statement": "Given 4面とOntologyが同一runの統合SHAへ収束済み、When production graph_validateをproject_code=brainbaseで実行する、Then HTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、valid=trueを同じGraph responseから機械判定しReceiptへ保存する。",
+      "statement": "Given 4面とOntologyが同一runの統合SHAへ収束済み、When production graph_validateをproject_code=brainbaseで実行する、Then HTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、抑止されたEdge 0件、valid=trueを同じGraph responseから機械判定し、抑止理由とともにReceiptへ保存する。",
       "origin": {
         "story_refs": [
           {
             "kind": "acceptance_criteria",
             "index": 5,
             "ac_id": "AC-006",
-            "text_snippet": "同一runの本番graph_validateがHTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、valid=true"
+            "text_snippet": "同一runの本番graph_validateがHTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、抑止されたEdge 0件、valid=true"
           }
         ],
         "architecture_refs": [
