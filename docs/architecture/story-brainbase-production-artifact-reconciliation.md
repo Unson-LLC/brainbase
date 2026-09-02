@@ -27,6 +27,8 @@
 7. health、version、dirty状態、journal、Ontology検証、Graph全体検証を同一runで読み戻す。
 8. Hook trust状態を確認し、必要ならowner承認後に作成したfresh taskでJudgment episode、実Brainbase event、完全なowner auditを実証する。
 
+手順1はPR前の静的・自動検証、手順2は前進デプロイの権限境界、手順3〜8はマージ後の本番実行である。手順3〜8の証跡をPR前の合格条件にはせず、反対に手順1〜2だけで本番完了とも報告しない。VibeProのPR成果物はPR時点の検証可能性を示し、本番readbackはマージ後の同一runで別途取得する。
+
 ## 失敗時の扱い
 
 - 差分同一性またはテストが不一致なら、本番checkoutを変更しない。
