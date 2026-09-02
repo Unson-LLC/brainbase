@@ -320,6 +320,9 @@ export function renderJudgmentValueProofSurface(proof) {
     : renderJudgmentValueProofCompletion(proof);
   if (!surface || proof.interruption.resolution !== 'continued_without_human') return surface;
   const lines = surface.split('\n');
+  if (proof.state === 'unconfirmed') {
+    lines[0] = 'Brainbase判断結果（確認待ち）';
+  }
   const correctionIndex = lines.findIndex((line) => line.startsWith('修正する場合:'));
   const insertionIndex = correctionIndex >= 0 ? correctionIndex : lines.length;
   lines.splice(

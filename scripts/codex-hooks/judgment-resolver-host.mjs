@@ -172,36 +172,85 @@ function transcriptRoots(env) {
 
 function readCanonicalTranscript(payload, env) {
     const transcriptPath = typeof payload.transcript_path === 'string' ? payload.transcript_path : '';
-    if (!transcriptPath) return { messages: [], complete: false };
+    if (!transcriptPath) return { messages: [], delegations: [], complete: false };
     let canonicalPath;
     try {
         canonicalPath = realpathSync(transcriptPath);
-        if (!statSync(canonicalPath).isFile()) return { messages: [], complete: false };
+        if (!statSync(canonicalPath).isFile()) return { messages: [], delegations: [], complete: false };
     } catch {
-        return { messages: [], complete: false };
+        return { messages: [], delegations: [], complete: false };
     }
     const roots = transcriptRoots(env);
     if (roots.length === 0 || !roots.some((root) => pathInside(canonicalPath, root))) {
-        return { messages: [], complete: false };
+        return { messages: [], delegations: [], complete: false };
     }
     const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
     const messages = [];
-    let sessionMatched = false;
-    let sequence = 0;
+    const delegations = [];
+    const parsedEvents = [];
     const text = readFileSync(canonicalPath, 'utf8');
     for (const line of text.split('\n')) {
         if (!line.trim()) continue;
         let event;
-        try { event = JSON.parse(line); } catch { return { messages: [], complete: false }; }
+        try { event = JSON.parse(line); } catch { return { messages: [], delegations: [], complete: false }; }
         const envelope = record(event);
         const eventPayload = record(envelope?.payload);
         if (!envelope || !eventPayload) continue;
+        parsedEvents.push({ envelope, eventPayload });
+    }
+    const sessionAliases = new Set(sessionId ? [sessionId] : []);
+    const sessionMetas = parsedEvents
+        .filter(({ envelope }) => envelope.type === 'session_meta')
+        .map(({ eventPayload }) => [eventPayload.id, eventPayload.session_id]
+            .filter((value) => typeof value === 'string'));
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const ids of sessionMetas) {
+            if (!ids.some((id) => sessionAliases.has(id))) continue;
+            for (const id of ids) {
+                if (sessionAliases.has(id)) continue;
+                sessionAliases.add(id);
+                changed = true;
+            }
+        }
+    }
+    const sessionMatched = Boolean(sessionId)
+        && sessionMetas.some((ids) => ids.some((id) => sessionAliases.has(id)));
+    const mixedSessionComponents = sessionMetas.some((ids) =>
+        ids.length === 0 || ids.some((id) => !sessionAliases.has(id)));
+    if (!sessionMatched || mixedSessionComponents) {
+        return { messages: [], delegations: [], complete: false };
+    }
+    let activeSessionMatched = false;
+    let sequence = 0;
+    for (const { envelope, eventPayload } of parsedEvents) {
         if (envelope.type === 'session_meta') {
             const ids = [eventPayload.id, eventPayload.session_id].filter((value) => typeof value === 'string');
-            sessionMatched = sessionMatched || !sessionId || ids.includes(sessionId);
+            activeSessionMatched = ids.some((id) => sessionAliases.has(id));
             continue;
         }
-        if (envelope.type !== 'response_item' || eventPayload.type !== 'message') continue;
+        if (envelope.type !== 'response_item') continue;
+        if (!activeSessionMatched) continue;
+        if (eventPayload.type === 'function_call_output') {
+            const metadata = record(eventPayload.internal_chat_message_metadata_passthrough)
+                ?? record(eventPayload.metadata);
+            const turnId = typeof metadata?.turn_id === 'string' ? metadata.turn_id : null;
+            const output = typeof eventPayload.output === 'string' ? eventPayload.output.trim() : '';
+            const allowedName = ['create_thread', 'send_message_to_thread'].includes(eventPayload.name);
+            const inputTagCount = (output.match(/<input>/gu) ?? []).length;
+            const closingInputTagCount = (output.match(/<\/input>/gu) ?? []).length;
+            const match = allowedName
+                && eventPayload.namespace === 'codex_app'
+                && inputTagCount === 1
+                && closingInputTagCount === 1
+                ? output.match(/^<codex_delegation>\s*<source_thread_id>[^<]+<\/source_thread_id>\s*<input>([\s\S]+)<\/input>\s*<\/codex_delegation>$/u)
+                : null;
+            const prompt = match?.[1]?.trim() ?? '';
+            if (turnId && prompt) delegations.push({ turn_id: turnId, prompt, name: eventPayload.name });
+            continue;
+        }
+        if (eventPayload.type !== 'message') continue;
         if (!['user', 'assistant'].includes(String(eventPayload.role))) continue;
         const body = contentText(eventPayload.content);
         if (!body.trim() || isInjectedHostEnvelope(body)) continue;
@@ -220,7 +269,20 @@ function readCanonicalTranscript(payload, env) {
         });
         sequence += 1;
     }
-    return { messages: sessionMatched ? messages : [], complete: sessionMatched };
+    return {
+        messages,
+        delegations,
+        complete: true
+    };
+}
+
+function delegatedPromptForTurn(payload, env) {
+    const identity = payloadIdentity(payload);
+    if (!identity) return null;
+    const transcript = readCanonicalTranscript(payload, env);
+    if (!transcript.complete) return null;
+    const exact = transcript.delegations.filter((delegation) => delegation.turn_id === identity.turnId);
+    return exact.length === 1 ? exact[0].prompt : null;
 }
 
 function findRepoRoot(start) {
@@ -416,9 +478,11 @@ export function buildJudgmentRequest(payload, { env = process.env } = {}) {
     if (!request || !turnId || !sessionId) throw new TypeError('UserPromptSubmit requires prompt, turn_id, and session_id');
     const sessionRef = sha256(sessionId);
     const transcript = readCanonicalTranscript(payload, env);
-    const messages = transcript.messages.filter((message) => !(
-        message.role === 'user' && message.turn_id === turnId && message.text === request
-    ));
+    // Stop-time delegation recovery runs after Codex has already emitted an
+    // assistant message for this turn. The public resolver contract requires
+    // the current turn to contain only the canonical user request, so rebuild
+    // that turn instead of carrying post-generation output into the context.
+    const messages = transcript.messages.filter((message) => message.turn_id !== turnId);
     messages.push({ sequence: messages.length, turn_id: turnId, role: 'user', phase: null, text: request });
     const cwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : REPO_ROOT;
     const repoRoot = findRepoRoot(cwd);
@@ -644,6 +708,12 @@ function verifyEpisode(entry) {
     if (entry.initial_route_receipt_digest !== sha256(canonicalJson(entry.initial_route_receipt))) {
         throw new Error('judgment_episode_route_digest_mismatch');
     }
+    const origin = entry.episode_origin;
+    const application = entry.route_application;
+    const legacyLifecycle = origin === undefined && application === undefined;
+    const validLifecycle = (origin === 'user_prompt_submit' && application === 'pre_generation')
+        || (origin === 'stop_delegation_recovery' && application === 'post_generation_recovery');
+    if (!legacyLifecycle && !validLifecycle) throw new Error('judgment_episode_lifecycle_invalid');
     verifyOwnerAudit(entry.owner_audit, entry.initial_route_receipt);
     if (entry.audit_contract !== undefined) verifyAuditContract(entry.audit_contract);
     return entry;
@@ -682,7 +752,12 @@ async function resolveInitialRoute(args, { env, fetchImpl }) {
     throw lastError;
 }
 
-export async function startEpisode(payload, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
+export async function startEpisode(payload, {
+    env = process.env,
+    fetchImpl = globalThis.fetch,
+    episodeOrigin = 'user_prompt_submit',
+    routeApplication = 'pre_generation'
+} = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new TypeError('UserPromptSubmit requires session_id and turn_id');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
@@ -704,6 +779,8 @@ export async function startEpisode(payload, { env = process.env, fetchImpl = glo
         const entry = withJudgmentStage('judgment_episode_audit_build_failed', () => ({
             schema_version: 'brainbase-judgment-episode-v1',
             state: 'open',
+            episode_origin: episodeOrigin,
+            route_application: routeApplication,
             started_at: new Date().toISOString(),
             request_text_digest: sha256(args.request),
             initial_route_receipt_digest: sha256(canonicalJson(initialRouteReceipt)),
@@ -716,6 +793,20 @@ export async function startEpisode(payload, { env = process.env, fetchImpl = glo
             () => verifyEpisode(createImmutableJson(paths.episode, entry, 'judgment_episode_start_conflict'))
         );
     }, env, 'judgment_episode_start_timeout'));
+}
+
+async function bootstrapDelegatedEpisodeAtStop(payload, dependencies) {
+    const env = dependencies.env ?? process.env;
+    if (existingEpisode(payload, env)) return null;
+    const prompt = delegatedPromptForTurn(payload, env);
+    if (!prompt) return null;
+    const episode = await startEpisode({ ...payload, prompt }, {
+        ...dependencies,
+        episodeOrigin: 'stop_delegation_recovery',
+        routeApplication: 'post_generation_recovery'
+    });
+    await dependencies.onEpisodeStarted?.(episode);
+    return episode;
 }
 
 const TOOL_EXCERPT_LIMIT = 40;
@@ -1500,6 +1591,7 @@ function requestsUserInput(body) {
         /(?:どちら|どれ|どうしますか|何を選びますか|よろしいですか|進めてもいいですか|進めてもよいですか)[^。]*[?？]?$/u.test(line)
         || /(?:か、|か，)[^?？]*か[?？]$/u.test(line)
         || /(?:(?:確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え)(?:しますか|しましょうか)|(?:進め|続け)ますか)[?？]?$/u.test(line)
+        || /(?:登録|作成|確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え)して(?:も)?(?:よい|いい)ですか[?？]?$/u.test(line)
         || /(?:教えて|選んで|決めて|判断して|承認して|確認して|入力して|提示して|付与して)(?:ください|もらえますか|いただけますか)[。！!？?]?$/u.test(line)
     ));
 }
@@ -1535,10 +1627,17 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
         const state = validJudgmentStopState(latestStateEvent?.safe_metadata?.stop_state);
         const exactTool = 'brainbase_judgment_state_record';
         if (!latestStateEvent || !latestStateEvent.success || !state) {
+            if (contract.decision === 'escalate') {
+                return {
+                    status: null,
+                    violation: `Host確定判断は人間確認必須です。最終回答を作る前の最後のtool callとして${exactTool}を正確に1回実行し、waiting_humanでruntime_reason_code=${contract.reasonCode}を記録する`,
+                    question: proposedHumanQuestion
+                };
+            }
             return {
                 status: null,
                 violation: `最終回答を作る前の最後のtool callとして${exactTool}を正確に1回実行し、回答本文には状態を表示しない`,
-                triggerCode: 'unfinished_safe_work',
+                triggerCode: asks ? 'unnecessary_user_question' : 'unfinished_safe_work',
                 question: proposedHumanQuestion
             };
         }
@@ -1707,6 +1806,13 @@ function existingFinal(paths, episode) {
         }
         if (episode && entry.initial_route_receipt_digest !== episode.initial_route_receipt_digest) {
             throw new Error('judgment_episode_final_route_mismatch');
+        }
+        const episodeHasLifecycle = episode
+            && (episode.episode_origin !== undefined || episode.route_application !== undefined);
+        if (episodeHasLifecycle
+            && (entry.episode_origin !== episode.episode_origin
+                || entry.route_application !== episode.route_application)) {
+            throw new Error('judgment_episode_final_lifecycle_mismatch');
         }
         return entry;
     } catch (error) {
@@ -2133,6 +2239,12 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     );
     const missingAutonomyCompliance = autonomyCompliance.violation !== null;
     const auditContract = episodeAuditContract(episode);
+    const valueProofEvent = valueProofRolloutEnabled(episode, env)
+        ? latestJudgmentValueProofEvent(events)
+        : null;
+    const valueProofRequired = valueProofRolloutEnabled(episode, env)
+        && existingContinuation?.autonomy_continuation?.interruption_candidate?.resolution === 'continued_without_human';
+    const missingValueProof = valueProofRequired && valueProofEvent === null;
     const autonomyContinuationRequested = ['unnecessary_user_question', 'unfinished_safe_work']
         .includes(autonomyCompliance.triggerCode)
         && typeof auditContract?.autonomy_continuation_progress_line === 'string'
@@ -2145,17 +2257,20 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const hostCanCompleteOwnerAudit = missingOwnerAudit
         && journalStopStateRequired(episode.initial_route_receipt)
         && !missingKnowledge
+        && !missingValueProof
         && !missingAnswerBody
         && !missingAutonomyCompliance
         && !unauthorizedContinuationAudit
         && !unauthorizedStopRepairAudit
         && existingContinuation === null;
     if (missingKnowledge
+        || missingValueProof
         || (missingOwnerAudit && !hostCanCompleteOwnerAudit)
         || missingAnswerBody
         || missingAutonomyCompliance) {
         const missingCapabilities = [
             ...(missingKnowledge ? ['knowledge.resolve'] : []),
+            ...(missingValueProof ? ['judgment.value_proof.record'] : []),
             ...(missingOwnerAudit ? ['owner.audit.display'] : []),
             ...(missingAnswerBody ? ['answer.body.preservation'] : []),
             ...(missingAutonomyCompliance ? ['autonomy.continuation'] : [])
@@ -2215,6 +2330,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'],
                 { repair: true }
             )] : []),
+            ...(missingValueProof ? [
+                `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
+            ] : []),
             ...((missingOwnerAudit || missingAutonomyCompliance) ? [
                 `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
             ] : []),
@@ -2228,6 +2346,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ...(unauthorizedStopRepairAudit ? ['Hostが記録していない🛠️監査行を削除する'] : []),
             ...((missingAnswerBody || (!missingKnowledge && missingOwnerAudit && marker.answer_body_binding)) ? [
                 '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
+            ] : []),
+            ...((valueProofRolloutEnabled(episode, env)
+                && marker?.autonomy_continuation?.interruption_candidate?.resolution === 'continued_without_human') ? [
+                `安全な作業とcanonical readbackを完了した後、mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${marker.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
             ] : []),
             ...(missingAutonomyCompliance ? [autonomyCompliance.violation] : [])
         ];
@@ -2253,9 +2375,6 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     }
     const safeAnswer = sanitizeJudgmentAnswer(answer);
     const finalizedAt = new Date().toISOString();
-    const valueProofEvent = valueProofRolloutEnabled(episode, env)
-        ? latestJudgmentValueProofEvent(events)
-        : null;
     const waitingHumanQuestionText = autonomyCompliance.stopState?.status === 'waiting_human'
         ? waitingHumanQuestion(answer ?? '', expectedAuditLines, autonomyCompliance.stopState)
         : null;
@@ -2294,6 +2413,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         completion_status: 'complete',
         protocol_status: 'audit_protocol_complete',
         content_verification_status: 'not_evaluated',
+        ...(episode.episode_origin !== undefined ? {
+            episode_origin: episode.episode_origin,
+            route_application: episode.route_application
+        } : {}),
         initial_route_receipt_digest: episode.initial_route_receipt_digest,
         event_count: events.length,
         qualifying_event_count: qualifyingEvents.length,
@@ -2511,7 +2634,8 @@ export function buildOwnerReferenceLine(args, receipt) {
 }
 
 function mandatoryVibeProImplementationInstructions(receipt) {
-    if (receipt?.classification?.intent !== 'implement') return [];
+    if (receipt?.classification?.intent !== 'implement'
+        || !receipt?.classification?.domains?.includes('engineering')) return [];
     return [
         'This is an implementation request. Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.',
         'Before changing code, create or select one focused VibePro Story with explicit acceptance criteria and write the smallest testable Spec.',
@@ -2621,6 +2745,7 @@ export async function processHookPayload(payload, dependencies = {}) {
                 : {};
     }
     if (eventName === 'Stop') {
+        await bootstrapDelegatedEpisodeAtStop(payload, dependencies);
         const autonomyOutput = await evaluateAutonomyStop(payload, dependencies);
         if (autonomyOutput) return autonomyOutput;
 

@@ -1,6 +1,6 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-2.4.0",
+  "runtime_version": "judgment-runtime-2.4.3",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
@@ -215,9 +215,9 @@
       "investigate": ["調べ", "調査", "検索", "探して", "ログを見", "確認して"],
       "diagnose": ["なぜ", "原因", "診断", "何が問題", "欠陥"],
       "design": ["設計", "考えて", "どうすべき", "導いて", "演繹"],
-      "implement": ["実装", "修正", "変更", "更新", "削除", "作って", "付け替え"],
+      "implement": ["実装", "修正", "変更", "更新", "削除", "作って", "作成して", "書いて", "書き、", "書き込んで", "付け替え", "write", "create", "update", "edit", "implement", "delete"],
       "review": ["レビュー", "評価して", "監査"],
-      "operate": ["デプロイ", "再起動", "送信", "公開", "実行して", "マージして", "commitして"]
+      "operate": ["デプロイ", "再起動", "送信", "公開", "実行して", "マージして", "commitして", "merge"]
     },
     "domains": {
       "engineering": ["実装", "コード", "api", "認証", "設計", "バグ", "テスト", "pr", "architecture", "リファクタ"],
@@ -236,8 +236,9 @@
       "external_outcome": ["外部成果", "顧客価値", "利用成果", "downstream", "first value"]
     },
     "follow_up": ["それ", "その形", "これ", "こちら", "続けて", "続けよう", "もう一度", "では", "それでいい", "そうして"],
+    "positive_commands": ["実装して", "実装しろ", "実装せよ", "変更して", "変更しろ", "変更せよ", "更新して", "更新しろ", "更新せよ", "削除して", "削除しろ", "削除せよ", "マージして", "マージしろ", "マージせよ", "mergeして", "mergeしろ", "mergeせよ", "commitして", "commitしろ", "commitせよ", "作って", "作成して", "書いて", "書き、", "書き込んで", "確認して", "読み戻して", "進めて", "追加して", "保存して", "処理して", "実行して", "write", "create", "update", "edit", "implement", "delete", "merge", "check", "verify", "read back", "add", "save", "process", "run"],
     "safety": {
-      "write": ["実装して", "実装しろ", "実装せよ", "変更して", "変更しろ", "変更せよ", "更新して", "更新しろ", "更新せよ", "削除して", "削除しろ", "削除せよ", "マージして", "マージしろ", "マージせよ", "mergeして", "mergeしろ", "mergeせよ", "commitして", "commitしろ", "commitせよ", "作って"],
+      "write": ["実装して", "実装しろ", "実装せよ", "変更して", "変更しろ", "変更せよ", "更新して", "更新しろ", "更新せよ", "削除して", "削除しろ", "削除せよ", "マージして", "マージしろ", "マージせよ", "mergeして", "mergeしろ", "mergeせよ", "commitして", "commitしろ", "commitせよ", "作って", "作成して", "書いて", "書き、", "書き込んで", "write", "create", "update", "edit", "implement", "delete", "merge"],
       "external": ["送信", "公開", "publish", "購入", "デプロイして"],
       "critical": ["本番削除", "全削除", "支払い", "購入"]
     }

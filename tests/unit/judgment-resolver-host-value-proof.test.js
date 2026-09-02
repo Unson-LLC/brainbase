@@ -168,6 +168,31 @@ describe('Judgment Resolver Host value proof integration', () => {
     }, { env });
     expect(execution).toMatchObject({ event_kind: 'retrieve', success: true });
 
+    recordBrainbaseToolUse({
+      hook_event_name: 'PostToolUse',
+      session_id: payload.session_id,
+      turn_id: payload.turn_id,
+      tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
+      tool_use_id: 'state-before-proof',
+      tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+      tool_response: { status: 'ok', data: {
+        schema_version: 'brainbase-stop-state-v1', status: 'completed',
+        pending_safe_work: false, runtime_reason_code: null,
+      } },
+    }, { env });
+
+    const proofMissing = finalizeEpisode({
+      hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+      stop_hook_active: true,
+      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
+    }, { env });
+    expect(proofMissing.output.decision).toBe('block');
+    expect(proofMissing.output.reason).toContain('brainbase_judgment_value_proof_record');
+    expect(proofMissing.output.reason.indexOf('brainbase_judgment_value_proof_record'))
+      .toBeLessThan(proofMissing.output.reason.indexOf('brainbase_judgment_state_record'));
+    const proofMissingDirectory = join(root, 'journal', hash(payload.session_id));
+    expect(existsSync(join(proofMissingDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(false);
+
     const valueProof = recordBrainbaseToolUse({
       hook_event_name: 'PostToolUse',
       session_id: payload.session_id,
@@ -202,7 +227,7 @@ describe('Judgment Resolver Host value proof integration', () => {
       session_id: payload.session_id,
       turn_id: payload.turn_id,
       stop_hook_active: true,
-      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
+      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
     }, { env });
 
     expect(result.output.systemMessage).toContain(`${ownerLine}\n${execution.display_line}`);
@@ -276,11 +301,13 @@ describe('Judgment Resolver Host value proof integration', () => {
       stop_hook_active: true,
       last_assistant_message: [
         ownerLine, zeroCallLine,
-        '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓',
+        '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
         '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
         '既存文書を更新しました。',
       ].join('\n'),
     }, { env });
+    expect(result.output.systemMessage).toContain('Brainbase判断結果（確認待ち）');
+    expect(result.output.systemMessage).not.toContain('Brainbase判断レシート');
     expect(result.output.systemMessage).toContain('状態: 結果未確認');
     expect(result.output.systemMessage).toContain('聞かずに進めた確認: 既存文書を更新するか、新規文書を作るか？');
     expect(result.output.systemMessage).toContain('実行範囲: 既存文書を更新し、テストを実行した');

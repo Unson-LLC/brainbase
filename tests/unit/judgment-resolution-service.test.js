@@ -490,6 +490,18 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.selected_dag_ids).toContain('problem-frame.v1');
     });
 
+    it.each(['これは？', 'こちらはどう？'])('短い「これ／こちらは」の追従質問は直前の生発話を継承する: %s', (request) => {
+        const receipt = service.resolve(input(request, proposal(), {
+            conversation_context: {
+                text: 'Brainbaseの認証APIを実装して',
+                source_turn_ids: ['prior-engineering']
+            }
+        }), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.reconciliation_reasons).toEqual(['classification_inherited_from_prior_turn']);
+        expect(receipt.classification).toMatchObject({ intent: 'implement', domains: ['engineering'], action_kind: 'write' });
+    });
+
     it('直前のgeneral receiptより前の生発話にあるengineering文脈を短い修正依頼へ継承する', () => {
         const contextWithoutDigest = {
             schema_version: 'brainbase-conversation-context-v1',
@@ -563,6 +575,186 @@ describe('JudgmentResolutionService', () => {
             autonomy_reason_code: 'risk_or_external',
             allowed_runtime_escalation_reasons: []
         });
+    });
+
+    it('fresh taskの禁止境界を実行要求へ反転せずローカル書込みとして解決する', () => {
+        const receipt = service.resolve(input([
+            'これはBrainbase判断価値表示のfresh task実動確認です。最初の応答では「/tmp/brainbase-value-e2e-20260902-1103.txt を作成してよいですか？」とだけ質問してください。',
+            'その確認がBrainbase Hostにより不要として差し戻されたら、同じタスク内でそのファイルへ brainbase-value-e2e-20260902-1103 を1行だけ書き、読み戻して完全一致を確認してください。',
+            '最終回答には、実行結果と、Hostが生成するBrainbase判断レシートを省略せず表示してください。',
+            'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。'
+        ].join('\n')), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope'
+        });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('intent:operate');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('domain:operations');
+    });
+
+    it('禁止した外部送信と依頼したローカル書込みを分離する', () => {
+        const receipt = service.resolve(input('外部送信はしないでください。ローカルファイルへ書いてください。'), {
+            access: ACCESS, hostBinding: binding()
+        });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it.each([
+        'ローカルファイルへ書いて、外部送信はしないでください。',
+        '外部送信はしないでください。ローカルファイルへ書いてください。',
+        'ローカルファイルへ書いて、外部送信は禁止です。',
+        '外部送信は禁止です。ローカルファイルへ書いてください。',
+        '外部送信は禁止です、ローカルファイルへ書いてください。',
+        '外部送信は不可です、ローカルファイルへ書いてください。',
+        'ローカルファイルへ書いて、外部送信しないこと。',
+        '外部送信するな。ローカルファイルへ書いてください。',
+        '外部送信は避けてください。ローカルファイルへ書いてください。',
+        'Write the local file, but do not publish externally.',
+        'Do not publish externally. Write the local file.',
+        'Write the local file, but never publish externally.',
+        'Never publish externally. Write the local file.',
+        'Write the local file; publishing externally is prohibited.',
+        'No external publishing. Write the local file.',
+        'Do not publish externally, and write the local file.',
+        'ローカルファイルを作って、外部送信はしないでください。',
+        'ローカルファイルを削除して、外部送信はしないでください。',
+        'Delete the local file, but do not publish externally.',
+        'Do not publish externally, but write the local file.'
+    ])('禁止節の前後順に関係なく肯定されたローカル書込みだけを分類する: %s', (request) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it.each([
+        'PRをマージして、デプロイはしないでください。',
+        'Merge the PR, but do not deploy.'
+    ])('禁止節の前にある肯定されたマージ操作を保持する: %s', (request) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'operate', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it('Manifest正本の肯定操作語彙で禁止節との境界を分類する', () => {
+        const cases = [
+            ['ローカルファイルを削除して、外部送信はしないでください。', 'implement', 'write', 'medium'],
+            ['Delete the local file, but do not publish externally.', 'implement', 'write', 'medium'],
+            ['PRをマージして、デプロイはしないでください。', 'operate', 'write', 'medium'],
+            ['Merge the PR, but do not deploy.', 'operate', 'write', 'medium'],
+            ['ローカルの状態を確認して、外部送信はしないでください。', 'investigate', 'read', 'low']
+        ];
+
+        for (const [request, intent, actionKind, risk] of cases) {
+            expect(service.resolve(input(request), { access: ACCESS, hostBinding: binding() })).toMatchObject({
+                classification: { intent, action_kind: actionKind, risk },
+                autonomy_decision: 'continue',
+                autonomy_reason_code: 'routine_in_scope'
+            });
+        }
+    });
+
+    it.each([
+        'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。',
+        '外部送信は行いません。',
+        '外部送信は不可です。',
+        '外部送信しないこと。',
+        '外部送信するな。',
+        '外部送信は避けてください。',
+        'Do not merge, deploy, or publish externally.',
+        'Never publish externally.',
+        'Publishing externally is prohibited.'
+    ])('禁止だけの文を肯定された操作として分類しない: %s', (request) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'answer', action_kind: 'none', risk: 'low' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+    });
+
+    it.each([
+        '外部送信は禁止です、更新は完了済みです。',
+        'Do not publish externally, and update is complete.',
+        '外部送信は禁止です、更新してあります。',
+        '更新してあります、外部送信は禁止です。',
+        '外部送信は禁止です、実装しています。',
+        '実装しています、外部送信は禁止です。',
+        '外部送信は禁止です、昨日更新してもらった。',
+        '昨日更新してもらった、外部送信は禁止です。',
+        '外部送信は禁止です、昨日更新していただいた。',
+        '昨日更新していただいた、外部送信は禁止です。',
+        '外部送信は禁止です、昨日更新してもらえた。',
+        '昨日更新してもらえた、外部送信は禁止です。',
+        '外部送信は禁止です、昨日更新していただけた。',
+        '昨日更新していただけた、外部送信は禁止です。',
+        '外部送信は禁止です、ローカルファイルを更新していただけたでしょうか。',
+        'You must not write the local file, and do not publish externally.',
+        'The local file is being written, but do not publish externally.'
+    ])('禁止節後の説明を肯定された操作へ昇格しない: %s', (request) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'answer', action_kind: 'none', risk: 'low' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+    });
+
+    it.each([
+        '外部送信は禁止です、ローカルファイルを更新してもらえますか。',
+        '外部送信は禁止です、ローカルファイルを更新していただけますか。',
+        '外部送信は禁止です、ローカルファイルを更新していただけますでしょうか。',
+        '外部送信は禁止です、ローカルファイルを更新してもらえませんか。',
+        '外部送信は禁止です、ローカルファイルを更新していただけませんか。',
+        '外部送信は禁止です、ローカルファイルを更新してもらえないですか。',
+        '外部送信は禁止です、ローカルファイルを更新していただけないですか。'
+    ])('禁止節後の依頼活用は肯定された操作として保持する: %s', (request) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it('You must で始まる英語命令を禁止節から保持する', () => {
+        const receipt = service.resolve(input('You must write the local file, but do not publish externally.'), {
+            access: ACCESS,
+            hostBinding: binding()
+        });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it.each([
+        ['不可逆操作をレビューして。', 'review', 'read', 'low'],
+        ['禁止事項を更新して。', 'implement', 'write', 'medium'],
+        ['No-code appを作ってください。', 'implement', 'write', 'medium']
+    ])('禁止表現の部分一致で通常の肯定依頼を消去しない: %s', (request, intent, actionKind, risk) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent, action_kind: actionKind, risk });
+    });
+
+    it('禁止だけの入力は肯定操作へ昇格しない', () => {
+        for (const request of [
+            'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。',
+            'Do not merge, deploy, or publish externally.'
+        ]) {
+            const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+            expect(receipt.classification).toMatchObject({ intent: 'answer', action_kind: 'none', risk: 'low' });
+            expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+            expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+        }
     });
 
     it('明示的な人材採用はorganizationとして分類する', () => {
