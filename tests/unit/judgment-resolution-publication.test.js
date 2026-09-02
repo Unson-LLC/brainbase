@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 function read(path) {
@@ -6,6 +7,52 @@ function read(path) {
 }
 
 describe('judgment resolver publication surfaces', () => {
+    it('本番hotfix退避先を複数行出力から1件だけ抽出し、不正markerを拒否する', () => {
+        const parser = 'scripts/extract-lightsail-hotfix-backup-dir.mjs';
+        const validPath = '/home/ubuntu/brainbase-production-hotfix-20260902T000000Z';
+        const run = (input) =>
+            spawnSync(process.execPath, [parser], {
+                input,
+                encoding: 'utf8',
+            });
+
+        const valid = run(
+            `[rollback/production-hotfix 123] preserve\n4 files changed\nBRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=${validPath}\n`
+        );
+        expect(valid.status).toBe(0);
+        expect(valid.stdout).toBe(`${validPath}\n`);
+
+        for (const invalid of [
+            'commit output only\n',
+            `BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=${validPath}\nBRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=${validPath}-2\n`,
+            'BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=/tmp/brainbase-production-hotfix-invalid\n',
+        ]) {
+            const result = run(invalid);
+            expect(result.status).not.toBe(0);
+            expect(result.stdout).toBe('');
+        }
+    });
+
+    it('本番hotfixの復旧証跡を検証してからmerge済みSHAへ切り替える', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const forward = runbook.slice(
+            runbook.indexOf('production dirty hotfix reconciliationを実行した場合'),
+            runbook.indexOf('### Verification')
+        );
+
+        expect(runbook).toContain('node scripts/extract-lightsail-hotfix-backup-dir.mjs');
+        expect(forward).toContain('test "$(cat "$HOTFIX_BACKUP_DIR/rollback.sha")" = "$ROLLBACK_SHA"');
+        expect(forward).toContain('sha256sum -c "$HOTFIX_BACKUP_DIR/content.sha256"');
+        expect(forward).toContain('test "$(git rev-parse origin/develop)" = "$TARGET_SHA"');
+        expect(forward).toContain('git switch --detach "$TARGET_SHA"');
+        expect(forward.indexOf('rollback.sha')).toBeLessThan(
+            forward.indexOf('git switch --detach "$TARGET_SHA"')
+        );
+        expect(forward.indexOf('content.sha256')).toBeLessThan(
+            forward.indexOf('git switch --detach "$TARGET_SHA"')
+        );
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:14
     it('CLAUDEとAGENTSのalways-loaded Host contractを同一に保つ', () => {
         const claude = read('CLAUDE.md');

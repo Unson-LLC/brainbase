@@ -198,16 +198,10 @@ printf 'BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=%s\n' "$BACKUP_DIR"
 REMOTE
 )"
 printf '%s\n' "$RECONCILIATION_OUTPUT"
-test "$(printf '%s\n' "$RECONCILIATION_OUTPUT" | grep -c '^BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=/home/ubuntu/brainbase-production-hotfix-')" = 1
 export BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR="$(
   printf '%s\n' "$RECONCILIATION_OUTPUT" \
-    | sed -n 's#^BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=##p'
+    | node scripts/extract-lightsail-hotfix-backup-dir.mjs
 )"
-case "$BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR" in
-  /home/ubuntu/brainbase-production-hotfix-*) ;;
-  *) printf 'invalid Lightsail hotfix backup directory\n' >&2; exit 1 ;;
-esac
-test "$(printf '%s' "$BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR" | wc -l | tr -d ' ')" = 0
 ```
 
 この時点のLightsailは、旧SHA＋hotfixと同じ実効内容を持つcleanなrollback commitである。同じshellで次の事前取得を実行し、`BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR`をrollback stateへ必ず結合する。rollback時は保存済み`rollback.sha`へ戻し、`content.sha256`を照合する。
