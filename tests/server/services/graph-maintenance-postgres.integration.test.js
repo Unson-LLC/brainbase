@@ -13,10 +13,12 @@ import { OntologyRegistry } from '../../../server/services/ontology-registry.js'
 //
 // These tests are intentionally opt-in because they create and drop schemas on
 // a real PostgreSQL instance. The command used for acceptance is:
-// RUN_GRAPH_MAINTENANCE_DB_TESTS=true GRAPH_MAINTENANCE_DATABASE_URL=... \
+// RUN_GRAPH_MAINTENANCE_DB_TESTS=1 GRAPH_MAINTENANCE_DATABASE_URL=... \
 //   npx vitest run tests/server/services/graph-maintenance-postgres.integration.test.js
 const databaseUrl = process.env.GRAPH_MAINTENANCE_DATABASE_URL || process.env.INFO_SSOT_DATABASE_URL || '';
-const runPostgresTests = process.env.RUN_GRAPH_MAINTENANCE_DB_TESTS === 'true';
+const runPostgresTests = ['1', 'true'].includes(
+    (process.env.RUN_GRAPH_MAINTENANCE_DB_TESTS || '').toLowerCase()
+);
 const describeWithPostgres = runPostgresTests && databaseUrl ? describe : describe.skip;
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const schemaPath = path.join(sourceRoot, 'server/sql/info-ssot-schema.sql');

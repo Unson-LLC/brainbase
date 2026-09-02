@@ -6,6 +6,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { timingSafeEqual } from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
@@ -186,6 +187,17 @@ export function isAuthorizedMcpHttpRequest(authorization: string | undefined, ex
   const actual = Buffer.from(authorization.slice('Bearer '.length));
   const expected = Buffer.from(expectedToken);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export function handleHealthVersionRequest(
+  req: Pick<IncomingMessage, 'method' | 'url'>,
+  res: Pick<ServerResponse, 'writeHead' | 'end'>,
+  readback: ReturnType<typeof readRuntimeVersion> = readRuntimeVersion(),
+): boolean {
+  if (req.method !== 'GET' || req.url !== '/health/version') return false;
+  res.writeHead(readback.status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(readback.body));
+  return true;
 }
 
 async function dispatchRemoteJudgmentHook(
@@ -1279,12 +1291,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         res.end('ok');
         return;
       }
-      if (req.method === 'GET' && req.url === '/health/version') {
-        const readback = readRuntimeVersion();
-        res.writeHead(readback.status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(readback.body));
-        return;
-      }
+      if (handleHealthVersionRequest(req, res)) return;
       if (req.method === 'POST' && req.url === REMOTE_JUDGMENT_HOOK_PATH) {
         if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
           res.writeHead(401, {

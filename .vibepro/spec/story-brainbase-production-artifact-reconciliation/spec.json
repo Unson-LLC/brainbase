@@ -280,7 +280,7 @@
           },
           {
             "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
-            "must_cover": "strictCollection: true"
+            "must_cover": "cross-tenant認可scopeとstrict collectionを別契約として検証しDecision subjectをRollbackする"
           },
           {
             "file_glob": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
