@@ -1,0 +1,247 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-r0-master-roadmap-governance",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "planning_contract_preparation"
+  },
+  "story_context": "OSS component roadmap governance metadata only. No hosted entrypoint, tenant identity, shared resource, or application implementation is introduced.",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "component roadmapはProgram Masterのrepository、Markdown/JSON path、exact commit、両content SHA-256を明示する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001",
+            "text_snippet": "exact commit、両content SHA-256"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r0-master-roadmap-governance.md",
+            "anchor": "Source-lock boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/judgment-dag-milestones.md",
+            "anchor": "governed_by_commit"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-roadmap-governance.test.ts",
+            "case": "remains subordinate to the cross-repository Program Master Roadmap"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-roadmap-governance.test.ts",
+            "must_contain": "governed_by_machine_path: docs/management/milestones/brainbase-program-master-roadmap.json"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T06:38:20.457Z",
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "machine source-lockはR0、J0、G0、R1、D0、P0、C0のcrosswalkと6つのProgram statusを固定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002",
+            "text_snippet": "crosswalkと6つのstatus vocabulary"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r0-master-roadmap-governance.md",
+            "anchor": "Source-lock boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "contracts/judgment-dag/source-lock.json",
+            "anchor": "program_governance"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-roadmap-governance.test.ts",
+            "case": "locks the accepted Program governance revision without requiring runtime network access"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-roadmap-governance.test.ts",
+            "must_contain": "status_vocabulary"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T06:38:20.457Z",
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "focused verificationはroadmap表示面とsource-lock機械面のcommit、path、hash、crosswalk、statusを同時に検証する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003",
+            "text_snippet": "表示面とsource-lock機械面"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-roadmap-governance.test.ts",
+            "case": "keeps the human roadmap governance metadata aligned with the machine source lock"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-roadmap-governance.test.ts",
+            "must_contain": "governance.status_vocabulary"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T06:38:20.457Z",
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "contract generatorは更新したroadmapとsource-lockをdigestへ含め、再計算したhashと一致させる。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004",
+            "text_snippet": "digestへ含め"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "contracts/judgment-dag/digest.json",
+            "anchor": "source-lock.json"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-public-contract.test.ts",
+            "case": "publishes a side-effect-free subpath and locked machine artifacts"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-public-contract.test.ts",
+            "must_contain": "digest"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T06:38:20.457Z",
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "public testとruntimeは組織repoへのnetwork accessを要求せず、固定snapshotの更新には新しいcommit、両artifact hash、検証証跡、独立reviewを要求する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005",
+            "text_snippet": "network accessを要求せず"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r0-master-roadmap-governance.md",
+            "anchor": "Update and mismatch policy"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "contracts/judgment-dag/source-lock.json",
+            "anchor": "snapshot_update_policy"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-roadmap-governance.test.ts",
+            "case": "fails closed when the accepted snapshot update policy is incomplete"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-roadmap-governance.test.ts",
+            "must_contain": "requires_independent_review"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T06:38:20.457Z",
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "文書merge、focused test、contract_readyはruntime/production実証またはProgram work packageのdoneを意味しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006",
+            "text_snippet": "Program work packageのdoneとして扱わない"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-r0-master-roadmap-governance.md",
+            "anchor": "Completion boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/judgment-dag-milestones.md",
+            "anchor": "Program status"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/judgment-dag-roadmap-governance.test.ts",
+            "case": "remains subordinate to the cross-repository Program Master Roadmap"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/judgment-dag-roadmap-governance.test.ts",
+            "must_contain": "文書のmergeだけを実装完了"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T06:38:20.457Z",
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
+    }
+  ],
+  "generated_at": "2026-09-02T07:13:20.230Z",
+  "previous_spec_id": "2026-09-02T06:51:49.841Z"
+}

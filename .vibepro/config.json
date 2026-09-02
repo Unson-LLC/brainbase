@@ -153,8 +153,20 @@
           "boundary_reason": "The OSS slice defines only pure projection and rendering contracts; organization storage and delivery remain consumer adapters.",
           "multi_tenancy_contract_created": false
         }
+      },
+      {
+        "story_id": "story-r0-master-roadmap-governance",
+        "title": "R0 OSSロードマップをProgram Masterへ従属させる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": "2026-09-02",
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-m3-judgment-value-proof-surface"
+    "current_story_id": "story-r0-master-roadmap-governance"
   }
 }

@@ -13,7 +13,7 @@
     },
     {
       "path": "contracts/judgment-dag/source-lock.json",
-      "sha256": "c7b3020fe3952d90bd8ed991f613be66c0798983bb6cc2285a9aefff7ab2f0e9"
+      "sha256": "4d3fbc2f82c07f709d901fcda68718b12b45a0d11a16354edec32b3406370bfe"
     },
     {
       "path": "docs/architecture/judgment-dag-core.md",
@@ -21,12 +21,12 @@
     },
     {
       "path": "docs/management/judgment-dag-milestones.md",
-      "sha256": "ef51313f33de64f702fd6c86012984bd70cf99eeca5b4f4cfc27f6cb266172bd"
+      "sha256": "e028f084708aa4ef2dea9437b81d3c2de15cb62b2c9448f2c7fa7d9d32b1e6b2"
     },
     {
       "path": "README.md",
-      "sha256": "a263114611c100feb75f9d35ad793593eafb7dea217d846a99efacc06c7efa24"
+      "sha256": "ec2f2419e7f43e2abdbedf6535e6d57a095e920f6c42b9e250bbabb50c00b745"
     }
   ],
-  "digest": "e97cefb8dadd451d5929c266376f3774fa84dcdde412e5ff3305b9b70d580ecd"
+  "digest": "dbe232857d29a3178013c82fc80d87dadecf0fa07ebf5ca5d260b0eed35c34fb"
 }

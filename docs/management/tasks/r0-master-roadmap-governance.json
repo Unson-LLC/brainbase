@@ -1,0 +1,34 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-r0-master-roadmap-governance",
+  "tasks": [
+    {
+      "task_id": "r0-master-roadmap-governance",
+      "story_id": "story-r0-master-roadmap-governance",
+      "title": "R0 OSSロードマップをProgram Masterへ従属させる",
+      "allowed_paths": [
+        ".vibepro/config.json",
+        ".vibepro/spec/story-r0-master-roadmap-governance/spec.json",
+        ".vibepro/stories/story-r0-master-roadmap-governance/tasks/tasks.json",
+        "contracts/judgment-dag/digest.json",
+        "contracts/judgment-dag/source-lock.json",
+        "docs/architecture/story-r0-master-roadmap-governance.md",
+        "docs/management/judgment-dag-milestones.md",
+        "docs/management/stories/active/story-r0-master-roadmap-governance.md",
+        "docs/management/tasks/r0-master-roadmap-governance.json",
+        "docs/specs/r0-master-roadmap-governance.md",
+        "tests/judgment-dag-roadmap-governance.test.ts"
+      ],
+      "acceptance_criteria": [
+        "AC-001: Program Masterのrepository、paths、exact commit、両content SHA-256を明示する",
+        "AC-002: machine source-lockへwork package crosswalkとProgram status vocabularyを固定する",
+        "AC-003: 表示面とmachine面の固定revisionをfocused testで検証する",
+        "AC-004: 更新したroadmapとsource-lockを生成済みdigestへ含める",
+        "AC-005: public testと配布物は参照元repoへのnetwork accessを要求せず、固定snapshot更新時は新しいcommit・両artifact hash・検証証跡・独立reviewを必須とする",
+        "AC-006: 文書と静的検証をProgram doneや本番実証へ昇格させない"
+      ],
+      "depends_on": [],
+      "status": "accepted"
+    }
+  ]
+}

@@ -4,6 +4,70 @@
   "repository": "https://github.com/Unson-LLC/brainbase",
   "status": "accepted",
   "accepted_base_commit": "7e5d5693f988f4ba84072c5910ef32f0e70871e1",
+  "program_governance": {
+    "repository": "https://github.com/Unson-LLC/brainbase-unson",
+    "commit": "18544f58a2a0298d97eab45de2f05544bed48a43",
+    "markdown": {
+      "path": "docs/management/milestones/brainbase-program-master-roadmap.md",
+      "sha256": "167afb6d3fc57198c9f5ffca06fbafea968a5435af04f44b55017199b6d859fe"
+    },
+    "machine_contract": {
+      "path": "docs/management/milestones/brainbase-program-master-roadmap.json",
+      "sha256": "f3e6e023060ef3976f367ed7efa62ac57f7091f517ea1ca1d13824d9e6ca429f"
+    },
+    "work_packages": [
+      "R0",
+      "J0",
+      "G0",
+      "R1",
+      "D0",
+      "P0",
+      "C0"
+    ],
+    "milestone_crosswalk": {
+      "M0": [
+        "R0",
+        "J0"
+      ],
+      "M1": [
+        "J0"
+      ],
+      "M2": [
+        "G0"
+      ],
+      "M3": [
+        "R1"
+      ],
+      "M4": [
+        "D0"
+      ],
+      "M5": [
+        "P0"
+      ],
+      "M6": [
+        "G0",
+        "C0"
+      ]
+    },
+    "status_vocabulary": [
+      "planned",
+      "contract_ready",
+      "implementing",
+      "verified",
+      "production_proven",
+      "done"
+    ],
+    "snapshot_update_policy": {
+      "requires_new_commit": true,
+      "required_artifact_hashes": [
+        "markdown.sha256",
+        "machine_contract.sha256"
+      ],
+      "requires_verification_evidence": true,
+      "requires_independent_review": true
+    },
+    "verification_boundary": "The OSS package records the accepted cross-repository commit and content hashes. Public tests do not fetch the organization repository or treat network access as runtime authority."
+  },
   "sources": [
     {
       "kind": "architecture",
@@ -13,7 +77,7 @@
     {
       "kind": "milestones",
       "path": "docs/management/judgment-dag-milestones.md",
-      "sha256": "ef51313f33de64f702fd6c86012984bd70cf99eeca5b4f4cfc27f6cb266172bd"
+      "sha256": "e028f084708aa4ef2dea9437b81d3c2de15cb62b2c9448f2c7fa7d9d32b1e6b2"
     }
   ],
   "notes": [

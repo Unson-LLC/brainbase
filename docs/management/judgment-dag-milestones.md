@@ -3,11 +3,41 @@ title: Brainbase Judgment DAG Milestones
 status: active
 date: 2026-08-20
 scope: OSS Brainbase
+governed_by_repository: Unson-LLC/brainbase-unson
+governed_by_path: docs/management/milestones/brainbase-program-master-roadmap.md
+governed_by_machine_path: docs/management/milestones/brainbase-program-master-roadmap.json
+governed_by_commit: 18544f58a2a0298d97eab45de2f05544bed48a43
+governed_by_markdown_sha256: 167afb6d3fc57198c9f5ffca06fbafea968a5435af04f44b55017199b6d859fe
+governed_by_json_sha256: f3e6e023060ef3976f367ed7efa62ac57f7091f517ea1ca1d13824d9e6ca429f
+program_packages:
+  - R0
+  - J0
+  - G0
+  - R1
+  - D0
+  - P0
+  - C0
 ---
 
 # Brainbase Judgment DAG Milestones
 
 This roadmap replaces any implicit assumption that OSS Brainbase stops at memory retrieval. The next milestones make the shared Judgment DAG core real without prematurely building a complete enterprise ontology.
+
+## Program governance
+
+この文書はOSS Judgment DAGのcomponent roadmapであり、cross-repositoryの依存順、開始条件、完了条件は`Unson-LLC/brainbase-unson`の`docs/management/milestones/brainbase-program-master-roadmap.md`に従う。受理した正本snapshotはcommit `18544f58a2a0298d97eab45de2f05544bed48a43`へ固定し、Markdownとmachine-readable JSONのpath・SHA-256は`contracts/judgment-dag/source-lock.json`を正本とする。対応するProgram work packageは R0 / J0 / G0 / R1 / D0 / P0 / C0 である。競合時は固定したProgram Master Roadmapを優先し、この文書のM0〜M6をProgram全体の順序や完了判定へ読み替えない。新しいProgram revisionへ追随する場合は、commitと両content hashを明示的に更新し、契約生成・検証・独立レビューを再実行する。
+
+| Component milestone | Program work package |
+|---|---|
+| M0 Architecture lock | R0 + J0 |
+| M1 Local DAG kernel | J0 |
+| M2 Human + Agent judgment runners | G0 |
+| M3 Replay and evaluation | R1 |
+| M4 Brainbase Deployment dogfood | D0 |
+| M5 Scope promotion | P0 |
+| M6 Organization-ready primitives | G0 + C0 |
+
+Program statusには `planned` / `contract_ready` / `implementing` / `verified` / `production_proven` / `done` の6語彙だけを使う。hard dependencyを満たさないmilestoneを`done`にしない。文書のmergeだけを実装完了または`done`と扱わず、未実施・未収集・staleな証跡をpassや0件へ丸めない。
 
 ## M0 — Architecture lock
 
