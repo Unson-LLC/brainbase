@@ -208,7 +208,7 @@
         "test": ["real PostgreSQL serializes provisioning, generic Graph writes, and direct SQL on the same entity ID; preserves the catalog subject; and rejects a disabled or misbound final-boundary trigger"],
         "test_pattern": [{
           "file_glob": "tests/integration/project-provisioning-full-flow.test.js",
-          "must_cover": "汎用Graph writerと直接SQLはProvisioningと同じID lockを通りCatalog subjectを上書きせず、配備readbackはtrigger binding不整合を拒否する"
+          "must_cover": "受入れE2E: 汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない"
         }]
       },
       "confidence": 1
