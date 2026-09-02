@@ -87,6 +87,23 @@ describe('brainbase_judgment_value_proof_record', () => {
     assert.equal(normalizeJudgmentValueProofInput(input), null);
   });
 
+  it('rejects delegated decisions when no outcome can apply', async () => {
+    const input = validInput();
+    input.outcome = { status: 'not_applicable', summary: null, evidence_refs: [] };
+
+    assert.equal(normalizeJudgmentValueProofInput(input), null);
+    assert.deepEqual(await handleJudgmentValueProofToolCall(
+      'brainbase_judgment_value_proof_record',
+      input,
+    ), {
+      status: 'error',
+      error: {
+        code: 'judgment_value_proof_invalid',
+        message: 'Judgment value proof does not match brainbase-judgment-value-proof-input-v1',
+      },
+    });
+  });
+
   it('rejects verified outcomes without evidence and secret-bearing summaries', async () => {
     const withoutEvidence = validInput();
     withoutEvidence.outcome.evidence_refs = [];
