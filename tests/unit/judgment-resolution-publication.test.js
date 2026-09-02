@@ -149,7 +149,7 @@ describe('judgment resolver publication surfaces', () => {
                         BRAINBASE_PRODUCTION_RUN_DIR: runDir,
                         BRAINBASE_PRODUCTION_RUN_ID: 'production-convergence-test',
                         BRAINBASE_PRODUCTION_TARGET_SHA: 'a'.repeat(40),
-                        BRAINBASE_PRODUCTION_STAGE: 'infisical_public_key_removal',
+                        BRAINBASE_PRODUCTION_STAGE: 'infisical_snapshot_before',
                         BRAINBASE_PRODUCTION_STATE_CHANGED: 'true',
                         BRAINBASE_PRODUCTION_EXIT_CODE: '23',
                         ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY: 'must-not-leak',
@@ -166,7 +166,7 @@ describe('judgment resolver publication surfaces', () => {
                 run_id: 'production-convergence-test',
                 target_sha: 'a'.repeat(40),
                 status: 'failed',
-                failed_stage: 'infisical_public_key_removal',
+                failed_stage: 'infisical_snapshot_before',
                 state_changed: true,
                 rollback_required: true,
                 exit_code: 23,
@@ -186,6 +186,10 @@ describe('judgment resolver publication surfaces', () => {
         expect(convergence).toContain("trap 'write_production_failure_receipt $?' ERR");
         expect(convergence).toContain('BRAINBASE_PRODUCTION_STAGE=');
         expect(convergence).toContain('BRAINBASE_PRODUCTION_STATE_CHANGED=true');
+        expect(convergence).not.toContain('BRAINBASE_PRODUCTION_STATE_CHANGED=false');
+        expect(convergence.indexOf('BRAINBASE_PRODUCTION_STATE_CHANGED=true')).toBeLessThan(
+            convergence.indexOf('BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_before')
+        );
         expect(convergence.indexOf('BRAINBASE_PRODUCTION_STATE_CHANGED=true')).toBeLessThan(
             convergence.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')
         );

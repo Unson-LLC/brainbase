@@ -368,7 +368,9 @@ chmod 700 "$BRAINBASE_PRODUCTION_RUN_DIR"
 export BRAINBASE_PRODUCTION_RECEIPT="$BRAINBASE_PRODUCTION_RUN_DIR/production-convergence-receipt.json"
 export BRAINBASE_PRODUCTION_TARGET_SHA="$TARGET_SHA"
 export BRAINBASE_PRODUCTION_STAGE=preflight
-export BRAINBASE_PRODUCTION_STATE_CHANGED=false
+# この手順は4面をTARGET_SHAへ切り替えた後に開始する。設定変更前の失敗でも
+# release全体は変更済みなので、必ず保存済み4面stateからrollbackする。
+export BRAINBASE_PRODUCTION_STATE_CHANGED=true
 write_production_failure_receipt() {
   local exit_code="$1"
   trap - ERR
@@ -405,9 +407,8 @@ fs.chmodSync(process.env.EVIDENCE, 0o600);
 NODE
 
 BRAINBASE_PRODUCTION_STAGE=infisical_public_key_removal
-# deleteはサーバー反映後の応答断でも非zeroになり得る。mutation開始前から
-# 変更済みの可能性ありとして扱い、失敗時にrollback不要と誤記録しない。
-BRAINBASE_PRODUCTION_STATE_CHANGED=true
+# deleteはサーバー反映後の応答断でも非zeroになり得る。上で設定した
+# 変更済み状態を維持し、失敗時にrollback不要と誤記録しない。
 "$INFISICAL" secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY \
   --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --type shared
