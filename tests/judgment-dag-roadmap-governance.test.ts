@@ -13,6 +13,7 @@ describe('OSS Judgment DAG component roadmap governance', () => {
 
     expect(roadmap).toContain('governed_by_repository: Unson-LLC/brainbase-unson');
     expect(roadmap).toContain('governed_by_path: docs/management/milestones/brainbase-program-master-roadmap.md');
+    expect(roadmap).toContain('governed_by_machine_path: docs/management/milestones/brainbase-program-master-roadmap.json');
     expect(roadmap).toContain('governed_by_commit: 18544f58a2a0298d97eab45de2f05544bed48a43');
     expect(roadmap).toContain('governed_by_markdown_sha256: 167afb6d3fc57198c9f5ffca06fbafea968a5435af04f44b55017199b6d859fe');
     expect(roadmap).toContain('governed_by_json_sha256: f3e6e023060ef3976f367ed7efa62ac57f7091f517ea1ca1d13824d9e6ca429f');
@@ -20,6 +21,46 @@ describe('OSS Judgment DAG component roadmap governance', () => {
     expect(roadmap).toContain('`planned` / `contract_ready` / `implementing` / `verified` / `production_proven` / `done`');
     expect(roadmap).toContain('hard dependencyを満たさないmilestoneを`done`にしない');
     expect(roadmap).toMatch(/文書のmergeだけを実装完了または`done`と扱わ(?:ない|ず)/u);
+  });
+
+  it('keeps the human roadmap governance metadata aligned with the machine source lock', async () => {
+    const roadmap = await readFile(
+      path.join(root, 'docs/management/judgment-dag-milestones.md'),
+      'utf8',
+    );
+    const sourceLock = JSON.parse(await readFile(
+      path.join(root, 'contracts/judgment-dag/source-lock.json'),
+      'utf8',
+    ));
+    const governance = sourceLock.program_governance;
+
+    const scalar = (key: string) => roadmap.match(new RegExp(`^${key}: (.+)$`, 'm'))?.[1];
+    const programPackages = roadmap
+      .match(/^program_packages:\n((?:  - .+\n?)+)/m)?.[1]
+      ?.trim()
+      .split('\n')
+      .map((line) => line.replace(/^\s*-\s+/, ''));
+
+    expect({
+      repository: scalar('governed_by_repository'),
+      markdownPath: scalar('governed_by_path'),
+      machinePath: scalar('governed_by_machine_path'),
+      commit: scalar('governed_by_commit'),
+      markdownSha256: scalar('governed_by_markdown_sha256'),
+      jsonSha256: scalar('governed_by_json_sha256'),
+      workPackages: programPackages,
+    }).toEqual({
+      repository: governance.repository.replace('https://github.com/', ''),
+      markdownPath: governance.markdown.path,
+      machinePath: governance.machine_contract.path,
+      commit: governance.commit,
+      markdownSha256: governance.markdown.sha256,
+      jsonSha256: governance.machine_contract.sha256,
+      workPackages: governance.work_packages,
+    });
+    expect(roadmap).toContain(
+      governance.status_vocabulary.map((status: string) => `\`${status}\``).join(' / '),
+    );
   });
 
   it('locks the accepted Program governance revision without requiring runtime network access', async () => {

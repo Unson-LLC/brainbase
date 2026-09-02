@@ -42,12 +42,12 @@
         "test_pattern": [
           {
             "file_glob": "tests/judgment-dag-roadmap-governance.test.ts",
-            "must_contain": "18544f58a2a0298d97eab45de2f05544bed48a43"
+            "must_contain": "governed_by_machine_path: docs/management/milestones/brainbase-program-master-roadmap.json"
           }
         ]
       },
       "first_seen_at": "2026-09-02T06:38:20.457Z",
-      "last_revised_at": "2026-09-02T06:51:49.845Z"
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
     },
     {
       "id": "C-002",
@@ -89,7 +89,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T06:38:20.457Z",
-      "last_revised_at": "2026-09-02T06:51:49.845Z"
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
     },
     {
       "id": "S-001",
@@ -106,7 +106,7 @@
         "test_refs": [
           {
             "file": "tests/judgment-dag-roadmap-governance.test.ts",
-            "case": "remains subordinate to the cross-repository Program Master Roadmap"
+            "case": "keeps the human roadmap governance metadata aligned with the machine source lock"
           }
         ]
       },
@@ -114,12 +114,12 @@
         "test_pattern": [
           {
             "file_glob": "tests/judgment-dag-roadmap-governance.test.ts",
-            "must_contain": "program_governance"
+            "must_contain": "governance.status_vocabulary"
           }
         ]
       },
       "first_seen_at": "2026-09-02T06:38:20.457Z",
-      "last_revised_at": "2026-09-02T06:51:49.845Z"
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
     },
     {
       "id": "INV-001",
@@ -155,7 +155,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T06:38:20.457Z",
-      "last_revised_at": "2026-09-02T06:51:49.845Z"
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
     },
     {
       "id": "INV-002",
@@ -197,7 +197,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T06:38:20.457Z",
-      "last_revised_at": "2026-09-02T06:51:49.845Z"
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
     },
     {
       "id": "INV-003",
@@ -239,9 +239,9 @@
         ]
       },
       "first_seen_at": "2026-09-02T06:38:20.457Z",
-      "last_revised_at": "2026-09-02T06:51:49.845Z"
+      "last_revised_at": "2026-09-02T07:13:20.231Z"
     }
   ],
-  "generated_at": "2026-09-02T06:51:49.841Z",
-  "previous_spec_id": "2026-09-02T06:51:40.837Z"
+  "generated_at": "2026-09-02T07:13:20.230Z",
+  "previous_spec_id": "2026-09-02T06:51:49.841Z"
 }
