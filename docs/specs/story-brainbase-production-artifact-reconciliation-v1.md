@@ -23,20 +23,28 @@ status: accepted
 
 ## CL-003 Claude MCP応答の成功判定
 
-content block配列とJSON文字列は意味的成功条件を再検証する。検索監査行欠落、error状態、壊れたJSONは成功としない。
+content block配列とJSON文字列は、search、retrieve、route、write、state、value_proof、汎用callの各event kindで意味的成功条件を再検証する。検索・取得監査行欠落、error状態、壊れたJSON、意味的証拠のない汎用callは成功としない。
 
 - Story: AC-001, AC-007
 - Code: `scripts/codex-hooks/judgment-resolver-host.mjs`
 - Test: `tests/unit/judgment-resolver-host.test.js`
 
-## CL-004 本番配備readback
+## CL-004 4実行面の配備readback
 
-merge後の配備receiptは直前SHAとmerge SHAを保存し、checkout、process、`/api/version`のSHA一致と`dirty=false`を個別に検査する。不明値は一致やfalseに丸めない。
+merge後の配備receiptは、Global Codex lifecycle Hook、canonical local UI/API、persistent MCP Host bridge、Lightsail Resolver API/serverの各直前SHAとmerge SHAを保存する。各面のcheckout/reconcile receipt、process、version/readinessを独立して検査し、Git checkoutを持つ面は`dirty=false`を要求する。不明値は一致やfalseに丸めない。
 
 - Story: AC-002, AC-003, AC-007
-- Evidence: Lightsail deployment receipt and public `/api/version` readback
+- Evidence: four-surface rollback capture, deployment receipts, local/public version and readiness readback
 
-## CL-005 OntologyとGraphの同一run検証
+## CL-005 fresh taskによる実動確認
+
+4実行面をmerge SHAへ揃えた後に新しいCodexタスクを作成する。同一turnのepisode、Brainbase tool event、complete final、Hook-visible transcript、ユーザー向け判断レシートが一意に対応した場合だけ`proven_active`とする。既存タスク、readiness、synthetic entrypoint testは代替にしない。
+
+- Story: AC-002, AC-003, AC-007, AC-008
+- Test: `tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts`
+- Evidence: fresh Codex task id, exact merge SHA, episode/event/final paths, transcript verification
+
+## CL-006 OntologyとGraphの同一run検証
 
 公開鍵overrideだけを削除し、秘密鍵と`key_id`の値を証拠へ出力しない。再投影後の同一runでOntology 1.1.0のGit信頼ストア署名検証と`graph_validate(project_code=brainbase)`を実行し、HTTP 200、`collection_complete=true`、構造違反0件、Ontology違反0件、`valid=true`がすべて揃った場合だけ完了とする。
 

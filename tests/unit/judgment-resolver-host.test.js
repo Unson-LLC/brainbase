@@ -1420,6 +1420,93 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env })).toMatchObject({ success: false, event_kind: 'state' });
     });
 
+    it('Claudeのcontent block配列を全Brainbase event kindで意味検証しfail-closedにする', async () => {
+        const root = temporaryDirectory();
+        const env = {
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'enabled'
+        };
+        const payload = {
+            session_id: 'session-claude-event-kind-matrix', turn_id: 'turn-claude-event-kind-matrix',
+            prompt: 'Brainbaseを参照してタスクを更新して', cwd: process.cwd()
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({
+                    management_status: 'managed',
+                    receipt: validReceipt(buildJudgmentRequest(payload, { env }))
+                })
+            })
+        });
+        const block = (value) => [{ type: 'text', text: JSON.stringify(value) }];
+        const audit = (operation) => [{
+            type: 'text',
+            text: [
+                'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
+                'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
+                `📚 Brainbase${operation}: Graphで「event-kind-matrix」を${operation} → 結果を取得 ✓`
+            ].join('\n')
+        }];
+        const recordEvent = (name, id, input, response) => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: `mcp__brainbase__${name}`, tool_use_id: id,
+            tool_input: input, tool_response: response
+        }, { env });
+
+        const route = recordEvent('brainbase_knowledge_resolve', 'claude-route', { intent: '正本を確認' }, block({
+            resolution_id: 'kr_claude_matrix', status: 'resolved', source_class: 'graph',
+            canonical_location: { scope: 'project:brainbase' }
+        }));
+        const retrieved = recordEvent('get_entity', 'claude-retrieve', { id: 'decision-1' }, audit('取得'));
+        const write = recordEvent('create_task', 'claude-write', { title: '確認済みタスク' }, block({
+            status: 'ok', task: { id: 'task-claude-matrix', version: 1 }
+        }));
+        const valueProofInput = {
+            schema_version: 'brainbase-judgment-value-proof-input-v1',
+            interruption: {
+                resolution: 'human_required', question_display_text: '公開してよいか？',
+                reason_code: 'owner_value_choice'
+            },
+            decision: { summary: null, work_impact: null, basis: [] },
+            execution: { summary: null, artifact_refs: [] },
+            outcome: { status: 'not_applicable', summary: null, evidence_refs: [] },
+            human_decision: {
+                question: '公開してよいか？', why_human: '外部公開は本人判断が必要なため',
+                options: [{ id: 'yes', label: '公開する', impact: '外部へ公開される' }]
+            },
+            feedback_requested: false
+        };
+        const valueProof = recordEvent(
+            'brainbase_judgment_value_proof_record', 'claude-value-proof', valueProofInput,
+            block({ status: 'ok', data: valueProofInput })
+        );
+        const genericCall = recordEvent(
+            'submit_approval', 'claude-call', { target: 'approval-1' }, block({ status: 'ok', success: true })
+        );
+        const routeError = recordEvent(
+            'brainbase_knowledge_resolve', 'claude-route-error', { intent: '正本を確認' },
+            block({ status: 'error', error: 'unavailable', resolution_id: 'kr_error' })
+        );
+        const writeSpoof = recordEvent(
+            'create_task', 'claude-write-spoof', { title: '偽装' }, block({ status: 'ok', success: true })
+        );
+        const valueProofMalformed = recordEvent(
+            'brainbase_judgment_value_proof_record', 'claude-value-proof-malformed', valueProofInput,
+            [{ type: 'text', text: '{not-json' }]
+        );
+
+        expect(route).toMatchObject({ success: true, event_kind: 'route' });
+        expect(retrieved).toMatchObject({ success: true, event_kind: 'retrieve' });
+        expect(write).toMatchObject({ success: true, event_kind: 'write' });
+        expect(valueProof).toMatchObject({ success: true, event_kind: 'value_proof' });
+        expect(genericCall).toMatchObject({ success: false, event_kind: 'call' });
+        expect(routeError).toMatchObject({ success: false, event_kind: 'route' });
+        expect(writeSpoof).toMatchObject({ success: false, event_kind: 'write' });
+        expect(valueProofMalformed).toMatchObject({ success: false, event_kind: 'value_proof' });
+    });
+
     it('story-remote-judgment-hook:ac:6 Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };

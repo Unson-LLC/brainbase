@@ -109,7 +109,7 @@
     {
       "id": "C-002",
       "type": "contract",
-      "statement": "Claude MCPのcontent block配列とJSON文字列は意味的成功条件を再検証し、監査行欠落、error状態、壊れたJSONを成功にしない",
+      "statement": "Claude MCPのcontent block配列とJSON文字列はsearch、retrieve、route、write、state、value_proof、汎用callの各event kindで意味的成功条件を再検証し、監査行欠落、error状態、壊れたJSON、意味的証拠のないcallを成功にしない",
       "origin": {
         "story_refs": [
           {
@@ -137,6 +137,10 @@
           {
             "file": "tests/unit/judgment-resolver-host.test.js",
             "case": "ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "Claudeのcontent block配列を全Brainbase event kindで意味検証しfail-closedにする"
           }
         ]
       },
@@ -144,7 +148,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/unit/judgment-resolver-host.test.js",
-            "must_cover": "tool-claude-array-error"
+            "must_cover": "Claudeのcontent block配列を全Brainbase event kindで意味検証しfail-closedにする"
           }
         ]
       },
@@ -154,7 +158,7 @@
     {
       "id": "C-003",
       "type": "contract",
-      "statement": "merge後の配備receiptは直前SHAとmerge SHAを保存し、checkout、process、API versionのSHA一致とdirty=falseを個別に検査し、不明値を成功へ丸めない",
+      "statement": "merge後の配備receiptはGlobal Hook、local UI/API、persistent MCP Host bridge、Lightsailの各直前SHAとmerge SHAを保存し、各面のcheckoutまたはreconcile receipt、process、version、readinessを独立して検査し、不明値を成功へ丸めない",
       "origin": {
         "story_refs": [
           {
@@ -168,6 +172,10 @@
           {
             "kind": "acceptance_criteria",
             "ac_id": "AC-007"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
           }
         ],
         "architecture_refs": [
@@ -193,6 +201,62 @@
       },
       "first_seen_at": "2026-09-02T09:38:00.205Z",
       "last_revised_at": "2026-09-02T09:50:07.016Z"
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "4実行面をmerge SHAへ揃えた後に作成した新しいCodexタスクで、同一turnのepisode、Brainbase tool event、complete final、Hook-visible transcript、ユーザー向け判断レシートが一意に対応した場合だけproven_activeとする",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "証拠契約"
+          },
+          {
+            "file": "docs/brainbase-capabilities/runbooks/judgment-resolve.md",
+            "section": "Verification"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "must_cover": "current runのglobal hook・回帰suite・final receiptを検証する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T10:00:00.000Z",
+      "last_revised_at": "2026-09-02T10:00:00.000Z"
     },
     {
       "id": "C-004",
@@ -267,7 +331,8 @@
     {
       "layer": "e2e",
       "covers": [
-        "Lightsail SHA and dirty readback",
+        "four runtime surfaces exact SHA and readiness readback",
+        "fresh Codex task episode event final and visible judgment receipt",
         "production Ontology and Graph validation"
       ]
     }

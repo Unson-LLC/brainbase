@@ -52,6 +52,12 @@ function sha256(value) {
 
 function nestedRecords(value, depth = 0) {
   if (depth > 5) return [];
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => nestedRecords(entry, depth + 1));
+  }
+  if (typeof value === 'string' && value.trim().startsWith('{')) {
+    try { return nestedRecords(JSON.parse(value), depth + 1); } catch { return []; }
+  }
   const item = record(value);
   if (!item) return [];
   const direct = [item];
@@ -64,6 +70,9 @@ function nestedRecords(value, depth = 0) {
       if (typeof text !== 'string' || !text.trim().startsWith('{')) continue;
       try { direct.push(...nestedRecords(JSON.parse(text), depth + 1)); } catch {}
     }
+  }
+  if (typeof item.text === 'string' && item.text.trim().startsWith('{')) {
+    try { direct.push(...nestedRecords(JSON.parse(item.text), depth + 1)); } catch {}
   }
   return direct;
 }
