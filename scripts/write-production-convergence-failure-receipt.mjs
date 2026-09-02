@@ -42,6 +42,12 @@ const receipt = {
     failed_stage: failedStage,
     state_changed: stateChanged,
     rollback_required: stateChanged,
+    secret_cleanup: {
+        local_attempted: process.env.BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_ATTEMPTED === 'true',
+        local_confirmed: process.env.BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_CONFIRMED === 'true',
+        remote_attempted: process.env.BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_ATTEMPTED === 'true',
+        remote_confirmed: process.env.BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED === 'true',
+    },
     exit_code: exitCode,
     evidence_paths: evidencePaths,
 };

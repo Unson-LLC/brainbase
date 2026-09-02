@@ -382,9 +382,26 @@ export BRAINBASE_PRODUCTION_STATE_CHANGED=true
 export BRAINBASE_PRODUCTION_RUN_ID=''
 export BRAINBASE_PRODUCTION_RUN_DIR=''
 export BRAINBASE_PRODUCTION_TARGET_SHA="${TARGET_SHA:-}"
+export BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_ATTEMPTED=false
+export BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_CONFIRMED=false
+export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_ATTEMPTED=false
+export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED=false
+cleanup_production_secrets() {
+  local cleanup_ok=true
+  export BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_ATTEMPTED=true
+  if test -n "${BRAINBASE_PRODUCTION_RUN_DIR:-}"; then
+    rm -f "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json" || cleanup_ok=false
+    rm -f "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json" || cleanup_ok=false
+    rm -f "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json" || cleanup_ok=false
+    rm -f "$BRAINBASE_PRODUCTION_RUN_DIR/.env.infisical" || cleanup_ok=false
+  fi
+  export BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_CONFIRMED="$cleanup_ok"
+  test "$cleanup_ok" = true
+}
 write_production_failure_receipt() {
   local exit_code="$1"
   trap - ERR
+  cleanup_production_secrets || true
   if test -n "${BRAINBASE_PRODUCTION_RUN_DIR:-}" \
     && test -d "$BRAINBASE_PRODUCTION_RUN_DIR" \
     && test -n "${BRAINBASE_PRODUCTION_RUN_ID:-}" \
@@ -397,6 +414,7 @@ write_production_failure_receipt() {
   return "$exit_code"
 }
 trap 'write_production_failure_receipt $?' ERR
+trap 'cleanup_production_secrets >/dev/null 2>&1 || true' EXIT
 test -n "${TARGET_SHA:-}"
 test -n "${BRAINBASE_ROLLBACK_STATE_DIR:-}"
 grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
@@ -478,23 +496,42 @@ BRAINBASE_PRODUCTION_STAGE=lightsail_environment_projection
   --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/.env.infisical"
 chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/.env.infisical"
 REMOTE_ENV="/tmp/${BRAINBASE_PRODUCTION_RUN_ID}.env.infisical"
-scp -i "$HOME/.ssh/lightsail-brainbase.pem" \
+export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_ATTEMPTED=true
+if ! scp -i "$HOME/.ssh/lightsail-brainbase.pem" \
   "$BRAINBASE_PRODUCTION_RUN_DIR/.env.infisical" \
-  "ubuntu@176.34.20.239:$REMOTE_ENV"
-ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+  "ubuntu@176.34.20.239:$REMOTE_ENV"; then
+  if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 \
+    "rm -f '$REMOTE_ENV' && test ! -e '$REMOTE_ENV'"; then
+    export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED=true
+  fi
+  false
+fi
+if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
   "$REMOTE_ENV" "$TARGET_SHA" <<'REMOTE'
 set -euo pipefail
 REMOTE_ENV="$1"
 TARGET_SHA="$2"
+cleanup_remote_env() { rm -f "$REMOTE_ENV"; }
+trap cleanup_remote_env EXIT
 test "$(sudo stat -c '%U:%G:%a' /home/ubuntu/brainbase/.env.infisical)" = root:root:600
 sudo install -m 600 -o root -g root "$REMOTE_ENV" /home/ubuntu/brainbase/.env.infisical
 rm -f "$REMOTE_ENV"
+test ! -e "$REMOTE_ENV"
 cd /home/ubuntu/brainbase
 test "$(git rev-parse HEAD)" = "$TARGET_SHA"
 test -z "$(git status --porcelain --untracked-files=all)"
 sudo systemctl restart brainbase-ssot.service
 systemctl is-active --quiet brainbase-ssot.service
 REMOTE
+then
+  export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED=true
+else
+  if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 \
+    "rm -f '$REMOTE_ENV' && test ! -e '$REMOTE_ENV'"; then
+    export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED=true
+  fi
+  false
+fi
 
 # 3. 4面を推測せず個別取得する。
 BRAINBASE_PRODUCTION_STAGE=runtime_surface_readback
@@ -643,6 +680,7 @@ NODE
 
 # 5. Receiptは秘密値を含まず、同一run IDと統合SHAへ固定する。
 BRAINBASE_PRODUCTION_STAGE=success_receipt
+cleanup_production_secrets
 RUN_DIR="$BRAINBASE_PRODUCTION_RUN_DIR" RUN_ID="$BRAINBASE_PRODUCTION_RUN_ID" \
 TARGET_SHA="$TARGET_SHA" RECEIPT="$BRAINBASE_PRODUCTION_RECEIPT" node <<'NODE'
 const fs = require('node:fs');
@@ -655,12 +693,20 @@ const receipt = {
   surfaces: JSON.parse(read('surfaces.evidence.json')),
   ontology: JSON.parse(read('ontology.evidence.json')),
   graph: JSON.parse(read('graph.evidence.json')),
+  secret_cleanup: {
+    local_attempted: process.env.BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_ATTEMPTED === 'true',
+    local_confirmed: process.env.BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_CONFIRMED === 'true',
+    remote_attempted: process.env.BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_ATTEMPTED === 'true',
+    remote_confirmed: process.env.BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED === 'true'
+  },
   status: 'passed'
 };
+if (!Object.values(receipt.secret_cleanup).every(Boolean)) process.exit(1);
 fs.writeFileSync(process.env.RECEIPT, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
 NODE
 chmod 600 "$BRAINBASE_PRODUCTION_RECEIPT"
 trap - ERR
+trap - EXIT
 printf 'Production convergence receipt: %s\n' "$BRAINBASE_PRODUCTION_RECEIPT"
 ```
 

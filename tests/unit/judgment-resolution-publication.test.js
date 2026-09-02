@@ -170,6 +170,12 @@ describe('judgment resolver publication surfaces', () => {
                 failed_stage: 'infisical_snapshot_before',
                 state_changed: true,
                 rollback_required: true,
+                secret_cleanup: {
+                    local_attempted: false,
+                    local_confirmed: false,
+                    remote_attempted: false,
+                    remote_confirmed: false,
+                },
                 exit_code: 23,
             });
             expect(receipt.evidence_paths).toEqual(expect.any(Array));
@@ -223,6 +229,64 @@ describe('judgment resolver publication surfaces', () => {
         });
         expect(initializationFailure.status).not.toBe(0);
         expect(initializationFailure.stderr).toContain('status=unknown stage=preflight rollback_required=true');
+    });
+
+    it('本番収束の正常・失敗経路でlocalとremoteの秘密一時ファイルを削除する', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const convergence = runbook.slice(
+            runbook.indexOf('### Production convergence receipt'),
+            runbook.indexOf('### Verification')
+        );
+        const cleanupStart = convergence.indexOf('cleanup_production_secrets() {');
+        const cleanupEnd = convergence.indexOf('\nwrite_production_failure_receipt()', cleanupStart);
+        expect(cleanupStart).toBeGreaterThanOrEqual(0);
+        expect(cleanupEnd).toBeGreaterThan(cleanupStart);
+        const cleanupBlock = convergence.slice(cleanupStart, cleanupEnd);
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-production-secret-cleanup-'));
+        for (const name of [
+            'infisical.before.json',
+            'infisical.deployed-before.json',
+            'infisical.after.json',
+            '.env.infisical',
+        ]) writeFileSync(join(root, name), 'secret-value\n', { mode: 0o600 });
+        const cleanup = spawnSync('bash', ['-c', `set -euo pipefail\n${cleanupBlock}\ncleanup_production_secrets`], {
+            encoding: 'utf8',
+            env: { ...process.env, BRAINBASE_PRODUCTION_RUN_DIR: root },
+        });
+        expect(cleanup.status).toBe(0);
+        for (const name of [
+            'infisical.before.json',
+            'infisical.deployed-before.json',
+            'infisical.after.json',
+            '.env.infisical',
+        ]) expect(existsSync(join(root, name))).toBe(false);
+        expect(convergence).toContain("trap 'cleanup_production_secrets >/dev/null 2>&1 || true' EXIT");
+        expect(convergence).toContain('trap cleanup_remote_env EXIT');
+        expect(convergence).toContain('test ! -e "$REMOTE_ENV"');
+        expect(convergence).toContain('BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED=true');
+        expect(convergence).toContain('if (!Object.values(receipt.secret_cleanup).every(Boolean)) process.exit(1)');
+
+        const remoteStart = convergence.indexOf(
+            'set -euo pipefail\nREMOTE_ENV="$1"\nTARGET_SHA="$2"\ncleanup_remote_env()'
+        );
+        const remoteEnd = convergence.indexOf('\nREMOTE\nthen', remoteStart);
+        expect(remoteStart).toBeGreaterThanOrEqual(0);
+        expect(remoteEnd).toBeGreaterThan(remoteStart);
+        const remoteBlock = convergence.slice(remoteStart, remoteEnd);
+        const remoteRoot = mkdtempSync(join(tmpdir(), 'brainbase-production-remote-cleanup-'));
+        const remoteBin = join(remoteRoot, 'bin');
+        mkdirSync(remoteBin);
+        writeFileSync(join(remoteBin, 'sudo'), '#!/bin/sh\nexit 19\n', { mode: 0o755 });
+        const remoteTransfer = join(remoteRoot, 'remote.env');
+        writeFileSync(remoteTransfer, 'remote-secret-value\n', { mode: 0o600 });
+        const remoteFailure = spawnSync('bash', ['-c', remoteBlock, 'remote-cleanup', remoteTransfer, 'a'.repeat(40)], {
+            encoding: 'utf8',
+            env: { ...process.env, PATH: `${remoteBin}:${process.env.PATH}` },
+        });
+        expect(remoteFailure.status).not.toBe(0);
+        expect(existsSync(remoteTransfer)).toBe(false);
+        rmSync(root, { recursive: true, force: true });
+        rmSync(remoteRoot, { recursive: true, force: true });
     });
 
     it('PR成果物が本番実行前であることを明示する', () => {
