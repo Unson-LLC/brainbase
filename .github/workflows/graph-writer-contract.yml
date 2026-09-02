@@ -88,6 +88,4 @@ jobs:
       - name: Run Graph maintenance PostgreSQL acceptance suite
         env:
           RUN_GRAPH_MAINTENANCE_DB_TESTS: '1'
-        run: >-
-          npm run test:run --
-          tests/server/services/graph-maintenance-postgres.integration.test.js
+        run: npm run test:integration:graph-maintenance
