@@ -695,7 +695,10 @@ describe('JudgmentResolutionService', () => {
         '外部送信は禁止です、昨日更新してもらえた。',
         '昨日更新してもらえた、外部送信は禁止です。',
         '外部送信は禁止です、昨日更新していただけた。',
-        '昨日更新していただけた、外部送信は禁止です。'
+        '昨日更新していただけた、外部送信は禁止です。',
+        '外部送信は禁止です、ローカルファイルを更新していただけたでしょうか。',
+        'You must not write the local file, and do not publish externally.',
+        'The local file is being written, but do not publish externally.'
     ])('禁止節後の説明を肯定された操作へ昇格しない: %s', (request) => {
         const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
 
@@ -707,12 +710,24 @@ describe('JudgmentResolutionService', () => {
     it.each([
         '外部送信は禁止です、ローカルファイルを更新してもらえますか。',
         '外部送信は禁止です、ローカルファイルを更新していただけますか。',
+        '外部送信は禁止です、ローカルファイルを更新していただけますでしょうか。',
         '外部送信は禁止です、ローカルファイルを更新してもらえませんか。',
         '外部送信は禁止です、ローカルファイルを更新していただけませんか。',
         '外部送信は禁止です、ローカルファイルを更新してもらえないですか。',
         '外部送信は禁止です、ローカルファイルを更新していただけないですか。'
     ])('禁止節後の依頼活用は肯定された操作として保持する: %s', (request) => {
         const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it('You must で始まる英語命令を禁止節から保持する', () => {
+        const receipt = service.resolve(input('You must write the local file, but do not publish externally.'), {
+            access: ACCESS,
+            hostBinding: binding()
+        });
 
         expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
         expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });

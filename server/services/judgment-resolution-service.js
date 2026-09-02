@@ -192,7 +192,7 @@ function includesPositiveCommandClause(request, terms) {
         while (offset >= 0) {
             const remainder = normalizedRequest.slice(offset + normalizedTerm.length);
             const endsCommand = /^(?:$|[\s、,;；。！？!?])/u.test(remainder)
-                || /^(?:(?:ください|下さい|くれ|ほしい|欲しい|おけ|みろ)|(?:おいて|みて)(?:ください|下さい)?|(?:もらえ|いただけ)(?:ますか|ませんか|ないですか)|(?:もらいたい|いただきたい))(?=$|[\s、,;；。！？!?])/u.test(remainder);
+                || /^(?:(?:ください|下さい|くれ|ほしい|欲しい|おけ|みろ)|(?:おいて|みて)(?:ください|下さい)?|(?:もらえ|いただけ)(?:ます(?:か|でしょうか)|ません(?:か|でしょうか)|ないですか)|(?:もらいたい|いただきたい))(?=$|[\s、,;；。！？!?])/u.test(remainder);
             if (endsCommand) {
                 return true;
             }
@@ -205,7 +205,7 @@ function includesPositiveCommandClause(request, terms) {
     if (englishTerms.length === 0) return false;
     const commandPattern = englishTerms.map(escapeRegExp).join('|');
     const match = new RegExp(
-        `^(?:please\\s+|(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?)?(?:${commandPattern})\\b`,
+        `^(?:please\\s+|(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?|you\\s+must\\s+)?(?:${commandPattern})\\b`,
         'iu'
     ).exec(request.trim());
     if (!match) return false;
