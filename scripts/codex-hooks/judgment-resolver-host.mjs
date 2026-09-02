@@ -2564,11 +2564,11 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
         finalized_at: finalizedAt,
-        completion_status: surfaceUnavailable ? 'audit_degraded' : 'complete',
         ...(surfaceUnavailable ? {
+            completion_status: 'audit_degraded',
             degradation_reason: 'turn_resolution_unavailable',
             ...(bootstrapEpisode.host_surface ? { host_surface: bootstrapEpisode.host_surface } : {})
-        } : {}),
+        } : { completion_status: 'complete' }),
         protocol_status: 'audit_protocol_complete',
         content_verification_status: 'not_evaluated',
         ...(episode.episode_origin !== undefined ? {
