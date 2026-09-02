@@ -194,6 +194,8 @@ describe('judgment resolver publication surfaces', () => {
             convergence.indexOf('$(mktemp -d')
         );
         expect(convergence).toContain('status=unknown stage=%s rollback_required=true');
+        expect(convergence).not.toContain('${TARGET_SHA:?');
+        expect(convergence).not.toContain('${BRAINBASE_ROLLBACK_STATE_DIR:?');
         expect(convergence.indexOf('BRAINBASE_PRODUCTION_STATE_CHANGED=true')).toBeLessThan(
             convergence.indexOf('BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_before')
         );
@@ -203,6 +205,23 @@ describe('judgment resolver publication surfaces', () => {
         expect(convergence).toContain('production-convergence-failure.json');
         expect(convergence).toContain('rollback_required');
         expect(convergence).toContain('trap - ERR');
+
+        const initialization = convergence.slice(
+            convergence.indexOf('set -euo pipefail'),
+            convergence.indexOf('INFISICAL=')
+        );
+        const {
+            TARGET_SHA: _targetSha,
+            BRAINBASE_ROLLBACK_STATE_DIR: _rollbackStateDir,
+            ...initializationEnv
+        } = process.env;
+        const initializationFailure = spawnSync('/bin/bash', ['-c', initialization], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            env: initializationEnv,
+        });
+        expect(initializationFailure.status).not.toBe(0);
+        expect(initializationFailure.stderr).toContain('status=unknown stage=preflight rollback_required=true');
     });
 
     it('PR成果物が本番実行前であることを明示する', () => {

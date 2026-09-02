@@ -380,8 +380,8 @@ write_production_failure_receipt() {
   return "$exit_code"
 }
 trap 'write_production_failure_receipt $?' ERR
-: "${TARGET_SHA:?Set the merged develop SHA}"
-: "${BRAINBASE_ROLLBACK_STATE_DIR:?Set the captured rollback directory}"
+test -n "${TARGET_SHA:-}"
+test -n "${BRAINBASE_ROLLBACK_STATE_DIR:-}"
 grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
 export TARGET_SHA
 export BRAINBASE_PRODUCTION_TARGET_SHA="$TARGET_SHA"
