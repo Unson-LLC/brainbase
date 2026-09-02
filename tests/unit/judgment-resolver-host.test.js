@@ -3246,3 +3246,168 @@ describe('Codex Judgment Resolver Host', () => {
         expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('turn-resolution surface degradation', () => {
+    const failureOutput = [
+        { type: 'input_text', text: 'Script failed\nWall time 0.0 seconds\nOutput:\n' },
+        { type: 'input_text', text: 'Script error:\nTypeError: tools.mcp__brainbase__brainbase_resolve_turn is not a function\n    at exec_main' }
+    ];
+    const wrappedAttempt = (callId, turnId) => [
+        event('response_item', {
+            type: 'custom_tool_call', name: 'exec', call_id: callId,
+            input: 'const result = await tools.mcp__brainbase__brainbase_resolve_turn({ turn_input: {} });',
+            internal_chat_message_metadata_passthrough: { turn_id: turnId }
+        }),
+        event('response_item', {
+            type: 'custom_tool_call_output', call_id: callId, output: failureOutput,
+            internal_chat_message_metadata_passthrough: { turn_id: turnId }
+        })
+    ];
+    const userMessage = (text, turnId) => event('response_item', {
+        type: 'message', role: 'user', content: [{ type: 'input_text', text }],
+        internal_chat_message_metadata_passthrough: { turn_id: turnId }
+    });
+    const degradedReceipt = (args) => ({
+        ...validReceipt(args),
+        status: 'needs_classification',
+        reconciliation_reasons: ['model_interpretation_missing'],
+        classification: null,
+        required_capabilities: [],
+        autonomy_decision: 'escalate',
+        autonomy_reason_code: 'classification_missing',
+        allowed_runtime_escalation_reasons: []
+    });
+    const startDegradedEpisode = async ({ transcriptLines, sessionId, turnId, prompt }) => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        writeFileSync(transcript, transcriptLines.join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, prompt, cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = degradedReceipt(args);
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        return { root, transcript, env, payload, episode };
+    };
+
+    it('resolve_turnを呼べないCodexスレッドではclassification_missing確認ループへ落とさず縮退して継続する', async () => {
+        const sessionId = 'session-stale-surface';
+        const { env, episode, transcript } = await startDegradedEpisode({
+            sessionId,
+            turnId: 'turn-degraded',
+            prompt: 'いいよ',
+            transcriptLines: [
+                event('session_meta', { id: sessionId }),
+                userMessage('実装するところまで進めて', 'turn-prior'),
+                ...wrappedAttempt('call-prior', 'turn-prior'),
+                userMessage('いいよ', 'turn-degraded')
+            ]
+        });
+
+        expect(episode.host_surface).toMatchObject({
+            schema_version: 'brainbase-judgment-host-surface-v1',
+            turn_resolution: 'unavailable',
+            evidence: { attempt: 'wrapped', turn_id: 'turn-prior' }
+        });
+        expect(episode.owner_audit.display_line).toContain('Resolver未接続のため判断縮退');
+        expect(episode.owner_audit.display_line).toContain('新しいCodexタスクで復旧');
+
+        const context = successOutput(
+            episode.turn_input, episode.initial_route_receipt, episode.owner_audit, undefined, env, episode.host_surface
+        ).hookSpecificOutput.additionalContext;
+        expect(context).toContain('cannot call mcp__brainbase__brainbase_resolve_turn');
+        expect(context).not.toContain('exactly once');
+        expect(context).not.toContain('Autonomy decision: escalate');
+        expect(context).not.toContain('A clarification receipt means ask the clarification');
+
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: 'turn-degraded',
+            transcript_path: transcript, stop_hook_active: false,
+            last_assistant_message: `${episode.owner_audit.display_line}\n${episode.audit_contract.zero_call_display_line}\n安全な範囲の作業を完了しました。`
+        }, { env });
+
+        expect(stopped.output.decision).toBeUndefined();
+        expect(stopped.output.systemMessage).toContain(episode.owner_audit.display_line);
+        expect(stopped.final).toMatchObject({
+            completion_status: 'audit_degraded',
+            degradation_reason: 'turn_resolution_unavailable',
+            host_surface: { turn_resolution: 'unavailable' }
+        });
+    });
+
+    it('縮退証拠が現在turnにしか無い最初のStopも差し戻さず有限収束する', async () => {
+        const sessionId = 'session-first-degraded-stop';
+        const { env, episode, transcript } = await startDegradedEpisode({
+            sessionId,
+            turnId: 'turn-first',
+            prompt: '実装するところまで進めて',
+            transcriptLines: [
+                event('session_meta', { id: sessionId }),
+                userMessage('実装するところまで進めて', 'turn-first')
+            ]
+        });
+        expect(episode.host_surface).toBeUndefined();
+        expect(episode.owner_audit.display_line).toContain('対象を特定できず');
+
+        writeFileSync(transcript, `${readFileSync(transcript, 'utf8')}\n${wrappedAttempt('call-first', 'turn-first').join('\n')}`);
+
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: 'turn-first',
+            transcript_path: transcript, stop_hook_active: false,
+            last_assistant_message: `${episode.owner_audit.display_line}\n${episode.audit_contract.zero_call_display_line}\n⚠️ 確認が必要[classification_missing]: 実装まで進めてよいですか？`
+        }, { env });
+
+        expect(stopped.output.decision).toBeUndefined();
+        expect(stopped.final).toMatchObject({
+            completion_status: 'audit_degraded',
+            degradation_reason: 'turn_resolution_unavailable'
+        });
+        expect(stopped.final.host_surface).toBeUndefined();
+    });
+
+    it('後続でresolve_turnが直接成功しているスレッドは縮退しない', async () => {
+        const sessionId = 'session-recovered-surface';
+        const { env, episode, transcript } = await startDegradedEpisode({
+            sessionId,
+            turnId: 'turn-recovered',
+            prompt: '続けて',
+            transcriptLines: [
+                event('session_meta', { id: sessionId }),
+                userMessage('実装するところまで進めて', 'turn-prior'),
+                ...wrappedAttempt('call-prior', 'turn-prior'),
+                event('response_item', {
+                    type: 'function_call', name: 'mcp__brainbase__brainbase_resolve_turn', call_id: 'call-direct',
+                    arguments: '{"turn_input":{}}',
+                    internal_chat_message_metadata_passthrough: { turn_id: 'turn-prior' }
+                }),
+                event('response_item', {
+                    type: 'function_call_output', call_id: 'call-direct', output: '{"status":"resolved"}',
+                    internal_chat_message_metadata_passthrough: { turn_id: 'turn-prior' }
+                }),
+                userMessage('続けて', 'turn-recovered')
+            ]
+        });
+
+        expect(episode.host_surface).toBeUndefined();
+        expect(episode.owner_audit.display_line).toContain('対象を特定できず');
+
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: 'turn-recovered',
+            transcript_path: transcript, stop_hook_active: false,
+            last_assistant_message: `${episode.owner_audit.display_line}\n回答`
+        }, { env });
+        expect(stopped.output).toMatchObject({ decision: 'block' });
+        expect(stopped.continuation.missing_capabilities).toContain('judgment.resolve_turn');
+    });
+});
