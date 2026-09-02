@@ -1439,14 +1439,26 @@ describe('Codex Judgment Resolver Host', () => {
         };
         const readNames = names('READ_ONLY_TOOL_NAMES');
         const writeNames = names('WRITE_TOOL_NAMES');
+        const expectedKinds = {
+            get_context: 'retrieve', list_entities: 'retrieve', get_entity: 'retrieve',
+            list_extension_types: 'retrieve', list_extension_entities: 'retrieve', search: 'search',
+            resolve_entity: 'retrieve', search_wiki: 'search', get_wiki_page: 'retrieve', search_personal_kg: 'search',
+            brainbase_projects: 'retrieve', brainbase_bootstrap_config: 'retrieve', brainbase_admin_read: 'retrieve',
+            brainbase_run_receipt_inbox: 'retrieve', brainbase_run_receipt_history: 'retrieve', brainbase_run_receipt_diagnosis: 'retrieve',
+            brainbase_automation_run_detail: 'retrieve', brainbase_meeting_automation_diagnosis: 'retrieve', brainbase_onboarding_get: 'retrieve',
+            brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'retrieve', authorize_tenant_resource: 'retrieve',
+            mesh_peers: 'retrieve', graph_get_plan_receipt: 'retrieve', graph_validate: 'retrieve',
+            brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
+            brainbase_automation_human_step_resolve: 'write', brainbase_onboarding_start: 'write', brainbase_onboarding_ingest: 'write',
+            brainbase_onboarding_review: 'write', brainbase_onboarding_first_value: 'write', brainbase_knowledge_event_record: 'write',
+            create_task: 'write', update_task: 'write', transition_task: 'write', graph_record_human_gate_receipt: 'write',
+            graph_plan_mutations: 'write', graph_apply_plan: 'write', graph_rollback_plan: 'write', graph_export_snapshot: 'write',
+            mesh_query: 'write'
+        };
         expect(readNames.length).toBeGreaterThan(0);
         expect(writeNames.length).toBeGreaterThan(0);
         expect(Object.keys(BRAINBASE_TOOL_KIND_BY_NAME).sort()).toEqual([...readNames, ...writeNames].sort());
-        for (const name of readNames) expect(['retrieve', 'search', 'route']).toContain(BRAINBASE_TOOL_KIND_BY_NAME[name]);
-        for (const name of writeNames) expect(['write', 'state', 'value_proof']).toContain(BRAINBASE_TOOL_KIND_BY_NAME[name]);
-        expect(BRAINBASE_TOOL_KIND_BY_NAME.brainbase_automation_human_step_resolve).toBe('write');
-        expect(BRAINBASE_TOOL_KIND_BY_NAME.graph_export_snapshot).toBe('write');
-        expect(BRAINBASE_TOOL_KIND_BY_NAME.mesh_query).toBe('write');
+        expect(BRAINBASE_TOOL_KIND_BY_NAME).toEqual(expectedKinds);
         expect(Object.keys(BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME).sort()).toEqual([...readNames, ...writeNames].sort());
         expect(Object.values(BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME).every((value) => typeof value === 'string' && value.length > 0)).toBe(true);
     });

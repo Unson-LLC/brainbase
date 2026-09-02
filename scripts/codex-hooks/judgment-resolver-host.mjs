@@ -119,8 +119,11 @@ const BRAINBASE_WRITE_TOOL_NAMES = Object.freeze([
     'graph_plan_mutations', 'graph_apply_plan', 'graph_rollback_plan', 'graph_export_snapshot', 'mesh_query'
 ]);
 export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
-    ...BRAINBASE_READ_TOOL_NAMES.map((name) => [name, /search/u.test(name) ? 'search' : 'retrieve']),
+    ...BRAINBASE_READ_TOOL_NAMES.map((name) => [name, 'retrieve']),
     ...BRAINBASE_WRITE_TOOL_NAMES.map((name) => [name, 'write']),
+    ['search', 'search'],
+    ['search_wiki', 'search'],
+    ['search_personal_kg', 'search'],
     ['brainbase_knowledge_resolve', 'route'],
     ['brainbase_judgment_state_record', 'state'],
     ['brainbase_judgment_value_proof_record', 'value_proof']
