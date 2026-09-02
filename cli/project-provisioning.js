@@ -69,7 +69,16 @@ async function request(path, { method = 'GET', body, idempotencyKey } = {}) {
         body: body ? JSON.stringify(body) : undefined
     });
     const payload = await response.json();
-    if (!response.ok) throw new Error(`${payload.error?.code || response.status}: ${payload.error?.message || 'request failed'}`);
+    if (!response.ok) {
+        const code = payload.error?.code || String(response.status);
+        const message = payload.error?.message || 'request failed';
+        const details = payload.error?.details;
+        const error = new Error(`${code}: ${message}${details ? `\ndetails: ${JSON.stringify(details)}` : ''}`);
+        error.code = code;
+        error.statusCode = response.status;
+        error.details = details;
+        throw error;
+    }
     console.log(JSON.stringify(payload, null, 2));
     return payload;
 }
