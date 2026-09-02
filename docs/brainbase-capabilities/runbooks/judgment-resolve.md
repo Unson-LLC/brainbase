@@ -223,6 +223,23 @@ if test -n "${BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR:-}"; then
   printf '%s\n' "$BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR" \
     > "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir"
 fi
+INFISICAL="$HOME/.local/bin/infisical"
+INFISICAL_DOMAIN=https://infisical.unson.jp
+INFISICAL_PROJECT_ID=ce20541c-02b9-4523-bbe0-49d50b2fcc19
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format json \
+  --output-file "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
+chmod 600 "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
+INFISICAL_SNAPSHOT="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" node <<'NODE'
+const values = JSON.parse(require('node:fs').readFileSync(process.env.INFISICAL_SNAPSHOT, 'utf8'));
+for (const name of [
+  'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY',
+  'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY',
+  'ONTOLOGY_PUBLICATION_SIGNING_KEY_ID'
+]) {
+  if (!Object.hasOwn(values, name) || !values[name]) process.exit(1);
+}
+NODE
 source "$BRAINBASE_SOURCE_ROOT/scripts/launchd/brainbase-runtime-readiness.sh"
 CAPTURE_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
 CAPTURE_MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
@@ -395,14 +412,20 @@ INFISICAL_PROJECT_ID=ce20541c-02b9-4523-bbe0-49d50b2fcc19
 
 # 1. 変更前後の値は0600の一時ファイルだけへ保存し、Receiptには存在・同一性だけを書く。
 BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_before
+test -s "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
+cp "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
+  "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json"
+chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json"
 "$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --format json \
-  --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json"
-chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json"
+  --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json"
+chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json"
 BEFORE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json" \
+DEPLOYED_BEFORE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json" \
 EVIDENCE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.evidence.json" node <<'NODE'
 const fs = require('node:fs');
 const before = JSON.parse(fs.readFileSync(process.env.BEFORE, 'utf8'));
+const deployedBefore = JSON.parse(fs.readFileSync(process.env.DEPLOYED_BEFORE, 'utf8'));
 const names = Object.keys(before);
 const evidence = {
   public_key_override_present_before: names.includes('ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY'),
@@ -410,6 +433,13 @@ const evidence = {
   key_id_present_before: names.includes('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID')
 };
 if (!Object.values(evidence).every(Boolean)) process.exit(1);
+for (const name of [
+  'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY',
+  'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY',
+  'ONTOLOGY_PUBLICATION_SIGNING_KEY_ID'
+]) {
+  if (before[name] !== deployedBefore[name]) process.exit(1);
+}
 fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence));
 fs.chmodSync(process.env.EVIDENCE, 0o600);
 NODE
@@ -716,7 +746,7 @@ export BRAINBASE_SOURCE_ROOT=/Users/ksato/workspace/repos/brainbase
 export BRAINBASE_UI_RUNTIME_ROOT=/Users/ksato/workspace/repos/.runtime/brainbase-31013
 export BRAINBASE_MCP_RUNTIME_ROOT="$BRAINBASE_UI_RUNTIME_ROOT"
 export BRAINBASE_RUNTIME_PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-pinned.sha
-for file in hooks.json hooks.sha256 global-hook.entrypoint global-hook.root global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha runtime-pin.state; do
+for file in hooks.json hooks.sha256 global-hook.entrypoint global-hook.root global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha runtime-pin.state infisical.before.json; do
   test -s "$BRAINBASE_ROLLBACK_STATE_DIR/$file"
 done
 require_git_root() {
@@ -875,7 +905,75 @@ if (( public_ready != 1 )); then
   exit 1
 fi
 
-# 3. Restore the exact previous Hook config last. The captured clean Hook
+# 3. Removing the invalid public-key override is forward-only incident remediation.
+# A code/runtime rollback must not restore it. Re-read Infisical, preserve the
+# captured private key and key_id, project the repaired dotenv again, and prove
+# the installed Lightsail file has exactly the exported checksum.
+INFISICAL="$HOME/.local/bin/infisical"
+INFISICAL_DOMAIN=https://infisical.unson.jp
+INFISICAL_PROJECT_ID=ce20541c-02b9-4523-bbe0-49d50b2fcc19
+ROLLBACK_INFISICAL_CURRENT="$(mktemp "${TMPDIR:-/tmp}/brainbase-infisical-rollback-current.XXXXXX.json")"
+ROLLBACK_INFISICAL_FINAL="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback-final.json"
+ROLLBACK_ENV="$BRAINBASE_ROLLBACK_STATE_DIR/.env.infisical.rollback"
+chmod 600 "$ROLLBACK_INFISICAL_CURRENT"
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format json \
+  --output-file "$ROLLBACK_INFISICAL_CURRENT"
+if CURRENT="$ROLLBACK_INFISICAL_CURRENT" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(process.env.CURRENT,"utf8"));
+process.exit(Object.hasOwn(value,"ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY") ? 0 : 1);
+'; then
+  DELETE_EXIT=0
+  "$INFISICAL" secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY \
+    --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+    --projectId "$INFISICAL_PROJECT_ID" --type shared || DELETE_EXIT=$?
+  # The delete response can be ambiguous after the server commits. The final
+  # export below is authoritative; DELETE_EXIT alone never decides rollback success.
+fi
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format json \
+  --output-file "$ROLLBACK_INFISICAL_FINAL"
+chmod 600 "$ROLLBACK_INFISICAL_FINAL"
+BEFORE="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
+FINAL="$ROLLBACK_INFISICAL_FINAL" \
+EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.evidence.json" node <<'NODE'
+const fs = require('node:fs');
+const before = JSON.parse(fs.readFileSync(process.env.BEFORE, 'utf8'));
+const final = JSON.parse(fs.readFileSync(process.env.FINAL, 'utf8'));
+const evidence = {
+  public_key_override_present_after_rollback: Object.hasOwn(final, 'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY'),
+  private_key_preserved_after_rollback: before.ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY === final.ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY,
+  key_id_preserved_after_rollback: before.ONTOLOGY_PUBLICATION_SIGNING_KEY_ID === final.ONTOLOGY_PUBLICATION_SIGNING_KEY_ID
+};
+if (evidence.public_key_override_present_after_rollback ||
+    !evidence.private_key_preserved_after_rollback ||
+    !evidence.key_id_preserved_after_rollback) process.exit(1);
+fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence));
+fs.chmodSync(process.env.EVIDENCE, 0o600);
+NODE
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format dotenv \
+  --output-file "$ROLLBACK_ENV"
+chmod 600 "$ROLLBACK_ENV"
+EXPECTED_ENV_SHA="$(sha256sum "$ROLLBACK_ENV" | awk '{print $1}')"
+REMOTE_ROLLBACK_ENV="/tmp/brainbase-infisical-rollback-${EXPECTED_ENV_SHA}.env"
+scp -i "$HOME/.ssh/lightsail-brainbase.pem" "$ROLLBACK_ENV" \
+  "ubuntu@176.34.20.239:$REMOTE_ROLLBACK_ENV"
+ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+  "$REMOTE_ROLLBACK_ENV" "$EXPECTED_ENV_SHA" <<'REMOTE'
+set -euo pipefail
+REMOTE_ROLLBACK_ENV="$1"
+EXPECTED_ENV_SHA="$2"
+sudo install -o root -g root -m 600 "$REMOTE_ROLLBACK_ENV" /home/ubuntu/brainbase/.env.infisical
+rm -f "$REMOTE_ROLLBACK_ENV"
+ACTUAL_ENV_SHA="$(sudo sha256sum /home/ubuntu/brainbase/.env.infisical | awk '{print $1}')"
+test "$ACTUAL_ENV_SHA" = "$EXPECTED_ENV_SHA"
+sudo systemctl restart brainbase-ssot.service
+curl -fsS --connect-timeout 5 --max-time 10 -- http://127.0.0.1:55123/api/health >/dev/null
+REMOTE
+rm -f "$ROLLBACK_INFISICAL_CURRENT"
+
+# 4. Restore the exact previous Hook config last. The captured clean Hook
 # checkout was never mutated, so restoring hooks.json is sufficient.
 install -m 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" "$HOME/.codex/hooks.json"
 (cd "$BRAINBASE_ROLLBACK_STATE_DIR" && shasum -a 256 -c hooks.sha256)

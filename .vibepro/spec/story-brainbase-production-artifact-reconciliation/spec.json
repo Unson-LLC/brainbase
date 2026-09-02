@@ -155,7 +155,7 @@
     {
       "id": "S-004",
       "type": "scenario",
-      "statement": "Given production Infisicalに不完全な公開鍵overrideと有効な秘密鍵・key_idが存在する、When sharedのONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEYだけを削除して再取得する、Then 公開鍵overrideは不在となり秘密鍵とkey_idは値を表示せず同一性が確認され、同一runの設定証跡へ保存される。",
+      "statement": "Given production Infisicalに不完全な公開鍵overrideと有効な秘密鍵・key_idが存在する、When sharedのONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEYだけを削除して再取得する、Then 公開鍵overrideは不在となり秘密鍵とkey_idは値を表示せず同一性が確認され、同一runの設定証跡へ保存される。この除去はforward-only incident remediationであり、コード/runtime rollbackでも復元せず、rollback後にoverride不在、秘密鍵・key_idの同一性、Lightsail環境ファイルの再投影checksumを読戻す。",
       "origin": {
         "story_refs": [
           {
@@ -335,7 +335,7 @@
     {
       "id": "S-002",
       "type": "scenario",
-      "statement": "Given PR成果物はproduction_execution_status=not_runであり、PR・CI・4面のSHA/readiness・署名・Graph検証・fresh task実証のいずれかが不一致、When 本番収束を判定する、Then 成功とは報告せず、途中失敗は秘密値を含まないReceiptへ失敗工程・変更有無・rollback要否・取得済み証跡を保存し、記録済みSHAとHookファイルを使い、Lightsailは専用rollback commitへ戻してcontent hashを照合する正本runbookの順序で復旧できる。",
+      "statement": "Given PR成果物はproduction_execution_status=not_runであり、PR・CI・4面のSHA/readiness・署名・Graph検証・fresh task実証のいずれかが不一致、When 本番収束を判定する、Then 成功とは報告せず、途中失敗は秘密値を含まないReceiptへ失敗工程・変更有無・rollback要否・取得済み証跡を保存し、記録済みSHAとHookファイルを使い、Lightsailは専用rollback commitへ戻してcontent hashを照合する正本runbookの順序で復旧できる。公開鍵override除去はforward-onlyとして維持し、秘密鍵・key_idの同一性と修復済みLightsail環境ファイルをrollback後に読戻す。",
       "origin": {
         "story_refs": [
           {

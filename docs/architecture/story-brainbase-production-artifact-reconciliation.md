@@ -10,7 +10,7 @@
 - 本番の旧SHA＋4ファイル差分は、切替前に対象限定のpatch、content hash、専用rollback branchのcommitとして保存する。このcommitは復旧専用であり、デプロイ元にはしない。
 - 通常の本番checkoutへ直接機能commitを追加せず、VibePro PRとCIを通した`develop`を唯一の前進デプロイ元にする。
 - Ontologyの非機密公開鍵は`config/ontology/trusted-public-keys.json`を正本とする。
-- Infisical productionでは署名用の秘密鍵と`key_id`を維持し、重複して壊れている公開鍵overrideだけを除去する。
+- Infisical productionでは署名用の秘密鍵と`key_id`を維持し、重複して壊れている公開鍵overrideだけを除去する。この除去はforward-only incident remediationとして扱い、コード/runtime rollbackでも復元しない。rollbackは修復済みInfisicalを再取得し、秘密鍵・`key_id`の同一性とoverride不在を秘密値なしで記録し、Lightsailへ再投影してchecksumを読戻す。
 - Judgment Resolverの変更はglobal Hook checkout、ローカル`:31013`、常駐MCP、本番Lightsailの4面を一つの互換セットとして扱い、各面のSHAを推測せず個別に読み戻す。
 - 切替前に4面のSHAとglobal Hookファイルを保全し、統合SHAへ揃えた後に各面のclean/readinessを確認する。
 - Infisical再投影後に`brainbase-ssot.service`を再起動し、checkout SHA、process SHA、API version、dirty状態を読み戻す。
@@ -37,4 +37,4 @@
 - CIまたはレビューが未完了なら、本番へデプロイしない。
 - 本番収束が途中で停止した場合は、失敗工程、設定変更有無、rollback要否、取得済み証跡パスを秘密値なしの失敗Receiptへ保存する。失敗Receiptも作れなければ状態を`unknown`としてoperatorへ表示する。
 - 再投影後に署名検証が失敗した場合はサービスを成功扱いせず、削除前の設定メタデータとGit信頼ストアを照合する。
-- デプロイ後のSHA、dirty状態、Graph検証、fresh task実証のいずれかが一致しない場合は、`judgment-resolve.md#rollback`の順序でローカルUI/MCP、Lightsail、global Hookを記録済み状態へ戻し、未確認として報告する。Lightsailは専用rollback commitへ戻して旧SHA＋ホットフィックスの実効内容を`dirty=false`で復元し、保存済みcontent hashと照合する。global Hookは最後に復旧し、owner journalは削除しない。
+- デプロイ後のSHA、dirty状態、Graph検証、fresh task実証のいずれかが一致しない場合は、`judgment-resolve.md#rollback`の順序でローカルUI/MCP、Lightsail、global Hookを記録済み状態へ戻し、未確認として報告する。Lightsailは専用rollback commitへ戻して旧SHA＋ホットフィックスの実効内容を`dirty=false`で復元し、保存済みcontent hashと照合する。Infisicalの不正公開鍵override除去はforward-onlyとして維持し、秘密鍵・`key_id`の同一性と修復済み環境ファイルのLightsail再投影を読戻す。global Hookは最後に復旧し、owner journalは削除しない。

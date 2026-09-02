@@ -122,6 +122,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(convergence).toContain('ontology_violation_count');
         expect(convergence).toContain('graph_valid');
         expect(convergence).toContain('production-convergence-receipt.json');
+        expect(convergence).toContain('cp "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"');
 
         expect(convergence.indexOf('public_key_override_present_before')).toBeLessThan(
             convergence.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')
@@ -245,6 +246,44 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain("Never substitute one path's evidence for the other");
         expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
         expect(read(delegatedVerifier)).toContain('Stop recovery must never claim pre-generation guidance');
+    });
+
+    it('公開鍵override除去をforward-only修復としてrollback後も維持する', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const capture = runbook.slice(
+            runbook.indexOf('### Pre-deployment rollback capture'),
+            runbook.indexOf('### Production convergence receipt')
+        );
+        const rollback = runbook.slice(
+            runbook.indexOf('### Rollback'),
+            runbook.indexOf('## Autonomy Gate rollout')
+        );
+
+        expect(capture).toContain('infisical.before.json');
+        expect(capture).toContain('ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
+        expect(capture).toContain('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY');
+        expect(capture).toContain('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID');
+        expect(rollback).toContain('forward-only incident remediation');
+        expect(rollback).toContain('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
+        expect(rollback).toContain('infisical.rollback-final.json');
+        expect(rollback).toContain('public_key_override_present_after_rollback');
+        expect(rollback).toContain('private_key_preserved_after_rollback');
+        expect(rollback).toContain('key_id_preserved_after_rollback');
+        expect(rollback).toContain('infisical.rollback.evidence.json');
+        expect(rollback).toContain('test "$ACTUAL_ENV_SHA" = "$EXPECTED_ENV_SHA"');
+        expect(rollback.indexOf('infisical.rollback.evidence.json')).toBeLessThan(
+            rollback.indexOf('Restore the exact previous Hook config last')
+        );
+        for (const contract of [
+            read('docs/management/stories/active/story-brainbase-production-artifact-reconciliation.md'),
+            read('docs/architecture/story-brainbase-production-artifact-reconciliation.md'),
+            read('.vibepro/spec/story-brainbase-production-artifact-reconciliation/spec.json')
+        ]) {
+            expect(contract).toContain('forward-only incident remediation');
+            expect(contract).toContain('秘密鍵');
+            expect(contract).toContain('key_id');
+            expect(contract).toContain('Lightsail');
+        }
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:14
