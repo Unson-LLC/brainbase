@@ -177,6 +177,7 @@ resource "google_service_account_iam_member" "deployer_acts_as" {
     runtime        = google_service_account.runtime.name
     ingest         = google_service_account.ingest.name
     auth_bootstrap = google_service_account.auth_bootstrap.name
+    migration      = google_service_account.migration.name
   }
 
   service_account_id = each.value

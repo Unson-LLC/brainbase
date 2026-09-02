@@ -50,4 +50,15 @@ describe('minimal device web surface', () => {
         expect(controller).not.toContain('slack_workspace_id');
         expect(controller).not.toContain("addEventListener('message'");
     });
+
+    it('re-authenticates the isolated Growin launcher before an access token expires', () => {
+        const launcher = fs.readFileSync(
+            path.join(repoRoot, 'scripts/growin/run-claude-isolated.sh'),
+            'utf8'
+        );
+
+        expect(launcher).toContain('token_is_current');
+        expect(launcher).toContain('(.issued_at // 0) + (.expires_in // 0) > (now + 60)');
+        expect(launcher).toContain('BRAINBASE_TOKEN_FILE="$token_file" node scripts/auth-setup.mjs');
+    });
 });

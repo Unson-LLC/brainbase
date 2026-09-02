@@ -8,7 +8,14 @@ token_file="${GROWIN_BRAINBASE_TOKEN_FILE:-${HOME}/.brainbase/growin/tokens.json
 command -v claude >/dev/null || { echo "Claude Code が必要です" >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq が必要です" >&2; exit 1; }
 
-if [[ ! -f "$token_file" ]]; then
+token_is_current() {
+  [[ -f "$token_file" ]] && jq -e '
+    (.access_token | type == "string" and length > 0) and
+    ((.issued_at // 0) + (.expires_in // 0) > (now + 60))
+  ' "$token_file" >/dev/null 2>&1
+}
+
+if ! token_is_current; then
   echo "Growin専用の個人認証を開始します。ブラウザでGrowinのGoogle Workspace認証を完了してください。"
   BRAINBASE_API_URL="$api_url" BRAINBASE_TOKEN_FILE="$token_file" node scripts/auth-setup.mjs
 fi
