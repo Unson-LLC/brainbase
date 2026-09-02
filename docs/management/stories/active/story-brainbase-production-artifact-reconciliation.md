@@ -12,8 +12,9 @@
 
 このStoryは、前進デプロイ元を確定する「PR・マージ準備」と、マージ済みSHAを実環境へ反映する「本番完了」の2段階で判定する。PR作成前に本番を未マージSHAへ変更してはならない。
 
-- PR・マージ準備: 本番差分と正式commitのパッチ同一性、回帰テスト、4面の退避・切替・readback・rollback手順がレビュー可能で、CIを開始できること。ここでは本番反映済みとは判定しない。
-- 本番完了: PRを`develop`へマージした後、AC-001〜AC-008の本番退避、4面反映、設定修復、Graph検証、rollback証跡、fresh task実証を同じ実行記録へ残すこと。
+PR・マージ準備では、本番差分と正式commitのパッチ同一性、回帰テスト、4面の退避・切替・readback・rollback手順がレビュー可能で、CIを開始できること。ここでは本番反映済みとは判定しない。
+
+本番完了では、PRを`develop`へマージした後、AC-001〜AC-008の本番退避、4面反映、設定修復、Graph検証、rollback証跡、fresh task実証を同じ実行記録へ残すこと。
 
 - AC-001: 本番4ファイルの差分を、内容とパッチ同一性を維持した正式なGit commitとして保全し、対象テストで意図を確認する。反映前に本番側でも対象4ファイルだけのstatus、patch、content hash、旧SHAを退避し、その差分を専用rollback branchのclean commitとして保存する。対象外の差分が1件でもあれば停止する。
 - AC-002: ホットフィックスをレビュー・CI済みのPRで`develop`へ統合し、global Hook checkout、ローカル`:31013`、常駐MCP、本番Lightsailの4面をその統合SHAへ揃える。
