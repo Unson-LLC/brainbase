@@ -250,7 +250,7 @@ function positiveClassificationRequest(request, manifest) {
     return request
         .split(/(?<=[。！？.!?\n])/u)
         .map((sentence) => {
-            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください|しないこと|するな|避けてください|しません|行いません|実行しません|禁止(?=です|されています|[。！？\s]|$)|不可(?=です|[。！？\s]|$))/u.exec(sentence);
+            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください|しないこと|するな|避けてください|しません|行いません|実行しません|禁止(?:です|されています)?(?=[、,;；。！？\s]|$)|不可(?:です)?(?=[、,;；。！？\s]|$))/u.exec(sentence);
             if (japaneseBoundary) {
                 const beforeNegation = sentence.slice(0, japaneseBoundary.index);
                 const clauseBoundary = Math.max(
