@@ -30,6 +30,8 @@
 7. health、version、dirty状態、journal、Ontology検証、Graph全体検証を同一runで読み戻し、秘密値を含まないproduction convergence Receiptへ固定する。
 8. Hook trust状態を確認し、owner承認後に作成したfresh taskでJudgment lifecycleを実証する。続けて、実際の中断候補から成果物・正本読戻し・value proof・complete final・ユーザー向け判断レシートまで進む別のfresh taskを実証する。
 
+## 証拠契約
+
 手順1はPR前の静的・自動検証、手順2は前進デプロイの権限境界、手順3〜8はマージ後の本番実行である。手順3〜8の証跡をPR前の合格条件にはせず、反対に手順1〜2だけで本番完了とも報告しない。VibeProのPR成果物には`production_execution_status=not_run`を明示し、PR時点の検証可能性だけを示す。本番readbackはマージ後の同一runで別途取得する。
 
 ## 失敗時の扱い

@@ -1688,7 +1688,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(recordTool('unknown_future_tool', { id: 'x', status: 'ok' }, 'unknown')).toMatchObject({ success: false, event_kind: 'call' });
     });
 
-    it('ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する', async () => {
+    it('ClaudeのMCP response形状で公開ツール群の意味的成功を検証する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-claude-mcp-shape', turn_id: 'turn-claude-mcp-shape', prompt: 'Brainbaseを検索して修正して', cwd: process.cwd() };
