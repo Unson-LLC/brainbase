@@ -148,10 +148,17 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const unrelated = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
             tool_name: 'mcp__brainbase__brainbase_projects', tool_use_id: 'tool-unrelated',
-            tool_input: {}, tool_response: { status: 'ok', data: { projects: [], count: 0 } }
+            tool_input: {}, tool_response: { content: [
+                { type: 'text', text: JSON.stringify({ status: 'ok', data: { projects: [], count: 0 } }) },
+                { type: 'text', text: [
+                    'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
+                    'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
+                    '📚 Brainbase取得: Brainbaseから「プロジェクト一覧」を取得 → 該当なし（不在確定ではない）'
+                ].join('\n') }
+            ] }
         }) });
         expect(JSON.parse(unrelated.stdout).systemMessage).toBe(
-            '📚 Brainbase取得: brainbase_projects「プロジェクト一覧」→ 0件・正常応答を確認 ✓'
+            '📚 Brainbase取得: brainbase_projects「プロジェクト一覧」→ 該当なし（不在確定ではない）'
         );
         const unrelatedLine = JSON.parse(unrelated.stdout).systemMessage;
 

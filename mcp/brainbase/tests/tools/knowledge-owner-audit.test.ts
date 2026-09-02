@@ -5,6 +5,7 @@ import {
   buildKnowledgeOwnerAudit,
   buildKnowledgeToolContent,
 } from '../../src/tools/knowledge-owner-audit.js';
+import { __testing as serverTesting } from '../../src/server.js';
 
 describe('knowledge owner audit', () => {
   it('records an actual Graph search with its real query', () => {
@@ -72,6 +73,33 @@ describe('knowledge owner audit', () => {
     );
   });
 
+  it('audits public structured retrievals and distinguishes confirmed empty results', () => {
+    assert.equal(
+      buildKnowledgeOwnerAudit(
+        'brainbase_projects',
+        {},
+        JSON.stringify({ status: 'ok', data: { projects: [], count: 0 } }),
+      )?.display_line,
+      '📚 Brainbase取得: Brainbaseから「プロジェクト一覧」を取得 → 該当なし（不在確定ではない）',
+    );
+    assert.equal(
+      buildKnowledgeOwnerAudit(
+        'brainbase_onboarding_get',
+        { run_id: 'run-204' },
+        JSON.stringify({ status: 'ok', data: null }),
+      )?.outcome,
+      '該当なし（不在確定ではない）',
+    );
+    assert.equal(
+      buildKnowledgeOwnerAudit(
+        'graph_validate',
+        { project_code: 'brainbase' },
+        JSON.stringify({ status: 'ok', data: { valid: true } }),
+      )?.outcome,
+      '結果を取得',
+    );
+  });
+
   it('appends exactly one audit block only when an actual retrieval ran', () => {
     const audit = buildKnowledgeOwnerAudit('search', { query: '公開方針' }, '1 result');
 
@@ -89,5 +117,16 @@ describe('knowledge owner audit', () => {
     assert.deepStrictEqual(buildKnowledgeToolContent('Graph route', null), [
       { type: 'text', text: 'Graph route' },
     ]);
+  });
+
+  it('wraps a public structured retrieval in the MCP content envelope consumed by the Host', () => {
+    const content = serverTesting.buildToolResponseContent(
+      'brainbase_onboarding_get',
+      { run_id: 'run-204' },
+      JSON.stringify({ status: 'ok', data: null }),
+    );
+    assert.equal(content.length, 2);
+    assert.equal(content[0]?.text, '{"status":"ok","data":null}');
+    assert.match(content[1]?.text || '', /📚 Brainbase取得: Brainbaseから「run-204」を取得 → 該当なし/u);
   });
 });

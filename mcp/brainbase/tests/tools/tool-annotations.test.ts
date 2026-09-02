@@ -14,10 +14,10 @@ describe('MCP tool capability annotations', () => {
 
   it('marks representative readers as read-only and mutations as writes', () => {
     const byName = new Map(__testing.tools.map((tool) => [tool.name, tool]));
-    for (const name of ['search', 'get_entity', 'brainbase_projects', 'brainbase_onboarding_get', 'mesh_peers', 'graph_export_snapshot', 'graph_get_plan_receipt', 'graph_validate']) {
+    for (const name of ['search', 'get_entity', 'brainbase_projects', 'brainbase_onboarding_get', 'mesh_peers', 'graph_get_plan_receipt', 'graph_validate']) {
       assert.equal(byName.get(name)?.annotations?.readOnlyHint, true, name);
     }
-    for (const name of ['brainbase_onboarding_review', 'brainbase_automation_human_step_resolve', 'create_task', 'update_task', 'graph_record_human_gate_receipt', 'graph_plan_mutations', 'graph_apply_plan', 'graph_rollback_plan']) {
+    for (const name of ['brainbase_onboarding_review', 'brainbase_automation_human_step_resolve', 'create_task', 'update_task', 'mesh_query', 'graph_export_snapshot', 'graph_record_human_gate_receipt', 'graph_plan_mutations', 'graph_apply_plan', 'graph_rollback_plan']) {
       assert.equal(byName.get(name)?.annotations?.readOnlyHint, false, name);
     }
   });

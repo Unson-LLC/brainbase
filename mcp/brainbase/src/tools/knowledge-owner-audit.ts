@@ -1,6 +1,6 @@
 export interface KnowledgeOwnerAudit {
   schema_version: 'brainbase-knowledge-owner-audit-v1';
-  source: 'Graph' | 'Personal KG' | 'Wiki互換面';
+  source: 'Graph' | 'Personal KG' | 'Wiki互換面' | 'Brainbase';
   operation: '検索' | '取得';
   query: string;
   outcome: '結果を取得' | '該当なし（不在確定ではない）';
@@ -34,6 +34,11 @@ const TARGETS: Record<string, AuditTarget> = {
     operation: '取得',
     query: (args) => `${String(args.type ?? 'entity')}/${String(args.id ?? '')}`,
   },
+  list_extension_types: {
+    source: 'Graph',
+    operation: '取得',
+    query: () => 'extension entity types',
+  },
   list_extension_entities: {
     source: 'Graph',
     operation: (args) => typeof args.query === 'string' && args.query.trim() ? '検索' : '取得',
@@ -64,6 +69,76 @@ const TARGETS: Record<string, AuditTarget> = {
     operation: '取得',
     query: (args) => String(args.path ?? ''),
   },
+  brainbase_projects: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: () => 'プロジェクト一覧',
+  },
+  brainbase_bootstrap_config: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: () => '初期設定',
+  },
+  brainbase_admin_read: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => String(args.view ?? '管理情報'),
+  },
+  brainbase_run_receipt_inbox: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => String(args.project_id ?? '実行レシート受信箱'),
+  },
+  brainbase_run_receipt_history: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => String(args.project_id ?? '実行レシート履歴'),
+  },
+  brainbase_run_receipt_diagnosis: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => String(args.receipt_id ?? '実行レシート診断'),
+  },
+  brainbase_automation_run_detail: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => String(args.run_id ?? '自動化実行'),
+  },
+  brainbase_meeting_automation_diagnosis: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => String(args.project_id ?? '会議自動化診断'),
+  },
+  brainbase_onboarding_get: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => String(args.run_id ?? 'オンボーディング'),
+  },
+  brainbase_get_meeting_minutes_context: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => String(args.run_id ?? args.receipt_id ?? '議事録コンテキスト'),
+  },
+  authorize_tenant_resource: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => String(args.resource_id ?? args.object_type ?? 'テナント権限'),
+  },
+  mesh_peers: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: () => 'メッシュピア',
+  },
+  graph_get_plan_receipt: {
+    source: 'Graph',
+    operation: '取得',
+    query: (args) => String(args.plan_id ?? '変更計画レシート'),
+  },
+  graph_validate: {
+    source: 'Graph',
+    operation: '取得',
+    query: (args) => String(args.project_code ?? 'Graph検証'),
+  },
 };
 
 const NO_RESULT = /(?:\bNo (?:results|context|personal KG entries|extension entities|wiki pages)|Entity not found)/iu;
@@ -80,6 +155,22 @@ function isNoResult(toolName: string, result: string): boolean {
       return false;
     }
   }
+  try {
+    const parsed = JSON.parse(result) as { status?: unknown; data?: unknown };
+    const data = parsed && typeof parsed === 'object' ? parsed.data : undefined;
+    if (toolName === 'brainbase_onboarding_get') return parsed.status === 'ok' && data === null;
+    if (data && typeof data === 'object') {
+      const record = data as Record<string, unknown>;
+      if (toolName === 'brainbase_projects') return record.count === 0 && Array.isArray(record.projects) && record.projects.length === 0;
+      if (['brainbase_run_receipt_inbox', 'brainbase_run_receipt_history'].includes(toolName)) {
+        return Array.isArray(record.items) && record.items.length === 0;
+      }
+      if (toolName === 'graph_get_plan_receipt') return Array.isArray(record.receipts) && record.receipts.length === 0;
+    }
+  } catch {
+    // Non-JSON knowledge tool responses are classified by the text patterns above.
+  }
+  if (toolName === 'mesh_peers' && result === '接続中のピアはありません。') return true;
   return false;
 }
 

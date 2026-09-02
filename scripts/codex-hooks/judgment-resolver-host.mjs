@@ -109,14 +109,14 @@ const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
     'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
     'brainbase_knowledge_resolve', 'brainbase_get_meeting_minutes_context', 'authorize_tenant_resource',
-    'mesh_query', 'mesh_peers', 'graph_export_snapshot', 'graph_get_plan_receipt', 'graph_validate'
+    'mesh_peers', 'graph_get_plan_receipt', 'graph_validate'
 ]);
 const BRAINBASE_WRITE_TOOL_NAMES = Object.freeze([
     'brainbase_judgment_value_proof_record', 'brainbase_judgment_state_record',
     'brainbase_automation_human_step_resolve', 'brainbase_onboarding_start', 'brainbase_onboarding_ingest',
     'brainbase_onboarding_review', 'brainbase_onboarding_first_value', 'brainbase_knowledge_event_record',
     'create_task', 'update_task', 'transition_task', 'graph_record_human_gate_receipt',
-    'graph_plan_mutations', 'graph_apply_plan', 'graph_rollback_plan'
+    'graph_plan_mutations', 'graph_apply_plan', 'graph_rollback_plan', 'graph_export_snapshot', 'mesh_query'
 ]);
 export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
     ...BRAINBASE_READ_TOOL_NAMES.map((name) => [name, /search/u.test(name) ? 'search' : 'retrieve']),
@@ -125,6 +125,22 @@ export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
     ['brainbase_judgment_state_record', 'state'],
     ['brainbase_judgment_value_proof_record', 'value_proof']
 ]));
+export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
+    get_context: 'owner_audit', list_entities: 'owner_audit', get_entity: 'owner_audit',
+    list_extension_types: 'owner_audit', list_extension_entities: 'owner_audit', search: 'owner_audit',
+    resolve_entity: 'owner_audit', search_wiki: 'owner_audit', get_wiki_page: 'owner_audit', search_personal_kg: 'owner_audit',
+    brainbase_projects: 'control_plane', brainbase_bootstrap_config: 'published_contract', brainbase_admin_read: 'control_plane',
+    brainbase_run_receipt_inbox: 'control_plane', brainbase_run_receipt_history: 'control_plane', brainbase_run_receipt_diagnosis: 'published_contract',
+    brainbase_automation_run_detail: 'published_contract', brainbase_meeting_automation_diagnosis: 'published_contract', brainbase_onboarding_get: 'published_contract',
+    brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', authorize_tenant_resource: 'tenant_authorization',
+    mesh_peers: 'mesh_peers', graph_get_plan_receipt: 'graph_contract', graph_validate: 'graph_contract',
+    brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
+    brainbase_automation_human_step_resolve: 'published_contract', brainbase_onboarding_start: 'published_contract', brainbase_onboarding_ingest: 'published_contract',
+    brainbase_onboarding_review: 'published_contract', brainbase_onboarding_first_value: 'published_contract', brainbase_knowledge_event_record: 'published_contract',
+    create_task: 'task_contract', update_task: 'task_contract', transition_task: 'task_contract', graph_record_human_gate_receipt: 'graph_contract',
+    graph_plan_mutations: 'graph_contract', graph_apply_plan: 'graph_contract', graph_rollback_plan: 'graph_contract', graph_export_snapshot: 'graph_contract',
+    mesh_query: 'mesh_query'
+});
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -987,7 +1003,7 @@ function responseSucceeded(response, {
     const explicitEnvelope = record(response);
     const items = nestedRecords(response);
     if (items.length === 0) {
-        return allowImplicitSuccess && response !== null && response !== undefined;
+        return semanticSuccess || (allowImplicitSuccess && response !== null && response !== undefined);
     }
     const failed = items.some((item) => (
         Object.hasOwn(item, 'Err') || item.isError === true
@@ -1077,23 +1093,83 @@ function stringArray(value) {
     return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
-function publishedToolSemanticData(toolName, response) {
+function receiptContract(data, type = null) {
+    return nonEmptyString(data?.receipt_id) && nonEmptyString(data?.plan_id)
+        && (type === null || data.receipt_type === type) && nonEmptyString(data?.status)
+        && nonEmptyString(data?.before_hash) && nonEmptyString(data?.after_hash)
+        && Boolean(record(data?.result)) && nonEmptyString(data?.created_at);
+}
+
+function graphToolContract(name, data) {
+    if (name === 'graph_export_snapshot') {
+        return nonEmptyString(data.snapshot_id) && nonEmptyString(data.snapshot_hash) && nonEmptyString(data.project_code)
+            && Array.isArray(data.entities) && Array.isArray(data.edges);
+    }
+    if (name === 'graph_record_human_gate_receipt') {
+        return nonEmptyString(data.receipt_id) && nonEmptyString(data.decision_id) && data.status === 'approved'
+            && nonEmptyString(data.approved_by) && nonEmptyString(data.approved_at) && Boolean(record(data.evidence));
+    }
+    if (name === 'graph_plan_mutations') {
+        return ['plan_id', 'status', 'snapshot_id', 'snapshot_hash', 'after_snapshot_hash', 'reason', 'idempotency_key'].every((key) => nonEmptyString(data[key]))
+            && typeof data.dry_run === 'boolean' && Array.isArray(data.operations)
+            && data.operation_count === data.operations.length && Boolean(record(data.before)) && Boolean(record(data.after)) && Boolean(record(data.diff_summary));
+    }
+    if (name === 'graph_apply_plan') return receiptContract(data, 'apply');
+    if (name === 'graph_rollback_plan') return receiptContract(data, 'rollback');
+    if (name === 'graph_get_plan_receipt') return nonEmptyString(data.plan_id) && Array.isArray(data.receipts) && data.receipts.every((entry) => receiptContract(record(entry)));
+    if (name === 'graph_validate') {
+        const counts = record(data.counts);
+        return typeof data.valid === 'boolean' && nonEmptyString(data.snapshot_hash) && Array.isArray(data.issues)
+            && Boolean(record(data.ontology)) && Boolean(record(data.required_relation_scope_summary))
+            && ['entities', 'edges', 'issues', 'duplicates', 'orphans'].every((key) => Number.isFinite(counts?.[key]) && counts[key] >= 0);
+    }
+    return false;
+}
+
+function responseText(response) {
+    if (typeof response === 'string') return response;
+    const content = Array.isArray(response) ? response : record(response)?.content;
+    if (!Array.isArray(content)) return null;
+    return content.map((block) => record(block)?.text).find((text) => typeof text === 'string' && text.trim()) ?? null;
+}
+
+function publishedToolSemanticData(toolName, response, input) {
     const name = String(toolName).replace(/^mcp__brainbase__/u, '');
+    if (name === 'mesh_peers') {
+        const text = responseText(response);
+        return typeof text === 'string' && (text === '接続中のピアはありません。' || /^# メッシュピア一覧 \(\d+\)\n/u.test(text)) ? { text } : null;
+    }
     return nestedRecords(response).find((item) => {
+        if (name === 'brainbase_get_meeting_minutes_context') {
+            const expected = record(input);
+            const receipt = record(item.receipt);
+            const identity = record(receipt?.identity);
+            return item.status === 'ok' && ['resolved', 'confirmed_empty'].includes(receipt?.status)
+                && receipt?.receipt_id === expected?.receipt_id && identity?.run_id === expected?.run_id
+                && identity?.project_code === expected?.project_code && identity?.transcript_sha256 === expected?.transcript_sha256;
+        }
+        if (name === 'authorize_tenant_resource') {
+            const resource = record(item.resource_ref);
+            return item.authorized === true && item.entry_point === 'mcp' && nonEmptyString(item.tenant_id)
+                && nonEmptyString(item.tenant_revision_at_write) && nonEmptyString(resource?.object_type) && nonEmptyString(resource?.resource_id);
+        }
+        if (name === 'mesh_query') return nonEmptyString(item.queryId) && item.status === 'sent';
         if (item.status !== 'ok') return false;
+        if (name === 'brainbase_onboarding_get' && item.data === null) return true;
         const data = record(item.data);
         if (!data) return false;
+        if (name.startsWith('graph_')) return graphToolContract(name, data);
         if (name === 'brainbase_bootstrap_config') {
             const config = record(data.bootstrap_config);
             const user = record(config?.user);
             return config?.config_write_mode === 'create_only'
                 && ['id', 'name', 'slackUserId', 'workspaceId'].every((key) => nonEmptyString(user?.[key]))
                 && Array.isArray(config.projects) && config.projects.every((project) => nonEmptyString(record(project)?.id))
-                && nonEmptyString(config.config_yaml) && Number.isInteger(data.count) && data.count >= 0;
+                && nonEmptyString(config.config_yaml) && data.count === config.projects.length;
         }
         if (name === 'brainbase_run_receipt_diagnosis') {
             const diagnosis = record(data.diagnosis);
-            return Boolean(record(data.receipt)) && nonEmptyString(diagnosis?.state)
+            return nonEmptyString(record(data.receipt)?.project_id) && nonEmptyString(diagnosis?.state)
                 && stringArray(diagnosis.issue_codes)
                 && (diagnosis.recommended_action === null || typeof diagnosis.recommended_action === 'string')
                 && data.count === 1;
@@ -1123,7 +1199,7 @@ function publishedToolSemanticData(toolName, response) {
         if (name === 'brainbase_knowledge_event_record') {
             return data.schema_version === 'brainbase-vibepro-knowledge-event-record-receipt.v1'
                 && ['recorded', 'already_recorded'].includes(data.status)
-                && ['event_id', 'project_code', 'story_id', 'body_hash', 'candidate_id', 'record_ref', 'candidate_ref'].every((key) => nonEmptyString(data[key]))
+                && ['event_id', 'project_code', 'story_id', 'body_hash', 'parent_episode_id', 'candidate_id', 'record_ref', 'candidate_ref'].every((key) => nonEmptyString(data[key]))
                 && data.processing_stage === 'retrievable' && data.candidate_only === true
                 && data.graph_promoted === false && data.external_action_executed === false;
         }
@@ -1269,7 +1345,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const kind = retrieval?.kind ?? fallbackKind;
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
-    const publishedToolResult = brainbaseTool ? publishedToolSemanticData(toolName, responseValue) : null;
+    const publishedToolResult = brainbaseTool ? publishedToolSemanticData(toolName, responseValue, inputValue) : null;
     const controlPlaneRead = kind === 'call' || kind === 'retrieve'
         ? controlPlaneReadData(toolName, responseValue)
         : null;
@@ -1281,12 +1357,16 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         pending_safe_work: record(inputValue)?.pending_safe_work,
         runtime_reason_code: record(inputValue)?.runtime_reason_code
     } : null;
+    const semanticResult = Boolean(controlPlaneRead || publishedToolResult);
+    const retrievalSemanticSuccess = BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME[toolName.replace(/^mcp__brainbase__/u, '')] === 'owner_audit'
+        ? Boolean(retrieval)
+        : Boolean(retrieval && semanticResult);
     const responseSuccess = responseSucceeded(responseValue, {
-        allowTransportSuccess: brainbaseTool && kind === 'retrieve' && Boolean(retrieval || controlPlaneRead || publishedToolResult),
+        allowTransportSuccess: brainbaseTool && ['search', 'retrieve'].includes(kind) && retrievalSemanticSuccess,
         allowExplicitSuccess: !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
         semanticSuccess: ['search', 'retrieve'].includes(kind)
-            ? Boolean(retrieval || controlPlaneRead || publishedToolResult)
+            ? retrievalSemanticSuccess
             : kind === 'value_proof'
             ? Boolean(valueProofInput)
             : kind === 'route'

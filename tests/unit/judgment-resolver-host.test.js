@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     BRAINBASE_TOOL_KIND_BY_NAME,
+    BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME,
     buildOwnerReferenceLine,
     buildJudgmentRequest,
     canonicalJson,
@@ -16,6 +17,25 @@ import {
     startEpisode,
     successOutput
 } from '../../scripts/codex-hooks/judgment-resolver-host.mjs';
+
+function withRetrievalAudit(name, response, outcome = 'result') {
+    const kind = BRAINBASE_TOOL_KIND_BY_NAME[name];
+    if (!['search', 'retrieve'].includes(kind)) return response;
+    const operation = kind === 'search' ? '検索' : '取得';
+    const terminal = outcome === 'no_result'
+        ? `📚 Brainbase${operation}: Brainbaseから「${name}」を取得 → 該当なし（不在確定ではない）`
+        : `📚 Brainbase${operation}: Brainbaseから「${name}」を取得 → 結果を取得 ✓`;
+    return {
+        content: [
+            { type: 'text', text: typeof response === 'string' ? response : JSON.stringify(response) },
+            { type: 'text', text: [
+                'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
+                'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
+                terminal
+            ].join('\n') }
+        ]
+    };
+}
 
 const temporaryPaths = [];
 
@@ -1269,24 +1289,24 @@ describe('Codex Judgment Resolver Host', () => {
             tool_input: toolInput, tool_response: toolResponse
         }, { env });
 
-        const projects = record('brainbase_projects', 'tool-projects', {}, {
+        const projects = record('brainbase_projects', 'tool-projects', {}, withRetrievalAudit('brainbase_projects', {
             status: 'ok', data: { projects: [{ id: 'brainbase' }], count: 1 }
-        });
+        }));
         const inbox = record('brainbase_run_receipt_inbox', 'tool-inbox', {
             project_id: 'brainbase', source_type: 'codex_automations',
             run_status: 'blocked', evidence_state: 'unconfirmed', limit: 100
-        }, {
+        }, withRetrievalAudit('brainbase_run_receipt_inbox', {
             status: 'ok', data: { items: [], count: 0 }
-        });
+        }, 'no_result'));
         const history = record('brainbase_run_receipt_history', 'tool-history', {
             project_id: 'brainbase', source_type: 'codex_automations',
             source_identity: 'brainbase-oyasumi', limit: 20
-        }, { status: 'ok', data: { items: [], count: 0 } });
+        }, withRetrievalAudit('brainbase_run_receipt_history', { status: 'ok', data: { items: [], count: 0 } }, 'no_result'));
         const admin = record('brainbase_admin_read', 'tool-admin', {
             view: 'candidates', project: 'brainbase', limit: 100
-        }, {
+        }, withRetrievalAudit('brainbase_admin_read', {
             status: 'ok', data: { candidates: [] }
-        });
+        }));
         const failed = record('brainbase_admin_read', 'tool-admin-failed', { view: 'health' }, {
             status: 'error', error: { code: 'brainbase_api_error' }
         });
@@ -1294,18 +1314,18 @@ describe('Codex Judgment Resolver Host', () => {
             status: 'ok', data: {}
         });
 
-        expect(projects.display_line).toBe('📚 Brainbase取得: brainbase_projects「プロジェクト一覧」→ 1件・正常応答を確認 ✓');
-        expect(inbox.display_line).toBe('📚 Brainbase取得: brainbase_run_receipt_inbox「Run Receipt Inbox・project_id=brainbase・source_type=codex_automations・run_status=blocked・evidence_state=unconfirmed・最大100件」→ 0件・正常応答を確認 ✓');
-        expect(history.display_line).toBe('📚 Brainbase取得: brainbase_run_receipt_history「Run Receipt履歴・project_id=brainbase・source_type=codex_automations・source_identity=brainbase-oyasumi・最大20件」→ 0件・正常応答を確認 ✓');
-        expect(admin.display_line).toBe('📚 Brainbase取得: brainbase_admin_read「管理ビュー candidates・project=brainbase・最大100件」→ 正常応答を確認 ✓');
+        expect(projects.display_line).toBe('📚 Brainbase取得: brainbase_projects「プロジェクト一覧」→ 結果を取得 ✓');
+        expect(inbox.display_line).toBe('📚 Brainbase取得: brainbase_run_receipt_inbox「Run Receipt Inbox・project_id=brainbase・source_type=codex_automations・run_status=blocked・evidence_state=unconfirmed・最大100件」→ 該当なし（不在確定ではない）');
+        expect(history.display_line).toBe('📚 Brainbase取得: brainbase_run_receipt_history「Run Receipt履歴・project_id=brainbase・source_type=codex_automations・source_identity=brainbase-oyasumi・最大20件」→ 該当なし（不在確定ではない）');
+        expect(admin.display_line).toBe('📚 Brainbase取得: brainbase_admin_read「管理ビュー candidates・project=brainbase・最大100件」→ 結果を取得 ✓');
         expect(admin.query_excerpt).toBe('管理ビュー candidates・project=brainbase・最大100件');
         expect(failed.display_line).toBe('⚠️ Brainbase取得: brainbase_admin_read「管理ビュー health」→ 失敗または結果不明');
         expect(genericEmpty.display_line).toBe('⚠️ Brainbase取得: get_context「入力なし」→ 失敗または結果不明');
         expect(genericEmpty.query_excerpt).toBe('入力なし');
 
-        const wrongProjectsShape = record('brainbase_projects', 'tool-projects-wrong-shape', {}, {
+        const wrongProjectsShape = record('brainbase_projects', 'tool-projects-wrong-shape', {}, withRetrievalAudit('brainbase_projects', {
             status: 'ok', data: { items: [] }
-        });
+        }));
         expect(wrongProjectsShape.display_line).toBe('⚠️ Brainbase取得: brainbase_projects「プロジェクト一覧」→ 失敗または結果不明');
 
         for (const event of [projects, inbox, history, admin, failed, genericEmpty]) {
@@ -1425,6 +1445,59 @@ describe('Codex Judgment Resolver Host', () => {
         for (const name of readNames) expect(['retrieve', 'search', 'route']).toContain(BRAINBASE_TOOL_KIND_BY_NAME[name]);
         for (const name of writeNames) expect(['write', 'state', 'value_proof']).toContain(BRAINBASE_TOOL_KIND_BY_NAME[name]);
         expect(BRAINBASE_TOOL_KIND_BY_NAME.brainbase_automation_human_step_resolve).toBe('write');
+        expect(BRAINBASE_TOOL_KIND_BY_NAME.graph_export_snapshot).toBe('write');
+        expect(BRAINBASE_TOOL_KIND_BY_NAME.mesh_query).toBe('write');
+        expect(Object.keys(BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME).sort()).toEqual([...readNames, ...writeNames].sort());
+        expect(Object.values(BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME).every((value) => typeof value === 'string' && value.length > 0)).toBe(true);
+    });
+
+    it('監査外だった公開ツールもtool固有のresponse契約だけを意味的成功として採用する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-published-contracts', turn_id: 'turn-published-contracts', prompt: '公開ツール契約を検証して', cwd: process.cwd() };
+        await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) }) }) });
+        let serial = 0;
+        const recordTool = (name, input, toolResponse) => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: `mcp__brainbase__${name}`, tool_use_id: `${name}-${serial += 1}`, tool_input: input, tool_response: withRetrievalAudit(name, toolResponse)
+        }, { env });
+        const snapshotHash = `sha256:${'a'.repeat(64)}`;
+        const scope = { project_codes: ['brainbase'] };
+        const graph = (data) => ({ status: 'ok', scope, data });
+        const receipt = (receiptType) => ({ receipt_id: `r-${receiptType}`, plan_id: 'p1', receipt_type: receiptType, status: 'completed', before_hash: snapshotHash, after_hash: snapshotHash, result: {}, created_at: '2026-09-02T00:00:00.000Z' });
+        const validCases = [
+            ['brainbase_get_meeting_minutes_context', { receipt_id: 'm1', run_id: 'run1', project_code: 'brainbase', transcript_sha256: 'b'.repeat(64) }, { status: 'ok', receipt: { receipt_id: 'm1', status: 'resolved', identity: { run_id: 'run1', project_code: 'brainbase', transcript_sha256: 'b'.repeat(64) } } }],
+            ['authorize_tenant_resource', {}, { authorized: true, entry_point: 'mcp', resource_ref: { object_type: 'task', resource_id: 't1' }, tenant_id: 'tenant1', tenant_revision_at_write: '2026-09-02T00:00:00.000Z' }],
+            ['mesh_query', {}, { queryId: 'q1', status: 'sent' }],
+            ['mesh_peers', {}, '# メッシュピア一覧 (1)\n\n- **node-1** [online]'],
+            ['mesh_peers', {}, '接続中のピアはありません。'],
+            ['graph_export_snapshot', {}, graph({ snapshot_id: 's1', snapshot_hash: snapshotHash, project_code: 'brainbase', entities: [], edges: [] })],
+            ['graph_record_human_gate_receipt', {}, graph({ receipt_id: 'g1', decision_id: 'd1', status: 'approved', approved_by: 'u1', approved_at: '2026-09-02T00:00:00.000Z', evidence: {} })],
+            ['graph_plan_mutations', {}, graph({ plan_id: 'p1', status: 'planned', snapshot_id: 's1', snapshot_hash: snapshotHash, after_snapshot_hash: snapshotHash, reason: 'test', idempotency_key: 'i1', dry_run: true, operations: [], operation_count: 0, before: {}, after: {}, diff_summary: {} })],
+            ['graph_apply_plan', {}, graph(receipt('apply'))],
+            ['graph_get_plan_receipt', {}, graph({ plan_id: 'p1', receipts: [receipt('apply')] })],
+            ['graph_rollback_plan', {}, graph(receipt('rollback'))],
+            ['graph_validate', {}, graph({ valid: true, counts: { entities: 1, edges: 1, issues: 0, duplicates: 0, orphans: 0 }, issues: [], ontology: {}, snapshot_hash: snapshotHash, required_relation_scope_summary: {} })]
+        ];
+        for (const [name, input, response] of validCases) {
+            expect(recordTool(name, input, response), name).toMatchObject({ success: true, event_kind: BRAINBASE_TOOL_KIND_BY_NAME[name] });
+        }
+        const invalidCases = [
+            ['brainbase_get_meeting_minutes_context', validCases[0][1], { status: 'ok', receipt: { receipt_id: 'wrong', status: 'resolved', identity: {} } }],
+            ['authorize_tenant_resource', {}, { authorized: true }],
+            ['mesh_query', {}, { status: 'sent' }],
+            ['mesh_peers', {}, { peers: [] }],
+            ['graph_export_snapshot', {}, graph({ snapshot_id: 's1' })],
+            ['graph_record_human_gate_receipt', {}, graph({ status: 'approved' })],
+            ['graph_plan_mutations', {}, graph({ plan_id: 'p1', operations: [] })],
+            ['graph_apply_plan', {}, graph({ receipt_type: 'apply' })],
+            ['graph_get_plan_receipt', {}, graph({ plan_id: 'p1', receipts: [{}] })],
+            ['graph_rollback_plan', {}, graph({ receipt_type: 'rollback' })],
+            ['graph_validate', {}, graph({ valid: true, snapshot_hash: snapshotHash })]
+        ];
+        for (const [name, input, response] of invalidCases) {
+            expect(recordTool(name, input, response), name).toMatchObject({ success: false, event_kind: BRAINBASE_TOOL_KIND_BY_NAME[name] });
+        }
     });
 
     it('公開MCPツールの検証済みresponse契約だけを意味的成功として採用する', async () => {
@@ -1432,13 +1505,13 @@ describe('Codex Judgment Resolver Host', () => {
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-published-tools', turn_id: 'turn-published-tools', prompt: 'Brainbaseの公開ツールを使って', cwd: process.cwd() };
         await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) }) }) });
-        const recordTool = (name, data, id = name) => recordBrainbaseToolUse({
+        const recordTool = (name, data, id = name, outcome = 'result') => recordBrainbaseToolUse({
             hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
-            tool_name: `mcp__brainbase__${name}`, tool_use_id: id, tool_input: {}, tool_response: { status: 'ok', data }
+            tool_name: `mcp__brainbase__${name}`, tool_use_id: id, tool_input: {}, tool_response: withRetrievalAudit(name, { status: 'ok', data }, outcome)
         }, { env });
         const fixtures = {
             brainbase_bootstrap_config: { bootstrap_config: { config_write_mode: 'create_only', user: { id: 'u', name: 'User', slackUserId: 's', workspaceId: 'w' }, projects: [{ id: 'p' }], config_yaml: 'projects: []' }, count: 1 },
-            brainbase_run_receipt_diagnosis: { receipt: { id: 'r' }, diagnosis: { state: 'complete', issue_codes: [], recommended_action: null }, count: 1 },
+            brainbase_run_receipt_diagnosis: { receipt: { id: 'r', project_id: 'p' }, diagnosis: { state: 'complete', issue_codes: [], recommended_action: null }, count: 1 },
             brainbase_automation_run_detail: { run: { project_id: 'p' }, run_steps: [], context_snapshots: [], human_steps: [], outputs: [], audit_logs: [] },
             brainbase_automation_human_step_resolve: { human_step: { id: 'h' }, resumed_run: { project_id: 'p' } },
             brainbase_meeting_automation_diagnosis: { meeting_automation: { project_id: 'p', state: 'ready', issue_codes: [], recommended_actions: [] } },
@@ -1447,7 +1520,7 @@ describe('Codex Judgment Resolver Host', () => {
             brainbase_onboarding_ingest: { id: 'o3', status: 'ingested' },
             brainbase_onboarding_review: { candidate: { id: 'c', promotion_status: 'approved' }, graph_entity_id: null },
             brainbase_onboarding_first_value: { id: 'o4', status: 'complete' },
-            brainbase_knowledge_event_record: { schema_version: 'brainbase-vibepro-knowledge-event-record-receipt.v1', status: 'recorded', event_id: 'e', project_code: 'p', story_id: 's', body_hash: 'b', candidate_id: 'c', record_ref: 'brainbase://record/e', candidate_ref: 'brainbase://candidate/c', processing_stage: 'retrievable', candidate_only: true, graph_promoted: false, external_action_executed: false }
+            brainbase_knowledge_event_record: { schema_version: 'brainbase-vibepro-knowledge-event-record-receipt.v1', status: 'recorded', event_id: 'e', project_code: 'p', story_id: 's', body_hash: 'b', parent_episode_id: 'ep', candidate_id: 'c', record_ref: 'brainbase://record/e', candidate_ref: 'brainbase://candidate/c', processing_stage: 'retrievable', candidate_only: true, graph_promoted: false, external_action_executed: false }
         };
         for (const [name, data] of Object.entries(fixtures)) {
             const result = recordTool(name, data);
@@ -1469,7 +1542,11 @@ describe('Codex Judgment Resolver Host', () => {
         for (const [name, data] of Object.entries(invalidFixtures)) {
             expect(recordTool(name, data, `${name}-invalid`), name).toMatchObject({ success: false, event_kind: BRAINBASE_TOOL_KIND_BY_NAME[name] });
         }
-        expect(recordTool('brainbase_onboarding_start', null, 'onboarding-204')).toMatchObject({ success: false, event_kind: 'write' });
+        expect(recordTool('brainbase_onboarding_get', null, 'onboarding-204', 'no_result')).toMatchObject({
+            success: true,
+            event_kind: 'retrieve',
+            safe_metadata: { retrieval_outcome: 'no_result' }
+        });
         expect(recordTool('brainbase_knowledge_event_record', { status: 'recorded' }, 'knowledge-spoof')).toMatchObject({ success: false, event_kind: 'write' });
         expect(recordTool('unknown_future_tool', { id: 'x', status: 'ok' }, 'unknown')).toMatchObject({ success: false, event_kind: 'call' });
     });

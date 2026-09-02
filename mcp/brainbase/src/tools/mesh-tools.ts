@@ -72,7 +72,11 @@ export async function handleMeshToolCall(
         throw new Error(`Mesh query failed: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as Record<string, unknown>;
+      if (!data || typeof data !== 'object' || Array.isArray(data)
+        || typeof data.queryId !== 'string' || !data.queryId.trim() || data.status !== 'sent') {
+        throw new Error('Mesh query returned an invalid response');
+      }
       return JSON.stringify(data, null, 2);
     }
 
@@ -83,7 +87,8 @@ export async function handleMeshToolCall(
         throw new Error(`Mesh peers request failed: ${response.status} ${response.statusText}`);
       }
 
-      const data = (await response.json()) as Array<Record<string, unknown>>;
+      const payload = await response.json() as { peers?: unknown } | Array<Record<string, unknown>>;
+      const data = Array.isArray(payload) ? payload : payload?.peers;
 
       if (!Array.isArray(data) || data.length === 0) {
         return '接続中のピアはありません。';

@@ -141,6 +141,17 @@ async function dispatchExtensionToolCall(
   return dispatchFirst(handlers, name, args);
 }
 
+function buildToolResponseContent(
+  name: string,
+  toolArgs: Record<string, unknown>,
+  result: string,
+) {
+  return buildKnowledgeToolContent(
+    result,
+    buildKnowledgeOwnerAudit(name, toolArgs, result),
+  );
+}
+
 async function refreshEntityIndex(): Promise<void> {
   if (!indexRefreshEnabled) return;
   if (!globalGraphSource) {
@@ -1052,6 +1063,7 @@ export const __testing = {
   dispatchJudgmentResolutionBeforeModel,
   dispatchKnowledgeResolutionToolCall,
   dispatchExtensionToolCall,
+  buildToolResponseContent,
   createDefaultJudgmentResolutionDependencies,
   resolveBrainbaseApiUrl,
   setEntityIndex(index: EntityIndex): void {
@@ -1239,10 +1251,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         : typeof extensionResult === 'string'
           ? extensionResult
           : JSON.stringify(extensionResult, null, 2);
-      const ownerAudit = extensionResult === null
-        ? buildKnowledgeOwnerAudit(name, toolArgs, result)
-        : null;
-      return { content: buildKnowledgeToolContent(result, ownerAudit) };
+      return { content: buildToolResponseContent(name, toolArgs, result) };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
