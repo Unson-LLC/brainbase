@@ -30,12 +30,17 @@
   "local_evidence": {
     "unit_and_schema": {
       "files": 6,
-      "tests": 82,
+      "tests": 84,
+      "result": "pass"
+    },
+    "shared_public_route_regression": {
+      "files": 7,
+      "tests": 104,
       "result": "pass"
     },
     "postgresql_integration": {
       "files": 3,
-      "tests": 17,
+      "tests": 18,
       "result": "pass"
     },
     "legacy_ledger_migration": {
@@ -49,8 +54,8 @@
     "diff_check": "pass",
     "independent_review": {
       "result": "pass",
-      "reviewed_commit": "a810fd5e1382a2d41f2d04e132765d67fd4a102d",
-      "reviewed_base": "c7b31cec3d9c727025a797b5fda92a216ae5d5e2",
+      "reviewed_commit": "dff0762bd3b093396dba66bd2585ac6171a414cb",
+      "reviewed_base": "e3e94d2ce660b1a3676f613e01393486aff3e4b8",
       "blocking_findings": 0,
       "non_blocking_findings": 0,
       "previous_result": "needs_changes",

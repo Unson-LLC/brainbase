@@ -3,10 +3,12 @@ story_id: story-t0-slack-installation-failure-diagnostics
 title: Slack installation失敗を秘密なしで段階別に再読込できる
 spec_docs:
   - docs/specs/story-t0-slack-installation-failure-diagnostics.md
+architecture_docs:
+  - docs/architecture/story-t0-slack-installation-failure-diagnostics.md
 status: done
 t0_program_status: implementing
 created_at: 2026-08-31
-updated_at: 2026-09-02
+updated_at: 2026-09-03
 ---
 
 # Slack installation失敗を秘密なしで段階別に再読込できる
@@ -26,10 +28,11 @@ T0の運用担当者として、Slack installation callbackが失敗したとき
 
 ## ローカル検証証跡
 
-- 変更面単体・schema: 6 files / 82 tests pass
-- 実PostgreSQL integration: 3 files / 17 tests pass（実failed write/readback、旧台帳からの冪等migrationを含む）
+- 変更面単体・schema: 6 files / 84 tests pass
+- 共有公開routeを含む回帰束: 7 files / 104 tests pass
+- 実PostgreSQL integration: 3 files / 18 tests pass（実failed write/readback、旧台帳からの冪等migrationを含む）
 - TypeScript typecheck、対象ESLint、Task JSON parse、`git diff --check`: pass
-- 初回独立レビュー: NEEDS_CHANGES、blocking 1（stage別allowlist不足）。修正後、現行`origin/develop@c7b31cec3d9c727025a797b5fda92a216ae5d5e2`上のexact code HEAD `a810fd5e1382a2d41f2d04e132765d67fd4a102d`を再レビューし、PASS（blocking 0 / non-blocking 0）
+- 初回独立レビュー: NEEDS_CHANGES、blocking 1（stage別allowlist不足）。forward-port後レビューでcleanup契約不一致1件と共有route回帰1件を検出し、修正した。現行`origin/develop@e3e94d2ce660b1a3676f613e01393486aff3e4b8`上のexact code HEAD `dff0762bd3b093396dba66bd2585ac6171a414cb`を再レビューし、PASS（blocking 0 / non-blocking 0）
 - production execution / deploy / OAuth retry / secret参照: 0回
 
 ## 完了境界
