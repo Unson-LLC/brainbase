@@ -37,10 +37,6 @@
         ],
         "test_refs": [
           {
-            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
-            "case": "create_threadの委任入力からStop時にepisodeを復旧し判断代行レシートを同一turnへ一度だけ表示する"
-          },
-          {
             "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
             "case": "accepts an empty audit result for the internal judgment state tool"
           },
@@ -56,10 +52,6 @@
       },
       "verifiable_by": {
         "test_pattern": [
-          {
-            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
-            "must_cover": "create_threadの委任入力からStop時にepisodeを復旧し判断代行レシートを同一turnへ一度だけ表示する"
-          },
           {
             "file_glob": "tests/unit/judgment-resolver-host.test.js",
             "must_cover": "ClaudeのMCP response形状"
@@ -250,6 +242,10 @@
         ],
         "test_refs": [
           {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "create_threadの委任入力からStop時にepisodeを復旧し、create_thread由来value proof、complete final、判断代行レシートを同一turnへ一度だけ表示する"
+          },
+          {
             "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
             "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
           }
@@ -258,13 +254,17 @@
       "verifiable_by": {
         "test_pattern": [
           {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "create_thread由来value proof、complete final、Brainbase判断レシートexactly-onceを同一turnで検証する"
+          },
+          {
             "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
             "must_cover": "current runのglobal hook・回帰suite・final receiptを検証する"
           }
         ]
       },
       "first_seen_at": "2026-09-02T10:00:00.000Z",
-      "last_revised_at": "2026-09-02T10:00:00.000Z"
+      "last_revised_at": "2026-09-02T10:27:00.000Z"
     },
     {
       "id": "C-004",
