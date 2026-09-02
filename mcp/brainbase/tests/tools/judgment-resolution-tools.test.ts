@@ -191,6 +191,34 @@ describe('judgment resolver Host bridge', () => {
     }
   });
 
+  it('model解釈なしのbootstrap receiptはserverのreconciliation reasonsをunresolvedとして受理する', async () => {
+    const bootstrap = receipt({
+      status: 'needs_classification',
+      autonomy_decision: 'escalate',
+      autonomy_reason_code: 'classification_missing',
+      allowed_runtime_escalation_reasons: [],
+      runtime_version: 'judgment-runtime-2.4.3',
+      classification: null,
+      classification_evidence: { source: 'resolver', source_turn_ids: [], matcher_ids: [] },
+      classification_assurance: 'unknown',
+      reconciliation_reasons: ['model_interpretation_missing'],
+      selected_dag_ids: ['clarification.v1'],
+      active_nodes: ['entry', 'reconcile', 'clarification', 'receipt'],
+      active_node_definitions: [
+        ['entry', 'common'], ['reconcile', 'common'], ['clarification', 'fail_closed'], ['receipt', 'common'],
+      ].map(([id, kind]) => ({ id, kind, instruction: `Execute ${id}.`, required_capability_template: null })),
+      active_edges: [['entry', 'reconcile'], ['reconcile', 'clarification'], ['clarification', 'receipt']],
+      unresolved: ['model_interpretation_missing'],
+      rationale: ['Model semantic interpretation is required before the server can issue a TurnContract.'],
+    });
+    const accepted = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(bootstrap), { status: 200 })));
+    assert.equal(accepted.status, 'ok');
+
+    const mismatch = receipt({ ...bootstrap, unresolved: ['classification'] });
+    const rejected = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(mismatch), { status: 200 })));
+    assert.equal(rejected.error?.code, 'brainbase_api_response_invalid');
+  });
+
   it('API 4xxの具体的なvalidation codeを隠さない', async () => {
     const result = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify({
       error: { code: 'judgment_resolution_input_invalid', message: 'conversation_context is required' },
@@ -261,7 +289,7 @@ describe('judgment Host contract', () => {
         ['entry', 'common'], ['reconcile', 'common'], ['clarification', 'fail_closed'], ['receipt', 'common'],
       ].map(([id, kind]) => ({ id, kind, instruction: `Execute ${id}.`, required_capability_template: null })),
       active_edges: [['entry', 'reconcile'], ['reconcile', 'clarification'], ['clarification', 'receipt']],
-      unresolved: ['classification'],
+      unresolved: ['conversation_referent_missing'],
       rationale: ['clarify'],
     });
     let continued = false;
