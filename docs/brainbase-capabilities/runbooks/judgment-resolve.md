@@ -139,6 +139,67 @@ The checker uses the official `hooks/list` RPC. On macOS it prefers the Codex De
 
 Trust approval affects the Host lifecycle boundary. Create a new Codex task after approval; an already-open task, a past transcript, or direct entrypoint invocation cannot prove current activation. Only a new task with matching episode/event/final journals and transcript evidence is `proven_active`.
 
+### Production dirty hotfix reconciliation
+
+通常の事前取得は全実行面がcleanであることを要求する。Lightsailに既知の4ファイルだけのhotfixが残る場合は、先に以下で復旧専用commitへ保全する。`FORMAL_HOTFIX_COMMIT`はレビュー済みの同一hotfix commitを指定する。許可外の差分、patch ID不一致、退避物の欠落が1つでもあれば停止する。
+
+```bash
+set -euo pipefail
+: "${FORMAL_HOTFIX_COMMIT:?Set the reviewed hotfix commit SHA}"
+export BRAINBASE_DIRTY_RECONCILIATION_DIR="$(mktemp -d "${TMPDIR:-/tmp}/brainbase-production-hotfix.XXXXXX")"
+chmod 700 "$BRAINBASE_DIRTY_RECONCILIATION_DIR"
+printf '%s\n' "$FORMAL_HOTFIX_COMMIT" > "$BRAINBASE_DIRTY_RECONCILIATION_DIR/formal-hotfix.sha"
+git cat-file -e "${FORMAL_HOTFIX_COMMIT}^{commit}"
+git diff "${FORMAL_HOTFIX_COMMIT}^" "$FORMAL_HOTFIX_COMMIT" -- \
+  mcp/brainbase/src/remote-judgment-hook-http.ts \
+  mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts \
+  scripts/codex-hooks/judgment-resolver-host.mjs \
+  tests/unit/judgment-resolver-host.test.js \
+  | git patch-id --stable | awk '{print $1}' \
+  > "$BRAINBASE_DIRTY_RECONCILIATION_DIR/formal-hotfix.patch-id"
+
+scp -i "$HOME/.ssh/lightsail-brainbase.pem" \
+  "$BRAINBASE_DIRTY_RECONCILIATION_DIR/formal-hotfix.patch-id" \
+  ubuntu@176.34.20.239:/tmp/brainbase-formal-hotfix.patch-id
+ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+  "$(date -u +%Y%m%dT%H%M%SZ)" <<'REMOTE'
+set -euo pipefail
+STAMP="$1"
+cd /home/ubuntu/brainbase
+EXPECTED_FILES="$(cat <<'FILES'
+mcp/brainbase/src/remote-judgment-hook-http.ts
+mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts
+scripts/codex-hooks/judgment-resolver-host.mjs
+tests/unit/judgment-resolver-host.test.js
+FILES
+)"
+ACTUAL_FILES="$(git status --porcelain --untracked-files=all | sed -E 's/^...//' | sort)"
+test "$ACTUAL_FILES" = "$(printf '%s\n' "$EXPECTED_FILES" | sort)"
+BACKUP_DIR="/home/ubuntu/brainbase-production-hotfix-$STAMP"
+install -d -m 700 "$BACKUP_DIR"
+git rev-parse HEAD > "$BACKUP_DIR/base.sha"
+git status --porcelain --untracked-files=all > "$BACKUP_DIR/status.txt"
+git diff --binary -- $EXPECTED_FILES > "$BACKUP_DIR/hotfix.patch"
+test -s "$BACKUP_DIR/hotfix.patch"
+sha256sum $EXPECTED_FILES > "$BACKUP_DIR/content.sha256"
+git diff -- $EXPECTED_FILES | git patch-id --stable | awk '{print $1}' > "$BACKUP_DIR/hotfix.patch-id"
+cmp -s "$BACKUP_DIR/hotfix.patch-id" /tmp/brainbase-formal-hotfix.patch-id
+rm -f /tmp/brainbase-formal-hotfix.patch-id
+ROLLBACK_BRANCH="rollback/production-hotfix-$STAMP"
+git switch -c "$ROLLBACK_BRANCH"
+git add -- $EXPECTED_FILES
+git diff --cached --name-only | sort | diff -u - <(printf '%s\n' "$EXPECTED_FILES" | sort)
+git commit -m 'chore(production): preserve deployed judgment hotfix'
+test -z "$(git status --porcelain --untracked-files=all)"
+git rev-parse HEAD > "$BACKUP_DIR/rollback.sha"
+printf '%s\n' "$ROLLBACK_BRANCH" > "$BACKUP_DIR/rollback.branch"
+sha256sum -c "$BACKUP_DIR/content.sha256"
+printf 'BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=%s\n' "$BACKUP_DIR"
+REMOTE
+```
+
+表示された`BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR`を作業証跡へ保存する。この時点のLightsailは、旧SHA＋hotfixと同じ実効内容を持つcleanなrollback commitである。前進デプロイでは、このcommitを唯一のデプロイ元にせず、merge済み`develop`の`TARGET_SHA`へdetachして切り替える。rollback時は保存済み`rollback.sha`へ戻し、`content.sha256`を照合する。
+
 ### Pre-deployment rollback capture
 
 Before changing any of the four runtime surfaces, capture the exact working Hook file and the independently observed SHA for each surface. Keep this directory until post-deployment verification and one fresh live turn have passed.
@@ -151,6 +212,10 @@ export BRAINBASE_MCP_RUNTIME_ROOT="$BRAINBASE_UI_RUNTIME_ROOT"
 export BRAINBASE_RUNTIME_PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-pinned.sha
 export BRAINBASE_ROLLBACK_STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/brainbase-judgment-rollback.XXXXXX")"
 chmod 700 "$BRAINBASE_ROLLBACK_STATE_DIR"
+if test -n "${BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR:-}"; then
+  printf '%s\n' "$BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR" \
+    > "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir"
+fi
 source "$BRAINBASE_SOURCE_ROOT/scripts/launchd/brainbase-runtime-readiness.sh"
 CAPTURE_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
 CAPTURE_MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
@@ -364,6 +429,10 @@ launchctl print "gui/$(id -u)/com.brainbase.mcp-brainbase" | grep -q 'state = ru
 # and prove both the instance and public proxy report the captured SHA.
 LIGHTSAIL_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
 LIGHTSAIL_MAX_TIMEOUT_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+LIGHTSAIL_HOTFIX_BACKUP_DIR=""
+if test -s "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir"; then
+  LIGHTSAIL_HOTFIX_BACKUP_DIR="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir")"
+fi
 if ! [[ "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
   printf '[brainbase-runtime] Lightsail connect timeout must be a finite positive number\n' >&2
   exit 2
@@ -377,13 +446,15 @@ ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
   "${BRAINBASE_LIGHTSAIL_READINESS_ATTEMPTS:-30}" \
   "${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}" \
   "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" \
-  "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" <<'REMOTE'
+  "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" \
+  "$LIGHTSAIL_HOTFIX_BACKUP_DIR" <<'REMOTE'
 set -euo pipefail
 ROLLBACK_SHA="$1"
 MAX_ATTEMPTS="$2"
 DELAY_SECONDS="$3"
 CONNECT_TIMEOUT_SECONDS="$4"
 MAX_TIMEOUT_SECONDS="$5"
+HOTFIX_BACKUP_DIR="$6"
 [[ "$MAX_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]
 [[ "$DELAY_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]
 if ! [[ "$CONNECT_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
@@ -406,6 +477,10 @@ if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock
   npm ci --omit=dev
 fi
 sudo systemctl restart brainbase-ssot.service
+if test -n "$HOTFIX_BACKUP_DIR"; then
+  test "$(cat "$HOTFIX_BACKUP_DIR/rollback.sha")" = "$ROLLBACK_SHA"
+  sha256sum -c "$HOTFIX_BACKUP_DIR/content.sha256"
+fi
 local_ready=0
 for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt+=1)); do
   if curl -fsS \
