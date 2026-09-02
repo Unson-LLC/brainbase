@@ -16,6 +16,22 @@ describe('Mesh MCP tools', () => {
     assert.doesNotMatch(result || '', /ありません/);
   });
 
+  it('壊れたpeers envelopeを空結果へ丸めない', async () => {
+    globalThis.fetch = async () => new Response(JSON.stringify({ unexpected: 'shape' }));
+    await assert.rejects(
+      () => handleMeshToolCall('mesh_peers', {}, 'https://brainbase.test'),
+      /invalid/i,
+    );
+  });
+
+  it('識別子のないpeerをunknownとして表示しない', async () => {
+    globalThis.fetch = async () => new Response(JSON.stringify({ peers: [{ status: 'online' }] }));
+    await assert.rejects(
+      () => handleMeshToolCall('mesh_peers', {}, 'https://brainbase.test'),
+      /invalid/i,
+    );
+  });
+
   it('query応答がqueryIdとsentを持たない場合は失敗する', async () => {
     globalThis.fetch = async () => new Response(JSON.stringify({ status: 'sent' }));
     await assert.rejects(() => handleMeshToolCall('mesh_query', { to: 'all', question: 'status?' }, 'https://brainbase.test'), /invalid/i);

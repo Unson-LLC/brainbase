@@ -87,18 +87,40 @@ export async function handleMeshToolCall(
         throw new Error(`Mesh peers request failed: ${response.status} ${response.statusText}`);
       }
 
-      const payload = await response.json() as { peers?: unknown } | Array<Record<string, unknown>>;
-      const data = Array.isArray(payload) ? payload : payload?.peers;
+      const payload = await response.json() as unknown;
+      const data = Array.isArray(payload)
+        ? payload
+        : payload && typeof payload === 'object' && !Array.isArray(payload)
+          && Object.prototype.hasOwnProperty.call(payload, 'peers')
+          && Array.isArray((payload as { peers?: unknown }).peers)
+          ? (payload as { peers: unknown[] }).peers
+          : null;
 
-      if (!Array.isArray(data) || data.length === 0) {
+      if (data === null) {
+        throw new Error('Mesh peers returned an invalid response');
+      }
+      if (data.length === 0) {
         return '接続中のピアはありません。';
       }
 
       const lines: string[] = [`# メッシュピア一覧 (${data.length})\n`];
       for (const peer of data) {
-        const id = peer.id || peer.nodeId || 'unknown';
-        const name = peer.name || peer.label || '';
-        const status = peer.status || '';
+        if (!peer || typeof peer !== 'object' || Array.isArray(peer)) {
+          throw new Error('Mesh peers returned an invalid response');
+        }
+        const candidate = peer as Record<string, unknown>;
+        const id = typeof candidate.id === 'string' && candidate.id.trim()
+          ? candidate.id
+          : typeof candidate.nodeId === 'string' && candidate.nodeId.trim()
+            ? candidate.nodeId
+            : null;
+        if (!id) {
+          throw new Error('Mesh peers returned an invalid response');
+        }
+        const name = typeof candidate.name === 'string'
+          ? candidate.name
+          : typeof candidate.label === 'string' ? candidate.label : '';
+        const status = typeof candidate.status === 'string' ? candidate.status : '';
         lines.push(`- **${id}**${name ? ` (${name})` : ''}${status ? ` [${status}]` : ''}`);
       }
 

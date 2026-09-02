@@ -234,6 +234,40 @@ printf 'Rollback state: %s\n' "$BRAINBASE_ROLLBACK_STATE_DIR"
 
 Do not infer one surface SHA from another. The files intentionally preserve all four observed values even when they currently match.
 
+### Forward rollout order
+
+Capture and pin the known-good local runtime **before merging**. Do not let the
+60-second updater move the shared UI/MCP checkout while rollback evidence is
+still being collected.
+
+1. Atomically write the captured `local-ui.sha` to
+   `/Users/ksato/workspace/var/brainbase-runtime-pinned.sha`. Keep the three
+   lifecycle Hooks on the captured checkout and rerun Hook readiness.
+2. Merge and set one `TARGET_SHA` from the merge result. Prepare a separate,
+   immutable Hook worktree for that SHA; never point Hooks at the mutable
+   `brainbase-31013` checkout during rollout.
+3. Deploy the Lightsail Resolver API first and verify instance/public version,
+   health, and the authenticated Graph probe. On failure, restore Lightsail and
+   leave every local consumer on the captured SHA.
+4. Atomically change the runtime pin to `TARGET_SHA`, restart `:31013`, then
+   reconcile the persistent MCP producer. Require the local version, MCP
+   receipt, running launchd job, and signed read-only MCP check to match the
+   target. On failure, run rollback step 1 before changing Hook configuration.
+5. Only after the producer passes, atomically rewrite `~/.codex/hooks.json` so
+   all three lifecycle events resolve to the immutable target Hook worktree.
+   Reapprove the changed Hook hash when required and require
+   `ready_for_fresh_task`. On failure, restore the captured Hook file; do not
+   leave lifecycle events split across roots.
+6. Run the four-surface readback and a fresh Codex task. Remove the runtime pin
+   only after that task and its receipt pass; removal must use an atomic rename
+   or a verified recoverable operation, followed by one updater/readiness check.
+
+The target producer must remain compatible with the captured Host during step
+4. Prove that cross-version window with the public-tool response contract tests
+before rollout. If compatibility is not proven, stop instead of switching the
+shared runtime. Never update the mutable UI/MCP checkout first and then hope the
+Hook catches up.
+
 ### Verification
 
 ```bash

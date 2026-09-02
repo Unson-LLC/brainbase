@@ -116,6 +116,8 @@ function validInput(value) {
       && validText(entry.label, 200))) return null;
   if (interruption.resolution === 'continued_without_human'
     && (!interruption.question_display_text || !decision.summary || humanDecision !== null)) return null;
+  if (interruption.resolution === 'continued_without_human'
+    && outcome.status === 'not_applicable') return null;
   if (outcome.status === 'outcome_verified'
     && (!outcome.summary || outcome.evidence_refs.length === 0)) return null;
   if (interruption.resolution === 'human_required') {

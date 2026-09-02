@@ -124,6 +124,14 @@ describe('judgment value proof organization adapter', () => {
     expect(extractJudgmentValueProofInput('[not-json')).toBeNull();
   });
 
+  it('rejects not_applicable when work continued without a human', () => {
+    const input = valueProofInput({
+      outcome: { status: 'not_applicable', summary: null, evidence_refs: [] },
+    });
+
+    expect(extractJudgmentValueProofInput({ status: 'ok', data: input })).toBeNull();
+  });
+
   it('builds a portable verified projection only when referenced execution evidence exists', () => {
     const event = { ...valueProofEvent(), event_sequence: 2 };
     const proof = buildJudgmentValueProofProjection({
