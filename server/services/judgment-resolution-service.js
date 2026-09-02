@@ -250,7 +250,7 @@ function positiveClassificationRequest(request, manifest) {
     return request
         .split(/(?<=[。！？.!?\n])/u)
         .map((sentence) => {
-            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください|しないこと|するな|避けてください|しません|行いません|実行しません|禁止(?:です|されています)?|不可(?:です)?)/u.exec(sentence);
+            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください|しないこと|するな|避けてください|しません|行いません|実行しません|禁止(?=です|されています|[。！？\s]|$)|不可(?=です|[。！？\s]|$))/u.exec(sentence);
             if (japaneseBoundary) {
                 const beforeNegation = sentence.slice(0, japaneseBoundary.index);
                 const clauseBoundary = Math.max(
@@ -272,7 +272,7 @@ function positiveClassificationRequest(request, manifest) {
                     : '';
                 return [keepPrefix, positiveTail].filter(Boolean).join('。');
             }
-            const englishBoundary = /\b(?:do not|don't|must not|never|no|is prohibited|are prohibited|is forbidden|are forbidden)\b/iu.exec(sentence);
+            const englishBoundary = /\b(?:do not|don't|must not|never|no(?!-)|is prohibited|are prohibited|is forbidden|are forbidden)\b/iu.exec(sentence);
             if (englishBoundary) {
                 const beforeNegation = sentence.slice(0, englishBoundary.index);
                 const suffixProhibition = /^(?:is|are) (?:prohibited|forbidden)$/iu.test(englishBoundary[0]);

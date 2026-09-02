@@ -679,6 +679,16 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
     });
 
+    it.each([
+        ['不可逆操作をレビューして。', 'review', 'read', 'low'],
+        ['禁止事項を更新して。', 'implement', 'write', 'medium'],
+        ['No-code appを作ってください。', 'implement', 'write', 'medium']
+    ])('禁止表現の部分一致で通常の肯定依頼を消去しない: %s', (request, intent, actionKind, risk) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent, action_kind: actionKind, risk });
+    });
+
     it('禁止だけの入力は肯定操作へ昇格しない', () => {
         for (const request of [
             'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。',
