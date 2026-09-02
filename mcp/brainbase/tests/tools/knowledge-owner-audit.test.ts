@@ -100,6 +100,27 @@ describe('knowledge owner audit', () => {
     );
   });
 
+  it('does not claim successful retrieval for structured failures', () => {
+    for (const status of ['error', 'unavailable']) {
+      const result = JSON.stringify({
+        status,
+        error: { code: `brainbase_api_${status}` },
+      });
+
+      assert.equal(
+        buildKnowledgeOwnerAudit('brainbase_onboarding_get', { run_id: 'run-failed' }, result),
+        null,
+      );
+      const content = serverTesting.buildToolResponseContent(
+        'brainbase_onboarding_get',
+        { run_id: 'run-failed' },
+        result,
+      );
+      assert.deepStrictEqual(content, [{ type: 'text', text: result }]);
+      assert.doesNotMatch(JSON.stringify(content), /結果を取得 ✓/u);
+    }
+  });
+
   it('appends exactly one audit block only when an actual retrieval ran', () => {
     const audit = buildKnowledgeOwnerAudit('search', { query: '公開方針' }, '1 result');
 

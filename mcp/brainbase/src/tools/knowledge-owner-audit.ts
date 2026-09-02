@@ -144,6 +144,17 @@ const TARGETS: Record<string, AuditTarget> = {
 const NO_RESULT = /(?:\bNo (?:results|context|personal KG entries|extension entities|wiki pages)|Entity not found)/iu;
 const QUERY_LIMIT = 40;
 
+function isStructuredFailure(result: string): boolean {
+  try {
+    const parsed = JSON.parse(result) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+    const status = (parsed as Record<string, unknown>).status;
+    return status === 'error' || status === 'unavailable';
+  } catch {
+    return false;
+  }
+}
+
 function isNoResult(toolName: string, result: string): boolean {
   if (NO_RESULT.test(result)) return true;
   if (toolName === 'list_entities' && /^# .* entities \(0\)$/mu.test(result)) return true;
@@ -193,6 +204,7 @@ export function buildKnowledgeOwnerAudit(
 ): KnowledgeOwnerAudit | null {
   const target = TARGETS[toolName];
   if (!target) return null;
+  if (isStructuredFailure(result)) return null;
 
   const query = sanitizeQuery(target.query(args));
   const operation = typeof target.operation === 'function' ? target.operation(args) : target.operation;
