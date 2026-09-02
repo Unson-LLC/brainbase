@@ -26,7 +26,7 @@ function headerValue(req, name) {
 /** @param {{ clientId?: string, clientSecret?: string, redirectUri?: string, callbackPath?: string, allowedDomains?: string[]|string, fetchImpl?: typeof fetch }} [options] */
 export function createGoogleWorkspaceAuthProvider(options = {}) {
     const clientId = String(options.clientId ?? process.env.GOOGLE_AUTH_CLIENT_ID ?? '').trim();
-    const clientSecret = String(options.clientSecret ?? process.env.GOOGLE_AUTH_CLIENT_SECRET ?? '');
+    const clientSecret = String(options.clientSecret ?? process.env.GOOGLE_AUTH_CLIENT_SECRET ?? '').trim();
     const configuredRedirectUri = String(options.redirectUri ?? process.env.GOOGLE_AUTH_REDIRECT_URI ?? '').trim();
     const callbackPath = String(options.callbackPath || '/api/auth/google/callback');
     const allowedDomains = list(options.allowedDomains ?? process.env.GOOGLE_WORKSPACE_ALLOWED_DOMAINS);

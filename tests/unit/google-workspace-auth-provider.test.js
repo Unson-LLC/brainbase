@@ -74,4 +74,20 @@ describe('Google Workspace auth provider', () => {
         await expect(provider.exchangeCode('code-1')).resolves.toMatchObject({ access_token: 'access' });
         expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
+
+    it('trims whitespace from OAuth credentials before token exchange', async () => {
+        const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+            access_token: 'access', id_token: 'id-token'
+        }), { status: 200 }));
+        const provider = createGoogleWorkspaceAuthProvider({
+            clientId: ' google-client\n', clientSecret: ' google-secret\n',
+            redirectUri: 'https://api.example.test/api/auth/google/callback', fetchImpl
+        });
+
+        await provider.exchangeCode('code-1');
+
+        const body = fetchImpl.mock.calls[0][1].body;
+        expect(body.get('client_id')).toBe('google-client');
+        expect(body.get('client_secret')).toBe('google-secret');
+    });
 });
