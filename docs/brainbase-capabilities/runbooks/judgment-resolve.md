@@ -161,7 +161,7 @@ git diff "${FORMAL_HOTFIX_COMMIT}^" "$FORMAL_HOTFIX_COMMIT" -- \
 scp -i "$HOME/.ssh/lightsail-brainbase.pem" \
   "$BRAINBASE_DIRTY_RECONCILIATION_DIR/formal-hotfix.patch-id" \
   ubuntu@176.34.20.239:/tmp/brainbase-formal-hotfix.patch-id
-ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+RECONCILIATION_OUTPUT="$(ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
   "$(date -u +%Y%m%dT%H%M%SZ)" <<'REMOTE'
 set -euo pipefail
 STAMP="$1"
@@ -193,12 +193,17 @@ git commit -m 'chore(production): preserve deployed judgment hotfix'
 test -z "$(git status --porcelain --untracked-files=all)"
 git rev-parse HEAD > "$BACKUP_DIR/rollback.sha"
 printf '%s\n' "$ROLLBACK_BRANCH" > "$BACKUP_DIR/rollback.branch"
-sha256sum -c "$BACKUP_DIR/content.sha256"
+sha256sum -c "$BACKUP_DIR/content.sha256" >/dev/null
 printf 'BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=%s\n' "$BACKUP_DIR"
 REMOTE
+)"
+printf '%s\n' "$RECONCILIATION_OUTPUT"
+test "$(printf '%s\n' "$RECONCILIATION_OUTPUT" | grep -c '^BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=/home/ubuntu/brainbase-production-hotfix-')" = 1
+export BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR="${RECONCILIATION_OUTPUT#BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=}"
+test -n "$BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR"
 ```
 
-表示された`BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR`を作業証跡へ保存する。この時点のLightsailは、旧SHA＋hotfixと同じ実効内容を持つcleanなrollback commitである。前進デプロイでは、このcommitを唯一のデプロイ元にせず、merge済み`develop`の`TARGET_SHA`へdetachして切り替える。rollback時は保存済み`rollback.sha`へ戻し、`content.sha256`を照合する。
+この時点のLightsailは、旧SHA＋hotfixと同じ実効内容を持つcleanなrollback commitである。同じshellで次の事前取得を実行し、`BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR`をrollback stateへ必ず結合する。rollback時は保存済み`rollback.sha`へ戻し、`content.sha256`を照合する。
 
 ### Pre-deployment rollback capture
 
@@ -287,9 +292,24 @@ if test -e "$BRAINBASE_RUNTIME_PIN_FILE"; then
 else
   printf 'absent\n' > "$BRAINBASE_ROLLBACK_STATE_DIR/runtime-pin.state"
 fi
-ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 \
-  'set -euo pipefail; cd /home/ubuntu/brainbase; test "$(git rev-parse --is-inside-work-tree)" = true; test "$(git rev-parse --show-toplevel)" = /home/ubuntu/brainbase; status="$(git status --porcelain)"; test -z "$status"; git rev-parse HEAD' \
+ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+  "${BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR:-}" <<'REMOTE' \
   > "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha"
+set -euo pipefail
+HOTFIX_BACKUP_DIR="$1"
+cd /home/ubuntu/brainbase
+test "$(git rev-parse --is-inside-work-tree)" = true
+test "$(git rev-parse --show-toplevel)" = /home/ubuntu/brainbase
+test -z "$(git status --porcelain --untracked-files=all)"
+BRANCH="$(git symbolic-ref --quiet --short HEAD || true)"
+if [[ "$BRANCH" == rollback/production-hotfix-* ]]; then
+  test -n "$HOTFIX_BACKUP_DIR"
+  test "$(cat "$HOTFIX_BACKUP_DIR/rollback.branch")" = "$BRANCH"
+  test "$(cat "$HOTFIX_BACKUP_DIR/rollback.sha")" = "$(git rev-parse HEAD)"
+  sha256sum -c "$HOTFIX_BACKUP_DIR/content.sha256" >/dev/null
+fi
+git rev-parse HEAD
+REMOTE
 
 for file in global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha; do
   grep -Eq '^[0-9a-f]{40}$' "$BRAINBASE_ROLLBACK_STATE_DIR/$file"
@@ -298,6 +318,37 @@ printf 'Rollback state: %s\n' "$BRAINBASE_ROLLBACK_STATE_DIR"
 ```
 
 Do not infer one surface SHA from another. The files intentionally preserve all four observed values even when they currently match.
+
+production dirty hotfix reconciliationを実行した場合は、標準Lightsail deployの前に次の一度だけ、復旧専用commitからmerge済み`develop`へ切り替える。これにより履歴分岐を`git merge --ff-only`へ渡さず、退避branchとrollback artifactを保持したまま、標準runbookを`TARGET_SHA`上から開始できる。
+
+```bash
+set -euo pipefail
+: "${TARGET_SHA:?Set the merged develop SHA}"
+: "${BRAINBASE_ROLLBACK_STATE_DIR:?Set the captured rollback directory}"
+test -s "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir"
+ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+  "$TARGET_SHA" \
+  "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")" \
+  "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir")" <<'REMOTE'
+set -euo pipefail
+TARGET_SHA="$1"
+ROLLBACK_SHA="$2"
+HOTFIX_BACKUP_DIR="$3"
+cd /home/ubuntu/brainbase
+test -z "$(git status --porcelain --untracked-files=all)"
+test "$(git rev-parse HEAD)" = "$ROLLBACK_SHA"
+test "$(cat "$HOTFIX_BACKUP_DIR/rollback.sha")" = "$ROLLBACK_SHA"
+sha256sum -c "$HOTFIX_BACKUP_DIR/content.sha256" >/dev/null
+git fetch origin develop
+test "$(git rev-parse origin/develop)" = "$TARGET_SHA"
+git cat-file -e "${TARGET_SHA}^{commit}"
+git switch --detach "$TARGET_SHA"
+test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+test -z "$(git status --porcelain --untracked-files=all)"
+REMOTE
+```
+
+続けて[`deploy-lightsail-production.md`](./deploy-lightsail-production.md)を実行する。開始時点ですでに`TARGET_SHA = origin/develop = HEAD`なので、同runbookの`git merge --ff-only origin/develop`はno-opとなり、依存関係、migration、service restart、readiness、public readbackを正規手順で実行できる。
 
 ### Verification
 
