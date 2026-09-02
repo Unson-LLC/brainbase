@@ -3,6 +3,10 @@ import { ContractError } from './errors.js';
 import { canonicalJson } from './canonical-json.js';
 import { isCanonicalId } from './ids.js';
 import {
+    normalizeSlackInstallationFailureCode,
+    normalizeSlackInstallationFailureStage
+} from './slack-installation-diagnostics.js';
+import {
     calculateQuotaDecision,
     resolveQuotaWindowPolicy,
     validateQuotaDecision,
@@ -23,40 +27,12 @@ const OWNED_RESOURCE_TABLES = Object.freeze({
 });
 
 const SLACK_INSTALLATION_CLAIM_STALE_SECONDS = 120;
-const SLACK_INSTALLATION_FAILURE_STAGES = new Set([
-    'oauth_exchange', 'exchange_normalize', 'connection_reserve', 'credential_store', 'db_register'
-]);
 const SLACK_INSTALLATION_CLEANUP_STATUSES = new Set(['not_needed', 'revoked', 'failed']);
-const SLACK_INSTALLATION_FAILURE_CODES = new Set([
-    'INSTALLATION_EXCHANGE_FAILED',
-    'UPSTREAM_UNAVAILABLE',
-    'OAUTH_EXCHANGE_UNAVAILABLE', 'OAUTH_EXCHANGE_INVALID', 'OAUTH_EXCHANGE_REJECTED',
-    'OAUTH_CREDENTIAL_MISSING', 'OAUTH_EXCHANGE_FAILED',
-    'WORKSPACE_CONNECTION_INVALID', 'WORKSPACE_CONNECTION_CONFLICT', 'EXCHANGE_NORMALIZATION_FAILED',
-    'INSTALLATION_STATE_INVALID', 'INSTALLATION_BINDING_MISMATCH',
-    'INSTALLATION_STATE_REPLAYED', 'INSTALLATION_STATE_EXPIRED',
-    'INSTALLATION_CLAIM_STALE', 'INSTALLATION_IN_PROGRESS',
-    'WORKSPACE_CONNECTION_STALE_REVISION', 'CONNECTION_RESERVATION_FAILED',
-    'CREDENTIAL_REF_INVALID', 'CREDENTIAL_STORE_UNAVAILABLE', 'CREDENTIAL_STORE_INVALID',
-    'CREDENTIAL_STORE_REJECTED', 'CREDENTIAL_STORE_FAILED',
-    'TENANT_UNKNOWN', 'CONTRACT_UNAVAILABLE', 'DB_REGISTRATION_FAILED'
-]);
-const SLACK_INSTALLATION_STAGE_FALLBACK = Object.freeze({
-    oauth_exchange: 'OAUTH_EXCHANGE_FAILED',
-    exchange_normalize: 'EXCHANGE_NORMALIZATION_FAILED',
-    connection_reserve: 'CONNECTION_RESERVATION_FAILED',
-    credential_store: 'CREDENTIAL_STORE_FAILED',
-    db_register: 'DB_REGISTRATION_FAILED'
-});
 const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/u;
 
 function safeStoredSlackInstallationDiagnostic(row) {
-    const failureStage = SLACK_INSTALLATION_FAILURE_STAGES.has(row.failure_stage)
-        ? row.failure_stage
-        : null;
-    const failureCode = SLACK_INSTALLATION_FAILURE_CODES.has(String(row.failure_code))
-        ? String(row.failure_code)
-        : 'INSTALLATION_EXCHANGE_FAILED';
+    const failureStage = normalizeSlackInstallationFailureStage(row.failure_stage);
+    const failureCode = normalizeSlackInstallationFailureCode(row.failure_code, failureStage);
     const cleanupStatus = SLACK_INSTALLATION_CLEANUP_STATUSES.has(row.cleanup_status)
         ? row.cleanup_status
         : null;
@@ -961,12 +937,8 @@ export class MultitenantPostgresRepository {
         now = this.now().toISOString()
     }) {
         if (!intent || typeof claim_token !== 'string' || typeof request_digest !== 'string') return false;
-        const safeFailureStage = SLACK_INSTALLATION_FAILURE_STAGES.has(failure_stage)
-            ? failure_stage
-            : null;
-        const safeFailureCode = SLACK_INSTALLATION_FAILURE_CODES.has(String(failure_code))
-            ? String(failure_code)
-            : (SLACK_INSTALLATION_STAGE_FALLBACK[safeFailureStage] ?? 'INSTALLATION_EXCHANGE_FAILED');
+        const safeFailureStage = normalizeSlackInstallationFailureStage(failure_stage);
+        const safeFailureCode = normalizeSlackInstallationFailureCode(failure_code, safeFailureStage);
         const safeCleanupStatus = SLACK_INSTALLATION_CLEANUP_STATUSES.has(cleanup_status)
             ? cleanup_status
             : 'failed';

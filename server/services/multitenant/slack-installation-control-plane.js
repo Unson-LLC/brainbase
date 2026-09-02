@@ -3,22 +3,15 @@ import { createHash, randomBytes } from 'node:crypto';
 import { canonicalJson } from './canonical-json.js';
 import { ContractError } from './errors.js';
 import { generateCanonicalId, isCanonicalId } from './ids.js';
+import { normalizeSlackInstallationFailureCode } from './slack-installation-diagnostics.js';
 
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const CODE = /^[^\u0000-\u001f\u007f]{1,4096}$/u;
-const FAILURE_CODE_BY_STAGE = Object.freeze({
-    oauth_exchange: 'OAUTH_EXCHANGE_FAILED',
-    exchange_normalize: 'EXCHANGE_NORMALIZATION_FAILED',
-    connection_reserve: 'CONNECTION_RESERVATION_FAILED',
-    credential_store: 'CREDENTIAL_STORE_FAILED',
-    db_register: 'DB_REGISTRATION_FAILED'
-});
-
 function safeFailureCode(error, stage) {
-    if (error instanceof ContractError && /^[A-Z0-9_:-]{1,128}$/u.test(String(error.code))) {
-        return String(error.code);
-    }
-    return FAILURE_CODE_BY_STAGE[stage] ?? 'INSTALLATION_EXCHANGE_FAILED';
+    return normalizeSlackInstallationFailureCode(
+        error instanceof ContractError ? error.code : null,
+        stage
+    );
 }
 
 function invalid(code, status = 400) {

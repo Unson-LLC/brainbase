@@ -5,6 +5,7 @@ import {
     redactSlackInstallationExchange,
     validateSlackInstallationBinding
 } from '../../../../server/services/multitenant/slack-installation-control-plane.js';
+import { ContractError } from '../../../../server/services/multitenant/errors.js';
 import { expectContractErrorAsync } from './test-helpers.js';
 
 const IDS = Object.freeze({
@@ -250,6 +251,23 @@ describe('Slack installation control plane', () => {
         }));
         expect(JSON.stringify(repository.failSlackInstallationExchange.mock.calls[0][0]))
             .not.toContain('raw upstream body');
+    });
+
+    it('does not preserve a known failure code from a different stage', async () => {
+        const mismatched = new ContractError('CREDENTIAL_STORE_UNAVAILABLE', { status: 503 });
+        const { controlPlane, repository } = createControlPlane({
+            oauthClient: { exchangeCode: vi.fn(async () => { throw mismatched; }) }
+        });
+
+        await expect(controlPlane.exchange_and_register({
+            authorization_code: 'oauth-code',
+            redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+            intent: binding
+        })).rejects.toBe(mismatched);
+        expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
+            failure_stage: 'oauth_exchange',
+            failure_code: 'OAUTH_EXCHANGE_FAILED'
+        }));
     });
 
     it('records cleanup failure without exposing the opaque credential reference', async () => {

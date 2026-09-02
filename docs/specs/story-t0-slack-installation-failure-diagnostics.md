@@ -18,10 +18,10 @@ spec_status: accepted
 ## 安定コード
 
 - OAuth: `OAUTH_EXCHANGE_UNAVAILABLE | OAUTH_EXCHANGE_INVALID | OAUTH_EXCHANGE_REJECTED | OAUTH_CREDENTIAL_MISSING | OAUTH_EXCHANGE_FAILED`
-- normalize: 既存のsafe `ContractError.code`、それ以外は`EXCHANGE_NORMALIZATION_FAILED`
-- reservation: 既存のsafe `ContractError.code`、それ以外は`CONNECTION_RESERVATION_FAILED`
+- normalize: stage別allowlist済み`ContractError.code`、それ以外は`EXCHANGE_NORMALIZATION_FAILED`
+- reservation: stage別allowlist済み`ContractError.code`、それ以外は`CONNECTION_RESERVATION_FAILED`
 - credential store: `CREDENTIAL_STORE_UNAVAILABLE | CREDENTIAL_STORE_INVALID | CREDENTIAL_STORE_REJECTED | CREDENTIAL_STORE_FAILED`
-- DB registration: 既存のsafe `ContractError.code`、それ以外は`DB_REGISTRATION_FAILED`
+- DB registration: stage別allowlist済み`ContractError.code`、それ以外は`DB_REGISTRATION_FAILED`
 
 任意の`.code`は信用せず、既存ContractErrorまたは固定adapter messageだけを変換する。public routeは従来どおりstable codeだけを返し、ledger diagnosticを含めない。
 

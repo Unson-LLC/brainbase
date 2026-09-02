@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { runTenantProvisioningMigration } from '../../../../scripts/migrate-tenant-production-provisioning.js';
 import { SlackInstallationControlPlane } from '../../../../server/services/multitenant/slack-installation-control-plane.js';
 import { MultitenantPostgresRepository } from '../../../../server/services/multitenant/postgres-repository.js';
+import { ContractError } from '../../../../server/services/multitenant/errors.js';
 
 const { Pool } = pg;
 
@@ -15,6 +16,7 @@ const personId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
 const intentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAZ';
 const concurrentIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB3';
 const reinstallIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB4';
+const failedIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB6';
 const contractId = 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FB1';
 const deploymentId = 'dep_01ARZ3NDEKTSV4RRFFQ69G5FB2';
 const appId = 'A0123456789';
@@ -211,6 +213,57 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             'SELECT count(*)::integer AS count FROM slack_installation_exchange_ledger WHERE tenant_id = $1',
             [tenantId]
         )).toMatchObject({ rows: [{ count: 1 }] });
+    }, 120_000);
+
+    it('writes and reads a bounded failed diagnostic without retaining claim or response data', async () => {
+        const intent = {
+            installation_intent_id: failedIntentId,
+            tenant_id: tenantId,
+            app_id: appId,
+            expected_workspace_id: workspaceId,
+            expected_enterprise_id: enterpriseId,
+            initiated_by_person_id: personId
+        };
+        await controlPlane.authorizeBinding(intent);
+        oauthClient.exchangeCode.mockRejectedValueOnce(
+            new ContractError('CREDENTIAL_STORE_UNAVAILABLE', { status: 503 })
+        );
+
+        await expect(controlPlane.exchange_and_register({
+            authorization_code: 'oauth-failure-code',
+            redirect_uri: 'https://mana.example.test/oauth/slack/callback',
+            intent
+        })).rejects.toMatchObject({ code: 'CREDENTIAL_STORE_UNAVAILABLE' });
+
+        await expect(repository.readSlackInstallationFailureDiagnostic({
+            tenant_id: tenantId,
+            installation_intent_id: failedIntentId
+        })).resolves.toMatchObject({
+            tenant_id: tenantId,
+            installation_intent_id: failedIntentId,
+            attempt: 1,
+            failure_stage: 'oauth_exchange',
+            failure_code: 'OAUTH_EXCHANGE_FAILED',
+            cleanup_status: 'not_needed'
+        });
+
+        const { rows: [ledger] } = await pool.query(
+            `SELECT status, failure_stage, failure_code, cleanup_status,
+                    claim_token_hash, response_payload, connection_id, connection_revision
+               FROM slack_installation_exchange_ledger
+              WHERE tenant_id = $1 AND installation_intent_id = $2`,
+            [tenantId, failedIntentId]
+        );
+        expect(ledger).toEqual(expect.objectContaining({
+            status: 'failed',
+            failure_stage: 'oauth_exchange',
+            failure_code: 'OAUTH_EXCHANGE_FAILED',
+            cleanup_status: 'not_needed',
+            claim_token_hash: null,
+            response_payload: null,
+            connection_id: null,
+            connection_revision: null
+        }));
     }, 120_000);
 
     it('claims concurrent callbacks before OAuth so only one external exchange and registration occur', async () => {

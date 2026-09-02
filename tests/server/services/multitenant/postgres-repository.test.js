@@ -345,6 +345,29 @@ describe('MultitenantPostgresRepository', () => {
         expect(update[1][2]).toBe('WORKSPACE_CONNECTION_STALE_REVISION');
     });
 
+    it('normalizes a stable code from a different stage to the current stage fallback', async () => {
+        const query = vi.fn(async (sql) => {
+            if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK'
+                || sql.startsWith("SELECT set_config('brainbase.tenant_id'")) return { rows: [] };
+            if (sql.includes('UPDATE slack_installation_exchange_ledger')) return { rows: [], rowCount: 1 };
+            return { rows: [] };
+        });
+        const client = { query, release: vi.fn() };
+        const repository = new MultitenantPostgresRepository({ pool: { connect: vi.fn(async () => client) } });
+
+        await repository.failSlackInstallationExchange({
+            intent: CLAIM_INTENT,
+            claim_token: 'claim-token',
+            request_digest: digest('request'),
+            failure_stage: 'oauth_exchange',
+            failure_code: 'CREDENTIAL_STORE_UNAVAILABLE',
+            cleanup_status: 'not_needed'
+        });
+
+        const update = query.mock.calls.find(([sql]) => sql.includes('UPDATE slack_installation_exchange_ledger'));
+        expect(update[1][2]).toBe('OAUTH_EXCHANGE_FAILED');
+    });
+
     it('AC-005/AC-105/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む', async () => {
         const { pool, client } = poolWithRows({
             'FROM workspace_connections': [{

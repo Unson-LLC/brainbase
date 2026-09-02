@@ -283,3 +283,151 @@ describe.sequential('tenant production provisioning migration catalog readback',
         expect(result).toMatchObject({ ok: true, mode: 'check', readback: { ledger_matches: true } });
     }, 120_000);
 });
+
+describe.sequential('tenant production provisioning migration from the legacy Slack ledger', () => {
+    let container;
+    let pool;
+    const legacyIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+
+    beforeAll(async () => {
+        container = await new PostgreSqlContainer('postgres:16-alpine').start();
+        pool = new Pool({ connectionString: container.getConnectionUri() });
+        await pool.query(await readFile(resolve(process.cwd(), 'server/sql/multitenant-platform-schema.sql'), 'utf8'));
+        await pool.query('ALTER TABLE brainbase_tenants ADD COLUMN IF NOT EXISTS tenant_key TEXT');
+        await pool.query(
+            `INSERT INTO brainbase_tenants (
+                tenant_id, tenant_revision, tenant_key, status, display_name, created_at, updated_at
+             ) VALUES ($1, 1, 'unson-business', 'active', 'Unson Business', $2, $2)`,
+            [tenantId, now]
+        );
+        await pool.query(`
+            CREATE TABLE brainbase_tenant_revisions (
+                tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+                tenant_revision BIGINT NOT NULL CHECK (tenant_revision > 0),
+                tenant_key TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (status IN ('provisioning', 'active', 'suspended', 'deletion_pending', 'deleted')),
+                display_name TEXT NOT NULL,
+                suspension_reason_code TEXT,
+                deletion_after TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL,
+                recorded_at TIMESTAMPTZ NOT NULL,
+                PRIMARY KEY (tenant_id, tenant_revision),
+                UNIQUE (tenant_key, tenant_revision)
+            )
+        `);
+        await pool.query(
+            `INSERT INTO brainbase_tenant_revisions (
+                tenant_id, tenant_revision, tenant_key, status, display_name,
+                created_at, updated_at, recorded_at
+             ) VALUES ($1, 1, 'unson-business', 'active', 'Unson Business', $2, $2, $2)`,
+            [tenantId, now]
+        );
+        await pool.query(`
+            CREATE TABLE slack_installation_intents (
+                installation_intent_id TEXT PRIMARY KEY CHECK (installation_intent_id ~ '^insi_[0-9A-HJKMNP-TV-Z]{26}$'),
+                tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+                tenant_revision_at_write BIGINT NOT NULL,
+                app_id TEXT NOT NULL CHECK (app_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'),
+                expected_workspace_id TEXT,
+                expected_enterprise_id TEXT,
+                initiated_by_principal_id TEXT NOT NULL CHECK (initiated_by_principal_id ~ '^per_[0-9A-HJKMNP-TV-Z]{26}$'),
+                expected_connection_revision BIGINT,
+                state_hash TEXT CHECK (state_hash IS NULL OR state_hash ~ '^sha256:[a-f0-9]{64}$'),
+                nonce_hash TEXT CHECK (nonce_hash IS NULL OR nonce_hash ~ '^sha256:[a-f0-9]{64}$'),
+                issued_at TIMESTAMPTZ NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL,
+                consumed_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL,
+                CONSTRAINT slack_installation_intents_tenant_revision_history_fk
+                    FOREIGN KEY (tenant_id, tenant_revision_at_write)
+                    REFERENCES brainbase_tenant_revisions(tenant_id, tenant_revision),
+                UNIQUE (state_hash),
+                CHECK (expires_at > issued_at),
+                CHECK (expires_at <= issued_at + INTERVAL '10 minutes'),
+                CHECK (expected_connection_revision IS NULL OR expected_connection_revision > 0),
+                CHECK (consumed_at IS NULL OR consumed_at >= issued_at)
+            );
+
+            CREATE TABLE slack_installation_exchange_ledger (
+                installation_intent_id TEXT PRIMARY KEY
+                    REFERENCES slack_installation_intents(installation_intent_id),
+                tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+                request_digest TEXT NOT NULL CHECK (request_digest ~ '^sha256:[a-f0-9]{64}$'),
+                status TEXT NOT NULL CHECK (status IN ('processing', 'completed', 'failed')),
+                connection_id TEXT,
+                connection_revision BIGINT,
+                response_payload JSONB,
+                claim_token_hash TEXT CHECK (claim_token_hash IS NULL OR claim_token_hash ~ '^sha256:[a-f0-9]{64}$'),
+                claimed_at TIMESTAMPTZ,
+                attempt BIGINT NOT NULL DEFAULT 1 CHECK (attempt > 0),
+                failure_code TEXT,
+                created_at TIMESTAMPTZ NOT NULL,
+                completed_at TIMESTAMPTZ,
+                UNIQUE (tenant_id, installation_intent_id),
+                CHECK (status <> 'completed' OR (
+                    connection_id IS NOT NULL
+                    AND connection_revision IS NOT NULL
+                    AND response_payload IS NOT NULL
+                ))
+            );
+        `);
+        await pool.query(
+            `INSERT INTO slack_installation_intents (
+                installation_intent_id, tenant_id, tenant_revision_at_write, app_id,
+                initiated_by_principal_id, issued_at, expires_at, created_at
+             ) VALUES ($1, $2, 1, 'A_LEGACY', 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY', $3, $4, $3)`,
+            [legacyIntentId, tenantId, now, new Date(now.getTime() + 10 * 60 * 1000)]
+        );
+        await pool.query(
+            `INSERT INTO slack_installation_exchange_ledger (
+                installation_intent_id, tenant_id, request_digest, status,
+                attempt, failure_code, created_at, completed_at
+             ) VALUES ($1, $2, $3, 'failed', 1, 'UPSTREAM_UNAVAILABLE', $4, $4)`,
+            [legacyIntentId, tenantId, `sha256:${'a'.repeat(64)}`, now]
+        );
+    }, 120_000);
+
+    afterAll(async () => {
+        await pool?.end();
+        await container?.stop();
+    });
+
+    it('preserves a legacy failed row and adds bounded diagnostic columns idempotently', async () => {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+            const result = await runTenantProvisioningMigration({
+                argv: ['--apply', '--approve-apply'],
+                env: { BRAINBASE_MIGRATION_ACTOR: 'integration-test' },
+                pool
+            });
+            expect(result).toMatchObject({ ok: true, mode: 'apply', persisted: true, readback: { ledger_matches: true } });
+        }
+
+        const readback = await pool.query(
+            `SELECT installation_intent_id, status, failure_code, failure_stage, cleanup_status
+               FROM slack_installation_exchange_ledger
+              WHERE installation_intent_id = $1`,
+            [legacyIntentId]
+        );
+        expect(readback.rows).toEqual([{
+            installation_intent_id: legacyIntentId,
+            status: 'failed',
+            failure_code: 'UPSTREAM_UNAVAILABLE',
+            failure_stage: null,
+            cleanup_status: null
+        }]);
+
+        await expect(pool.query(
+            `UPDATE slack_installation_exchange_ledger
+                SET failure_stage = 'unknown_stage'
+              WHERE installation_intent_id = $1`,
+            [legacyIntentId]
+        )).rejects.toMatchObject({ code: '23514' });
+        await expect(pool.query(
+            `UPDATE slack_installation_exchange_ledger
+                SET cleanup_status = 'unknown_status'
+              WHERE installation_intent_id = $1`,
+            [legacyIntentId]
+        )).rejects.toMatchObject({ code: '23514' });
+    }, 120_000);
+});
