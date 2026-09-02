@@ -609,13 +609,46 @@ describe('JudgmentResolutionService', () => {
         'ローカルファイルへ書いて、外部送信はしないでください。',
         '外部送信はしないでください。ローカルファイルへ書いてください。',
         'Write the local file, but do not publish externally.',
-        'Do not publish externally. Write the local file.'
+        'Do not publish externally. Write the local file.',
+        'ローカルファイルを作って、外部送信はしないでください。',
+        'ローカルファイルを削除して、外部送信はしないでください。',
+        'Delete the local file, but do not publish externally.',
+        'Do not publish externally, but write the local file.'
     ])('禁止節の前後順に関係なく肯定されたローカル書込みだけを分類する: %s', (request) => {
         const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
         expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
         expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it.each([
+        'PRをマージして、デプロイはしないでください。',
+        'Merge the PR, but do not deploy.'
+    ])('禁止節の前にある肯定されたマージ操作を保持する: %s', (request) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'operate', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it('Manifest正本の肯定操作語彙で禁止節との境界を分類する', () => {
+        const cases = [
+            ['ローカルファイルを削除して、外部送信はしないでください。', 'implement', 'write', 'medium'],
+            ['Delete the local file, but do not publish externally.', 'implement', 'write', 'medium'],
+            ['PRをマージして、デプロイはしないでください。', 'operate', 'write', 'medium'],
+            ['Merge the PR, but do not deploy.', 'operate', 'write', 'medium'],
+            ['ローカルの状態を確認して、外部送信はしないでください。', 'investigate', 'read', 'low']
+        ];
+
+        for (const [request, intent, actionKind, risk] of cases) {
+            expect(service.resolve(input(request), { access: ACCESS, hostBinding: binding() })).toMatchObject({
+                classification: { intent, action_kind: actionKind, risk },
+                autonomy_decision: 'continue',
+                autonomy_reason_code: 'routine_in_scope'
+            });
+        }
     });
 
     it.each([

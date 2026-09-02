@@ -245,7 +245,8 @@ function classificationRequest(request) {
     return [...commandParagraphs, ...annotationCommands].join('\n\n').trim();
 }
 
-function positiveClassificationRequest(request) {
+function positiveClassificationRequest(request, manifest) {
+    const positiveCommandTerms = manifest.semantic_matchers.positive_commands;
     return request
         .split(/(?<=[。！？.!?\n])/u)
         .map((sentence) => {
@@ -256,7 +257,7 @@ function positiveClassificationRequest(request) {
                 const positivePrefix = clauseBoundary >= 0
                     ? beforeNegation.slice(0, clauseBoundary).trim()
                     : '';
-                const keepPrefix = /(?:作成|書|更新|修正|実装|確認|読み戻|進め|追加|保存|処理|実行)(?:して|し|いて|き|めて)/u.test(positivePrefix)
+                const keepPrefix = includesTerm(positivePrefix, positiveCommandTerms)
                     ? positivePrefix
                     : '';
                 const afterNegation = sentence.slice(japaneseBoundary.index + japaneseBoundary[0].length);
@@ -272,13 +273,13 @@ function positiveClassificationRequest(request) {
                     .replace(/\b(?:but|and)\s*$/iu, '')
                     .replace(/[,;:\s]+$/u, '')
                     .trim();
-                const keepPrefix = /\b(?:write|create|update|edit|implement|check|verify|read back|add|save|process|run)\b/iu.test(beforeNegation)
+                const keepPrefix = includesTerm(beforeNegation, positiveCommandTerms)
                     ? beforeNegation
                     : '';
                 const afterNegation = sentence.slice(englishBoundary.index + englishBoundary[0].length);
-                const separatorIndex = afterNegation.search(/[;；]/u);
-                const positiveTail = separatorIndex >= 0
-                    ? afterNegation.slice(separatorIndex + 1).replace(/^[,.;:!?\s]+/u, '')
+                const tailBoundary = /(?:[;；]|,\s*(?:but|and then)\s+)/iu.exec(afterNegation);
+                const positiveTail = tailBoundary
+                    ? afterNegation.slice(tailBoundary.index + tailBoundary[0].length).replace(/^[,.;:!?\s]+/u, '')
                     : '';
                 return [keepPrefix, positiveTail].filter(Boolean).join('. ');
             }
@@ -452,6 +453,7 @@ function validateManifest(manifest, lock) {
     for (const [key, terms] of Object.entries(matchers.domains)) validateStringTerms(terms, `judgment domain matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.signals)) validateStringTerms(terms, `judgment signal matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.safety)) validateStringTerms(terms, `judgment safety matcher ${key}`);
+    validateStringTerms(matchers.positive_commands, 'judgment positive command matcher');
     validateStringTerms(matchers.follow_up, 'judgment follow-up matcher');
     const autonomy = manifest.autonomy;
     if (!autonomy || autonomy.schema_version !== 'brainbase-autonomy-policy-v1') throw new TypeError('judgment autonomy policy is invalid');
@@ -664,7 +666,7 @@ function classificationFromPriorContext(input, manifest) {
 
 function classify(input, manifest) {
     const matchers = manifest.semantic_matchers;
-    const request = positiveClassificationRequest(classificationRequest(input.request));
+    const request = positiveClassificationRequest(classificationRequest(input.request), manifest);
     const detectedDomains = matchingKeys(request, matchers.domains, manifest.selectors.domain_order.filter((domain) => domain !== 'general'));
     const detectedSignals = matchingKeys(request, matchers.signals, manifest.selectors.signal_order);
     const detectedIntent = matchingIntent(request, manifest);

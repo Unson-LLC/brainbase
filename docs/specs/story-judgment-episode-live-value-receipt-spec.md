@@ -13,7 +13,7 @@ Accepted。正本Storyは`docs/management/stories/active/story-judgment-episode-
 - 復元episodeは`episode_origin=stop_delegation_recovery`、`route_application=post_generation_recovery`を記録し、final receiptへ同じ値を束縛する。
 - 復元routeは最初のStopと後続処理だけを支配する。すでに生成された初回回答を事前に導いたとは主張しない。
 - 実際に不要質問を差し戻し、同一episodeの実行証拠、canonical readback、value proof、completed stateが揃った場合だけ最終判断レシートを表示する。
-- 共通Resolverは、禁止節の位置や言語にかかわらず禁止された操作を分類対象から除外し、同じ入力中の肯定されたローカル操作だけを保持する。禁止だけの入力を`write`または`external`へ昇格しない。
+- 共通Resolverは、禁止節の位置や言語にかかわらず禁止された操作を分類対象から除外し、同じ入力中の肯定されたローカル操作だけを保持する。肯定操作の判定語彙は`judgment-runtime-manifest.json`の`positive_commands`を正本とし、禁止だけの入力を`write`または`external`へ昇格しない。
 
 ## 受け入れ基準と証拠
 

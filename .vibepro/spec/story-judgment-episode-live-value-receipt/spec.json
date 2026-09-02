@@ -1,0 +1,218 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-judgment-episode-live-value-receipt",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "新規Codex委任タスクでUserPromptSubmitが発火しない場合、現在turnの正規codex_delegation入力だけをStopで復元し、同じsession_idとturn_idでepisodeを正確に1件開始する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-episode-live-value-receipt.md",
+            "section": "データ経路"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "startEpisode"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "Codex App委任turnはUserPromptSubmitなしでもStop前に同じturnのepisodeへ復元される"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "Codex App委任turn"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T00:58:56.303Z",
+      "last_revised_at": "2026-09-02T01:17:31.525Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "別turn、別tool、壊れた委任包み、複数候補をepisodeへ丸めず、judgment_episode_not_foundと既存fail-closed契約を弱めない",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-episode-live-value-receipt.md",
+            "section": "真実性境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "同一turnに委任候補が複数ある場合はStop時episodeへ推測採用しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "Stop時episodeへ推測採用しない"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T00:58:56.303Z",
+      "last_revised_at": "2026-09-02T01:17:31.525Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "fresh taskでHostが実際に差し戻した不要な確認と成果物証拠が揃った場合だけ、Brainbase判断レシートを最終回答へ1回表示する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-episode-live-value-receipt.md",
+            "section": "検証方針"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "finalizeEpisodeLocked"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "実際に差し戻した質問だけを入口から判断レシートへ投影する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "Brainbase判断レシート"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T00:58:56.303Z",
+      "last_revised_at": "2026-09-02T01:17:31.525Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "共通Resolverは、Manifestのpositive_commandsを肯定操作語彙の正本とし、日本語・英語とも禁止節を操作要求へ反転せず、禁止節の前後にある肯定されたローカル操作だけを順序非依存で分類する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-episode-live-value-receipt.md",
+            "section": "真実性境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/judgment-resolution-service.js",
+            "anchor": "positiveClassificationRequest"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolution-service.test.js",
+            "case": "Manifest正本の肯定操作語彙で禁止節との境界を分類する"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-service.test.js",
+            "case": "禁止だけの文を肯定された操作として分類しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolution-service.test.js",
+            "must_cover": "禁止節の前後順に関係なく"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-service.test.js",
+            "must_cover": "禁止だけの文"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T02:43:00.000Z",
+      "last_revised_at": "2026-09-02T02:43:00.000Z"
+    }
+  ],
+  "planned_test_suites": [
+    {
+      "layer": "unit",
+      "covers": [
+        "Codex App delegation recovery",
+        "malformed and stale delegation fail-closed"
+      ]
+    },
+    {
+      "layer": "integration",
+      "covers": [
+        "Stop-time delegated episode continuity",
+        "receipt rendering"
+      ]
+    },
+    {
+      "layer": "e2e",
+      "covers": [
+        "fresh Codex task value receipt visibility"
+      ]
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-09-02T00:58:56.300Z",
+  "previous_spec_id": null
+}
