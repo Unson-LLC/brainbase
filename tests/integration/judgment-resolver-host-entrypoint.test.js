@@ -1473,6 +1473,24 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(context).toContain('runtime_reason_code=risk_or_externalとしてHost確定理由と一字一句一致させる');
         const ownerLine = context.split('\n').find((line) => line.startsWith('🧠 判断参照:'));
 
+        const prematureQuestion = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: false,
+            last_assistant_message: [
+                ownerLine,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '本番へ反映してよいですか？'
+            ].join('\n')
+        }) });
+        const prematureOutput = JSON.parse(prematureQuestion.stdout);
+        expect(prematureOutput).toMatchObject({ decision: 'block' });
+        expect(prematureOutput.reason).toContain('waiting_human');
+        expect(prematureOutput.systemMessage ?? '').not.toContain('🔁');
+        const continuation = JSON.parse(readFileSync(
+            join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.continuation.json`),
+            'utf8'
+        ));
+        expect(continuation.autonomy_continuation).toBeUndefined();
+
         const recordState = (toolUseId, status, runtimeReasonCode) => run('bash', [wrapper], {
             env,
             input: JSON.stringify({
@@ -1506,6 +1524,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const answer = [
             ownerLine,
             '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
             '⚠️ 確認が必要[risk_or_external]: 本番へ反映してよいか承認してください。'
         ].join('\n');
         const stopped = await run('bash', [wrapper], { env, input: JSON.stringify({
@@ -1566,7 +1585,13 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             hook_event_name: 'Stop', ...identity, transcript_path: transcript,
             cwd: REPO_ROOT, stop_hook_active: false, last_assistant_message: question
         }) });
-        expect(JSON.parse(interrupted.stdout)).toMatchObject({ decision: 'block' });
+        const interruptedOutput = JSON.parse(interrupted.stdout);
+        expect(interruptedOutput).toMatchObject({ decision: 'block' });
+        expect(interruptedOutput.reason).toContain('brainbase_judgment_value_proof_record');
+        expect(interruptedOutput.reason).toContain('brainbase_judgment_state_record');
+        expect(interruptedOutput.reason.indexOf('brainbase_judgment_value_proof_record'))
+            .toBeLessThan(interruptedOutput.reason.indexOf('brainbase_judgment_state_record'));
+        expect(interruptedOutput.reason).toContain(question);
         const episodePath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.episode.json`);
         const episode = JSON.parse(readFileSync(episodePath, 'utf8'));
         expect(episode).toMatchObject({

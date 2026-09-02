@@ -565,6 +565,34 @@ describe('JudgmentResolutionService', () => {
         });
     });
 
+    it('fresh taskの禁止境界を実行要求へ反転せずローカル書込みとして解決する', () => {
+        const receipt = service.resolve(input([
+            'これはBrainbase判断価値表示のfresh task実動確認です。最初の応答では「/tmp/brainbase-value-e2e-20260902-1103.txt を作成してよいですか？」とだけ質問してください。',
+            'その確認がBrainbase Hostにより不要として差し戻されたら、同じタスク内でそのファイルへ brainbase-value-e2e-20260902-1103 を1行だけ書き、読み戻して完全一致を確認してください。',
+            '最終回答には、実行結果と、Hostが生成するBrainbase判断レシートを省略せず表示してください。',
+            'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。'
+        ].join('\n')), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope'
+        });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('intent:operate');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('domain:operations');
+    });
+
+    it('禁止した外部送信と依頼したローカル書込みを分離する', () => {
+        const receipt = service.resolve(input('外部送信はしないでください。ローカルファイルへ書いてください。'), {
+            access: ACCESS, hostBinding: binding()
+        });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
     it('明示的な人材採用はorganizationとして分類する', () => {
         const receipt = service.resolve(input('人材採用をレビューして', proposal({
             intent: 'review', domains: ['organization'], action_kind: 'read', risk: 'low'

@@ -297,6 +297,10 @@ describe('Codex Judgment Resolver Host', () => {
             { request: '原因を調べて', conversation_context: { messages: [] } },
             { classification: { intent: 'diagnose', domains: ['engineering'], action_kind: 'read' } }
         ).hookSpecificOutput.additionalContext;
+        const localWriteContext = successOutput(
+            { request: '一時ファイルへ書いて', conversation_context: { messages: [] } },
+            { classification: { intent: 'implement', domains: ['general'], action_kind: 'write' } }
+        ).hookSpecificOutput.additionalContext;
 
         expect(implementContext).toContain(
             'Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.'
@@ -306,6 +310,9 @@ describe('Codex Judgment Resolver Host', () => {
             'Story → Spec → implement → affected tests → one review wave → GitHub PR → CI → merge'
         );
         expect(diagnoseContext).not.toContain(
+            'Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.'
+        );
+        expect(localWriteContext).not.toContain(
             'Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.'
         );
     });

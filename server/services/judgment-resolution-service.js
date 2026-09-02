@@ -187,18 +187,24 @@ function includesRequestedEffectTerm(request, terms) {
     const normalized = request.toLocaleLowerCase('ja');
     return terms.some((term) => {
         const normalizedTerm = term.toLocaleLowerCase('ja');
-        if (/^[a-z0-9_.-]+$/u.test(normalizedTerm)) {
-            return new RegExp(`(?<![a-z0-9_])${escapeRegExp(normalizedTerm)}(?![a-z0-9_])`, 'u').test(normalized);
-        }
-
         let offset = 0;
         while (offset < normalized.length) {
-            const index = normalized.indexOf(normalizedTerm, offset);
+            const matcher = /^[a-z0-9_.-]+$/u.test(normalizedTerm)
+                ? new RegExp(`(?<![a-z0-9_])${escapeRegExp(normalizedTerm)}(?![a-z0-9_])`, 'gu')
+                : null;
+            if (matcher) matcher.lastIndex = offset;
+            const match = matcher?.exec(normalized);
+            const index = matcher ? (match?.index ?? -1) : normalized.indexOf(normalizedTerm, offset);
             if (index < 0) return false;
             const continuation = normalized.slice(index + normalizedTerm.length).trimStart();
             const isConditionalTeForm = normalizedTerm.endsWith('して')
                 && /^(?:も(?!ら)|しま|いる|いた|ある|あった|おり|はいけ|はなら|よい|良い|いい|問題ない|可能|でき)/u.test(continuation);
-            if (!isConditionalTeForm) return true;
+            const sentenceTail = continuation.split(/[。！？\n]/u, 1)[0];
+            const negation = /(?:は|を|も)?(?:実行|実施)?(?:しない(?:でください)?|しません|行わない(?:でください)?|禁止)/u.exec(sentenceTail);
+            const listPrefix = negation ? sentenceTail.slice(0, negation.index) : '';
+            const isNegated = /(?:do not|don't|must not)\s*$/u.test(normalized.slice(Math.max(0, index - 16), index))
+                || Boolean(negation && !/(?:して|し、|し,|した|する|してください|せよ|しろ)/u.test(listPrefix));
+            if (!isConditionalTeForm && !isNegated) return true;
             offset = index + normalizedTerm.length;
         }
         return false;
@@ -237,6 +243,28 @@ function classificationRequest(request) {
     ));
     const commandParagraphs = materialStart < 0 ? paragraphs : paragraphs.slice(0, materialStart);
     return [...commandParagraphs, ...annotationCommands].join('\n\n').trim();
+}
+
+function positiveClassificationRequest(request) {
+    return request
+        .split(/(?<=[。！？\n])/u)
+        .map((sentence) => {
+            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください)/u.exec(sentence);
+            if (japaneseBoundary) {
+                const tail = sentence.slice(japaneseBoundary.index + japaneseBoundary[0].length)
+                    .replace(/^[、,。！？\s]+/u, '');
+                return tail || '';
+            }
+            const englishBoundary = /\b(?:do not|don't|must not)\b/iu.exec(sentence);
+            if (englishBoundary) {
+                const tail = sentence.slice(englishBoundary.index + englishBoundary[0].length)
+                    .replace(/^[,.;:!?\s]+/u, '');
+                return tail || '';
+            }
+            return sentence;
+        })
+        .join('')
+        .trim();
 }
 
 function sortByOrder(values, order) {
@@ -568,6 +596,20 @@ function matchingIntent(text, manifest) {
     }) || null;
 }
 
+function includesFollowUpTerm(text, terms) {
+    const normalized = text.toLocaleLowerCase('ja');
+    return terms.some((term) => {
+        const normalizedTerm = term.toLocaleLowerCase('ja');
+        if (normalizedTerm === 'これ' || normalizedTerm === 'こちら') {
+            return new RegExp(`${escapeRegExp(normalizedTerm)}(?!は)`, 'u').test(normalized);
+        }
+        if (normalizedTerm === 'では') {
+            return /^(?:では)(?:[、,\s]|$)/u.test(normalized.trimStart());
+        }
+        return includesTerm(normalized, [normalizedTerm]);
+    });
+}
+
 function classificationFromPriorContext(input, manifest) {
     const context = input.conversation_context;
     if (!context) return null;
@@ -601,11 +643,11 @@ function classificationFromPriorContext(input, manifest) {
 
 function classify(input, manifest) {
     const matchers = manifest.semantic_matchers;
-    const request = classificationRequest(input.request);
+    const request = positiveClassificationRequest(classificationRequest(input.request));
     const detectedDomains = matchingKeys(request, matchers.domains, manifest.selectors.domain_order.filter((domain) => domain !== 'general'));
     const detectedSignals = matchingKeys(request, matchers.signals, manifest.selectors.signal_order);
     const detectedIntent = matchingIntent(request, manifest);
-    const followsPrior = includesTerm(request, matchers.follow_up);
+    const followsPrior = includesFollowUpTerm(request, matchers.follow_up);
     const prior = followsPrior ? classificationFromPriorContext(input, manifest) : null;
     const inheritedDomains = detectedDomains.length === 0 && prior ? prior.classification.domains.filter((domain) => domain !== 'general') : [];
     const inheritedSignals = detectedSignals.length === 0 && prior ? prior.classification.signals : [];

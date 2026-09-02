@@ -1612,6 +1612,13 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
         const state = validJudgmentStopState(latestStateEvent?.safe_metadata?.stop_state);
         const exactTool = 'brainbase_judgment_state_record';
         if (!latestStateEvent || !latestStateEvent.success || !state) {
+            if (contract.decision === 'escalate') {
+                return {
+                    status: null,
+                    violation: `Host確定判断は人間確認必須です。最終回答を作る前の最後のtool callとして${exactTool}を正確に1回実行し、waiting_humanでruntime_reason_code=${contract.reasonCode}を記録する`,
+                    question: proposedHumanQuestion
+                };
+            }
             return {
                 status: null,
                 violation: `最終回答を作る前の最後のtool callとして${exactTool}を正確に1回実行し、回答本文には状態を表示しない`,
@@ -2217,6 +2224,12 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     );
     const missingAutonomyCompliance = autonomyCompliance.violation !== null;
     const auditContract = episodeAuditContract(episode);
+    const valueProofEvent = valueProofRolloutEnabled(episode, env)
+        ? latestJudgmentValueProofEvent(events)
+        : null;
+    const valueProofRequired = valueProofRolloutEnabled(episode, env)
+        && existingContinuation?.autonomy_continuation?.interruption_candidate?.resolution === 'continued_without_human';
+    const missingValueProof = valueProofRequired && valueProofEvent === null;
     const autonomyContinuationRequested = ['unnecessary_user_question', 'unfinished_safe_work']
         .includes(autonomyCompliance.triggerCode)
         && typeof auditContract?.autonomy_continuation_progress_line === 'string'
@@ -2229,17 +2242,20 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const hostCanCompleteOwnerAudit = missingOwnerAudit
         && journalStopStateRequired(episode.initial_route_receipt)
         && !missingKnowledge
+        && !missingValueProof
         && !missingAnswerBody
         && !missingAutonomyCompliance
         && !unauthorizedContinuationAudit
         && !unauthorizedStopRepairAudit
         && existingContinuation === null;
     if (missingKnowledge
+        || missingValueProof
         || (missingOwnerAudit && !hostCanCompleteOwnerAudit)
         || missingAnswerBody
         || missingAutonomyCompliance) {
         const missingCapabilities = [
             ...(missingKnowledge ? ['knowledge.resolve'] : []),
+            ...(missingValueProof ? ['judgment.value_proof.record'] : []),
             ...(missingOwnerAudit ? ['owner.audit.display'] : []),
             ...(missingAnswerBody ? ['answer.body.preservation'] : []),
             ...(missingAutonomyCompliance ? ['autonomy.continuation'] : [])
@@ -2299,6 +2315,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'],
                 { repair: true }
             )] : []),
+            ...(missingValueProof ? [
+                `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
+            ] : []),
             ...((missingOwnerAudit || missingAutonomyCompliance) ? [
                 `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
             ] : []),
@@ -2312,6 +2331,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ...(unauthorizedStopRepairAudit ? ['Hostが記録していない🛠️監査行を削除する'] : []),
             ...((missingAnswerBody || (!missingKnowledge && missingOwnerAudit && marker.answer_body_binding)) ? [
                 '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
+            ] : []),
+            ...((valueProofRolloutEnabled(episode, env)
+                && marker?.autonomy_continuation?.interruption_candidate?.resolution === 'continued_without_human') ? [
+                `安全な作業とcanonical readbackを完了した後、mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${marker.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
             ] : []),
             ...(missingAutonomyCompliance ? [autonomyCompliance.violation] : [])
         ];
@@ -2337,9 +2360,6 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     }
     const safeAnswer = sanitizeJudgmentAnswer(answer);
     const finalizedAt = new Date().toISOString();
-    const valueProofEvent = valueProofRolloutEnabled(episode, env)
-        ? latestJudgmentValueProofEvent(events)
-        : null;
     const waitingHumanQuestionText = autonomyCompliance.stopState?.status === 'waiting_human'
         ? waitingHumanQuestion(answer ?? '', expectedAuditLines, autonomyCompliance.stopState)
         : null;
@@ -2599,7 +2619,8 @@ export function buildOwnerReferenceLine(args, receipt) {
 }
 
 function mandatoryVibeProImplementationInstructions(receipt) {
-    if (receipt?.classification?.intent !== 'implement') return [];
+    if (receipt?.classification?.intent !== 'implement'
+        || !receipt?.classification?.domains?.includes('engineering')) return [];
     return [
         'This is an implementation request. Use the repository-local `vibepro-workflow` Skill even when the user did not mention VibePro.',
         'Before changing code, create or select one focused VibePro Story with explicit acceptance criteria and write the smallest testable Spec.',
