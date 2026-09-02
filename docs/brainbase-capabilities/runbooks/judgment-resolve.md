@@ -749,6 +749,13 @@ export BRAINBASE_RUNTIME_PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-p
 for file in hooks.json hooks.sha256 global-hook.entrypoint global-hook.root global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha runtime-pin.state infisical.before.json; do
   test -s "$BRAINBASE_ROLLBACK_STATE_DIR/$file"
 done
+ROLLBACK_INFISICAL_CURRENT="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback-current.json"
+ROLLBACK_INFISICAL_FINAL="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback-final.json"
+ROLLBACK_ENV="$BRAINBASE_ROLLBACK_STATE_DIR/.env.infisical.rollback"
+cleanup_rollback_secrets() {
+  rm -f "$ROLLBACK_INFISICAL_CURRENT" "$ROLLBACK_INFISICAL_FINAL" "$ROLLBACK_ENV"
+}
+trap cleanup_rollback_secrets EXIT
 require_git_root() {
   local root="$1" actual
   test -d "$root"
@@ -912,13 +919,18 @@ fi
 INFISICAL="$HOME/.local/bin/infisical"
 INFISICAL_DOMAIN=https://infisical.unson.jp
 INFISICAL_PROJECT_ID=ce20541c-02b9-4523-bbe0-49d50b2fcc19
-ROLLBACK_INFISICAL_CURRENT="$(mktemp "${TMPDIR:-/tmp}/brainbase-infisical-rollback-current.XXXXXX.json")"
-ROLLBACK_INFISICAL_FINAL="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback-final.json"
-ROLLBACK_ENV="$BRAINBASE_ROLLBACK_STATE_DIR/.env.infisical.rollback"
+: > "$ROLLBACK_INFISICAL_CURRENT"
 chmod 600 "$ROLLBACK_INFISICAL_CURRENT"
 "$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --format json \
   --output-file "$ROLLBACK_INFISICAL_CURRENT"
+# Fail before mutation if the current signing identity drifted from the
+# pre-deployment capture. This writes a secret-free operator receipt before a
+# non-zero exit. The public override may be present or already absent.
+node scripts/verify-production-signing-config.mjs pre-delete \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
+  "$ROLLBACK_INFISICAL_CURRENT" \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.pre-delete.evidence.json"
 if CURRENT="$ROLLBACK_INFISICAL_CURRENT" node -e '
 const value=JSON.parse(require("node:fs").readFileSync(process.env.CURRENT,"utf8"));
 process.exit(Object.hasOwn(value,"ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY") ? 0 : 1);
@@ -934,23 +946,10 @@ fi
   --projectId "$INFISICAL_PROJECT_ID" --format json \
   --output-file "$ROLLBACK_INFISICAL_FINAL"
 chmod 600 "$ROLLBACK_INFISICAL_FINAL"
-BEFORE="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
-FINAL="$ROLLBACK_INFISICAL_FINAL" \
-EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.evidence.json" node <<'NODE'
-const fs = require('node:fs');
-const before = JSON.parse(fs.readFileSync(process.env.BEFORE, 'utf8'));
-const final = JSON.parse(fs.readFileSync(process.env.FINAL, 'utf8'));
-const evidence = {
-  public_key_override_present_after_rollback: Object.hasOwn(final, 'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY'),
-  private_key_preserved_after_rollback: before.ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY === final.ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY,
-  key_id_preserved_after_rollback: before.ONTOLOGY_PUBLICATION_SIGNING_KEY_ID === final.ONTOLOGY_PUBLICATION_SIGNING_KEY_ID
-};
-if (evidence.public_key_override_present_after_rollback ||
-    !evidence.private_key_preserved_after_rollback ||
-    !evidence.key_id_preserved_after_rollback) process.exit(1);
-fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence));
-fs.chmodSync(process.env.EVIDENCE, 0o600);
-NODE
+node scripts/verify-production-signing-config.mjs final \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
+  "$ROLLBACK_INFISICAL_FINAL" \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.evidence.json"
 "$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --format dotenv \
   --output-file "$ROLLBACK_ENV"
@@ -960,18 +959,32 @@ REMOTE_ROLLBACK_ENV="/tmp/brainbase-infisical-rollback-${EXPECTED_ENV_SHA}.env"
 scp -i "$HOME/.ssh/lightsail-brainbase.pem" "$ROLLBACK_ENV" \
   "ubuntu@176.34.20.239:$REMOTE_ROLLBACK_ENV"
 ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
-  "$REMOTE_ROLLBACK_ENV" "$EXPECTED_ENV_SHA" <<'REMOTE'
+  "$REMOTE_ROLLBACK_ENV" "$EXPECTED_ENV_SHA" \
+  /home/ubuntu/brainbase/.env.infisical brainbase-ssot.service <<'REMOTE'
 set -euo pipefail
 REMOTE_ROLLBACK_ENV="$1"
 EXPECTED_ENV_SHA="$2"
-sudo install -o root -g root -m 600 "$REMOTE_ROLLBACK_ENV" /home/ubuntu/brainbase/.env.infisical
-rm -f "$REMOTE_ROLLBACK_ENV"
-ACTUAL_ENV_SHA="$(sudo sha256sum /home/ubuntu/brainbase/.env.infisical | awk '{print $1}')"
+TARGET_ENV="$3"
+TARGET_SERVICE="$4"
+REMOTE_TARGET_NEXT="${TARGET_ENV}.next.$$"
+cleanup() {
+  rm -f "$REMOTE_ROLLBACK_ENV"
+  sudo rm -f "$REMOTE_TARGET_NEXT"
+}
+trap cleanup EXIT
+REMOTE_TRANSFER_SHA="$(sha256sum "$REMOTE_ROLLBACK_ENV" | awk '{print $1}')"
+test "$REMOTE_TRANSFER_SHA" = "$EXPECTED_ENV_SHA"
+sudo install -o root -g root -m 600 "$REMOTE_ROLLBACK_ENV" "$REMOTE_TARGET_NEXT"
+NEXT_ENV_SHA="$(sudo sha256sum "$REMOTE_TARGET_NEXT" | awk '{print $1}')"
+test "$NEXT_ENV_SHA" = "$EXPECTED_ENV_SHA"
+sudo mv "$REMOTE_TARGET_NEXT" "$TARGET_ENV"
+ACTUAL_ENV_SHA="$(sudo sha256sum "$TARGET_ENV" | awk '{print $1}')"
 test "$ACTUAL_ENV_SHA" = "$EXPECTED_ENV_SHA"
-sudo systemctl restart brainbase-ssot.service
+sudo systemctl restart "$TARGET_SERVICE"
 curl -fsS --connect-timeout 5 --max-time 10 -- http://127.0.0.1:55123/api/health >/dev/null
 REMOTE
-rm -f "$ROLLBACK_INFISICAL_CURRENT"
+cleanup_rollback_secrets
+trap - EXIT
 
 # 4. Restore the exact previous Hook config last. The captured clean Hook
 # checkout was never mutated, so restoring hooks.json is sufficient.

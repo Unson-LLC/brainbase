@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -250,6 +250,7 @@ describe('judgment resolver publication surfaces', () => {
 
     it('公開鍵override除去をforward-only修復としてrollback後も維持する', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const verifier = read('scripts/verify-production-signing-config.mjs');
         const capture = runbook.slice(
             runbook.indexOf('### Pre-deployment rollback capture'),
             runbook.indexOf('### Production convergence receipt')
@@ -266,10 +267,19 @@ describe('judgment resolver publication surfaces', () => {
         expect(rollback).toContain('forward-only incident remediation');
         expect(rollback).toContain('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
         expect(rollback).toContain('infisical.rollback-final.json');
-        expect(rollback).toContain('public_key_override_present_after_rollback');
-        expect(rollback).toContain('private_key_preserved_after_rollback');
-        expect(rollback).toContain('key_id_preserved_after_rollback');
+        expect(rollback).toContain('verify-production-signing-config.mjs final');
+        expect(verifier).toContain('private_key_preserved_after_rollback');
+        expect(verifier).toContain('key_id_preserved_after_rollback');
         expect(rollback).toContain('infisical.rollback.evidence.json');
+        expect(verifier).toContain('private_key_preserved_before_delete');
+        expect(verifier).toContain('key_id_preserved_before_delete');
+        expect(rollback.indexOf('verify-production-signing-config.mjs pre-delete')).toBeLessThan(
+            rollback.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')
+        );
+        expect(rollback).toContain('REMOTE_TRANSFER_SHA');
+        expect(rollback.indexOf('test "$REMOTE_TRANSFER_SHA" = "$EXPECTED_ENV_SHA"')).toBeLessThan(
+            rollback.indexOf('sudo mv "$REMOTE_TARGET_NEXT" "$TARGET_ENV"')
+        );
         expect(rollback).toContain('test "$ACTUAL_ENV_SHA" = "$EXPECTED_ENV_SHA"');
         expect(rollback.indexOf('infisical.rollback.evidence.json')).toBeLessThan(
             rollback.indexOf('Restore the exact previous Hook config last')
@@ -284,6 +294,82 @@ describe('judgment resolver publication surfaces', () => {
             expect(contract).toContain('key_id');
             expect(contract).toContain('Lightsail');
         }
+    });
+
+    it('署名設定rollbackを変更前と変更後に秘密値非表示でfail-closed検証する', () => {
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-signing-rollback-'));
+        const script = 'scripts/verify-production-signing-config.mjs';
+        const writeJson = (name, value) => {
+            const path = join(root, name);
+            writeFileSync(path, JSON.stringify(value), { mode: 0o600 });
+            return path;
+        };
+        const beforeValue = {
+            ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: 'invalid-public',
+            ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY: 'private-secret',
+            ONTOLOGY_PUBLICATION_SIGNING_KEY_ID: 'key-id',
+        };
+        const before = writeJson('before.json', beforeValue);
+        const run = (mode, observedValue, evidenceName) => {
+            const observed = writeJson(`${evidenceName}.observed.json`, observedValue);
+            const evidencePath = join(root, `${evidenceName}.evidence.json`);
+            const result = spawnSync(process.execPath, [script, mode, before, observed, evidencePath], { encoding: 'utf8' });
+            return { result, evidence: JSON.parse(readFileSync(evidencePath, 'utf8')) };
+        };
+
+        const ready = run('pre-delete', beforeValue, 'ready');
+        expect(ready.result.status).toBe(0);
+        expect(ready.evidence.status).toBe('ready_to_repair');
+
+        const drift = run('pre-delete', { ...beforeValue, ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY: 'drifted-secret' }, 'drift');
+        expect(drift.result.status).not.toBe(0);
+        expect(drift.evidence).toMatchObject({
+            status: 'blocked',
+            rollback_complete: false,
+            partial_state: true,
+            next_action: 'stop_and_inspect_saved_rollback_state',
+            private_key_preserved_before_delete: false,
+        });
+        const driftOutput = `${drift.result.stdout}${drift.result.stderr}${JSON.stringify(drift.evidence)}`;
+        expect(driftOutput).not.toContain('private-secret');
+        expect(driftOutput).not.toContain('drifted-secret');
+
+        const repaired = { ...beforeValue };
+        delete repaired.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        const final = run('final', repaired, 'final');
+        expect(final.result.status).toBe(0);
+        expect(final.evidence).toMatchObject({ status: 'repaired', rollback_complete: true, public_key_override_present: false });
+
+        const ambiguousDelete = run('final', beforeValue, 'ambiguous-delete');
+        expect(ambiguousDelete.result.status).not.toBe(0);
+        expect(ambiguousDelete.evidence).toMatchObject({ status: 'blocked', rollback_complete: false, public_key_override_present: true });
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('Lightsail env転送checksum不一致時はlive targetを変更しない', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const marker = 'set -euo pipefail\nREMOTE_ROLLBACK_ENV="$1"\nEXPECTED_ENV_SHA="$2"\nTARGET_ENV="$3"';
+        const start = runbook.lastIndexOf(marker);
+        const end = runbook.indexOf('\nREMOTE\ncleanup_rollback_secrets', start);
+        expect(start).toBeGreaterThanOrEqual(0);
+        expect(end).toBeGreaterThan(start);
+        const remoteBlock = runbook.slice(start, end);
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-env-transfer-'));
+        const bin = join(root, 'bin');
+        mkdirSync(bin);
+        writeFileSync(join(bin, 'sudo'), '#!/bin/sh\nexec "$@"\n', { mode: 0o755 });
+        const transfer = join(root, 'transfer.env');
+        const target = join(root, 'live.env');
+        writeFileSync(transfer, 'new-value\n', { mode: 0o600 });
+        writeFileSync(target, 'original-value\n', { mode: 0o600 });
+        const result = spawnSync('bash', ['-c', remoteBlock, 'rollback-env-test', transfer, 'definitely-wrong-checksum', target, 'unused.service'], {
+            encoding: 'utf8',
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        });
+        expect(result.status).not.toBe(0);
+        expect(readFileSync(target, 'utf8')).toBe('original-value\n');
+        expect(existsSync(transfer)).toBe(false);
+        rmSync(root, { recursive: true, force: true });
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:14

@@ -155,7 +155,7 @@
     {
       "id": "S-004",
       "type": "scenario",
-      "statement": "Given production Infisicalに不完全な公開鍵overrideと有効な秘密鍵・key_idが存在する、When sharedのONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEYだけを削除して再取得する、Then 公開鍵overrideは不在となり秘密鍵とkey_idは値を表示せず同一性が確認され、同一runの設定証跡へ保存される。この除去はforward-only incident remediationであり、コード/runtime rollbackでも復元せず、rollback後にoverride不在、秘密鍵・key_idの同一性、Lightsail環境ファイルの再投影checksumを読戻す。",
+      "statement": "Given production Infisicalに不完全な公開鍵overrideと有効な秘密鍵・key_idが存在する、When sharedのONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEYだけを削除して再取得する、Then 公開鍵overrideは不在となり秘密鍵とkey_idは値を表示せず同一性が確認され、同一runの設定証跡へ保存される。この除去はforward-only incident remediationであり、コード/runtime rollbackでも復元しない。rollbackは変更前に秘密鍵・key_idのdriftをfail-closed検査して秘密値非保持のoperator Receiptを保存し、秘密一時ファイルを終了時に削除する。rollback後にoverride不在を再取得し、Lightsail転送物のchecksumをlive反映前に、target checksumを反映後に読戻す。",
       "origin": {
         "story_refs": [
           {

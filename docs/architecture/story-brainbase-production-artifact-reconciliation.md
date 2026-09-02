@@ -10,7 +10,7 @@
 - 本番の旧SHA＋4ファイル差分は、切替前に対象限定のpatch、content hash、専用rollback branchのcommitとして保存する。このcommitは復旧専用であり、デプロイ元にはしない。
 - 通常の本番checkoutへ直接機能commitを追加せず、VibePro PRとCIを通した`develop`を唯一の前進デプロイ元にする。
 - Ontologyの非機密公開鍵は`config/ontology/trusted-public-keys.json`を正本とする。
-- Infisical productionでは署名用の秘密鍵と`key_id`を維持し、重複して壊れている公開鍵overrideだけを除去する。この除去はforward-only incident remediationとして扱い、コード/runtime rollbackでも復元しない。rollbackは修復済みInfisicalを再取得し、秘密鍵・`key_id`の同一性とoverride不在を秘密値なしで記録し、Lightsailへ再投影してchecksumを読戻す。
+- Infisical productionでは署名用の秘密鍵と`key_id`を維持し、重複して壊れている公開鍵overrideだけを除去する。この除去はforward-only incident remediationとして扱い、コード/runtime rollbackでも復元しない。rollbackは変更前に秘密鍵・`key_id`のdriftをfail-closed検査してoperator Receiptを保存し、修復後にoverride不在を再取得する。秘密一時ファイルは終了時に削除し、Lightsail転送物のchecksumをlive反映前に、target checksumを反映後に読戻す。
 - Judgment Resolverの変更はglobal Hook checkout、ローカル`:31013`、常駐MCP、本番Lightsailの4面を一つの互換セットとして扱い、各面のSHAを推測せず個別に読み戻す。
 - 切替前に4面のSHAとglobal Hookファイルを保全し、統合SHAへ揃えた後に各面のclean/readinessを確認する。
 - Infisical再投影後に`brainbase-ssot.service`を再起動し、checkout SHA、process SHA、API version、dirty状態を読み戻す。
