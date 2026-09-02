@@ -566,6 +566,32 @@ describe('judgment resolver publication surfaces', () => {
 
     it('env反映後の外側の失敗もproduction rollback Receiptへ収束する', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        expect(runbook).toContain('ROLLBACK_INFISICAL_BEFORE="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"');
+        expect(runbook).toContain('rm -f "$ROLLBACK_INFISICAL_BEFORE" || cleanup_ok=false');
+        expect(runbook).toContain('local_secret_cleanup_confirmed:true');
+        const cleanupStart = runbook.lastIndexOf('ROLLBACK_INFISICAL_BEFORE=');
+        const cleanupEnd = runbook.indexOf('\ntrap cleanup_rollback_secrets EXIT', cleanupStart);
+        expect(cleanupStart).toBeGreaterThanOrEqual(0);
+        expect(cleanupEnd).toBeGreaterThan(cleanupStart);
+        const cleanupBlock = runbook.slice(cleanupStart, cleanupEnd);
+        const cleanupRoot = mkdtempSync(join(tmpdir(), 'brainbase-rollback-secret-cleanup-'));
+        for (const name of [
+            'infisical.before.json',
+            'infisical.rollback-current.json',
+            'infisical.rollback-final.json',
+            '.env.infisical.rollback',
+        ]) writeFileSync(join(cleanupRoot, name), 'secret-value\n', { mode: 0o600 });
+        const cleanup = spawnSync('bash', ['-c', `set -euo pipefail\n${cleanupBlock}\ncleanup_rollback_secrets`], {
+            encoding: 'utf8',
+            env: { ...process.env, BRAINBASE_ROLLBACK_STATE_DIR: cleanupRoot },
+        });
+        expect(cleanup.status).toBe(0);
+        for (const name of [
+            'infisical.before.json',
+            'infisical.rollback-current.json',
+            'infisical.rollback-final.json',
+            '.env.infisical.rollback',
+        ]) expect(existsSync(join(cleanupRoot, name))).toBe(false);
         const start = runbook.lastIndexOf('ROLLBACK_STAGE=lightsail_env_export');
         const end = runbook.indexOf('\n"$INFISICAL" export --silent', start);
         expect(start).toBeGreaterThanOrEqual(0);

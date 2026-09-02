@@ -749,11 +749,13 @@ export BRAINBASE_RUNTIME_PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-p
 for file in hooks.json hooks.sha256 global-hook.entrypoint global-hook.root global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha runtime-pin.state infisical.before.json; do
   test -s "$BRAINBASE_ROLLBACK_STATE_DIR/$file"
 done
+ROLLBACK_INFISICAL_BEFORE="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
 ROLLBACK_INFISICAL_CURRENT="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback-current.json"
 ROLLBACK_INFISICAL_FINAL="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback-final.json"
 ROLLBACK_ENV="$BRAINBASE_ROLLBACK_STATE_DIR/.env.infisical.rollback"
 cleanup_rollback_secrets() {
   local cleanup_ok=true
+  rm -f "$ROLLBACK_INFISICAL_BEFORE" || cleanup_ok=false
   rm -f "$ROLLBACK_INFISICAL_CURRENT" || cleanup_ok=false
   rm -f "$ROLLBACK_INFISICAL_FINAL" || cleanup_ok=false
   rm -f "$ROLLBACK_ENV" || cleanup_ok=false
@@ -932,7 +934,7 @@ chmod 600 "$ROLLBACK_INFISICAL_CURRENT"
 # pre-deployment capture. This writes a secret-free operator receipt before a
 # non-zero exit. The public override may be present or already absent.
 node "$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" pre-delete \
-  "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
+  "$ROLLBACK_INFISICAL_BEFORE" \
   "$ROLLBACK_INFISICAL_CURRENT" \
   "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.pre-delete.evidence.json"
 if CURRENT="$ROLLBACK_INFISICAL_CURRENT" node -e '
@@ -951,7 +953,7 @@ fi
   --output-file "$ROLLBACK_INFISICAL_FINAL"
 chmod 600 "$ROLLBACK_INFISICAL_FINAL"
 node "$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" final \
-  "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
+  "$ROLLBACK_INFISICAL_BEFORE" \
   "$ROLLBACK_INFISICAL_FINAL" \
   "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.evidence.json"
 
@@ -1242,7 +1244,9 @@ const evidence={
   target_sha:process.env.TARGET_SHA,
   signing_config_repair_complete:true,
   lightsail_projection_complete:true,
-  hook_restored_last:true
+  hook_restored_last:true,
+  local_secret_cleanup_attempted:true,
+  local_secret_cleanup_confirmed:true
 };
 const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
 fs.writeFileSync(tmp,JSON.stringify(evidence)+"\n",{mode:0o600});
