@@ -289,6 +289,38 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         })).resolves.toMatchObject({ entity_id: 'app_one', guard_status: 'active_current' });
     });
 
+    it('追加で判明したproject IDが競合中なら待機せずretryable 409でentity書込前に止める', async () => {
+        const { service, client } = buildService();
+        service.withAccessContext = async (_access, callback) => callback(client);
+        vi.spyOn(service, 'validateGraphMutation').mockResolvedValue(undefined);
+        let identityLockCount = 0;
+        client.query.mockImplementation(async (sql) => {
+            if (String(sql).includes('pg_try_advisory_xact_lock')) {
+                identityLockCount += 1;
+                return { rows: [{ acquired: identityLockCount === 1 }] };
+            }
+            if (String(sql).startsWith('SELECT id FROM projects')) {
+                return { rows: [{ id: 'prj_1' }] };
+            }
+            return { rows: [], rowCount: 1 };
+        });
+
+        await expect(service.createOrUpdateGraphEntity(accessContext, {
+            id: 'app_one',
+            entityType: 'app',
+            projectCode: 'brainbase',
+            payload: { name: 'Updated' },
+            roleMin: 'member',
+            sensitivity: 'internal'
+        })).rejects.toMatchObject({
+            code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+            status: 409,
+            details: { entity_id: 'prj_1', retryable: true }
+        });
+        expect(identityLockCount).toBe(2);
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO graph_entities'))).toBe(false);
+    });
+
     it('active ontology rejects a second owner edge before persistence', async () => {
         const { service, client } = buildService();
         client.query.mockImplementation(async (sql) => {
