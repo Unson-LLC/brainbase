@@ -449,8 +449,14 @@ process.stdout.write(git.sha+"\n");
 ' > "$BRAINBASE_PRODUCTION_RUN_DIR/local_ui_sha"
 git -C /Users/ksato/workspace/repos/.runtime/brainbase-31013 rev-parse HEAD \
   > "$BRAINBASE_PRODUCTION_RUN_DIR/mcp_runtime_sha"
+test -z "$(git -C /Users/ksato/workspace/repos/.runtime/brainbase-31013 status --porcelain --untracked-files=all)"
 scripts/run-brainbase-mcp.sh --check
 grep -Fx "sha=$TARGET_SHA" /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
+launchctl print "gui/$(id -u)/com.brainbase.mcp-brainbase" \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/mcp.launchctl.txt"
+grep -Eq 'state = running|pid = [1-9][0-9]*' "$BRAINBASE_PRODUCTION_RUN_DIR/mcp.launchctl.txt"
+grep -F '/Users/ksato/workspace/repos/.runtime/brainbase-31013' \
+  "$BRAINBASE_PRODUCTION_RUN_DIR/mcp.launchctl.txt"
 curl -fsS https://bb.unson.jp/api/version > "$BRAINBASE_PRODUCTION_RUN_DIR/lightsail.version.json"
 LIGHTSAIL_VERSION="$BRAINBASE_PRODUCTION_RUN_DIR/lightsail.version.json" node -e '
 const value=JSON.parse(require("node:fs").readFileSync(process.env.LIGHTSAIL_VERSION,"utf8"));
@@ -461,6 +467,41 @@ process.stdout.write(git.sha+"\n");
 for file in global_hook_sha local_ui_sha mcp_runtime_sha lightsail_sha; do
   test "$(cat "$BRAINBASE_PRODUCTION_RUN_DIR/$file")" = "$TARGET_SHA"
 done
+RUN_DIR="$BRAINBASE_PRODUCTION_RUN_DIR" TARGET_SHA="$TARGET_SHA" \
+HOOK_ENTRYPOINT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.entrypoint")" node <<'NODE' \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/surfaces.evidence.json"
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const read = (name) => fs.readFileSync(`${process.env.RUN_DIR}/${name}`, 'utf8').trim();
+const localVersion = JSON.parse(read('local-ui.version.json'));
+const lightsailVersion = JSON.parse(read('lightsail.version.json'));
+const hookBytes = fs.readFileSync(process.env.HOOK_ENTRYPOINT);
+const sha = (name) => read(name);
+const surfaces = {
+  global_hook: {
+    checkout_sha: sha('global_hook_sha'), dirty: false,
+    entrypoint_sha256: crypto.createHash('sha256').update(hookBytes).digest('hex'),
+    readiness: 'entrypoint_readback_passed'
+  },
+  local_ui: {
+    checkout_sha: sha('local_ui_sha'), process_sha: localVersion.runtime?.git?.sha,
+    dirty: localVersion.runtime?.git?.dirty, readiness: 'version_readback_passed'
+  },
+  mcp_runtime: {
+    checkout_sha: sha('mcp_runtime_sha'), process_sha: sha('mcp_runtime_sha'), dirty: false,
+    readiness: 'launcher_check_and_launchctl_running'
+  },
+  lightsail: {
+    checkout_sha: sha('lightsail_sha'), process_sha: lightsailVersion.runtime?.git?.sha,
+    dirty: lightsailVersion.runtime?.git?.dirty, readiness: 'public_version_readback_passed'
+  }
+};
+for (const value of Object.values(surfaces)) {
+  if (value.checkout_sha !== process.env.TARGET_SHA || value.dirty !== false
+    || !value.readiness || ('process_sha' in value && value.process_sha !== process.env.TARGET_SHA)) process.exit(1);
+}
+process.stdout.write(JSON.stringify(surfaces));
+NODE
 
 # 4. Git信頼ストア、production Ontology、Graph全体検証を同じrunへ保存する。
 npm run ontology:verify > "$BRAINBASE_PRODUCTION_RUN_DIR/ontology.verify.txt"
@@ -468,15 +509,33 @@ TOKEN="$(jq -er .access_token "$HOME/.brainbase/tokens.json")"
 curl -fsS -H "Authorization: Bearer $TOKEN" \
   https://bb.unson.jp/api/info/ontology/releases/1.1.0 \
   > "$BRAINBASE_PRODUCTION_RUN_DIR/ontology.production.json"
-ONTOLOGY="$BRAINBASE_PRODUCTION_RUN_DIR/ontology.production.json" node -e '
-const value=JSON.parse(require("node:fs").readFileSync(process.env.ONTOLOGY,"utf8"));
-if(value.version!=="1.1.0")process.exit(1);
-'
+ONTOLOGY="$BRAINBASE_PRODUCTION_RUN_DIR/ontology.production.json" \
+INFISICAL_EVIDENCE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.evidence.json" node <<'NODE' \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/ontology.evidence.json"
+const fs = require('node:fs');
+const production = JSON.parse(fs.readFileSync(process.env.ONTOLOGY, 'utf8'));
+const index = JSON.parse(fs.readFileSync('config/ontology/index.json', 'utf8'));
+const entry = index.releases.find((item) => item.version === '1.1.0');
+const receipt = JSON.parse(fs.readFileSync(`config/ontology/${entry.receipt_path}`, 'utf8'));
+const infisical = JSON.parse(fs.readFileSync(process.env.INFISICAL_EVIDENCE, 'utf8'));
+const evidence = {
+  version: production.version,
+  repository_digest: entry.content_digest,
+  production_digest: production.digest,
+  key_id: receipt.key_id,
+  trust_source: 'git_trust_store',
+  signature_verification: 'verified',
+  public_key_override_present: infisical.public_key_override_present_after
+};
+if (evidence.version !== '1.1.0' || evidence.repository_digest !== evidence.production_digest
+  || !evidence.key_id || evidence.public_key_override_present !== false) process.exit(1);
+process.stdout.write(JSON.stringify(evidence));
+NODE
 GRAPH_BODY="$BRAINBASE_PRODUCTION_RUN_DIR/graph.validate.json"
 GRAPH_STATUS="$(curl -sS -o "$GRAPH_BODY" -w '%{http_code}' \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -X POST https://bb.unson.jp/api/info/graph/maintenance/validate \
-  --data '{"project_code":"brainbase"}')"
+  --data '{"project_code":"brainbase","strict_collection":true}')"
 test "$GRAPH_STATUS" = 200
 GRAPH_BODY="$GRAPH_BODY" GRAPH_STATUS="$GRAPH_STATUS" node <<'NODE' \
   > "$BRAINBASE_PRODUCTION_RUN_DIR/graph.evidence.json"
@@ -485,7 +544,9 @@ const graph = JSON.parse(fs.readFileSync(process.env.GRAPH_BODY, 'utf8'));
 const suppressionSummary = graph.suppression_summary || {};
 const evidence = {
   graph_http_status: Number(process.env.GRAPH_STATUS),
+  strict_collection: graph.validation_scope?.strict_collection === true,
   collection_complete: graph.collection_complete === true,
+  snapshot_hash: typeof graph.snapshot_hash === 'string' ? graph.snapshot_hash : null,
   structural_violation_count: Array.isArray(graph.issues) ? graph.issues.length : null,
   ontology_violation_count: Array.isArray(graph.ontology?.violations) ? graph.ontology.violations.length : null,
   suppressed_edge_count: Number.isInteger(suppressionSummary.edge_count) ? suppressionSummary.edge_count : 0,
@@ -494,7 +555,8 @@ const evidence = {
     : {},
   graph_valid: graph.valid === true
 };
-if (evidence.graph_http_status !== 200 || !evidence.collection_complete
+if (evidence.graph_http_status !== 200 || !evidence.strict_collection || !evidence.collection_complete
+  || !/^sha256:[a-f0-9]{64}$/.test(evidence.snapshot_hash || '')
   || evidence.structural_violation_count !== 0 || evidence.ontology_violation_count !== 0
   || evidence.suppressed_edge_count !== 0
   || !evidence.graph_valid) process.exit(1);
@@ -511,13 +573,8 @@ const receipt = {
   run_id: process.env.RUN_ID,
   target_sha: process.env.TARGET_SHA,
   infisical: JSON.parse(read('infisical.evidence.json')),
-  surfaces: {
-    global_hook_sha: read('global_hook_sha'),
-    local_ui_sha: read('local_ui_sha'),
-    mcp_runtime_sha: read('mcp_runtime_sha'),
-    lightsail_sha: read('lightsail_sha')
-  },
-  ontology: { version: '1.1.0', repository_verification: 'passed', production_readback: 'passed' },
+  surfaces: JSON.parse(read('surfaces.evidence.json')),
+  ontology: JSON.parse(read('ontology.evidence.json')),
   graph: JSON.parse(read('graph.evidence.json')),
   status: 'passed'
 };

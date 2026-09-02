@@ -1399,7 +1399,11 @@ export class GraphMaintenanceService {
         });
     }
 
-    async validate(access, { projectCode, includeProjectCodes = [] }, { client = null } = {}) {
+    async validate(access, {
+        projectCode,
+        includeProjectCodes = [],
+        strictCollection = false
+    }, { client = null } = {}) {
         return this.withMaintenanceContext(access, async (client) => {
             const { snapshot } = await this.loadSnapshot(client, access, projectCode, { includeProjectCodes });
             const structural = validateGraphSnapshot(snapshot);
@@ -1427,13 +1431,14 @@ export class GraphMaintenanceService {
                 required_relation_validation_entity_ids: activeLocalEntityIds
             } });
             const suppressedEdgeCount = Number(snapshot.suppression_summary?.edge_count || 0);
-            const collectionComplete = suppressedEdgeCount === 0;
+            const collectionComplete = strictCollection ? suppressedEdgeCount === 0 : true;
             return {
                 ...structural,
                 collection_complete: collectionComplete,
                 valid: collectionComplete && structural.valid === true && ontology?.valid === true,
                 ontology,
                 snapshot_hash: snapshot.hash,
+                validation_scope: { strict_collection: strictCollection },
                 required_relation_scope_summary: requiredRelationScopeSummary,
                 ...(snapshot.suppression_summary
                     ? { suppression_summary: snapshot.suppression_summary }

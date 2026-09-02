@@ -1336,8 +1336,26 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         ]));
         expect(JSON.stringify(sourceOnlySnapshot)).not.toContain('product_aitle');
         expect(JSON.stringify(gmSnapshot)).not.toContain('product_aitle');
-        await expect(service.validate(sourceOnly, { projectCode: 'brainbase' })).resolves.toMatchObject({ valid: true });
-        await expect(service.validate(gmBothScopes, { projectCode: 'brainbase' })).resolves.toMatchObject({ valid: true });
+        await expect(service.validate(sourceOnly, { projectCode: 'brainbase' })).resolves.toMatchObject({
+            collection_complete: true,
+            valid: true,
+            validation_scope: { strict_collection: false },
+            suppression_summary: { edge_count: 1 }
+        });
+        await expect(service.validate(gmBothScopes, { projectCode: 'brainbase' })).resolves.toMatchObject({
+            collection_complete: true,
+            valid: true,
+            validation_scope: { strict_collection: false },
+            suppression_summary: { edge_count: 1 }
+        });
+        await expect(service.validate(sourceOnly, {
+            projectCode: 'brainbase', strictCollection: true
+        })).resolves.toMatchObject({
+            collection_complete: false,
+            valid: false,
+            validation_scope: { strict_collection: true },
+            suppression_summary: { edge_count: 1 }
+        });
         await expect(infoSSOTService.listGraphEdges(crossTenantAccess, edgeQuery)).resolves.toEqual([
             expect.objectContaining({ from_id: 'decision_subject', to_id: 'product_aitle', rel_type: 'governs' })
         ]);

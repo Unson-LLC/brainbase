@@ -22,7 +22,7 @@ describe('GraphMaintenanceService authorization', () => {
         })).resolves.toEqual(['brainbase', 'growin-project']);
     });
 
-    it('Validate応答へ識別子を含まないEdge抑止集計を伝播する', async () => {
+    it('通常の認可scope抑止は互換を保ち、strict本番収束だけを失敗させる', async () => {
         const snapshot = {
             project_code: 'brainbase',
             entities: [],
@@ -41,17 +41,27 @@ describe('GraphMaintenanceService authorization', () => {
         });
         validatingService.loadSnapshot = vi.fn(async () => ({ snapshot }));
 
-        const result = await validatingService.validate({
+        const scopedResult = await validatingService.validate({
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
         }, { projectCode: 'brainbase' });
+        const strictResult = await validatingService.validate({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, { projectCode: 'brainbase', strictCollection: true });
 
-        expect(result).toMatchObject({
+        expect(scopedResult).toMatchObject({
+            collection_complete: true,
+            valid: true,
+            validation_scope: { strict_collection: false },
+            suppression_summary: snapshot.suppression_summary
+        });
+        expect(strictResult).toMatchObject({
             collection_complete: false,
             valid: false,
             snapshot_hash: snapshot.hash,
+            validation_scope: { strict_collection: true },
             suppression_summary: snapshot.suppression_summary
         });
-        expect(JSON.stringify(result)).not.toContain('hidden_entity');
+        expect(JSON.stringify(strictResult)).not.toContain('hidden_entity');
     });
 
     it('Ontology required relationの検証対象をactive local Entityへ限定する', async () => {

@@ -21,7 +21,7 @@ PR・マージ準備では、本番差分と正式commitのパッチ同一性、
 - AC-003: 4面それぞれのcheckout・稼働プロセス・version/readinessが同じSHAを示し、対象checkoutは`dirty=false`である。
 - AC-004: production正本から不完全な`ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY`だけを除去し、秘密鍵と`key_id`は維持する。
 - AC-005: 再投影・再起動後、Ontology 1.1.0がGit信頼ストアで署名検証される。
-- AC-006: 同一runの本番`graph_validate(project_code=brainbase)`がHTTP 200、`collection_complete=true`、構造違反0件、Ontology違反0件、抑止されたEdge 0件、`valid=true`を返す。
+- AC-006: 通常の認可scope付き検証は従来互換を保ち、同一runの本番`graph_validate(project_code=brainbase, strict_collection=true)`がHTTP 200、`collection_complete=true`、構造違反0件、Ontology違反0件、抑止されたEdge 0件、`valid=true`を返す。
 - AC-007: 失敗・503・部分取得・不明を成功として扱わず、専用rollback commitから旧SHA＋ホットフィックスの実効内容を`dirty=false`で復旧できる証跡を残す。
 - AC-008: 4面の切替前状態とglobal Hookファイルを個別に保全し、反映後のfresh taskでJudgment episodeとowner auditを実証する。失敗時は正本runbookの順序で4面を復旧する。
 

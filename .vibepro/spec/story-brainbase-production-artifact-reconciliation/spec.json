@@ -237,7 +237,7 @@
     {
       "id": "S-006",
       "type": "scenario",
-      "statement": "Given 4面とOntologyが同一runの統合SHAへ収束済み、When production graph_validateをproject_code=brainbaseで実行する、Then HTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、抑止されたEdge 0件、valid=trueを同じGraph responseから機械判定し、抑止理由とともにReceiptへ保存する。",
+      "statement": "Given 4面とOntologyが同一runの統合SHAへ収束済み、When production graph_validateをproject_code=brainbase・strict_collection=trueで実行する、Then HTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、抑止されたEdge 0件、valid=true、snapshot_hashを同じGraph responseから機械判定し、抑止理由とともにReceiptへ保存する。通常の認可scope抑止はstrictを指定しない限り従来のvalid契約を保つ。",
       "origin": {
         "story_refs": [
           {
@@ -256,7 +256,15 @@
         "test_refs": [
           {
             "file": "tests/server/services/graph-maintenance-service.test.js",
-            "case": "Ontology required relationの検証対象をactive local Entityへ限定する"
+            "case": "通常の認可scope抑止は互換を保ち、strict本番収束だけを失敗させる"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "cross-tenant認可scopeとstrict collectionを別契約として検証する"
+          },
+          {
+            "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "case": "strict Graph抑止失敗を識別子なしでMCP利用者へ伝播する"
           },
           {
             "file": "tests/unit/judgment-resolution-publication.test.js",
@@ -268,7 +276,15 @@
         "test_pattern": [
           {
             "file_glob": "tests/server/services/graph-maintenance-service.test.js",
-            "must_cover": "Ontology required relationの検証対象をactive local Entityへ限定する"
+            "must_cover": "通常の認可scope抑止は互換を保ち、strict本番収束だけを失敗させる"
+          },
+          {
+            "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "must_cover": "strictCollection: true"
+          },
+          {
+            "file_glob": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "must_cover": "strict Graph抑止失敗を識別子なしでMCP利用者へ伝播する"
           },
           {
             "file_glob": "tests/unit/judgment-resolution-publication.test.js",
@@ -277,7 +293,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T05:55:00.000Z",
-      "last_revised_at": "2026-09-02T05:55:00.000Z"
+      "last_revised_at": "2026-09-02T06:40:00.000Z"
     },
     {
       "id": "S-003",
