@@ -50,12 +50,17 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
+function isJsonContainerText(value) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text.startsWith('{') || text.startsWith('[');
+}
+
 function nestedRecords(value, depth = 0) {
   if (depth > 5) return [];
   if (Array.isArray(value)) {
     return value.flatMap((entry) => nestedRecords(entry, depth + 1));
   }
-  if (typeof value === 'string' && value.trim().startsWith('{')) {
+  if (isJsonContainerText(value)) {
     try { return nestedRecords(JSON.parse(value), depth + 1); } catch { return []; }
   }
   const item = record(value);
@@ -67,11 +72,11 @@ function nestedRecords(value, depth = 0) {
   if (Array.isArray(item.content)) {
     for (const block of item.content) {
       const text = record(block)?.text;
-      if (typeof text !== 'string' || !text.trim().startsWith('{')) continue;
+      if (!isJsonContainerText(text)) continue;
       try { direct.push(...nestedRecords(JSON.parse(text), depth + 1)); } catch {}
     }
   }
-  if (typeof item.text === 'string' && item.text.trim().startsWith('{')) {
+  if (isJsonContainerText(item.text)) {
     try { direct.push(...nestedRecords(JSON.parse(item.text), depth + 1)); } catch {}
   }
   return direct;

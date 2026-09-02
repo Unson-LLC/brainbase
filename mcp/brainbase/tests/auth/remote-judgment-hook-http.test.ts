@@ -214,6 +214,19 @@ describe('remote judgment Hook HTTP boundary', () => {
     });
   });
 
+  it('rejects the exact internal state tool name when supplied through the camelCase alias', async () => {
+    const result = await handleRemoteJudgmentHookRequest(request({
+      body: Buffer.from(JSON.stringify({
+        hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
+        toolName: 'mcp__brainbase__brainbase_judgment_state_record',
+      })),
+      dispatch: async () => ({ output: {} }),
+    }));
+    assert.deepEqual(result, {
+      status: 503, body: { error: 'judgment_hook_audit_not_recorded' },
+    });
+  });
+
   for (const [label, toolNameKey, toolName] of [
     ['bare tool name', 'tool_name', 'brainbase_judgment_state_record'],
     ['camelCase payload alias', 'toolName', 'brainbase_judgment_state_record'],

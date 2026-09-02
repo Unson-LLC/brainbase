@@ -118,6 +118,10 @@ describe('judgment value proof organization adapter', () => {
       type: 'text',
       text: JSON.stringify({ status: 'ok', data: { ...input, feedback_requested: 'yes' } }),
     }])).toBeNull();
+    expect(extractJudgmentValueProofInput(JSON.stringify([
+      { status: 'ok', data: input },
+    ]))).toEqual(input);
+    expect(extractJudgmentValueProofInput('[not-json')).toBeNull();
   });
 
   it('builds a portable verified projection only when referenced execution evidence exists', () => {

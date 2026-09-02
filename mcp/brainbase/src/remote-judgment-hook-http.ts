@@ -41,8 +41,7 @@ const SUPPORTED_HOOK_EVENTS = new Set(['UserPromptSubmit', 'PostToolUse', 'Stop'
 const SAFE_REASON_CODE = /^[a-z][a-z0-9_]{1,80}$/;
 
 function isInternalJudgmentStateTool(payload: Record<string, unknown>): boolean {
-  const toolName = payload.tool_name ?? payload.toolName;
-  return toolName === 'mcp__brainbase__brainbase_judgment_state_record';
+  return payload.tool_name === 'mcp__brainbase__brainbase_judgment_state_record';
 }
 
 function safeCauseReasonCode(error: unknown): string | undefined {

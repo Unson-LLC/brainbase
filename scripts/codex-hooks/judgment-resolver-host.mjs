@@ -905,12 +905,17 @@ function toolCallScope(toolName, input) {
     return query === '対象未指定' ? '入力なし' : query;
 }
 
+function isJsonContainerText(value) {
+    const text = typeof value === 'string' ? value.trim() : '';
+    return text.startsWith('{') || text.startsWith('[');
+}
+
 function nestedRecords(value, depth = 0, { parseContent = true } = {}) {
     if (depth > 5) return [];
     if (Array.isArray(value)) {
         return value.flatMap((entry) => nestedRecords(entry, depth + 1, { parseContent }));
     }
-    if (typeof value === 'string' && value.trim().startsWith('{')) {
+    if (isJsonContainerText(value)) {
         try { return nestedRecords(JSON.parse(value), depth + 1, { parseContent }); } catch { return []; }
     }
     const item = record(value);
@@ -922,11 +927,11 @@ function nestedRecords(value, depth = 0, { parseContent = true } = {}) {
     if (parseContent && Array.isArray(item.content)) {
         for (const block of item.content) {
             const text = record(block)?.text;
-            if (typeof text !== 'string' || !text.trim().startsWith('{')) continue;
+            if (!isJsonContainerText(text)) continue;
             try { direct.push(...nestedRecords(JSON.parse(text), depth + 1, { parseContent })); } catch {}
         }
     }
-    if (parseContent && typeof item.text === 'string' && item.text.trim().startsWith('{')) {
+    if (parseContent && isJsonContainerText(item.text)) {
         try { direct.push(...nestedRecords(JSON.parse(item.text), depth + 1, { parseContent })); } catch {}
     }
     return direct;
@@ -939,7 +944,7 @@ function validCallToolResultEnvelope(value) {
     return content.every((block) => {
         const entry = record(block);
         if (!entry || typeof entry.type !== 'string') return false;
-        if (entry.type === 'text') return typeof entry.text === 'string';
+        if (entry.type === 'text') return typeof entry.text === 'string' && Boolean(entry.text.trim());
         if (entry.type === 'image' || entry.type === 'audio') return typeof entry.data === 'string' && typeof entry.mimeType === 'string';
         if (entry.type === 'resource') {
             const resource = record(entry.resource);
@@ -992,7 +997,7 @@ function retrievalAudit(response) {
         const content = Array.isArray(item) ? item : record(item)?.content;
         const text = Array.isArray(content)
             ? record(content.at(-1))?.text
-            : typeof item === 'string' ? item : null;
+            : typeof item === 'string' ? item : record(item)?.text;
         if (typeof text !== 'string') continue;
         const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
         if (lines.length !== 3
@@ -1018,6 +1023,23 @@ function knowledgeResolutionData(response) {
 
 function taskResultData(response) {
     return nestedRecords(response).find((item) => item.status === 'ok' && record(item.task) && typeof item.task.id === 'string' && item.task.id.trim()) ?? null;
+}
+
+function controlPlaneReadData(toolName, response) {
+    const name = String(toolName).replace(/^mcp__brainbase__/u, '');
+    const expectedCollection = {
+        brainbase_projects: 'projects',
+        brainbase_run_receipt_inbox: 'items',
+        brainbase_run_receipt_history: 'items'
+    }[name];
+    return nestedRecords(response).find((item) => {
+        if (item.status !== 'ok') return false;
+        const data = record(item.data);
+        if (!data) return false;
+        if (expectedCollection) return Array.isArray(data[expectedCollection]);
+        if (name !== 'brainbase_admin_read') return false;
+        return Object.values(data).some((value) => Array.isArray(value) || record(value));
+    }) ?? null;
 }
 
 function validJudgmentStopState(value) {
@@ -1164,6 +1186,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const kind = retrieval?.kind ?? fallbackKind;
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
+    const controlPlaneRead = kind === 'call' || kind === 'retrieve'
+        ? controlPlaneReadData(toolName, responseValue)
+        : null;
     const stopState = kind === 'state' ? judgmentStopStateData(responseValue) : null;
     const valueProofInput = kind === 'value_proof' ? extractJudgmentValueProofInput(responseValue) : null;
     const requestedStopState = kind === 'state' ? {
@@ -1173,18 +1198,18 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         runtime_reason_code: record(inputValue)?.runtime_reason_code
     } : null;
     const responseSuccess = responseSucceeded(responseValue, {
-        allowTransportSuccess: ['search', 'retrieve'].includes(kind),
-        allowExplicitSuccess: !['write', 'route'].includes(kind) || !brainbaseTool,
+        allowTransportSuccess: brainbaseTool && kind === 'retrieve',
+        allowExplicitSuccess: !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
         semanticSuccess: ['search', 'retrieve'].includes(kind)
-            ? Boolean(retrieval)
+            ? Boolean(retrieval || controlPlaneRead)
             : kind === 'value_proof'
             ? Boolean(valueProofInput)
             : kind === 'route'
                 ? resolution?.status === 'resolved'
-                : kind === 'state'
+            : kind === 'state'
                     ? Boolean(stopState && canonicalJson(stopState) === canonicalJson(requestedStopState))
-                    : Boolean(taskResult)
+                    : Boolean(taskResult || controlPlaneRead)
     });
     const satisfiesKnowledgeExecution = kind === 'route';
     const retrievalResult = responseSuccess && ['search', 'retrieve'].includes(kind)
