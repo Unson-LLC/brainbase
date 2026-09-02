@@ -221,7 +221,7 @@ describe('LearningService Graph promotion identity', () => {
             statusCode: 409,
             details: { entity_id: 'growin-project', reason: 'generic_writer_forbidden' }
         });
-        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('pg_advisory_xact_lock'))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('pg_try_advisory_xact_lock'))).toBe(true);
         expect(client.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO graph_entities'))).toBe(false);
         expect(client.query).toHaveBeenCalledWith('ROLLBACK');
     });

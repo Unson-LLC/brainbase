@@ -11,7 +11,10 @@ import { csrfMiddleware, csrfTokenHandler } from '../../server/middleware/csrf.j
 import { requireAuth } from '../../server/middleware/auth.js';
 import { createProjectProvisioningRouter } from '../../server/routes/project-provisioning.js';
 import { InfoSSOTService } from '../../server/services/info-ssot-service.js';
-import { lockProjectGraphIdentity } from '../../server/services/project-graph-identity-lock.js';
+import {
+    lockProjectGraphIdentities,
+    lockProjectGraphIdentity
+} from '../../server/services/project-graph-identity-lock.js';
 import { createProjectProvisioningService } from '../../server/services/project-provisioning/project-provisioning-service.js';
 
 let serverUrl = '';
@@ -1165,7 +1168,10 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
                 [`brainbase:project-graph-identity:${projectCode}`]
             );
             applyPromise = productionService.apply(actorAccess, planned.run_id);
-            await waitForAdvisoryLockWaiter();
+            await expect(applyPromise).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                details: { entity_id: projectCode, retryable: true }
+            });
             await blocker.query(
                 `INSERT INTO graph_entities
                     (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
@@ -1187,7 +1193,7 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
             blocker.release();
         }
 
-        await expect(applyPromise).rejects.toMatchObject({
+        await expect(productionService.resume(actorAccess, planned.run_id)).rejects.toMatchObject({
             code: 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT'
         });
         const state = await readNoWriteState(projectCode);
@@ -1207,7 +1213,7 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         });
     }, 300_000);
 
-    it('受入れE2E: 異なるID順のGraph writerも全体調整lockで循環待ちしない', async () => {
+    it('受入れE2E: 無関係IDは並行し逆順競合は待たずretryableになる', async () => {
         const first = await adminPool.connect();
         const second = await adminPool.connect();
         let firstCommitted = false;
@@ -1215,18 +1221,19 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         try {
             await first.query('BEGIN');
             await second.query('BEGIN');
-            await first.query("SET LOCAL lock_timeout = '5s'");
-            await second.query("SET LOCAL lock_timeout = '5s'");
             await lockProjectGraphIdentity(first, 'entity_z');
+            await lockProjectGraphIdentity(second, 'entity_a');
 
-            const secondFirstLock = lockProjectGraphIdentity(second, 'entity_a');
-            await waitForAdvisoryLockWaiter(1);
-            await lockProjectGraphIdentity(first, 'entity_a');
+            await expect(lockProjectGraphIdentity(first, 'entity_a')).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                details: { entity_id: 'entity_a', retryable: true }
+            });
+            await expect(lockProjectGraphIdentity(second, 'entity_z')).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                details: { entity_id: 'entity_z', retryable: true }
+            });
             await first.query('COMMIT');
             firstCommitted = true;
-
-            await secondFirstLock;
-            await lockProjectGraphIdentity(second, 'entity_z');
             await second.query('COMMIT');
             secondCommitted = true;
         } finally {
@@ -1234,6 +1241,21 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
             if (!secondCommitted) await second.query('ROLLBACK').catch(() => {});
             first.release();
             second.release();
+        }
+    }, 300_000);
+
+    it('受入れE2E: 複数ID lockは入力順によらず正規順で取得する', async () => {
+        const client = await adminPool.connect();
+        let committed = false;
+        try {
+            await client.query('BEGIN');
+            await expect(lockProjectGraphIdentities(client, ['entity_z', 'entity_a', 'entity_z']))
+                .resolves.toEqual(['entity_a', 'entity_z']);
+            await client.query('COMMIT');
+            committed = true;
+        } finally {
+            if (!committed) await client.query('ROLLBACK').catch(() => {});
+            client.release();
         }
     }, 300_000);
 
@@ -1257,9 +1279,36 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
                 'SELECT pg_advisory_xact_lock(hashtextextended($1, 0::bigint))',
                 [`brainbase:project-graph-identity:${projectCode}`]
             );
-            const applyPromise = productionService.apply(actorAccess, planned.run_id);
-            await waitForAdvisoryLockWaiter(1);
-            const genericWriteAssertion = expect(infoSSOTService.createOrUpdateGraphEntity({
+            await expect(productionService.apply(actorAccess, planned.run_id)).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                details: { entity_id: projectCode, retryable: true }
+            });
+            await expect(infoSSOTService.createOrUpdateGraphEntity({
+                ...actorAccess,
+                projectCodes: ['brainbase', projectCode]
+            }, {
+                id: projectCode,
+                entityType: 'project',
+                projectCode: 'brainbase',
+                payload: {
+                    name: 'Generic Writer Corruption',
+                    catalog_project_id: projectCode,
+                    catalog_version: 999,
+                    source_ref: `project-catalog:${projectCode}@999`
+                },
+                roleMin: 'member',
+                sensitivity: 'internal'
+            })).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                statusCode: 409,
+                details: { entity_id: projectCode, retryable: true }
+            });
+            await blocker.query('COMMIT');
+            committed = true;
+
+            await expect(productionService.resume(actorAccess, planned.run_id))
+                .resolves.toMatchObject({ state: 'active' });
+            await expect(infoSSOTService.createOrUpdateGraphEntity({
                 ...actorAccess,
                 projectCodes: ['brainbase', projectCode]
             }, {
@@ -1279,12 +1328,6 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
                 statusCode: 409,
                 details: { entity_id: projectCode, reason: 'generic_writer_forbidden' }
             });
-            await waitForAdvisoryLockWaiter(2);
-            await blocker.query('COMMIT');
-            committed = true;
-
-            await expect(applyPromise).resolves.toMatchObject({ state: 'active' });
-            await genericWriteAssertion;
         } finally {
             if (!committed) await blocker.query('ROLLBACK').catch(() => {});
             blocker.release();

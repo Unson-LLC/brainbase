@@ -5,7 +5,11 @@ import {
     hashGraphSnapshot,
     validateGraphSnapshot
 } from './graph-maintenance-engine.js';
-import { assertCatalogProjectSubjectMutation, lockProjectGraphIdentity } from './project-graph-identity-lock.js';
+import {
+    assertCatalogProjectSubjectMutation,
+    lockProjectGraphIdentities,
+    lockProjectGraphIdentity
+} from './project-graph-identity-lock.js';
 
 function canonicalJson(value) {
     if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -260,7 +264,7 @@ function planGraphEntityIds(plan) {
 
 async function lockPlanGraphIdentities(client, plan) {
     const entityIds = planGraphEntityIds(plan);
-    for (const entityId of entityIds) await lockProjectGraphIdentity(client, entityId);
+    await lockProjectGraphIdentities(client, entityIds);
     return entityIds;
 }
 
@@ -1087,9 +1091,7 @@ export class GraphMaintenanceService {
         const organizationId = access.organizationId || access.tenantId;
         const codes = snapshotProjectCodes(snapshot);
         if (!identityLocksHeld) {
-            for (const entityId of uniqueIds(snapshot.entities).sort()) {
-                await lockProjectGraphIdentity(client, entityId);
-            }
+            await lockProjectGraphIdentities(client, uniqueIds(snapshot.entities));
         }
         const projects = await client.query(
             `SELECT id, code FROM projects WHERE code = ANY($1::text[]) AND organization_id = $2 FOR UPDATE`,

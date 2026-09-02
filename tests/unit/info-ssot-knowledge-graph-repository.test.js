@@ -115,7 +115,7 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
             source_pointer: null
         }, { client, access });
 
-        const lockIndex = client.query.mock.calls.findIndex(([sql]) => String(sql).includes('pg_advisory_xact_lock'));
+        const lockIndex = client.query.mock.calls.findIndex(([sql]) => String(sql).includes('pg_try_advisory_xact_lock'));
         const updateIndex = client.query.mock.calls.findIndex(([sql]) => String(sql).includes('UPDATE graph_entities'));
         expect(lockIndex).toBeGreaterThanOrEqual(0);
         expect(updateIndex).toBeGreaterThan(lockIndex);

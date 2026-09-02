@@ -178,8 +178,8 @@
     {
       "id": "INV-003",
       "type": "invariant",
-      "statement": "Every Graph writer that inserts, updates, or deletes a Graph entity row shares the Project identity transaction lock; registered Project Catalog subjects reject generic entity-row writes and Graph Maintenance accepts only an exact active catalog projection. Edge-only writes reference endpoints but do not mutate those endpoint entity rows, so endpoint authorization and referential integrity remain separate guards.",
-      "rationale": "A preflight-only lock cannot protect the canonical subject when another authenticated Graph writer can mutate the same global entity ID. Merely referencing an endpoint is not an entity-row mutation.",
+      "statement": "Every Graph writer that inserts, updates, or deletes a Graph entity row shares the Project identity transaction lock; multi-ID callers acquire deduplicated IDs in lexical order, lock contention fails immediately with a retryable 409, and unrelated IDs remain concurrent. Registered Project Catalog subjects reject generic entity-row writes and Graph Maintenance accepts only an exact active catalog projection. Edge-only writes reference endpoints but do not mutate those endpoint entity rows, so endpoint authorization and referential integrity remain separate guards.",
+      "rationale": "A preflight-only lock cannot protect the canonical subject when another authenticated Graph writer can mutate the same global entity ID. A global coordinator would unnecessarily serialize unrelated projects and organizations, while waiting on per-ID locks acquired in different orders can deadlock; deterministic batch ordering plus fail-fast per-ID acquisition preserves safety and concurrency. Merely referencing an endpoint is not an entity-row mutation.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004", "text_snippet": "Graph適用時のtenant guardは弱めない"}],
         "architecture_refs": [{"file": "docs/architecture/story-project-provisioning-graph-preflight.md", "section": "Architecture"}],

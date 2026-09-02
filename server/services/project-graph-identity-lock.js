@@ -1,5 +1,13 @@
 const PROJECT_GRAPH_IDENTITY_LOCK_PREFIX = 'brainbase:project-graph-identity:';
-const PROJECT_GRAPH_IDENTITY_COORDINATOR_LOCK = `${PROJECT_GRAPH_IDENTITY_LOCK_PREFIX}coordinator`;
+
+function identityBusyError(entityId) {
+    const error = new Error(`Project Graph identity is busy: ${entityId}`);
+    error.code = 'GRAPH_PROJECT_IDENTITY_BUSY';
+    error.status = 409;
+    error.statusCode = 409;
+    error.details = { entity_id: entityId, retryable: true };
+    return error;
+}
 
 /**
  * Serialize the project provisioning Registry/Graph identity boundary.
@@ -8,20 +16,27 @@ const PROJECT_GRAPH_IDENTITY_COORDINATOR_LOCK = `${PROJECT_GRAPH_IDENTITY_LOCK_P
  * include organization_id. Callers still perform their normal tenant checks;
  * this lock only closes the read-then-write race for the same id.
  */
+export async function lockProjectGraphIdentities(client, entityIds) {
+    const normalizedEntityIds = [...new Set((entityIds || [])
+        .map((entityId) => String(entityId || '').trim())
+        .filter(Boolean))].sort();
+    if (!normalizedEntityIds.length) return [];
+    for (const entityId of normalizedEntityIds) {
+        // Fail fast instead of waiting while holding another identity lock.
+        // This preserves concurrency for unrelated ids and makes opposite-order
+        // multi-id callers retryable rather than deadlock-prone.
+        const result = await client.query(
+            'SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0::bigint)) AS acquired',
+            [`${PROJECT_GRAPH_IDENTITY_LOCK_PREFIX}${entityId}`]
+        );
+        if (result?.rows?.[0]?.acquired === false) throw identityBusyError(entityId);
+    }
+    return normalizedEntityIds;
+}
+
 export async function lockProjectGraphIdentity(client, entityId) {
-    const normalizedEntityId = String(entityId || '').trim();
-    if (!normalizedEntityId) throw new Error('Project Graph identity lock requires entity id');
-    // Every Graph entity writer takes the same coordinator first. This keeps
-    // mixed writers from acquiring entity ids in opposite orders while still
-    // retaining the per-id lock used by provisioning/readback races.
-    await client.query(
-        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0::bigint))',
-        [PROJECT_GRAPH_IDENTITY_COORDINATOR_LOCK]
-    );
-    await client.query(
-        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0::bigint))',
-        [`${PROJECT_GRAPH_IDENTITY_LOCK_PREFIX}${normalizedEntityId}`]
-    );
+    if (!String(entityId || '').trim()) throw new Error('Project Graph identity lock requires entity id');
+    return lockProjectGraphIdentities(client, [entityId]);
 }
 
 function catalogSubjectError(entityId, reason) {
@@ -85,4 +100,4 @@ export async function assertCatalogProjectSubjectMutation(client, {
     return { protected: true, compatible: true };
 }
 
-export { PROJECT_GRAPH_IDENTITY_COORDINATOR_LOCK, PROJECT_GRAPH_IDENTITY_LOCK_PREFIX };
+export { PROJECT_GRAPH_IDENTITY_LOCK_PREFIX };
