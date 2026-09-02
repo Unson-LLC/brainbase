@@ -4,6 +4,36 @@
   "repository": "https://github.com/Unson-LLC/brainbase",
   "status": "accepted",
   "accepted_base_commit": "7e5d5693f988f4ba84072c5910ef32f0e70871e1",
+  "program_governance": {
+    "repository": "https://github.com/Unson-LLC/brainbase-unson",
+    "commit": "18544f58a2a0298d97eab45de2f05544bed48a43",
+    "markdown": {
+      "path": "docs/management/milestones/brainbase-program-master-roadmap.md",
+      "sha256": "167afb6d3fc57198c9f5ffca06fbafea968a5435af04f44b55017199b6d859fe"
+    },
+    "machine_contract": {
+      "path": "docs/management/milestones/brainbase-program-master-roadmap.json",
+      "sha256": "f3e6e023060ef3976f367ed7efa62ac57f7091f517ea1ca1d13824d9e6ca429f"
+    },
+    "work_packages": [
+      "R0",
+      "J0",
+      "G0",
+      "R1",
+      "D0",
+      "P0",
+      "C0"
+    ],
+    "status_vocabulary": [
+      "planned",
+      "contract_ready",
+      "implementing",
+      "verified",
+      "production_proven",
+      "done"
+    ],
+    "verification_boundary": "The OSS package records the accepted cross-repository commit and content hashes. Public tests do not fetch the organization repository or treat network access as runtime authority."
+  },
   "sources": [
     {
       "kind": "architecture",
@@ -13,7 +43,7 @@
     {
       "kind": "milestones",
       "path": "docs/management/judgment-dag-milestones.md",
-      "sha256": "fae62e1798ed5c77d76848cead1792516bc50edcfb9a04c2f7d7f9f168aee861"
+      "sha256": "7fd351fa1dfb331f56772338a439a7a4210ed8bc27238a446835bf47eda59538"
     }
   ],
   "notes": [
