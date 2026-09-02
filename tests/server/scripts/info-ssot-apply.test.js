@@ -200,6 +200,9 @@ describe('Info SSOT RLS deployment contract', () => {
         expect(readbackSql).toContain('INFO_SSOT_READBACK_OK');
         expect(readbackSql).toContain('prevent_project_provisioning_step_receipt_mutation');
         expect(readbackSql).toContain('project_provisioning_step_receipts_no_mutation');
+        expect(readbackSql).toContain('guard_project_graph_entity_write');
+        expect(readbackSql).toContain('project_graph_entity_write_guard');
+        expect(readbackSql).toContain('project Graph entity guard security contract mismatch');
         expect(smokeSql).toContain('INFO_SSOT_NEGATIVE_SMOKE_OK');
         expect(smokeSql).toMatch(/rel_type,\s+project_id/u);
         expect(smokeSql).toContain("'governs'");

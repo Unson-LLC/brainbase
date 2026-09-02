@@ -1303,6 +1303,13 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
                 statusCode: 409,
                 details: { entity_id: projectCode, retryable: true }
             });
+            await expect(adminPool.query(
+                `INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                 VALUES ($1, 'project', 'project_brainbase', $2::jsonb,
+                         'member', 'internal', 'active', 1)`,
+                [projectCode, JSON.stringify({ name: 'Raw Script Corruption' })]
+            )).rejects.toMatchObject({ code: '55P03' });
             await blocker.query('COMMIT');
             committed = true;
 
@@ -1328,6 +1335,17 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
                 statusCode: 409,
                 details: { entity_id: projectCode, reason: 'generic_writer_forbidden' }
             });
+            await expect(adminPool.query(
+                `UPDATE graph_entities
+                 SET payload=jsonb_set(payload, '{name}', '"Raw Script Corruption"'::jsonb)
+                 WHERE id=$1`,
+                [projectCode]
+            )).rejects.toMatchObject({ code: '23514' });
+            const protectedSubject = await adminPool.query(
+                `SELECT payload->>'name' AS name FROM graph_entities WHERE id=$1`,
+                [projectCode]
+            );
+            expect(protectedSubject.rows).toEqual([{ name: 'Acceptance Generic Writer Race' }]);
         } finally {
             if (!committed) await blocker.query('ROLLBACK').catch(() => {});
             blocker.release();

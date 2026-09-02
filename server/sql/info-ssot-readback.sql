@@ -111,6 +111,7 @@ BEGIN
   IF to_regprocedure(format('%I.project_code_collision_sources(text,text)', current_schema())) IS NULL
      OR to_regprocedure(format('%I.claim_project_code(text,text)', current_schema())) IS NULL
      OR to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema())) IS NULL
+     OR to_regprocedure(format('%I.guard_project_graph_entity_write()', current_schema())) IS NULL
      OR to_regprocedure(format('%I.project_graph_identity_probe(text,text)', current_schema())) IS NOT NULL THEN
     RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project code claim functions';
   END IF;
@@ -148,6 +149,22 @@ BEGIN
       RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project provisioning function security contract mismatch';
     END IF;
   END LOOP;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE oid = to_regprocedure(format('%I.guard_project_graph_entity_write()', current_schema()))
+      AND prosecdef
+      AND EXISTS (
+        SELECT 1 FROM unnest(coalesce(proconfig, ARRAY[]::text[])) AS setting
+        WHERE setting = 'search_path=pg_catalog, public'
+      )
+      AND NOT has_function_privilege(
+        'public',
+        to_regprocedure(format('%I.guard_project_graph_entity_write()', current_schema())),
+        'EXECUTE'
+      )
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project Graph entity guard security contract mismatch';
+  END IF;
   -- brainbase_app is the canonical production role, but local/staging
   -- installations may intentionally use another role.  Validate the explicit
   -- grant only when that role exists; PUBLIC remains denied above in all cases.
@@ -163,6 +180,14 @@ BEGIN
     WHERE table_schema=current_schema() AND table_name='project_code_claims' AND grantee='PUBLIC'
   ) THEN
     RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project code claims table is publicly readable';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = to_regclass(format('%I.graph_entities', current_schema()))
+      AND tgname = 'project_graph_entity_write_guard'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project Graph entity guard trigger';
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_trigger
