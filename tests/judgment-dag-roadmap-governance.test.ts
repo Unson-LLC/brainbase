@@ -51,6 +51,19 @@ describe('OSS Judgment DAG component roadmap governance', () => {
       ?.trim()
       .split('\n')
       .map((line) => line.replace(/^\s*-\s+/, ''));
+    const crosswalkRows = [
+      ...roadmap.matchAll(/^\| (M\d+)[^|]* \| ([A-Z]\d+(?:\s*\+\s*[A-Z]\d+)*) \|$/gmu),
+    ];
+    expect(crosswalkRows).toHaveLength(7);
+    expect(crosswalkRows.map(([, milestone]) => milestone)).toEqual([
+      'M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6',
+    ]);
+    const humanCrosswalk = Object.fromEntries(
+      crosswalkRows.map(([, milestone, programIds]) => [
+        milestone,
+        programIds.split(/\s*\+\s*/u),
+      ]),
+    );
 
     expect({
       repository: scalar('governed_by_repository'),
@@ -69,6 +82,7 @@ describe('OSS Judgment DAG component roadmap governance', () => {
       jsonSha256: governance.machine_contract.sha256,
       workPackages: governance.work_packages,
     });
+    expect(governance.milestone_crosswalk).toEqual(humanCrosswalk);
     expect(roadmap).toContain(
       governance.status_vocabulary.map((status: string) => `\`${status}\``).join(' / '),
     );

@@ -24,6 +24,31 @@
       "P0",
       "C0"
     ],
+    "milestone_crosswalk": {
+      "M0": [
+        "R0",
+        "J0"
+      ],
+      "M1": [
+        "J0"
+      ],
+      "M2": [
+        "G0"
+      ],
+      "M3": [
+        "R1"
+      ],
+      "M4": [
+        "D0"
+      ],
+      "M5": [
+        "P0"
+      ],
+      "M6": [
+        "G0",
+        "C0"
+      ]
+    },
     "status_vocabulary": [
       "planned",
       "contract_ready",
