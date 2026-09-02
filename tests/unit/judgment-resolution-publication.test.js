@@ -186,6 +186,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(convergence).toContain("trap 'write_production_failure_receipt $?' ERR");
         expect(convergence).toContain('BRAINBASE_PRODUCTION_STAGE=');
         expect(convergence).toContain('BRAINBASE_PRODUCTION_STATE_CHANGED=true');
+        expect(convergence.indexOf('BRAINBASE_PRODUCTION_STATE_CHANGED=true')).toBeLessThan(
+            convergence.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')
+        );
         expect(convergence).toContain('production-convergence-failure.json');
         expect(convergence).toContain('rollback_required');
         expect(convergence).toContain('trap - ERR');

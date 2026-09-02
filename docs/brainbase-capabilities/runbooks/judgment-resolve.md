@@ -405,10 +405,12 @@ fs.chmodSync(process.env.EVIDENCE, 0o600);
 NODE
 
 BRAINBASE_PRODUCTION_STAGE=infisical_public_key_removal
+# deleteはサーバー反映後の応答断でも非zeroになり得る。mutation開始前から
+# 変更済みの可能性ありとして扱い、失敗時にrollback不要と誤記録しない。
+BRAINBASE_PRODUCTION_STATE_CHANGED=true
 "$INFISICAL" secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY \
   --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --type shared
-BRAINBASE_PRODUCTION_STATE_CHANGED=true
 BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_after
 "$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --format json \
