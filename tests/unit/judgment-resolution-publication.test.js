@@ -267,13 +267,13 @@ describe('judgment resolver publication surfaces', () => {
         expect(rollback).toContain('forward-only incident remediation');
         expect(rollback).toContain('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
         expect(rollback).toContain('infisical.rollback-final.json');
-        expect(rollback).toContain('verify-production-signing-config.mjs final');
+        expect(rollback).toContain('$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" final');
         expect(verifier).toContain('private_key_preserved_after_rollback');
         expect(verifier).toContain('key_id_preserved_after_rollback');
         expect(rollback).toContain('infisical.rollback.evidence.json');
         expect(verifier).toContain('private_key_preserved_before_delete');
         expect(verifier).toContain('key_id_preserved_before_delete');
-        expect(rollback.indexOf('verify-production-signing-config.mjs pre-delete')).toBeLessThan(
+        expect(rollback.indexOf('$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" pre-delete')).toBeLessThan(
             rollback.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')
         );
         expect(rollback).toContain('REMOTE_TRANSFER_SHA');
@@ -338,7 +338,24 @@ describe('judgment resolver publication surfaces', () => {
         delete repaired.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
         const final = run('final', repaired, 'final');
         expect(final.result.status).toBe(0);
-        expect(final.evidence).toMatchObject({ status: 'repaired', rollback_complete: true, public_key_override_present: false });
+        expect(final.evidence).toMatchObject({
+            status: 'signing_config_repaired',
+            rollback_complete: false,
+            signing_config_repair_complete: true,
+            public_key_override_present: false,
+        });
+
+        const keyIdDrift = run('pre-delete', { ...beforeValue, ONTOLOGY_PUBLICATION_SIGNING_KEY_ID: 'drifted-key-id' }, 'key-id-drift');
+        expect(keyIdDrift.result.status).not.toBe(0);
+        expect(keyIdDrift.evidence).toMatchObject({ status: 'blocked', key_id_preserved_before_delete: false });
+
+        const outsideCwdEvidence = join(root, 'outside-cwd.evidence.json');
+        const outsideCwd = spawnSync(process.execPath, [join(process.cwd(), script), 'pre-delete', before, before, outsideCwdEvidence], {
+            cwd: root,
+            encoding: 'utf8',
+        });
+        expect(outsideCwd.status).toBe(0);
+        expect(JSON.parse(readFileSync(outsideCwdEvidence, 'utf8')).status).toBe('ready_to_repair');
 
         const ambiguousDelete = run('final', beforeValue, 'ambiguous-delete');
         expect(ambiguousDelete.result.status).not.toBe(0);
@@ -350,7 +367,7 @@ describe('judgment resolver publication surfaces', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
         const marker = 'set -euo pipefail\nREMOTE_ROLLBACK_ENV="$1"\nEXPECTED_ENV_SHA="$2"\nTARGET_ENV="$3"';
         const start = runbook.lastIndexOf(marker);
-        const end = runbook.indexOf('\nREMOTE\ncleanup_rollback_secrets', start);
+        const end = runbook.indexOf('\nREMOTE\nthen', start);
         expect(start).toBeGreaterThanOrEqual(0);
         expect(end).toBeGreaterThan(start);
         const remoteBlock = runbook.slice(start, end);
@@ -362,13 +379,65 @@ describe('judgment resolver publication surfaces', () => {
         const target = join(root, 'live.env');
         writeFileSync(transfer, 'new-value\n', { mode: 0o600 });
         writeFileSync(target, 'original-value\n', { mode: 0o600 });
-        const result = spawnSync('bash', ['-c', remoteBlock, 'rollback-env-test', transfer, 'definitely-wrong-checksum', target, 'unused.service'], {
+        const result = spawnSync('bash', ['-c', remoteBlock, 'rollback-env-test', transfer, 'definitely-wrong-checksum', target, 'unused.service', 'unused-sha', '1', '0'], {
             encoding: 'utf8',
             env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
         });
         expect(result.status).not.toBe(0);
         expect(readFileSync(target, 'utf8')).toBe('original-value\n');
         expect(existsSync(transfer)).toBe(false);
+        expect(result.stderr).toContain('target unchanged; rollback_complete=false');
+        expect(JSON.parse(result.stdout)).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'transfer_checksum',
+            rollback_complete: false,
+            target_changed: false,
+        });
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('Lightsail env反映後にruntime SHAをbounded readbackしReceiptへ残す', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const marker = 'set -euo pipefail\nREMOTE_ROLLBACK_ENV="$1"\nEXPECTED_ENV_SHA="$2"\nTARGET_ENV="$3"';
+        const start = runbook.lastIndexOf(marker);
+        const end = runbook.indexOf('\nREMOTE\nthen', start);
+        const remoteBlock = runbook.slice(start, end);
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-env-readiness-'));
+        const bin = join(root, 'bin');
+        mkdirSync(bin);
+        writeFileSync(join(bin, 'sudo'), '#!/bin/sh\nexec "$@"\n', { mode: 0o755 });
+        writeFileSync(join(bin, 'install'), '#!/bin/sh\nshift 6\ncp "$1" "$2"\nchmod 600 "$2"\n', { mode: 0o755 });
+        writeFileSync(join(bin, 'systemctl'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+        writeFileSync(join(bin, 'curl'), '#!/bin/sh\nprintf \'%s\\n\' \'{"runtime":{"git":{"sha":"expected-sha","dirty":false}}}\'\n', { mode: 0o755 });
+        const transfer = join(root, 'transfer.env');
+        const target = join(root, 'live.env');
+        writeFileSync(transfer, 'new-value\n', { mode: 0o600 });
+        writeFileSync(target, 'original-value\n', { mode: 0o600 });
+        const expected = spawnSync('sha256sum', [transfer], { encoding: 'utf8' }).stdout.split(/\s+/)[0];
+        const run = (sha, name) => spawnSync('bash', ['-c', remoteBlock, name, transfer, expected, target, 'service', sha, '2', '0'], {
+            encoding: 'utf8',
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        });
+
+        const success = run('expected-sha', 'success');
+        expect(success.status).toBe(0);
+        expect(readFileSync(target, 'utf8')).toBe('new-value\n');
+        expect(JSON.parse(success.stdout)).toMatchObject({
+            status: 'lightsail_projection_ready',
+            rollback_complete: false,
+            lightsail_projection_complete: true,
+            target_changed: true,
+        });
+
+        writeFileSync(transfer, 'next-value\n', { mode: 0o600 });
+        const nextExpected = spawnSync('sha256sum', [transfer], { encoding: 'utf8' }).stdout.split(/\s+/)[0];
+        const timeout = spawnSync('bash', ['-c', remoteBlock, 'timeout', transfer, nextExpected, target, 'service', 'wrong-sha', '2', '0'], {
+            encoding: 'utf8',
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        });
+        expect(timeout.status).not.toBe(0);
+        expect(timeout.stderr).toContain('local readiness after env rollback timed out');
+        expect(JSON.parse(timeout.stdout)).toMatchObject({ status: 'blocked', failed_stage: 'local_readiness', target_changed: true });
         rmSync(root, { recursive: true, force: true });
     });
 

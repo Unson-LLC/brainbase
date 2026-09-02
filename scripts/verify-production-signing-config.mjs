@@ -31,9 +31,10 @@ const publicOverridePresent = Object.hasOwn(observed, PUBLIC);
 const passed = !parseError && beforeSchemaValid && observedSchemaValid && privateKeyPreserved && keyIdPreserved &&
     (mode === 'pre-delete' || !publicOverridePresent);
 const evidence = {
-    status: passed ? (mode === 'pre-delete' ? 'ready_to_repair' : 'repaired') : 'blocked',
+    status: passed ? (mode === 'pre-delete' ? 'ready_to_repair' : 'signing_config_repaired') : 'blocked',
     failed_stage: passed ? null : mode,
-    rollback_complete: mode === 'final' && passed,
+    rollback_complete: false,
+    signing_config_repair_complete: mode === 'final' && passed,
     partial_state: !passed,
     next_action: passed ? null : 'stop_and_inspect_saved_rollback_state',
     parse_error: parseError,

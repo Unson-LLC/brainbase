@@ -927,7 +927,7 @@ chmod 600 "$ROLLBACK_INFISICAL_CURRENT"
 # Fail before mutation if the current signing identity drifted from the
 # pre-deployment capture. This writes a secret-free operator receipt before a
 # non-zero exit. The public override may be present or already absent.
-node scripts/verify-production-signing-config.mjs pre-delete \
+node "$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" pre-delete \
   "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
   "$ROLLBACK_INFISICAL_CURRENT" \
   "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.pre-delete.evidence.json"
@@ -946,7 +946,7 @@ fi
   --projectId "$INFISICAL_PROJECT_ID" --format json \
   --output-file "$ROLLBACK_INFISICAL_FINAL"
 chmod 600 "$ROLLBACK_INFISICAL_FINAL"
-node scripts/verify-production-signing-config.mjs final \
+node "$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" final \
   "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
   "$ROLLBACK_INFISICAL_FINAL" \
   "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.evidence.json"
@@ -958,33 +958,150 @@ EXPECTED_ENV_SHA="$(sha256sum "$ROLLBACK_ENV" | awk '{print $1}')"
 REMOTE_ROLLBACK_ENV="/tmp/brainbase-infisical-rollback-${EXPECTED_ENV_SHA}.env"
 scp -i "$HOME/.ssh/lightsail-brainbase.pem" "$ROLLBACK_ENV" \
   "ubuntu@176.34.20.239:$REMOTE_ROLLBACK_ENV"
-ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+ROLLBACK_REMOTE_EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-env-rollback.evidence.json"
+ROLLBACK_REMOTE_EVIDENCE_TMP="$ROLLBACK_REMOTE_EVIDENCE.tmp"
+if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
   "$REMOTE_ROLLBACK_ENV" "$EXPECTED_ENV_SHA" \
-  /home/ubuntu/brainbase/.env.infisical brainbase-ssot.service <<'REMOTE'
+  /home/ubuntu/brainbase/.env.infisical brainbase-ssot.service \
+  "$TARGET_SHA" "${BRAINBASE_LIGHTSAIL_READINESS_ATTEMPTS:-30}" \
+  "${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}" \
+  > "$ROLLBACK_REMOTE_EVIDENCE_TMP" <<'REMOTE'
 set -euo pipefail
 REMOTE_ROLLBACK_ENV="$1"
 EXPECTED_ENV_SHA="$2"
 TARGET_ENV="$3"
 TARGET_SERVICE="$4"
+TARGET_SHA="$5"
+MAX_ATTEMPTS="$6"
+DELAY_SECONDS="$7"
 REMOTE_TARGET_NEXT="${TARGET_ENV}.next.$$"
+STAGE=remote_start
+TARGET_CHANGED=false
 cleanup() {
   rm -f "$REMOTE_ROLLBACK_ENV"
   sudo rm -f "$REMOTE_TARGET_NEXT"
 }
-trap cleanup EXIT
+finish() {
+  code=$?
+  trap - EXIT
+  set +e
+  cleanup
+  STATUS_CODE="$code" STAGE="$STAGE" TARGET_CHANGED="$TARGET_CHANGED" node -e '
+const passed = process.env.STATUS_CODE === "0";
+process.stdout.write(JSON.stringify({
+  status: passed ? "lightsail_projection_ready" : "blocked",
+  failed_stage: passed ? null : process.env.STAGE,
+  rollback_complete: false,
+  lightsail_projection_complete: passed,
+  target_changed: process.env.TARGET_CHANGED === "true",
+  remote_secret_cleanup_attempted: true,
+  next_action: passed ? null : "stop_and_inspect_saved_rollback_state"
+}) + "\n");
+'
+  exit "$code"
+}
+trap finish EXIT
+STAGE=transfer_checksum
 REMOTE_TRANSFER_SHA="$(sha256sum "$REMOTE_ROLLBACK_ENV" | awk '{print $1}')"
-test "$REMOTE_TRANSFER_SHA" = "$EXPECTED_ENV_SHA"
+if test "$REMOTE_TRANSFER_SHA" != "$EXPECTED_ENV_SHA"; then
+  printf '[brainbase-runtime] Lightsail env transfer checksum mismatch; target unchanged; rollback_complete=false\n' >&2
+  exit 1
+fi
+STAGE=staged_target_checksum
 sudo install -o root -g root -m 600 "$REMOTE_ROLLBACK_ENV" "$REMOTE_TARGET_NEXT"
 NEXT_ENV_SHA="$(sudo sha256sum "$REMOTE_TARGET_NEXT" | awk '{print $1}')"
 test "$NEXT_ENV_SHA" = "$EXPECTED_ENV_SHA"
+STAGE=atomic_target_replace
 sudo mv "$REMOTE_TARGET_NEXT" "$TARGET_ENV"
+TARGET_CHANGED=true
+STAGE=target_checksum
 ACTUAL_ENV_SHA="$(sudo sha256sum "$TARGET_ENV" | awk '{print $1}')"
 test "$ACTUAL_ENV_SHA" = "$EXPECTED_ENV_SHA"
+STAGE=service_restart
 sudo systemctl restart "$TARGET_SERVICE"
-curl -fsS --connect-timeout 5 --max-time 10 -- http://127.0.0.1:55123/api/health >/dev/null
+STAGE=local_readiness
+local_ready=0
+for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt+=1)); do
+  if curl -fsS --connect-timeout 5 --max-time 10 -- http://127.0.0.1:55123/api/version | \
+    TARGET_SHA="$TARGET_SHA" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
+const git=value.runtime?.git;
+if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
+'; then
+    local_ready=1
+    break
+  fi
+  if (( attempt < MAX_ATTEMPTS )); then sleep "$DELAY_SECONDS"; fi
+done
+if (( local_ready != 1 )); then
+  printf '[brainbase-runtime] Lightsail local readiness after env rollback timed out; rollback_complete=false\n' >&2
+  exit 1
+fi
+STAGE=completed
 REMOTE
+then
+  mv "$ROLLBACK_REMOTE_EVIDENCE_TMP" "$ROLLBACK_REMOTE_EVIDENCE"
+  chmod 600 "$ROLLBACK_REMOTE_EVIDENCE"
+else
+  SSH_EXIT=$?
+  REMOTE_CLEANUP_CONFIRMED=false
+  if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" \
+    -o ConnectTimeout=5 ubuntu@176.34.20.239 \
+    rm -f "$REMOTE_ROLLBACK_ENV"; then
+    REMOTE_CLEANUP_CONFIRMED=true
+  fi
+  if ROLLBACK_REMOTE_EVIDENCE_TMP="$ROLLBACK_REMOTE_EVIDENCE_TMP" node -e '
+const fs=require("node:fs");
+const value=JSON.parse(fs.readFileSync(process.env.ROLLBACK_REMOTE_EVIDENCE_TMP,"utf8"));
+if (!value || value.status !== "blocked" || value.rollback_complete !== false) process.exit(1);
+'; then
+    mv "$ROLLBACK_REMOTE_EVIDENCE_TMP" "$ROLLBACK_REMOTE_EVIDENCE"
+    chmod 600 "$ROLLBACK_REMOTE_EVIDENCE"
+  else
+    REMOTE_CLEANUP_CONFIRMED="$REMOTE_CLEANUP_CONFIRMED" \
+    EVIDENCE="$ROLLBACK_REMOTE_EVIDENCE" node -e '
+const fs = require("node:fs");
+const evidence = {
+  status: "blocked",
+  failed_stage: "lightsail_env_ssh",
+  rollback_complete: false,
+  target_changed: false,
+  remote_secret_cleanup_confirmed: process.env.REMOTE_CLEANUP_CONFIRMED === "true",
+  next_action: "stop_and_inspect_saved_rollback_state"
+};
+fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence) + "\n", {mode: 0o600});
+console.error(`[brainbase-runtime] Lightsail env rollback blocked; evidence=${process.env.EVIDENCE}; rollback_complete=false`);
+'
+    rm -f "$ROLLBACK_REMOTE_EVIDENCE_TMP"
+  fi
+  printf '[brainbase-runtime] Lightsail env rollback blocked; evidence=%s; rollback_complete=false\n' \
+    "$ROLLBACK_REMOTE_EVIDENCE" >&2
+  exit "$SSH_EXIT"
+fi
 cleanup_rollback_secrets
 trap - EXIT
+
+# The env projection restarted Lightsail, so re-prove the public version surface
+# instead of relying on the readiness check completed before the env change.
+public_ready=0
+for ((attempt=1; attempt<=PUBLIC_ATTEMPTS; attempt+=1)); do
+  if curl -fsS \
+    --connect-timeout "$PUBLIC_CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$PUBLIC_MAX_TIMEOUT_SECONDS" \
+    -- https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
+const git=value.runtime?.git;
+if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
+'; then
+    public_ready=1
+    break
+  fi
+  if (( attempt < PUBLIC_ATTEMPTS )); then sleep "$PUBLIC_DELAY_SECONDS"; fi
+done
+if (( public_ready != 1 )); then
+  printf '[brainbase-runtime] Lightsail public readiness after env rollback timed out; rollback_complete=false\n' >&2
+  exit 1
+fi
 
 # 4. Restore the exact previous Hook config last. The captured clean Hook
 # checkout was never mutated, so restoring hooks.json is sufficient.
@@ -1000,6 +1117,21 @@ curl -fsS \
   --max-time "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" \
   -o /dev/null \
   -- https://bb.unson.jp/api/health
+EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/production-rollback.evidence.json" \
+TARGET_SHA="$TARGET_SHA" node -e '
+const fs=require("node:fs");
+const evidence={
+  status:"passed",
+  rollback_complete:true,
+  target_sha:process.env.TARGET_SHA,
+  signing_config_repair_complete:true,
+  lightsail_projection_complete:true,
+  hook_restored_last:true
+};
+const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
+fs.writeFileSync(tmp,JSON.stringify(evidence)+"\n",{mode:0o600});
+fs.renameSync(tmp,process.env.EVIDENCE);
+'
 ```
 
 Keep the runtime pin in place after rollback; removing it would allow the periodic updater to reapply the failed `origin/develop`. Clear it only as part of a separately verified forward deployment. After these commands, run one normal fresh Codex turn and the live transcript verification above. Until `UserPromptSubmit` opens a valid `route_application=pre_generation` episode and the final transcript shows the exact audit prefix, report the normal rollback path as incomplete. If the rollback changed or restored Codex App delegation, also run the separate delegated verifier and require `episode_origin=stop_delegation_recovery`, `route_application=post_generation_recovery`, execution evidence, value proof, canonical readback, and journal state before reporting the delegated rollback path complete. Never substitute one path's evidence for the other. Never remove `~/.codex/var/judgment-resolver`; its existing episode/event/final files remain audit evidence.
