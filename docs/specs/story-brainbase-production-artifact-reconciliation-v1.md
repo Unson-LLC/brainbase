@@ -41,8 +41,8 @@ merge後の配備receiptは、Global Codex lifecycle Hook、canonical local UI/A
 4実行面をmerge SHAへ揃えた後に新しいCodexタスクを作成する。同一turnのepisode、Brainbase tool event、complete final、Hook-visible transcript、ユーザー向け判断レシートが一意に対応した場合だけ`proven_active`とする。既存タスク、readiness、synthetic entrypoint testは代替にしない。
 
 - Story: AC-002, AC-003, AC-007, AC-008
-- Test: `tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts`
-- Evidence: fresh Codex task id, exact merge SHA, episode/event/final paths, transcript verification
+- Regression: `tests/integration/judgment-resolver-host-entrypoint.test.js`で`create_thread`由来の委任入力、同一turnのvalue proof、complete final、`Brainbase判断レシート`のexact-once表示を固定する
+- Production acceptance: 4実行面をmerge SHAへ揃えた後のfresh Codex task id、exact merge SHA、episode/event/value-proof/final paths、Hook-visible transcriptを同一turnで読み戻す。synthetic regressionだけでは`proven_active`にしない
 
 ## CL-006 OntologyとGraphの同一run検証
 

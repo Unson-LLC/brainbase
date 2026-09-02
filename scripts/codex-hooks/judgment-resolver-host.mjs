@@ -956,6 +956,7 @@ function responseSucceeded(response, {
     allowImplicitSuccess = false,
     semanticSuccess = false
 } = {}) {
+    const explicitEnvelope = record(response);
     const items = nestedRecords(response);
     if (items.length === 0) {
         return allowImplicitSuccess && response !== null && response !== undefined;
@@ -974,7 +975,7 @@ function responseSucceeded(response, {
     return semanticSuccess || trustedEnvelopeItems.some((item) => (
         (allowTransportSuccess && validCallToolResultEnvelope(item.Ok))
         || (allowTransportSuccess && validCallToolResultEnvelope(item))
-        || (allowExplicitSuccess && (item.isError === false || item.is_error === false || item.ok === true || item.success === true || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())))
+        || (allowExplicitSuccess && explicitEnvelope === item && (item.isError === false || item.is_error === false || item.ok === true || item.success === true || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())))
         || (allowImplicitSuccess && response !== null && response !== undefined)
     )) || (allowTransportSuccess && !Array.isArray(response) && validCallToolResultEnvelope(response));
 }

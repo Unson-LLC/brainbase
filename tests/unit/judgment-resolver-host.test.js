@@ -1485,6 +1485,9 @@ describe('Codex Judgment Resolver Host', () => {
         const genericCall = recordEvent(
             'submit_approval', 'claude-call', { target: 'approval-1' }, block({ status: 'ok', success: true })
         );
+        const genericCallJsonString = recordEvent(
+            'submit_approval', 'claude-call-json-string', { target: 'approval-2' }, JSON.stringify({ status: 'ok', success: true })
+        );
         const routeError = recordEvent(
             'brainbase_knowledge_resolve', 'claude-route-error', { intent: '正本を確認' },
             block({ status: 'error', error: 'unavailable', resolution_id: 'kr_error' })
@@ -1502,6 +1505,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(write).toMatchObject({ success: true, event_kind: 'write' });
         expect(valueProof).toMatchObject({ success: true, event_kind: 'value_proof' });
         expect(genericCall).toMatchObject({ success: false, event_kind: 'call' });
+        expect(genericCallJsonString).toMatchObject({ success: false, event_kind: 'call' });
         expect(routeError).toMatchObject({ success: false, event_kind: 'route' });
         expect(writeSpoof).toMatchObject({ success: false, event_kind: 'write' });
         expect(valueProofMalformed).toMatchObject({ success: false, event_kind: 'value_proof' });
