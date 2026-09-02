@@ -26,8 +26,8 @@ status: accepted
 content block配列とJSON文字列は、search、retrieve、route、write、state、value_proof、汎用callの各event kindで意味的成功条件を再検証する。検索・取得監査行欠落、error状態、壊れたJSON、意味的証拠のない汎用callは成功としない。
 
 - Story: AC-001, AC-007
-- Code: `scripts/codex-hooks/judgment-resolver-host.mjs`
-- Test: `tests/unit/judgment-resolver-host.test.js`
+- Code: `scripts/codex-hooks/judgment-resolver-host.mjs`, `server/services/routine-runtime/judgment-value-proof-adapter.js`
+- Test: `tests/unit/judgment-resolver-host.test.js`, `tests/unit/judgment-value-proof-adapter.test.js`
 
 ## CL-004 4実行面の配備readback
 
@@ -43,6 +43,7 @@ merge後の配備receiptは、Global Codex lifecycle Hook、canonical local UI/A
 - Story: AC-002, AC-003, AC-007, AC-008
 - Regression: `tests/integration/judgment-resolver-host-entrypoint.test.js`で`create_thread`由来の委任入力、同一turnのvalue proof、complete final、`Brainbase判断レシート`のexact-once表示を固定する
 - Production acceptance: 4実行面をmerge SHAへ揃えた後のfresh Codex task id、exact merge SHA、episode/event/value-proof/final paths、Hook-visible transcriptを同一turnで読み戻す。synthetic regressionだけでは`proven_active`にしない
+- Existing live-session E2E: `tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts`は取得監査の`judgment_lifecycle_active`までを証明し、value proofと判断レシートのproduction acceptanceには数えない
 
 ## CL-006 OntologyとGraphの同一run検証
 

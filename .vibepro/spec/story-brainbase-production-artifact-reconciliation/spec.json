@@ -131,6 +131,9 @@
           {
             "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
             "anchor": "responseSucceeded"
+          },
+          {
+            "file": "server/services/routine-runtime/judgment-value-proof-adapter.js"
           }
         ],
         "test_refs": [
@@ -141,6 +144,10 @@
           {
             "file": "tests/unit/judgment-resolver-host.test.js",
             "case": "Claudeのcontent block配列を全Brainbase event kindで意味検証しfail-closedにする"
+          },
+          {
+            "file": "tests/unit/judgment-value-proof-adapter.test.js",
+            "case": "extracts a strict value proof from a Claude content block array"
           }
         ]
       },
@@ -238,16 +245,15 @@
         "code_refs": [
           {
             "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          },
+          {
+            "file": "server/services/routine-runtime/judgment-value-proof-adapter.js"
           }
         ],
         "test_refs": [
           {
             "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
             "case": "実際に差し戻した質問だけを入口から判断レシートへ投影する"
-          },
-          {
-            "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
-            "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
           }
         ]
       },
@@ -256,10 +262,6 @@
           {
             "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
             "must_cover": "実際に差し戻した質問だけを入口から判断レシートへ投影する"
-          },
-          {
-            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
-            "must_cover": "current runのglobal hook・回帰suite・final receiptを検証する"
           }
         ]
       },

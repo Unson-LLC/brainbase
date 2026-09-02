@@ -13,6 +13,7 @@
 - 再投影後に`brainbase-ssot.service`を再起動し、checkout SHA、process SHA、API version、dirty状態を読み戻す。
 - Judgment Hostの変更はLightsailだけでは有効にならない。Global Codex lifecycle Hook、canonical local UI/API、persistent MCP Host bridge、Lightsail Resolver API/serverを、`judgment-resolve.md`の4面契約に従って同じmerge SHAへ揃える。
 - 4面のreadinessは実タスクの証明ではない。反映後に作成した新しいCodexタスクのepisode、PostToolUse event、complete final、ユーザー向け判断レシートを同一turnで照合して初めて`proven_active`とする。
+- 判断レシートの派生経路は、Hostの意味的成功判定から`judgment-value-proof-adapter`によるprojection、owner journalの`value-proof.json`、Stop final、ユーザー向け表示の順とする。取得監査だけのlive-session E2Eは`judgment_lifecycle_active`までを証明し、この派生経路の代替にしない。
 - Graph SSOTは変更せず、`graph_validate`を読み取り検証として実行する。
 
 ## 実行順序
