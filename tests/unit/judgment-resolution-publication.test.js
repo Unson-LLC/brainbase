@@ -31,6 +31,26 @@ describe('judgment resolver publication surfaces', () => {
             expect(result.status).not.toBe(0);
             expect(result.stdout).toBe('');
         }
+
+        const shellIntegration = spawnSync(
+            'bash',
+            [
+                '-eu',
+                '-o',
+                'pipefail',
+                '-c',
+                `BACKUP_DIR="$(printf 'invalid\\n' | ${process.execPath} ${parser})"; export BACKUP_DIR; printf 'survived\\n'`,
+            ],
+            { encoding: 'utf8' }
+        );
+        expect(shellIntegration.status).not.toBe(0);
+        expect(shellIntegration.stdout).not.toContain('survived');
+
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        expect(runbook).not.toContain('export BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR="$(');
+        expect(runbook).toMatch(
+            /BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR="\$\([\s\S]*?extract-lightsail-hotfix-backup-dir\.mjs[\s\S]*?\)"\nexport BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR/u
+        );
     });
 
     it('本番hotfixの復旧証跡を検証してからmerge済みSHAへ切り替える', () => {
