@@ -37,9 +37,9 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 
 ## 変更内容
 
-- Host専用REST endpointと、Codex global `UserPromptSubmit` hookを主経路にした常時入口契約を追加する。MCP runtimeはHost bridgeを内包するが、Judgment Resolverをmodel-callable toolとして公開しない。
-- 各ターンの現在の問い、Hostが構築したcanonical `conversation_context`、認証主体、project bindingから、runtime manifestの`semantic_matchers`と安全floorを用いて適用すべき判断基準と判断経路を決定的に解決する。明示的な専門domain/intentへ一致せずfollow-upでもない入力は、現行v1ではserver-owned `general/answer` fallbackへ解決する。`semantic_matchers`は文字列matcherの名称であり、埋め込みやLLM推論ではない。
-- 呼び出し元は分類案を渡さない。Resolver内にLLM、model provider、model APIはなく、対象領域、行為、リスク、確度を含む分類はResolverが決定する。
+- `UserPromptSubmit`は未解決episodeとcanonical turn inputだけを作る。MCP runtimeはmodel-callable `brainbase_resolve_turn`を公開し、Codexの意味解釈をBrainbase側のTurnContractへ確定する。
+- 各ターンの現在の問い、Hostが構築したcanonical `conversation_context`、Codex modelの意味解釈、認証主体、project bindingから、runtime manifestのpolicyと安全floorを用いて適用すべき判断基準と判断経路を解決する。`semantic_matchers`は義務・domain・signal・action floor・riskを追加できる安全railであり、matcher未一致は要件削除や`general/answer`への自動確定を意味しない。
+- Codex modelが意味分類案を渡す。Resolver内に別のLLMやmodel providerはなく、Brainbaseは正本、制約、安全floorと突合してTurnContractを確定する。
 - 単純な問いでは直接経路だけを選び、事実確認、個人判断、技術設計、累積的複雑性、高リスク行為では必要な経路だけを追加する。
 - 佐藤の判断原則を、AIモデル固有のpromptではなく、owner、visibility、優先順位、強度、根拠要件、適用範囲、版を持つ再利用可能な判断基準として扱う。
 - ゴールの先行確定、問題設定の再検証、原因仮説の反証、必要条件からの導出、候補の制約棄却を、該当する判断で再現する。
@@ -47,7 +47,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - 並列な候補生成と候補採用の制御を分離し、探索速度を不要に落とさない。
 - 根拠のない数値閾値、対象以上に重いガバナンス、判断と強制の混同、内部高度化だけを成果とみなす判断を防ぐ。
 - 選択された判断経路、各active nodeの実行指示、適用基準、後続capability、その入力、未確認事項、host binding状態を監査可能なreceiptとして返す。
-- model生成前に1つのjudgment episodeを開始し、実際に完了したdirect `mcp__brainbase__*` callを`PostToolUse`で0..N件記録する。同一turnの並列callはHostが原子的にjournal commit順へ直列化する。`Stop`は最終回答が保存済み`🧠`行と全`📚`/`⚠️`行でその順序どおりに始まることを検証し、契約を満たすcomplete final receiptだけを1件確定する。正常episodeの監査不足は最初の修復可能なStopで`decision:block`となり、なお不完全なactive再Stopは`judgment_stop_repair_exhausted`で非zero終了する。episode開始event自体がないorphan Stopは完全監査へ偽装せず、警告と本文保持を1回だけ要求した後、非finalの`audit_degraded` receiptへ有限収束する。identity・integrity矛盾は従来どおり非zeroで失敗する。参照必須でなくBrainbase callが0件なら、その事実をowner監査行として明示する。local file readや別connectorは現行event matcherの対象外とする。
+- model生成前に1つの未解決judgment episodeを開始し、Codex modelが最初に`brainbase_resolve_turn`へ意味解釈を渡してTurnContractを確定する。実際に完了した後続のdirect `mcp__brainbase__*` callも`PostToolUse`で0..N件記録する。同一turnの並列callはHostが原子的にjournal commit順へ直列化する。`Stop`は成功した`resolve_turn`証拠、TurnContractの必須capability、最終回答先頭の保存済み`🧠`行と全`📚`/`⚠️`行を検証し、契約を満たすcomplete final receiptだけを1件確定する。正常episodeの監査不足は最初の修復可能なStopで`decision:block`となり、なお不完全なactive再Stopは`judgment_stop_repair_exhausted`で非zero終了する。episode開始event自体がないorphan Stopは完全監査へ偽装せず、警告と本文保持を1回だけ要求した後、非finalの`audit_degraded` receiptへ有限収束する。identity・integrity矛盾は従来どおり非zeroで失敗する。TurnContract上で追加参照が必須でなく、判断契約以外のBrainbase callが0件なら、その事実をowner監査行として明示する。local file readや別connectorは現行event matcherの対象外とする。
 - initial/final receiptは判断と監査の証拠であり、writeや外部作用をauthorizeしない。既存の権限、承認、executor境界を置き換えない。
 - project bindingは判断文脈であり、action authorityではない。project access不能時は該当project policyだけを適用対象から外し、一般判断を停止しない。
 - 現行episode lifecycle integrationはCodex Host hookだけを対象とする。Claude Codeは同じ責務分割を適用できる将来のHost adapter候補だが、現行対応として扱わない。
@@ -66,11 +66,11 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - [ ] 単純、knowledge、personal judgment、engineering、organization、operations、累積的複雑性、高リスクまたは外部作用の各文脈で、仕様化された異なる部分グラフが選択される。
 - [ ] 適用される判断基準には、owner、visibility、priority、strength、evidence requirement、型付きscope/effect、versionが含まれ、scopeは認証contextへexact matchし、抑止されたpolicyはwinnerと理由をreceiptへ返し、同順位・同specificity・同targetのhard conflictは通常receiptの`needs_policy_resolution`としてfail-closedになる。
 - [ ] 情報源の解決は既存Knowledge Resolverへの構造化handoffを返し、Judgment Resolver自身がGraph、Personal KG、repo、Driveの正本を複製しない。
-- [ ] 参照先を解決できないfollow-up、またはknowledge分類に必要な`project_code`がない入力はclarification receiptを返して回答生成へ進める。一方、専門domain/intent matcherに一致しない非follow-up入力は、effect/riskの安全floorを適用したserver-owned `general/answer` fallbackへ解決する。project access不能や分類不能だけでturn全体を停止しない。
+- [ ] model interpretation未提出、参照先を解決できないfollow-up、またはknowledge分類に必要な`project_code`がない入力はclarification receiptを返す。matcher未一致だけで`general/answer`へ自動確定せず、project access不能や分類不能を成功として扱わない。
 - [ ] 呼び出し側は、サーバー管理の判断基準、判断経路、分類provenance、安全floorを任意に注入・上書きできない。
 - [ ] personal judgment policyは認証されたownerだけへ返り、非ownerとowner不明のservice credentialへ漏れない。
 - [ ] 選択された部分グラフはDAGであり、循環を含まず、request bodyの配列順を保存したexact digestでbindingし、意味的に同じ正規化判断入力と同じmanifest digestからはrequest digestに依存しない同じplan digestを得る。
-- [ ] Host専用APIとMCP runtime内Host bridgeからmodel provider非依存で利用できる一方、現行Codex modelへJudgment Resolver toolを公開しない。認証、project scope、既存機能の互換性を維持する。
+- [ ] Host専用APIを再利用しつつ、MCP runtimeは現行Codex modelへ`brainbase_resolve_turn`を公開する。認証、project scope、既存機能の互換性を維持する。
 - [ ] 現行Codex modelは採用済みinitial routeだけを実行し、途中結果を踏まえてBrainbase knowledge/retrieval toolを0..N回呼び、検索queryを必要なだけ組み替える。Knowledge Resolverは正本候補を決定的に選ぶだけで、実際の取得は各retrieval toolが担う。`Stop`は最終回答が保存済みowner判断行と全tool監査行でjournal commit順に始まり、同文言の反復も記録済みevent回数どおり含むことを検証する。
 - [ ] Claude Codeは将来のHost adapter候補として明記し、現行episode lifecycle hook integrationの対応範囲に含めない。
 - [ ] capability YAML、runbook、README index、agent entry Skill/always-loaded instructionが実装境界と一致する。

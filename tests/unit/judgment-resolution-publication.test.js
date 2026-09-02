@@ -779,23 +779,13 @@ describe('judgment resolver publication surfaces', () => {
         const claude = read('CLAUDE.md');
         const agents = read('AGENTS.md');
         expect(agents).toBe(claude);
-        expect(claude).toContain('model生成前に1つのjudgment episodeを開始');
+        expect(claude).toContain('未解決episodeを開くだけ');
         expect(claude).toContain('PostToolUse');
         expect(claude).toContain('Stop');
-        expect(claude).toContain('modelはResolverを呼ばず');
-        expect(claude).toContain('canonical context');
-        expect(claude).toContain('clarification receiptでも回答生成へ進む');
-        expect(claude).toContain('project access不能だけで判断を止めない');
+        expect(claude).toContain('model-callable `brainbase_resolve_turn`');
+        expect(claude).toContain('canonical turn input');
         expect(claude).toContain('通常の権限・承認を置き換えない');
-        expect(claude).toContain('現行Resolverは内部LLMを持たず');
-        expect(claude).toContain('専門matcher未一致の非follow-up入力はserver-owned `general/answer` fallback');
-        expect(claude).toContain('Claude Codeは将来のHost adapter候補');
-        expect(claude).toContain('現行episode lifecycle hook integrationには含まれない');
-        expect(claude).toContain('最初の修復可能なStopで`decision:block`を返し');
-        expect(claude).toContain('`judgment_stop_repair_exhausted`で非zero終了し');
-        expect(claude).toContain('Brainbase callが0件で参照必須でないturnも0件だったことを明示する');
-        expect(claude).toContain('episodeのないorphan Stopも成功へ潰さない');
-        expect(claude).toContain('journalに記録されたStop修復だけを最終監査へ表示し');
+        expect(claude).toContain('未一致を`general/answer`へ落としたり必要能力を減らしたりしない');
     });
 
     it('wrapperがUserPromptSubmit・PostToolUse・Stopのepisode lifecycleを起動する', () => {
@@ -828,7 +818,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).not.toContain('classification_proposal');
     });
 
-    it('Skill・capability・runbook・specがmodel非依存の同じ境界を公開する', () => {
+    it('Skill・capability・runbook・specがmodel-firstの同じ境界を公開する', () => {
         const skill = read('.claude/skills/brainbase-judgment-resolver/SKILL.md');
         const capability = read('docs/brainbase-capabilities/capabilities/judgment.resolve.yml');
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
@@ -839,7 +829,7 @@ describe('judgment resolver publication surfaces', () => {
 
         for (const surface of surfaces) {
             expect(surface).toMatch(/model.*(call|呼|Resolver)/iu);
-            expect(surface).toMatch(/before model generation|model生成前|pre-model/iu);
+            expect(surface).toContain('brainbase_resolve_turn');
             expect(surface).toContain('conversation_context');
             expect(surface).toMatch(/judgment episode|判断episode|判断エピソード/iu);
             expect(surface).toContain('PostToolUse');
@@ -847,38 +837,34 @@ describe('judgment resolver publication surfaces', () => {
             expect(surface).toMatch(/0\.\.N|0-N|何度でも|複数回/iu);
             expect(surface).toMatch(/project.*(context|文脈)/iu);
             expect(surface).toMatch(/authorize|authorization|権限|許可/iu);
-            expect(surface).toMatch(
-                /(内部|internal).*(LLM|model)|LLM.*(ない|持たない|使わない)|no LLM/iu
-            );
+            expect(surface).toMatch(/model interpretation|modelの意味解釈|モデルの意味解釈/iu);
             expect(surface).toMatch(/Codex/iu);
-            expect(surface).toContain('general/answer');
+            expect(surface).toMatch(/未一致|unmatched/iu);
             expect(surface).not.toContain('classification_proposal');
             expect(surface).toContain('ready_for_fresh_task');
             expect(surface).toContain('proven_active');
         }
 
-        expect(capability).toContain('mcp: []');
+        expect(capability).toContain('brainbase_resolve_turn');
         expect(capability).toContain('POST http://127.0.0.1:39002/host/judgment/resolve');
         expect(runbook).toContain('structural filtering');
         expect(runbook).toContain('records every completed tool call as execution evidence');
         expect(runbook).toContain('satisfies the execution requirement even when the result is `unconfirmed` or the tool fails');
         expect(runbook).toContain('Only `resolved` qualifies as successful');
-        expect(spec).toContain('Resolver determines classification');
-        expect(spec).toContain('Plain non-follow-up matcher misses use the `general/answer` fallback instead');
+        expect(spec).toContain('The Codex model proposes semantic classification');
+        expect(spec).toContain('An unmatched keyword rule never removes a capability');
         expect(spec).toContain('one authentic exact `mcp__brainbase__brainbase_knowledge_resolve` `PostToolUse` event regardless of response outcome');
         expect(architecture).toContain('trust-boundary defect');
         expect(architecture).toContain('Every completed call produces a non-visible execution event');
-        expect(story).toContain('model-callable toolとして公開しない');
+        expect(story).toContain('model-callable `brainbase_resolve_turn`');
         expect(story).toContain('Brainbase knowledge/retrieval toolを0..N回');
         expect(story).toContain('initial/final receiptは判断と監査の証拠');
         expect(story).toContain('project bindingは判断文脈であり、action authorityではない');
-        expect(story).toContain('専門domain/intent matcherに一致しない非follow-up入力');
+        expect(story).toContain('matcher未一致');
         expect(story).toContain('## 影響範囲');
         expect(architecture).toMatch(/Claude Code.*future Host-adapter candidate/iu);
         expect(spec).toMatch(/Claude Code.*future Host-adapter candidate/iu);
-        expect(runbook).toMatch(/Claude Code.*future Host-adapter candidate/iu);
         expect(capability).toMatch(/Claude Code.*future Host-adapter candidate/iu);
-        expect(skill).toContain('Claude Codeは同じ責務分割を適用できる将来のHost adapter候補');
         expect(skill).toContain('SQLite');
         expect(skill).toContain('非zero exit');
         expect(capability).toContain('non-final `audit_degraded` receipt');

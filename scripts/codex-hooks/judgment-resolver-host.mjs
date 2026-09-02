@@ -108,7 +108,7 @@ const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'brainbase_projects', 'brainbase_bootstrap_config', 'brainbase_admin_read',
     'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
     'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
-    'brainbase_knowledge_resolve', 'brainbase_get_meeting_minutes_context', 'authorize_tenant_resource',
+    'brainbase_resolve_turn', 'brainbase_knowledge_resolve', 'brainbase_get_meeting_minutes_context', 'authorize_tenant_resource',
     'mesh_peers', 'graph_get_plan_receipt', 'graph_validate'
 ]);
 const BRAINBASE_WRITE_TOOL_NAMES = Object.freeze([
@@ -124,6 +124,7 @@ export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
     ['search', 'search'],
     ['search_wiki', 'search'],
     ['search_personal_kg', 'search'],
+    ['brainbase_resolve_turn', 'turn_resolution'],
     ['brainbase_knowledge_resolve', 'route'],
     ['brainbase_judgment_state_record', 'state'],
     ['brainbase_judgment_value_proof_record', 'value_proof']
@@ -135,7 +136,7 @@ export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
     brainbase_projects: 'control_plane', brainbase_bootstrap_config: 'published_contract', brainbase_admin_read: 'control_plane',
     brainbase_run_receipt_inbox: 'control_plane', brainbase_run_receipt_history: 'control_plane', brainbase_run_receipt_diagnosis: 'published_contract',
     brainbase_automation_run_detail: 'published_contract', brainbase_meeting_automation_diagnosis: 'published_contract', brainbase_onboarding_get: 'published_contract',
-    brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', authorize_tenant_resource: 'tenant_authorization',
+    brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', authorize_tenant_resource: 'tenant_authorization',
     mesh_peers: 'mesh_peers', graph_get_plan_receipt: 'graph_contract', graph_validate: 'graph_contract',
     brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
     brainbase_automation_human_step_resolve: 'published_contract', brainbase_onboarding_start: 'published_contract', brainbase_onboarding_ingest: 'published_contract',
@@ -757,6 +758,9 @@ function verifyEpisode(entry) {
         || (origin === 'stop_delegation_recovery' && application === 'post_generation_recovery');
     if (!legacyLifecycle && !validLifecycle) throw new Error('judgment_episode_lifecycle_invalid');
     verifyOwnerAudit(entry.owner_audit, entry.initial_route_receipt);
+    if (entry.turn_input !== undefined && sha256(canonicalJson(entry.turn_input)) !== entry.initial_route_receipt.request_digest) {
+        throw new Error('judgment_episode_turn_input_mismatch');
+    }
     if (entry.audit_contract !== undefined) verifyAuditContract(entry.audit_contract);
     return entry;
 }
@@ -825,6 +829,7 @@ export async function startEpisode(payload, {
             route_application: routeApplication,
             started_at: new Date().toISOString(),
             request_text_digest: sha256(args.request),
+            turn_input: args,
             initial_route_receipt_digest: sha256(canonicalJson(initialRouteReceipt)),
             initial_route_receipt: initialRouteReceipt,
             owner_audit: buildOwnerAudit(args, initialRouteReceipt),
@@ -1270,8 +1275,19 @@ function waitingHumanReasonAllowed(contract, reasonCode) {
 }
 
 function eventKind(toolName) {
-    const name = String(toolName).replace(/^mcp__brainbase__/u, '');
+    const exactToolName = String(toolName);
+    if (exactToolName === 'mcp__brainbase__brainbase_resolve_turn') return 'turn_resolution';
+    const name = exactToolName.replace(/^mcp__brainbase__/u, '');
     return BRAINBASE_TOOL_KIND_BY_NAME[name] ?? 'call';
+}
+
+function judgmentTurnResolutionData(response) {
+    return nestedRecords(response).find((item) => (
+        typeof item.resolution_id === 'string'
+        && item.status === 'resolved'
+        && record(item.classification)
+        && Array.isArray(item.required_capabilities)
+    )) ?? null;
 }
 
 function knowledgeCanonicalLocation(value) {
@@ -1362,6 +1378,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         : null;
     const kind = retrieval?.kind ?? fallbackKind;
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
+    const turnResolution = kind === 'turn_resolution' ? judgmentTurnResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
     const publishedToolResult = brainbaseTool ? publishedToolSemanticData(toolName, responseValue, inputValue) : null;
     const controlPlaneRead = kind === 'call' || kind === 'retrieve'
@@ -1383,8 +1400,10 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         allowTransportSuccess: brainbaseTool && ['search', 'retrieve'].includes(kind) && retrievalSemanticSuccess,
         allowExplicitSuccess: !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
-        semanticSuccess: ['search', 'retrieve'].includes(kind)
-            ? retrievalSemanticSuccess
+        semanticSuccess: kind === 'turn_resolution'
+            ? Boolean(turnResolution)
+            : ['search', 'retrieve'].includes(kind)
+                ? retrievalSemanticSuccess
             : kind === 'value_proof'
             ? Boolean(valueProofInput)
             : kind === 'route'
@@ -1409,7 +1428,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             .map((match) => match[1].trim())
             .filter((value) => value && !value.includes('\0')))]
         : [];
-    const safeMetadata = valueProofInput ? { value_proof: valueProofInput } : stopState ? { stop_state: stopState } : resolution ? {
+    const safeMetadata = turnResolution ? { turn_contract: turnResolution } : valueProofInput ? { value_proof: valueProofInput } : stopState ? { stop_state: stopState } : resolution ? {
         resolution_id: resolution.resolution_id,
         status: resolution.status,
         source_class: resolution.source_class ?? null,
@@ -1431,7 +1450,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             : kind === 'retrieve'
                 ? '取得'
                 : '呼出';
-    const displayLine = !brainbaseTool || judgmentStateTool || judgmentValueProofTool
+    const displayLine = !brainbaseTool || judgmentStateTool || judgmentValueProofTool || kind === 'turn_resolution'
         ? null
         : kind === 'route'
         ? routeDisplayLine(inputValue, resolution, responseSuccess)
@@ -1477,6 +1496,18 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         if (judgmentValueProofTool && !valueProofRolloutEnabled(episode, env)) {
             throw new Error('judgment_value_proof_rollout_disabled');
         }
+        if (kind === 'turn_resolution') {
+            const turnToolInput = record(inputValue);
+            const turnInput = record(turnToolInput?.turn_input);
+            const interpretation = record(turnToolInput?.model_interpretation);
+            if (!turnInput || !interpretation
+                || canonicalJson(turnInput) !== canonicalJson(episode.turn_input)
+                || turnResolution?.turn_id !== episode.initial_route_receipt.turn_id
+                || turnResolution?.context_digest !== episode.initial_route_receipt.context_digest
+                || turnResolution?.request_digest !== sha256(canonicalJson({ ...turnInput, model_interpretation: interpretation }))) {
+                throw new Error('judgment_turn_resolution_binding_invalid');
+            }
+        }
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
         const finalized = existingFinal(paths, episode);
@@ -1504,7 +1535,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             .filter(Number.isSafeInteger)
             .reduce((maximum, sequence) => Math.max(maximum, sequence), -1) + 1;
         const stateContract = judgmentStateTool
-            ? judgmentStopStateContract(stopState, episode.initial_route_receipt)
+            ? judgmentStopStateContract(stopState, effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt)
             : { valid: true, expectedReason: null };
         const success = responseSuccess && stateContract.valid;
         const systemMessage = judgmentStateTool && responseSuccess && !stateContract.valid
@@ -1520,7 +1551,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             tool_use_id: toolUseId,
             event_kind: kind,
             success,
-            satisfies: satisfiesKnowledgeExecution ? ['knowledge.resolve'] : [],
+            satisfies: kind === 'turn_resolution'
+                ? ['judgment.resolve_turn']
+                : satisfiesKnowledgeExecution ? ['knowledge.resolve'] : [],
             input_digest: inputDigest,
             response_digest: responseDigest,
             event_fingerprint: fingerprint,
@@ -1548,6 +1581,29 @@ function episodeEvents(paths) {
         const recordedOrder = String(left.recorded_at).localeCompare(String(right.recorded_at));
         return recordedOrder || compareCodePoints(String(left.tool_use_id), String(right.tool_use_id));
     });
+}
+
+function effectiveEpisode(episode, events) {
+    const resolved = [...events].reverse().find((event) => (
+        event.success
+        && event.satisfies.includes('judgment.resolve_turn')
+        && record(event.safe_metadata?.turn_contract)
+    ))?.safe_metadata.turn_contract;
+    if (!resolved) return episode;
+    const args = episode.turn_input;
+    return {
+        ...episode,
+        initial_route_receipt: resolved,
+        owner_audit: buildOwnerAudit(args, resolved),
+        audit_contract: buildAuditContract(resolved)
+    };
+}
+
+function turnResolutionRequired(episode) {
+    const receipt = record(episode?.initial_route_receipt);
+    return receipt?.status === 'needs_classification'
+        && Array.isArray(receipt.reconciliation_reasons)
+        && receipt.reconciliation_reasons.includes('model_interpretation_missing');
 }
 
 function buildAuditContract(receipt) {
@@ -2349,9 +2405,10 @@ export async function evaluateAutonomyStop(payload, {
     if (!identity) throw new Error('judgment_episode_identity_missing');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     const episode = existingEpisode(payload, env);
+    const resolvedEpisode = episode ? effectiveEpisode(episode, episodeEvents(paths)) : null;
     // Runtime 2.1 receipts already contain a deterministic autonomy decision.
     // Keep the model evaluator only for in-flight legacy episodes during rollout.
-    if (episode && verifyAutonomyContract(episode.initial_route_receipt)) return null;
+    if (resolvedEpisode && verifyAutonomyContract(resolvedEpisode.initial_route_receipt)) return null;
     if (!episode || !autonomyRolloutEnabled(episode, env)) return null;
     const answer = typeof payload.last_assistant_message === 'string'
         ? payload.last_assistant_message
@@ -2397,6 +2454,10 @@ export async function evaluateAutonomyStop(payload, {
 
 function finalizeEpisodeLocked(payload, episode, paths, env) {
     const events = episodeEvents(paths);
+    const hasTurnResolution = events.some((event) => event.success && event.satisfies.includes('judgment.resolve_turn'));
+    const bootstrapEpisode = episode;
+    const requiresTurnResolution = turnResolutionRequired(bootstrapEpisode);
+    episode = effectiveEpisode(episode, events);
     let existingContinuation = null;
     try { existingContinuation = readJson(paths.continuation); } catch (error) {
         if (error?.code !== 'ENOENT') throw error;
@@ -2407,7 +2468,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         const attentionSurface = renderJudgmentValueProofAttentionSurface(valueProofAttention);
         return { systemMessage: [auditBlock, valueSurface, attentionSurface].filter(Boolean).join('\n\n') };
     };
-    const finalized = existingFinal(paths, episode);
+    // A resolved TurnContract replaces the bootstrap route for this execution,
+    // while an already-persisted legacy final remains bound to the original route.
+    const finalized = existingFinal(paths, bootstrapEpisode);
     if (finalized) {
         verifyFinalStopRepair(finalized, existingContinuation, episodeAuditContract(episode));
         const finalizedValueProof = existingJudgmentValueProof(paths, finalized);
@@ -2431,6 +2494,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const requiredKnowledge = requiredKnowledgeResolution(episode.initial_route_receipt);
     const knowledgeExecutionEvents = events.filter((entry) => entry.satisfies.includes('knowledge.resolve'));
     const qualifyingEvents = knowledgeExecutionEvents.filter((entry) => entry.success);
+    const missingTurnResolution = requiresTurnResolution && !hasTurnResolution;
     const missingKnowledge = requiredKnowledge && knowledgeExecutionEvents.length === 0;
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
     const expectedAuditLines = requiredAuditLines(episode, events, existingContinuation);
@@ -2471,12 +2535,14 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         && !unauthorizedContinuationAudit
         && !unauthorizedStopRepairAudit
         && existingContinuation === null;
-    if (missingKnowledge
+    if (missingTurnResolution
+        || missingKnowledge
         || missingValueProof
         || (missingOwnerAudit && !hostCanCompleteOwnerAudit)
         || missingAnswerBody
         || missingAutonomyCompliance) {
         const missingCapabilities = [
+            ...(missingTurnResolution ? ['judgment.resolve_turn'] : []),
             ...(missingKnowledge ? ['knowledge.resolve'] : []),
             ...(missingValueProof ? ['judgment.value_proof.record'] : []),
             ...(missingOwnerAudit ? ['owner.audit.display'] : []),
@@ -2534,6 +2600,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         }
         const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
         const reasons = [
+            ...(missingTurnResolution ? [
+                'mcp__brainbase__brainbase_resolve_turnを実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する'
+            ] : []),
             ...(missingKnowledge ? [capabilityActionInstruction(
                 CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'],
                 { repair: true }
@@ -2882,8 +2951,10 @@ export function successOutput(
         ? 'brainbase_judgment_state_recordとbrainbase_judgment_value_proof_record'
         : 'brainbase_judgment_state_record';
     const context = [
-        'Brainbase Judgment Resolver Host opened one judgment episode before model generation. The route receipt fixes the current intent and active DAG for this episode; it is not the final episode receipt.',
-        'The Host-fixed initial route and classification are immutable for this episode; do not recalculate or change them.',
+        'Brainbase Judgment Resolver Host opened one unresolved judgment episode before model generation. This bootstrap receipt is not a semantic classification or the final episode receipt.',
+        `Before answering or using any other tool, call mcp__brainbase__brainbase_resolve_turn exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request.`,
+        'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed.',
+        'Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
         ...autonomyInstructions,
         ...implementationWorkflowInstructions,
         ...requiredCapabilityInstructions,
@@ -2938,7 +3009,7 @@ export async function processHookPayload(payload, dependencies = {}) {
         const episode = await startEpisode(payload, dependencies);
         await dependencies.onEpisodeStarted?.(episode);
         return successOutput(
-            {}, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode), dependencies.env ?? process.env
+            episode.turn_input, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode), dependencies.env ?? process.env
         );
     }
     if (eventName === 'PostToolUse') {

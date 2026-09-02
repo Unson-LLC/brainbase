@@ -107,10 +107,22 @@ function dependencies(fetchImpl: typeof globalThis.fetch, configuredProjectCodes
 }
 
 describe('judgment resolver Host bridge', () => {
-  it('Resolverをmodel-callable tool listへ公開しない', async () => {
-    assert.deepEqual(judgmentResolutionTools, []);
-    assert.equal(serverTesting.tools.some((tool) => tool.name === 'brainbase_judgment_resolve'), false);
-    assert.equal(await handleJudgmentResolutionToolCall('brainbase_judgment_resolve', args, dependencies(async () => new Response())), null);
+  it('resolve_turnをmodel-callable toolとして公開しmodel解釈を原文へ結合する', async () => {
+    assert.deepEqual(judgmentResolutionTools.map((tool) => tool.name), ['brainbase_resolve_turn']);
+    assert.equal(serverTesting.tools.some((tool) => tool.name === 'brainbase_resolve_turn'), true);
+    const mergedArgs = { ...args, model_interpretation: classification };
+    let posted: unknown = null;
+    const result = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+      turn_input: args,
+      model_interpretation: classification,
+    }, dependencies(async (_url, init) => {
+      posted = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify(receipt({
+        request_digest: computeJudgmentRequestDigest(mergedArgs),
+      })), { status: 200 });
+    }));
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(posted, mergedArgs);
   });
 
   it('Host内部callだけが署名付きAPI requestを送る', async () => {
@@ -177,6 +189,34 @@ describe('judgment resolver Host bridge', () => {
       const result = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(invalid), { status: 200 })));
       assert.equal(result.error?.code, 'brainbase_api_response_invalid');
     }
+  });
+
+  it('model解釈なしのbootstrap receiptはserverのreconciliation reasonsをunresolvedとして受理する', async () => {
+    const bootstrap = receipt({
+      status: 'needs_classification',
+      autonomy_decision: 'escalate',
+      autonomy_reason_code: 'classification_missing',
+      allowed_runtime_escalation_reasons: [],
+      runtime_version: 'judgment-runtime-2.4.3',
+      classification: null,
+      classification_evidence: { source: 'resolver', source_turn_ids: [], matcher_ids: [] },
+      classification_assurance: 'unknown',
+      reconciliation_reasons: ['model_interpretation_missing'],
+      selected_dag_ids: ['clarification.v1'],
+      active_nodes: ['entry', 'reconcile', 'clarification', 'receipt'],
+      active_node_definitions: [
+        ['entry', 'common'], ['reconcile', 'common'], ['clarification', 'fail_closed'], ['receipt', 'common'],
+      ].map(([id, kind]) => ({ id, kind, instruction: `Execute ${id}.`, required_capability_template: null })),
+      active_edges: [['entry', 'reconcile'], ['reconcile', 'clarification'], ['clarification', 'receipt']],
+      unresolved: ['model_interpretation_missing'],
+      rationale: ['Model semantic interpretation is required before the server can issue a TurnContract.'],
+    });
+    const accepted = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(bootstrap), { status: 200 })));
+    assert.equal(accepted.status, 'ok');
+
+    const mismatch = receipt({ ...bootstrap, unresolved: ['classification'] });
+    const rejected = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(mismatch), { status: 200 })));
+    assert.equal(rejected.error?.code, 'brainbase_api_response_invalid');
   });
 
   it('API 4xxの具体的なvalidation codeを隠さない', async () => {
@@ -249,7 +289,7 @@ describe('judgment Host contract', () => {
         ['entry', 'common'], ['reconcile', 'common'], ['clarification', 'fail_closed'], ['receipt', 'common'],
       ].map(([id, kind]) => ({ id, kind, instruction: `Execute ${id}.`, required_capability_template: null })),
       active_edges: [['entry', 'reconcile'], ['reconcile', 'clarification'], ['clarification', 'receipt']],
-      unresolved: ['classification'],
+      unresolved: ['conversation_referent_missing'],
       rationale: ['clarify'],
     });
     let continued = false;
