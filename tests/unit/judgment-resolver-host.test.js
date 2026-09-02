@@ -1374,6 +1374,33 @@ describe('Codex Judgment Resolver Host', () => {
         expect(recordEvent('unknown-call', { content: [{ type: 'text', text: 'completed' }] }, 'submit_approval')).toMatchObject({ success: false, event_kind: 'call' });
     });
 
+    it('ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-claude-mcp-shape', turn_id: 'turn-claude-mcp-shape', prompt: 'Brainbaseを検索して修正して', cwd: process.cwd() };
+        await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) }) }) });
+        const audit = [
+            'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
+            'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
+            '📚 Brainbase検索: Graphで「response-controlled-query」を検索 → 該当なし（不在確定ではない）'
+        ].join('\n');
+        const searched = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-claude-array',
+            tool_input: { query: 'safe-query' }, tool_response: [{ type: 'text', text: 'No results.' }, { type: 'text', text: audit }]
+        }, { env });
+        const requestedState = { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null };
+        const state = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-claude-state-string',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: JSON.stringify(requestedState)
+        }, { env });
+
+        expect(searched).toMatchObject({ success: true, event_kind: 'search', safe_metadata: { subject_ref: 'safe-query', retrieval_outcome: 'no_result' } });
+        expect(state).toMatchObject({ success: true, event_kind: 'state', safe_metadata: { stop_state: requestedState } });
+    });
+
     it('story-remote-judgment-hook:ac:6 Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };

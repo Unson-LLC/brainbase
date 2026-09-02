@@ -101,7 +101,7 @@ describe('OntologyRegistry', () => {
         try {
             const registry = new OntologyRegistry({ rootDir: sourceRoot });
             expect(registry.resolve()).toMatchObject({
-                entry: { version: '1.0.0', status: 'active' },
+                entry: { version: '1.1.0', status: 'active' },
                 kernel: { status: 'active' }
             });
         } finally {
