@@ -131,7 +131,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             '🧠 判断参照: 「Resolverを実行して」を参照 → Brainbase参照先の判断が必要 ✓'
         );
         expect(additionalContext).toContain('Intermediate commentary may omit the owner-visible audit block.');
-        expect(additionalContext).toContain('opened one judgment episode');
+        expect(additionalContext).toContain('opened one unresolved judgment episode');
         expect(additionalContext).toContain('there is no one-call-per-turn limit');
         expect(additionalContext).toContain(
             '必須capability `knowledge.resolve`を実行してください。許可されている正確なツールは ' +

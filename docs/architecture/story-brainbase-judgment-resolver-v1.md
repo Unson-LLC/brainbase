@@ -9,7 +9,7 @@ updated_at: 2026-08-11
 
 ## Problem
 
-Judgment Resolver originally existed as a model-callable MCP tool. Later, `UserPromptSubmit` correctly moved classification and canonical context into the Host before model generation, but it also treated that initial route receipt as the whole turn's final evidence. Brainbase tool use after the model started was invisible to the judgment journal, and the design implicitly encouraged one fixed lookup per turn.
+Judgment Resolver originally existed as a model-callable MCP tool. A later design moved both canonical context and semantic classification into `UserPromptSubmit`; that made a keyword classifier decide whether Brainbase was needed before the model could understand the request. The corrected boundary keeps canonical input in the Host, restores model-callable `brainbase_resolve_turn`, and records all subsequent Brainbase evidence in the judgment journal.
 
 The first issue was a trust-boundary defect. The remaining issue is a lifecycle defect: an initial routing judgment cannot prove which Brainbase sources were actually selected, searched, retrieved, or written during an iterative tool loop.
 
@@ -53,20 +53,20 @@ The model-visible MCP catalog has no Judgment Resolver tool. The persistent runt
 | Component | Current responsibility | Model use |
 | --- | --- | --- |
 | Codex lifecycle Host adapter | Preserve canonical conversation context, call the loopback bridge, verify the returned receipt binding, own episode/event/finalization lifecycle, and publish audit lines. It neither holds the Resolver signing secret nor semantically reclassifies after episode creation. | No internal LLM |
-| Persistent Brainbase Host bridge | Hold the API token, its copy of the shared `BRAINBASE_JUDGMENT_BINDING_SECRET`, and adapter identity outside model context; bind and sign the Resolver API request. | No internal LLM; not model-callable |
+| Persistent Brainbase Host bridge | Hold the API token, its copy of the shared `BRAINBASE_JUDGMENT_BINDING_SECRET`, and adapter identity outside model context; bind and sign the Resolver API request. | No internal LLM; transports the model-callable request |
 | Resolver API/server | Hold the verifier copy of the same shared `BRAINBASE_JUDGMENT_BINDING_SECRET`, then verify the bridge signature and binding before passing canonical input to the Judgment Resolver service. | No internal LLM |
-| Judgment Resolver service | Deterministically match explicit request/context evidence against manifest-owned `semantic_matchers`, inherit a bounded prior classification when the current request is an under-specified follow-up, apply the server-owned `general/answer` fallback to non-follow-up input with no explicit specialist match, apply safety floors and policies, and select the initial active DAG. | No LLM provider or model API |
+| Judgment Resolver service | Reconcile model interpretation with canonical input and manifest-owned policy, inherit bounded context for under-specified follow-ups, apply monotonic keyword safety rails and select the active DAG. | No LLM provider; does not own natural-language understanding |
 | Codex model | Decide how to answer inside the returned active DAG, formulate and refine queries from observed evidence, and call Brainbase knowledge/retrieval tools 0..N times. It cannot author or replace the initial classification. | The open-ended LLM in the current execution loop |
 | Knowledge Resolver | Deterministically select the canonical source route and required retrieval capability. It does not search or retrieve content. | No internal LLM |
 | Tool adapters | Perform file, shell, Graph, Personal KG, repo, Drive, wiki, and other operations. Every completed call produces a non-visible execution event; direct `mcp__brainbase__*` outcomes additionally produce owner-visible Brainbase audit lines. | Called by the Codex model |
 
-In the current implementation, `semantic_matchers` names the domain of matching; it does not imply embedding search or an internal Resolver LLM. A request that is neither a resolvable follow-up nor an explicit specialist match uses the v1 `general/answer` fallback; a follow-up with no resolvable referent or a knowledge route without required project context uses the clarification DAG. Adding model-assisted initial classification would be a new architecture and specification change, not an undocumented runtime detail.
+In the current implementation, `semantic_matchers` is a deterministic safety rail, not semantic understanding. A match may add obligations, action floors, risks, domains, or signals. An unmatched rule cannot remove model-derived requirements or force `general/answer`. A missing model interpretation, a follow-up with no resolvable referent, or a knowledge route without required project context uses the clarification DAG.
 
 ## Decision
 
 The accepted v1 runtime keeps initial classification deterministic and manifest-backed. The Codex lifecycle Host adapter supplies canonical context and owns the episode lifecycle, the persistent Brainbase Host bridge owns the signer copy of the shared secret and signs the API request, the Resolver API/server owns the verifier copy and verifies that signature, Judgment Resolver selects the bounded initial route, and the Codex model performs open-ended reasoning plus iterative Brainbase query refinement inside that route. Claude Code is a future Host-adapter candidate—specifically a lifecycle adapter—for the same responsibility split, but it is not part of the current episode-lifecycle hook integration and would not receive either copy of the shared secret.
 
-This division is intentional: it makes the pre-model trust boundary reproducible and auditable without pretending that deterministic matcher rules provide the semantic investigation performed by the agent model. Consequently, the current system has no hidden model provider, prompt, or API behind Judgment Resolver, and documentation must not refer to a "Resolver LLM."
+This division is intentional: the Codex model understands language, Brainbase owns policy and evidence, MCP transports the request, and Hooks enforce the lifecycle. Resolver has no hidden model provider; it validates the explicit `model_interpretation` supplied through `brainbase_resolve_turn`.
 
 Introducing model-assisted initial classification later would require a new Architecture and Spec decision covering provider ownership, context and prompt boundaries, latency and failure semantics, observability, cost, and how model output is constrained before it can select an active DAG.
 
@@ -84,7 +84,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 
 - Project binding is judgment context, not authorization. Inaccessible project policy is omitted without rejecting general judgment.
 - Managed clarification is a valid initial route and proceeds to model generation.
-- Binding/context/route integrity failure blocks before model generation.
+- Binding/context/route integrity failure blocks completion.
 - Concurrent `PostToolUse` processes are totally ordered by the Host's atomic journal commit, not by an unverifiable wall-clock call-start time. Episode start, event commit, and Stop finalization share one per-turn SQLite `BEGIN IMMEDIATE` transaction boundary, so no committed event can be inserted into an already finalized episode. The OS releases the transaction lock when a process exits; the Host never guesses whether a stale lock file is safe to delete.
 - The Host uses Node's built-in SQLite when the runtime provides it, avoiding native-addon CPU/ABI coupling between Codex and the interactive shell. Node 20 runtimes fall back to the locally installed `better-sqlite3` build.
 - A missing required route or a final answer that omits, duplicates, or reorders a stored owner-visible audit line returns `decision:block` on the first repairable Stop; no incomplete final receipt is written. If the active repeated Stop is still incomplete, it exits non-zero with `judgment_stop_repair_exhausted` instead of regenerating forever. Body preservation strips only the leading Host audit namespace block, including malformed variants, while keeping audit-like text after the business body starts. A true orphan Stop emits one visible degraded-warning repair, then converges to an immutable non-final `audit_degraded` receipt without asking for a new task; replay cannot reopen the repair loop. Identity or integrity ambiguity and transaction-acquisition timeout remain terminal fail-closed failures.
@@ -93,7 +93,8 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 
 ## Acceptance criteria
 
-1. Every `UserPromptSubmit` opens or reuses one judgment episode before model generation.
+1. Every `UserPromptSubmit` opens or reuses one unresolved judgment episode and saves canonical turn input.
+2. Every model turn calls `brainbase_resolve_turn` before other work, with the saved input unchanged and an explicit model interpretation.
 2. Judgment Resolver is absent from model-visible MCP tools.
 3. Canonical context preserves ordered exact user/assistant text and current request exactly once.
 4. Resolver owns deterministic manifest-backed classification, policy, required capabilities, and active-DAG selection, with no LLM provider/API dependency.

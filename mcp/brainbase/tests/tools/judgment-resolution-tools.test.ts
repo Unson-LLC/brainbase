@@ -107,10 +107,22 @@ function dependencies(fetchImpl: typeof globalThis.fetch, configuredProjectCodes
 }
 
 describe('judgment resolver Host bridge', () => {
-  it('Resolverをmodel-callable tool listへ公開しない', async () => {
-    assert.deepEqual(judgmentResolutionTools, []);
-    assert.equal(serverTesting.tools.some((tool) => tool.name === 'brainbase_judgment_resolve'), false);
-    assert.equal(await handleJudgmentResolutionToolCall('brainbase_judgment_resolve', args, dependencies(async () => new Response())), null);
+  it('resolve_turnをmodel-callable toolとして公開しmodel解釈を原文へ結合する', async () => {
+    assert.deepEqual(judgmentResolutionTools.map((tool) => tool.name), ['brainbase_resolve_turn']);
+    assert.equal(serverTesting.tools.some((tool) => tool.name === 'brainbase_resolve_turn'), true);
+    const mergedArgs = { ...args, model_interpretation: classification };
+    let posted: unknown = null;
+    const result = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+      turn_input: args,
+      model_interpretation: classification,
+    }, dependencies(async (_url, init) => {
+      posted = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify(receipt({
+        request_digest: computeJudgmentRequestDigest(mergedArgs),
+      })), { status: 200 });
+    }));
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(posted, mergedArgs);
   });
 
   it('Host内部callだけが署名付きAPI requestを送る', async () => {
