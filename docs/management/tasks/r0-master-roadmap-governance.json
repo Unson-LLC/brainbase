@@ -24,7 +24,7 @@
         "AC-002: machine source-lockへwork package crosswalkとProgram status vocabularyを固定する",
         "AC-003: 表示面とmachine面の固定revisionをfocused testで検証する",
         "AC-004: 更新したroadmapとsource-lockを生成済みdigestへ含める",
-        "AC-005: public testと配布物は参照元repoへのnetwork accessを要求しない",
+        "AC-005: public testと配布物は参照元repoへのnetwork accessを要求せず、固定snapshot更新時は新しいcommit・両artifact hash・検証証跡・独立reviewを必須とする",
         "AC-006: 文書と静的検証をProgram doneや本番実証へ昇格させない"
       ],
       "depends_on": [],
