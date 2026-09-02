@@ -976,7 +976,7 @@ function responseSucceeded(response, {
         || (allowTransportSuccess && validCallToolResultEnvelope(item))
         || (allowExplicitSuccess && (item.isError === false || item.is_error === false || item.ok === true || item.success === true || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())))
         || (allowImplicitSuccess && response !== null && response !== undefined)
-    )) || (allowTransportSuccess && validCallToolResultEnvelope(response));
+    )) || (allowTransportSuccess && !Array.isArray(response) && validCallToolResultEnvelope(response));
 }
 
 function responseCount(response) {

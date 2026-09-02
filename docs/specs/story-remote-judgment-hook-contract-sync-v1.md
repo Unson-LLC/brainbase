@@ -21,11 +21,14 @@ Brainbase `PostToolUse`に`tool_use_id`がない場合、canonical Hostのreason
 
 ## CL-003 Empty audit output
 
-dispatcherがPostToolUseの監査出力を返さない場合、HTTP adapterは`503`と`judgment_hook_audit_not_recorded`を返す既存契約を維持する。
+dispatcherがPostToolUseの監査出力を返さない場合、HTTP adapterは`503`と`judgment_hook_audit_not_recorded`を返す。例外は、利用者向け監査行を生成しない内部状態記録toolの完全名`mcp__brainbase__brainbase_judgment_state_record`だけとする。短縮名やその他のtoolは例外にしない。
 
 - Code: `mcp/brainbase/src/remote-judgment-hook-http.ts`
 - Test: `mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts`
 
-## CL-004 Scope
+## CL-004 Claude MCP response shapes
 
-変更対象はremote HTTP回帰テストとStory/Architecture/Spec/Task文書だけとし、本番コードは変更しない。
+Claude MCPが返すcontent block配列とJSON文字列は、既存の意味的成功条件を満たす場合だけ成功とする。`status:error`、`isError`、壊れたJSON、必須の検索監査行欠落は成功へ丸めない。
+
+- Code: `scripts/codex-hooks/judgment-resolver-host.mjs`
+- Test: `tests/unit/judgment-resolver-host.test.js`

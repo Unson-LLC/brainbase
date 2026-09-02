@@ -21,6 +21,15 @@
 4. 統合SHAを本番へデプロイしてサービスを再起動する。
 5. health、version、dirty状態、journal、Ontology検証、Graph全体検証を同一runで読み戻す。
 
+## 証拠契約
+
+- PR前は、本番4ファイルと保全commitのpatch ID、対象テスト、型検査をVibeProのverification/review artifactへ記録する。
+- merge後は、PR番号、CI結果、merge SHA、直前の本番SHAを配備receiptへ記録する。
+- 再投影後は、削除した公開鍵overrideの名前だけを記録し、秘密鍵と`key_id`の値は出力しない。Ontology 1.1.0の署名検証元がGit信頼ストアであることをreadbackで確認する。
+- 配備後は、checkout SHA、稼働process SHA、`/api/version`のSHAがmerge SHAと一致し、`dirty=false`であることを同一receiptに保存する。
+- Graph検証は同一runの`graph_validate(project_code=brainbase)`レスポンスを保存し、HTTP 200、`collection_complete=true`、構造違反0件、Ontology違反0件、`valid=true`を個別に照合する。一つでも欠落または不一致なら成功としない。
+- 復旧証拠は、保全commit、直前の本番SHA、本番差分の回復用backup pathに束縛する。
+
 ## 失敗時の扱い
 
 - 差分同一性またはテストが不一致なら、本番checkoutを変更しない。

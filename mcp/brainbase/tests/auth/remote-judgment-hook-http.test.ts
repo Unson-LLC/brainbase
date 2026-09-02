@@ -214,6 +214,24 @@ describe('remote judgment Hook HTTP boundary', () => {
     });
   });
 
+  for (const [label, toolNameKey, toolName] of [
+    ['bare tool name', 'tool_name', 'brainbase_judgment_state_record'],
+    ['camelCase payload alias', 'toolName', 'brainbase_judgment_state_record'],
+  ] as const) {
+    it(`does not widen the empty-audit exception to ${label}`, async () => {
+      const result = await handleRemoteJudgmentHookRequest(request({
+        body: Buffer.from(JSON.stringify({
+          hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
+          [toolNameKey]: toolName,
+        })),
+        dispatch: async () => ({ output: {} }),
+      }));
+      assert.deepEqual(result, {
+        status: 503, body: { error: 'judgment_hook_audit_not_recorded' },
+      });
+    });
+  }
+
   it('story-remote-judgment-hook:ac:4 fails closed when the canonical dispatcher is unavailable', async () => {
     const diagnostics: unknown[] = [];
     const transportError = Object.assign(new TypeError('secret transport detail'), {

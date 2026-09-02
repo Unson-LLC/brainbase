@@ -1399,6 +1399,25 @@ describe('Codex Judgment Resolver Host', () => {
 
         expect(searched).toMatchObject({ success: true, event_kind: 'search', safe_metadata: { subject_ref: 'safe-query', retrieval_outcome: 'no_result' } });
         expect(state).toMatchObject({ success: true, event_kind: 'state', safe_metadata: { stop_state: requestedState } });
+
+        const recordSearch = (id, toolResponse) => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__search', tool_use_id: id,
+            tool_input: { query: 'safe-query' }, tool_response: toolResponse
+        }, { env });
+        expect(recordSearch('tool-claude-array-error', [
+            { type: 'text', text: JSON.stringify({ status: 'error', error: 'unavailable' }) },
+            { type: 'text', text: audit }
+        ])).toMatchObject({ success: false, event_kind: 'search' });
+        expect(recordSearch('tool-claude-array-no-audit', [
+            { type: 'text', text: 'No results.' }
+        ])).toMatchObject({ success: false, event_kind: 'search' });
+        expect(recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-claude-state-malformed',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: '{not-json'
+        }, { env })).toMatchObject({ success: false, event_kind: 'state' });
     });
 
     it('story-remote-judgment-hook:ac:6 Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {
