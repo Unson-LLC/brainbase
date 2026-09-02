@@ -93,6 +93,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(convergence).toContain('global_hook_sha');
         expect(convergence).toContain('local_ui_sha');
         expect(convergence).toContain('mcp_runtime_sha');
+        expect(convergence).toContain('/health/version');
+        expect(convergence).toContain('mcp.version.json');
         expect(convergence).toContain('lightsail_sha');
         expect(convergence).toContain('surfaces.evidence.json');
         expect(convergence).toContain('process_sha');
@@ -102,8 +104,11 @@ describe('judgment resolver publication surfaces', () => {
         expect(convergence).toContain('ontology.evidence.json');
         expect(convergence).toContain('repository_digest');
         expect(convergence).toContain('production_digest');
-        expect(convergence).toContain("trust_source: 'git_trust_store'");
-        expect(convergence).toContain("signature_verification: 'verified'");
+        expect(convergence).toContain('production.publication_verification');
+        expect(convergence).toContain('trust_source: verification.trust_source');
+        expect(convergence).toContain('signature_verification: verification.status');
+        expect(convergence).toContain("evidence.trust_source !== 'git_trust_store'");
+        expect(convergence).toContain("evidence.signature_verification !== 'verified'");
         expect(convergence).toContain('/api/info/graph/maintenance/validate');
         expect(convergence).toContain('"strict_collection":true');
         expect(convergence).toContain('graph_http_status');

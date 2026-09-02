@@ -66,6 +66,7 @@ import {
   REMOTE_JUDGMENT_HOOK_PATH,
   type RemoteJudgmentHookDispatchResult,
 } from './remote-judgment-hook-http.js';
+import { readRuntimeVersion } from './runtime-version.js';
 
 // Global index. Runtime lookups rebuild and atomically swap this snapshot.
 let entityIndex: EntityIndex;
@@ -1276,6 +1277,12 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
       if (req.method === 'GET' && req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('ok');
+        return;
+      }
+      if (req.method === 'GET' && req.url === '/health/version') {
+        const readback = readRuntimeVersion();
+        res.writeHead(readback.status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(readback.body));
         return;
       }
       if (req.method === 'POST' && req.url === REMOTE_JUDGMENT_HOOK_PATH) {

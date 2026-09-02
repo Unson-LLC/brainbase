@@ -93,7 +93,11 @@ export class InfoSSOTService {
 
     describeOntology({ version, asOf } = {}) {
         const release = this.resolveOntology({ version, asOf });
-        return { ...release.kernel.describe(), digest: release.digest };
+        return {
+            ...release.kernel.describe(),
+            digest: release.digest,
+            publication_verification: release.publicationVerification
+        };
     }
 
     describeOntologyType(id, { version, asOf } = {}) {

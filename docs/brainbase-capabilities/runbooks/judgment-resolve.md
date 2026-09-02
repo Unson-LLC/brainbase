@@ -361,6 +361,7 @@ set -euo pipefail
 : "${TARGET_SHA:?Set the merged develop SHA}"
 : "${BRAINBASE_ROLLBACK_STATE_DIR:?Set the captured rollback directory}"
 grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
+export TARGET_SHA
 export BRAINBASE_PRODUCTION_RUN_ID="production-convergence-$(date -u +%Y%m%dT%H%M%SZ)"
 export BRAINBASE_PRODUCTION_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/${BRAINBASE_PRODUCTION_RUN_ID}.XXXXXX")"
 chmod 700 "$BRAINBASE_PRODUCTION_RUN_DIR"
@@ -457,6 +458,14 @@ launchctl print "gui/$(id -u)/com.brainbase.mcp-brainbase" \
 grep -Eq 'state = running|pid = [1-9][0-9]*' "$BRAINBASE_PRODUCTION_RUN_DIR/mcp.launchctl.txt"
 grep -F '/Users/ksato/workspace/repos/.runtime/brainbase-31013' \
   "$BRAINBASE_PRODUCTION_RUN_DIR/mcp.launchctl.txt"
+curl -fsS http://127.0.0.1:39002/health/version \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/mcp.version.json"
+MCP_VERSION="$BRAINBASE_PRODUCTION_RUN_DIR/mcp.version.json" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(process.env.MCP_VERSION,"utf8"));
+const runtime=value.runtime;
+if(value.ready!==true||runtime?.git?.sha!==process.env.TARGET_SHA||runtime?.git?.dirty!==false
+  ||!Number.isInteger(runtime?.pid)||runtime.pid<1||!Number.isFinite(Date.parse(runtime?.started_at)))process.exit(1);
+'
 curl -fsS https://bb.unson.jp/api/version > "$BRAINBASE_PRODUCTION_RUN_DIR/lightsail.version.json"
 LIGHTSAIL_VERSION="$BRAINBASE_PRODUCTION_RUN_DIR/lightsail.version.json" node -e '
 const value=JSON.parse(require("node:fs").readFileSync(process.env.LIGHTSAIL_VERSION,"utf8"));
@@ -474,6 +483,7 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 const read = (name) => fs.readFileSync(`${process.env.RUN_DIR}/${name}`, 'utf8').trim();
 const localVersion = JSON.parse(read('local-ui.version.json'));
+const mcpVersion = JSON.parse(read('mcp.version.json'));
 const lightsailVersion = JSON.parse(read('lightsail.version.json'));
 const hookBytes = fs.readFileSync(process.env.HOOK_ENTRYPOINT);
 const sha = (name) => read(name);
@@ -488,7 +498,9 @@ const surfaces = {
     dirty: localVersion.runtime?.git?.dirty, readiness: 'version_readback_passed'
   },
   mcp_runtime: {
-    checkout_sha: sha('mcp_runtime_sha'), process_sha: sha('mcp_runtime_sha'), dirty: false,
+    checkout_sha: sha('mcp_runtime_sha'), process_sha: mcpVersion.runtime?.git?.sha,
+    dirty: mcpVersion.runtime?.git?.dirty, pid: mcpVersion.runtime?.pid,
+    started_at: mcpVersion.runtime?.started_at,
     readiness: 'launcher_check_and_launchctl_running'
   },
   lightsail: {
@@ -516,19 +528,23 @@ const fs = require('node:fs');
 const production = JSON.parse(fs.readFileSync(process.env.ONTOLOGY, 'utf8'));
 const index = JSON.parse(fs.readFileSync('config/ontology/index.json', 'utf8'));
 const entry = index.releases.find((item) => item.version === '1.1.0');
-const receipt = JSON.parse(fs.readFileSync(`config/ontology/${entry.receipt_path}`, 'utf8'));
 const infisical = JSON.parse(fs.readFileSync(process.env.INFISICAL_EVIDENCE, 'utf8'));
+const verification = production.publication_verification || {};
 const evidence = {
   version: production.version,
   repository_digest: entry.content_digest,
   production_digest: production.digest,
-  key_id: receipt.key_id,
-  trust_source: 'git_trust_store',
-  signature_verification: 'verified',
+  key_id: verification.key_id,
+  trust_source: verification.trust_source,
+  signature_verification: verification.status,
+  receipt_digest: verification.receipt_digest,
   public_key_override_present: infisical.public_key_override_present_after
 };
 if (evidence.version !== '1.1.0' || evidence.repository_digest !== evidence.production_digest
-  || !evidence.key_id || evidence.public_key_override_present !== false) process.exit(1);
+  || !evidence.key_id || evidence.trust_source !== 'git_trust_store'
+  || evidence.signature_verification !== 'verified'
+  || !/^[a-f0-9]{64}$/.test(evidence.receipt_digest || '')
+  || evidence.public_key_override_present !== false) process.exit(1);
 process.stdout.write(JSON.stringify(evidence));
 NODE
 GRAPH_BODY="$BRAINBASE_PRODUCTION_RUN_DIR/graph.validate.json"

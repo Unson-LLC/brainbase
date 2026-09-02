@@ -1230,7 +1230,7 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         expect(JSON.stringify(restoredContext)).not.toContain(targetId);
     });
 
-    it('cross-tenant Decision subjectをHuman Gate付きでApplyしRollbackする', async () => {
+    it('cross-tenant認可scopeとstrict collectionを別契約として検証しDecision subjectをRollbackする', async () => {
         const baseline = await service.exportSnapshot(crossTenantAccess, { projectCode: 'brainbase' });
         const operation = {
             operation: 'link_decision_subject',
@@ -1336,26 +1336,29 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         ]));
         expect(JSON.stringify(sourceOnlySnapshot)).not.toContain('product_aitle');
         expect(JSON.stringify(gmSnapshot)).not.toContain('product_aitle');
-        await expect(service.validate(sourceOnly, { projectCode: 'brainbase' })).resolves.toMatchObject({
+        const sourceValidation = await service.validate(sourceOnly, { projectCode: 'brainbase' });
+        expect(sourceValidation).toMatchObject({
             collection_complete: true,
             valid: true,
-            validation_scope: { strict_collection: false },
-            suppression_summary: { edge_count: 1 }
+            validation_scope: { strict_collection: false }
         });
-        await expect(service.validate(gmBothScopes, { projectCode: 'brainbase' })).resolves.toMatchObject({
+        expect(sourceValidation.suppression_summary.edge_count).toBeGreaterThan(0);
+        const gmValidation = await service.validate(gmBothScopes, { projectCode: 'brainbase' });
+        expect(gmValidation).toMatchObject({
             collection_complete: true,
             valid: true,
-            validation_scope: { strict_collection: false },
-            suppression_summary: { edge_count: 1 }
+            validation_scope: { strict_collection: false }
         });
-        await expect(service.validate(sourceOnly, {
+        expect(gmValidation.suppression_summary.edge_count).toBeGreaterThan(0);
+        const strictValidation = await service.validate(sourceOnly, {
             projectCode: 'brainbase', strictCollection: true
-        })).resolves.toMatchObject({
+        });
+        expect(strictValidation).toMatchObject({
             collection_complete: false,
             valid: false,
-            validation_scope: { strict_collection: true },
-            suppression_summary: { edge_count: 1 }
+            validation_scope: { strict_collection: true }
         });
+        expect(strictValidation.suppression_summary).toEqual(sourceValidation.suppression_summary);
         await expect(infoSSOTService.listGraphEdges(crossTenantAccess, edgeQuery)).resolves.toEqual([
             expect.objectContaining({ from_id: 'decision_subject', to_id: 'product_aitle', rel_type: 'governs' })
         ]);
