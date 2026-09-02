@@ -1,4 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import {
   authenticateProject,
   fetchAuthenticatedJson,
@@ -22,8 +23,68 @@ export type JudgmentResolutionDependencies = AuthenticatedApiDependencies & {
   now?: () => Date;
 };
 
-// Judgment resolution is a Host pre-model contract, not a model-callable MCP tool.
-export const judgmentResolutionTools = [];
+export type TurnInput = {
+  request: string;
+  turn_id: string;
+  project_code?: string;
+  conversation_context: Record<string, unknown>;
+};
+
+export type ModelInterpretation = {
+  intent: typeof INTENTS[number];
+  domains: Array<typeof DOMAINS[number]>;
+  action_kind: typeof ACTIONS[number];
+  risk: typeof RISKS[number];
+  confidence: typeof CONFIDENCES[number];
+  signals: Array<typeof SIGNALS[number]>;
+};
+
+export type TurnContract = Record<string, unknown> & {
+  turn_id: string;
+  request_digest: string;
+  required_capabilities: Array<Record<string, unknown>>;
+};
+
+export type ToolEvidence = {
+  tool_name: string;
+  tool_use_id: string;
+  success: boolean;
+  satisfies: string[];
+};
+
+export type CompletionReceipt = {
+  turn_id: string;
+  event_count: number;
+  event_set_digest: string;
+};
+
+const classificationSchema = {
+  type: 'object',
+  properties: {
+    intent: { type: 'string', enum: INTENTS },
+    domains: { type: 'array', items: { type: 'string', enum: DOMAINS }, minItems: 1, uniqueItems: true },
+    action_kind: { type: 'string', enum: ACTIONS },
+    risk: { type: 'string', enum: RISKS },
+    confidence: { type: 'string', enum: CONFIDENCES },
+    signals: { type: 'array', items: { type: 'string', enum: SIGNALS }, uniqueItems: true },
+  },
+  required: ['intent', 'domains', 'action_kind', 'risk', 'confidence', 'signals'],
+  additionalProperties: false,
+} as const;
+
+export const judgmentResolutionTools: Tool[] = [{
+  name: 'brainbase_resolve_turn',
+  description: 'Resolve the current turn contract after the model has interpreted the user request. Call exactly once before other work; pass the Hook-provided turn_input unchanged and add only model_interpretation.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      turn_input: { type: 'object' },
+      model_interpretation: classificationSchema,
+    },
+    required: ['turn_input', 'model_interpretation'],
+    additionalProperties: false,
+  },
+}];
 
 function compareCodePoints(left: string, right: string): number {
   const a = Array.from(left, (value) => value.codePointAt(0) as number);
@@ -300,12 +361,21 @@ export async function resolveJudgmentBeforeModel(
   return { status: 'ok', scope: { project_codes: context.scope }, data: payload };
 }
 
-/** @deprecated Judgment Resolver is no longer model-callable. */
+/** Dispatch the model-callable turn resolver and the temporary internal compatibility name. */
 export async function handleJudgmentResolutionToolCall(
   name: string,
   args: Record<string, unknown>,
   dependencies: JudgmentResolutionDependencies,
 ): Promise<ToolResult | null> {
+  if (name === 'brainbase_resolve_turn') {
+    if (!isRecord(args.turn_input) || !isRecord(args.model_interpretation)) {
+      return toolError('error', 'judgment_resolution_input_invalid', 'turn_input and model_interpretation are required', []);
+    }
+    return resolveJudgmentBeforeModel({
+      ...args.turn_input,
+      model_interpretation: args.model_interpretation,
+    }, dependencies);
+  }
   if (name !== 'brainbase_judgment_resolve_internal') return null;
   return resolveJudgmentBeforeModel(args, dependencies);
 }

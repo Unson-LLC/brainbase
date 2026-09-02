@@ -34,6 +34,9 @@ function body(overrides = {}) {
         turn_id: turnId,
         ...(projectCode === undefined ? {} : { project_code: projectCode }),
         conversation_context: { ...contextWithoutDigest, source_digest: computeRequestDigest(contextWithoutDigest) },
+        model_interpretation: {
+            intent: 'answer', domains: ['general'], action_kind: 'none', risk: 'low', confidence: 'confirmed', signals: []
+        },
         ...rest
     };
 }
@@ -127,7 +130,10 @@ describe('judgment resolution API', () => {
     it('knowledge requestのproject不足を不完全handoffではなくclarificationへ写像する', async () => {
         const payload = body({
             request: 'Brainbaseの判断履歴を調べて',
-            project_code: undefined
+            project_code: undefined,
+            model_interpretation: {
+                intent: 'investigate', domains: ['knowledge'], action_kind: 'read', risk: 'low', confidence: 'confirmed', signals: []
+            }
         });
         const response = await request(app()).post('/api/judgment/resolve').set(bindingHeaders(payload)).send(payload);
         expect(response.status).toBe(200);
@@ -142,7 +148,10 @@ describe('judgment resolution API', () => {
         ['service credential', 'internal_api']
     ])('personal judgmentを%sへ公開しない', async (_label, personId) => {
         const payload = body({
-            request: '俺の思考アルゴリズムで判断して'
+            request: '俺の思考アルゴリズムで判断して',
+            model_interpretation: {
+                intent: 'answer', domains: ['personal_judgment'], action_kind: 'none', risk: 'medium', confidence: 'confirmed', signals: []
+            }
         });
         const response = await request(app({
             access: { personId, tenantId: 'unson', projectCodes: ['brainbase'] }

@@ -1,6 +1,6 @@
 # Judgment episode runbook
 
-Judgment Resolver is a Host lifecycle boundary. Every managed Codex turn has one judgment episode because choosing how to answer is itself a judgment. Normally it opens before model generation. A Codex App delegated turn whose `UserPromptSubmit` did not fire may recover only at the first Stop and is explicitly marked as post-generation recovery. The model does not call Resolver and does not author classification or `conversation_context`.
+Judgment Resolver is a Host lifecycle boundary. Every managed Codex turn has one judgment episode because choosing how to answer is itself a judgment. `UserPromptSubmit` opens an unresolved episode and preserves canonical `conversation_context`; it does not classify meaning. The Codex model authors a semantic model interpretation and calls `brainbase_resolve_turn` before other work. A Codex App delegated turn whose `UserPromptSubmit` did not fire may recover only at the first Stop and is explicitly marked as post-generation recovery.
 
 ## Component responsibilities
 
@@ -42,7 +42,7 @@ Stop does not ask another model to grade the answer. It mechanically checks that
 - repo-relative instruction bindings with content digests
 - completeness marker and canonical `source_digest`
 
-The Host does not summarize history or guess semantic relevance. Resolver uses deterministic manifest-backed matching to classify the canonical context and select the initial route; the current runtime does not call an LLM provider. Non-follow-up input with no explicit specialist match uses the server-owned `general/answer` fallback. An unresolved follow-up reference or a knowledge route without required project context uses the clarification DAG. The current Codex model then owns open-ended query formulation and iterative investigation inside that route. Claude Code is a future Host-adapter candidate for the same responsibility split, but is not part of the current episode-lifecycle hook integration. Project binding is judgment context, not action authority; inaccessible project policy is omitted without making general judgment unavailable.
+The Host does not summarize history or guess semantic relevance. The Codex model interprets the request, while Resolver combines that model interpretation with canonical input and manifest-backed policy to select the active route. Deterministic keyword matching is a monotonic safety rail: matches may add obligations, action floors, risks, domains, or signals; unmatched text cannot remove requirements or force a `general/answer` fallback. An unresolved follow-up reference or a knowledge route without required project context uses the clarification DAG. Project binding is judgment context, not action authority; inaccessible project policy is omitted without making general judgment unavailable.
 
 ## Episode journal
 

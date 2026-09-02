@@ -281,7 +281,7 @@ describe('Codex Judgment Resolver Host', () => {
         };
         const output = successOutput(args, receipt);
         const context = output.hookSpecificOutput.additionalContext;
-        expect(context).toContain('Brainbase Judgment Resolver Host opened one judgment episode');
+        expect(context).toContain('Brainbase Judgment Resolver Host opened one unresolved judgment episode');
         expect(context).not.toContain('jr_private-1');
         expect(context).not.toContain('global.goal-before-solution.v1');
         expect(context).not.toContain('Initial route receipt:');
@@ -395,7 +395,7 @@ describe('Codex Judgment Resolver Host', () => {
             '`mcp__brainbase__brainbase_knowledge_resolve` です。' + sharedActionContract
         );
         expect(requiredContext).toContain(
-            'The Host-fixed initial route and classification are immutable for this episode; do not recalculate or change them.'
+            'Use the returned TurnContract as the immutable route and capability contract for this episode.'
         );
         expect(requiredContext).toContain(sharedActionContract);
         expect(requiredContext).not.toContain('Do not call Judgment Resolver again');
@@ -896,6 +896,40 @@ describe('Codex Judgment Resolver Host', () => {
             `${hash(payload.turn_id)}.transition.sqlite`
         ]);
         expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(false);
+    });
+
+    it('model解釈待ちで開始した新方式episodeはresolve_turn証拠なしに完了させない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-model-first', turn_id: 'turn-model-first',
+            prompt: 'この修正を行って', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            status: 'needs_classification',
+            reconciliation_reasons: ['model_interpretation_missing'],
+            classification: { intent: 'answer', domains: ['general'], action_kind: 'none' },
+            required_capabilities: []
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false,
+            last_assistant_message: `${episode.owner_audit.display_line}\n回答`
+        }, { env });
+
+        expect(stopped.output).toMatchObject({ decision: 'block' });
+        expect(stopped.continuation.missing_capabilities).toContain('judgment.resolve_turn');
+        expect(stopped.final).toBeNull();
     });
 
     it('episode開始の未分類例外を入力構築段階の安全な正規コードへ変換する', async () => {

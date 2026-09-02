@@ -32,7 +32,6 @@ function proposal(overrides = {}) {
 }
 
 function input(request, classificationProposal = proposal(), overrides = {}) {
-    void classificationProposal;
     const hasProjectCode = Object.hasOwn(overrides, 'project_code');
     const projectCode = hasProjectCode ? overrides.project_code : 'brainbase';
     const legacyContext = overrides.conversation_context;
@@ -77,6 +76,7 @@ function input(request, classificationProposal = proposal(), overrides = {}) {
     return {
         request,
         turn_id: 'host-turn-1',
+        ...(classificationProposal === undefined ? {} : { model_interpretation: classificationProposal }),
         ...(projectCode === undefined ? {} : { project_code: projectCode }),
         conversation_context: conversationContext,
         ...rest
@@ -279,8 +279,8 @@ describe('JudgmentResolutionService', () => {
             intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
         })), { access: ACCESS, hostBinding: binding() });
 
-        expect(receipt.status).toBe('needs_classification');
-        expect(receipt.reconciliation_reasons).toContain('conversation_referent_missing');
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification).toMatchObject({ intent: 'implement', domains: ['engineering'] });
     });
 
     it.each([
@@ -538,7 +538,7 @@ describe('JudgmentResolutionService', () => {
             intent: 'implement', domains: ['engineering'], action_kind: 'write'
         });
         expect(receipt.classification_evidence).toMatchObject({
-            source: 'prior_message', source_turn_ids: ['turn-engineering']
+            source: 'current_request', source_turn_ids: ['host-turn-1']
         });
         expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
     });
@@ -564,7 +564,7 @@ describe('JudgmentResolutionService', () => {
 
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification).toMatchObject({ intent: 'answer', domains: ['general'], action_kind: 'none', risk: 'low' });
-        expect(receipt.classification_evidence.matcher_ids).toEqual([]);
+        expect(receipt.classification_evidence.matcher_ids).toEqual(['model_interpretation']);
     });
 
     it('現在の命令にあるPR公開は引き続きexternalとして分類する', () => {
@@ -779,17 +779,7 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification.action_kind).toBe('none');
         expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
-        expect(receipt).toMatchObject({
-            autonomy_decision: 'continue',
-            autonomy_reason_code: 'routine_in_scope',
-            allowed_runtime_escalation_reasons: [
-                'irreversible_action',
-                'missing_authority',
-                'owner_value_choice',
-                'required_input_unavailable',
-                'evidenced_terminal_blocker'
-            ]
-        });
+        expect(receipt).toMatchObject({ autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external' });
     });
 
     it('制約内の手動マージ言及をwrite命令と誤認せずVibeProの判断DAGを一度で解決する', () => {
@@ -839,14 +829,13 @@ describe('JudgmentResolutionService', () => {
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:9
-    it('専門依頼はmodel提案なしでserverが分類しaction floorを適用する', () => {
-        const receipt = service.resolve(input('認証APIを実装して'), { access: ACCESS, hostBinding: binding() });
+    it('model解釈がないturnをserver分類だけで確定しない', () => {
+        const rawInput = input('認証APIを実装して');
+        delete rawInput.model_interpretation;
+        const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
 
-        expect(receipt.status).toBe('resolved');
-        expect(receipt.classification).toMatchObject({
-            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
-        });
-        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        expect(receipt.status).toBe('needs_classification');
+        expect(receipt.unresolved).toContain('model_interpretation_missing');
     });
 
     it('modelがclassification_proposalを注入できない', () => {
@@ -856,11 +845,12 @@ describe('JudgmentResolutionService', () => {
         }, { access: ACCESS, hostBinding: binding() })).toThrowError(/classification_proposal is not allowed/u);
     });
 
-    it('proposalがなくても一般依頼を毎turn判断する', () => {
-        const receipt = service.resolve(input('もっと良くして'), { access: ACCESS, hostBinding: binding() });
-        expect(receipt.status).toBe('resolved');
-        expect(receipt.classification).toMatchObject({ intent: 'answer', domains: ['general'], action_kind: 'none' });
-        expect(receipt.classification_evidence.source).toBe('current_request');
+    it('model解釈がない一般依頼をgeneralとして自動確定しない', () => {
+        const rawInput = input('もっと良くして');
+        delete rawInput.model_interpretation;
+        const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
+        expect(receipt.status).toBe('needs_classification');
+        expect(receipt.unresolved).toContain('model_interpretation_missing');
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:8
@@ -892,7 +882,9 @@ describe('JudgmentResolutionService', () => {
     });
 
     it('knowledge project不足は不完全なhandoffを返さずclarificationへ落とす', () => {
-        const rawInput = input('判断履歴を調べて', proposal(), { project_code: undefined });
+        const rawInput = input('判断履歴を調べて', proposal({
+            intent: 'investigate', domains: ['knowledge'], action_kind: 'read'
+        }), { project_code: undefined });
         const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
         expect(receipt.status).toBe('needs_classification');
         expect(receipt.reconciliation_reasons).toContain('knowledge_project_code_missing');
@@ -983,7 +975,7 @@ describe('JudgmentResolutionService', () => {
         }));
         const firstReceipt = service.resolve(first, { access: ACCESS, hostBinding: binding() });
         const secondReceipt = service.resolve(second, { access: ACCESS, hostBinding: binding() });
-        expect(firstReceipt.request_digest).toBe(secondReceipt.request_digest);
+        expect(firstReceipt.request_digest).not.toBe(secondReceipt.request_digest);
         expect(firstReceipt.plan_digest).toBe(secondReceipt.plan_digest);
         expectExactResolvedPlan(firstReceipt, {
             dagIds: ['engineering.v1', 'operations.v1', 'authority.v1', 'external-outcome.v1'],

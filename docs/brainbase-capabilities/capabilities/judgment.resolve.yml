@@ -1,12 +1,12 @@
 id: judgment.resolve
 name: Host judgment episode lifecycle
-purpose: Normally open one context-bound judgment episode before model generation, recover an explicitly post-generation Codex App delegation episode at the first Stop only when its session and turn are exact, record 0..N actual Brainbase calls, finalize one auditable episode receipt at Stop, and expose only the selected active DAG without authorizing the eventual action.
+purpose: Open one unresolved context-bound judgment episode at UserPromptSubmit, require the Codex model to resolve it through Brainbase before answering, record actual Brainbase calls, and finalize one auditable episode receipt at Stop without authorizing the eventual action.
 surfaces:
   ui:
     - Codex in-progress systemMessage when Stop rejects an unnecessary user question
     - Final owner audit line for a journal-proven autonomy continuation
     - Final Stop repair audit line only when the immutable continuation journal proves one completed repair
-  mcp: []
+  mcp: [brainbase_resolve_turn]
   host:
     - UserPromptSubmit -> POST http://127.0.0.1:39002/host/judgment/resolve
     - PostToolUse -> append-only Brainbase tool event
@@ -34,14 +34,15 @@ depends_on:
   - graph.ssot
   - knowledge.resolve
 visibility_rules:
-  - A normal Codex turn opens one judgment episode before model generation because answering is also a judgment. It records `episode_origin=user_prompt_submit` and `route_application=pre_generation`.
+  - A normal Codex turn opens one unresolved judgment episode at UserPromptSubmit because answering is also a judgment. The model then calls `brainbase_resolve_turn` with its semantic interpretation before other work.
   - If Codex App delegation omitted UserPromptSubmit, the first Stop may recover exactly one current-turn complete `codex_delegation` from `create_thread` or `send_message_to_thread` only when the transcript contains one connected current-session alias component. Foreign session components, multiple candidates, malformed envelopes, and other tools fail closed. The recovered episode records `episode_origin=stop_delegation_recovery` and `route_application=post_generation_recovery`; its route governs Stop and later continuation, never the already-generated initial answer.
   - The Host constructs canonical conversation_context from ordered raw conversation messages, prior finalized episodes, runtime/project data, and instruction digests.
   - The model cannot call Judgment Resolver and cannot submit classification or a model-authored context summary.
   - Judgment Resolver has no internal LLM; deterministic manifest-owned semantic_matchers, bounded prior-context inheritance, safety floors, and policies select the initial route.
-  - Non-follow-up input with no explicit specialist domain or intent match uses the server-owned `general/answer` fallback; unresolved follow-up references or knowledge routes missing required project context use the clarification DAG.
-  - UserPromptSubmit or the bounded Stop recovery adopts exactly one initial route receipt; retries are bounded before episode creation and no reclassification occurs afterwards.
-  - The Host fixes the initial route and classification. When `knowledge.resolve` is required, UserPromptSubmit explicitly names the allowed exact tool `mcp__brainbase__brainbase_knowledge_resolve`, explains that it selects the canonical source and next retrieval path without retrieving the answer body, and distinguishes it from route reclassification. Stop repair uses the same capability-action contract.
+  - The model interpretation owns semantic classification. Deterministic keyword matches may only add obligations, action floors, risks, domains, or signals; an unmatched rule never removes a capability or implies `general/answer`.
+  - UserPromptSubmit opens exactly one unresolved episode and stores canonical turn input; it does not classify semantics or decide whether Brainbase is required.
+  - The model calls `brainbase_resolve_turn` exactly once with the unchanged turn input and its semantic interpretation. Brainbase returns the immutable TurnContract; hard keyword matchers may add obligations and risk but may never remove model-inferred requirements.
+  - Stop requires successful current-turn `resolve_turn` evidence before it compares TurnContract capabilities with PostToolUse evidence.
   - The Resolver deterministically fixes autonomy_decision as continue or escalate in the initial receipt. Stop verifies answer compliance without asking another model to re-grade the task; the legacy Stop-time model evaluator is used only for already-open legacy receipts during rollout.
   - Continue completes low/medium-risk in-scope work without preference or just-in-case questions. It may escalate at runtime only for irreversible action, missing authority, an owner-only value choice, unavailable required input, or an evidenced terminal blocker. Escalate requires one exact reason-marked confirmation and never authorizes the action.
   - The current Codex model is the open-ended LLM in the execution loop. It decides how to answer inside the selected DAG and may formulate, refine, and call Brainbase knowledge/retrieval tools 0..N times as results create new questions; there is no one-call-per-turn limit.

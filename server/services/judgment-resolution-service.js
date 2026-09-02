@@ -9,7 +9,7 @@ const MODULE_DIRECTORY = import.meta.url.startsWith('file:')
 const MANIFEST_PATH = resolve(MODULE_DIRECTORY, '../../config/judgment-runtime-manifest.json');
 const MANIFEST_LOCK_PATH = resolve(MODULE_DIRECTORY, '../../config/judgment-runtime-manifest-lock.json');
 
-const INPUT_FIELDS = new Set(['request', 'turn_id', 'project_code', 'conversation_context']);
+const INPUT_FIELDS = new Set(['request', 'turn_id', 'project_code', 'conversation_context', 'model_interpretation']);
 const CLASSIFICATION_FIELDS = new Set(['intent', 'domains', 'action_kind', 'risk', 'confidence', 'signals']);
 const CONVERSATION_CONTEXT_FIELDS = new Set([
     'schema_version', 'session_ref', 'messages', 'prior_receipts', 'runtime',
@@ -649,7 +649,65 @@ function validateInput(rawInput, manifest) {
         request,
         turn_id: turnId,
         project_code: rawInput.project_code === undefined ? null : requiredString(rawInput.project_code, 'project_code'),
-        conversation_context: conversationContext
+        conversation_context: conversationContext,
+        model_interpretation: rawInput.model_interpretation === undefined
+            ? null
+            : validatedClassification(rawInput.model_interpretation, 'model_interpretation', manifest)
+    };
+}
+
+function reconcileModelInterpretation(input, manifest) {
+    if (!input.model_interpretation) {
+        return {
+            status: 'needs_classification', classification: null, assurance: 'unknown',
+            reasons: ['model_interpretation_missing'],
+            evidence: { source: 'resolver', source_turn_ids: [], matcher_ids: [] }
+        };
+    }
+    // Host matchers are monotonic safety rails: they may only add risk,
+    // action floors, signals, and capabilities. They never replace or weaken
+    // the model's semantic interpretation.
+    const hardSignals = classify(input, manifest);
+    const hardClassification = hardSignals.classification;
+    const hardIsSpecific = hardClassification
+        && !(hardClassification.intent === 'answer' && hardClassification.domains.length === 1 && hardClassification.domains[0] === 'general');
+    const classification = {
+        ...input.model_interpretation,
+        intent: hardIsSpecific ? hardClassification.intent : input.model_interpretation.intent,
+        domains: hardIsSpecific
+            ? (input.model_interpretation.domains.length === 1 && input.model_interpretation.domains[0] === 'general'
+                ? hardClassification.domains
+                : sortByOrder([...new Set([...input.model_interpretation.domains, ...hardClassification.domains])], manifest.selectors.domain_order))
+            : input.model_interpretation.domains,
+        action_kind: hardClassification
+            ? indexFloor(ACTIONS, input.model_interpretation.action_kind, hardClassification.action_kind)
+            : input.model_interpretation.action_kind,
+        risk: hardClassification
+            ? indexFloor(RISKS, input.model_interpretation.risk, hardClassification.risk)
+            : input.model_interpretation.risk,
+        signals: sortByOrder([
+            ...new Set([
+                ...input.model_interpretation.signals,
+                ...(hardClassification?.signals ?? [])
+            ])
+        ], manifest.selectors.signal_order)
+    };
+    if (classification.domains.includes('knowledge') && !input.project_code) {
+        return {
+            status: 'needs_classification', classification: null, assurance: 'unknown',
+            reasons: ['knowledge_project_code_missing'],
+            evidence: { source: 'resolver', source_turn_ids: [input.turn_id], matcher_ids: [] }
+        };
+    }
+    return {
+        status: 'resolved',
+        classification,
+        assurance: classification.confidence === 'confirmed' ? 'verified' : 'bounded',
+        reasons: hardSignals.reasons,
+        evidence: {
+            source: 'current_request', source_turn_ids: [input.turn_id],
+            matcher_ids: [...new Set(['model_interpretation', ...(hardSignals.evidence?.matcher_ids ?? [])])]
+        }
     };
 }
 
@@ -993,7 +1051,7 @@ export class JudgmentResolutionService {
         if (!this.hasHostBinding(hostBinding.adapter_id, hostBinding.adapter_version)) {
             fail('host binding is not registered', 'judgment_host_binding_untrusted', 403);
         }
-        const reconciliation = classify(input, this.manifest);
+        const reconciliation = reconcileModelInterpretation(input, this.manifest);
         const wantsPersonal = reconciliation.classification?.domains.includes('personal_judgment');
         const allowedOwnerIds = new Set([this.personalOwnerPersonId, ...this.personalOwnerAliasIds].filter(Boolean));
         if (wantsPersonal && (access.personId === 'internal_api' || !allowedOwnerIds.has(access.personId))) {
@@ -1052,12 +1110,12 @@ export class JudgmentResolutionService {
             ...graph,
             active_node_definitions: materializeActiveNodeDefinitions(graph.active_nodes, this.manifest),
             unresolved: status === 'needs_classification'
-                ? ['classification']
+                ? reconciliation.reasons
                 : status === 'needs_policy_resolution'
                     ? ['policy_conflict']
                     : [],
             rationale: status === 'needs_classification'
-                ? ['Semantic classification was not verified by a server-owned matcher.']
+                ? ['Model semantic interpretation is required before the server can issue a TurnContract.']
                 : status === 'needs_policy_resolution'
                     ? ['Equally authoritative hard policies conflict; resolve policy before proceeding.']
                     : ['The server-owned manifest selected only the judgment branches required by this turn.']

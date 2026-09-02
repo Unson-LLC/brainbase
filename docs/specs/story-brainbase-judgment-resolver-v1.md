@@ -24,7 +24,7 @@ diagrams:
 
 ## 1. Invariant
 
-Every managed Codex turn has exactly one judgment episode. Normally the Host opens it before model generation with one context-bound initial route receipt, records 0..N actual tool events, and creates exactly one final receipt at `Stop`. The model cannot call Judgment Resolver or author classification/`conversation_context`.
+Every managed Codex turn has exactly one judgment episode. The Host opens it at `UserPromptSubmit` with canonical input but no semantic classification. The Codex model authors `model_interpretation` and calls model-callable `brainbase_resolve_turn`; the Host then records 0..N actual tool events and creates exactly one final receipt at `Stop`. The model cannot author or alter canonical `conversation_context`.
 
 Codex App delegation currently has one explicit recovery path: when `UserPromptSubmit` did not fire, the first `Stop` may recover exactly one current-turn `codex_delegation` from a transcript containing only the current session alias component. That episode records `episode_origin=stop_delegation_recovery` and `route_application=post_generation_recovery`. Its route governs only the Stop decision and later continuation; it must never claim that the route guided the already-produced pre-Stop model output. Normal starts record `episode_origin=user_prompt_submit` and `route_application=pre_generation`.
 
@@ -34,7 +34,7 @@ The invariant is not one network call or one knowledge call per turn. Bounded tr
 
 ### UserPromptSubmit
 
-Required input is `session_id`, `turn_id`, non-empty `prompt`, optional `transcript_path`, `cwd`, `model`, and `permission_mode`. The Host constructs canonical context and resolves the initial route before model generation. An invalid payload or untrusted/mismatched context fails closed.
+Required `turn_input` is `session_id`, `turn_id`, non-empty `prompt`, optional `transcript_path`, `cwd`, `model`, and `permission_mode`. The Host constructs canonical context and saves that exact input. `brainbase_resolve_turn` must submit it unchanged with `model_interpretation`; an invalid payload or untrusted/mismatched context fails closed.
 
 ### PostToolUse
 
@@ -69,9 +69,9 @@ All digests are lowercase SHA-256 hexadecimal strings.
 
 ## 5. Server-owned classification and DAG
 
-Resolver determines classification with manifest-backed deterministic code. It matches explicit request/context evidence against `semantic_matchers`, may inherit a bounded classification for an under-specified follow-up from the latest prior complete episode or prior raw user message, and applies the current request's minimum action/risk floor. When a request is not a follow-up and has no explicit specialist domain or intent match, v1 applies a server-owned `general/answer` fallback; this is a deterministic default, not evidence of semantic model inference. It owns intent, domain, signal, effect, risk, confidence, policy, and active-DAG selection. It has no LLM provider or model API dependency; `semantic` describes the classification purpose, not the implementation mechanism.
+The Codex model proposes semantic classification as `model_interpretation`. Resolver validates it against canonical input and manifest-backed deterministic policy, may inherit bounded context for an under-specified follow-up, and applies minimum action/risk floors. Keyword matches are monotonic safety evidence: they may add obligations, domains, signals, action floors, or risk, but never subtract model-derived requirements. An unmatched keyword rule never removes a capability and never implies a server-owned `general/answer` fallback. Resolver owns policy reconciliation and active-DAG selection, not natural-language understanding.
 
-A follow-up with no resolvable referent, or a knowledge classification without the required project context, returns managed `needs_classification` with a clarification DAG. Plain non-follow-up matcher misses use the `general/answer` fallback instead. This is not a transport failure. Only returned `active_nodes`, `active_edges`, and matching `active_node_definitions` execute.
+A missing model interpretation, a follow-up with no resolvable referent, or a knowledge classification without the required project context returns managed `needs_classification` with a clarification DAG. An unmatched keyword rule does not auto-pass. This is not a transport failure. Only returned `active_nodes`, `active_edges`, and matching `active_node_definitions` execute.
 
 After the initial route, the current Codex model is the open-ended reasoning loop. It follows the selected DAG, decides how to answer, formulates and refines knowledge queries from observed results, and may call knowledge/retrieval tools 0..N times. It cannot reclassify or replace the initial route. Knowledge Resolver separately chooses a canonical source route with deterministic rules; it does not retrieve content. Claude Code is a future Host-adapter candidate for the same responsibility split, but is not part of the current episode-lifecycle hook integration.
 

@@ -17,7 +17,7 @@ function jwt(payload) {
     return `${encode({ alg: 'none' })}.${encode(payload)}.`;
 }
 
-function input(request, turnId, { projectCode = 'brainbase', messages = [], priorReceipts = [] } = {}) {
+function input(request, turnId, { projectCode = 'brainbase', messages = [], priorReceipts = [], modelInterpretation } = {}) {
     const current = { sequence: messages.length, turn_id: turnId, role: 'user', phase: null, text: request };
     const contextWithoutDigest = {
         schema_version: 'brainbase-conversation-context-v1',
@@ -32,6 +32,11 @@ function input(request, turnId, { projectCode = 'brainbase', messages = [], prio
         request,
         turn_id: turnId,
         project_code: projectCode,
+        ...(modelInterpretation === null ? {} : {
+            model_interpretation: modelInterpretation ?? {
+                intent: 'answer', domains: ['general'], action_kind: 'none', risk: 'low', confidence: 'confirmed', signals: []
+            }
+        }),
         conversation_context: {
             ...contextWithoutDigest,
             source_digest: computeRequestDigest(contextWithoutDigest)
@@ -61,7 +66,7 @@ describe('managed judgment turn end to end', () => {
         await Promise.all(servers.splice(0).map((server) => new Promise((resolve) => server.close(resolve))));
     });
 
-    it('Host pre-model dispatchからAPI receipt採用・文脈継続・active DAG消費まで通す', async () => {
+    it('model interpretationからAPI receipt採用・文脈継続・active DAG消費まで通す', async () => {
         let serviceCalls = 0;
         const runtime = new JudgmentResolutionService({
             now: () => NOW,
@@ -111,9 +116,13 @@ describe('managed judgment turn end to end', () => {
             }
         });
 
-        expect(mcpServer.tools.some((tool) => tool.name === 'brainbase_judgment_resolve')).toBe(false);
+        expect(mcpServer.tools.some((tool) => tool.name === 'brainbase_resolve_turn')).toBe(true);
 
-        const firstInput = input('認証APIの設計をレビューして', 'host-turn-e2e-1');
+        const firstInput = input('認証APIの設計をレビューして', 'host-turn-e2e-1', {
+            modelInterpretation: {
+                intent: 'review', domains: ['engineering'], action_kind: 'read', risk: 'medium', confidence: 'confirmed', signals: []
+            }
+        });
         const first = await runTurn(firstInput);
         expect(first.execution_status).toBe('continued');
         expect(first.receipt).toMatchObject({
@@ -125,6 +134,9 @@ describe('managed judgment turn end to end', () => {
         expect(serviceCalls).toBe(1);
 
         const followUpInput = input('それを修正して', 'host-turn-e2e-2', {
+            modelInterpretation: {
+                intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium', confidence: 'confirmed', signals: []
+            },
             messages: [
                 { turn_id: 'host-turn-e2e-1', role: 'user', phase: null, text: firstInput.request },
                 { turn_id: 'host-turn-e2e-1', role: 'assistant', phase: 'final', text: '設計上の問題を説明しました。' }
@@ -136,26 +148,22 @@ describe('managed judgment turn end to end', () => {
         expect(followUp.receipt.classification).toMatchObject({
             intent: 'implement', domains: ['engineering'], action_kind: 'write'
         });
-        expect(followUp.receipt.classification_evidence).toMatchObject({ source: 'prior_receipt' });
+        expect(followUp.receipt.classification_evidence).toMatchObject({ source: 'current_request' });
         expect(followUp.receipt.autonomy_decision).toBe('continue');
         expect(followUp.receipt.context_digest).toMatch(/^[a-f0-9]{64}$/u);
         expect(serviceCalls).toBe(2);
 
-        const clarification = await runTurn(input('それでいい', 'host-turn-e2e-3'));
-        expect(clarification.execution_status).toBe('continued');
-        expect(clarification.receipt.status).toBe('needs_classification');
-        expect(clarification.receipt).toMatchObject({
-            autonomy_decision: 'escalate',
-            autonomy_reason_code: 'classification_missing'
-        });
-        expect(clarification.receipt.active_nodes).toContain('clarification');
+        const clarification = await runTurn(input('それでいい', 'host-turn-e2e-3', { modelInterpretation: null }));
+        expect(clarification.execution_status).toBe('stopped');
+        expect(clarification.reason).toBe('brainbase_api_response_invalid');
+        expect(clarification.receipt).toBeNull();
 
         const outsideProject = await runTurn(input('意味を説明して', 'host-turn-e2e-4', { projectCode: 'outside-project' }));
         expect(outsideProject.execution_status).toBe('continued');
         expect(outsideProject.receipt.project_code).toBe('outside-project');
         expect(outsideProject.receipt.applicable_policies.some((policy) => policy.scope?.type === 'project')).toBe(false);
 
-        expect(consumedPlans).toHaveLength(4);
+        expect(consumedPlans).toHaveLength(3);
         for (const plan of consumedPlans) {
             expect(plan.activeNodeDefinitions.map((node) => node.id)).toEqual(plan.receipt.active_nodes);
         }
