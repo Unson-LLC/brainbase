@@ -5,6 +5,7 @@ import { ulid } from 'ulid';
 import { logger } from '../utils/logger.js';
 import { OntologyError } from './ontology-kernel.js';
 import { OntologyRegistry } from './ontology-registry.js';
+import { assertCatalogProjectSubjectMutation } from './project-graph-identity-lock.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1000,6 +1001,13 @@ export class LearningService {
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
+            await assertCatalogProjectSubjectMutation(client, {
+                id: graphEntityId,
+                entityType,
+                projectId,
+                payload,
+                allowCompatible: false
+            });
             if (projectCode) {
                 await client.query(
                 `INSERT INTO projects (id, code, name)

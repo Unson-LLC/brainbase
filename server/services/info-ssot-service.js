@@ -6,6 +6,7 @@ import { buildScopedMemoryResult } from './memory-scope-policy.js';
 import { OntologyError } from './ontology-kernel.js';
 import { OntologyRegistry } from './ontology-registry.js';
 import { canonicalJson, ONTOLOGY_PUBLICATION_RECEIPT_SCHEMA_VERSION } from './ontology-publication.js';
+import { assertCatalogProjectSubjectMutation, lockProjectGraphIdentity } from './project-graph-identity-lock.js';
 
 function isMergedGraphEntity(row) {
     const status = row?.payload?.status;
@@ -141,6 +142,7 @@ export class InfoSSOTService {
         this.assertWriteAccess(access, { projectCode: input.projectCode, roleMin, sensitivity });
 
         const commit = async (client) => {
+            await lockProjectGraphIdentity(client, entity.id);
             const contextIds = [...new Set(contextEntities
                 .map((item) => item?.id)
                 .filter((id) => id && id !== entity.id))];
@@ -612,6 +614,13 @@ export class InfoSSOTService {
                 { deferRequiredRelations: true }
             ));
         }
+        await assertCatalogProjectSubjectMutation(client, {
+            id,
+            entityType,
+            projectId,
+            payload,
+            allowCompatible: false
+        });
         await client.query(
             `INSERT INTO graph_entities (
                 id,
@@ -1377,6 +1386,7 @@ export class InfoSSOTService {
             throw new Error(`Unknown project: ${projectCode}`);
         }
         const id = this.generateId('prj');
+        await lockProjectGraphIdentity(client, id);
         await client.query(
             `INSERT INTO projects (id, code, name, organization_id)
              VALUES ($1, $2, $3, NULLIF(current_setting('app.organization_id', true), ''))`,
@@ -1596,6 +1606,7 @@ export class InfoSSOTService {
         }
 
         return this.withAccessContext(access, async (client) => {
+            await lockProjectGraphIdentity(client, id);
             const projectId = await this.ensureProject(client, { projectCode, projectName });
             await this.validateGraphMutation(client, {
                 entityOverrides: [{ id, type: entityType, payload: payload || {} }],

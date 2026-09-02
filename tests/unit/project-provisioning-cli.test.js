@@ -69,6 +69,35 @@ describe('project provisioning CLI', () => {
         );
     });
 
+    it('retryableなGraph ID競合を構造化details付きで表示する', async () => {
+        vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ token: 'csrf-token' }) })
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 409,
+                json: async () => ({
+                    error: {
+                        code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                        message: 'Project Graph identity is busy',
+                        details: { entity_id: 'growin-ai', retryable: true }
+                    }
+                })
+            });
+        vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify({
+            project_code: 'growin-ai', display_name: 'Growin AI'
+        }));
+
+        await expect(runProjectProvisioning('check', ['--manifest', 'project.json']))
+            .rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                statusCode: 409,
+                details: { entity_id: 'growin-ai', retryable: true },
+                message: expect.stringMatching(
+                    /HTTP 409: GRAPH_PROJECT_IDENTITY_BUSY: Project Graph identity is busy\ndetails: \{"entity_id":"growin-ai","retryable":true\}/
+                )
+            });
+    });
+
     it('check CLIはURLへManifestを送りwrites_performed 0とauthority/collision detailsを表示する', async () => {
         const manifest = { project_code: 'growin-ai', display_name: 'Growin AI' };
         const responsePayload = {

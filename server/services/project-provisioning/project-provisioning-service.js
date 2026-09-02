@@ -31,6 +31,30 @@ function assertCompatibleProjectSubject(entities, manifest) {
     }
     return existing;
 }
+
+function completedGraphMaterializationReceipt(run, subject) {
+    const graphStep = run?.steps?.find((step) => step.step_name === 'graph');
+    const receipt = graphStep?.receipt;
+    const expectedProjectCode = run?.manifest?.project_code;
+    const expectedCatalogVersion = run?.manifest?.catalog_version;
+    const expectedSourceRef = `project-catalog:${expectedProjectCode}@${expectedCatalogVersion}`;
+    const expectedIdempotencyKey = `project-provisioning:${run?.run_id}:graph`;
+    if (!(graphStep?.state === 'completed'
+        && subject?.project_code === expectedProjectCode
+        && subject?.payload?.catalog_version === expectedCatalogVersion
+        && subject?.payload?.source_ref === expectedSourceRef
+        && receipt?.project_code === expectedProjectCode
+        && receipt?.catalog_version === expectedCatalogVersion
+        && receipt?.source_ref === expectedSourceRef
+        && receipt?.idempotency_key === expectedIdempotencyKey
+        && receipt?.status !== 'already_materialized'
+        && typeof receipt?.plan_id === 'string'
+        && receipt.plan_id.length > 0
+        && typeof receipt?.apply?.receipt_id === 'string'
+        && receipt.apply.receipt_id.length > 0
+        && receipt?.validation?.valid === true)) return null;
+    return receipt;
+}
 const AUTHORITY_FIELDS = [
     'organization_exists',
     'owner_person_exists',
@@ -53,7 +77,15 @@ function assertOperator(actor) {
         error.statusCode = 403;
         throw error;
     }
-    if (!String(actor?.organizationId || actor?.tenantId || '').trim()) {
+    const organizationId = String(actor?.organizationId || '').trim();
+    const tenantId = String(actor?.tenantId || '').trim();
+    if (organizationId && tenantId && organizationId !== tenantId) {
+        const error = new Error('organizationId and tenantId must match');
+        error.code = 'PROJECT_PROVISIONING_TENANT_IDENTITY_MISMATCH';
+        error.statusCode = 409;
+        throw error;
+    }
+    if (!(organizationId || tenantId)) {
         const error = new Error('organizationId is required');
         error.code = 'PROJECT_PROVISIONING_ORGANIZATION_REQUIRED';
         error.statusCode = 409;
@@ -112,6 +144,46 @@ function assertIdentityCollisionReadback(identityCollisions) {
         );
     }
     return identityCollisions;
+}
+
+function assertProjectSubjectIdentityReadback(identity) {
+    if (identity === null || identity === undefined) return null;
+    if (
+        typeof identity !== 'object' || Array.isArray(identity)
+        || !['same_organization', 'other_organization'].includes(identity.scope_relation)
+        || typeof identity.entity_id !== 'string' || !identity.entity_id.trim()
+    ) {
+        throw readbackError(
+            'PROJECT_PROVISIONING_GRAPH_IDENTITY_READBACK_INVALID',
+            'Graph project identity verification returned an invalid result'
+        );
+    }
+    return identity;
+}
+
+function projectSubjectFromIdentity(identity) {
+    if (!identity || identity.scope_relation !== 'same_organization') return null;
+    return {
+        id: identity.entity_id,
+        entity_type: identity.entity_type,
+        lifecycle_status: identity.lifecycle_status,
+        project_code: identity.project_code,
+        version: identity.entity_version,
+        payload: {
+            name: identity.display_name,
+            catalog_project_id: identity.catalog_project_id,
+            catalog_version: identity.catalog_version,
+            source_ref: identity.source_ref
+        }
+    };
+}
+
+function graphPreflightError(code, message, details = {}) {
+    const error = new Error(message);
+    error.code = code;
+    error.statusCode = 409;
+    error.details = details;
+    return error;
 }
 
 function canonicalGateSet(value) {
@@ -219,6 +291,12 @@ export class ProjectProvisioningService {
             error.statusCode = 503;
             throw error;
         }
+        if (typeof this.repository.findProjectSubjectIdentity !== 'function') {
+            const error = new Error('Graph project identity verification is unavailable');
+            error.code = 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CHECK_UNAVAILABLE';
+            error.statusCode = 503;
+            throw error;
+        }
         const existing = await this.repository.getProject(manifest.project_code, organizationId);
         const legacyCollisions = this.repository.findProjectCodeCollision
             ? await this.repository.findProjectCodeCollision(
@@ -242,6 +320,30 @@ export class ProjectProvisioningService {
         collisions.push(...identityCollisions.map((row) => ({
             field: 'display_name', value: manifest.display_name, source: 'graph_entity', entity_id: row.id
         })));
+        const projectSubjectIdentity = assertProjectSubjectIdentityReadback(
+            await this.repository.findProjectSubjectIdentity(manifest.project_code, organizationId)
+        );
+        let graphProjectSubject = { status: 'absent' };
+        if (projectSubjectIdentity) {
+            const existingSubject = projectSubjectFromIdentity(projectSubjectIdentity);
+            if (!existingSubject || !matchesProjectSubject(existingSubject, manifest)) {
+                graphProjectSubject = { status: 'conflict' };
+                collisions.push({
+                    field: 'graph_entity_id', value: manifest.project_code, source: 'graph_identity_conflict'
+                });
+            } else if (!Array.isArray(actor.projectCodes) || !actor.projectCodes.includes(existingSubject.project_code)) {
+                graphProjectSubject = { status: 'conflict' };
+                collisions.push({
+                    field: 'graph_project_scope', value: manifest.project_code, source: 'graph_scope_unavailable'
+                });
+            } else {
+                graphProjectSubject = {
+                    status: 'reusable',
+                    project_code: existingSubject.project_code,
+                    entity_version: existingSubject.version
+                };
+            }
+        }
         let repositoryState = { mode: manifest.repository.mode, status: 'not_requested' };
         if (manifest.repository.mode !== 'none') {
             if (!this.repositoryBootstrap?.read) {
@@ -269,9 +371,105 @@ export class ProjectProvisioningService {
             manifest,
             collisions,
             repository_state: repositoryState,
+            graph_project_subject: graphProjectSubject,
             authority,
             writes_performed: 0
         };
+    }
+
+    async assertFreshGraphPreflight(actor, run, { client = null } = {}) {
+        const expected = run?.plan?.preflight?.graph_project_subject;
+        const isLegacyPlan = expected === undefined;
+        if (!isLegacyPlan && (!expected || !['absent', 'reusable'].includes(expected.status))) {
+            throw graphPreflightError(
+                'PROJECT_PROVISIONING_GRAPH_PREFLIGHT_INVALID',
+                'Persisted Graph project preflight is invalid'
+            );
+        }
+        const organizationId = actor.organizationId || actor.tenantId;
+        const identity = assertProjectSubjectIdentityReadback(
+            await this.repository.findProjectSubjectIdentity(
+                run.manifest.project_code, organizationId, client ? { client } : undefined
+            )
+        );
+        if (!identity) {
+            if (isLegacyPlan || expected.status === 'absent') return { status: 'absent' };
+            throw graphPreflightError(
+                'PROJECT_PROVISIONING_GRAPH_PREFLIGHT_STALE',
+                'Reusable Graph project subject disappeared after plan approval'
+            );
+        }
+        const subject = projectSubjectFromIdentity(identity);
+        if (!subject || !matchesProjectSubject(subject, run.manifest)) {
+            throw graphPreflightError(
+                'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT',
+                'Graph project identity changed after plan approval'
+            );
+        }
+        if ((isLegacyPlan || expected.status === 'absent')
+            && await this.verifyOwnCompletedGraphMaterialization(actor, run, subject, { client })) {
+            return {
+                status: 'materialized_by_run',
+                project_code: subject.project_code,
+                entity_version: subject.version
+            };
+        }
+        if (!Array.isArray(actor.projectCodes) || !actor.projectCodes.includes(subject.project_code)) {
+            throw graphPreflightError(
+                'PROJECT_PROVISIONING_GRAPH_SCOPE_UNAVAILABLE',
+                'Apply actor cannot access the reusable Graph project scope'
+            );
+        }
+        if (isLegacyPlan) {
+            return {
+                status: 'reusable',
+                project_code: subject.project_code,
+                entity_version: subject.version
+            };
+        }
+        if (expected.status !== 'reusable'
+            || expected.project_code !== subject.project_code
+            || expected.entity_version !== subject.version) {
+            throw graphPreflightError(
+                'PROJECT_PROVISIONING_GRAPH_PREFLIGHT_STALE',
+                'Graph project subject no longer matches the approved preflight',
+                {
+                    expected_project_code: expected.project_code || null,
+                    expected_entity_version: expected.entity_version ?? null
+                }
+            );
+        }
+        return expected;
+    }
+
+    async verifyOwnCompletedGraphMaterialization(actor, run, subject, { client = null } = {}) {
+        const stored = completedGraphMaterializationReceipt(run, subject);
+        if (!stored || typeof this.graphService?.getPlanReceipt !== 'function') return false;
+        const organizationId = actor.organizationId || actor.tenantId;
+        const access = {
+            ...actor,
+            organizationId,
+            projectCodes: [...new Set([...(actor.projectCodes || []), run.manifest.project_code])]
+        };
+        let fresh;
+        try {
+            fresh = await this.graphService.getPlanReceipt(
+                access,
+                { projectCode: run.manifest.project_code, planId: stored.plan_id },
+                ...(client ? [{ client }] : [])
+            );
+        } catch {
+            return false;
+        }
+        const expectedIdempotencyKey = `project-provisioning:${run.run_id}:graph`;
+        const applyReceipt = fresh?.receipts?.find((receipt) => (
+            receipt?.receipt_id === stored.apply.receipt_id
+            && receipt?.plan_id === stored.plan_id
+            && receipt?.receipt_type === 'apply'
+            && receipt?.status === 'completed'
+        ));
+        return fresh?.plan_id === stored.plan_id
+            && applyReceipt?.result?.idempotency_key === expectedIdempotencyKey;
     }
 
     async plan(actor, input, { idempotencyKey }) {
@@ -319,6 +517,7 @@ export class ProjectProvisioningService {
             preflight: {
                 authority: checked.authority,
                 repository_state: checked.repository_state,
+                graph_project_subject: checked.graph_project_subject,
                 collisions: checked.collisions
             },
             rollback_boundary: 'Completed steps are retained and resume is forward-only',
@@ -378,6 +577,44 @@ export class ProjectProvisioningService {
         });
     }
 
+    async applyRegistryAndGraphAtomically(actor, run, executionToken) {
+        const organizationId = actor.organizationId || actor.tenantId;
+        if (typeof this.repository.withOrganizationTransaction !== 'function') {
+            return null;
+        }
+        return this.repository.withOrganizationTransaction(organizationId, async (client) => {
+            if (typeof this.repository.acquireProjectGraphIdentityLock === 'function') {
+                await this.repository.acquireProjectGraphIdentityLock(run.manifest.project_code, client);
+            }
+            const graphProjectSubject = await this.assertFreshGraphPreflight(actor, run, { client });
+            const transactionRun = {
+                ...run,
+                plan: {
+                    ...run.plan,
+                    preflight: {
+                        ...(run.plan?.preflight || {}),
+                        graph_project_subject: graphProjectSubject
+                    }
+                }
+            };
+            await this.repository.setStep(run.run_id, organizationId, 'registry', 'applying', {
+                executionToken, client
+            });
+            const registryReceipt = await this.applyStep('registry', actor, transactionRun, { client });
+            await this.repository.setStep(run.run_id, organizationId, 'registry', 'completed', {
+                receipt: registryReceipt, executionToken, client
+            });
+            await this.repository.setStep(run.run_id, organizationId, 'graph', 'applying', {
+                executionToken, client
+            });
+            const graphReceipt = await this.applyStep('graph', actor, transactionRun, { client });
+            await this.repository.setStep(run.run_id, organizationId, 'graph', 'completed', {
+                receipt: graphReceipt, executionToken, client
+            });
+            return { graphProjectSubject };
+        });
+    }
+
     async apply(actor, runId, { recoverStaleApplying = false } = {}) {
         assertOperator(actor);
         const organizationId = actor.organizationId || actor.tenantId;
@@ -391,9 +628,30 @@ export class ProjectProvisioningService {
                 failure: { code: 'PROJECT_PROVISIONING_HUMAN_GATE_REQUIRED', missing_gates: missingGates }
             });
         }
+        const graphProjectSubject = await this.assertFreshGraphPreflight(actor, run);
+        run = {
+            ...run,
+            plan: {
+                ...run.plan,
+                preflight: {
+                    ...(run.plan?.preflight || {}),
+                    graph_project_subject: graphProjectSubject
+                }
+            }
+        };
         run = this.repository.claimRun
             ? await this.repository.claimRun(runId, organizationId, { recoverStaleApplying })
             : await this.repository.setRunState(runId, organizationId, 'applying');
+        run = {
+            ...run,
+            plan: {
+                ...run.plan,
+                preflight: {
+                    ...(run.plan?.preflight || {}),
+                    graph_project_subject: graphProjectSubject
+                }
+            }
+        };
         if (run.state === 'active') return run;
         const executionToken = run.execution_token || null;
         let heartbeatFailure = null;
@@ -409,6 +667,24 @@ export class ProjectProvisioningService {
             for (const stepName of STEP_ORDER) {
                 if (completed.has(stepName)) continue;
                 if (heartbeatFailure) throw heartbeatFailure;
+                if (stepName === 'registry'
+                    && !completed.has('graph')
+                    && typeof this.repository.withOrganizationTransaction === 'function') {
+                    const atomicResult = await this.applyRegistryAndGraphAtomically(actor, run, executionToken);
+                    run = {
+                        ...run,
+                        plan: {
+                            ...run.plan,
+                            preflight: {
+                                ...(run.plan?.preflight || {}),
+                                graph_project_subject: atomicResult.graphProjectSubject
+                            }
+                        }
+                    };
+                    completed.add('registry');
+                    completed.add('graph');
+                    continue;
+                }
                 await this.repository.setStep(runId, organizationId, stepName, 'applying', { executionToken });
                 const receipt = await this.applyStep(stepName, actor, run);
                 if (heartbeatFailure) throw heartbeatFailure;
@@ -448,10 +724,15 @@ export class ProjectProvisioningService {
         return this.apply(actor, runId, { ...options, recoverStaleApplying: true });
     }
 
-    async applyStep(stepName, actor, run) {
+    async applyStep(stepName, actor, run, { client = null } = {}) {
         const manifest = run.manifest;
         const organizationId = actor.organizationId || actor.tenantId;
-        if (stepName === 'registry') return this.repository.upsertProject(manifest, { organizationId });
+        if (stepName === 'registry') {
+            return this.repository.upsertProject(manifest, {
+                organizationId,
+                ...(client ? { client } : {})
+            });
+        }
         if (stepName === 'auth_grants') {
             const grants = [];
             for (const grant of manifest.initial_grants) {
@@ -481,14 +762,20 @@ export class ProjectProvisioningService {
                 projectCodes: [...new Set([...(actor.projectCodes || []), manifest.project_code])],
                 role: actor.role
             };
+            const approvedGraphSubject = run.plan.preflight.graph_project_subject;
             const accessibleProjectCodes = this.graphService.listAccessibleProjectCodes
-                ? await this.graphService.listAccessibleProjectCodes(access)
+                ? await this.graphService.listAccessibleProjectCodes(
+                    access, ...(client ? [{ client }] : [])
+                )
                 : [manifest.project_code];
-            const includeProjectCodes = accessibleProjectCodes.filter((code) => code !== manifest.project_code);
-            const snapshot = await this.graphService.exportSnapshot(access, {
-                projectCode: manifest.project_code,
-                includeProjectCodes
-            });
+            const includeProjectCodes = approvedGraphSubject.status === 'reusable'
+                ? [approvedGraphSubject.project_code].filter((code) => code !== manifest.project_code)
+                : accessibleProjectCodes.filter((code) => code !== manifest.project_code);
+            const snapshot = await this.graphService.exportSnapshot(
+                access,
+                { projectCode: manifest.project_code, includeProjectCodes },
+                ...(client ? [{ client }] : [])
+            );
             const existingSubject = assertCompatibleProjectSubject(snapshot.entities, manifest);
             if (existingSubject) {
                 return {
@@ -498,26 +785,40 @@ export class ProjectProvisioningService {
                     entity_version: existingSubject.version
                 };
             }
-            const graphPlan = await this.graphService.planMutations(access, {
-                projectCode: manifest.project_code,
-                snapshotId: snapshot.snapshot_id,
-                idempotencyKey: `project-provisioning:${run.run_id}:graph`,
-                reason: 'Project Provisioning Graph materialization',
-                operations: [{
-                    operation: 'materialize_project_subject',
-                    catalog_project_id: manifest.project_code,
-                    expected_version: 0
-                }]
-            });
-            const applied = await this.graphService.applyPlan(access, {
-                projectCode: manifest.project_code,
-                planId: graphPlan.plan_id,
-                snapshotHash: graphPlan.snapshot_hash
-            });
-            const graphReceipt = await this.graphService.getPlanReceipt(access, {
-                projectCode: manifest.project_code, planId: graphPlan.plan_id
-            });
-            const validation = await this.graphService.validate(access, { projectCode: manifest.project_code });
+            const graphPlan = await this.graphService.planMutations(
+                access,
+                {
+                    projectCode: manifest.project_code,
+                    snapshotId: snapshot.snapshot_id,
+                    idempotencyKey: `project-provisioning:${run.run_id}:graph`,
+                    reason: 'Project Provisioning Graph materialization',
+                    operations: [{
+                        operation: 'materialize_project_subject',
+                        catalog_project_id: manifest.project_code,
+                        expected_version: 0
+                    }]
+                },
+                ...(client ? [{ client }] : [])
+            );
+            const applied = await this.graphService.applyPlan(
+                access,
+                {
+                    projectCode: manifest.project_code,
+                    planId: graphPlan.plan_id,
+                    snapshotHash: graphPlan.snapshot_hash
+                },
+                ...(client ? [{ client }] : [])
+            );
+            const graphReceipt = await this.graphService.getPlanReceipt(
+                access,
+                { projectCode: manifest.project_code, planId: graphPlan.plan_id },
+                ...(client ? [{ client }] : [])
+            );
+            const validation = await this.graphService.validate(
+                access,
+                { projectCode: manifest.project_code },
+                ...(client ? [{ client }] : [])
+            );
             if (validation?.valid !== true) {
                 const error = new Error('Graph validation failed after project materialization');
                 error.code = 'PROJECT_PROVISIONING_GRAPH_VALIDATION_FAILED';
@@ -525,10 +826,23 @@ export class ProjectProvisioningService {
                 error.details = validation;
                 throw error;
             }
-            return { plan_id: graphPlan.plan_id, apply: applied, receipt: graphReceipt, validation };
+            return {
+                plan_id: graphPlan.plan_id,
+                project_code: manifest.project_code,
+                catalog_version: manifest.catalog_version,
+                source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`,
+                idempotency_key: `project-provisioning:${run.run_id}:graph`,
+                apply: applied,
+                receipt: graphReceipt,
+                validation
+            };
         };
         return this.catalogAdapter
-            ? this.catalogAdapter.runForOrganization(organizationId, applyGraph)
+            ? this.catalogAdapter.runForOrganization(
+                organizationId,
+                applyGraph,
+                ...(client ? [{ client }] : [])
+            )
             : applyGraph();
     }
 
@@ -577,11 +891,28 @@ export class ProjectProvisioningService {
             ...actor,
             projectCodes: [...new Set([...(actor.projectCodes || []), run.manifest.project_code])]
         };
+        const graphStep = run.steps.find((step) => step.step_name === 'graph');
+        const reusedSubject = graphStep?.receipt?.status === 'already_materialized'
+            ? graphStep.receipt
+            : null;
+        if (reusedSubject) {
+            const identity = assertProjectSubjectIdentityReadback(
+                await this.repository.findProjectSubjectIdentity(run.manifest.project_code, organizationId)
+            );
+            const subject = projectSubjectFromIdentity(identity);
+            if (!subject
+                || !matchesProjectSubject(subject, run.manifest)
+                || subject.project_code !== reusedSubject.project_code
+                || subject.version !== reusedSubject.entity_version) {
+                failures.push({ layer: 'graph', code: 'reused_subject_readback_mismatch' });
+            }
+        }
+        const graphValidationProjectCode = reusedSubject?.project_code || run.manifest.project_code;
         const graphValidation = await (this.catalogAdapter
             ? this.catalogAdapter.runForOrganization(actor.organizationId || actor.tenantId, () => (
-                this.graphService.validate(graphAccess, { projectCode: run.manifest.project_code })
+                this.graphService.validate(graphAccess, { projectCode: graphValidationProjectCode })
             ))
-            : this.graphService.validate(graphAccess, { projectCode: run.manifest.project_code }));
+            : this.graphService.validate(graphAccess, { projectCode: graphValidationProjectCode }));
         if (graphValidation?.valid !== true) failures.push({ layer: 'graph', code: 'graph_validation_failed' });
         for (const grant of run.manifest.initial_grants) {
             const readback = await this.authGrantService.readProjectGrant?.({

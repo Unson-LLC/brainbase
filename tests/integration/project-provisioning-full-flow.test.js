@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import express from 'express';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
@@ -9,6 +11,10 @@ import { csrfMiddleware, csrfTokenHandler } from '../../server/middleware/csrf.j
 import { requireAuth } from '../../server/middleware/auth.js';
 import { createProjectProvisioningRouter } from '../../server/routes/project-provisioning.js';
 import { InfoSSOTService } from '../../server/services/info-ssot-service.js';
+import {
+    lockProjectGraphIdentities,
+    lockProjectGraphIdentity
+} from '../../server/services/project-graph-identity-lock.js';
 import { createProjectProvisioningService } from '../../server/services/project-provisioning/project-provisioning-service.js';
 
 let serverUrl = '';
@@ -45,6 +51,7 @@ let infoSSOTService;
 let currentService;
 let server;
 const graphProjects = new Set();
+const graphPlans = new Map();
 const graphAccessRecords = [];
 const authGrantRecords = [];
 let partialGrantFailureConsumed = false;
@@ -77,18 +84,67 @@ function createGraphBoundary() {
                 entities: graphProjects.has(projectCode) ? [{ id: projectCode }] : []
             };
         },
-        planMutations: async (access, { projectCode }) => {
+        planMutations: async (access, { projectCode, idempotencyKey }) => {
             assertGraphAccess(access, projectCode);
-            return { plan_id: `graph-plan-${projectCode}`, snapshot_hash: `hash-${projectCode}` };
+            const plan = {
+                plan_id: `graph-plan-${projectCode}`,
+                snapshot_hash: `hash-${projectCode}`,
+                idempotency_key: idempotencyKey
+            };
+            graphPlans.set(plan.plan_id, plan);
+            return plan;
         },
-        applyPlan: async (access, { projectCode }) => {
+        applyPlan: async (access, { projectCode, planId }, { client = adminPool } = {}) => {
             assertGraphAccess(access, projectCode);
-            graphProjects.add(projectCode);
-            return { receipt_id: `graph-apply-${projectCode}` };
+            const apply = async (scopedClient) => {
+                const { rows } = await scopedClient.query(
+                    `SELECT p.id AS project_id, pr.display_name, pr.catalog_version
+                     FROM projects p
+                     JOIN project_registry pr
+                       ON pr.project_code=p.code AND pr.organization_id=p.organization_id
+                     WHERE p.code=$1 AND p.organization_id=$2`,
+                    [projectCode, ORGANIZATION_ID]
+                );
+                if (rows.length !== 1) throw new Error('Graph boundary could not read the provisioned project identity');
+                const identity = rows[0];
+                await scopedClient.query(
+                    `INSERT INTO graph_entities
+                        (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                     VALUES ($1, 'project', $2, $3::jsonb, 'member', 'internal', 'active', 1)`,
+                    [projectCode, identity.project_id, JSON.stringify({
+                        name: identity.display_name,
+                        catalog_project_id: projectCode,
+                        catalog_version: identity.catalog_version,
+                        source_ref: `project-catalog:${projectCode}@${identity.catalog_version}`
+                    })]
+                );
+                graphProjects.add(projectCode);
+                const receipt = { receipt_id: `graph-apply-${projectCode}` };
+                graphPlans.set(planId, { ...graphPlans.get(planId), apply_receipt_id: receipt.receipt_id });
+                return receipt;
+            };
+            if (client === adminPool) return apply(client);
+            return infoSSOTService.withAccessContext({
+                ...access,
+                organizationId: ORGANIZATION_ID,
+                projectCodes: [...new Set([...(access.projectCodes || []), projectCode])],
+                graphMaintenanceMode: true
+            }, apply, { client });
         },
-        getPlanReceipt: async (access, { projectCode }) => {
+        getPlanReceipt: async (access, { projectCode, planId }) => {
             assertGraphAccess(access, projectCode);
-            return { receipts: [{ id: `graph-apply-${projectCode}` }] };
+            const plan = graphPlans.get(planId);
+            if (!plan) throw new Error('Plan receipt is required');
+            return {
+                plan_id: planId,
+                receipts: [{
+                    receipt_id: plan.apply_receipt_id,
+                    plan_id: planId,
+                    receipt_type: 'apply',
+                    status: 'completed',
+                    result: { idempotency_key: plan.idempotency_key }
+                }]
+            };
         },
         validate: async (access, { projectCode }) => {
             assertGraphAccess(access, projectCode);
@@ -137,11 +193,16 @@ async function setupDatabase() {
     const adminConnectionString = container.getConnectionUri();
     adminPool = new Pool({ connectionString: adminConnectionString });
 
+    await adminPool.query('CREATE ROLE brainbase_app NOLOGIN');
     await applySql('info-ssot-schema.sql');
     await applySql('permission-schema.sql');
     await applySql('project-provisioning-schema.sql');
     await applySql('info-ssot-rls.sql');
     await applySql('info-ssot-readback.sql');
+    const runtimeProbePrivilege = await adminPool.query(
+        `SELECT has_function_privilege('brainbase_app', 'project_graph_identity_probe(text)', 'EXECUTE') AS allowed`
+    );
+    expect(runtimeProbePrivilege.rows[0].allowed).toBe(true);
 
     await adminPool.query(`
         INSERT INTO organizations (id, name, workspace_id, projects)
@@ -208,12 +269,16 @@ async function setupDatabase() {
         CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
         GRANT USAGE ON SCHEMA public TO ${APP_ROLE};
         GRANT SELECT ON organizations, people, auth_grants, graph_entities, graph_edges, projects,
-            project_registry, project_provisioning_runs, project_provisioning_steps TO ${APP_ROLE};
+            graph_maintenance_snapshots, graph_maintenance_plans, graph_maintenance_receipts, project_registry,
+            project_provisioning_runs, project_provisioning_steps TO ${APP_ROLE};
         GRANT UPDATE ON organizations TO ${APP_ROLE};
         GRANT INSERT, UPDATE ON projects, auth_grants, project_registry,
             project_provisioning_runs, project_provisioning_steps TO ${APP_ROLE};
+        GRANT UPDATE ON graph_entities, graph_edges, graph_maintenance_plans TO ${APP_ROLE};
+        GRANT INSERT ON graph_entities, graph_maintenance_snapshots, graph_maintenance_plans,
+            graph_maintenance_receipts TO ${APP_ROLE};
         GRANT EXECUTE ON FUNCTION project_code_collision_sources(text,text),
-            claim_project_code(text,text) TO ${APP_ROLE};
+            project_graph_identity_probe(text), claim_project_code(text,text) TO ${APP_ROLE};
     `);
 
     const appUrl = new URL(adminConnectionString);
@@ -275,6 +340,145 @@ async function cli(subcommand, args) {
     }
 }
 
+function projectManifest(projectCode, displayName, overrides = {}) {
+    return {
+        schema_version: 'project-provisioning.v1',
+        project_code: projectCode,
+        display_name: displayName,
+        kind: 'client',
+        catalog_version: 1,
+        session_select: true,
+        organization_entity_id: ORGANIZATION_ID,
+        owner_person_id: PERSON_ID,
+        initial_grants: [],
+        repository: { mode: 'none' },
+        ...overrides
+    };
+}
+
+async function cliManifest(subcommand, manifest, args = []) {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'project-provisioning-acceptance-'));
+    const manifestPath = path.join(directory, 'manifest.json');
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    try {
+        return await cli(subcommand, ['--manifest', manifestPath, ...args]);
+    } finally {
+        await rm(directory, { recursive: true, force: true });
+    }
+}
+
+async function httpProvisioningRequest(route, { method = 'GET', body, idempotencyKey } = {}) {
+    const authHeaders = { Authorization: 'Bearer signed-token' };
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+        const sessionId = `project-provisioning-acceptance-${randomUUID()}`;
+        const csrfResponse = await fetch(`${serverUrl}/api/csrf-token`, {
+            headers: { ...authHeaders, 'x-session-id': sessionId }
+        });
+        const csrfPayload = await csrfResponse.json();
+        expect(csrfResponse.ok).toBe(true);
+        expect(csrfPayload.token).toEqual(expect.any(String));
+        authHeaders['x-session-id'] = sessionId;
+        authHeaders['x-csrf-token'] = csrfPayload.token;
+    }
+    const response = await fetch(`${serverUrl}/api/project-provisioning${route}`, {
+        method,
+        headers: {
+            ...authHeaders,
+            ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+            ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {})
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined
+    });
+    return { response, payload: await response.json() };
+}
+
+async function removePersistedGraphPreflight(runId) {
+    await infoSSOTService.withAccessContext(actorAccess, (client) => client.query(
+        `UPDATE project_provisioning_runs
+         SET plan=jsonb_set(
+             plan,
+             '{preflight}',
+             (COALESCE(plan->'preflight', '{}'::jsonb) - 'graph_project_subject'),
+             true
+         )
+         WHERE run_id=$1 AND organization_id=$2`,
+        [runId, ORGANIZATION_ID]
+    ));
+    const { rows } = await adminPool.query(
+        `SELECT plan->'preflight'->'graph_project_subject' AS graph_project_subject
+         FROM project_provisioning_runs
+         WHERE run_id=$1 AND organization_id=$2`,
+        [runId, ORGANIZATION_ID]
+    );
+    expect(rows[0]?.graph_project_subject ?? null).toBeNull();
+}
+
+async function insertGraphProjectSubject({
+    entityId,
+    projectId = 'project_brainbase',
+    payload,
+    version = 1,
+    entityType = 'project',
+    lifecycleStatus = 'active'
+}) {
+    await adminPool.query(
+        `INSERT INTO graph_entities
+            (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+         VALUES ($1, $2, $3, $4::jsonb, 'member', 'internal', $5, $6)
+         ON CONFLICT (id) DO UPDATE SET
+             entity_type=EXCLUDED.entity_type,
+             project_id=EXCLUDED.project_id,
+             payload=EXCLUDED.payload,
+             lifecycle_status=EXCLUDED.lifecycle_status,
+             version=EXCLUDED.version`,
+        [entityId, entityType, projectId, JSON.stringify(payload), lifecycleStatus, version]
+    );
+}
+
+async function waitForAdvisoryLockWaiter(expected = 1) {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+        const { rows } = await adminPool.query(
+            `SELECT COUNT(*)::integer AS waiting
+             FROM pg_locks
+             WHERE locktype='advisory' AND granted=false`
+        );
+        if (rows[0]?.waiting >= expected) return;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error('project Graph identity apply did not wait for the concurrent writer');
+}
+
+async function readNoWriteState(projectCode) {
+    const [projects, registry, claims, entities] = await Promise.all([
+        adminPool.query(
+            `SELECT id, code, name, organization_id
+             FROM projects WHERE code=$1 ORDER BY id`,
+            [projectCode]
+        ),
+        adminPool.query(
+            `SELECT project_code, organization_id, display_name, kind, catalog_version
+             FROM project_registry WHERE project_code=$1 ORDER BY project_code`,
+            [projectCode]
+        ),
+        adminPool.query(
+            `SELECT project_code, organization_id
+             FROM project_code_claims WHERE project_code=$1 ORDER BY project_code`,
+            [projectCode]
+        ),
+        adminPool.query(
+            `SELECT id, project_id, entity_type, payload, lifecycle_status, version
+             FROM graph_entities WHERE id=$1 ORDER BY id`,
+            [projectCode]
+        )
+    ]);
+    return {
+        projects: projects.rows,
+        registry: registry.rows,
+        claims: claims.rows,
+        entities: entities.rows
+    };
+}
+
 async function readLedger(runId) {
     return infoSSOTService.withAccessContext(actorAccess, async (client) => {
         const { rows } = await client.query(`
@@ -291,6 +495,31 @@ async function readLedger(runId) {
         `, [runId, ORGANIZATION_ID]);
         return rows[0] || null;
     });
+}
+
+function observeProductionSharedClient(service) {
+    const transactionClients = [];
+    const graphClients = [];
+    const originalTransaction = service.repository.withOrganizationTransaction.bind(service.repository);
+    service.repository.withOrganizationTransaction = (organizationId, handler) => originalTransaction(
+        organizationId,
+        async (client) => {
+            transactionClients.push(client);
+            return handler(client);
+        }
+    );
+    for (const methodName of [
+        'listAccessibleProjectCodes', 'exportSnapshot', 'planMutations',
+        'applyPlan', 'getPlanReceipt', 'validate'
+    ]) {
+        const originalMethod = service.graphService[methodName].bind(service.graphService);
+        service.graphService[methodName] = async (...args) => {
+            const options = args.at(-1);
+            if (options?.client) graphClients.push({ methodName, client: options.client });
+            return originalMethod(...args);
+        };
+    }
+    return { transactionClients, graphClients };
 }
 
 describe.sequential('Project Provisioning acceptance E2E', () => {
@@ -324,6 +553,30 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         vi.unstubAllEnvs();
     }, 300_000);
 
+    it('配備readbackは無効化・誤バインドされたProject Graph guard triggerを拒否する', async () => {
+        await adminPool.query('ALTER TABLE graph_entities DISABLE TRIGGER project_graph_entity_write_guard');
+        await expect(applySql('info-ssot-readback.sql')).rejects.toThrow(
+            /project Graph entity guard trigger binding mismatch/u
+        );
+        await adminPool.query('ALTER TABLE graph_entities ENABLE TRIGGER project_graph_entity_write_guard');
+
+        await adminPool.query(`
+            DROP TRIGGER project_graph_entity_write_guard ON graph_entities;
+            CREATE TRIGGER project_graph_entity_write_guard
+            BEFORE INSERT OR UPDATE OR DELETE ON graph_entities
+            FOR EACH ROW
+            EXECUTE FUNCTION prevent_project_provisioning_receipt_mutation()
+        `);
+        try {
+            await expect(applySql('info-ssot-readback.sql')).rejects.toThrow(
+                /project Graph entity guard trigger binding mismatch/u
+            );
+        } finally {
+            await applySql('project-provisioning-schema.sql');
+        }
+        await expect(applySql('info-ssot-readback.sql')).resolves.toBeUndefined();
+    });
+
     it('実PostgreSQL authorityは不正組織・組織横断entity・inactive owner・grant欠落/別workspaceを拒否する', async () => {
         const repository = currentService.repository;
         const baseManifest = {
@@ -355,6 +608,789 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
             owner_person_exists: true,
             owner_has_organization_grant: false
         });
+    }, 300_000);
+
+    it('実PostgreSQLのGraph同一ID probeは同一組織だけidentityを返し他組織の詳細を隠す', async () => {
+        await adminPool.query(`
+            INSERT INTO graph_entities
+                (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+            VALUES
+                ('probe-same', 'project', 'project_brainbase',
+                 '{"name":"Probe Same","catalog_project_id":"probe-same","catalog_version":1,"source_ref":"project-catalog:probe-same@1"}',
+                 'member', 'internal', 'active', 2),
+                ('probe-incompatible', 'project', 'project_brainbase',
+                 '{"name":"Wrong Identity","catalog_project_id":"probe-incompatible","catalog_version":1,"source_ref":"project-catalog:probe-incompatible@1"}',
+                 'member', 'internal', 'active', 2),
+                ('probe-other', 'project', 'project_other',
+                 '{"name":"Secret Other","catalog_project_id":"probe-other","catalog_version":1,"source_ref":"project-catalog:probe-other@1"}',
+                 'member', 'internal', 'active', 4)
+            ON CONFLICT (id) DO NOTHING
+        `);
+
+        await expect(currentService.repository.findProjectSubjectIdentity('probe-same', ORGANIZATION_ID))
+            .resolves.toMatchObject({
+                scope_relation: 'same_organization', entity_id: 'probe-same',
+                entity_type: 'project', project_code: 'brainbase', entity_version: 2,
+                display_name: 'Probe Same', catalog_project_id: 'probe-same', catalog_version: 1
+            });
+        await expect(currentService.repository.findProjectSubjectIdentity('probe-other', ORGANIZATION_ID))
+            .resolves.toEqual({
+                scope_relation: 'other_organization', entity_id: 'probe-other',
+                entity_type: null, lifecycle_status: null, project_code: null,
+                entity_version: null, display_name: null, catalog_project_id: null,
+                catalog_version: null, source_ref: null
+            });
+        await expect(currentService.repository.findProjectSubjectIdentity('probe-absent', ORGANIZATION_ID))
+            .resolves.toBeNull();
+
+        const probeManifest = (projectCode, displayName) => ({
+            schema_version: 'project-provisioning.v1', project_code: projectCode,
+            display_name: displayName, kind: 'client', catalog_version: 1,
+            session_select: true, organization_entity_id: ORGANIZATION_ID,
+            owner_person_id: PERSON_ID, initial_grants: [], repository: { mode: 'none' }
+        });
+        await expect(currentService.check(actorAccess, probeManifest('probe-same', 'Probe Same')))
+            .resolves.toMatchObject({
+                ok: true,
+                graph_project_subject: { status: 'reusable', project_code: 'brainbase', entity_version: 2 }
+            });
+        await expect(currentService.check(actorAccess, probeManifest('probe-incompatible', 'Expected Identity')))
+            .resolves.toMatchObject({
+                ok: false,
+                graph_project_subject: { status: 'conflict' },
+                collisions: expect.arrayContaining([expect.objectContaining({ source: 'graph_identity_conflict' })])
+            });
+        await expect(currentService.check(actorAccess, probeManifest('probe-other', 'Hidden Other')))
+            .resolves.toMatchObject({ ok: false, graph_project_subject: { status: 'conflict' } });
+        await expect(currentService.check(
+            { ...actorAccess, projectCodes: [] },
+            probeManifest('probe-same', 'Probe Same')
+        )).resolves.toMatchObject({
+            ok: false,
+            collisions: expect.arrayContaining([expect.objectContaining({ source: 'graph_scope_unavailable' })])
+        });
+    }, 300_000);
+
+    it('実PostgreSQLとproduction Graphで既存Project subjectをplanから最終readbackまで再利用する', async () => {
+        const projectCode = 'acceptance-existing-subject';
+        const displayName = 'Acceptance Existing Subject';
+        await adminPool.query(`
+            INSERT INTO graph_entities
+                (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+            VALUES
+                ($1, 'project', 'project_brainbase', $2::jsonb,
+                 'member', 'internal', 'active', 3)
+            ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload, version=EXCLUDED.version
+        `, [projectCode, JSON.stringify({
+            name: displayName,
+            catalog_project_id: projectCode,
+            catalog_version: 1,
+            source_ref: `project-catalog:${projectCode}@1`
+        })]);
+        const productionService = createProjectProvisioningService({ infoSSOTService });
+        const reuseManifest = {
+            schema_version: 'project-provisioning.v1',
+            project_code: projectCode,
+            display_name: displayName,
+            kind: 'client',
+            catalog_version: 1,
+            session_select: true,
+            organization_entity_id: ORGANIZATION_ID,
+            owner_person_id: PERSON_ID,
+            initial_grants: [],
+            repository: { mode: 'none' }
+        };
+
+        const checked = await productionService.check(actorAccess, reuseManifest);
+        expect(checked).toMatchObject({
+            ok: true,
+            graph_project_subject: { status: 'reusable', project_code: 'brainbase', entity_version: 3 },
+            writes_performed: 0
+        });
+        const plan = await productionService.plan(actorAccess, reuseManifest, {
+            idempotencyKey: 'acceptance-existing-subject'
+        });
+        await productionService.approve(actorAccess, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'],
+            reviewRef: 'acceptance-existing-subject-review'
+        });
+        const applied = await productionService.apply(actorAccess, plan.run_id);
+
+        expect(applied).toMatchObject({ state: 'active', receipt: { verified: true } });
+        expect(applied.steps.find((step) => step.step_name === 'graph').receipt).toMatchObject({
+            status: 'already_materialized', project_code: 'brainbase', entity_version: 3
+        });
+    }, 300_000);
+
+    it('実PostgreSQLのproduction Repository transactionとGraph shared clientで新規subject・Registry・claimを同時commitする', async () => {
+        const projectCode = 'acceptance-production-graph-commit';
+        const displayName = 'Acceptance Production Graph Commit';
+        const productionService = createProjectProvisioningService({ infoSSOTService });
+        const observed = observeProductionSharedClient(productionService);
+        const manifest = projectManifest(projectCode, displayName);
+        const planned = await productionService.plan(actorAccess, manifest, {
+            idempotencyKey: projectCode
+        });
+        await productionService.approve(actorAccess, planned.run_id, {
+            approvedGates: ['manifest_plan_approval'],
+            reviewRef: `${projectCode}-review`
+        });
+
+        const applied = await productionService.apply(actorAccess, planned.run_id);
+
+        expect(applied).toMatchObject({ state: 'active', receipt: { verified: true } });
+        expect(observed.transactionClients).toHaveLength(1);
+        expect(observed.graphClients.length).toBeGreaterThanOrEqual(6);
+        expect(new Set(observed.graphClients.map(({ client }) => client))).toEqual(
+            new Set([observed.transactionClients[0]])
+        );
+        const state = await readNoWriteState(projectCode);
+        expect(state.projects).toEqual([{
+            id: `project_${projectCode.replaceAll('-', '_')}`,
+            code: projectCode,
+            name: displayName,
+            organization_id: ORGANIZATION_ID
+        }]);
+        expect(state.registry).toEqual([{
+            project_code: projectCode,
+            organization_id: ORGANIZATION_ID,
+            display_name: displayName,
+            kind: 'client',
+            catalog_version: 1
+        }]);
+        expect(state.claims).toEqual([{
+            project_code: projectCode,
+            organization_id: ORGANIZATION_ID
+        }]);
+        expect(state.entities).toEqual([expect.objectContaining({
+            id: projectCode,
+            project_id: `project_${projectCode.replaceAll('-', '_')}`,
+            entity_type: 'project',
+            payload: expect.objectContaining({
+                name: displayName,
+                catalog_project_id: projectCode,
+                catalog_version: 1,
+                source_ref: `project-catalog:${projectCode}@1`
+            }),
+            lifecycle_status: 'active',
+            version: 1
+        })]);
+        const graphStep = applied.steps.find((step) => step.step_name === 'graph');
+        expect(graphStep.receipt).toMatchObject({
+            project_code: projectCode,
+            receipt: { plan_id: expect.any(String), receipts: [expect.objectContaining({
+                receipt_type: 'apply', status: 'completed'
+            })] },
+            validation: { valid: true }
+        });
+        const maintenance = await adminPool.query(
+            `SELECT p.status, COUNT(r.id)::integer AS receipt_count
+             FROM graph_maintenance_plans p
+             LEFT JOIN graph_maintenance_receipts r ON r.plan_id=p.id
+             WHERE p.organization_id=$1 AND p.idempotency_key=$2
+             GROUP BY p.status`,
+            [ORGANIZATION_ID, `project-provisioning:${planned.run_id}:graph`]
+        );
+        expect(maintenance.rows).toEqual([{ status: 'applied', receipt_count: 1 }]);
+    }, 300_000);
+
+    it('実PostgreSQLのproduction Graph書込み後に失敗を注入するとRegistry・claim・Graphを全てrollbackする', async () => {
+        const projectCode = 'acceptance-production-graph-rollback';
+        const displayName = 'Acceptance Production Graph Rollback';
+        const productionService = createProjectProvisioningService({ infoSSOTService });
+        const observed = observeProductionSharedClient(productionService);
+        const productionApplyPlan = productionService.graphService.applyPlan.bind(productionService.graphService);
+        let graphWriteObserved = false;
+        productionService.graphService.applyPlan = async (...args) => {
+            await productionApplyPlan(...args);
+            const client = args.at(-1)?.client;
+            const { rows } = await client.query(
+                'SELECT id FROM graph_entities WHERE id=$1',
+                [projectCode]
+            );
+            graphWriteObserved = rows.length === 1;
+            throw Object.assign(new Error('injected Graph apply failure'), {
+                code: 'TEST_GRAPH_APPLY_FAILURE',
+                statusCode: 503
+            });
+        };
+        const planned = await productionService.plan(
+            actorAccess,
+            projectManifest(projectCode, displayName),
+            { idempotencyKey: projectCode }
+        );
+        await productionService.approve(actorAccess, planned.run_id, {
+            approvedGates: ['manifest_plan_approval'],
+            reviewRef: `${projectCode}-review`
+        });
+
+        await expect(productionService.apply(actorAccess, planned.run_id)).rejects.toMatchObject({
+            code: 'TEST_GRAPH_APPLY_FAILURE'
+        });
+
+        expect(graphWriteObserved).toBe(true);
+        expect(observed.transactionClients).toHaveLength(1);
+        expect(observed.graphClients.length).toBeGreaterThanOrEqual(4);
+        expect(new Set(observed.graphClients.map(({ client }) => client))).toEqual(
+            new Set([observed.transactionClients[0]])
+        );
+        expect(await readNoWriteState(projectCode)).toEqual({
+            projects: [], registry: [], claims: [], entities: []
+        });
+        const maintenance = await adminPool.query(
+            `SELECT p.id
+             FROM graph_maintenance_plans p
+             WHERE p.organization_id=$1 AND p.idempotency_key=$2`,
+            [ORGANIZATION_ID, `project-provisioning:${planned.run_id}:graph`]
+        );
+        expect(maintenance.rows).toEqual([]);
+        expect(await readLedger(planned.run_id)).toMatchObject({
+            state: 'partial_failed',
+            step_count: 4,
+            completed_step_count: 0
+        });
+        await expect(productionService.status(actorAccess, planned.run_id)).resolves.toMatchObject({
+            state: 'partial_failed',
+            failure: { code: 'TEST_GRAPH_APPLY_FAILURE' }
+        });
+    }, 300_000);
+
+    it('受入れE2E: legacy planのGraph preflightを実HTTP/CLIで再開し、absent・reusable・incompatibleを分岐する', async () => {
+        const absentManifest = projectManifest(
+            'acceptance-legacy-absent',
+            'Acceptance Legacy Absent'
+        );
+        expect(await cliManifest('check', absentManifest)).toMatchObject({
+            ok: true,
+            graph_project_subject: { status: 'absent' },
+            writes_performed: 0
+        });
+        const absentPlan = await cliManifest('plan', absentManifest, [
+            '--idempotency-key', 'acceptance-legacy-absent'
+        ]);
+        await removePersistedGraphPreflight(absentPlan.run_id);
+        await cli('approve', [
+            absentPlan.run_id,
+            '--gates', 'manifest_plan_approval',
+            '--review-ref', 'acceptance-legacy-absent-review'
+        ]);
+
+        currentService = createService();
+        const absentApplied = await cli('apply', [absentPlan.run_id]);
+        expect(absentApplied).toMatchObject({
+            state: 'active',
+            run_id: absentPlan.run_id,
+            receipt: { verified: true }
+        });
+
+        const reusableManifest = projectManifest(
+            'acceptance-legacy-reusable',
+            'Acceptance Legacy Reusable'
+        );
+        expect(await cliManifest('check', reusableManifest)).toMatchObject({
+            ok: true,
+            graph_project_subject: { status: 'absent' },
+            writes_performed: 0
+        });
+        const reusablePlan = await cliManifest('plan', reusableManifest, [
+            '--idempotency-key', 'acceptance-legacy-reusable'
+        ]);
+        await removePersistedGraphPreflight(reusablePlan.run_id);
+        await cli('approve', [
+            reusablePlan.run_id,
+            '--gates', 'manifest_plan_approval',
+            '--review-ref', 'acceptance-legacy-reusable-review'
+        ]);
+        await insertGraphProjectSubject({
+            entityId: reusableManifest.project_code,
+            payload: {
+                name: reusableManifest.display_name,
+                catalog_project_id: reusableManifest.project_code,
+                catalog_version: reusableManifest.catalog_version,
+                source_ref: `project-catalog:${reusableManifest.project_code}@${reusableManifest.catalog_version}`
+            },
+            version: 4
+        });
+
+        // The legacy plan is resumed through a fresh production factory. The
+        // existing subject is therefore proven reusable at the real HTTP/CLI
+        // boundary, rather than by the test-only Graph double.
+        currentService = createProjectProvisioningService({ infoSSOTService });
+        const reusableApplied = await cli('apply', [reusablePlan.run_id]);
+        expect(reusableApplied).toMatchObject({
+            state: 'active',
+            run_id: reusablePlan.run_id,
+            receipt: { verified: true }
+        });
+        expect(reusableApplied.steps.find((step) => step.step_name === 'graph').receipt).toMatchObject({
+            status: 'already_materialized',
+            project_code: 'brainbase',
+            entity_version: 4
+        });
+
+        const conflictManifest = projectManifest(
+            'acceptance-legacy-conflict',
+            'Acceptance Legacy Conflict'
+        );
+        currentService = createService();
+        const conflictPlan = await cliManifest('plan', conflictManifest, [
+            '--idempotency-key', 'acceptance-legacy-conflict'
+        ]);
+        await removePersistedGraphPreflight(conflictPlan.run_id);
+        await cli('approve', [
+            conflictPlan.run_id,
+            '--gates', 'manifest_plan_approval',
+            '--review-ref', 'acceptance-legacy-conflict-review'
+        ]);
+        await insertGraphProjectSubject({
+            entityId: conflictManifest.project_code,
+            payload: {
+                name: 'Unexpected Legacy Conflict',
+                catalog_project_id: conflictManifest.project_code,
+                catalog_version: 99,
+                source_ref: `project-catalog:${conflictManifest.project_code}@99`
+            },
+            version: 8
+        });
+        const conflictCheck = await cliManifest('check', conflictManifest);
+        expect(conflictCheck).toMatchObject({
+            ok: false,
+            graph_project_subject: { status: 'conflict' },
+            writes_performed: 0,
+            collisions: expect.arrayContaining([
+                expect.objectContaining({ source: 'graph_identity_conflict' })
+            ])
+        });
+
+        const beforeState = await readNoWriteState(conflictManifest.project_code);
+        const beforeLedger = await readLedger(conflictPlan.run_id);
+        currentService = createService();
+        await expect(cli('apply', [conflictPlan.run_id])).rejects.toThrow(
+            'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT'
+        );
+        const afterState = await readNoWriteState(conflictManifest.project_code);
+        const afterLedger = await readLedger(conflictPlan.run_id);
+        expect(afterState).toEqual(beforeState);
+        expect(afterLedger).toEqual(beforeLedger);
+        expect(afterLedger).toMatchObject({
+            state: 'planned',
+            step_count: 4,
+            completed_step_count: 0
+        });
+        const conflictStatus = await cli('status', [conflictPlan.run_id]);
+        expect(conflictStatus.state).toBe('planned');
+        expect(conflictStatus.steps).toEqual(expect.arrayContaining([
+            expect.objectContaining({ step_name: 'registry', state: 'pending' }),
+            expect.objectContaining({ step_name: 'graph', state: 'pending' })
+        ]));
+
+        currentService = createService();
+    }, 300_000);
+
+    it('受入れE2E: same-ID conflict・cross-org redaction・Graph scope denialを実HTTP/CLIで検証する', async () => {
+        currentService = createService();
+        const incompatibleCode = 'acceptance-api-incompatible';
+        await insertGraphProjectSubject({
+            entityId: incompatibleCode,
+            payload: {
+                name: 'Unexpected API Identity',
+                catalog_project_id: incompatibleCode,
+                catalog_version: 7,
+                source_ref: `project-catalog:${incompatibleCode}@7`
+            },
+            version: 2
+        });
+        const incompatible = await httpProvisioningRequest('/check', {
+            method: 'POST',
+            body: projectManifest(incompatibleCode, 'Expected API Identity')
+        });
+        expect(incompatible.response.status).toBe(200);
+        expect(incompatible.payload).toMatchObject({
+            ok: false,
+            graph_project_subject: { status: 'conflict' },
+            writes_performed: 0,
+            collisions: expect.arrayContaining([
+                expect.objectContaining({ source: 'graph_identity_conflict' })
+            ])
+        });
+
+        const crossOrgCode = 'acceptance-api-cross-org';
+        await insertGraphProjectSubject({
+            entityId: crossOrgCode,
+            projectId: 'project_other',
+            payload: {
+                name: 'API Cross Org Secret',
+                catalog_project_id: crossOrgCode,
+                catalog_version: 1,
+                source_ref: `project-catalog:${crossOrgCode}@1`
+            },
+            version: 5
+        });
+        const crossOrg = await cliManifest(
+            'check',
+            projectManifest(crossOrgCode, 'API Cross Org Expected')
+        );
+        expect(crossOrg).toMatchObject({
+            ok: false,
+            graph_project_subject: { status: 'conflict' },
+            writes_performed: 0
+        });
+        expect(JSON.stringify(crossOrg)).not.toContain('API Cross Org Secret');
+        expect(JSON.stringify(crossOrg)).not.toContain('other-project');
+
+        const scopeDeniedCode = 'acceptance-api-scope-denied';
+        await adminPool.query(
+            `INSERT INTO projects (id, code, name, organization_id)
+             VALUES ('project_scope_hidden', $1, 'Hidden Scope Project', $2)
+             ON CONFLICT (id) DO UPDATE SET code=EXCLUDED.code,
+                 name=EXCLUDED.name, organization_id=EXCLUDED.organization_id`,
+            ['scope-hidden', ORGANIZATION_ID]
+        );
+        await insertGraphProjectSubject({
+            entityId: scopeDeniedCode,
+            projectId: 'project_scope_hidden',
+            payload: {
+                name: 'Scope Denied Subject',
+                catalog_project_id: scopeDeniedCode,
+                catalog_version: 1,
+                source_ref: `project-catalog:${scopeDeniedCode}@1`
+            },
+            version: 3
+        });
+        const scopeDenied = await cliManifest(
+            'check',
+            projectManifest(scopeDeniedCode, 'Scope Denied Subject')
+        );
+        expect(scopeDenied).toMatchObject({
+            ok: false,
+            graph_project_subject: { status: 'conflict' },
+            writes_performed: 0,
+            collisions: expect.arrayContaining([
+                expect.objectContaining({ source: 'graph_scope_unavailable' })
+            ])
+        });
+        expect(JSON.stringify(scopeDenied)).not.toContain('scope-hidden');
+
+        currentService = createService();
+    }, 300_000);
+
+    it('受入れE2E: existing subject reuseとdisplay-name/tenant guardを実HTTP/CLIで検証する', async () => {
+        currentService = createProjectProvisioningService({ infoSSOTService });
+        const reusableCode = 'acceptance-api-reuse';
+        const reusableName = 'Acceptance API Reuse';
+        await insertGraphProjectSubject({
+            entityId: reusableCode,
+            payload: {
+                name: reusableName,
+                catalog_project_id: reusableCode,
+                catalog_version: 1,
+                source_ref: `project-catalog:${reusableCode}@1`
+            },
+            version: 6
+        });
+        const reusableManifest = projectManifest(reusableCode, reusableName);
+        expect(await cliManifest('check', reusableManifest)).toMatchObject({
+            ok: true,
+            graph_project_subject: { status: 'reusable', project_code: 'brainbase', entity_version: 6 },
+            writes_performed: 0
+        });
+        const reusablePlan = await cliManifest('plan', reusableManifest, [
+            '--idempotency-key', 'acceptance-api-reuse'
+        ]);
+        await cli('approve', [
+            reusablePlan.run_id,
+            '--gates', 'manifest_plan_approval',
+            '--review-ref', 'acceptance-api-reuse-review'
+        ]);
+        const reusableApplied = await cli('apply', [reusablePlan.run_id]);
+        expect(reusableApplied).toMatchObject({
+            state: 'active', receipt: { verified: true }
+        });
+        expect(reusableApplied.steps.find((step) => step.step_name === 'graph').receipt).toMatchObject({
+            status: 'already_materialized', project_code: 'brainbase', entity_version: 6
+        });
+        expect(await cli('status', [reusablePlan.run_id])).toMatchObject({
+            state: 'active', run_id: reusablePlan.run_id
+        });
+        expect(await cli('verify', [reusablePlan.run_id])).toMatchObject({
+            verified: true, run_id: reusablePlan.run_id, incomplete_steps: []
+        });
+
+        const displaySourceId = 'acceptance-api-display-source';
+        await insertGraphProjectSubject({
+            entityId: displaySourceId,
+            payload: {
+                name: 'Acceptance API Display Name',
+                aliases: ['Acceptance API Alias'],
+                catalog_project_id: displaySourceId,
+                catalog_version: 1,
+                source_ref: `project-catalog:${displaySourceId}@1`
+            },
+            version: 1
+        });
+        for (const displayName of ['Acceptance API Display Name', 'Acceptance API Alias']) {
+            const displayCollision = await httpProvisioningRequest('/check', {
+                method: 'POST',
+                body: projectManifest(`acceptance-api-${displayName === 'Acceptance API Alias' ? 'alias' : 'display'}`, displayName)
+            });
+            expect(displayCollision.response.status).toBe(200);
+            expect(displayCollision.payload).toMatchObject({
+                ok: false,
+                writes_performed: 0,
+                collisions: expect.arrayContaining([
+                    expect.objectContaining({ source: 'graph_entity', entity_id: displaySourceId })
+                ])
+            });
+        }
+
+        const tenantGuardCode = 'acceptance-api-tenant-guard';
+        await insertGraphProjectSubject({
+            entityId: tenantGuardCode,
+            projectId: 'project_other',
+            payload: {
+                name: 'Tenant Guard Secret',
+                catalog_project_id: tenantGuardCode,
+                catalog_version: 1,
+                source_ref: `project-catalog:${tenantGuardCode}@1`
+            },
+            version: 9
+        });
+        const tenantGuard = await cliManifest(
+            'check',
+            projectManifest(tenantGuardCode, 'Tenant Guard Expected')
+        );
+        expect(tenantGuard).toMatchObject({
+            ok: false,
+            graph_project_subject: { status: 'conflict' },
+            writes_performed: 0
+        });
+        expect(JSON.stringify(tenantGuard)).not.toContain('Tenant Guard Secret');
+        expect(JSON.stringify(tenantGuard)).not.toContain('other-project');
+
+        currentService = createService();
+    }, 300_000);
+
+    it('受入れE2E: Graph identityの同時追加はRegistry書込前に再検証し、部分状態を残さない', async () => {
+        const productionService = createProjectProvisioningService({ infoSSOTService });
+        const projectCode = 'acceptance-race-graph-identity';
+        const manifest = projectManifest(projectCode, 'Acceptance Race Graph Identity');
+        const planned = await productionService.plan(actorAccess, manifest, {
+            idempotencyKey: 'acceptance-race-graph-identity'
+        });
+        await productionService.approve(actorAccess, planned.run_id, {
+            approvedGates: ['manifest_plan_approval'],
+            reviewRef: 'acceptance-race-graph-identity-review'
+        });
+
+        const blocker = await adminPool.connect();
+        let applyPromise;
+        let committed = false;
+        try {
+            await blocker.query('BEGIN');
+            await blocker.query(
+                `SELECT pg_advisory_xact_lock(hashtextextended($1, 0::bigint))`,
+                [`brainbase:project-graph-identity:${projectCode}`]
+            );
+            applyPromise = productionService.apply(actorAccess, planned.run_id);
+            await expect(applyPromise).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                details: { entity_id: projectCode, retryable: true }
+            });
+            await blocker.query(
+                `INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                 VALUES ($1, 'project', 'project_brainbase', $2::jsonb, 'member', 'internal', 'active', 1)`,
+                [projectCode, JSON.stringify({
+                    name: 'Concurrent Graph Identity',
+                    catalog_project_id: projectCode,
+                    catalog_version: 1,
+                    source_ref: `project-catalog:${projectCode}@1`
+                })]
+            );
+            await blocker.query('COMMIT');
+            committed = true;
+        } catch (error) {
+            if (!committed) await blocker.query('ROLLBACK').catch(() => {});
+            if (applyPromise) await applyPromise.catch(() => {});
+            throw error;
+        } finally {
+            blocker.release();
+        }
+
+        await expect(productionService.resume(actorAccess, planned.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT'
+        });
+        const state = await readNoWriteState(projectCode);
+        expect(state.projects).toEqual([]);
+        expect(state.registry).toEqual([]);
+        expect(state.claims).toEqual([]);
+        expect(state.entities).toMatchObject([{
+            id: projectCode,
+            entity_type: 'project',
+            payload: { name: 'Concurrent Graph Identity' },
+            version: 1
+        }]);
+        expect(await readLedger(planned.run_id)).toMatchObject({
+            state: 'partial_failed',
+            step_count: 4,
+            completed_step_count: 0
+        });
+    }, 300_000);
+
+    it('受入れE2E: 無関係IDは並行し逆順競合は待たずretryableになる', async () => {
+        const first = await adminPool.connect();
+        const second = await adminPool.connect();
+        let firstCommitted = false;
+        let secondCommitted = false;
+        try {
+            await first.query('BEGIN');
+            await second.query('BEGIN');
+            await lockProjectGraphIdentity(first, 'entity_z');
+            await lockProjectGraphIdentity(second, 'entity_a');
+
+            await expect(lockProjectGraphIdentity(first, 'entity_a')).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                details: { entity_id: 'entity_a', retryable: true }
+            });
+            await expect(lockProjectGraphIdentity(second, 'entity_z')).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                details: { entity_id: 'entity_z', retryable: true }
+            });
+            await first.query('COMMIT');
+            firstCommitted = true;
+            await second.query('COMMIT');
+            secondCommitted = true;
+        } finally {
+            if (!firstCommitted) await first.query('ROLLBACK').catch(() => {});
+            if (!secondCommitted) await second.query('ROLLBACK').catch(() => {});
+            first.release();
+            second.release();
+        }
+    }, 300_000);
+
+    it('受入れE2E: 複数ID lockは入力順によらず正規順で取得する', async () => {
+        const client = await adminPool.connect();
+        let committed = false;
+        try {
+            await client.query('BEGIN');
+            await expect(lockProjectGraphIdentities(client, ['entity_z', 'entity_a', 'entity_z']))
+                .resolves.toEqual(['entity_a', 'entity_z']);
+            await client.query('COMMIT');
+            committed = true;
+        } finally {
+            if (!committed) await client.query('ROLLBACK').catch(() => {});
+            client.release();
+        }
+    }, 300_000);
+
+    it('受入れE2E: 汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない', async () => {
+        const productionService = createProjectProvisioningService({ infoSSOTService });
+        const projectCode = 'acceptance-generic-writer-race';
+        const manifest = projectManifest(projectCode, 'Acceptance Generic Writer Race');
+        const planned = await productionService.plan(actorAccess, manifest, {
+            idempotencyKey: 'acceptance-generic-writer-race'
+        });
+        await productionService.approve(actorAccess, planned.run_id, {
+            approvedGates: ['manifest_plan_approval'],
+            reviewRef: 'acceptance-generic-writer-race-review'
+        });
+
+        const blocker = await adminPool.connect();
+        let committed = false;
+        try {
+            await blocker.query('BEGIN');
+            await blocker.query(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0::bigint))',
+                [`brainbase:project-graph-identity:${projectCode}`]
+            );
+            await expect(productionService.apply(actorAccess, planned.run_id)).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                details: { entity_id: projectCode, retryable: true }
+            });
+            await expect(infoSSOTService.createOrUpdateGraphEntity({
+                ...actorAccess,
+                projectCodes: ['brainbase', projectCode]
+            }, {
+                id: projectCode,
+                entityType: 'project',
+                projectCode: 'brainbase',
+                payload: {
+                    name: 'Generic Writer Corruption',
+                    catalog_project_id: projectCode,
+                    catalog_version: 999,
+                    source_ref: `project-catalog:${projectCode}@999`
+                },
+                roleMin: 'member',
+                sensitivity: 'internal'
+            })).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_IDENTITY_BUSY',
+                statusCode: 409,
+                details: { entity_id: projectCode, retryable: true }
+            });
+            await expect(adminPool.query(
+                `INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                 VALUES ($1, 'project', 'project_brainbase', $2::jsonb,
+                         'member', 'internal', 'active', 1)`,
+                [projectCode, JSON.stringify({ name: 'Raw Script Corruption' })]
+            )).rejects.toMatchObject({ code: '55P03' });
+            await blocker.query('COMMIT');
+            committed = true;
+
+            await expect(productionService.resume(actorAccess, planned.run_id))
+                .resolves.toMatchObject({ state: 'active' });
+            await expect(infoSSOTService.createOrUpdateGraphEntity({
+                ...actorAccess,
+                projectCodes: ['brainbase', projectCode]
+            }, {
+                id: projectCode,
+                entityType: 'project',
+                projectCode: 'brainbase',
+                payload: {
+                    name: 'Generic Writer Corruption',
+                    catalog_project_id: projectCode,
+                    catalog_version: 999,
+                    source_ref: `project-catalog:${projectCode}@999`
+                },
+                roleMin: 'member',
+                sensitivity: 'internal'
+            })).rejects.toMatchObject({
+                code: 'GRAPH_PROJECT_CATALOG_SUBJECT_PROTECTED',
+                statusCode: 409,
+                details: { entity_id: projectCode, reason: 'generic_writer_forbidden' }
+            });
+            await expect(adminPool.query(
+                `UPDATE graph_entities
+                 SET payload=jsonb_set(payload, '{name}', '"Raw Script Corruption"'::jsonb)
+                 WHERE id=$1`,
+                [projectCode]
+            )).rejects.toMatchObject({ code: '23514' });
+            const protectedSubject = await adminPool.query(
+                `SELECT payload->>'name' AS name FROM graph_entities WHERE id=$1`,
+                [projectCode]
+            );
+            expect(protectedSubject.rows).toEqual([{ name: 'Acceptance Generic Writer Race' }]);
+        } finally {
+            if (!committed) await blocker.query('ROLLBACK').catch(() => {});
+            blocker.release();
+        }
+
+        const state = await readNoWriteState(projectCode);
+        expect(state.registry).toMatchObject([{
+            project_code: projectCode,
+            display_name: 'Acceptance Generic Writer Race',
+            catalog_version: 1
+        }]);
+        expect(state.entities).toMatchObject([{
+            id: projectCode,
+            entity_type: 'project',
+            payload: {
+                name: 'Acceptance Generic Writer Race',
+                catalog_project_id: projectCode,
+                catalog_version: 1,
+                source_ref: `project-catalog:${projectCode}@1`
+            }
+        }]);
     }, 300_000);
 
     it('acceptance-e2e-full-provisioning-flow-missing: real PostgreSQL/factory flow preserves auth, CSRF, scope, and durable resume', async () => {
@@ -422,6 +1458,38 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
             human_gate_receipt: { review_ref: 'acceptance-review-full' },
             receipt: { verified: true }
         });
+
+        const originalGraphStep = await infoSSOTService.withAccessContext(actorAccess, async (client) => {
+            const { rows } = await client.query(
+                `SELECT receipt
+                 FROM project_provisioning_steps
+                 WHERE run_id=$1 AND organization_id=$2 AND step_name='graph'`,
+                [fullRunId, ORGANIZATION_ID]
+            );
+            return rows[0];
+        });
+        expect(originalGraphStep.receipt).toMatchObject({
+            project_code: 'acceptance-full-flow',
+            catalog_version: 1,
+            source_ref: 'project-catalog:acceptance-full-flow@1',
+            idempotency_key: `project-provisioning:${fullRunId}:graph`
+        });
+
+        await expect(infoSSOTService.withAccessContext(actorAccess, (client) => client.query(
+            `UPDATE project_provisioning_steps
+             SET receipt=$1::jsonb
+             WHERE run_id=$2 AND organization_id=$3 AND step_name='graph'`,
+            [JSON.stringify({ ...originalGraphStep.receipt, source_ref: 'project-catalog:tampered@1' }), fullRunId, ORGANIZATION_ID]
+        ))).rejects.toThrow('project provisioning step receipt is immutable');
+        await expect(infoSSOTService.withAccessContext(actorAccess, async (client) => {
+            const { rows } = await client.query(
+                `SELECT receipt
+                 FROM project_provisioning_steps
+                 WHERE run_id=$1 AND organization_id=$2 AND step_name='graph'`,
+                [fullRunId, ORGANIZATION_ID]
+            );
+            return rows[0];
+        })).resolves.toEqual(originalGraphStep);
 
         await expect(infoSSOTService.withAccessContext(actorAccess, (client) => client.query(
             `UPDATE project_provisioning_runs
