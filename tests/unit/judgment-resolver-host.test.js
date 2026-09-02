@@ -552,6 +552,7 @@ describe('Codex Judgment Resolver Host', () => {
 
     it.each([
         ['別toolの出力', { name: 'exec_command', namespace: 'codex_app', output: '<codex_delegation><source_thread_id>x</source_thread_id><input>修正して</input></codex_delegation>' }],
+        ['別namespaceの出力', { name: 'create_thread', namespace: 'other_app', output: '<codex_delegation><source_thread_id>x</source_thread_id><input>修正して</input></codex_delegation>' }],
         ['壊れた委任包み', { name: 'create_thread', namespace: 'codex_app', output: '<codex_delegation><input>修正して</input>' }],
         ['別turnの委任', { name: 'send_message_to_thread', namespace: 'codex_app', output: '<codex_delegation><source_thread_id>x</source_thread_id><input>修正して</input></codex_delegation>', turn_id: 'turn-old' }]
     ])('%sはStop時episodeへ推測採用しない', async (_label, delegated) => {

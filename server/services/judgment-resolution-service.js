@@ -247,19 +247,40 @@ function classificationRequest(request) {
 
 function positiveClassificationRequest(request) {
     return request
-        .split(/(?<=[。！？\n])/u)
+        .split(/(?<=[。！？.!?\n])/u)
         .map((sentence) => {
             const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください)/u.exec(sentence);
             if (japaneseBoundary) {
-                const tail = sentence.slice(japaneseBoundary.index + japaneseBoundary[0].length)
-                    .replace(/^[、,。！？\s]+/u, '');
-                return tail || '';
+                const beforeNegation = sentence.slice(0, japaneseBoundary.index);
+                const clauseBoundary = Math.max(beforeNegation.lastIndexOf('、'), beforeNegation.lastIndexOf(','));
+                const positivePrefix = clauseBoundary >= 0
+                    ? beforeNegation.slice(0, clauseBoundary).trim()
+                    : '';
+                const keepPrefix = /(?:作成|書|更新|修正|実装|確認|読み戻|進め|追加|保存|処理|実行)(?:して|し|いて|き|めて)/u.test(positivePrefix)
+                    ? positivePrefix
+                    : '';
+                const afterNegation = sentence.slice(japaneseBoundary.index + japaneseBoundary[0].length);
+                const tailBoundary = /^[、,;；]/u.exec(afterNegation);
+                const positiveTail = tailBoundary
+                    ? afterNegation.slice(tailBoundary[0].length).replace(/^[、,;；。！？\s]+/u, '')
+                    : '';
+                return [keepPrefix, positiveTail].filter(Boolean).join('。');
             }
             const englishBoundary = /\b(?:do not|don't|must not)\b/iu.exec(sentence);
             if (englishBoundary) {
-                const tail = sentence.slice(englishBoundary.index + englishBoundary[0].length)
-                    .replace(/^[,.;:!?\s]+/u, '');
-                return tail || '';
+                const beforeNegation = sentence.slice(0, englishBoundary.index)
+                    .replace(/\b(?:but|and)\s*$/iu, '')
+                    .replace(/[,;:\s]+$/u, '')
+                    .trim();
+                const keepPrefix = /\b(?:write|create|update|edit|implement|check|verify|read back|add|save|process|run)\b/iu.test(beforeNegation)
+                    ? beforeNegation
+                    : '';
+                const afterNegation = sentence.slice(englishBoundary.index + englishBoundary[0].length);
+                const separatorIndex = afterNegation.search(/[;；]/u);
+                const positiveTail = separatorIndex >= 0
+                    ? afterNegation.slice(separatorIndex + 1).replace(/^[,.;:!?\s]+/u, '')
+                    : '';
+                return [keepPrefix, positiveTail].filter(Boolean).join('. ');
             }
             return sentence;
         })
@@ -601,7 +622,7 @@ function includesFollowUpTerm(text, terms) {
     return terms.some((term) => {
         const normalizedTerm = term.toLocaleLowerCase('ja');
         if (normalizedTerm === 'これ' || normalizedTerm === 'こちら') {
-            return new RegExp(`${escapeRegExp(normalizedTerm)}(?!は)`, 'u').test(normalized);
+            return new RegExp(`${escapeRegExp(normalizedTerm)}(?:は(?:[？?]|どう|何|どれ|どこ|いつ|誰|なぜ)|(?!は))`, 'u').test(normalized);
         }
         if (normalizedTerm === 'では') {
             return /^(?:では)(?:[、,\s]|$)/u.test(normalized.trimStart());

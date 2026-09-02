@@ -5,6 +5,7 @@
 - Codex Host adapterは、通常turnでは`UserPromptSubmit` payloadを使う。Codex App委任turnでそのeventが欠けた場合だけ、Stop payloadの`transcript_path`から現在turnの正規`codex_delegation`入力を復元する。
 - Judgment Resolver Hostは、正規化後の入力だけからepisodeを開始し、route receiptと後続Tool/Stop eventを同じ識別子へ束縛する。
 - 判断価値ProjectionとRendererは既存契約を利用し、このStoryでは複製・緩和しない。
+- fresh taskの依頼分類は共通Resolverを通る。禁止された操作を肯定要求へ反転せず、同じ文の前後にある肯定されたローカル操作だけを分類へ残す。
 
 ## データ経路
 
@@ -25,9 +26,11 @@
 - Stop復元routeは差し戻しと後続処理だけに適用し、初回model生成を導いた証拠として表示・監査しない。通常の`UserPromptSubmit`開始は`pre_generation`として区別する。
 - `judgment_episode_not_found`を成功へ変換せず、入口で開始できなかった理由を監査可能にする。
 - fresh task実証はunit/integrationの合格と分け、実際のCodex task出力とjournal readbackの両方で確認する。
+- 禁止節の除外は句順に依存させない。日本語・英語とも「肯定依頼→禁止」「禁止→肯定依頼」「禁止だけ」を回帰fixtureに固定する。
 
 ## 検証方針
 
 - Unit: Codex Appの実rollout形状をfixture化し、正規委任だけを復元して異常入力を拒否できる。
 - Integration: UserPromptSubmitなしのStopが同じepisodeを開始し、不要確認の差し戻しから実行証拠、value proof、最終判断レシートまで同じepisodeで完了できる。
+- Resolver unit: 日英の禁止節を前後どちらに置いても、肯定されたローカル書込みだけが`implement/write`となり、禁止だけの文は操作要求にならない。
 - E2E: 新規Codexタスクで不要な確認が差し戻され、成果物完了後に`Brainbase判断レシート`が1回表示される。

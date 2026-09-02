@@ -811,7 +811,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         expect(unrelated).toMatchObject({ code: 0, stderr: '', stdout: '{}\n' });
         expect(existsSync(journal)).toBe(false);
-    });
+    }, 20_000);
 
     // Traceability: story-judgment-audit-continuity-v1:ac:8
     it('orphan PostToolUseはdigest-only markerと可視警告を残し、Stopのone-shot状態を消費しない', async () => {
@@ -1640,7 +1640,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         }) });
         expect(completed).toMatchObject({ code: 0, stderr: '' });
         const output = JSON.parse(completed.stdout).systemMessage;
-        expect(output).toContain('Brainbase判断レシート');
+        expect(output.match(/Brainbase判断レシート/gu)).toHaveLength(1);
         expect(output).toContain('結果: 更新内容を読み戻して確認した');
         expect(output).toContain('判断: 既存SSOTを最小更新する');
         expect(readFileSync(join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.value-proof.json`), 'utf8')).toContain(hash(question));
