@@ -3,7 +3,7 @@ story_id: story-t0-slack-installation-failure-diagnostics
 title: Slack installation失敗を秘密なしで段階別に再読込できる
 spec_docs:
   - docs/specs/story-t0-slack-installation-failure-diagnostics.md
-status: in_review
+status: done
 t0_program_status: implementing
 created_at: 2026-08-31
 updated_at: 2026-09-02
@@ -29,7 +29,7 @@ T0の運用担当者として、Slack installation callbackが失敗したとき
 - 変更面単体・schema: 6 files / 82 tests pass
 - 実PostgreSQL integration: 3 files / 17 tests pass（実failed write/readback、旧台帳からの冪等migrationを含む）
 - TypeScript typecheck、対象ESLint、Task JSON parse、`git diff --check`: pass
-- 初回独立レビュー: NEEDS_CHANGES、blocking 1（stage別allowlist不足）。修正済み、再レビュー待ち
+- 初回独立レビュー: NEEDS_CHANGES、blocking 1（stage別allowlist不足）。修正後、現行`origin/develop@c7b31cec3d9c727025a797b5fda92a216ae5d5e2`上のexact code HEAD `a810fd5e1382a2d41f2d04e132765d67fd4a102d`を再レビューし、PASS（blocking 0 / non-blocking 0）
 - production execution / deploy / OAuth retry / secret参照: 0回
 
 ## 完了境界
