@@ -187,6 +187,13 @@ describe('judgment resolver publication surfaces', () => {
         expect(convergence).toContain('BRAINBASE_PRODUCTION_STAGE=');
         expect(convergence).toContain('BRAINBASE_PRODUCTION_STATE_CHANGED=true');
         expect(convergence).not.toContain('BRAINBASE_PRODUCTION_STATE_CHANGED=false');
+        expect(convergence.indexOf("trap 'write_production_failure_receipt $?' ERR")).toBeLessThan(
+            convergence.indexOf('$(date -u +%Y%m%dT%H%M%SZ)')
+        );
+        expect(convergence.indexOf("trap 'write_production_failure_receipt $?' ERR")).toBeLessThan(
+            convergence.indexOf('$(mktemp -d')
+        );
+        expect(convergence).toContain('status=unknown stage=%s rollback_required=true');
         expect(convergence.indexOf('BRAINBASE_PRODUCTION_STATE_CHANGED=true')).toBeLessThan(
             convergence.indexOf('BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_before')
         );

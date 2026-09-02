@@ -358,29 +358,37 @@ REMOTE
 
 ```bash
 set -euo pipefail
-: "${TARGET_SHA:?Set the merged develop SHA}"
-: "${BRAINBASE_ROLLBACK_STATE_DIR:?Set the captured rollback directory}"
-grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
-export TARGET_SHA
-export BRAINBASE_PRODUCTION_RUN_ID="production-convergence-$(date -u +%Y%m%dT%H%M%SZ)"
-export BRAINBASE_PRODUCTION_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/${BRAINBASE_PRODUCTION_RUN_ID}.XXXXXX")"
-chmod 700 "$BRAINBASE_PRODUCTION_RUN_DIR"
-export BRAINBASE_PRODUCTION_RECEIPT="$BRAINBASE_PRODUCTION_RUN_DIR/production-convergence-receipt.json"
-export BRAINBASE_PRODUCTION_TARGET_SHA="$TARGET_SHA"
 export BRAINBASE_PRODUCTION_STAGE=preflight
 # この手順は4面をTARGET_SHAへ切り替えた後に開始する。設定変更前の失敗でも
 # release全体は変更済みなので、必ず保存済み4面stateからrollbackする。
 export BRAINBASE_PRODUCTION_STATE_CHANGED=true
+export BRAINBASE_PRODUCTION_RUN_ID=''
+export BRAINBASE_PRODUCTION_RUN_DIR=''
+export BRAINBASE_PRODUCTION_TARGET_SHA="${TARGET_SHA:-}"
 write_production_failure_receipt() {
   local exit_code="$1"
   trap - ERR
-  BRAINBASE_PRODUCTION_EXIT_CODE="$exit_code" \
-    node scripts/write-production-convergence-failure-receipt.mjs || \
-    printf 'Production convergence failure receipt could not be written; status=unknown stage=%s rollback_required=%s\n' \
-      "$BRAINBASE_PRODUCTION_STAGE" "$BRAINBASE_PRODUCTION_STATE_CHANGED" >&2
+  if test -n "${BRAINBASE_PRODUCTION_RUN_DIR:-}" \
+    && test -d "$BRAINBASE_PRODUCTION_RUN_DIR" \
+    && test -n "${BRAINBASE_PRODUCTION_RUN_ID:-}" \
+    && grep -Eq '^[0-9a-f]{40}$' <<<"${BRAINBASE_PRODUCTION_TARGET_SHA:-}"; then
+    BRAINBASE_PRODUCTION_EXIT_CODE="$exit_code" \
+      node scripts/write-production-convergence-failure-receipt.mjs && return "$exit_code"
+  fi
+  printf 'Production convergence failure receipt could not be written; status=unknown stage=%s rollback_required=true\n' \
+    "${BRAINBASE_PRODUCTION_STAGE:-preflight}" >&2
   return "$exit_code"
 }
 trap 'write_production_failure_receipt $?' ERR
+: "${TARGET_SHA:?Set the merged develop SHA}"
+: "${BRAINBASE_ROLLBACK_STATE_DIR:?Set the captured rollback directory}"
+grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
+export TARGET_SHA
+export BRAINBASE_PRODUCTION_TARGET_SHA="$TARGET_SHA"
+export BRAINBASE_PRODUCTION_RUN_ID="production-convergence-$(date -u +%Y%m%dT%H%M%SZ)"
+export BRAINBASE_PRODUCTION_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/${BRAINBASE_PRODUCTION_RUN_ID}.XXXXXX")"
+chmod 700 "$BRAINBASE_PRODUCTION_RUN_DIR"
+export BRAINBASE_PRODUCTION_RECEIPT="$BRAINBASE_PRODUCTION_RUN_DIR/production-convergence-receipt.json"
 INFISICAL="$HOME/.local/bin/infisical"
 INFISICAL_DOMAIN=https://infisical.unson.jp
 INFISICAL_PROJECT_ID=ce20541c-02b9-4523-bbe0-49d50b2fcc19
