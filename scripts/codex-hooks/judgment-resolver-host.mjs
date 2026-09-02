@@ -199,6 +199,36 @@ function isInjectedHostEnvelope(text) {
         || trimmed.startsWith('<app-context>');
 }
 
+const TURN_RESOLUTION_TOOL_NAME = 'mcp__brainbase__brainbase_resolve_turn';
+const TURN_RESOLUTION_UNAVAILABLE_PATTERN = new RegExp(
+    `(?:${TURN_RESOLUTION_TOOL_NAME}\\b[^\\n]{0,40}\\bis not a function\\b`
+    + `|(?:unknown tool|tool not found|no such tool)[^\\n]{0,80}${TURN_RESOLUTION_TOOL_NAME}\\b)`,
+    'iu'
+);
+
+// A long-lived Codex thread keeps the MCP tool surface it started with. When
+// that surface predates the model-first contract, the model cannot call
+// brainbase_resolve_turn at all; the only deterministic evidence is the
+// recorded tool failure in the raw transcript.
+function turnResolutionAttempt(eventPayload) {
+    if (eventPayload.name === TURN_RESOLUTION_TOOL_NAME) return 'direct';
+    const script = [eventPayload.input, eventPayload.arguments].find((value) => typeof value === 'string') ?? '';
+    return script.includes(`${TURN_RESOLUTION_TOOL_NAME}(`) ? 'wrapped' : null;
+}
+
+function turnResolutionSurfaceFromOutput(attempt, eventPayload) {
+    const output = typeof eventPayload.output === 'string' ? eventPayload.output : contentText(eventPayload.output);
+    const metadata = record(eventPayload.internal_chat_message_metadata_passthrough) ?? record(eventPayload.metadata);
+    const evidence = {
+        attempt,
+        turn_id: typeof metadata?.turn_id === 'string' ? metadata.turn_id : null,
+        call_ref: sha256(String(eventPayload.call_id ?? '')),
+        output_digest: sha256(output)
+    };
+    if (TURN_RESOLUTION_UNAVAILABLE_PATTERN.test(output)) return { status: 'unavailable', evidence };
+    return attempt === 'direct' ? { status: 'available', evidence } : null;
+}
+
 function pathInside(path, root) {
     const delta = relative(root, path);
     return delta === '' || (!delta.startsWith(`..${sep}`) && delta !== '..' && !isAbsolute(delta));
@@ -231,6 +261,8 @@ function readCanonicalTranscript(payload, env) {
     const messages = [];
     const delegations = [];
     const parsedEvents = [];
+    const turnResolutionAttempts = new Map();
+    let turnResolutionSurface = { status: 'unknown', evidence: null };
     const text = readFileSync(canonicalPath, 'utf8');
     for (const line of text.split('\n')) {
         if (!line.trim()) continue;
@@ -275,6 +307,16 @@ function readCanonicalTranscript(payload, env) {
         }
         if (envelope.type !== 'response_item') continue;
         if (!activeSessionMatched) continue;
+        if (['function_call', 'custom_tool_call'].includes(eventPayload.type)) {
+            const attempt = turnResolutionAttempt(eventPayload);
+            if (attempt) turnResolutionAttempts.set(String(eventPayload.call_id ?? ''), attempt);
+            continue;
+        }
+        if (['function_call_output', 'custom_tool_call_output'].includes(eventPayload.type)) {
+            const attempt = turnResolutionAttempts.get(String(eventPayload.call_id ?? '')) ?? null;
+            const surface = attempt ? turnResolutionSurfaceFromOutput(attempt, eventPayload) : null;
+            if (surface) turnResolutionSurface = surface;
+        }
         if (eventPayload.type === 'function_call_output') {
             const metadata = record(eventPayload.internal_chat_message_metadata_passthrough)
                 ?? record(eventPayload.metadata);
@@ -315,8 +357,39 @@ function readCanonicalTranscript(payload, env) {
     return {
         messages,
         delegations,
+        turn_resolution_surface: turnResolutionSurface,
         complete: true
     };
+}
+
+function transcriptTurnResolutionSurface(payload, env) {
+    const surface = readCanonicalTranscript(payload, env).turn_resolution_surface;
+    return surface?.status === 'unavailable' ? surface : null;
+}
+
+function hostSurfaceForEpisode(payload, env) {
+    const surface = transcriptTurnResolutionSurface(payload, env);
+    if (!surface) return null;
+    return {
+        schema_version: 'brainbase-judgment-host-surface-v1',
+        turn_resolution: 'unavailable',
+        evidence: surface.evidence
+    };
+}
+
+function verifyHostSurface(value) {
+    if (value === undefined) return null;
+    if (!record(value)
+        || value.schema_version !== 'brainbase-judgment-host-surface-v1'
+        || value.turn_resolution !== 'unavailable'
+        || !record(value.evidence)) {
+        throw new Error('judgment_episode_host_surface_invalid');
+    }
+    return value;
+}
+
+function turnResolutionUnavailable(episode) {
+    return episode?.host_surface?.turn_resolution === 'unavailable';
 }
 
 function delegatedPromptForTurn(payload, env) {
@@ -762,6 +835,7 @@ function verifyEpisode(entry) {
         throw new Error('judgment_episode_turn_input_mismatch');
     }
     if (entry.audit_contract !== undefined) verifyAuditContract(entry.audit_contract);
+    verifyHostSurface(entry.host_surface);
     return entry;
 }
 
@@ -822,6 +896,10 @@ export async function startEpisode(payload, {
             'judgment_episode_route_resolve_failed',
             () => resolveInitialRoute(args, { env, fetchImpl })
         );
+        const hostSurface = withJudgmentStage(
+            'judgment_episode_surface_detect_failed',
+            () => hostSurfaceForEpisode(payload, env)
+        );
         const entry = withJudgmentStage('judgment_episode_audit_build_failed', () => ({
             schema_version: 'brainbase-judgment-episode-v1',
             state: 'open',
@@ -832,8 +910,9 @@ export async function startEpisode(payload, {
             turn_input: args,
             initial_route_receipt_digest: sha256(canonicalJson(initialRouteReceipt)),
             initial_route_receipt: initialRouteReceipt,
-            owner_audit: buildOwnerAudit(args, initialRouteReceipt),
-            audit_contract: buildAuditContract(initialRouteReceipt)
+            owner_audit: buildOwnerAudit(args, initialRouteReceipt, { hostSurface }),
+            audit_contract: buildAuditContract(initialRouteReceipt),
+            ...(hostSurface ? { host_surface: hostSurface } : {})
         }));
         return withJudgmentStage(
             'judgment_episode_persist_failed',
@@ -2456,7 +2535,13 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const events = episodeEvents(paths);
     const hasTurnResolution = events.some((event) => event.success && event.satisfies.includes('judgment.resolve_turn'));
     const bootstrapEpisode = episode;
-    const requiresTurnResolution = turnResolutionRequired(bootstrapEpisode);
+    // The first degraded turn opens before the failure is visible, so the Stop
+    // re-reads the transcript; later turns carry the surface in the episode.
+    const surfaceUnavailable = turnResolutionUnavailable(bootstrapEpisode)
+        || (turnResolutionRequired(bootstrapEpisode)
+            && !hasTurnResolution
+            && transcriptTurnResolutionSurface(payload, env) !== null);
+    const requiresTurnResolution = turnResolutionRequired(bootstrapEpisode) && !surfaceUnavailable;
     episode = effectiveEpisode(episode, events);
     let existingContinuation = null;
     try { existingContinuation = readJson(paths.continuation); } catch (error) {
@@ -2503,12 +2588,14 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines)
         || unauthorizedContinuationAudit
         || unauthorizedStopRepairAudit;
-    const autonomyCompliance = autonomyAnswerCompliance(
-        answer,
-        expectedAuditLines,
-        episode.initial_route_receipt,
-        events
-    );
+    const autonomyCompliance = surfaceUnavailable
+        ? { status: 'turn_resolution_unavailable', violation: null }
+        : autonomyAnswerCompliance(
+            answer,
+            expectedAuditLines,
+            episode.initial_route_receipt,
+            events
+        );
     const missingAutonomyCompliance = autonomyCompliance.violation !== null;
     const auditContract = episodeAuditContract(episode);
     const valueProofEvent = valueProofRolloutEnabled(episode, env)
@@ -2687,7 +2774,11 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
         finalized_at: finalizedAt,
-        completion_status: 'complete',
+        ...(surfaceUnavailable ? {
+            completion_status: 'audit_degraded',
+            degradation_reason: 'turn_resolution_unavailable',
+            ...(bootstrapEpisode.host_surface ? { host_surface: bootstrapEpisode.host_surface } : {})
+        } : { completion_status: 'complete' }),
         protocol_status: 'audit_protocol_complete',
         content_verification_status: 'not_evaluated',
         ...(episode.episode_origin !== undefined ? {
@@ -2854,14 +2945,17 @@ function ownerDecision(receipt) {
     }[receipt?.classification?.action_kind] ?? '回答方針を確認';
 }
 
-export function buildOwnerAudit(args, receipt, { historicalExact = true } = {}) {
+export function buildOwnerAudit(args, receipt, { historicalExact = true, hostSurface = null } = {}) {
     const evidence = ownerEvidenceSource(args, receipt);
     const excerpt = sanitizeOwnerExcerpt(evidence.text);
     const dagIds = Array.isArray(receipt?.selected_dag_ids) ? receipt.selected_dag_ids : [];
     let decision = ownerDecision(receipt);
     let displayLine;
 
-    if (receipt?.status === 'needs_classification' || dagIds.includes('clarification.v1')) {
+    if (hostSurface?.turn_resolution === 'unavailable') {
+        decision = 'Resolver未接続のため判断縮退';
+        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」→ ${decision}（このCodexスレッドは${TURN_RESOLUTION_TOOL_NAME}を呼べない・新しいCodexタスクで復旧）`;
+    } else if (receipt?.status === 'needs_classification' || dagIds.includes('clarification.v1')) {
         decision = '確認質問';
         const reasons = Array.isArray(receipt?.reconciliation_reasons)
             ? receipt.reconciliation_reasons.flatMap((reason) => {
@@ -2926,14 +3020,23 @@ export function successOutput(
     receipt,
     ownerAudit = buildOwnerAudit(args, receipt),
     auditContract = buildAuditContract(receipt),
-    env = process.env
+    env = process.env,
+    hostSurface = null
 ) {
     const ownerReferenceLine = ownerAudit.display_line;
+    const surfaceDegraded = hostSurface?.turn_resolution === 'unavailable';
     const requiredCapabilityInstructions = requiredCapabilityActionContracts(receipt)
         .map((contract) => capabilityActionInstruction(contract));
     const implementationWorkflowInstructions = mandatoryVibeProImplementationInstructions(receipt);
     const autonomy = verifyAutonomyContract(receipt);
-    const autonomyInstructions = autonomy?.decision === 'continue'
+    const autonomyInstructions = surfaceDegraded
+        ? [
+            'Autonomy decision: continue (turn-resolution surface unavailable).',
+            '安全なスコープ内の読解、調査、テスト、可逆な実装はそのまま完了まで続ける。分類確認や再送依頼のためだけに停止しない。',
+            `実行中に確認が必須になった場合だけ、許可された理由コードの確認行「⚠️ 確認が必要[reason_code]:」を回答本文の先頭に置く。許可コード: ${AUTONOMY_RUNTIME_ESCALATION_REASONS.join(', ')}。`,
+            'この自律判断は通常の権限・承認を置き換えません。'
+        ]
+        : autonomy?.decision === 'continue'
         ? [
             'Autonomy decision: continue.',
             '安全なスコープ内の読解、調査、テスト、可逆な実装はそのまま完了まで続ける。複雑さ、好みの確認、念のための確認だけを理由に停止しない。',
@@ -2952,8 +3055,13 @@ export function successOutput(
         : 'brainbase_judgment_state_record';
     const context = [
         'Brainbase Judgment Resolver Host opened one unresolved judgment episode before model generation. This bootstrap receipt is not a semantic classification or the final episode receipt.',
-        `Before answering or using any other tool, call mcp__brainbase__brainbase_resolve_turn exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request.`,
-        'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed.',
+        ...(surfaceDegraded ? [
+            `This Codex thread cannot call ${TURN_RESOLUTION_TOOL_NAME}: its MCP tool surface predates the current Brainbase contract, and the Host recorded that tool failure from the transcript. Do not retry it, do not ask the user a classification question, and do not ask the user to restart; the Host-generated judgment line already reports the degraded state and that a new Codex task restores full judgment routing.`,
+            'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
+        ] : [
+            `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request.`,
+            'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed.'
+        ]),
         'Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
         ...autonomyInstructions,
         ...implementationWorkflowInstructions,
@@ -2969,7 +3077,9 @@ export function successOutput(
             '実装・操作turnの実行状態は自然文から推測しません。最終回答の末尾に次の非表示状態を正確に1件だけ置く: <!-- brainbase-stop-state:{"schema_version":"brainbase-stop-state-v1","status":"completed","pending_safe_work":false,"runtime_reason_code":null} -->。安全な作業が残る間はstatusをpending、pending_safe_workをtrueにする。人間確認が必須ならstatusをwaiting_humanにし、runtime_reason_codeを許可された確認理由と一致させる。completedは同一episodeに成功したPostToolUse実行証跡があり、安全な作業が残っていない場合だけ使う。'
         ] : []),
         'Use Brainbase knowledge and retrieval tools repeatedly when later evidence makes another lookup useful; there is no one-call-per-turn limit.',
-        'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
+        ...(surfaceDegraded ? [] : [
+            'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.'
+        ]),
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
         `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
         ...(typeof auditContract?.zero_call_display_line === 'string' ? [
@@ -3009,7 +3119,8 @@ export async function processHookPayload(payload, dependencies = {}) {
         const episode = await startEpisode(payload, dependencies);
         await dependencies.onEpisodeStarted?.(episode);
         return successOutput(
-            episode.turn_input, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode), dependencies.env ?? process.env
+            episode.turn_input, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode),
+            dependencies.env ?? process.env, episode.host_surface ?? null
         );
     }
     if (eventName === 'PostToolUse') {
