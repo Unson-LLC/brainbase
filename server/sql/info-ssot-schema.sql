@@ -90,11 +90,18 @@ ALTER TABLE auth_grants ALTER COLUMN slack_user_id DROP NOT NULL;
 ALTER TABLE auth_grants ALTER COLUMN slack_workspace_id DROP NOT NULL;
 ALTER TABLE auth_grants ADD COLUMN IF NOT EXISTS organization_id text;
 
-UPDATE auth_grants ag
-SET organization_id = o.id
-FROM organizations o
-WHERE ag.organization_id IS NULL
-  AND ag.slack_workspace_id = o.workspace_id;
+DO $$
+BEGIN
+  -- Growinのような専用テナントDBには、共通permission catalogを置かない。
+  -- 任意テーブルがない環境でも認証スキーマ自体は適用できるようにする。
+  IF to_regclass('organizations') IS NOT NULL THEN
+    UPDATE auth_grants ag
+    SET organization_id = o.id
+    FROM organizations o
+    WHERE ag.organization_id IS NULL
+      AND ag.slack_workspace_id = o.workspace_id;
+  END IF;
+END $$;
 
 -- External login identities are deliberately separate from Brainbase people and
 -- authorization grants. Adding Google, Entra ID, or passkeys must not change the
