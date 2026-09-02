@@ -250,7 +250,7 @@ function positiveClassificationRequest(request, manifest) {
     return request
         .split(/(?<=[。！？.!?\n])/u)
         .map((sentence) => {
-            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください|しません|行いません|実行しません|禁止(?:です|されています)?|不可(?:です)?)/u.exec(sentence);
+            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください|しないこと|するな|避けてください|しません|行いません|実行しません|禁止(?:です|されています)?|不可(?:です)?)/u.exec(sentence);
             if (japaneseBoundary) {
                 const beforeNegation = sentence.slice(0, japaneseBoundary.index);
                 const clauseBoundary = Math.max(
@@ -288,7 +288,7 @@ function positiveClassificationRequest(request, manifest) {
                     ? positivePrefix
                     : '';
                 const afterNegation = sentence.slice(englishBoundary.index + englishBoundary[0].length);
-                const tailBoundary = /(?:[;；]|,\s*(?:but|and then)\s+)/iu.exec(afterNegation);
+                const tailBoundary = /(?:[;；]|,\s*(?:but|and(?: then)?)\s+)/iu.exec(afterNegation);
                 const positiveTail = tailBoundary
                     ? afterNegation.slice(tailBoundary.index + tailBoundary[0].length).replace(/^[,.;:!?\s]+/u, '')
                     : '';
