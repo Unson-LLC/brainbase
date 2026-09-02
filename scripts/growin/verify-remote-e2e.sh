@@ -39,7 +39,7 @@ initialize='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVer
 rpc "$initialize" | sed -n 's/^data: //p' | jq -e '.result' >/dev/null
 rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
   | sed -n 's/^data: //p' \
-  | jq -e 'any(.result.tools[]?; .name == "resolve_entity")' >/dev/null
+  | jq -e '. as $response | all("resolve_entity", "list_entities"; . as $required | any($response.result.tools[]?; .name == $required))' >/dev/null
 
 growin="$(rpc '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"resolve_entity","arguments":{"query":"グローウィン・パートナーズ株式会社 Growin"}}}')"
 unson="$(rpc '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"resolve_entity","arguments":{"query":"合同会社雲孫 Unson"}}}')"
@@ -68,4 +68,34 @@ if ! jq -e 'length == 0' <<<"$foreign_candidates" >/dev/null; then
   echo "失敗: Growin専用環境から他案件エンティティを参照できました" >&2
   exit 1
 fi
-echo 'Growin E2E OK: Growinと案件内の提供元コンテキストを取得し、他案件を取得しないことを確認しました'
+
+list_entities() {
+  local id="$1"
+  local type="$2"
+  local payload
+  payload="$(jq -nc --argjson id "$id" --arg type "$type" \
+    '{jsonrpc:"2.0",id:$id,method:"tools/call",params:{name:"list_entities",arguments:{type:$type,project:"growin"}}}')"
+  rpc "$payload" | sed -n 's/^data: //p' | jq -r '.result.content[]?.text'
+}
+
+decisions="$(list_entities 6 decision)"
+people="$(list_entities 7 person)"
+apps="$(list_entities 8 app)"
+
+decision_count="$(printf '%s\n' "$decisions" | sed -n 's/^# decision entities (\([0-9][0-9]*\)).*/\1/p')"
+people_count="$(printf '%s\n' "$people" | sed -n 's/^# person entities (\([0-9][0-9]*\)).*/\1/p')"
+planned_count="$(printf '%s\n' "$apps" | grep -c '\[planned\]$' || true)"
+
+test "${decision_count:-0}" -gt 0 || { echo '失敗: 会議前に参照する決定記録がありません' >&2; exit 1; }
+test "${people_count:-0}" -gt 0 || { echo '失敗: 会議前に参照する関係者がいません' >&2; exit 1; }
+test "$planned_count" -gt 0 || { echo '失敗: 会議前に確認する未解決・計画中項目がありません' >&2; exit 1; }
+printf '%s\n' "$people" | grep -Fq '**加藤 真太郎**' || { echo '失敗: 加藤さんを確認できません' >&2; exit 1; }
+printf '%s\n' "$people" | grep -Fq '**川村 達見**' || { echo '失敗: 川村さんを確認できません' >&2; exit 1; }
+
+jq -nc \
+  --arg status ok \
+  --arg scenario '会議前に、過去の決定・関係者・未解決事項を確認する' \
+  --argjson decisions "$decision_count" \
+  --argjson people "$people_count" \
+  --argjson open_items "$planned_count" \
+  '{status:$status,scenario:$scenario,counts:{decisions:$decisions,people:$people,open_items:$open_items},tenant_isolation:true}'

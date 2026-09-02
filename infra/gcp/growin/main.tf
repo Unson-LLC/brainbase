@@ -638,3 +638,47 @@ resource "google_cloud_run_v2_job" "migrate" {
 
   depends_on = [google_secret_manager_secret_iam_member.runtime_access]
 }
+
+# Google Workspace のログイン主体と Brainbase の人物・権限を結び付ける。
+# 認証方式と認可データを分離し、将来の IdP 切替でも Graph の人物 ID を維持する。
+resource "google_cloud_run_v2_job" "auth_bootstrap" {
+  name                = "brainbase-growin-auth-bootstrap"
+  project             = var.project_id
+  location            = var.region
+  deletion_protection = true
+  labels              = var.labels
+
+  template {
+    template {
+      service_account = google_service_account.runtime.email
+      timeout         = "600s"
+      max_retries     = 0
+
+      vpc_access {
+        egress = "PRIVATE_RANGES_ONLY"
+        network_interfaces {
+          network    = google_compute_network.brainbase.name
+          subnetwork = google_compute_subnetwork.apps.name
+        }
+      }
+
+      containers {
+        image   = var.migrate_image
+        command = ["node"]
+        args    = ["scripts/growin/provision-auth-identities.mjs"]
+
+        env {
+          name = "INFO_SSOT_DATABASE_URL"
+          value_source {
+            secret_key_ref {
+              secret  = "brainbase-database-url"
+              version = "latest"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [google_secret_manager_secret_iam_member.runtime_access]
+}
