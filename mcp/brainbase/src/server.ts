@@ -191,6 +191,27 @@ export function isPublicMcpHttpEndpoint(method: string | undefined, url: string 
   return method === 'GET' && url === '/health';
 }
 
+/**
+ * The HTTP endpoint is intentionally stateless: every MCP request gets its own
+ * server and transport, and there is no session for a server-sent event GET to
+ * attach to. Rejecting GET explicitly also prevents an open stream from
+ * occupying the personal-auth request queue indefinitely.
+ */
+export function statelessMcpHttpMethodNotAllowed(
+  method: string | undefined,
+  url: string | undefined,
+): { status: 405; headers: Record<string, string>; body: string } | null {
+  if (method !== 'GET' || !url?.startsWith('/mcp')) return null;
+  return {
+    status: 405,
+    headers: {
+      'Allow': 'POST',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ error: 'Method Not Allowed', message: 'The stateless MCP endpoint accepts POST requests only.' }),
+  };
+}
+
 async function dispatchRemoteJudgmentHook(
   payload: Record<string, unknown>,
   projectCode: string,
@@ -1318,6 +1339,15 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           'WWW-Authenticate': 'Bearer',
         });
         res.end(JSON.stringify({ error: 'unauthorized' }));
+        return;
+      }
+      // Stateless MCP has no session to associate with an SSE GET. Reject it
+      // after authentication but before the personal-auth request queue so a
+      // long-lived GET can never block subsequent POST requests.
+      const methodNotAllowed = statelessMcpHttpMethodNotAllowed(req.method, req.url);
+      if (methodNotAllowed) {
+        res.writeHead(methodNotAllowed.status, methodNotAllowed.headers);
+        res.end(methodNotAllowed.body);
         return;
       }
       if (req.method === 'POST' && req.url === REMOTE_JUDGMENT_HOOK_PATH) {
