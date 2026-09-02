@@ -96,7 +96,7 @@
     {
       "id": "C-001",
       "type": "contract",
-      "statement": "failed installationはtenant_idとinstallation_intent_idに束縛し、failure_stage、allowlist済みfailure_code、cleanup_statusだけを内部読戻しできる。",
+      "statement": "failed installationはtenant_idとinstallation_intent_idに束縛し、failure_stageをoauth_exchange、exchange_normalize、connection_reserve、credential_store、db_registerの固定段階で保存する。",
       "origin": {
         "story_refs": [
           {
@@ -107,27 +107,27 @@
         "architecture_refs": [
           {
             "file": "docs/architecture/story-t0-slack-installation-failure-diagnostics.md",
-            "section": "読戻し経路"
+            "section": "書込み経路"
           }
         ],
         "code_refs": [
           {
-            "file": "server/services/multitenant/postgres-repository.js",
-            "anchor": "readSlackInstallationFailureDiagnostic"
+            "file": "server/services/multitenant/slack-installation-control-plane.js",
+            "anchor": "exchange_and_register"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/postgres-repository.test.js",
-            "case": "reads only the non-secret failed installation diagnostic"
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+            "case": "records the fixed failure stage for each installation step"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/services/multitenant/postgres-repository.test.js",
-            "must_cover": "non-secret failed installation diagnostic"
+            "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+            "must_cover": "failure stage"
           }
         ]
       },
@@ -137,7 +137,7 @@
     {
       "id": "C-002",
       "type": "invariant",
-      "statement": "authorization code、token、credential ref、provider body、例外messageとstackを診断台帳または公開応答へ保存しない。",
+      "statement": "adapter由来の既知失敗だけをallowlist済みstable codeへ変換し、unknownまたは偽装codeはstage別generic codeへfail closedする。",
       "origin": {
         "story_refs": [
           {
@@ -160,7 +160,7 @@
         "test_refs": [
           {
             "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
-            "case": "redacts authorization code and credential material from diagnostics"
+            "case": "does not trust an arbitrary adapter error code"
           }
         ]
       },
@@ -168,7 +168,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
-            "must_cover": "redacts authorization code"
+            "must_cover": "arbitrary adapter error code"
           }
         ]
       },
@@ -219,7 +219,7 @@
     {
       "id": "C-004",
       "type": "contract",
-      "statement": "共有credential materializerの失敗時もtenant runtime provider-forwardの公開応答は500 INTERNAL_ERRORを維持し、内部CREDENTIAL_STORE codeを公開しない。",
+      "statement": "internal repository readbackはintent、tenant、request digest、attempt、stage、code、cleanupだけを返し、authorization code、token、credential ref、provider body、例外messageとstackを返さない。",
       "origin": {
         "story_refs": [
           {
@@ -230,32 +230,79 @@
         "architecture_refs": [
           {
             "file": "docs/architecture/story-t0-slack-installation-failure-diagnostics.md",
-            "section": "共有 credential adapter の互換性"
+            "section": "読戻し経路"
           }
         ],
         "code_refs": [
           {
-            "file": "server/services/multitenant/remote-credential-store.js",
-            "anchor": "createRemoteCredentialMaterializer"
+            "file": "server/services/multitenant/postgres-repository.js",
+            "anchor": "readSlackInstallationFailureDiagnostic"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/routes/tenant-runtime-contract.test.js",
-            "case": "credential materializer障害でもprovider forwardの公開エラー契約を変更しない"
+            "file": "tests/server/services/multitenant/postgres-repository.test.js",
+            "case": "reads only the non-secret failed installation diagnostic"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
-            "must_cover": "公開エラー契約を変更しない"
+            "file_glob": "tests/server/services/multitenant/postgres-repository.test.js",
+            "must_cover": "non-secret failed installation diagnostic"
           }
         ]
       },
       "first_seen_at": "2026-09-02T23:45:24.043Z",
-      "last_revised_at": "2026-09-02T23:45:24.043Z"
+      "last_revised_at": "2026-09-03T00:00:00.000Z"
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "Slack installation public routeは従来のstable error応答を維持し内部diagnosticを公開しない。共有credential materializer障害時のtenant runtime provider-forwardも500 INTERNAL_ERRORを維持する。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-005" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-t0-slack-installation-failure-diagnostics.md", "section": "共有 credential adapter の互換性" }],
+        "code_refs": [
+          { "file": "server/routes/slack-installation-control-plane.js", "anchor": "registerSlackInstallationControlPlaneRoutes" },
+          { "file": "server/services/multitenant/remote-credential-store.js", "anchor": "createRemoteCredentialMaterializer" }
+        ],
+        "test_refs": [
+          { "file": "tests/server/routes/slack-installation-control-plane.test.js", "case": "keeps internal failure diagnostic out of the public response" },
+          { "file": "tests/server/routes/tenant-runtime-contract.test.js", "case": "credential materializer障害でもprovider forwardの公開エラー契約を変更しない" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/server/routes/slack-installation-control-plane.test.js", "must_cover": "internal failure diagnostic" },
+          { "file_glob": "tests/server/routes/tenant-runtime-contract.test.js", "must_cover": "公開エラー契約を変更しない" }
+        ]
+      },
+      "first_seen_at": "2026-09-03T00:00:00.000Z",
+      "last_revised_at": "2026-09-03T00:00:00.000Z"
+    },
+    {
+      "id": "C-006",
+      "type": "evidence_boundary",
+      "statement": "focused unit、schema、実PostgreSQL integration、typecheckをlocal evidenceとして記録し、production deploy、OAuth retry、credential round trip、UsageEventまたはOperationReceipt readbackは未収集のまま合格へ変換しない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-t0-slack-installation-failure-diagnostics.md", "section": "検証境界" }],
+        "code_refs": [{ "file": "docs/management/tasks/t0-slack-installation-failure-diagnostics.json", "anchor": "production_evidence" }],
+        "test_refs": [
+          { "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js", "case": "PostgreSQL failure diagnostic write and readback" },
+          { "file": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js", "case": "idempotent migration from the legacy ledger" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js", "must_cover": "failure diagnostic" },
+          { "file_glob": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js", "must_cover": "migration" }
+        ]
+      },
+      "first_seen_at": "2026-09-03T00:00:00.000Z",
+      "last_revised_at": "2026-09-03T00:00:00.000Z"
     }
   ],
   "open_questions": [
