@@ -87,6 +87,20 @@ describe('remote tenant credential store adapter', () => {
         expect(fetchImpl.mock.calls[0][1].headers).not.toHaveProperty('x-credential-material');
     });
 
+    it('preserves the legacy materializer error boundary for tenant runtime callers', async () => {
+        const materializer = createRemoteCredentialMaterializer({
+            env: {
+                BRAINBASE_TENANT_CREDENTIAL_STORE_URL: 'https://credentials.example.test',
+                BRAINBASE_TENANT_CREDENTIAL_STORE_SERVICE_TOKEN: 'store-service-token'
+            },
+            fetchImpl: vi.fn(async () => { throw new Error('secret network detail'); })
+        });
+
+        const materialize = () => materializer.materialize('credref://tenant/slack/ref-1', binding);
+        await expect(materialize()).rejects.toThrow('tenant_credential_store_unavailable');
+        await expect(materialize()).rejects.not.toHaveProperty('code');
+    });
+
     it('projects verify and revoke to the strict remote boundary without leaking local context fields', async () => {
         const fetchImpl = vi.fn(async (_url, init) => {
             const { operation } = JSON.parse(init.body);

@@ -17,6 +17,7 @@ const intentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAZ';
 const concurrentIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB3';
 const reinstallIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB4';
 const failedIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB6';
+const failedCredentialStoreIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB7';
 const contractId = 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FB1';
 const deploymentId = 'dep_01ARZ3NDEKTSV4RRFFQ69G5FB2';
 const appId = 'A0123456789';
@@ -264,6 +265,46 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             connection_id: null,
             connection_revision: null
         }));
+    }, 120_000);
+
+    it('records cleanup as not needed when credential storage fails before returning a reference', async () => {
+        const intent = {
+            installation_intent_id: failedCredentialStoreIntentId,
+            tenant_id: tenantId,
+            app_id: appId,
+            expected_workspace_id: workspaceId,
+            expected_enterprise_id: enterpriseId,
+            initiated_by_person_id: personId,
+            expected_connection_revision: '1'
+        };
+        const failingCredentialStore = {
+            store: vi.fn(async () => { throw new Error('credential store unavailable'); }),
+            revoke: vi.fn()
+        };
+        const failingControlPlane = new SlackInstallationControlPlane({
+            repository,
+            oauthClient,
+            credentialStore: failingCredentialStore,
+            now: () => now,
+            ttlSeconds: 600
+        });
+        await failingControlPlane.authorizeBinding(intent);
+
+        await expect(failingControlPlane.exchange_and_register({
+            authorization_code: 'oauth-credential-store-failure-code',
+            redirect_uri: 'https://mana.example.test/oauth/slack/callback',
+            intent
+        })).rejects.toThrow('credential store unavailable');
+        expect(failingCredentialStore.revoke).not.toHaveBeenCalled();
+
+        await expect(repository.readSlackInstallationFailureDiagnostic({
+            tenant_id: tenantId,
+            installation_intent_id: failedCredentialStoreIntentId
+        })).resolves.toMatchObject({
+            failure_stage: 'credential_store',
+            failure_code: 'CREDENTIAL_STORE_FAILED',
+            cleanup_status: 'not_needed'
+        });
     }, 120_000);
 
     it('claims concurrent callbacks before OAuth so only one external exchange and registration occur', async () => {

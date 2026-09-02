@@ -185,9 +185,6 @@ describe('Slack installation control plane', () => {
     it.each([
         ['connection_reserve', 'CONNECTION_RESERVATION_FAILED', {
             repository: { reserveSlackInstallationConnection: vi.fn(async () => { throw new Error('database reserve detail'); }) }
-        }],
-        ['credential_store', 'CREDENTIAL_STORE_FAILED', {
-            credentialStore: { store: vi.fn(async () => { throw new Error('secret store detail'); }) }
         }]
     ])('records %s with its stage-specific generic code', async (failureStage, failureCode, overrides) => {
         const { controlPlane, repository } = createControlPlane(overrides);
@@ -199,7 +196,46 @@ describe('Slack installation control plane', () => {
         expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
             failure_stage: failureStage,
             failure_code: failureCode,
-            cleanup_status: failureStage === 'credential_store' ? 'failed' : 'not_needed'
+            cleanup_status: 'not_needed'
+        }));
+    });
+
+    it('records cleanup as not needed when credential storage fails before returning a reference', async () => {
+        const { controlPlane, credentialStore, repository } = createControlPlane({
+            credentialStore: { store: vi.fn(async () => { throw new Error('secret store detail'); }) }
+        });
+
+        await expect(controlPlane.exchange_and_register({
+            authorization_code: 'oauth-code',
+            redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+            intent: binding
+        })).rejects.toThrow('secret store detail');
+        expect(credentialStore.revoke).not.toHaveBeenCalled();
+        expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
+            failure_stage: 'credential_store',
+            failure_code: 'CREDENTIAL_STORE_FAILED',
+            cleanup_status: 'not_needed'
+        }));
+    });
+
+    it('does not attempt cleanup when the credential store returns no valid reference', async () => {
+        const { controlPlane, credentialStore, repository } = createControlPlane({
+            credentialStore: { store: vi.fn(async () => ({ credential_ref: '' })) }
+        });
+
+        await expectContractErrorAsync(
+            () => controlPlane.exchange_and_register({
+                authorization_code: 'oauth-code',
+                redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+                intent: binding
+            }),
+            { code: 'CREDENTIAL_REF_INVALID', status: 503 }
+        );
+        expect(credentialStore.revoke).not.toHaveBeenCalled();
+        expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
+            failure_stage: 'credential_store',
+            failure_code: 'CREDENTIAL_REF_INVALID',
+            cleanup_status: 'not_needed'
         }));
     });
 

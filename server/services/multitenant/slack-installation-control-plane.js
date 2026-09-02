@@ -212,7 +212,6 @@ export class SlackInstallationControlPlane {
         let connectionId;
         let connectionRevision;
         let storedCredential;
-        let credentialStoreAttempted = false;
         let failureStage = 'oauth_exchange';
         try {
             const upstream = await this.oauthClient.exchangeCode({
@@ -239,7 +238,6 @@ export class SlackInstallationControlPlane {
             connectionId = reservation.connection_id;
             connectionRevision = String(reservation.connection_revision);
             failureStage = 'credential_store';
-            credentialStoreAttempted = true;
             storedCredential = opaqueCredential(await this.credentialStore.store({
                 tenant_id: normalizedIntent.tenant_id,
                 idempotency_key: normalizedIntent.installation_intent_id,
@@ -270,7 +268,7 @@ export class SlackInstallationControlPlane {
         } catch (error) {
             // Secret stores may support cleanup of an orphaned reference. The
             // cleanup receives only the opaque reference, never raw material.
-            let cleanupStatus = credentialStoreAttempted ? 'failed' : 'not_needed';
+            let cleanupStatus = storedCredential?.credential_ref ? 'failed' : 'not_needed';
             if (storedCredential?.credential_ref && typeof this.credentialStore.revoke === 'function') {
                 try {
                     const cleanup = await this.credentialStore.revoke({

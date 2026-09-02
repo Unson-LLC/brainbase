@@ -113,6 +113,38 @@ describe('tenant runtime API', () => {
         expect(response.body).toMatchObject({ code: 'WORKSPACE_CONNECTION_UNAVAILABLE', fault_domain: 'brainbase_cloud', retryable: true });
     });
 
+    it('AC-005: credential materializer障害でもprovider forwardの公開エラー契約を変更しない', async () => {
+        const credentialBroker = {
+            forwardProviderRequest: vi.fn(async () => {
+                throw new Error('tenant_credential_store_unavailable');
+            })
+        };
+        const response = await request(createApp({ credentialBroker }))
+            .post('/api/v1/runtime/provider-requests:forward')
+            .set({
+                authorization: 'Bearer service-test',
+                'Brainbase-Protocol-Version': '1.0',
+                'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+            })
+            .send({
+                tenant_context: tenantContext,
+                lease_id: 'lease_01ARZ3NDEKTSV4RRFFQ69G5FB1',
+                lease_token: 'opaque-lease-token',
+                audience: 'api.openai.com',
+                provider_operation: 'responses.create',
+                request: {
+                    body: { input: 'hello' },
+                    idempotency_key: 'request-1'
+                }
+            });
+
+        expect(response.status).toBe(500);
+        expect(response.headers['content-type']).toContain('application/problem+json');
+        expect(response.body).toMatchObject({ code: 'INTERNAL_ERROR' });
+        expect(JSON.stringify(response.body)).not.toContain('CREDENTIAL_STORE_');
+        expect(credentialBroker.forwardProviderRequest).toHaveBeenCalledOnce();
+    });
+
     it('D-001/AC-301/AC-305: 各業務境界でEnvelopeを再検証しbodyの越境自己申告を拒否する', async () => {
         const tenantContextVerifier = vi.fn((input) => input);
         const connectionRegistry = { validateRevision: vi.fn() };

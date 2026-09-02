@@ -187,7 +187,20 @@ export function createRemoteCredentialMaterializer({ env = process.env, fetchImp
     const store = createRemoteCredentialStore({ env, fetchImpl });
     return {
         async materialize(credentialRef, binding) {
-            const result = await store.materialize(credentialRef, binding);
+            let result;
+            try {
+                result = await store.materialize(credentialRef, binding);
+            } catch (error) {
+                const legacyMessages = {
+                    CREDENTIAL_STORE_UNAVAILABLE: 'tenant_credential_store_unavailable',
+                    CREDENTIAL_STORE_INVALID: 'tenant_credential_store_invalid',
+                    CREDENTIAL_STORE_REJECTED: 'tenant_credential_store_rejected'
+                };
+                if (error instanceof ContractError && legacyMessages[error.code]) {
+                    throw new Error(legacyMessages[error.code]);
+                }
+                throw error;
+            }
             if (typeof result.credential_material !== 'string'
                 || Buffer.byteLength(result.credential_material, 'utf8') > MAX_CREDENTIAL_BYTES) {
                 throw new Error('tenant_credential_store_invalid');
