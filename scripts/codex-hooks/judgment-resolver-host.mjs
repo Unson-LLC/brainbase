@@ -478,9 +478,11 @@ export function buildJudgmentRequest(payload, { env = process.env } = {}) {
     if (!request || !turnId || !sessionId) throw new TypeError('UserPromptSubmit requires prompt, turn_id, and session_id');
     const sessionRef = sha256(sessionId);
     const transcript = readCanonicalTranscript(payload, env);
-    const messages = transcript.messages.filter((message) => !(
-        message.role === 'user' && message.turn_id === turnId && message.text === request
-    ));
+    // Stop-time delegation recovery runs after Codex has already emitted an
+    // assistant message for this turn. The public resolver contract requires
+    // the current turn to contain only the canonical user request, so rebuild
+    // that turn instead of carrying post-generation output into the context.
+    const messages = transcript.messages.filter((message) => message.turn_id !== turnId);
     messages.push({ sequence: messages.length, turn_id: turnId, role: 'user', phase: null, text: request });
     const cwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : REPO_ROOT;
     const repoRoot = findRepoRoot(cwd);

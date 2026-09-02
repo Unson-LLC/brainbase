@@ -481,6 +481,11 @@ describe('Codex Judgment Resolver Host', () => {
                     '</codex_delegation>'
                 ].join('\n'),
                 internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            }),
+            event('response_item', {
+                type: 'message', role: 'assistant',
+                content: [{ type: 'output_text', text: 'このタスクを登録してよいですか？' }],
+                internal_chat_message_metadata_passthrough: { turn_id: turnId, phase: 'final_answer' }
             })
         ].join('\n'));
         const env = {
@@ -489,6 +494,9 @@ describe('Codex Judgment Resolver Host', () => {
         };
         const fetchImpl = vi.fn(async (_url, options) => {
             const args = JSON.parse(options.body);
+            expect(args.conversation_context.messages.filter((message) => message.turn_id === turnId)).toEqual([
+                { sequence: 0, turn_id: turnId, role: 'user', phase: null, text: prompt }
+            ]);
             return {
                 ok: true,
                 status: 200,
