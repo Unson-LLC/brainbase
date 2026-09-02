@@ -816,6 +816,12 @@ function toolCallScope(toolName, input) {
 
 function nestedRecords(value, depth = 0, { parseContent = true } = {}) {
     if (depth > 5) return [];
+    if (Array.isArray(value)) {
+        return value.flatMap((entry) => nestedRecords(entry, depth + 1, { parseContent }));
+    }
+    if (typeof value === 'string' && value.trim().startsWith('{')) {
+        try { return nestedRecords(JSON.parse(value), depth + 1, { parseContent }); } catch { return []; }
+    }
     const item = record(value);
     if (!item) return [];
     const direct = [item];
@@ -829,13 +835,17 @@ function nestedRecords(value, depth = 0, { parseContent = true } = {}) {
             try { direct.push(...nestedRecords(JSON.parse(text), depth + 1, { parseContent })); } catch {}
         }
     }
+    if (parseContent && typeof item.text === 'string' && item.text.trim().startsWith('{')) {
+        try { direct.push(...nestedRecords(JSON.parse(item.text), depth + 1, { parseContent })); } catch {}
+    }
     return direct;
 }
 
 function validCallToolResultEnvelope(value) {
     const item = record(value);
-    if (!item || !Array.isArray(item.content) || item.content.length === 0) return false;
-    return item.content.every((block) => {
+    const content = Array.isArray(value) ? value : item?.content;
+    if (!Array.isArray(content) || content.length === 0) return false;
+    return content.every((block) => {
         const entry = record(block);
         if (!entry || typeof entry.type !== 'string') return false;
         if (entry.type === 'text') return typeof entry.text === 'string';
@@ -875,7 +885,7 @@ function responseSucceeded(response, {
         || (allowTransportSuccess && validCallToolResultEnvelope(item))
         || (allowExplicitSuccess && (item.isError === false || item.is_error === false || item.ok === true || item.success === true || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())))
         || (allowImplicitSuccess && response !== null && response !== undefined)
-    ));
+    )) || (allowTransportSuccess && validCallToolResultEnvelope(response));
 }
 
 function responseCount(response) {
@@ -885,9 +895,12 @@ function responseCount(response) {
 }
 
 function retrievalAudit(response) {
-    for (const item of nestedRecords(response, 0, { parseContent: false })) {
-        if (!Array.isArray(item.content)) continue;
-        const text = record(item.content.at(-1))?.text;
+    const candidates = [response, ...nestedRecords(response, 0, { parseContent: false })];
+    for (const item of candidates) {
+        const content = Array.isArray(item) ? item : record(item)?.content;
+        const text = Array.isArray(content)
+            ? record(content.at(-1))?.text
+            : typeof item === 'string' ? item : null;
         if (typeof text !== 'string') continue;
         const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
         if (lines.length !== 3
@@ -1071,7 +1084,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         allowTransportSuccess: ['search', 'retrieve'].includes(kind),
         allowExplicitSuccess: !['write', 'route'].includes(kind) || !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
-        semanticSuccess: kind === 'value_proof'
+        semanticSuccess: ['search', 'retrieve'].includes(kind)
+            ? Boolean(retrieval)
+            : kind === 'value_proof'
             ? Boolean(valueProofInput)
             : kind === 'route'
                 ? resolution?.status === 'resolved'

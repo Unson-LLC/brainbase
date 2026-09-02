@@ -196,6 +196,24 @@ describe('remote judgment Hook HTTP boundary', () => {
     });
   });
 
+  it('accepts an empty audit result for the internal judgment state tool', async () => {
+    const result = await handleRemoteJudgmentHookRequest(request({
+      body: Buffer.from(JSON.stringify({
+        hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
+        tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
+      })),
+      dispatch: async () => ({ output: {} }),
+    }));
+    assert.deepEqual(result, {
+      status: 200,
+      body: {
+        schema_version: '1', accepted: true,
+        hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
+        output: {},
+      },
+    });
+  });
+
   it('story-remote-judgment-hook:ac:4 fails closed when the canonical dispatcher is unavailable', async () => {
     const diagnostics: unknown[] = [];
     const transportError = Object.assign(new TypeError('secret transport detail'), {
