@@ -68,3 +68,8 @@ variable "migrate_image" {
   description = "DBマイグレーション用コンテナイメージ"
   type        = string
 }
+
+variable "auth_bootstrap_image" {
+  description = "Growin初期利用者の認証・権限登録用コンテナイメージ"
+  type        = string
+}

@@ -663,7 +663,7 @@ resource "google_cloud_run_v2_job" "auth_bootstrap" {
       }
 
       containers {
-        image   = var.migrate_image
+        image   = var.auth_bootstrap_image
         command = ["node"]
         args    = ["scripts/growin/provision-auth-identities.mjs"]
 
