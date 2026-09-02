@@ -163,7 +163,10 @@ describe('judgment value proof organization adapter', () => {
 
     expect(proof.outcome.status).toBe('unconfirmed');
     expect(proof.state).toBe('unconfirmed');
-    expect(renderJudgmentValueProofSurface(proof)).toContain('状態: 結果未確認');
+    const surface = renderJudgmentValueProofSurface(proof);
+    expect(surface).toMatch(/^Brainbase判断結果（確認待ち）\n/u);
+    expect(surface).toContain('状態: 結果未確認');
+    expect(surface).not.toContain('Brainbase判断レシート');
     expect(projectJudgmentValueProofCompanionAttention(proof)?.kind).toBe('outcome_unconfirmed');
   });
 

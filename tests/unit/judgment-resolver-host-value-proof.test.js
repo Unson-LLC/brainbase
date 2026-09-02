@@ -306,6 +306,8 @@ describe('Judgment Resolver Host value proof integration', () => {
         '既存文書を更新しました。',
       ].join('\n'),
     }, { env });
+    expect(result.output.systemMessage).toContain('Brainbase判断結果（確認待ち）');
+    expect(result.output.systemMessage).not.toContain('Brainbase判断レシート');
     expect(result.output.systemMessage).toContain('状態: 結果未確認');
     expect(result.output.systemMessage).toContain('聞かずに進めた確認: 既存文書を更新するか、新規文書を作るか？');
     expect(result.output.systemMessage).toContain('実行範囲: 既存文書を更新し、テストを実行した');

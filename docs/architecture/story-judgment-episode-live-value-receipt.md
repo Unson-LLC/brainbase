@@ -11,7 +11,7 @@
 
 1. 通常turnではUserPromptSubmitでepisodeを開始する。
 2. Stopでepisodeがない場合、許可されたCodex App委任出力と現在turnの一致を検証する。
-3. 一致が一意なら委任入力をpromptとして同じsession/turnのjournalへinitial route receiptを原子的に保存し、`episode_origin=stop_delegation_recovery`と`route_application=post_generation_recovery`を記録する。
+3. 一致が一意なら、回答が確認質問か完了報告かにかかわらず、委任入力をpromptとして同じsession/turnのjournalへinitial route receiptを原子的に保存し、`episode_origin=stop_delegation_recovery`と`route_application=post_generation_recovery`を記録する。
 4. 同じStopで不要確認と未完了作業を評価し、必要なら回答を差し戻す。
 5. 継続後のPostToolUseとStopが同じcanonical identifierでepisodeを取得する。
 6. 実際の中断差し戻しとvalue proofが揃った場合だけ判断レシートを描画する。
@@ -24,6 +24,8 @@
 - transcriptに現在session aliasと連結しない別session componentが一つでも含まれる場合は、候補を採用しない。
 - session/turnが欠ける入力を固定値や最新episodeへ丸めない。
 - Stop復元routeは差し戻しと後続処理だけに適用し、初回model生成を導いた証拠として表示・監査しない。通常の`UserPromptSubmit`開始は`pre_generation`として区別する。
+- episode復元自体は回答形式に依存させない。質問の有無は復元後のAutonomy Gateが判定し、質問がなく成果未確認の場合はfinal receiptへ昇格させない。
+- canonical readbackが欠けるprojectionは`unconfirmed`として監査保存し、利用者面では`Brainbase判断結果（確認待ち）`と表示する。`Brainbase判断レシート`は成果確認済みの場合にだけ使う。
 - `judgment_episode_not_found`を成功へ変換せず、入口で開始できなかった理由を監査可能にする。
 - fresh task実証はunit/integrationの合格と分け、実際のCodex task出力とjournal readbackの両方で確認する。
 - 禁止節の除外は句順に依存させない。日本語・英語とも「肯定依頼→禁止」「禁止→肯定依頼」「禁止だけ」を回帰fixtureに固定し、作成・削除・マージを含むManifest語彙の増減と前処理を同じテストで拘束する。
@@ -31,6 +33,7 @@
 ## 検証方針
 
 - Unit: Codex Appの実rollout形状をfixture化し、正規委任だけを復元して異常入力を拒否できる。
+- Unit: 確認質問を含まない最初のStopでも正規委任episodeは復元するが、証拠不足を最終判断レシートへ昇格しない。
 - Integration: UserPromptSubmitなしのStopが同じepisodeを開始し、不要確認の差し戻しから実行証拠、value proof、最終判断レシートまで同じepisodeで完了できる。
 - Resolver unit: 日英の禁止節を前後どちらに置いても、肯定されたローカル書込みだけが`implement/write`となり、禁止だけの文は操作要求にならない。
 - E2E: 新規Codexタスクで不要な確認が差し戻され、成果物完了後に`Brainbase判断レシート`が1回表示される。

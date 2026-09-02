@@ -550,6 +550,60 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
+    it('確認質問を含まない最初のStopでも正規委任episodeを復元する', async () => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = 'session-delegation-no-question';
+        const turnId = 'turn-delegation-no-question';
+        const prompt = '安全な範囲で修正を完了してください。';
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            event('response_item', {
+                type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
+                output: `<codex_delegation><source_thread_id>source-thread</source_thread_id><input>${prompt}</input></codex_delegation>`,
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const fetchImpl = vi.fn(async (_url, options) => {
+            const args = JSON.parse(options.body);
+            return {
+                ok: true, status: 200, json: async () => ({
+                    management_status: 'managed',
+                    receipt: {
+                        ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+                        classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+                        selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                        autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                        allowed_runtime_escalation_reasons: [
+                            'irreversible_action', 'missing_authority', 'owner_value_choice',
+                            'required_input_unavailable', 'evidenced_terminal_blocker'
+                        ]
+                    }
+                })
+            };
+        });
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, cwd: process.cwd(), stop_hook_active: false,
+            last_assistant_message: '修正対象を確認しました。'
+        }, { env, fetchImpl });
+
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(result).toMatchObject({ decision: 'block' });
+        expect(result.reason).toContain('安全な範囲の作業結果を続けてください');
+        const episodePath = join(root, 'journal', hash(sessionId), `${hash(turnId)}.episode.json`);
+        expect(JSON.parse(readFileSync(episodePath, 'utf8'))).toMatchObject({
+            episode_origin: 'stop_delegation_recovery',
+            route_application: 'post_generation_recovery'
+        });
+        expect(existsSync(join(root, 'journal', hash(sessionId), `${hash(turnId)}.value-proof.json`))).toBe(false);
+    });
+
     it.each([
         ['別toolの出力', { name: 'exec_command', namespace: 'codex_app', output: '<codex_delegation><source_thread_id>x</source_thread_id><input>修正して</input></codex_delegation>' }],
         ['別namespaceの出力', { name: 'create_thread', namespace: 'other_app', output: '<codex_delegation><source_thread_id>x</source_thread_id><input>修正して</input></codex_delegation>' }],
