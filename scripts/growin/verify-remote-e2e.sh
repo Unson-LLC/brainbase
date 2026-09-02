@@ -47,7 +47,7 @@ foreign="$(rpc '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"
 
 candidates() {
   sed -n 's/^data: //p' \
-    | jq -c '[.result.content[]?.text | fromjson? | .candidates[]?]'
+    | jq -ce 'if .error then error(.error.message // "JSON-RPC error") elif .result then [.result.content[]?.text | fromjson? | .candidates[]?] else error("JSON-RPC result missing") end'
 }
 
 growin_candidates="$(printf '%s' "$growin" | candidates)"
@@ -75,7 +75,8 @@ list_entities() {
   local payload
   payload="$(jq -nc --argjson id "$id" --arg type "$type" \
     '{jsonrpc:"2.0",id:$id,method:"tools/call",params:{name:"list_entities",arguments:{type:$type,project:"growin"}}}')"
-  rpc "$payload" | sed -n 's/^data: //p' | jq -r '.result.content[]?.text'
+  rpc "$payload" | sed -n 's/^data: //p' \
+    | jq -er 'if .error then error(.error.message // "JSON-RPC error") elif .result then .result.content[]?.text else error("JSON-RPC result missing") end'
 }
 
 decisions="$(list_entities 6 decision)"

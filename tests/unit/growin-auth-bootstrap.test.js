@@ -19,6 +19,26 @@ describe('Growin auth bootstrap', () => {
         expect(authGrantBackfill).toContain("IF to_regclass('organizations') IS NOT NULL THEN");
     });
 
+    it('does not move an existing Workspace identity to another person', () => {
+        const source = fs.readFileSync(
+            path.resolve('scripts/growin/provision-auth-identities.mjs'),
+            'utf8'
+        );
+
+        expect(source).toContain('WHERE auth_identities.person_id = EXCLUDED.person_id');
+        expect(source).toContain('if (identityResult.rowCount !== 1)');
+    });
+
+    it('fails the remote verifier on JSON-RPC errors instead of treating them as empty data', () => {
+        const source = fs.readFileSync(
+            path.resolve('scripts/growin/verify-remote-e2e.sh'),
+            'utf8'
+        );
+
+        expect(source).toContain('if .error then error(.error.message // "JSON-RPC error")');
+        expect(source).toContain('else error("JSON-RPC result missing") end');
+    });
+
     it('binds only confirmed Workspace addresses to canonical people', () => {
         expect(GROWIN_INITIAL_USERS).toEqual([
             {

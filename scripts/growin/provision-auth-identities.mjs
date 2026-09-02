@@ -75,7 +75,7 @@ export async function provisionGrowinAuthIdentities({ databaseUrl, users = GROWI
                 [entry.grantId, entry.personId, entry.personName, entry.organizationId,
                     entry.role, entry.projectCodes, entry.clearance]
             );
-            await client.query(
+            const identityResult = await client.query(
                 `INSERT INTO auth_identities (
                     id, person_id, provider, provider_subject, provider_tenant,
                     active, metadata, updated_at
@@ -84,10 +84,14 @@ export async function provisionGrowinAuthIdentities({ databaseUrl, users = GROWI
                     person_id = EXCLUDED.person_id,
                     active = true,
                     metadata = EXCLUDED.metadata,
-                    updated_at = NOW()`,
+                    updated_at = NOW()
+                 WHERE auth_identities.person_id = EXCLUDED.person_id`,
                 [entry.identityId, entry.personId, entry.provider, entry.email,
                     entry.providerTenant, JSON.stringify({ source: 'growin-confirmed-workspace-address' })]
             );
+            if (identityResult.rowCount !== 1) {
+                throw new Error(`Google Workspace identity is already bound to another person: ${entry.email}`);
+            }
         }
 
         const emails = plan.map((entry) => entry.email);

@@ -70,6 +70,7 @@ variable "migrate_image" {
 }
 
 variable "auth_bootstrap_image" {
-  description = "Growin初期利用者の認証・権限登録用コンテナイメージ"
+  description = "Growin初期利用者の認証・権限登録用コンテナイメージ。未指定時はmigrate_imageを使用"
   type        = string
+  default     = ""
 }

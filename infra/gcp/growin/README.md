@@ -35,6 +35,16 @@ unset BRAINBASE_SERVICE_TOKEN_SECRET
 scripts/growin/verify-remote-e2e.sh
 ```
 
+初期利用者の認証・権限登録Jobは、既定ではマイグレーション用イメージを再利用します。別イメージへ分ける場合だけ `auth_bootstrap_image` を指定します。Terraform適用後、確認済みアドレスを登録するときに明示実行します。
+
+```bash
+gcloud run jobs execute brainbase-growin-auth-bootstrap \
+  --project=brainbase-505912 \
+  --region=asia-northeast1 \
+  --account=k.sato.unson@gmail.com \
+  --wait
+```
+
 ## 初期化
 
 Terraform state用バケットは事前に一度だけ作成します。
