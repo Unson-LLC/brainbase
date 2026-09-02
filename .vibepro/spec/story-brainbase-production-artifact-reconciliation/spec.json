@@ -243,7 +243,7 @@
         "test_refs": [
           {
             "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
-            "case": "create_threadの委任入力からStop時にepisodeを復旧し、create_thread由来value proof、complete final、判断代行レシートを同一turnへ一度だけ表示する"
+            "case": "実際に差し戻した質問だけを入口から判断レシートへ投影する"
           },
           {
             "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
@@ -255,7 +255,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
-            "must_cover": "create_thread由来value proof、complete final、Brainbase判断レシートexactly-onceを同一turnで検証する"
+            "must_cover": "実際に差し戻した質問だけを入口から判断レシートへ投影する"
           },
           {
             "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
