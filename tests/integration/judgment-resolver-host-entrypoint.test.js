@@ -151,7 +151,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             tool_input: {}, tool_response: { status: 'ok', data: { projects: [], count: 0 } }
         }) });
         expect(JSON.parse(unrelated.stdout).systemMessage).toBe(
-            '📚 Brainbase呼出: brainbase_projects「プロジェクト一覧」→ 0件・正常応答を確認 ✓'
+            '📚 Brainbase取得: brainbase_projects「プロジェクト一覧」→ 0件・正常応答を確認 ✓'
         );
         const unrelatedLine = JSON.parse(unrelated.stdout).systemMessage;
 

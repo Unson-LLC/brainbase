@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    BRAINBASE_TOOL_KIND_BY_NAME,
     buildOwnerReferenceLine,
     buildJudgmentRequest,
     canonicalJson,
@@ -1293,9 +1294,9 @@ describe('Codex Judgment Resolver Host', () => {
             status: 'ok', data: {}
         });
 
-        expect(projects.display_line).toBe('📚 Brainbase呼出: brainbase_projects「プロジェクト一覧」→ 1件・正常応答を確認 ✓');
-        expect(inbox.display_line).toBe('📚 Brainbase呼出: brainbase_run_receipt_inbox「Run Receipt Inbox・project_id=brainbase・source_type=codex_automations・run_status=blocked・evidence_state=unconfirmed・最大100件」→ 0件・正常応答を確認 ✓');
-        expect(history.display_line).toBe('📚 Brainbase呼出: brainbase_run_receipt_history「Run Receipt履歴・project_id=brainbase・source_type=codex_automations・source_identity=brainbase-oyasumi・最大20件」→ 0件・正常応答を確認 ✓');
+        expect(projects.display_line).toBe('📚 Brainbase取得: brainbase_projects「プロジェクト一覧」→ 1件・正常応答を確認 ✓');
+        expect(inbox.display_line).toBe('📚 Brainbase取得: brainbase_run_receipt_inbox「Run Receipt Inbox・project_id=brainbase・source_type=codex_automations・run_status=blocked・evidence_state=unconfirmed・最大100件」→ 0件・正常応答を確認 ✓');
+        expect(history.display_line).toBe('📚 Brainbase取得: brainbase_run_receipt_history「Run Receipt履歴・project_id=brainbase・source_type=codex_automations・source_identity=brainbase-oyasumi・最大20件」→ 0件・正常応答を確認 ✓');
         expect(admin.display_line).toBe('📚 Brainbase取得: brainbase_admin_read「管理ビュー candidates・project=brainbase・最大100件」→ 正常応答を確認 ✓');
         expect(admin.query_excerpt).toBe('管理ビュー candidates・project=brainbase・最大100件');
         expect(failed.display_line).toBe('⚠️ Brainbase取得: brainbase_admin_read「管理ビュー health」→ 失敗または結果不明');
@@ -1305,7 +1306,7 @@ describe('Codex Judgment Resolver Host', () => {
         const wrongProjectsShape = record('brainbase_projects', 'tool-projects-wrong-shape', {}, {
             status: 'ok', data: { items: [] }
         });
-        expect(wrongProjectsShape.display_line).toBe('⚠️ Brainbase呼出: brainbase_projects「プロジェクト一覧」→ 失敗または結果不明');
+        expect(wrongProjectsShape.display_line).toBe('⚠️ Brainbase取得: brainbase_projects「プロジェクト一覧」→ 失敗または結果不明');
 
         for (const event of [projects, inbox, history, admin, failed, genericEmpty]) {
             expect(event.display_line).not.toContain('対象未指定');
@@ -1408,6 +1409,69 @@ describe('Codex Judgment Resolver Host', () => {
         ].join('\n');
         const audited = recordRetrieve('retrieve-with-audit', { content: [{ type: 'text', text: audit }] });
         expect(audited).toMatchObject({ success: true, event_kind: 'retrieve' });
+    });
+
+    it('MCP公開ツール正本とHostのkind分類を双方向一致させる', () => {
+        const source = readFileSync(join(process.cwd(), 'mcp/brainbase/src/tools/tool-annotations.ts'), 'utf8');
+        const names = (constantName) => {
+            const body = source.match(new RegExp(`const ${constantName} = new Set\\(\\[([\\s\\S]*?)\\]\\);`, 'u'))?.[1] ?? '';
+            return Array.from(body.matchAll(/'([^']+)'/gu), (match) => match[1]);
+        };
+        const readNames = names('READ_ONLY_TOOL_NAMES');
+        const writeNames = names('WRITE_TOOL_NAMES');
+        expect(readNames.length).toBeGreaterThan(0);
+        expect(writeNames.length).toBeGreaterThan(0);
+        expect(Object.keys(BRAINBASE_TOOL_KIND_BY_NAME).sort()).toEqual([...readNames, ...writeNames].sort());
+        for (const name of readNames) expect(['retrieve', 'search', 'route']).toContain(BRAINBASE_TOOL_KIND_BY_NAME[name]);
+        for (const name of writeNames) expect(['write', 'state', 'value_proof']).toContain(BRAINBASE_TOOL_KIND_BY_NAME[name]);
+        expect(BRAINBASE_TOOL_KIND_BY_NAME.brainbase_automation_human_step_resolve).toBe('write');
+    });
+
+    it('公開MCPツールの検証済みresponse契約だけを意味的成功として採用する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-published-tools', turn_id: 'turn-published-tools', prompt: 'Brainbaseの公開ツールを使って', cwd: process.cwd() };
+        await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) }) }) });
+        const recordTool = (name, data, id = name) => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: `mcp__brainbase__${name}`, tool_use_id: id, tool_input: {}, tool_response: { status: 'ok', data }
+        }, { env });
+        const fixtures = {
+            brainbase_bootstrap_config: { bootstrap_config: { config_write_mode: 'create_only', user: { id: 'u', name: 'User', slackUserId: 's', workspaceId: 'w' }, projects: [{ id: 'p' }], config_yaml: 'projects: []' }, count: 1 },
+            brainbase_run_receipt_diagnosis: { receipt: { id: 'r' }, diagnosis: { state: 'complete', issue_codes: [], recommended_action: null }, count: 1 },
+            brainbase_automation_run_detail: { run: { project_id: 'p' }, run_steps: [], context_snapshots: [], human_steps: [], outputs: [], audit_logs: [] },
+            brainbase_automation_human_step_resolve: { human_step: { id: 'h' }, resumed_run: { project_id: 'p' } },
+            brainbase_meeting_automation_diagnosis: { meeting_automation: { project_id: 'p', state: 'ready', issue_codes: [], recommended_actions: [] } },
+            brainbase_onboarding_start: { id: 'o1', status: 'started' },
+            brainbase_onboarding_get: { id: 'o2', status: 'active' },
+            brainbase_onboarding_ingest: { id: 'o3', status: 'ingested' },
+            brainbase_onboarding_review: { candidate: { id: 'c', promotion_status: 'approved' }, graph_entity_id: null },
+            brainbase_onboarding_first_value: { id: 'o4', status: 'complete' },
+            brainbase_knowledge_event_record: { schema_version: 'brainbase-vibepro-knowledge-event-record-receipt.v1', status: 'recorded', event_id: 'e', project_code: 'p', story_id: 's', body_hash: 'b', candidate_id: 'c', record_ref: 'brainbase://record/e', candidate_ref: 'brainbase://candidate/c', processing_stage: 'retrievable', candidate_only: true, graph_promoted: false, external_action_executed: false }
+        };
+        for (const [name, data] of Object.entries(fixtures)) {
+            const result = recordTool(name, data);
+            expect(result, name).toMatchObject({ success: true, event_kind: BRAINBASE_TOOL_KIND_BY_NAME[name] });
+        }
+        const invalidFixtures = {
+            brainbase_bootstrap_config: { bootstrap_config: { config_write_mode: 'create_only' }, count: 1 },
+            brainbase_run_receipt_diagnosis: { receipt: {}, diagnosis: { state: 'complete', issue_codes: [] }, count: 0 },
+            brainbase_automation_run_detail: { run: { project_id: 'p' }, run_steps: [], context_snapshots: [], human_steps: [], outputs: [] },
+            brainbase_automation_human_step_resolve: { human_step: {}, resumed_run: {} },
+            brainbase_meeting_automation_diagnosis: { meeting_automation: { project_id: 'p', issue_codes: [], recommended_actions: [] } },
+            brainbase_onboarding_start: { status: 'started' },
+            brainbase_onboarding_get: { id: 'o2' },
+            brainbase_onboarding_ingest: { status: 'ingested' },
+            brainbase_onboarding_review: { candidate: { id: 'c' }, graph_entity_id: 42 },
+            brainbase_onboarding_first_value: { id: 'o4' },
+            brainbase_knowledge_event_record: { status: 'recorded' }
+        };
+        for (const [name, data] of Object.entries(invalidFixtures)) {
+            expect(recordTool(name, data, `${name}-invalid`), name).toMatchObject({ success: false, event_kind: BRAINBASE_TOOL_KIND_BY_NAME[name] });
+        }
+        expect(recordTool('brainbase_onboarding_start', null, 'onboarding-204')).toMatchObject({ success: false, event_kind: 'write' });
+        expect(recordTool('brainbase_knowledge_event_record', { status: 'recorded' }, 'knowledge-spoof')).toMatchObject({ success: false, event_kind: 'write' });
+        expect(recordTool('unknown_future_tool', { id: 'x', status: 'ok' }, 'unknown')).toMatchObject({ success: false, event_kind: 'call' });
     });
 
     it('ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する', async () => {

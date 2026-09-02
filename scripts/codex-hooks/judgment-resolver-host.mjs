@@ -102,6 +102,29 @@ const AUTONOMY_QUESTION_PATTERN = /^⚠️ 確認が必要\[([a-z_]+)\]:\s*(.+)$
 const STRUCTURED_STOP_STATE_PATTERN = /^<!-- brainbase-stop-state:(\{.*\}) -->$/u;
 const JUDGMENT_STATE_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_state_record';
 const JUDGMENT_VALUE_PROOF_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_value_proof_record';
+const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
+    'get_context', 'list_entities', 'get_entity', 'list_extension_types', 'list_extension_entities',
+    'search', 'resolve_entity', 'search_wiki', 'get_wiki_page', 'search_personal_kg',
+    'brainbase_projects', 'brainbase_bootstrap_config', 'brainbase_admin_read',
+    'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
+    'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
+    'brainbase_knowledge_resolve', 'brainbase_get_meeting_minutes_context', 'authorize_tenant_resource',
+    'mesh_query', 'mesh_peers', 'graph_export_snapshot', 'graph_get_plan_receipt', 'graph_validate'
+]);
+const BRAINBASE_WRITE_TOOL_NAMES = Object.freeze([
+    'brainbase_judgment_value_proof_record', 'brainbase_judgment_state_record',
+    'brainbase_automation_human_step_resolve', 'brainbase_onboarding_start', 'brainbase_onboarding_ingest',
+    'brainbase_onboarding_review', 'brainbase_onboarding_first_value', 'brainbase_knowledge_event_record',
+    'create_task', 'update_task', 'transition_task', 'graph_record_human_gate_receipt',
+    'graph_plan_mutations', 'graph_apply_plan', 'graph_rollback_plan'
+]);
+export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
+    ...BRAINBASE_READ_TOOL_NAMES.map((name) => [name, /search/u.test(name) ? 'search' : 'retrieve']),
+    ...BRAINBASE_WRITE_TOOL_NAMES.map((name) => [name, 'write']),
+    ['brainbase_knowledge_resolve', 'route'],
+    ['brainbase_judgment_state_record', 'state'],
+    ['brainbase_judgment_value_proof_record', 'value_proof']
+]));
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -1042,6 +1065,72 @@ function controlPlaneReadData(toolName, response) {
     }) ?? null;
 }
 
+function nonEmptyString(value) {
+    return typeof value === 'string' && value.trim().length > 0;
+}
+
+function objectArray(value) {
+    return Array.isArray(value) && value.every((item) => Boolean(record(item)));
+}
+
+function stringArray(value) {
+    return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function publishedToolSemanticData(toolName, response) {
+    const name = String(toolName).replace(/^mcp__brainbase__/u, '');
+    return nestedRecords(response).find((item) => {
+        if (item.status !== 'ok') return false;
+        const data = record(item.data);
+        if (!data) return false;
+        if (name === 'brainbase_bootstrap_config') {
+            const config = record(data.bootstrap_config);
+            const user = record(config?.user);
+            return config?.config_write_mode === 'create_only'
+                && ['id', 'name', 'slackUserId', 'workspaceId'].every((key) => nonEmptyString(user?.[key]))
+                && Array.isArray(config.projects) && config.projects.every((project) => nonEmptyString(record(project)?.id))
+                && nonEmptyString(config.config_yaml) && Number.isInteger(data.count) && data.count >= 0;
+        }
+        if (name === 'brainbase_run_receipt_diagnosis') {
+            const diagnosis = record(data.diagnosis);
+            return Boolean(record(data.receipt)) && nonEmptyString(diagnosis?.state)
+                && stringArray(diagnosis.issue_codes)
+                && (diagnosis.recommended_action === null || typeof diagnosis.recommended_action === 'string')
+                && data.count === 1;
+        }
+        if (name === 'brainbase_automation_run_detail') {
+            return nonEmptyString(record(data.run)?.project_id)
+                && ['run_steps', 'context_snapshots', 'human_steps', 'outputs', 'audit_logs'].every((key) => objectArray(data[key]));
+        }
+        if (name === 'brainbase_automation_human_step_resolve') {
+            const resumedRun = data.resumed_run;
+            return Boolean(record(data.human_step))
+                && (resumedRun === null || nonEmptyString(record(resumedRun)?.project_id));
+        }
+        if (name === 'brainbase_meeting_automation_diagnosis') {
+            const diagnosis = record(data.meeting_automation);
+            return nonEmptyString(diagnosis?.project_id) && nonEmptyString(diagnosis?.state)
+                && stringArray(diagnosis.issue_codes) && stringArray(diagnosis.recommended_actions);
+        }
+        if (['brainbase_onboarding_start', 'brainbase_onboarding_get', 'brainbase_onboarding_ingest', 'brainbase_onboarding_first_value'].includes(name)) {
+            return nonEmptyString(data.id) && nonEmptyString(data.status);
+        }
+        if (name === 'brainbase_onboarding_review') {
+            const candidate = record(data.candidate);
+            return nonEmptyString(candidate?.id) && nonEmptyString(candidate?.promotion_status)
+                && (data.graph_entity_id === null || nonEmptyString(data.graph_entity_id));
+        }
+        if (name === 'brainbase_knowledge_event_record') {
+            return data.schema_version === 'brainbase-vibepro-knowledge-event-record-receipt.v1'
+                && ['recorded', 'already_recorded'].includes(data.status)
+                && ['event_id', 'project_code', 'story_id', 'body_hash', 'candidate_id', 'record_ref', 'candidate_ref'].every((key) => nonEmptyString(data[key]))
+                && data.processing_stage === 'retrievable' && data.candidate_only === true
+                && data.graph_promoted === false && data.external_action_executed === false;
+        }
+        return false;
+    }) ?? null;
+}
+
 function validJudgmentStopState(value) {
     const state = record(value);
     const expectedKeys = ['pending_safe_work', 'runtime_reason_code', 'schema_version', 'status'];
@@ -1088,14 +1177,8 @@ function waitingHumanReasonAllowed(contract, reasonCode) {
 }
 
 function eventKind(toolName) {
-    const exactToolName = String(toolName);
-    if (exactToolName === JUDGMENT_VALUE_PROOF_TOOL_NAME) return 'value_proof';
-    if (exactToolName === CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'].exactTool) return 'route';
-    const name = exactToolName.replace(/^mcp__brainbase__/u, '');
-    if (/(?:create|update|transition|delete|write|record|link|unlink)/iu.test(name)) return 'write';
-    if (/search/iu.test(name)) return 'search';
-    if (/(?:get|list|resolve|context|read)/iu.test(name)) return 'retrieve';
-    return 'call';
+    const name = String(toolName).replace(/^mcp__brainbase__/u, '');
+    return BRAINBASE_TOOL_KIND_BY_NAME[name] ?? 'call';
 }
 
 function knowledgeCanonicalLocation(value) {
@@ -1186,6 +1269,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const kind = retrieval?.kind ?? fallbackKind;
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
+    const publishedToolResult = brainbaseTool ? publishedToolSemanticData(toolName, responseValue) : null;
     const controlPlaneRead = kind === 'call' || kind === 'retrieve'
         ? controlPlaneReadData(toolName, responseValue)
         : null;
@@ -1198,18 +1282,18 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         runtime_reason_code: record(inputValue)?.runtime_reason_code
     } : null;
     const responseSuccess = responseSucceeded(responseValue, {
-        allowTransportSuccess: brainbaseTool && kind === 'retrieve' && Boolean(retrieval || controlPlaneRead),
+        allowTransportSuccess: brainbaseTool && kind === 'retrieve' && Boolean(retrieval || controlPlaneRead || publishedToolResult),
         allowExplicitSuccess: !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
         semanticSuccess: ['search', 'retrieve'].includes(kind)
-            ? Boolean(retrieval || controlPlaneRead)
+            ? Boolean(retrieval || controlPlaneRead || publishedToolResult)
             : kind === 'value_proof'
             ? Boolean(valueProofInput)
             : kind === 'route'
                 ? resolution?.status === 'resolved'
             : kind === 'state'
                     ? Boolean(stopState && canonicalJson(stopState) === canonicalJson(requestedStopState))
-                    : Boolean(taskResult || controlPlaneRead)
+                    : Boolean(taskResult || controlPlaneRead || publishedToolResult)
     });
     const satisfiesKnowledgeExecution = kind === 'route';
     const retrievalResult = responseSuccess && ['search', 'retrieve'].includes(kind)
