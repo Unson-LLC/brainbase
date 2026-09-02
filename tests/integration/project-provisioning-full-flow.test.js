@@ -553,6 +553,30 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         vi.unstubAllEnvs();
     }, 300_000);
 
+    it('配備readbackは無効化・誤バインドされたProject Graph guard triggerを拒否する', async () => {
+        await adminPool.query('ALTER TABLE graph_entities DISABLE TRIGGER project_graph_entity_write_guard');
+        await expect(applySql('info-ssot-readback.sql')).rejects.toThrow(
+            /project Graph entity guard trigger binding mismatch/u
+        );
+        await adminPool.query('ALTER TABLE graph_entities ENABLE TRIGGER project_graph_entity_write_guard');
+
+        await adminPool.query(`
+            DROP TRIGGER project_graph_entity_write_guard ON graph_entities;
+            CREATE TRIGGER project_graph_entity_write_guard
+            BEFORE INSERT OR UPDATE OR DELETE ON graph_entities
+            FOR EACH ROW
+            EXECUTE FUNCTION prevent_project_provisioning_receipt_mutation()
+        `);
+        try {
+            await expect(applySql('info-ssot-readback.sql')).rejects.toThrow(
+                /project Graph entity guard trigger binding mismatch/u
+            );
+        } finally {
+            await applySql('project-provisioning-schema.sql');
+        }
+        await expect(applySql('info-ssot-readback.sql')).resolves.toBeUndefined();
+    });
+
     it('実PostgreSQL authorityは不正組織・組織横断entity・inactive owner・grant欠落/別workspaceを拒否する', async () => {
         const repository = currentService.repository;
         const baseManifest = {

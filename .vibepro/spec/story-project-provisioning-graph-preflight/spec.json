@@ -184,6 +184,8 @@
         "story_refs": [{"kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004", "text_snippet": "Graph適用時のtenant guardは弱めない"}],
         "architecture_refs": [{"file": "docs/architecture/story-project-provisioning-graph-preflight.md", "section": "Architecture"}],
         "code_refs": [
+          {"file": "server/sql/project-provisioning-schema.sql", "anchor": "guard_project_graph_entity_write"},
+          {"file": "server/sql/info-ssot-readback.sql", "anchor": "project_graph_entity_write_guard"},
           {"file": "server/services/project-graph-identity-lock.js", "anchor": "assertCatalogProjectSubjectMutation"},
           {"file": "server/services/info-ssot-service.js", "anchor": "upsertGraphEntity"},
           {"file": "server/services/graph-maintenance-service.js", "anchor": "replaceSnapshot"},
@@ -191,6 +193,8 @@
           {"file": "server/services/knowledge-event/info-ssot-knowledge-graph-repository.js", "anchor": "supersedeDecision"}
         ],
         "test_refs": [
+          {"file": "tests/integration/project-provisioning-full-flow.test.js", "case": "配備readbackは無効化・誤バインドされたProject Graph guard triggerを拒否する"},
+          {"file": "tests/integration/project-provisioning-full-flow.test.js", "case": "受入れE2E: 汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない"},
           {"file": "tests/integration/project-provisioning-full-flow.test.js", "case": "受入れE2E: 汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない"},
           {"file": "tests/server/services/graph-maintenance-service.test.js", "case": "applyPlanはplan行をロックする前に全entity IDを昇順でロックする"},
           {"file": "tests/server/services/graph-maintenance-service.test.js", "case": "rollbackPlanはplan行をロックする前に全entity IDを昇順でロックする"},
@@ -201,10 +205,10 @@
         ]
       },
       "verifiable_by": {
-        "test": ["real PostgreSQL serializes provisioning and generic Graph writes on the same entity ID and preserves the catalog subject"],
+        "test": ["real PostgreSQL serializes provisioning, generic Graph writes, and direct SQL on the same entity ID; preserves the catalog subject; and rejects a disabled or misbound final-boundary trigger"],
         "test_pattern": [{
           "file_glob": "tests/integration/project-provisioning-full-flow.test.js",
-          "must_cover": "汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない"
+          "must_cover": "汎用Graph writerと直接SQLはProvisioningと同じID lockを通りCatalog subjectを上書きせず、配備readbackはtrigger binding不整合を拒否する"
         }]
       },
       "confidence": 1

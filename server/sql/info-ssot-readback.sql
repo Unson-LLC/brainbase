@@ -186,8 +186,12 @@ BEGIN
     WHERE tgrelid = to_regclass(format('%I.graph_entities', current_schema()))
       AND tgname = 'project_graph_entity_write_guard'
       AND NOT tgisinternal
+      AND tgenabled = 'O'
+      AND tgfoid = to_regprocedure(format('%I.guard_project_graph_entity_write()', current_schema()))
+      -- ROW (1) + BEFORE (2) + INSERT (4) + DELETE (8) + UPDATE (16).
+      AND tgtype = 31
   ) THEN
-    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project Graph entity guard trigger';
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project Graph entity guard trigger binding mismatch';
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_trigger

@@ -14,7 +14,7 @@ Repositoryは限定関数の結果と、既存のRLS-scoped display name／alias
 
 planは再利用元scopeとentity versionを保存します。applyはRegistry書込前に限定関数を再実行し、承認済みplan、現在のsubject、適用者のscopeが一致しない場合はrunを`planned`のまま拒否します。Graph stepの`assertCompatibleProjectSubject`とGraph Maintenanceのtenant guardも最終防御として残します。
 
-Project entity IDのadvisory transaction lockはProvisioning専用ではなく、Info SSOTの汎用entity/ontology commit writer、Graph Maintenance apply/rollback、LearningServiceのlegacy Graph昇格、Knowledge Eventのdecision更新でも共有します。Project Catalogに登録済みのIDは汎用writerとlegacy writerからの変更を409で拒否し、Graph MaintenanceだけがCatalogのproject ID・同一組織内の承認済み格納先scope・name・version・source・active状態に完全一致するprojectionを適用できます。既存subjectを承認済みsource scopeから再利用する契約は維持します。対象ID lockは待機せず取得し、競合時は`GRAPH_PROJECT_IDENTITY_BUSY`（409、`retryable: true`）で失敗させます。Graph Maintenanceのようにtransaction開始時点で変更対象ID集合が確定しているwriterは、重複除去後の昇順で一括取得します。Info SSOTのように処理中のcanonical lookupで追加IDが判明するwriterは、判明したIDを個別取得してよいものの、既に別IDのlockを保持している場合も待機せずretryable 409でtransaction全体をrollbackします。これにより無関係なID・組織は並行実行でき、異なるID順のwriterも互いを待たないため循環待ちを作りません。新規project rowも対象ID lock取得後にだけ挿入します。Graph Maintenanceはplanを予備読取してbefore/after imageの全IDを昇順でロックした後にplan行を`FOR UPDATE`で再取得し、ID集合が変化していないことを確認してからproject・entity・edgeへ進みます。Edgeだけを書く経路はendpointのentity rowを変更しないため、endpoint認可と参照整合性を別guardで維持します。
+Project entity IDのadvisory transaction lockはProvisioning専用ではなく、Info SSOTの汎用entity/ontology commit writer、Graph Maintenance apply/rollback、LearningServiceのlegacy Graph昇格、Knowledge Eventのdecision更新でも共有します。Project Catalogに登録済みのIDは汎用writerとlegacy writerからの変更を409で拒否し、Graph MaintenanceとDB triggerを通る直接SQLだけがCatalogのproject ID・同一組織内の承認済み格納先scope・name・version・source・active状態に完全一致するprojectionを適用できます。既存subjectを承認済みsource scopeから再利用する契約は維持します。対象ID lockは待機せず取得し、競合時は`GRAPH_PROJECT_IDENTITY_BUSY`（409、`retryable: true`）で失敗させます。Graph Maintenanceのようにtransaction開始時点で変更対象ID集合が確定しているwriterは、重複除去後の昇順で一括取得します。Info SSOTのように処理中のcanonical lookupで追加IDが判明するwriterは、判明したIDを個別取得してよいものの、既に別IDのlockを保持している場合も待機せずretryable 409でtransaction全体をrollbackします。これにより無関係なID・組織は並行実行でき、異なるID順のwriterも互いを待たないため循環待ちを作りません。新規project rowも対象ID lock取得後にだけ挿入します。Graph Maintenanceはplanを予備読取してbefore/after imageの全IDを昇順でロックした後にplan行を`FOR UPDATE`で再取得し、ID集合が変化していないことを確認してからproject・entity・edgeへ進みます。Edgeだけを書く経路はendpointのentity rowを変更しないため、endpoint認可と参照整合性を別guardで維持します。
 
 `graph_entities`のDB triggerを最終境界とし、共通サービスを通らない運用・移行SQLにも同じfail-fast lockを適用します。Project Catalog登録済みIDへの直接SQLは、同一組織内のscope、project ID、name、version、source、active状態がCatalogのprojectionと完全一致する場合だけ許可します。
 
@@ -28,8 +28,8 @@ Graph新規作成後にGrantやRepositoryで失敗したrunは、再開時点で
 
 ## 変更境界
 
-- `server/sql/project-provisioning-schema.sql`: 限定readback関数と本番runtime roleへの3関数一括grant
-- `server/sql/info-ssot-readback.sql`: 関数、security contract、3関数grantのreadback
+- `server/sql/project-provisioning-schema.sql`: 限定readback関数、本番runtime roleへの3関数一括grant、直接SQLを保護するProject Graph guard trigger
+- `server/sql/info-ssot-readback.sql`: 関数、security contract、3関数grant、Project Graph guard triggerの有効状態・関数・イベントbindingのreadback
 - `server/services/project-provisioning/project-provisioning-repository.js`: ID probe
 - `server/services/project-provisioning/project-provisioning-service.js`: 書込前の互換性・scope判定
 - `server/services/project-graph-identity-lock.js`: 全Graph writer共通のID lockとCatalog subject guard
@@ -43,4 +43,4 @@ Graph新規作成後にGrantやRepositoryで失敗したrunは、再開時点で
 
 ## 検証
 
-限定readback関数、Repository、Service、HTTP/CLIの各境界を単体試験で確認します。実PostgreSQL統合試験では、不在、同一組織での再利用、identity不一致、別組織、scope不足、競合時の一括rollback、step Receiptの不変性に加え、汎用Graph writerとProvisioningの同一ID競合を区別し、書込件数と最終readbackを検証します。
+限定readback関数、Repository、Service、HTTP/CLIの各境界を単体試験で確認します。実PostgreSQL統合試験では、不在、同一組織での再利用、identity不一致、別組織、scope不足、競合時の一括rollback、step Receiptの不変性に加え、汎用Graph writerとProvisioningの同一ID競合、直接SQLのlock競合・Catalog subject破壊拒否、triggerの無効化・誤バインド検出を区別し、書込件数と最終readbackを検証します。
