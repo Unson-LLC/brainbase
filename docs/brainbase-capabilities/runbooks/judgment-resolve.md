@@ -950,6 +950,51 @@ node "$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" final
   "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
   "$ROLLBACK_INFISICAL_FINAL" \
   "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.evidence.json"
+
+# From this point onward the signing configuration repair is proven. Replace
+# the cleanup-only trap before any further production mutation so every later
+# failure leaves a production-level Receipt as well as removing local secrets.
+ROLLBACK_STAGE=lightsail_env_export
+ROLLBACK_COMPLETE=false
+LIGHTSAIL_PROJECTION_STATUS=not_started
+HOOK_RESTORE_STATUS=not_started
+write_incomplete_rollback_receipt() {
+  code=$?
+  if test "$code" -eq 0 || test "$ROLLBACK_COMPLETE" = true; then return; fi
+  trap - EXIT
+  set +e
+  cleanup_rollback_secrets
+  if ! EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/production-rollback.evidence.json" \
+  ROLLBACK_STAGE="$ROLLBACK_STAGE" \
+  LIGHTSAIL_PROJECTION_STATUS="$LIGHTSAIL_PROJECTION_STATUS" \
+  HOOK_RESTORE_STATUS="$HOOK_RESTORE_STATUS" TARGET_SHA="$TARGET_SHA" node -e '
+const fs=require("node:fs");
+const evidence={
+  status:"blocked",
+  failed_stage:process.env.ROLLBACK_STAGE,
+  rollback_complete:false,
+  rollback_required:true,
+  target_sha:process.env.TARGET_SHA,
+  target_changed:true,
+  signing_config_repair_complete:true,
+  lightsail_projection_status:process.env.LIGHTSAIL_PROJECTION_STATUS,
+  lightsail_projection_complete:process.env.LIGHTSAIL_PROJECTION_STATUS === "verified",
+  hook_restore_status:process.env.HOOK_RESTORE_STATUS,
+  hook_restored:process.env.HOOK_RESTORE_STATUS === "verified",
+  next_action:"stop_and_inspect_saved_rollback_state"
+};
+const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
+fs.writeFileSync(tmp,JSON.stringify(evidence)+"\n",{mode:0o600});
+fs.renameSync(tmp,process.env.EVIDENCE);
+'
+  then
+    printf '[brainbase-runtime] production rollback failed and Receipt status is unknown; stage=%s\n' \
+      "$ROLLBACK_STAGE" >&2
+  fi
+  exit "$code"
+}
+trap write_incomplete_rollback_receipt EXIT
+
 "$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --format dotenv \
   --output-file "$ROLLBACK_ENV"
@@ -958,6 +1003,7 @@ EXPECTED_ENV_SHA="$(sha256sum "$ROLLBACK_ENV" | awk '{print $1}')"
 REMOTE_ROLLBACK_ENV="/tmp/brainbase-infisical-rollback-${EXPECTED_ENV_SHA}.env"
 ROLLBACK_REMOTE_EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-env-rollback.evidence.json"
 ROLLBACK_REMOTE_EVIDENCE_TMP="$ROLLBACK_REMOTE_EVIDENCE.tmp"
+ROLLBACK_STAGE=lightsail_env_scp
 if ! scp -i "$HOME/.ssh/lightsail-brainbase.pem" "$ROLLBACK_ENV" \
   "ubuntu@176.34.20.239:$REMOTE_ROLLBACK_ENV"; then
   REMOTE_CLEANUP_CONFIRMED=false
@@ -966,23 +1012,32 @@ if ! scp -i "$HOME/.ssh/lightsail-brainbase.pem" "$ROLLBACK_ENV" \
     rm -f "$REMOTE_ROLLBACK_ENV"; then
     REMOTE_CLEANUP_CONFIRMED=true
   fi
-  REMOTE_CLEANUP_CONFIRMED="$REMOTE_CLEANUP_CONFIRMED" \
+  if ! REMOTE_CLEANUP_CONFIRMED="$REMOTE_CLEANUP_CONFIRMED" \
   EVIDENCE="$ROLLBACK_REMOTE_EVIDENCE" node -e '
 const fs = require("node:fs");
 const evidence = {
   status: "blocked",
   failed_stage: "lightsail_env_scp",
   rollback_complete: false,
+  rollback_required: false,
   target_changed: false,
   remote_secret_cleanup_confirmed: process.env.REMOTE_CLEANUP_CONFIRMED === "true",
   next_action: "stop_and_inspect_saved_rollback_state"
 };
-fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence) + "\n", {mode: 0o600});
+const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
+fs.writeFileSync(tmp, JSON.stringify(evidence) + "\n", {mode: 0o600});
+fs.renameSync(tmp, process.env.EVIDENCE);
 '
+  then
+    printf '[brainbase-runtime] Lightsail env transfer failed and Receipt status is unknown; evidence=%s\n' \
+      "$ROLLBACK_REMOTE_EVIDENCE" >&2
+  fi
   printf '[brainbase-runtime] Lightsail env transfer blocked; evidence=%s; rollback_complete=false\n' \
     "$ROLLBACK_REMOTE_EVIDENCE" >&2
   exit 1
 fi
+ROLLBACK_STAGE=lightsail_env_ssh
+LIGHTSAIL_PROJECTION_STATUS=unknown
 if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
   "$REMOTE_ROLLBACK_ENV" "$EXPECTED_ENV_SHA" \
   /home/ubuntu/brainbase/.env.infisical brainbase-ssot.service \
@@ -1000,6 +1055,7 @@ DELAY_SECONDS="$7"
 REMOTE_TARGET_NEXT="${TARGET_ENV}.next.$$"
 STAGE=remote_start
 TARGET_CHANGED=false
+PROJECTION_COMPLETE=false
 CLEANUP_CONFIRMED=false
 cleanup() {
   cleanup_ok=true
@@ -1016,20 +1072,26 @@ finish() {
     code=1
     STAGE=remote_secret_cleanup
   fi
-  STATUS_CODE="$code" STAGE="$STAGE" TARGET_CHANGED="$TARGET_CHANGED" \
-  CLEANUP_CONFIRMED="$CLEANUP_CONFIRMED" node -e '
+  if ! STATUS_CODE="$code" STAGE="$STAGE" TARGET_CHANGED="$TARGET_CHANGED" \
+  PROJECTION_COMPLETE="$PROJECTION_COMPLETE" CLEANUP_CONFIRMED="$CLEANUP_CONFIRMED" node -e '
 const passed = process.env.STATUS_CODE === "0";
+const targetChanged = process.env.TARGET_CHANGED === "true";
 process.stdout.write(JSON.stringify({
   status: passed ? "lightsail_projection_ready" : "blocked",
   failed_stage: passed ? null : process.env.STAGE,
   rollback_complete: false,
-  lightsail_projection_complete: passed,
-  target_changed: process.env.TARGET_CHANGED === "true",
+  rollback_required: targetChanged,
+  lightsail_projection_complete: process.env.PROJECTION_COMPLETE === "true",
+  target_changed: targetChanged,
   remote_secret_cleanup_attempted: true,
   remote_secret_cleanup_confirmed: process.env.CLEANUP_CONFIRMED === "true",
   next_action: passed ? null : "stop_and_inspect_saved_rollback_state"
 }) + "\n");
 '
+  then
+    printf '[brainbase-runtime] Lightsail remote Receipt status is unknown; rollback_complete=false\n' >&2
+    code=1
+  fi
   exit "$code"
 }
 trap finish EXIT
@@ -1069,9 +1131,11 @@ if (( local_ready != 1 )); then
   printf '[brainbase-runtime] Lightsail local readiness after env rollback timed out; rollback_complete=false\n' >&2
   exit 1
 fi
+PROJECTION_COMPLETE=true
 STAGE=completed
 REMOTE
 then
+  LIGHTSAIL_PROJECTION_STATUS=verified
   mv "$ROLLBACK_REMOTE_EVIDENCE_TMP" "$ROLLBACK_REMOTE_EVIDENCE"
   chmod 600 "$ROLLBACK_REMOTE_EVIDENCE"
 else
@@ -1090,20 +1154,27 @@ if (!value || value.status !== "blocked" || value.rollback_complete !== false) p
     mv "$ROLLBACK_REMOTE_EVIDENCE_TMP" "$ROLLBACK_REMOTE_EVIDENCE"
     chmod 600 "$ROLLBACK_REMOTE_EVIDENCE"
   else
-    REMOTE_CLEANUP_CONFIRMED="$REMOTE_CLEANUP_CONFIRMED" \
+    if ! REMOTE_CLEANUP_CONFIRMED="$REMOTE_CLEANUP_CONFIRMED" \
     EVIDENCE="$ROLLBACK_REMOTE_EVIDENCE" node -e '
 const fs = require("node:fs");
 const evidence = {
   status: "blocked",
   failed_stage: "lightsail_env_ssh",
   rollback_complete: false,
+  rollback_required: "unknown",
   target_changed: "unknown",
   remote_secret_cleanup_confirmed: process.env.REMOTE_CLEANUP_CONFIRMED === "true",
   next_action: "stop_and_inspect_saved_rollback_state"
 };
-fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence) + "\n", {mode: 0o600});
+const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
+fs.writeFileSync(tmp, JSON.stringify(evidence) + "\n", {mode: 0o600});
+fs.renameSync(tmp, process.env.EVIDENCE);
 console.error(`[brainbase-runtime] Lightsail env rollback blocked; evidence=${process.env.EVIDENCE}; rollback_complete=false`);
 '
+    then
+      printf '[brainbase-runtime] Lightsail SSH failed and Receipt status is unknown; evidence=%s\n' \
+        "$ROLLBACK_REMOTE_EVIDENCE" >&2
+    fi
     rm -f "$ROLLBACK_REMOTE_EVIDENCE_TMP"
   fi
   printf '[brainbase-runtime] Lightsail env rollback blocked; evidence=%s; rollback_complete=false\n' \
@@ -1111,39 +1182,7 @@ console.error(`[brainbase-runtime] Lightsail env rollback blocked; evidence=${pr
   exit "$SSH_EXIT"
 fi
 cleanup_rollback_secrets
-trap - EXIT
-
-# Every failure after the repaired env was projected must leave a secret-free
-# production-level Receipt. Individual commands may still emit their own more
-# specific evidence; this EXIT trap binds the overall incomplete state.
 ROLLBACK_STAGE=public_readiness_after_env_projection
-ROLLBACK_COMPLETE=false
-HOOK_RESTORED=false
-write_incomplete_rollback_receipt() {
-  code=$?
-  if test "$code" -eq 0 || test "$ROLLBACK_COMPLETE" = true; then return; fi
-  EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/production-rollback.evidence.json" \
-  ROLLBACK_STAGE="$ROLLBACK_STAGE" HOOK_RESTORED="$HOOK_RESTORED" \
-  TARGET_SHA="$TARGET_SHA" node -e '
-const fs=require("node:fs");
-const evidence={
-  status:"blocked",
-  failed_stage:process.env.ROLLBACK_STAGE,
-  rollback_complete:false,
-  rollback_required:true,
-  target_sha:process.env.TARGET_SHA,
-  target_changed:true,
-  signing_config_repair_complete:true,
-  lightsail_projection_complete:true,
-  hook_restored:process.env.HOOK_RESTORED === "true",
-  next_action:"stop_and_inspect_saved_rollback_state"
-};
-const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
-fs.writeFileSync(tmp,JSON.stringify(evidence)+"\n",{mode:0o600});
-fs.renameSync(tmp,process.env.EVIDENCE);
-'
-}
-trap write_incomplete_rollback_receipt EXIT
 
 # The env projection restarted Lightsail, so re-prove the public version surface
 # instead of relying on the readiness check completed before the env change.
@@ -1171,10 +1210,11 @@ fi
 # checkout was never mutated, so restoring hooks.json is sufficient.
 ROLLBACK_STAGE=hook_restore
 install -m 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" "$HOME/.codex/hooks.json"
+HOOK_RESTORE_STATUS=changed_unverified
 (cd "$BRAINBASE_ROLLBACK_STATE_DIR" && shasum -a 256 -c hooks.sha256)
 test "$(git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD)" = "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha")"
 require_clean_tracked_root "$BRAINBASE_HOOK_ROOT"
-HOOK_RESTORED=true
+HOOK_RESTORE_STATUS=verified
 ROLLBACK_STAGE=mcp_runtime_readiness
 require_git_root "$BRAINBASE_SOURCE_ROOT"
 (cd "$BRAINBASE_MCP_RUNTIME_ROOT" && scripts/run-brainbase-mcp.sh --check)

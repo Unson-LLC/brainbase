@@ -428,11 +428,68 @@ describe('judgment resolver publication surfaces', () => {
             status: 'blocked',
             failed_stage: 'lightsail_env_scp',
             rollback_complete: false,
+            rollback_required: false,
             target_changed: false,
             remote_secret_cleanup_confirmed: true,
         });
         expect(runbook).toContain('failed_stage: "lightsail_env_ssh"');
         expect(runbook).toContain('target_changed: "unknown"');
+        expect(runbook).toContain('rollback_required: "unknown"');
+
+        const unwritableState = join(root, 'not-a-directory');
+        writeFileSync(unwritableState, 'occupied');
+        const unknownReceipt = spawnSync('bash', ['-c', scpBlock], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH}`,
+                HOME: root,
+                BRAINBASE_ROLLBACK_STATE_DIR: unwritableState,
+                ROLLBACK_ENV: join(root, 'rollback.env'),
+                REMOTE_ROLLBACK_ENV: '/tmp/partial-secret.env',
+                SSH_CLEANUP_MARKER: cleanupMarker,
+            },
+        });
+        expect(unknownReceipt.status).not.toBe(0);
+        expect(unknownReceipt.stderr).toContain('Receipt status is unknown');
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('Lightsail SSH結果不明とcleanup失敗をunknown Receiptへ収束する', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const start = runbook.lastIndexOf('ROLLBACK_REMOTE_EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-env-rollback.evidence.json"');
+        const end = runbook.indexOf('\ncleanup_rollback_secrets\nROLLBACK_STAGE=public_readiness_after_env_projection', start);
+        expect(start).toBeGreaterThanOrEqual(0);
+        expect(end).toBeGreaterThan(start);
+        const transportBlock = runbook.slice(start, end);
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-env-ssh-unknown-'));
+        const bin = join(root, 'bin');
+        mkdirSync(bin);
+        writeFileSync(join(bin, 'scp'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+        writeFileSync(join(bin, 'ssh'), '#!/bin/sh\nexit 17\n', { mode: 0o755 });
+        const result = spawnSync('bash', ['-c', transportBlock], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH}`,
+                HOME: root,
+                BRAINBASE_ROLLBACK_STATE_DIR: root,
+                ROLLBACK_ENV: join(root, 'rollback.env'),
+                REMOTE_ROLLBACK_ENV: '/tmp/partial-secret.env',
+                EXPECTED_ENV_SHA: 'expected-env-sha',
+                TARGET_SHA: 'expected-production-sha',
+            },
+        });
+        expect(result.status).toBe(17);
+        expect(result.stderr).toContain('Lightsail env rollback blocked');
+        expect(JSON.parse(readFileSync(join(root, 'lightsail-env-rollback.evidence.json'), 'utf8'))).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'lightsail_env_ssh',
+            rollback_complete: false,
+            rollback_required: 'unknown',
+            target_changed: 'unknown',
+            remote_secret_cleanup_confirmed: false,
+        });
         rmSync(root, { recursive: true, force: true });
     });
 
@@ -466,6 +523,7 @@ describe('judgment resolver publication surfaces', () => {
             status: 'lightsail_projection_ready',
             rollback_complete: false,
             lightsail_projection_complete: true,
+            rollback_required: true,
             target_changed: true,
             remote_secret_cleanup_confirmed: true,
         });
@@ -478,7 +536,13 @@ describe('judgment resolver publication surfaces', () => {
         });
         expect(timeout.status).not.toBe(0);
         expect(timeout.stderr).toContain('local readiness after env rollback timed out');
-        expect(JSON.parse(timeout.stdout)).toMatchObject({ status: 'blocked', failed_stage: 'local_readiness', target_changed: true });
+        expect(JSON.parse(timeout.stdout)).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'local_readiness',
+            rollback_required: true,
+            lightsail_projection_complete: false,
+            target_changed: true,
+        });
 
         writeFileSync(transfer, 'cleanup-failure-value\n', { mode: 0o600 });
         const cleanupExpected = spawnSync('sha256sum', [transfer], { encoding: 'utf8' }).stdout.split(/\s+/)[0];
@@ -492,6 +556,8 @@ describe('judgment resolver publication surfaces', () => {
             status: 'blocked',
             failed_stage: 'remote_secret_cleanup',
             rollback_complete: false,
+            rollback_required: true,
+            lightsail_projection_complete: true,
             target_changed: true,
             remote_secret_cleanup_confirmed: false,
         });
@@ -500,13 +566,19 @@ describe('judgment resolver publication surfaces', () => {
 
     it('env反映後の外側の失敗もproduction rollback Receiptへ収束する', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
-        const start = runbook.lastIndexOf('ROLLBACK_STAGE=public_readiness_after_env_projection');
-        const end = runbook.indexOf('\n# The env projection restarted Lightsail', start);
+        const start = runbook.lastIndexOf('ROLLBACK_STAGE=lightsail_env_export');
+        const end = runbook.indexOf('\n"$INFISICAL" export --silent', start);
         expect(start).toBeGreaterThanOrEqual(0);
         expect(end).toBeGreaterThan(start);
         const receiptTrap = runbook.slice(start, end);
+        expect(runbook.indexOf('trap write_incomplete_rollback_receipt EXIT', start)).toBeLessThan(
+            runbook.indexOf('if ! scp -i', start)
+        );
+        expect(runbook.indexOf('trap write_incomplete_rollback_receipt EXIT', start)).toBeLessThan(
+            runbook.indexOf('cleanup_rollback_secrets\nROLLBACK_STAGE=public_readiness_after_env_projection', start)
+        );
         const root = mkdtempSync(join(tmpdir(), 'brainbase-production-rollback-receipt-'));
-        const failure = spawnSync('bash', ['-c', `set -euo pipefail\n${receiptTrap}\nROLLBACK_STAGE=test_post_projection\nfalse`], {
+        const failure = spawnSync('bash', ['-c', `set -euo pipefail\ncleanup_rollback_secrets() { :; }\n${receiptTrap}\nLIGHTSAIL_PROJECTION_STATUS=verified\nROLLBACK_STAGE=test_post_projection\nfalse`], {
             encoding: 'utf8',
             env: {
                 ...process.env,
@@ -524,13 +596,46 @@ describe('judgment resolver publication surfaces', () => {
             target_changed: true,
             signing_config_repair_complete: true,
             lightsail_projection_complete: true,
+            lightsail_projection_status: 'verified',
+            hook_restore_status: 'not_started',
             hook_restored: false,
         });
+
+        const changedRoot = mkdtempSync(join(tmpdir(), 'brainbase-hook-restore-receipt-'));
+        const changedUnverified = spawnSync('bash', ['-c', `set -euo pipefail\ncleanup_rollback_secrets() { :; }\n${receiptTrap}\nLIGHTSAIL_PROJECTION_STATUS=verified\nHOOK_RESTORE_STATUS=changed_unverified\nROLLBACK_STAGE=hook_restore\nfalse`], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                BRAINBASE_ROLLBACK_STATE_DIR: changedRoot,
+                TARGET_SHA: 'expected-production-sha',
+            },
+        });
+        expect(changedUnverified.status).not.toBe(0);
+        expect(JSON.parse(readFileSync(join(changedRoot, 'production-rollback.evidence.json'), 'utf8'))).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'hook_restore',
+            hook_restore_status: 'changed_unverified',
+            hook_restored: false,
+        });
+
+        const unwritableState = join(root, 'not-a-directory');
+        writeFileSync(unwritableState, 'occupied');
+        const unknownReceipt = spawnSync('bash', ['-c', `set -euo pipefail\ncleanup_rollback_secrets() { :; }\n${receiptTrap}\nROLLBACK_STAGE=test_receipt_write\nfalse`], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                BRAINBASE_ROLLBACK_STATE_DIR: unwritableState,
+                TARGET_SHA: 'expected-production-sha',
+            },
+        });
+        expect(unknownReceipt.status).not.toBe(0);
+        expect(unknownReceipt.stderr).toContain('production rollback failed and Receipt status is unknown');
         expect(runbook).toContain('ROLLBACK_STAGE=hook_restore');
         expect(runbook).toContain('ROLLBACK_STAGE=mcp_runtime_readiness');
         expect(runbook).toContain('ROLLBACK_STAGE=final_public_health');
         expect(runbook).toContain('ROLLBACK_COMPLETE=true\ntrap - EXIT');
         rmSync(root, { recursive: true, force: true });
+        rmSync(changedRoot, { recursive: true, force: true });
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:14
