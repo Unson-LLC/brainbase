@@ -31,10 +31,12 @@ describe('minimal device web surface', () => {
         const html = fs.readFileSync(path.join(repoRoot, 'public/device.html'), 'utf8');
         const stepIds = [...html.matchAll(/id="step-([^"]+)"/g)].map((match) => match[1]);
 
-        expect(stepIds).toEqual(['input', 'slack', 'approve', 'success', 'error']);
+        expect(stepIds).toEqual(['input', 'login', 'approve', 'success', 'error']);
+        expect(html).toContain('Google Workspaceでログイン');
+        expect(html).not.toContain('Slackでログイン');
         expect(html).toContain('/modules/device/device-auth-controller.js');
         expect(html).not.toMatch(/href="\/(?:admin|setup|workflows|sns-growth)/);
-        expect(html).not.toMatch(/dashboard|settings|workspace|project list/i);
+        expect(html).not.toMatch(/dashboard|settings|project list/i);
     });
 
     it('uses a bearer token and never sends caller-provided Slack identity', () => {

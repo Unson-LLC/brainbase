@@ -102,6 +102,25 @@ resource "google_service_account" "auth_bootstrap" {
   description  = "Growin初期利用者の認証・権限登録Job専用"
 }
 
+resource "google_service_account" "migration" {
+  project      = var.project_id
+  account_id   = "brainbase-migration"
+  display_name = "Brainbase migration"
+  description  = "Growin専用BrainbaseのDBマイグレーションJob専用"
+}
+
+resource "google_project_iam_member" "migration_roles" {
+  for_each = toset([
+    "roles/cloudsql.client",
+    "roles/cloudsql.instanceUser",
+    "roles/logging.logWriter",
+  ])
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.migration.email}"
+}
+
 resource "google_project_iam_member" "auth_bootstrap_roles" {
   for_each = toset([
     "roles/cloudsql.client",
@@ -386,6 +405,13 @@ resource "google_secret_manager_secret_iam_member" "auth_bootstrap_database_acce
   member    = "serviceAccount:${google_service_account.auth_bootstrap.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "migration_database_access" {
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.runtime["brainbase-database-url"].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.migration.email}"
+}
+
 resource "google_cloud_run_v2_service" "api" {
   name                = "brainbase-api"
   project             = var.project_id
@@ -631,9 +657,16 @@ resource "google_cloud_run_v2_job" "migrate" {
   deletion_protection = true
   labels              = var.labels
 
+  lifecycle {
+    precondition {
+      condition     = var.release_git_sha != var.rollback_git_sha
+      error_message = "release_git_sha と rollback_git_sha には異なる完全SHAを指定してください。"
+    }
+  }
+
   template {
     template {
-      service_account = google_service_account.runtime.email
+      service_account = google_service_account.migration.email
       timeout         = "1800s"
       max_retries     = 0
 
@@ -669,7 +702,10 @@ resource "google_cloud_run_v2_job" "migrate" {
     }
   }
 
-  depends_on = [google_secret_manager_secret_iam_member.runtime_access]
+  depends_on = [
+    google_project_iam_member.migration_roles,
+    google_secret_manager_secret_iam_member.migration_database_access,
+  ]
 }
 
 # Google Workspace のログイン主体と Brainbase の人物・権限を結び付ける。
