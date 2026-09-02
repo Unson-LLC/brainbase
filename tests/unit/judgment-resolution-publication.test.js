@@ -295,7 +295,7 @@ describe('judgment resolver publication surfaces', () => {
             marker
         );
         expect(read('docs/architecture/story-brainbase-production-artifact-reconciliation.md')).toContain(marker);
-        expect(read('.vibepro/pr/story-brainbase-production-artifact-reconciliation/pr-body.md')).toContain(marker);
+        expect(read('.vibepro/spec/story-brainbase-production-artifact-reconciliation/spec.json')).toContain(marker);
     });
 
     it('通常taskと委譲taskの本番証拠を別E2E・別rollback条件に保つ', () => {
