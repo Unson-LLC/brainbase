@@ -3,11 +3,27 @@ title: Brainbase Judgment DAG Milestones
 status: active
 date: 2026-08-20
 scope: OSS Brainbase
+governed_by_repository: Unson-LLC/brainbase-unson
+governed_by_path: docs/management/milestones/brainbase-program-master-roadmap.md
+program_packages:
+  - R0
+  - J0
+  - G0
+  - R1
+  - D0
+  - P0
+  - C0
 ---
 
 # Brainbase Judgment DAG Milestones
 
 This roadmap replaces any implicit assumption that OSS Brainbase stops at memory retrieval. The next milestones make the shared Judgment DAG core real without prematurely building a complete enterprise ontology.
+
+## Program governance
+
+この文書はOSS Judgment DAGのcomponent roadmapであり、cross-repositoryの依存順、開始条件、完了条件は`Unson-LLC/brainbase-unson`の`docs/management/milestones/brainbase-program-master-roadmap.md`に従う。対応するProgram work packageは R0 / J0 / G0 / R1 / D0 / P0 / C0 である。競合時はProgram Master Roadmapを優先し、この文書のM0〜M6をProgram全体の順序や完了判定へ読み替えない。
+
+Program statusには `planned` / `contract_ready` / `implementing` / `verified` / `production_proven` / `done` の6語彙だけを使う。hard dependencyを満たさないmilestoneを`done`にしない。文書のmergeだけを実装完了または`done`と扱わず、未実施・未収集・staleな証跡をpassや0件へ丸めない。
 
 ## M0 — Architecture lock
 
