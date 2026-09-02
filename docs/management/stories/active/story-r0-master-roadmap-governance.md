@@ -22,7 +22,7 @@ Brainbase OSSの実装者として、OSS component roadmapがProgram Masterの�
 - [x] AC-002: `contracts/judgment-dag/source-lock.json`はR0 / J0 / G0 / R1 / D0 / P0 / C0のcrosswalkと6つのstatus vocabularyをmachine-readableに固定する。
 - [x] AC-003: focused testはroadmap表示面とsource-lock機械面のcommit、path、hash、crosswalk、statusを同時に検証する。
 - [x] AC-004: public contract generatorは更新したroadmapとsource-lockをdigestへ含め、再計算後のhash整合を検証する。
-- [x] AC-005: public testや配布物は参照元repoへのnetwork accessを要求せず、固定snapshotの更新は新しいcommit・hash・検証・独立reviewを必須とする。
+- [x] AC-005: public testや配布物は参照元repoへのnetwork accessを要求せず、固定snapshotの更新は新しいcommit・両artifact hash・検証証跡・独立reviewを必須とする。
 - [x] AC-006: 文書merge、focused test、contract_readyをアプリケーション/production実証またはProgram work packageの`done`として扱わない。
 
 ## 境界

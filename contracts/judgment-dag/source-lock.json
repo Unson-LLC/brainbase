@@ -32,6 +32,15 @@
       "production_proven",
       "done"
     ],
+    "snapshot_update_policy": {
+      "requires_new_commit": true,
+      "required_artifact_hashes": [
+        "markdown.sha256",
+        "machine_contract.sha256"
+      ],
+      "requires_verification_evidence": true,
+      "requires_independent_review": true
+    },
     "verification_boundary": "The OSS package records the accepted cross-repository commit and content hashes. Public tests do not fetch the organization repository or treat network access as runtime authority."
   },
   "sources": [

@@ -160,7 +160,7 @@
     {
       "id": "INV-002",
       "type": "invariant",
-      "statement": "public testとruntimeは組織repoへのnetwork accessを要求せず、固定snapshotの更新には新しいcommit、hash、検証、独立reviewを要求する。",
+      "statement": "public testとruntimeは組織repoへのnetwork accessを要求せず、固定snapshotの更新には新しいcommit、両artifact hash、検証証跡、独立reviewを要求する。",
       "origin": {
         "story_refs": [
           {
@@ -178,13 +178,13 @@
         "code_refs": [
           {
             "file": "contracts/judgment-dag/source-lock.json",
-            "anchor": "verification_boundary"
+            "anchor": "snapshot_update_policy"
           }
         ],
         "test_refs": [
           {
             "file": "tests/judgment-dag-roadmap-governance.test.ts",
-            "case": "locks the accepted Program governance revision without requiring runtime network access"
+            "case": "fails closed when the accepted snapshot update policy is incomplete"
           }
         ]
       },
@@ -192,7 +192,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/judgment-dag-roadmap-governance.test.ts",
-            "must_contain": "Public tests do not fetch"
+            "must_contain": "requires_independent_review"
           }
         ]
       },

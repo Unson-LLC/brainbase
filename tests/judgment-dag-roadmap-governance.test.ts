@@ -86,4 +86,30 @@ describe('OSS Judgment DAG component roadmap governance', () => {
     ]);
     expect(governance.verification_boundary).toContain('Public tests do not fetch');
   });
+
+  it('fails closed when the accepted snapshot update policy is incomplete', async () => {
+    const [roadmap, story, architecture, humanSpec, humanTask, acceptedSpec, boundTasks, sourceLock] =
+      await Promise.all([
+        'docs/management/judgment-dag-milestones.md',
+        'docs/management/stories/active/story-r0-master-roadmap-governance.md',
+        'docs/architecture/story-r0-master-roadmap-governance.md',
+        'docs/specs/r0-master-roadmap-governance.md',
+        'docs/management/tasks/r0-master-roadmap-governance.json',
+        '.vibepro/spec/story-r0-master-roadmap-governance/spec.json',
+        '.vibepro/stories/story-r0-master-roadmap-governance/tasks/tasks.json',
+        'contracts/judgment-dag/source-lock.json',
+      ].map(async (relativePath) => readFile(path.join(root, relativePath), 'utf8')));
+
+    for (const surface of [roadmap, story, architecture, humanSpec, humanTask, acceptedSpec, boundTasks]) {
+      expect(surface).toMatch(/(?:新しい|新).*commit.*両.*hash.*検証.*独立(?:review|レビュー)/su);
+    }
+
+    const governance = JSON.parse(sourceLock).program_governance;
+    expect(governance.snapshot_update_policy).toEqual({
+      requires_new_commit: true,
+      required_artifact_hashes: ['markdown.sha256', 'machine_contract.sha256'],
+      requires_verification_evidence: true,
+      requires_independent_review: true,
+    });
+  });
 });

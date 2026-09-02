@@ -9,7 +9,7 @@ date: 2026-09-02
 ## Contract
 
 1. component roadmapはProgram Masterのrepository、Markdown/JSON path、exact commit、SHA-256を表示する。
-2. machine source-lockは同じcommit/path/hash、R0 / J0 / G0 / R1 / D0 / P0 / C0、6 statusを保持する。
+2. machine source-lockは同じcommit/path/hash、R0 / J0 / G0 / R1 / D0 / P0 / C0、6 statusに加え、snapshot更新時の新commit・両artifact hash・検証証跡・独立review要件を保持する。
 3. public verificationは外部networkを前提にせず、固定metadataとローカル表示・digestの整合を検証する。
 4. Program revision更新は明示的なsource-lock更新として扱い、暗黙のlatest参照を禁止する。固定snapshotを更新する場合は、新しいcommit・両artifact hash・検証証跡・独立reviewを必須とする。
 5. docs-only証拠をruntime、production、またはProgram `done`へ昇格させない。

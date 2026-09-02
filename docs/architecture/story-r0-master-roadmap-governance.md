@@ -25,6 +25,7 @@ OSS component roadmapは、`Unson-LLC/brainbase-unson`のProgram Master Roadmap�
 - Master Markdownとmachine-readable JSONのrepo相対pathおよびSHA-256
 - OSS roadmapに対応するProgram work package crosswalk
 - 共通status vocabulary
+- snapshot更新時に必要な新commit、両artifact hash、検証証跡、独立review
 
 公開testはこのmetadataとOSS表示面の整合を決定的に検証する。秘密repoのcredentialやnetwork availabilityを公開packageのtest/runtime要件にしない。外部内容のhash照合は、変更準備時の明示的なローカル検証証跡として記録する。
 
