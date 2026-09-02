@@ -13,10 +13,12 @@ import { OntologyRegistry } from '../../../server/services/ontology-registry.js'
 //
 // These tests are intentionally opt-in because they create and drop schemas on
 // a real PostgreSQL instance. The command used for acceptance is:
-// RUN_GRAPH_MAINTENANCE_DB_TESTS=true GRAPH_MAINTENANCE_DATABASE_URL=... \
+// RUN_GRAPH_MAINTENANCE_DB_TESTS=1 GRAPH_MAINTENANCE_DATABASE_URL=... \
 //   npx vitest run tests/server/services/graph-maintenance-postgres.integration.test.js
 const databaseUrl = process.env.GRAPH_MAINTENANCE_DATABASE_URL || process.env.INFO_SSOT_DATABASE_URL || '';
-const runPostgresTests = process.env.RUN_GRAPH_MAINTENANCE_DB_TESTS === 'true';
+const runPostgresTests = ['1', 'true'].includes(
+    (process.env.RUN_GRAPH_MAINTENANCE_DB_TESTS || '').toLowerCase()
+);
 const describeWithPostgres = runPostgresTests && databaseUrl ? describe : describe.skip;
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const schemaPath = path.join(sourceRoot, 'server/sql/info-ssot-schema.sql');
@@ -1230,7 +1232,7 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         expect(JSON.stringify(restoredContext)).not.toContain(targetId);
     });
 
-    it('cross-tenant Decision subjectをHuman Gate付きでApplyしRollbackする', async () => {
+    it('cross-tenant認可scopeとstrict collectionを別契約として検証しDecision subjectをRollbackする', async () => {
         const baseline = await service.exportSnapshot(crossTenantAccess, { projectCode: 'brainbase' });
         const operation = {
             operation: 'link_decision_subject',
@@ -1336,8 +1338,29 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         ]));
         expect(JSON.stringify(sourceOnlySnapshot)).not.toContain('product_aitle');
         expect(JSON.stringify(gmSnapshot)).not.toContain('product_aitle');
-        await expect(service.validate(sourceOnly, { projectCode: 'brainbase' })).resolves.toMatchObject({ valid: true });
-        await expect(service.validate(gmBothScopes, { projectCode: 'brainbase' })).resolves.toMatchObject({ valid: true });
+        const sourceValidation = await service.validate(sourceOnly, { projectCode: 'brainbase' });
+        expect(sourceValidation).toMatchObject({
+            collection_complete: true,
+            valid: true,
+            validation_scope: { strict_collection: false }
+        });
+        expect(sourceValidation.suppression_summary.edge_count).toBeGreaterThan(0);
+        const gmValidation = await service.validate(gmBothScopes, { projectCode: 'brainbase' });
+        expect(gmValidation).toMatchObject({
+            collection_complete: true,
+            valid: true,
+            validation_scope: { strict_collection: false }
+        });
+        expect(gmValidation.suppression_summary.edge_count).toBeGreaterThan(0);
+        const strictValidation = await service.validate(sourceOnly, {
+            projectCode: 'brainbase', strictCollection: true
+        });
+        expect(strictValidation).toMatchObject({
+            collection_complete: false,
+            valid: false,
+            validation_scope: { strict_collection: true }
+        });
+        expect(strictValidation.suppression_summary).toEqual(sourceValidation.suppression_summary);
         await expect(infoSSOTService.listGraphEdges(crossTenantAccess, edgeQuery)).resolves.toEqual([
             expect.objectContaining({ from_id: 'decision_subject', to_id: 'product_aitle', rel_type: 'governs' })
         ]);

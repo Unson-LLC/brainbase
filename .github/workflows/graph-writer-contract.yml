@@ -62,3 +62,30 @@ jobs:
           tests/server/services/personal-knowledge-schema.test.js
       - name: Run tenant production provisioning contract suite
         run: npm run test:tenant-production-provisioning
+      - name: Prepare Graph maintenance PostgreSQL acceptance role
+        run: |
+          node --input-type=module <<'EOF'
+          import { randomBytes } from 'node:crypto';
+          import { appendFileSync } from 'node:fs';
+          import { Pool } from 'pg';
+
+          const adminUrl = process.env.PERSONAL_KNOWLEDGE_MIGRATION_DATABASE_URL;
+          const role = 'graph_maintenance_ci';
+          const password = randomBytes(32).toString('hex');
+          const adminPool = new Pool({ connectionString: adminUrl });
+          try {
+              await adminPool.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS`);
+              await adminPool.query(`GRANT CREATE ON DATABASE postgres TO ${role}`);
+          } finally {
+              await adminPool.end();
+          }
+
+          const databaseUrl = new URL(adminUrl);
+          databaseUrl.username = role;
+          databaseUrl.password = password;
+          appendFileSync(process.env.GITHUB_ENV, `GRAPH_MAINTENANCE_DATABASE_URL=${databaseUrl.toString()}\n`);
+          EOF
+      - name: Run Graph maintenance PostgreSQL acceptance suite
+        env:
+          RUN_GRAPH_MAINTENANCE_DB_TESTS: '1'
+        run: npm run test:integration:graph-maintenance

@@ -197,6 +197,35 @@ describe('judgment value proof organization adapter', () => {
     expect(proof.state).toBe('unconfirmed');
   });
 
+  it('does not let two retrievals masquerade as an update followed by canonical readback', () => {
+    const event = { ...valueProofEvent(), event_sequence: 3 };
+    const proof = buildJudgmentValueProofProjection({
+      turnRef: 'retrieve-only-pair',
+      valueProofEvent: event,
+      events: [
+        {
+          tool_use_id: 'execution-1', success: true, event_kind: 'retrieve', event_sequence: 1,
+          query_excerpt: 'github://pull/142', input_digest: 'c'.repeat(64), response_digest: 'd'.repeat(64),
+          safe_metadata: { subject_ref: 'github://pull/142', retrieval_outcome: 'result', artifact_refs: ['github://pull/142'] },
+        },
+        {
+          tool_use_id: 'readback-1', success: true, event_kind: 'retrieve', event_sequence: 2,
+          query_excerpt: 'github://pull/142', input_digest: 'a'.repeat(64), response_digest: 'b'.repeat(64),
+          safe_metadata: { subject_ref: 'github://pull/142', retrieval_outcome: 'result' },
+        },
+        event,
+      ],
+      interruptionCandidate: interruptionCandidate(),
+      stopState: { status: 'completed' },
+      finalizedAt: '2026-09-01T00:00:00.000Z',
+    });
+
+    expect(proof.outcome.status).toBe('unconfirmed');
+    expect(proof.state).toBe('unconfirmed');
+    expect(proof.outcome.evidence_refs.map(({ status }) => status))
+      .toEqual(['unconfirmed', 'verified']);
+  });
+
   it('does not verify a claimed artifact when the execution event names another artifact', () => {
     const event = { ...valueProofEvent(), event_sequence: 3 };
     const proof = buildJudgmentValueProofProjection({

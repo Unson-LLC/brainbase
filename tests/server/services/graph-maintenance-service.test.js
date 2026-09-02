@@ -22,7 +22,7 @@ describe('GraphMaintenanceService authorization', () => {
         })).resolves.toEqual(['brainbase', 'growin-project']);
     });
 
-    it('Validate応答へ識別子を含まないEdge抑止集計を伝播する', async () => {
+    it('通常の認可scope抑止は互換を保ち、strict本番収束だけを失敗させる', async () => {
         const snapshot = {
             project_code: 'brainbase',
             entities: [],
@@ -41,16 +41,58 @@ describe('GraphMaintenanceService authorization', () => {
         });
         validatingService.loadSnapshot = vi.fn(async () => ({ snapshot }));
 
-        const result = await validatingService.validate({
+        const scopedResult = await validatingService.validate({
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
         }, { projectCode: 'brainbase' });
+        const strictResult = await validatingService.validate({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, { projectCode: 'brainbase', strictCollection: true });
 
-        expect(result).toMatchObject({
+        expect(scopedResult).toMatchObject({
+            collection_complete: true,
             valid: true,
-            snapshot_hash: snapshot.hash,
+            validation_scope: { strict_collection: false },
             suppression_summary: snapshot.suppression_summary
         });
-        expect(JSON.stringify(result)).not.toContain('hidden_entity');
+        expect(strictResult).toMatchObject({
+            collection_complete: false,
+            valid: false,
+            snapshot_hash: snapshot.hash,
+            validation_scope: { strict_collection: true },
+            suppression_summary: snapshot.suppression_summary
+        });
+        expect(JSON.stringify(strictResult)).not.toContain('hidden_entity');
+    });
+
+    it('抑止0件のstrict本番収束は完全取得として成功しsnapshot hashを返す', async () => {
+        const snapshot = {
+            project_code: 'brainbase',
+            entities: [],
+            edges: [],
+            suppression_summary: { edge_count: 0, reasons: {} }
+        };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const validatingService = new GraphMaintenanceService({
+            infoSSOTService: {
+                withAccessContext: async (_access, callback) => callback({}),
+                validateOntology: vi.fn(() => ({ valid: true, violations: [] }))
+            }
+        });
+        validatingService.loadSnapshot = vi.fn(async () => ({ snapshot }));
+
+        const result = await validatingService.validate({
+            organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
+        }, { projectCode: 'brainbase', strictCollection: true });
+
+        expect(result).toMatchObject({
+            collection_complete: true,
+            valid: true,
+            snapshot_hash: snapshot.hash,
+            issues: [],
+            ontology: { valid: true, violations: [] },
+            validation_scope: { strict_collection: true },
+            suppression_summary: { edge_count: 0, reasons: {} }
+        });
     });
 
     it('Ontology required relationの検証対象をactive local Entityへ限定する', async () => {
@@ -101,6 +143,7 @@ describe('GraphMaintenanceService authorization', () => {
         expect(result.ontology.violations).toEqual([
             { code: 'CON-DECISION-DECIDER-001', entity_id: 'decision_active' }
         ]);
+        expect(result.collection_complete).toBe(true);
         expect(result.ontology.violations).not.toEqual(expect.arrayContaining([
             expect.objectContaining({ entity_id: 'decision_retired' }),
             expect.objectContaining({ entity_id: 'decision_superseded' }),

@@ -1,0 +1,387 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-production-artifact-reconciliation",
+  "clauses": [
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "本番固有の4ファイル差分は、削除や上書きの前に正式なGit commitとのpatch ID一致を確認し、対象限定のpatch・content hash・旧SHA・専用rollback commitとして保全されなければならない。許可外の差分が1件でもあれば停止する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-001",
+            "text_snippet": "本番4ファイルの差分を、内容とパッチ同一性を維持した正式なGit commitとして保全"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "境界"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番hotfix退避先を複数行出力から1件だけ抽出し、不正markerを拒否する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番hotfix退避先を複数行出力から1件だけ抽出し、不正markerを拒否する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:06:53.526Z",
+      "last_revised_at": "2026-09-02T05:40:58.443Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Ontology署名検証はGit管理の信頼ストアを使用し、不完全なproduction公開鍵overrideを成功へフォールバックしてはならない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-005",
+            "text_snippet": "Ontology 1.1.0の公開物をGit管理の信頼ストアで検証"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/ontology-release-trust.js",
+            "anchor": "trustedPublicKeyPem"
+          },
+          {
+            "file": "config/ontology/trusted-public-keys.json"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/ontology-registry.test.js",
+            "case": "resolves the active repository release with the distributed public trust anchor"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/ontology-registry.test.js",
+            "must_cover": "resolves the active repository release with the distributed public trust anchor"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T04:46:51.325Z",
+      "last_revised_at": "2026-09-02T05:40:58.443Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "Given 本番ホットフィックスが正式なPRへ統合され、本番4ファイルだけがpatch・content hash・専用rollback commitへ保全され4面の切替前状態が取得済み、When global Hook・ローカル31013・常駐MCP・Lightsailを統合SHAへ揃える、Then 4面のcheckout・稼働process・version/readinessが同じ統合SHAを示し対象checkoutがcleanである。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-002",
+            "text_snippet": "ホットフィックスをレビュー・CI済みのPRでdevelopへ統合"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-003",
+            "text_snippet": "4面それぞれのcheckout・稼働プロセス・version/readinessが同じSHA"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "実行順序"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "accepts an empty audit result for the internal judgment state tool"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する"
+          },
+          {
+            "file": "tests/server/services/ontology-registry.test.js",
+            "case": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "accepts an empty audit result for the internal judgment state tool"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "ClaudeのMCP response形状でも検索監査と状態記録を成功として認識する"
+          },
+          {
+            "file_glob": "tests/server/services/ontology-registry.test.js",
+            "must_cover": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T04:46:51.325Z",
+      "last_revised_at": "2026-09-02T05:40:58.443Z"
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "Given production Infisicalに不完全な公開鍵overrideと有効な秘密鍵・key_idが存在する、When sharedのONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEYだけを削除して再取得する、Then 公開鍵overrideは不在となり秘密鍵とkey_idは値を表示せず同一性が確認され、同一runの設定証跡へ保存される。この除去はforward-only incident remediationであり、コード/runtime rollbackでも復元しない。rollbackは変更前に秘密鍵・key_idのdriftをfail-closed検査して秘密値非保持のoperator Receiptを保存し、秘密一時ファイルを終了時に削除する。rollback後にoverride不在を再取得し、Lightsail転送物のchecksumをlive反映前に、target checksumを反映後に読戻す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004",
+            "text_snippet": "production正本から不完全なONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEYだけを除去"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "境界"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:55:00.000Z",
+      "last_revised_at": "2026-09-02T05:55:00.000Z"
+    },
+    {
+      "id": "S-005",
+      "type": "scenario",
+      "statement": "Given 不完全なproduction公開鍵overrideが除去され修復済み環境が再投影された、When Git管理の信頼ストアでrepository verifierと本番Ontology 1.1.0 readbackを同じrunで実行する、Then 署名検証は成功し不正overrideへのfallbackは発生しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-005",
+            "text_snippet": "Ontology 1.1.0がGit信頼ストアで署名検証される"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "実行順序"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/ontology-registry.test.js",
+            "case": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/ontology-registry.test.js",
+            "must_cover": "resolves the active repository release with the distributed public trust anchor"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:55:00.000Z",
+      "last_revised_at": "2026-09-02T05:55:00.000Z"
+    },
+    {
+      "id": "S-006",
+      "type": "scenario",
+      "statement": "Given 4面とOntologyが同一runの統合SHAへ収束済み、When production graph_validateをproject_code=brainbase・strict_collection=trueで実行する、Then HTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、抑止されたEdge 0件、valid=true、snapshot_hashを同じGraph responseから機械判定し、抑止理由とともにReceiptへ保存する。通常の認可scope抑止はstrictを指定しない限り従来のvalid契約を保つ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "ac_id": "AC-006",
+            "text_snippet": "同一runの本番graph_validateがHTTP 200、collection_complete=true、構造違反0件、Ontology違反0件、抑止されたEdge 0件、valid=true"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "実行順序"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "通常の認可scope抑止は互換を保ち、strict本番収束だけを失敗させる"
+          },
+          {
+            "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "case": "cross-tenant認可scopeとstrict collectionを別契約として検証しDecision subjectをRollbackする"
+          },
+          {
+            "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "case": "strict Graph抑止失敗を識別子なしでMCP利用者へ伝播する"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "通常の認可scope抑止は互換を保ち、strict本番収束だけを失敗させる"
+          },
+          {
+            "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+            "must_cover": "cross-tenant認可scopeとstrict collectionを別契約として検証しDecision subjectをRollbackする"
+          },
+          {
+            "file_glob": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+            "must_cover": "strict Graph抑止失敗を識別子なしでMCP利用者へ伝播する"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:55:00.000Z",
+      "last_revised_at": "2026-09-02T06:40:00.000Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "Given 4面が統合SHAへ揃い必要なHook trust承認が完了済み、When その後にfresh Codex taskを作成する、Then 同一turnのJudgment episodeに期待する実Brainbase eventと完全なowner auditが記録されproven_activeとなる。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 7,
+            "ac_id": "AC-008",
+            "text_snippet": "fresh Codex taskでJudgment episodeと実Brainbase event"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "実行順序"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "継続中にknowledge routeを取得すればcompleteとして一度だけ確定する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "継続中にknowledge routeを取得すればcompleteとして一度だけ確定する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:00:00.000Z",
+      "last_revised_at": "2026-09-02T05:40:58.443Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "Given PR成果物はproduction_execution_status=not_runであり、PR・CI・4面のSHA/readiness・署名・Graph検証・fresh task実証のいずれかが不一致、When 本番収束を判定する、Then 成功とは報告せず、途中失敗は秘密値を含まないReceiptへ失敗工程・変更有無・rollback要否・取得済み証跡を保存し、記録済みSHAとHookファイルを使い、Lightsailは専用rollback commitへ戻してcontent hashを照合する正本runbookの順序で復旧できる。公開鍵override除去はforward-onlyとして維持し、秘密鍵・key_idの同一性と修復済みLightsail環境ファイルをrollback後に読戻す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6,
+            "ac_id": "AC-007",
+            "text_snippet": "不一致なら成功とは報告せずrollback手順を使用"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "失敗時の扱い"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番hotfixの復旧証跡を検証してからmerge済みSHAへ切り替える"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束の途中失敗を秘密値なしのoperator向けreceiptへ固定する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番hotfixの復旧証跡を検証してからmerge済みSHAへ切り替える"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束の途中失敗を秘密値なしのoperator向けreceiptへ固定する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T04:46:51.325Z",
+      "last_revised_at": "2026-09-02T05:40:58.443Z"
+    }
+  ],
+  "generated_at": "2026-09-02T04:46:51.324Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": "2026-09-02T04:46:51.324Z"
+}
