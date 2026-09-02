@@ -142,6 +142,11 @@ test('delegated fresh task proves post-generation recovery without impersonating
     const rendered = finalAnswer(entries, turnId);
     const expectedAudit = [episode.owner_audit.display_line, ...events.flatMap((event) => event.display_line ? [event.display_line] : [])];
     assert.deepEqual(rendered.replaceAll('\r\n', '\n').split('\n').slice(0, expectedAudit.length), expectedAudit);
+    assert.equal(
+        rendered.match(/Brainbase判断レシート/gu)?.length ?? 0,
+        1,
+        'Delegated live evidence must show exactly one user-visible Brainbase judgment receipt'
+    );
     assert.match(rendered, /🔁 自律継続:/u, 'Value proof must be bound to an actual Host continuation');
     assert.notEqual(episode.route_application, 'pre_generation', 'Stop recovery must never claim pre-generation guidance');
 });

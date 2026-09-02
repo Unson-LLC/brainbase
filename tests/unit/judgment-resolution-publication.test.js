@@ -315,6 +315,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('never use a recovered Stop episode as evidence that `UserPromptSubmit` guided generation');
         expect(runbook).toContain("Never substitute one path's evidence for the other");
         expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
+        expect(read(delegatedVerifier)).toContain(
+            'Delegated live evidence must show exactly one user-visible Brainbase judgment receipt'
+        );
         expect(read(delegatedVerifier)).toContain('Stop recovery must never claim pre-generation guidance');
         expect(story).toContain('2つのfresh task');
         expect(spec).toContain('2つの新しいCodexタスク');
