@@ -191,7 +191,9 @@ function includesPositiveCommandClause(request, terms) {
         let offset = normalizedRequest.indexOf(normalizedTerm);
         while (offset >= 0) {
             const remainder = normalizedRequest.slice(offset + normalizedTerm.length);
-            if (/^(?:$|[\s、,;；。！？!?]|ください|下さい|くれ|もら(?:え|いたい)|いただ(?:け|きたい)|ほしい|欲しい|おいて|おけ|みて|みろ|から|その後|次に)/u.test(remainder)) {
+            const endsCommand = /^(?:$|[\s、,;；。！？!?])/u.test(remainder)
+                || /^(?:(?:ください|下さい|くれ|ほしい|欲しい|おけ|みろ)|(?:おいて|みて)(?:ください|下さい)?|(?:もらえ|いただけ)(?:ますか|ませんか|ないですか)|(?:もらいたい|いただきたい))(?=$|[\s、,;；。！？!?])/u.test(remainder);
+            if (endsCommand) {
                 return true;
             }
             offset = normalizedRequest.indexOf(normalizedTerm, offset + normalizedTerm.length);
