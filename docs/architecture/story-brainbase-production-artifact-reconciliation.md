@@ -28,12 +28,13 @@
 7. health、version、dirty状態、journal、Ontology検証、Graph全体検証を同一runで読み戻し、秘密値を含まないproduction convergence Receiptへ固定する。
 8. Hook trust状態を確認し、必要ならowner承認後に作成したfresh taskでJudgment episode、実Brainbase event、完全なowner auditを実証する。
 
-手順1はPR前の静的・自動検証、手順2は前進デプロイの権限境界、手順3〜8はマージ後の本番実行である。手順3〜8の証跡をPR前の合格条件にはせず、反対に手順1〜2だけで本番完了とも報告しない。VibeProのPR成果物はPR時点の検証可能性を示し、本番readbackはマージ後の同一runで別途取得する。
+手順1はPR前の静的・自動検証、手順2は前進デプロイの権限境界、手順3〜8はマージ後の本番実行である。手順3〜8の証跡をPR前の合格条件にはせず、反対に手順1〜2だけで本番完了とも報告しない。VibeProのPR成果物には`production_execution_status=not_run`を明示し、PR時点の検証可能性だけを示す。本番readbackはマージ後の同一runで別途取得する。
 
 ## 失敗時の扱い
 
 - 差分同一性またはテストが不一致なら、本番checkoutを変更しない。
 - 本番に許可した4ファイル以外の変更がある、patch/content hashを退避できない、または専用rollback commit後もdirtyなら、通常の事前取得へ進まない。
 - CIまたはレビューが未完了なら、本番へデプロイしない。
+- 本番収束が途中で停止した場合は、失敗工程、設定変更有無、rollback要否、取得済み証跡パスを秘密値なしの失敗Receiptへ保存する。失敗Receiptも作れなければ状態を`unknown`としてoperatorへ表示する。
 - 再投影後に署名検証が失敗した場合はサービスを成功扱いせず、削除前の設定メタデータとGit信頼ストアを照合する。
 - デプロイ後のSHA、dirty状態、Graph検証、fresh task実証のいずれかが一致しない場合は、`judgment-resolve.md#rollback`の順序でローカルUI/MCP、Lightsail、global Hookを記録済み状態へ戻し、未確認として報告する。Lightsailは専用rollback commitへ戻して旧SHA＋ホットフィックスの実効内容を`dirty=false`で復元し、保存済みcontent hashと照合する。global Hookは最後に復旧し、owner journalは削除しない。

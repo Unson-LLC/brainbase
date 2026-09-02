@@ -335,7 +335,7 @@
     {
       "id": "S-002",
       "type": "scenario",
-      "statement": "Given PR・CI・4面のSHA/readiness・署名・Graph検証・fresh task実証のいずれかが不一致、When 本番収束を判定する、Then 成功とは報告せず、記録済みSHAとHookファイルを使い、Lightsailは専用rollback commitへ戻してcontent hashを照合する正本runbookの順序で復旧できる。",
+      "statement": "Given PR成果物はproduction_execution_status=not_runであり、PR・CI・4面のSHA/readiness・署名・Graph検証・fresh task実証のいずれかが不一致、When 本番収束を判定する、Then 成功とは報告せず、途中失敗は秘密値を含まないReceiptへ失敗工程・変更有無・rollback要否・取得済み証跡を保存し、記録済みSHAとHookファイルを使い、Lightsailは専用rollback commitへ戻してcontent hashを照合する正本runbookの順序で復旧できる。",
       "origin": {
         "story_refs": [
           {
@@ -355,6 +355,10 @@
           {
             "file": "tests/unit/judgment-resolution-publication.test.js",
             "case": "本番hotfixの復旧証跡を検証してからmerge済みSHAへ切り替える"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-publication.test.js",
+            "case": "本番収束の途中失敗を秘密値なしのoperator向けreceiptへ固定する"
           }
         ]
       },
@@ -363,6 +367,10 @@
           {
             "file_glob": "tests/unit/judgment-resolution-publication.test.js",
             "must_cover": "本番hotfixの復旧証跡を検証してからmerge済みSHAへ切り替える"
+          },
+          {
+            "file_glob": "tests/unit/judgment-resolution-publication.test.js",
+            "must_cover": "本番収束の途中失敗を秘密値なしのoperator向けreceiptへ固定する"
           }
         ]
       },

@@ -366,11 +366,25 @@ export BRAINBASE_PRODUCTION_RUN_ID="production-convergence-$(date -u +%Y%m%dT%H%
 export BRAINBASE_PRODUCTION_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/${BRAINBASE_PRODUCTION_RUN_ID}.XXXXXX")"
 chmod 700 "$BRAINBASE_PRODUCTION_RUN_DIR"
 export BRAINBASE_PRODUCTION_RECEIPT="$BRAINBASE_PRODUCTION_RUN_DIR/production-convergence-receipt.json"
+export BRAINBASE_PRODUCTION_TARGET_SHA="$TARGET_SHA"
+export BRAINBASE_PRODUCTION_STAGE=preflight
+export BRAINBASE_PRODUCTION_STATE_CHANGED=false
+write_production_failure_receipt() {
+  local exit_code="$1"
+  trap - ERR
+  BRAINBASE_PRODUCTION_EXIT_CODE="$exit_code" \
+    node scripts/write-production-convergence-failure-receipt.mjs || \
+    printf 'Production convergence failure receipt could not be written; status=unknown stage=%s rollback_required=%s\n' \
+      "$BRAINBASE_PRODUCTION_STAGE" "$BRAINBASE_PRODUCTION_STATE_CHANGED" >&2
+  return "$exit_code"
+}
+trap 'write_production_failure_receipt $?' ERR
 INFISICAL="$HOME/.local/bin/infisical"
 INFISICAL_DOMAIN=https://infisical.unson.jp
 INFISICAL_PROJECT_ID=ce20541c-02b9-4523-bbe0-49d50b2fcc19
 
 # 1. 変更前後の値は0600の一時ファイルだけへ保存し、Receiptには存在・同一性だけを書く。
+BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_before
 "$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --format json \
   --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json"
@@ -390,9 +404,12 @@ fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence));
 fs.chmodSync(process.env.EVIDENCE, 0o600);
 NODE
 
+BRAINBASE_PRODUCTION_STAGE=infisical_public_key_removal
 "$INFISICAL" secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY \
   --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --type shared
+BRAINBASE_PRODUCTION_STATE_CHANGED=true
+BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_after
 "$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --format json \
   --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json"
@@ -414,6 +431,7 @@ fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence));
 NODE
 
 # 2. 修復済みproduction正本をsystemdの既定0600ファイルへ再投影して再起動する。
+BRAINBASE_PRODUCTION_STAGE=lightsail_environment_projection
 "$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --format dotenv \
   --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/.env.infisical"
@@ -438,6 +456,7 @@ systemctl is-active --quiet brainbase-ssot.service
 REMOTE
 
 # 3. 4面を推測せず個別取得する。
+BRAINBASE_PRODUCTION_STAGE=runtime_surface_readback
 HOOK_ROOT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.root")"
 git -C "$HOOK_ROOT" rev-parse HEAD > "$BRAINBASE_PRODUCTION_RUN_DIR/global_hook_sha"
 test -z "$(git -C "$HOOK_ROOT" status --porcelain --untracked-files=all)"
@@ -516,6 +535,7 @@ process.stdout.write(JSON.stringify(surfaces));
 NODE
 
 # 4. Git信頼ストア、production Ontology、Graph全体検証を同じrunへ保存する。
+BRAINBASE_PRODUCTION_STAGE=ontology_verification
 npm run ontology:verify > "$BRAINBASE_PRODUCTION_RUN_DIR/ontology.verify.txt"
 TOKEN="$(jq -er .access_token "$HOME/.brainbase/tokens.json")"
 curl -fsS -H "Authorization: Bearer $TOKEN" \
@@ -547,6 +567,7 @@ if (evidence.version !== '1.1.0' || evidence.repository_digest !== evidence.prod
   || evidence.public_key_override_present !== false) process.exit(1);
 process.stdout.write(JSON.stringify(evidence));
 NODE
+BRAINBASE_PRODUCTION_STAGE=graph_strict_validation
 GRAPH_BODY="$BRAINBASE_PRODUCTION_RUN_DIR/graph.validate.json"
 GRAPH_STATUS="$(curl -sS -o "$GRAPH_BODY" -w '%{http_code}' \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
@@ -580,6 +601,7 @@ process.stdout.write(JSON.stringify(evidence));
 NODE
 
 # 5. Receiptは秘密値を含まず、同一run IDと統合SHAへ固定する。
+BRAINBASE_PRODUCTION_STAGE=success_receipt
 RUN_DIR="$BRAINBASE_PRODUCTION_RUN_DIR" RUN_ID="$BRAINBASE_PRODUCTION_RUN_ID" \
 TARGET_SHA="$TARGET_SHA" RECEIPT="$BRAINBASE_PRODUCTION_RECEIPT" node <<'NODE'
 const fs = require('node:fs');
@@ -597,10 +619,11 @@ const receipt = {
 fs.writeFileSync(process.env.RECEIPT, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
 NODE
 chmod 600 "$BRAINBASE_PRODUCTION_RECEIPT"
+trap - ERR
 printf 'Production convergence receipt: %s\n' "$BRAINBASE_PRODUCTION_RECEIPT"
 ```
 
-`production-convergence-receipt.json`の`status=passed`は、同じrunで全判定を通過した場合だけ作られる。作成前に停止した場合は、Infisicalの変更有無とサービス状態を読み戻し、推測で再実行せず、保存済みの`infisical.before.json`と`BRAINBASE_ROLLBACK_STATE_DIR`から復旧境界を確定する。
+`production-convergence-receipt.json`の`status=passed`は、同じrunで全判定を通過した場合だけ作られる。途中停止時は秘密値を含まない`production-convergence-failure.json`へ`status`、`failed_stage`、`state_changed`、`rollback_required`、取得済み証跡パスを保存してoperatorへ表示する。失敗Receipt自体を作れない場合は`status=unknown`として標準エラーへ表示する。`rollback_required=true`なら推測で再実行せず、保存済みの`infisical.before.json`と`BRAINBASE_ROLLBACK_STATE_DIR`から復旧境界を確定する。
 
 ### Verification
 

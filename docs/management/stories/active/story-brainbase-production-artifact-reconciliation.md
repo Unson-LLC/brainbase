@@ -12,7 +12,7 @@
 
 このStoryは、前進デプロイ元を確定する「PR・マージ準備」と、マージ済みSHAを実環境へ反映する「本番完了」の2段階で判定する。PR作成前に本番を未マージSHAへ変更してはならない。
 
-PR・マージ準備では、本番差分と正式commitのパッチ同一性、回帰テスト、4面の退避・切替・readback・rollback手順がレビュー可能で、CIを開始できること。ここでは本番反映済みとは判定しない。
+PR・マージ準備では、本番差分と正式commitのパッチ同一性、回帰テスト、4面の退避・切替・readback・rollback手順がレビュー可能で、CIを開始できること。PR成果物には`production_execution_status=not_run`を表示し、ここでは本番反映済みとは判定しない。
 
 本番完了では、PRを`develop`へマージした後、AC-001〜AC-008の本番退避、4面反映、設定修復、Graph検証、rollback証跡、fresh task実証を同じ実行記録へ残すこと。
 
@@ -22,7 +22,7 @@ PR・マージ準備では、本番差分と正式commitのパッチ同一性、
 - AC-004: production正本から不完全な`ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY`だけを除去し、秘密鍵と`key_id`は維持する。
 - AC-005: 再投影・再起動後、Ontology 1.1.0がGit信頼ストアで署名検証される。
 - AC-006: 通常の認可scope付き検証は従来互換を保ち、同一runの本番`graph_validate(project_code=brainbase, strict_collection=true)`がHTTP 200、`collection_complete=true`、構造違反0件、Ontology違反0件、抑止されたEdge 0件、`valid=true`を返す。
-- AC-007: 失敗・503・部分取得・不明を成功として扱わず、専用rollback commitから旧SHA＋ホットフィックスの実効内容を`dirty=false`で復旧できる証跡を残す。
+- AC-007: PR成果物は`production_execution_status=not_run`を明示する。失敗・503・部分取得・不明を成功として扱わず、途中失敗は秘密値を含まない失敗Receiptへ失敗工程・変更有無・rollback要否を残し、専用rollback commitから旧SHA＋ホットフィックスの実効内容を`dirty=false`で復旧できる証跡を残す。
 - AC-008: 4面の切替前状態とglobal Hookファイルを個別に保全し、反映後のfresh taskでJudgment episodeとowner auditを実証する。失敗時は正本runbookの順序で4面を復旧する。
 
 ## 対象外

@@ -1,5 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 function read(path) {
@@ -132,6 +134,70 @@ describe('judgment resolver publication surfaces', () => {
         );
 
         expect(convergence).toMatch(/suppressed_edge_count !== 0[\s\S]*?process\.exit\(1\)/u);
+    });
+
+    it('本番収束の途中失敗を秘密値なしのoperator向けreceiptへ固定する', () => {
+        const runDir = mkdtempSync(join(tmpdir(), 'brainbase-production-failure-'));
+        try {
+            const result = spawnSync(
+                process.execPath,
+                ['scripts/write-production-convergence-failure-receipt.mjs'],
+                {
+                    encoding: 'utf8',
+                    env: {
+                        ...process.env,
+                        BRAINBASE_PRODUCTION_RUN_DIR: runDir,
+                        BRAINBASE_PRODUCTION_RUN_ID: 'production-convergence-test',
+                        BRAINBASE_PRODUCTION_TARGET_SHA: 'a'.repeat(40),
+                        BRAINBASE_PRODUCTION_STAGE: 'infisical_public_key_removal',
+                        BRAINBASE_PRODUCTION_STATE_CHANGED: 'true',
+                        BRAINBASE_PRODUCTION_EXIT_CODE: '23',
+                        ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY: 'must-not-leak',
+                    },
+                }
+            );
+
+            expect(result.status).toBe(0);
+            const receiptPath = join(runDir, 'production-convergence-failure.json');
+            const raw = readFileSync(receiptPath, 'utf8');
+            const receipt = JSON.parse(raw);
+            expect(receipt).toMatchObject({
+                schema_version: 'brainbase.production-convergence-failure.v1',
+                run_id: 'production-convergence-test',
+                target_sha: 'a'.repeat(40),
+                status: 'failed',
+                failed_stage: 'infisical_public_key_removal',
+                state_changed: true,
+                rollback_required: true,
+                exit_code: 23,
+            });
+            expect(receipt.evidence_paths).toEqual(expect.any(Array));
+            expect(raw).not.toContain('must-not-leak');
+            expect(result.stderr).toContain('rollback_required=true');
+        } finally {
+            rmSync(runDir, { recursive: true, force: true });
+        }
+
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const convergence = runbook.slice(
+            runbook.indexOf('### Production convergence receipt'),
+            runbook.indexOf('### Verification')
+        );
+        expect(convergence).toContain("trap 'write_production_failure_receipt $?' ERR");
+        expect(convergence).toContain('BRAINBASE_PRODUCTION_STAGE=');
+        expect(convergence).toContain('BRAINBASE_PRODUCTION_STATE_CHANGED=true');
+        expect(convergence).toContain('production-convergence-failure.json');
+        expect(convergence).toContain('rollback_required');
+        expect(convergence).toContain('trap - ERR');
+    });
+
+    it('PR成果物が本番実行前であることを明示する', () => {
+        const marker = 'production_execution_status=not_run';
+        expect(read('docs/management/stories/active/story-brainbase-production-artifact-reconciliation.md')).toContain(
+            marker
+        );
+        expect(read('docs/architecture/story-brainbase-production-artifact-reconciliation.md')).toContain(marker);
+        expect(read('.vibepro/pr/story-brainbase-production-artifact-reconciliation/pr-body.md')).toContain(marker);
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:14
