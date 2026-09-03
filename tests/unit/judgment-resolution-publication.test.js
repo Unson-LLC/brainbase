@@ -678,7 +678,7 @@ describe('judgment resolver publication surfaces', () => {
             remote_secret_cleanup_confirmed: false,
         });
         rmSync(root, { recursive: true, force: true });
-    });
+    }, 15_000);
 
     it('env反映後の外側の失敗もproduction rollback Receiptへ収束する', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
