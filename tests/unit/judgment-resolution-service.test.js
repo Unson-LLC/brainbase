@@ -887,6 +887,22 @@ describe('JudgmentResolutionService', () => {
         }]);
     });
 
+    it.each([
+        [['general', 'knowledge', 'personal_judgment'], 'personal', 'personal_knowledge'],
+        [['general', 'knowledge', 'operations'], 'team', 'operational_state']
+    ])('generalを含む複合domainを保ちknowledge handoffを具体化する', (domains, audience, contentType) => {
+        const receipt = service.resolve(input('判断履歴を調べて', proposal({
+            intent: 'investigate', domains, action_kind: 'read'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification.domains).toEqual(expect.arrayContaining(domains));
+        expect(receipt.required_capabilities).toEqual([expect.objectContaining({
+            capability: 'knowledge.resolve',
+            input: expect.objectContaining({ audience, content_type: contentType })
+        })]);
+    });
+
     it('knowledgeの検索詳細は後段Knowledge Resolverへ委譲する', () => {
         const receipt = service.resolve(input('判断履歴を調べて'), { access: ACCESS, hostBinding: binding() });
         expect(receipt.status).toBe('resolved');
