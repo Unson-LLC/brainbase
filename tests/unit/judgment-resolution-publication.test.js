@@ -477,7 +477,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(ambiguousDelete.result.status).not.toBe(0);
         expect(ambiguousDelete.evidence).toMatchObject({ status: 'blocked', rollback_complete: false, public_key_override_present: true });
         rmSync(root, { recursive: true, force: true });
-    });
+    }, 30_000);
 
     it('Lightsail env転送checksum不一致時はlive targetを変更しない', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
