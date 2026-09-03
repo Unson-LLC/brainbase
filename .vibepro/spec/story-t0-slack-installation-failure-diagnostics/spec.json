@@ -119,7 +119,7 @@
         "test_refs": [
           {
             "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
-            "case": "records the fixed failure stage for each installation step"
+            "case": "records the exact failure stage and ignores forged error codes"
           }
         ]
       },
@@ -127,7 +127,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
-            "must_cover": "failure stage"
+            "must_cover": "records the exact failure stage and ignores forged error codes"
           }
         ]
       },
@@ -160,7 +160,7 @@
         "test_refs": [
           {
             "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
-            "case": "does not trust an arbitrary adapter error code"
+            "case": "records the exact failure stage and ignores forged error codes"
           }
         ]
       },
@@ -168,7 +168,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
-            "must_cover": "arbitrary adapter error code"
+            "must_cover": "ignores forged error codes"
           }
         ]
       },
@@ -269,14 +269,14 @@
           { "file": "server/services/multitenant/remote-credential-store.js", "anchor": "createRemoteCredentialMaterializer" }
         ],
         "test_refs": [
-          { "file": "tests/server/routes/slack-installation-control-plane.test.js", "case": "keeps internal failure diagnostic out of the public response" },
-          { "file": "tests/server/routes/tenant-runtime-contract.test.js", "case": "credential materializer障害でもprovider forwardの公開エラー契約を変更しない" }
+          { "file": "tests/server/routes/slack-installation-control-plane.test.js", "case": "keeps internal failure diagnostic %s out of the public response" },
+          { "file": "tests/server/routes/tenant-runtime-contract.test.js", "case": "AC-005: credential materializer障害でもprovider forwardの公開エラー契約を変更しない" }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
-          { "file_glob": "tests/server/routes/slack-installation-control-plane.test.js", "must_cover": "internal failure diagnostic" },
-          { "file_glob": "tests/server/routes/tenant-runtime-contract.test.js", "must_cover": "公開エラー契約を変更しない" }
+          { "file_glob": "tests/server/routes/slack-installation-control-plane.test.js", "must_cover": "keeps internal failure diagnostic %s out of the public response" },
+          { "file_glob": "tests/server/routes/tenant-runtime-contract.test.js", "must_cover": "AC-005: credential materializer障害でもprovider forwardの公開エラー契約を変更しない" }
         ]
       },
       "first_seen_at": "2026-09-03T00:00:00.000Z",
@@ -291,14 +291,14 @@
         "architecture_refs": [{ "file": "docs/architecture/story-t0-slack-installation-failure-diagnostics.md", "section": "検証境界" }],
         "code_refs": [{ "file": "docs/management/tasks/t0-slack-installation-failure-diagnostics.json", "anchor": "production_evidence" }],
         "test_refs": [
-          { "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js", "case": "PostgreSQL failure diagnostic write and readback" },
-          { "file": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js", "case": "idempotent migration from the legacy ledger" }
+          { "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js", "case": "writes and reads a bounded failed diagnostic without retaining claim or response data" },
+          { "file": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js", "case": "preserves a legacy failed row and adds bounded diagnostic columns idempotently" }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
-          { "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js", "must_cover": "failure diagnostic" },
-          { "file_glob": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js", "must_cover": "migration" }
+          { "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js", "must_cover": "writes and reads a bounded failed diagnostic without retaining claim or response data" },
+          { "file_glob": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js", "must_cover": "preserves a legacy failed row and adds bounded diagnostic columns idempotently" }
         ]
       },
       "first_seen_at": "2026-09-03T00:00:00.000Z",
