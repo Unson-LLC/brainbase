@@ -3691,6 +3691,9 @@ describe('turn_input handoff and resolved judgment line', () => {
         expect(context).toContain('the PostToolUse system message confirms the judgment contract');
         expect(context).toContain('Stop always renders the complete owner-visible audit block itself as its own systemMessage');
         expect(context).not.toContain('must start with exactly this Host-generated line');
+        expect(context).not.toContain('Autonomy decision: escalate.');
+        expect(context).not.toContain('⚠️ 確認が必要[classification_missing]:');
+        expect(context).not.toContain('This is an implementation request.');
         expect(context).toContain('model_interpretation must contain exactly these keys and nothing else: intent (one of answer|investigate|diagnose|design|implement|review|operate)');
         expect(context).toContain('signals (array, possibly empty, from cumulative_effect|');
         expect(context.split('\n').length).toBeLessThanOrEqual(20);
@@ -3745,6 +3748,10 @@ describe('turn_input handoff and resolved judgment line', () => {
         }, { env });
         expect(output.systemMessage).toContain('判断契約を確定しました');
         expect(output.systemMessage).toContain('🧠 判断参照: 「この修正を行って」を参照 → 実装依頼として継続 ✓');
+        expect(output.systemMessage).toContain('Autonomy decision: continue.');
+        expect(output.systemMessage).toContain('This is an implementation request.');
+        expect(output.systemMessage).toContain('Use the repository-local `vibepro-workflow` Skill');
+        expect(output.systemMessage).not.toContain('⚠️ 確認が必要[classification_missing]:');
 
         const stopped = finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,

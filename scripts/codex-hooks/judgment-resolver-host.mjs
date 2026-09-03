@@ -1891,7 +1891,10 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             }
         }
         const turnResolutionMessage = kind === 'turn_resolution' && responseSuccess && turnResolution
-            ? `🧠 判断契約を確定しました。監査行はStop時にHostがsystemMessageとして表示するため、回答本文へ再現する必要はありません（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）`
+            ? [
+                `🧠 判断契約を確定しました。監査行はStop時にHostがsystemMessageとして表示するため、回答本文へ再現する必要はありません（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）`,
+                ...turnContractExecutionInstructions(turnResolution, env, { hostAutonomy: episode.host_autonomy ?? null })
+            ].join('\n')
             : null;
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
@@ -3298,20 +3301,13 @@ function mandatoryVibeProImplementationInstructions(receipt) {
     ];
 }
 
-export function successOutput(
-    args,
-    receipt,
-    ownerAudit = buildOwnerAudit(args, receipt),
-    auditContract = buildAuditContract(receipt),
-    env = process.env,
-    hostSurface = null,
-    turnRef = null,
-    hostAutonomy = null
-) {
-    const surfaceDegraded = hostSurface?.turn_resolution === 'unavailable';
-    const requiredCapabilityInstructions = requiredCapabilityActionContracts(receipt)
-        .map((contract) => capabilityActionInstruction(contract));
-    const implementationWorkflowInstructions = mandatoryVibeProImplementationInstructions(receipt);
+function answeredEscalationInstructions(hostAutonomy) {
+    return hostAutonomy?.basis === 'prior_escalation_answered' ? [
+        `このセッションで人間が承認済みのpolicy（${JSON.stringify(hostAutonomy.approved_policy_ids ?? [])}）またはreason_code（${JSON.stringify(hostAutonomy.approved_reason_codes ?? [])}）に該当する場合、resolve後の判断がrisk_or_externalでも再度確認せず、通常の権限・承認の範囲で要求された操作を実行し、状態はcompletedまたはpendingで記録する。それ以外のpolicy/reason_codeでrisk_or_externalへ escalateした場合は改めて確認する。`
+    ] : [];
+}
+
+function turnContractExecutionInstructions(receipt, env, { surfaceDegraded = false, hostAutonomy = null } = {}) {
     const autonomy = verifyAutonomyContract(receipt);
     const autonomyInstructions = surfaceDegraded
         ? [
@@ -3321,37 +3317,24 @@ export function successOutput(
             'この自律判断は通常の権限・承認を置き換えません。'
         ]
         : autonomy?.decision === 'continue'
-        ? [
-            'Autonomy decision: continue.',
-            '安全なスコープ内の読解、調査、テスト、可逆な実装はそのまま完了まで続ける。複雑さ、好みの確認、念のための確認だけを理由に停止しない。',
-            `実行中に確認が必須になった場合だけ、許可された理由コードの確認行「⚠️ 確認が必要[reason_code]:」を回答本文の先頭に置く。許可コード: ${autonomy.allowedRuntimeReasons.join(', ')}。例: ⚠️ 確認が必要[missing_authority]:`,
-            'この自律判断は通常の権限・承認を置き換えません。'
-        ]
-        : autonomy?.decision === 'escalate'
             ? [
-                'Autonomy decision: escalate.',
-                `境界操作を実行せず、回答本文の先頭に「⚠️ 確認が必要[${autonomy.reasonCode}]:」を置き、必要な確認を一つだけ求める。`,
+                'Autonomy decision: continue.',
+                '安全なスコープ内の読解、調査、テスト、可逆な実装はそのまま完了まで続ける。複雑さ、好みの確認、念のための確認だけを理由に停止しない。',
+                `実行中に確認が必須になった場合だけ、許可された理由コードの確認行「⚠️ 確認が必要[reason_code]:」を回答本文の先頭に置く。許可コード: ${autonomy.allowedRuntimeReasons.join(', ')}。例: ⚠️ 確認が必要[missing_authority]:`,
                 'この自律判断は通常の権限・承認を置き換えません。'
             ]
-            : [];
-    const context = [
-        'Brainbase Judgment Resolver Host opened one unresolved judgment episode before model generation. This bootstrap receipt is not a semantic classification or the final episode receipt.',
-        ...(surfaceDegraded ? [
-            `This Codex thread cannot call ${TURN_RESOLUTION_TOOL_NAME}: its MCP tool surface predates the current Brainbase contract, and the Host recorded that tool failure from the transcript. Do not retry it, do not ask the user a classification question, and do not ask the user to restart; the Host-generated judgment line already reports the degraded state and that a new Codex task restores full judgment routing.`,
-            'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
-        ] : [
-            typeof turnRef === 'string'
-                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input (if the tool rejects a missing turn_input, pass turn_input as {"turn_ref": ${JSON.stringify(turnRef)}}). ${MODEL_INTERPRETATION_SHAPE}`
-                : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
-            'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
-            'After that call succeeds, the PostToolUse system message confirms the judgment contract. Stop always renders the complete owner-visible audit block itself as its own systemMessage; do not write, reproduce, or verify 🧠/📚/⚠️ audit lines in the answer.'
-        ]),
+            : autonomy?.decision === 'escalate'
+                ? [
+                    'Autonomy decision: escalate.',
+                    `境界操作を実行せず、回答本文の先頭に「⚠️ 確認が必要[${autonomy.reasonCode}]:」を置き、必要な確認を一つだけ求める。`,
+                    'この自律判断は通常の権限・承認を置き換えません。'
+                ]
+                : [];
+    return [
         ...autonomyInstructions,
-        ...(hostAutonomy?.basis === 'prior_escalation_answered' ? [
-            `このセッションで人間が承認済みのpolicy（${JSON.stringify(hostAutonomy.approved_policy_ids ?? [])}）またはreason_code（${JSON.stringify(hostAutonomy.approved_reason_codes ?? [])}）に該当する場合、resolve後の判断がrisk_or_externalでも再度確認せず、通常の権限・承認の範囲で要求された操作を実行し、状態はcompletedまたはpendingで記録する。それ以外のpolicy/reason_codeでrisk_or_externalへ escalateした場合は改めて確認する。`
-        ] : []),
-        ...implementationWorkflowInstructions,
-        ...requiredCapabilityInstructions,
+        ...answeredEscalationInstructions(hostAutonomy),
+        ...mandatoryVibeProImplementationInstructions(receipt),
+        ...requiredCapabilityActionContracts(receipt).map((contract) => capabilityActionInstruction(contract)),
         ...(journalStopStateRequired(receipt) && valueProofRolloutEnabled({ initial_route_receipt: receipt }, env) ? [
             'Brainbaseが本当に人間判断を必要とした場合、またはHostが直前のStopで不要な確認質問を差し戻した場合だけ、全作業と検証の後にmcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。continued_without_humanでは、差し戻された質問文を一字一句同じquestion_display_textとして使う。canonical_readbackのsubject_refは実行成果物のrefと実際の取得入力に完全一致させ、結果ありの取得だけを指定する。先行する中断候補がない単なる代理判断ではvalue proofを記録しない。raw tool response、秘密情報、内部監査ログは入れない。',
             'value proofを記録した場合も、その後にmcp__brainbase__brainbase_judgment_state_recordを実行し、状態toolを必ず最後のtool callにする。'
@@ -3366,7 +3349,41 @@ export function successOutput(
         ...(surfaceDegraded ? [] : [
             'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.'
         ]),
-        'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
+        'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.'
+    ];
+}
+
+export function successOutput(
+    args,
+    receipt,
+    ownerAudit = buildOwnerAudit(args, receipt),
+    auditContract = buildAuditContract(receipt),
+    env = process.env,
+    hostSurface = null,
+    turnRef = null,
+    hostAutonomy = null
+) {
+    const surfaceDegraded = hostSurface?.turn_resolution === 'unavailable';
+    const contractInstructions = surfaceDegraded || receipt?.status !== 'needs_classification'
+        ? turnContractExecutionInstructions(receipt, env, { surfaceDegraded, hostAutonomy })
+        : [];
+    const bootstrapHostAutonomyInstructions = receipt?.status === 'needs_classification'
+        ? answeredEscalationInstructions(hostAutonomy)
+        : [];
+    const context = [
+        'Brainbase Judgment Resolver Host opened one unresolved judgment episode before model generation. This bootstrap receipt is not a semantic classification or the final episode receipt.',
+        ...(surfaceDegraded ? [
+            `This Codex thread cannot call ${TURN_RESOLUTION_TOOL_NAME}: its MCP tool surface predates the current Brainbase contract, and the Host recorded that tool failure from the transcript. Do not retry it, do not ask the user a classification question, and do not ask the user to restart; the Host-generated judgment line already reports the degraded state and that a new Codex task restores full judgment routing.`,
+            'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
+        ] : [
+            typeof turnRef === 'string'
+                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input (if the tool rejects a missing turn_input, pass turn_input as {"turn_ref": ${JSON.stringify(turnRef)}}). ${MODEL_INTERPRETATION_SHAPE}`
+                : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
+            'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
+            'After that call succeeds, the PostToolUse system message confirms the judgment contract. Stop always renders the complete owner-visible audit block itself as its own systemMessage; do not write, reproduce, or verify 🧠/📚/⚠️ audit lines in the answer.'
+        ]),
+        ...bootstrapHostAutonomyInstructions,
+        ...contractInstructions,
         `The full route receipt stays in the per-session judgment journal and is never printed into model context.`
     ].join('\n');
     return {
