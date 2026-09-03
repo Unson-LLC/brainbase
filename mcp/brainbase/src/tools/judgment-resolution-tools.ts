@@ -192,11 +192,29 @@ function isClassificationEvidence(value: unknown): boolean {
     && isStringArray(value.matcher_ids, { unique: true });
 }
 
+function isHumanApprovalRule(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length === 0 || keys.some((key) => !['action_kinds', 'risks'].includes(key))) return false;
+  if (value.action_kinds !== undefined
+    && !(Array.isArray(value.action_kinds) && value.action_kinds.length > 0
+      && value.action_kinds.every((kind) => ACTIONS.includes(kind as typeof ACTIONS[number])))) return false;
+  if (value.risks !== undefined
+    && !(Array.isArray(value.risks) && value.risks.length > 0
+      && value.risks.every((risk) => RISKS.includes(risk as typeof RISKS[number])))) return false;
+  return true;
+}
+
 function isPolicy(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, [
+  if (!isRecord(value)) return false;
+  const allowedKeys = [
     'id', 'version', 'priority', 'strength', 'scope', 'visibility', 'owner_person_id',
-    'evidence_requirement', 'effect', 'instruction',
-  ])) return false;
+    'evidence_requirement', 'effect', 'instruction', 'human_approval',
+  ];
+  const requiredKeys = allowedKeys.filter((key) => key !== 'human_approval');
+  const keys = Object.keys(value);
+  if (keys.some((key) => !allowedKeys.includes(key)) || !requiredKeys.every((key) => keys.includes(key))) return false;
+  if (value.human_approval !== undefined && !isHumanApprovalRule(value.human_approval)) return false;
   if (!isNonEmptyString(value.id) || !isNonEmptyString(value.version) || !Number.isInteger(value.priority)) return false;
   if (!['hard', 'soft'].includes(String(value.strength)) || !['organization', 'owner'].includes(String(value.visibility))) return false;
   if (value.owner_person_id !== null && !isNonEmptyString(value.owner_person_id)) return false;
@@ -263,7 +281,7 @@ function isJudgmentReceipt(
 ): value is Record<string, unknown> {
   const fields = [
     'resolution_id', 'resolved_at', 'turn_id', 'request_digest', 'context_digest', 'status', 'runtime_version',
-    'autonomy_decision', 'autonomy_reason_code', 'allowed_runtime_escalation_reasons',
+    'autonomy_decision', 'autonomy_reason_code', 'allowed_runtime_escalation_reasons', 'autonomy_policy_ids',
     'manifest_digest', 'host_binding', 'project_code', 'classification', 'classification_evidence',
     'classification_assurance', 'reconciliation_reasons', 'selected_dag_ids', 'applicable_policies',
     'suppressed_policies', 'required_capabilities', 'active_nodes', 'active_edges', 'active_node_definitions',
@@ -289,21 +307,23 @@ function isJudgmentReceipt(
     || value.host_binding.adapter_id !== expected.adapterId || value.host_binding.adapter_version !== expected.adapterVersion) return false;
   if (value.project_code !== (expected.args.project_code ?? null)) return false;
   if (value.classification !== null && !isClassification(value.classification)) return false;
-  const expectedReason = value.status === 'needs_classification'
-    ? 'classification_missing'
-    : value.status === 'needs_policy_resolution'
-      ? 'policy_conflict'
-      : ['high', 'critical'].includes(String((value.classification as Record<string, unknown>)?.risk))
-        || (value.classification as Record<string, unknown>)?.action_kind === 'external'
-        ? 'risk_or_external'
-        : 'routine_in_scope';
-  const expectedDecision = expectedReason === 'routine_in_scope' ? 'continue' : 'escalate';
+  // The server-owned manifest is the only place that decides *which* policy
+  // triggers a human-approval escalation (policy.human_approval matched against
+  // this turn's classification). The client no longer recomputes that decision
+  // from risk/action_kind — it only checks the receipt's internal shape is
+  // consistent: routine_in_scope iff continue, any other reason iff escalate,
+  // and the runtime-escalation-reason allowlist matches the decision.
+  if (value.status === 'needs_classification' && value.autonomy_reason_code !== 'classification_missing') return false;
+  if (value.status === 'needs_policy_resolution' && value.autonomy_reason_code !== 'policy_conflict') return false;
+  const expectedDecision = value.autonomy_reason_code === 'routine_in_scope' ? 'continue' : 'escalate';
   const expectedRuntimeReasons = expectedDecision === 'continue'
     ? ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
     : [];
   if (value.autonomy_decision !== expectedDecision
-    || value.autonomy_reason_code !== expectedReason
     || canonicalJson(value.allowed_runtime_escalation_reasons) !== canonicalJson(expectedRuntimeReasons)) return false;
+  if (!isStringArray(value.autonomy_policy_ids, { unique: true })) return false;
+  if (value.autonomy_decision === 'continue' && value.autonomy_policy_ids.length !== 0) return false;
+  if (value.autonomy_reason_code !== 'risk_or_external' && value.autonomy_policy_ids.length !== 0) return false;
   if (!isClassificationEvidence(value.classification_evidence)) return false;
   if (!['verified', 'bounded', 'unknown'].includes(String(value.classification_assurance))) return false;
   if (!isStringArray(value.reconciliation_reasons, { unique: true }) || !isStringArray(value.selected_dag_ids, { nonEmpty: true, unique: true })) return false;

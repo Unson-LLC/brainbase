@@ -59,7 +59,7 @@ function receiptFor(args) {
     selected_dag_ids: ['engineering.v1', 'authority.v1'],
     active_node_definitions: [{ id: 'entry', kind: 'common', instruction: 'Judge first.' }],
     autonomy_decision: 'continue',
-    autonomy_reason_code: 'routine_in_scope',
+    autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
     allowed_runtime_escalation_reasons: [
       'irreversible_action', 'missing_authority', 'owner_value_choice',
       'required_input_unavailable', 'evidenced_terminal_blocker',
@@ -332,7 +332,7 @@ describe('Judgment Resolver Host value proof integration', () => {
       runtime_version: 'judgment-runtime-2.4.0',
       classification: { intent: 'implement', action_kind: 'write', risk: 'medium' },
       autonomy_decision: 'continue',
-      autonomy_reason_code: 'routine_in_scope',
+      autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
       allowed_runtime_escalation_reasons: [
         'irreversible_action', 'missing_authority', 'owner_value_choice',
         'required_input_unavailable', 'evidenced_terminal_blocker',
@@ -353,7 +353,7 @@ describe('Judgment Resolver Host value proof integration', () => {
     const context = successOutput({ request: '修正して', conversation_context: { messages: [] } }, {
       runtime_version: 'judgment-runtime-2.4.0',
       classification: { intent: 'implement', action_kind: 'write', risk: 'medium' },
-      autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+      autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
       allowed_runtime_escalation_reasons: [
         'irreversible_action', 'missing_authority', 'owner_value_choice',
         'required_input_unavailable', 'evidenced_terminal_blocker',
@@ -393,7 +393,7 @@ describe('Judgment Resolver Host value proof integration', () => {
     const result = {
       runtime_version: 'judgment-runtime-2.4.0',
       classification: { intent: 'implement', action_kind: 'write', risk: 'medium' },
-      autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+      autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
       allowed_runtime_escalation_reasons: [
         'irreversible_action', 'missing_authority', 'owner_value_choice',
         'required_input_unavailable', 'evidenced_terminal_blocker',

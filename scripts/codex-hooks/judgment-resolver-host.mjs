@@ -11,6 +11,7 @@ import {
     readdirSync,
     readFileSync,
     realpathSync,
+    renameSync,
     statSync,
     unlinkSync,
     writeFileSync
@@ -440,6 +441,49 @@ function readJson(path) {
     return JSON.parse(readFileSync(path, 'utf8'));
 }
 
+// Session-persistent human approvals. A risk_or_external escalation the human
+// already answered (the next user turn after a waiting_human Stop) stays
+// approved for the rest of the session — not only for the immediately next
+// turn — so the same production-deploy / external-send / shared-delete /
+// charge policy is not re-asked every turn. append-only JSON array, atomic
+// read-modify-write via temp file + rename (unlike the turn journal's other
+// files, this one is mutated more than once per session so it cannot use the
+// create-once linkSync pattern).
+function approvalsPath(sessionRef, env) {
+    return join(journalRoot(env), sessionRef, 'approvals.json');
+}
+
+function readApprovals(sessionRef, env) {
+    try {
+        const parsed = readJson(approvalsPath(sessionRef, env));
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        if (error?.code === 'ENOENT') return [];
+        return [];
+    }
+}
+
+function appendApproval(sessionRef, entry, env) {
+    const path = approvalsPath(sessionRef, env);
+    const directory = dirname(path);
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const existing = readApprovals(sessionRef, env);
+    if (existing.some((candidate) => candidate?.turn_ref === entry.turn_ref && candidate?.prior_turn_ref === entry.prior_turn_ref)) {
+        return existing;
+    }
+    const next = [...existing, entry];
+    const temp = join(directory, `.approvals.${process.pid}.${randomUUID()}.tmp`);
+    const descriptor = openSync(temp, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
+    try { writeFileSync(descriptor, `${JSON.stringify(next)}\n`); } finally { closeSync(descriptor); }
+    try {
+        renameSync(temp, path);
+    } catch (error) {
+        try { unlinkSync(temp); } catch { /* best effort */ }
+        throw error;
+    }
+    return next;
+}
+
 function createImmutableJson(target, value, conflictReason) {
     const directory = dirname(target);
     mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -659,6 +703,14 @@ function verifyReceipt(receipt, args) {
     return receipt;
 }
 
+// The server-owned manifest is the only place that decides which policy
+// triggers a human-approval escalation (a matched policy.human_approval rule).
+// The Host no longer recomputes that decision from classification risk/action_kind
+// — it only checks the receipt's internal shape is self-consistent: the reason
+// code matches the status for the two structural escalations, routine_in_scope
+// iff continue (anything else iff escalate), the runtime-escalation-reason
+// allowlist matches the decision, and autonomy_policy_ids has the right shape
+// (non-empty only for a risk_or_external escalate).
 function verifyAutonomyContract(receipt, { required = false } = {}) {
     const fieldsPresent = ['autonomy_decision', 'autonomy_reason_code', 'allowed_runtime_escalation_reasons']
         .some((field) => Object.hasOwn(receipt || {}, field));
@@ -666,30 +718,37 @@ function verifyAutonomyContract(receipt, { required = false } = {}) {
     if (!['continue', 'escalate'].includes(receipt?.autonomy_decision)
         || !AUTONOMY_REASON_CODES.has(receipt?.autonomy_reason_code)
         || !Array.isArray(receipt?.allowed_runtime_escalation_reasons)
-        || new Set(receipt.allowed_runtime_escalation_reasons).size !== receipt.allowed_runtime_escalation_reasons.length) {
+        || new Set(receipt.allowed_runtime_escalation_reasons).size !== receipt.allowed_runtime_escalation_reasons.length
+        || !Array.isArray(receipt?.autonomy_policy_ids)
+        || receipt.autonomy_policy_ids.some((id) => typeof id !== 'string' || !id)
+        || new Set(receipt.autonomy_policy_ids).size !== receipt.autonomy_policy_ids.length) {
         throw new Error('judgment_receipt_autonomy_invalid');
     }
-    const expectedReason = receipt.status === 'needs_classification'
-        ? 'classification_missing'
-        : receipt.status === 'needs_policy_resolution'
-            ? 'policy_conflict'
-            : ['high', 'critical'].includes(receipt?.classification?.risk)
-                || receipt?.classification?.action_kind === 'external'
-                ? 'risk_or_external'
-                : 'routine_in_scope';
-    const expectedDecision = expectedReason === 'routine_in_scope' ? 'continue' : 'escalate';
+    if (receipt.status === 'needs_classification' && receipt.autonomy_reason_code !== 'classification_missing') {
+        throw new Error('judgment_receipt_autonomy_mismatch');
+    }
+    if (receipt.status === 'needs_policy_resolution' && receipt.autonomy_reason_code !== 'policy_conflict') {
+        throw new Error('judgment_receipt_autonomy_mismatch');
+    }
+    const expectedDecision = receipt.autonomy_reason_code === 'routine_in_scope' ? 'continue' : 'escalate';
     const expectedRuntimeReasons = expectedDecision === 'continue'
         ? AUTONOMY_RUNTIME_ESCALATION_REASONS
         : [];
-    if (receipt.autonomy_reason_code !== expectedReason
-        || receipt.autonomy_decision !== expectedDecision
+    if (receipt.autonomy_decision !== expectedDecision
         || canonicalJson(receipt.allowed_runtime_escalation_reasons) !== canonicalJson(expectedRuntimeReasons)) {
+        throw new Error('judgment_receipt_autonomy_mismatch');
+    }
+    if (receipt.autonomy_decision === 'continue' && receipt.autonomy_policy_ids.length !== 0) {
+        throw new Error('judgment_receipt_autonomy_mismatch');
+    }
+    if (receipt.autonomy_reason_code !== 'risk_or_external' && receipt.autonomy_policy_ids.length !== 0) {
         throw new Error('judgment_receipt_autonomy_mismatch');
     }
     return {
         decision: receipt.autonomy_decision,
         reasonCode: receipt.autonomy_reason_code,
-        allowedRuntimeReasons: [...receipt.allowed_runtime_escalation_reasons]
+        allowedRuntimeReasons: [...receipt.allowed_runtime_escalation_reasons],
+        policyIds: [...receipt.autonomy_policy_ids]
     };
 }
 
@@ -731,13 +790,52 @@ function previousTurnEscalated(sessionRef, currentTurnId, env) {
         || final?.stop_state?.status === 'waiting_human'
         || lastState?.status === 'waiting_human';
     if (!escalated) return null;
+    const priorReceipt = record(latest.entry.initial_route_receipt) ? latest.entry.initial_route_receipt : null;
+    const priorPolicyIds = Array.isArray(priorReceipt?.autonomy_policy_ids)
+        ? priorReceipt.autonomy_policy_ids.filter((id) => typeof id === 'string' && id)
+        : [];
     return {
         schema_version: 'brainbase-judgment-host-autonomy-v1',
         basis: 'prior_escalation_answered',
         prior_turn_ref: priorTurnRef,
         prior_reason_code: typeof (final?.stop_state?.runtime_reason_code ?? lastState?.runtime_reason_code) === 'string'
             ? (final?.stop_state?.runtime_reason_code ?? lastState?.runtime_reason_code)
-            : null
+            : null,
+        prior_policy_ids: priorPolicyIds
+    };
+}
+
+// Turn-start entry point: if the immediately preceding turn was left
+// waiting_human on a risk_or_external escalation, this turn is the human's
+// answer to it, so record that approval in the session's append-only
+// approvals.json (idempotent — replaying the same turn never double-appends).
+// The returned host_autonomy carries the full session-approved policy id /
+// reason code sets (union of every approvals.json entry so far), not just
+// the immediately preceding turn's, so an approval answered several turns
+// ago still holds.
+function sessionAutonomyApproval(sessionRef, currentTurnId, currentTurnRef, env) {
+    const escalation = previousTurnEscalated(sessionRef, currentTurnId, env);
+    if (escalation) {
+        appendApproval(sessionRef, {
+            reason_code: escalation.prior_reason_code ?? 'risk_or_external',
+            policy_ids: escalation.prior_policy_ids ?? [],
+            approved_at: new Date().toISOString(),
+            prior_turn_ref: escalation.prior_turn_ref,
+            turn_ref: currentTurnRef
+        }, env);
+    }
+    const approvals = readApprovals(sessionRef, env);
+    if (approvals.length === 0) return null;
+    const approvedPolicyIds = [...new Set(approvals.flatMap((entry) => (Array.isArray(entry?.policy_ids) ? entry.policy_ids : [])))];
+    const approvedReasonCodes = [...new Set(approvals.map((entry) => entry?.reason_code).filter((code) => AUTONOMY_REASON_CODES.has(code)))];
+    const latest = approvals.at(-1);
+    return {
+        schema_version: 'brainbase-judgment-host-autonomy-v1',
+        basis: 'prior_escalation_answered',
+        prior_turn_ref: latest.prior_turn_ref,
+        prior_reason_code: latest.reason_code ?? null,
+        approved_policy_ids: approvedPolicyIds,
+        approved_reason_codes: approvedReasonCodes
     };
 }
 
@@ -746,16 +844,28 @@ function verifyHostAutonomy(value) {
     if (!record(value)
         || value.schema_version !== 'brainbase-judgment-host-autonomy-v1'
         || value.basis !== 'prior_escalation_answered'
-        || typeof value.prior_turn_ref !== 'string') {
+        || typeof value.prior_turn_ref !== 'string'
+        || (value.approved_policy_ids !== undefined
+            && !(Array.isArray(value.approved_policy_ids) && value.approved_policy_ids.every((id) => typeof id === 'string' && id)))
+        || (value.approved_reason_codes !== undefined
+            && !(Array.isArray(value.approved_reason_codes) && value.approved_reason_codes.every((code) => AUTONOMY_REASON_CODES.has(code))))) {
         throw new Error('judgment_episode_host_autonomy_invalid');
     }
     return value;
 }
 
+// A risk_or_external escalation stays "answered" for the rest of the session
+// once the human has responded to it once. When the escalating receipt names
+// specific policy ids (autonomy_policy_ids), every one of them must already be
+// session-approved; a policy-less escalation instead matches on reason code.
 function escalationAnswered(hostAutonomy, receipt) {
-    return hostAutonomy?.basis === 'prior_escalation_answered'
-        && receipt?.autonomy_decision === 'escalate'
-        && receipt?.autonomy_reason_code === 'risk_or_external';
+    if (hostAutonomy?.basis !== 'prior_escalation_answered') return false;
+    if (receipt?.autonomy_decision !== 'escalate' || receipt?.autonomy_reason_code !== 'risk_or_external') return false;
+    const policyIds = Array.isArray(receipt?.autonomy_policy_ids) ? receipt.autonomy_policy_ids : [];
+    const approvedPolicyIds = new Set(Array.isArray(hostAutonomy.approved_policy_ids) ? hostAutonomy.approved_policy_ids : []);
+    if (policyIds.length > 0) return policyIds.every((id) => approvedPolicyIds.has(id));
+    const approvedReasonCodes = new Set(Array.isArray(hostAutonomy.approved_reason_codes) ? hostAutonomy.approved_reason_codes : []);
+    return approvedReasonCodes.has(receipt.autonomy_reason_code);
 }
 
 function episodeAutonomyContract(episode, receipt = episode?.initial_route_receipt) {
@@ -765,7 +875,13 @@ function episodeAutonomyContract(episode, receipt = episode?.initial_route_recei
         decision: 'continue',
         reasonCode: 'routine_in_scope',
         allowedRuntimeReasons: [...AUTONOMY_RUNTIME_ESCALATION_REASONS],
-        answeredEscalation: true
+        answeredEscalation: true,
+        approvalRef: {
+            basis: episode.host_autonomy.basis,
+            prior_turn_ref: episode.host_autonomy.prior_turn_ref,
+            reason_code: receipt.autonomy_reason_code,
+            policy_ids: Array.isArray(receipt.autonomy_policy_ids) ? [...receipt.autonomy_policy_ids] : []
+        }
     };
 }
 
@@ -952,7 +1068,7 @@ export async function startEpisode(payload, {
         );
         const hostAutonomy = withJudgmentStage(
             'judgment_episode_autonomy_detect_failed',
-            () => previousTurnEscalated(identity.sessionRef, identity.turnId, env)
+            () => sessionAutonomyApproval(identity.sessionRef, identity.turnId, paths.turnRef, env)
         );
         const entry = withJudgmentStage('judgment_episode_audit_build_failed', () => ({
             schema_version: 'brainbase-judgment-episode-v1',
@@ -2616,6 +2732,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             'judgment_value_proof_attention_conflict'
         );
     }
+    const finalAutonomyContract = episodeAutonomyContract(episode);
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
         finalized_at: finalizedAt,
@@ -2626,6 +2743,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         } : { completion_status: 'complete' }),
         protocol_status: 'audit_protocol_complete',
         content_verification_status: 'not_evaluated',
+        ...(finalAutonomyContract?.approvalRef ? { approval_ref: finalAutonomyContract.approvalRef } : {}),
         ...(episode.episode_origin !== undefined ? {
             episode_origin: episode.episode_origin,
             route_application: episode.route_application
@@ -2911,7 +3029,7 @@ export function successOutput(
         ]),
         ...autonomyInstructions,
         ...(hostAutonomy?.basis === 'prior_escalation_answered' ? [
-            '前turnのHost確認に人間が回答済みです。resolve後の判断がrisk_or_externalでも再度確認せず、通常の権限・承認の範囲で要求された操作を実行し、状態はcompletedまたはpendingで記録する。'
+            `このセッションで人間が承認済みのpolicy（${JSON.stringify(hostAutonomy.approved_policy_ids ?? [])}）またはreason_code（${JSON.stringify(hostAutonomy.approved_reason_codes ?? [])}）に該当する場合、resolve後の判断がrisk_or_externalでも再度確認せず、通常の権限・承認の範囲で要求された操作を実行し、状態はcompletedまたはpendingで記録する。それ以外のpolicy/reason_codeでrisk_or_externalへ escalateした場合は改めて確認する。`
         ] : []),
         ...implementationWorkflowInstructions,
         ...requiredCapabilityInstructions,

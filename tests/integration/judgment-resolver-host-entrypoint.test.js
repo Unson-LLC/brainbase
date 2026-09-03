@@ -365,7 +365,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                         classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
                         classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['operations'] },
                         selected_dag_ids: ['operations.v1', 'authority.v1'],
-                        autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                        autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
                         allowed_runtime_escalation_reasons: [
                             'irreversible_action', 'missing_authority', 'owner_value_choice',
                             'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -1279,7 +1279,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                         required_capabilities: [],
                         active_node_definitions: [{ id: 'implement', kind: 'common', instruction: 'Implement.' }],
                         autonomy_decision: 'continue',
-                        autonomy_reason_code: 'routine_in_scope',
+                        autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
                         allowed_runtime_escalation_reasons: [
                             'irreversible_action', 'missing_authority', 'owner_value_choice',
                             'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -1379,7 +1379,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                     classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium' },
                     selected_dag_ids: ['engineering.v1', 'authority.v1'], required_capabilities: [],
                     active_node_definitions: [{ id: 'implement', kind: 'common', instruction: 'Implement.' }],
-                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
                     allowed_runtime_escalation_reasons: ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
                 } }));
             });
@@ -1435,7 +1435,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                     classification: { intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high' },
                     selected_dag_ids: ['engineering.v1', 'authority.v1'], required_capabilities: [],
                     active_node_definitions: [{ id: 'operate', kind: 'common', instruction: 'Confirm before production.' }],
-                    autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+                    autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external', autonomy_policy_ids: [],
                     allowed_runtime_escalation_reasons: []
                 } }));
             });
@@ -1528,7 +1528,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                     classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
                     classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium' },
                     selected_dag_ids: ['engineering.v1', 'authority.v1'], active_node_definitions: [],
-                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
                     allowed_runtime_escalation_reasons: ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
                 } }));
             });
@@ -1638,7 +1638,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                     selected_dag_ids: ['engineering.v1', 'authority.v1'],
                     required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }],
                     active_node_definitions: [{ id: 'implement', kind: 'common', instruction: 'Implement.' }],
-                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
                     allowed_runtime_escalation_reasons: [
                         'irreversible_action', 'missing_authority', 'owner_value_choice',
                         'required_input_unavailable', 'evidenced_terminal_blocker'

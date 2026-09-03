@@ -63,6 +63,7 @@ function receipt(overrides: Record<string, unknown> = {}) {
       'irreversible_action', 'missing_authority', 'owner_value_choice',
       'required_input_unavailable', 'evidenced_terminal_blocker',
     ],
+    autonomy_policy_ids: [],
     runtime_version: 'judgment-runtime-2.1.0',
     manifest_digest: 'b'.repeat(64),
     host_binding: { adapter_id: 'brainbase-mcp', adapter_version: '1', status: 'managed', enforcement_level: 'host_contract' },

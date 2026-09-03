@@ -50,7 +50,8 @@ function validReceipt(args) {
         status: 'resolved',
         host_binding: { status: 'managed' },
         classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
-        active_node_definitions: [{ id: 'entry', kind: 'common', instruction: 'Judge first.' }]
+        active_node_definitions: [{ id: 'entry', kind: 'common', instruction: 'Judge first.' }],
+        autonomy_policy_ids: []
     };
 }
 
@@ -316,6 +317,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -336,6 +338,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'escalate',
             autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: []
         }).hookSpecificOutput.additionalContext;
 
@@ -493,6 +496,7 @@ describe('Codex Judgment Resolver Host', () => {
                         selected_dag_ids: ['engineering.v1', 'authority.v1'],
                         autonomy_decision: 'continue',
                         autonomy_reason_code: 'routine_in_scope',
+                        autonomy_policy_ids: [],
                         allowed_runtime_escalation_reasons: [
                             'irreversible_action', 'missing_authority', 'owner_value_choice',
                             'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -555,6 +559,7 @@ describe('Codex Judgment Resolver Host', () => {
                         classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
                         selected_dag_ids: ['engineering.v1', 'authority.v1'],
                         autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                        autonomy_policy_ids: [],
                         allowed_runtime_escalation_reasons: [
                             'irreversible_action', 'missing_authority', 'owner_value_choice',
                             'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -1896,6 +1901,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -1937,6 +1943,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -1982,6 +1989,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2028,6 +2036,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2070,6 +2079,7 @@ describe('Codex Judgment Resolver Host', () => {
                 selected_dag_ids: ['engineering.v1', 'authority.v1'],
                 autonomy_decision: 'escalate',
                 autonomy_reason_code: 'risk_or_external',
+                autonomy_policy_ids: [],
                 allowed_runtime_escalation_reasons: []
             };
             const episode = await startEpisode(payload, {
@@ -2155,6 +2165,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2203,6 +2214,7 @@ describe('Codex Judgment Resolver Host', () => {
             classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: []
         };
         await startEpisode(payload, {
@@ -2230,6 +2242,7 @@ describe('Codex Judgment Resolver Host', () => {
             classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: []
         };
         const episode = await startEpisode(payload, {
@@ -2283,6 +2296,7 @@ describe('Codex Judgment Resolver Host', () => {
             classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: []
         };
         const episode = await startEpisode(payload, {
@@ -2321,6 +2335,7 @@ describe('Codex Judgment Resolver Host', () => {
             classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: []
         };
         const episode = await startEpisode(payload, {
@@ -2359,6 +2374,7 @@ describe('Codex Judgment Resolver Host', () => {
             ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
             classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'], autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
         };
         const episode = await startEpisode(payload, {
@@ -2384,6 +2400,7 @@ describe('Codex Judgment Resolver Host', () => {
             ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
             classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'], autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
         };
         const episode = await startEpisode(payload, {
@@ -2421,6 +2438,7 @@ describe('Codex Judgment Resolver Host', () => {
             ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
             classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'], autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
         };
         const episode = await startEpisode(payload, {
@@ -2460,6 +2478,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2540,6 +2559,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2650,6 +2670,7 @@ describe('Codex Judgment Resolver Host', () => {
                     selected_dag_ids: ['engineering.v1', 'authority.v1'],
                     autonomy_decision: 'continue',
                     autonomy_reason_code: 'routine_in_scope',
+                    autonomy_policy_ids: [],
                     allowed_runtime_escalation_reasons: [
                         'irreversible_action', 'missing_authority', 'owner_value_choice',
                         'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2694,6 +2715,7 @@ describe('Codex Judgment Resolver Host', () => {
                 selected_dag_ids: ['engineering.v1', 'authority.v1'],
                 autonomy_decision: 'continue',
                 autonomy_reason_code: 'routine_in_scope',
+                autonomy_policy_ids: [],
                 allowed_runtime_escalation_reasons: [
                     'irreversible_action', 'missing_authority', 'owner_value_choice',
                     'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2741,6 +2763,7 @@ describe('Codex Judgment Resolver Host', () => {
                 selected_dag_ids: ['engineering.v1', 'authority.v1'],
                 autonomy_decision: 'escalate',
                 autonomy_reason_code: 'risk_or_external',
+                autonomy_policy_ids: [],
                 allowed_runtime_escalation_reasons: []
             };
             const episode = await startEpisode(payload, {
@@ -3003,6 +3026,7 @@ describe('turn-resolution surface degradation', () => {
         required_capabilities: [],
         autonomy_decision: 'escalate',
         autonomy_reason_code: 'classification_missing',
+        autonomy_policy_ids: [],
         allowed_runtime_escalation_reasons: []
     });
     const startDegradedEpisode = async ({ transcriptLines, sessionId, turnId, prompt }) => {
@@ -3149,6 +3173,7 @@ describe('turn_input handoff and resolved judgment line', () => {
         required_capabilities: [],
         autonomy_decision: 'escalate',
         autonomy_reason_code: 'classification_missing',
+        autonomy_policy_ids: [],
         allowed_runtime_escalation_reasons: []
     });
 
@@ -3213,6 +3238,7 @@ describe('turn_input handoff and resolved judgment line', () => {
             selected_dag_ids: [],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
             ]
@@ -3270,6 +3296,7 @@ describe('turn_input handoff and resolved judgment line', () => {
             selected_dag_ids: [],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
             ]
@@ -3313,6 +3340,7 @@ describe('turn_input handoff and resolved judgment line', () => {
             selected_dag_ids: [],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
             ]
@@ -3378,6 +3406,7 @@ describe('answered escalation continuation', () => {
         required_capabilities: [],
         autonomy_decision: 'escalate',
         autonomy_reason_code: 'classification_missing',
+        autonomy_policy_ids: [],
         allowed_runtime_escalation_reasons: []
     });
     const externalInterpretation = {
@@ -3393,6 +3422,7 @@ describe('answered escalation continuation', () => {
         selected_dag_ids: [],
         autonomy_decision: 'escalate',
         autonomy_reason_code: 'risk_or_external',
+        autonomy_policy_ids: [],
         allowed_runtime_escalation_reasons: []
     });
     const runTurn = async ({ root, sessionId, turnId, prompt, priorEscalated }) => {
@@ -3435,7 +3465,7 @@ describe('answered escalation continuation', () => {
         const sessionId = 'session-answered-escalation';
         const { env, episode, context, resolveOutput } = await runTurn({ root, sessionId, turnId: 'turn-answer', prompt: '行えよ', priorEscalated: true });
         expect(episode.host_autonomy).toMatchObject({ basis: 'prior_escalation_answered', prior_turn_ref: hash('turn-previous'), prior_reason_code: 'risk_or_external' });
-        expect(context).toContain('前turnのHost確認に人間が回答済みです');
+        expect(context).toContain('このセッションで人間が承認済みのpolicy');
         const ownerLine = '🧠 判断参照: 「行えよ」を参照 → 前turnの確認への回答として継続 ✓';
         expect(resolveOutput.systemMessage).toContain(ownerLine);
 
