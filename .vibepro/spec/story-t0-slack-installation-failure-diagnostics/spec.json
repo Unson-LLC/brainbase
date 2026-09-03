@@ -313,7 +313,7 @@
     {
       "id": "C-006",
       "type": "contract",
-      "statement": "focused unit、schema、実PostgreSQL integration、typecheckをlocal evidenceとして記録し、production deploy、OAuth retry、credential round trip、UsageEventまたはOperationReceipt readbackは未収集のまま合格へ変換しない。",
+      "statement": "focused unit、schema、実PostgreSQL integration、typecheckと、bootstrapからrepository-level diagnostic readbackまでを通すlocal composed E2Eをlocal evidenceとして記録し、public diagnostic API/UIは追加しない。production deploy、実OAuth/credential round trip、UsageEventまたはOperationReceipt readbackは未収集のまま合格へ変換しない。",
       "origin": {
         "story_refs": [
           {
@@ -336,6 +336,10 @@
         "test_refs": [
           {
             "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "composes local bootstrap -> auth/CSRF -> authorize/exchange -> OAuth/credential adapter -> PostgreSQL failure readback (repository-level operator boundary)"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
             "case": "writes and reads a bounded failed diagnostic without retaining claim or response data"
           },
           {
@@ -346,6 +350,10 @@
       },
       "verifiable_by": {
         "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "must_cover": "composes local bootstrap -> auth/CSRF -> authorize/exchange -> OAuth/credential adapter -> PostgreSQL failure readback (repository-level operator boundary)"
+          },
           {
             "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
             "must_cover": "writes and reads a bounded failed diagnostic without retaining claim or response data"

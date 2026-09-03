@@ -33,6 +33,10 @@ credential ref取得前は`not_needed`。取得後の下流失敗でrevokeが成
 
 raw authorization code、access/refresh token、credential ref、provider response body、例外message/stack、secret URLをledger/readbackへ保存しない。
 
+## Composed local受入経路
+
+local acceptance testはproduction bootstrapからrouteを組み立て、bootstrap→human/service auth・CSRF→authorize/exchange→OAuth adapter→credential-store adapter→PostgreSQL failure ledger readbackを単一経路で実行する。operator readbackの現行受入境界は`MultitenantPostgresRepository.readSlackInstallationFailureDiagnostic`によるrepository-level確認とし、public diagnostic API/UIは追加しない。
+
 ## 証跡境界
 
 本仕様のテストはlocal contract/code evidenceである。production接続、same-run readback、過去のgeneric rowの原因、T0 Exit Gate完了を証明しない。

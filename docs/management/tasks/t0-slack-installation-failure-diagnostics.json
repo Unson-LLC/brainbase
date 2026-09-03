@@ -10,7 +10,8 @@
       "internal Slack installation failure ledger contract",
       "safe adapter classification",
       "focused local tests",
-      "internal failure diagnostic readback"
+      "internal failure diagnostic readback",
+      "composed local bootstrap/auth/CSRF/OAuth/credential adapter failure readback"
     ],
     "exclude": [
       "production OAuth retry",
@@ -40,8 +41,14 @@
     },
     "postgresql_integration": {
       "files": 3,
-      "tests": 18,
+      "tests": 19,
       "result": "pass"
+    },
+    "composed_local_failure_flow": {
+      "test": "composes local bootstrap -> auth/CSRF -> authorize/exchange -> OAuth/credential adapter -> PostgreSQL failure readback (repository-level operator boundary)",
+      "result": "pass",
+      "operator_readback_boundary": "repository-level",
+      "public_diagnostic_api_or_ui": false
     },
     "legacy_ledger_migration": {
       "result": "pass",
@@ -65,6 +72,7 @@
   },
   "completion_boundary": {
     "local_diagnostic_contract": "done",
+    "composed_local_flow": "done_repository_level",
     "t0_program": "implementing",
     "past_generic_failures_reclassified": false,
     "production_exit_gate_satisfied": false

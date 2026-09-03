@@ -1,12 +1,19 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import express from 'express';
+import jwt from 'jsonwebtoken';
 import pg from 'pg';
+import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { runTenantProvisioningMigration } from '../../../../scripts/migrate-tenant-production-provisioning.js';
+import { csrfMiddleware } from '../../../../server/middleware/csrf.js';
+import { registerSlackInstallationControlPlaneApiRoute } from '../../../../server/bootstrap/register-api-routes.js';
+import { createSlackInstallationControlPlaneFromEnv } from '../../../../server/bootstrap/slack-installation-control-plane.js';
 import { SlackInstallationControlPlane } from '../../../../server/services/multitenant/slack-installation-control-plane.js';
 import { MultitenantPostgresRepository } from '../../../../server/services/multitenant/postgres-repository.js';
 import { ContractError } from '../../../../server/services/multitenant/errors.js';
+import { SLACK_INSTALLATION_SERVICE_CAPABILITY } from '../../../../server/services/multitenant/slack-installation-auth.js';
 
 const { Pool } = pg;
 
@@ -28,6 +35,10 @@ const reinstallAppId = 'A9876543210';
 const reinstallWorkspaceId = 'T9876543210';
 const reinstallEnterpriseId = 'E9876543210';
 const reinstallInstallerId = 'U9876543210';
+const composedAppId = 'A1111111111';
+const composedWorkspaceId = 'T1111111111';
+const composedEnterpriseId = 'E1111111111';
+const composedInstallerId = 'U1111111111';
 const now = new Date('2026-08-19T00:00:00.000Z');
 
 describe.sequential('Slack installation control-plane PostgreSQL integration', () => {
@@ -214,6 +225,150 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             'SELECT count(*)::integer AS count FROM slack_installation_exchange_ledger WHERE tenant_id = $1',
             [tenantId]
         )).toMatchObject({ rows: [{ count: 1 }] });
+    }, 120_000);
+
+    it('composes local bootstrap -> auth/CSRF -> authorize/exchange -> OAuth/credential adapter -> PostgreSQL failure readback (repository-level operator boundary)', async () => {
+        const humanSecret = 'slack-installation-composed-human-secret';
+        const serviceSecret = 'slack-installation-composed-service-secret';
+        const serviceDeploymentId = 'dep_01ARZ3NDEKTSV4RRFFQ69G5FB9';
+        const serviceToken = `bbsvc_${jwt.sign({
+            typ: 'service',
+            issuer: 'brainbase',
+            subject: 'svc_mana_slack_installation_composed',
+            audience: 'mana-runtime',
+            deployment_id: serviceDeploymentId,
+            expires_at: '2030-01-01T00:00:00.000Z',
+            capabilities: [SLACK_INSTALLATION_SERVICE_CAPABILITY]
+        }, serviceSecret)}`;
+        const env = {
+            BRAINBASE_SLACK_INSTALLATION_APP_ID: composedAppId,
+            BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN: serviceToken,
+            BRAINBASE_SERVICE_TOKEN_SECRET: serviceSecret,
+            BRAINBASE_SLACK_INSTALLATION_SERVICE_DEPLOYMENT_ID: serviceDeploymentId,
+            BRAINBASE_SLACK_CREDENTIAL_STORE_URL: 'https://secrets.example.test/v1/credentials',
+            BRAINBASE_SLACK_CREDENTIAL_STORE_TOKEN: 'credential-store-token'
+        };
+        const authService = {
+            slackClientId: composedAppId,
+            slackClientSecret: 'oauth-client-secret-local-only',
+            tokenUrl: 'https://slack.example.test/api/oauth.v2.access',
+            slackMode: 'oauth',
+            verifyToken: (token) => jwt.verify(token, humanSecret)
+        };
+        const fetchImpl = vi.fn(async (url, init) => {
+            if (url === authService.tokenUrl) {
+                const body = new URLSearchParams(init.body);
+                expect(body.get('code')).toBe('oauth-composed-code');
+                expect(body.get('client_id')).toBe(composedAppId);
+                return Response.json({
+                    ok: true,
+                    api_app_id: composedAppId,
+                    team: { id: composedWorkspaceId },
+                    enterprise: { id: composedEnterpriseId },
+                    authed_user: { id: composedInstallerId },
+                    scope: 'chat:write,commands',
+                    access_token: 'xoxb-composed-secret',
+                    refresh_token: 'xoxr-composed-secret'
+                });
+            }
+            throw new Error('credential-store-network-secret');
+        });
+        const previousProcessEnv = new Map([
+            ...Object.keys(env),
+            'BRAINBASE_JWT_SECRET',
+            'NODE_ENV'
+        ].map((key) => [key, process.env[key]]));
+
+        try {
+            process.env.NODE_ENV = 'production';
+            process.env.BRAINBASE_JWT_SECRET = humanSecret;
+            for (const [key, value] of Object.entries(env)) process.env[key] = value;
+
+            // Build the route from the production bootstrap so this one path
+            // exercises the real OAuth and credential-store adapters.
+            const runtime = createSlackInstallationControlPlaneFromEnv({
+                pool,
+                authService,
+                env,
+                now: () => now,
+                fetchImpl
+            });
+            expect(runtime).toMatchObject({ ready: true, reason: null, appId: composedAppId });
+
+            const app = express();
+            app.use(express.json());
+            app.use(csrfMiddleware());
+            registerSlackInstallationControlPlaneApiRoute(app, {
+                controlPlane: runtime.controlPlane,
+                authMiddleware: runtime.authMiddleware,
+                appId: runtime.appId,
+                resolvePreProvisionedConnection: runtime.resolvePreProvisionedConnection,
+                authEnv: env,
+                authNow: () => now
+            });
+
+            const humanToken = jwt.sign({
+                typ: 'user',
+                sub: personId,
+                role: 'tenant_admin',
+                organizationId: tenantId,
+                projectCodes: ['mana'],
+                clearance: ['internal']
+            }, humanSecret, { expiresIn: '10m' });
+            const authorizeResponse = await request(app)
+                .post('/api/v1/slack-installations:authorize')
+                .set('Authorization', `Bearer ${humanToken}`)
+                .send({
+                    app_id: composedAppId,
+                    expected_workspace_id: composedWorkspaceId,
+                    expected_enterprise_id: composedEnterpriseId
+                });
+            expect(authorizeResponse.status).toBe(200);
+            const intent = authorizeResponse.body.result;
+            expect(intent).toMatchObject({
+                installation_intent_id: expect.any(String),
+                tenant_id: tenantId,
+                app_id: composedAppId,
+                expected_workspace_id: composedWorkspaceId,
+                expected_enterprise_id: composedEnterpriseId,
+                initiated_by_person_id: personId
+            });
+
+            const exchangeResponse = await request(app)
+                .post('/api/v1/slack-installations:exchange-and-register')
+                .set('Authorization', `Bearer ${serviceToken}`)
+                .send({
+                    authorization_code: 'oauth-composed-code',
+                    redirect_uri: 'https://mana.example.test/oauth/slack/composed-callback',
+                    intent
+                });
+            expect(exchangeResponse.status).toBe(503);
+            expect(exchangeResponse.body).toEqual({
+                error: { code: 'UPSTREAM_UNAVAILABLE', retryable: true, fault_domain: 'brainbase_cloud' }
+            });
+            expect(JSON.stringify(exchangeResponse.body)).not.toContain('xoxb-composed-secret');
+            expect(fetchImpl).toHaveBeenCalledTimes(2);
+            expect(fetchImpl.mock.calls[1][0]).toContain('/v1/credentials');
+
+            // Repository-level diagnostic readback is the current operator
+            // acceptance boundary; no public diagnostic API or UI is added.
+            await expect(repository.readSlackInstallationFailureDiagnostic({
+                tenant_id: tenantId,
+                installation_intent_id: intent.installation_intent_id
+            })).resolves.toMatchObject({
+                tenant_id: tenantId,
+                installation_intent_id: intent.installation_intent_id,
+                attempt: 1,
+                failure_stage: 'credential_store',
+                failure_code: 'CREDENTIAL_STORE_UNAVAILABLE',
+                cleanup_status: 'not_needed'
+            });
+        } finally {
+            for (const [key, value] of previousProcessEnv) {
+                if (value === undefined) delete process.env[key];
+                else process.env[key] = value;
+            }
+        }
     }, 120_000);
 
     it('writes and reads a bounded failed diagnostic without retaining claim or response data', async () => {
