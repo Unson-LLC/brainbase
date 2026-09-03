@@ -120,6 +120,7 @@ describe('Slack installation control-plane HTTP contract', () => {
         'OAUTH_EXCHANGE_FAILED',
         'EXCHANGE_NORMALIZATION_FAILED',
         'CONNECTION_RESERVATION_FAILED',
+        'CREDENTIAL_REF_INVALID',
         'CREDENTIAL_STORE_FAILED',
         'DB_REGISTRATION_FAILED'
     ])('keeps internal failure diagnostic %s out of the public response', async (failureCode) => {

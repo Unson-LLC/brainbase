@@ -39,6 +39,26 @@
       "tests": 104,
       "result": "pass"
     },
+    "public_diagnostic_redaction_tdd": {
+      "pre_fix_base": "f2d9cff9ecac31c1e0d6629e242f49aa19dc715f",
+      "red": {
+        "command": "npm run test:run -- tests/server/routes/slack-installation-control-plane.test.js --maxWorkers=1",
+        "result": "fail_as_expected",
+        "tests_passed": 9,
+        "tests_failed": 1,
+        "assertion": "CREDENTIAL_REF_INVALID: expected HTTP 503, received HTTP 502"
+      },
+      "green": {
+        "command": "npm run test:run -- tests/server/routes/slack-installation-control-plane.test.js --maxWorkers=1",
+        "result": "pass",
+        "tests": 10
+      },
+      "related_regression": {
+        "command": "npm run test:run -- tests/server/routes/slack-installation-control-plane.test.js tests/server/services/multitenant/slack-installation-control-plane.test.js --maxWorkers=1",
+        "result": "pass",
+        "tests": 26
+      }
+    },
     "postgresql_integration": {
       "files": 3,
       "tests": 19,
