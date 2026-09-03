@@ -1208,7 +1208,11 @@ function persistTurnInput(payload, episode, env) {
 
 async function bootstrapDelegatedEpisodeAtStop(payload, dependencies) {
     const env = dependencies.env ?? process.env;
-    if (existingEpisode(payload, env)) return null;
+    const existing = existingEpisode(payload, env);
+    if (existing) {
+        withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, existing, env));
+        return null;
+    }
     const prompt = delegatedPromptForTurn(payload, env);
     if (!prompt) return null;
     const episode = await startEpisode({ ...payload, prompt }, {
@@ -1217,6 +1221,7 @@ async function bootstrapDelegatedEpisodeAtStop(payload, dependencies) {
         routeApplication: 'post_generation_recovery'
     });
     await dependencies.onEpisodeStarted?.(episode);
+    withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, episode, env));
     return episode;
 }
 

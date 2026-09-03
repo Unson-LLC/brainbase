@@ -1,0 +1,111 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-delegation-turn-input-handoff",
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "A delegated Codex turn recovered at Stop persists the same Hook-owned turn input referenced by its turn_ref before the model can call the judgment resolution MCP tool.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-001",
+            "text_snippet": "同一内容の.turn-input.jsonをHostが保存する"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-002",
+            "text_snippet": "次のStopで判断入力を再保存できる"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004",
+            "text_snippet": "修正前に失敗する回帰テストで挙動を検証する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "bootstrapDelegatedEpisodeAtStop"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "Codex App委任turnはUserPromptSubmitなしでもStop前に同じturnのepisodeへ復元される"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "must_cover": "persistTurnInput(payload, episode, env)"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "turn-input.json"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-03T13:00:23.991Z",
+      "last_revised_at": "2026-09-03T13:00:23.991Z"
+    },
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "The MCP judgment resolver loads a delegated turn_ref from the judgment journal without passing the raw turn input through the model.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-003",
+            "text_snippet": "MCPのturn_ref読取契約を変更しない"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004",
+            "text_snippet": "Host/MCP境界の既存テストで挙動を検証する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/tools/judgment-resolution-tools.ts",
+            "anchor": "loadTurnInputByRef"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/judgment-resolution-tools.test.ts",
+            "case": "turn_refならjournal内のturn-inputファイルをserver側で読み込み、JSONもpathもmodelを経由しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/tools/judgment-resolution-tools.test.ts",
+            "must_cover": "turn_ref"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-03T13:00:23.991Z",
+      "last_revised_at": "2026-09-03T13:00:23.991Z"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-09-03T13:00:23.990Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": null
+}
