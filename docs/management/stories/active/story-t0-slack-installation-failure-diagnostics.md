@@ -28,8 +28,8 @@ T0の運用担当者として、Slack installation callbackが失敗したとき
 
 ## ローカル検証証跡
 
-- VibePro unit verification: 4 files / 60 tests pass
-- VibePro integration verification: 4 files / 56 tests pass（実PostgreSQLのfailed write/readback、composed local flow、旧台帳からの冪等migrationを含む）
+- VibePro unit verification: 4 files / 61 tests pass
+- VibePro integration verification: 4 files / 58 tests pass（実PostgreSQLのfailed write/readback、composed local flow、旧台帳からの冪等migrationを含む）
 - VibePro typecheck verification、対象ESLint、Task JSON parse、`git diff --check`: pass
 - exact HEAD、実行時刻、出力digest、作業ツリー不変性は `.vibepro/pr/story-t0-slack-installation-failure-diagnostics/verification-runs/` と `verification-evidence.json` を正本とし、このStory本文へ固定SHAを複製しない。
 - 独立レビューは現行HEADごとに `.vibepro/reviews/story-t0-slack-installation-failure-diagnostics/` へ記録し、古いHEADの結果を再利用しない。
