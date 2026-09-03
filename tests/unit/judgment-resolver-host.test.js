@@ -3500,3 +3500,44 @@ describe('turn_input handoff and resolved judgment line', () => {
         expect(stopped.final.completion_status).toBe('complete');
     });
 });
+
+describe('agent continuation turns', () => {
+    it('user requestの無いsubagent wake-up turnのStopはorphan監査を要求しない', async () => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = 'session-agent-wakeup';
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            event('response_item', {
+                type: 'message', role: 'user', content: [{ type: 'input_text', text: 'workerの状態を監視して' }],
+                internal_chat_message_metadata_passthrough: { turn_id: 'turn-user' }
+            }),
+            event('response_item', {
+                type: 'message', role: 'user', content: [{ type: 'input_text', text: '<environment_context>\n  <subagents>\n    - health: Halley\n  </subagents>\n</environment_context>' }],
+                internal_chat_message_metadata_passthrough: { turn_id: 'turn-wakeup' }
+            }),
+            event('response_item', {
+                type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '3 workerとも稼働しています。' }],
+                internal_chat_message_metadata_passthrough: { turn_id: 'turn-wakeup', phase: 'final' }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const output = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: 'turn-wakeup',
+            transcript_path: transcript, stop_hook_active: false,
+            last_assistant_message: '3 workerとも稼働しています。'
+        }, { env });
+        expect(output).toEqual({});
+        expect(existsSync(join(root, 'journal', hash(sessionId), `${hash('turn-wakeup')}.audit-failure.json`))).toBe(false);
+
+        const orphan = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: 'turn-user',
+            transcript_path: transcript, stop_hook_active: false,
+            last_assistant_message: '監視を始めます。'
+        }, { env });
+        expect(orphan).toMatchObject({ decision: 'block' });
+    });
+});
