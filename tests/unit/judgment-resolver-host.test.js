@@ -3411,3 +3411,90 @@ describe('turn-resolution surface degradation', () => {
         expect(stopped.continuation.missing_capabilities).toContain('judgment.resolve_turn');
     });
 });
+
+describe('turn_input handoff and resolved judgment line', () => {
+    const bootstrapReceipt = (args) => ({
+        ...validReceipt(args),
+        status: 'needs_classification',
+        reconciliation_reasons: ['model_interpretation_missing'],
+        classification: null,
+        required_capabilities: [],
+        autonomy_decision: 'escalate',
+        autonomy_reason_code: 'classification_missing',
+        allowed_runtime_escalation_reasons: []
+    });
+
+    it('UserPromptSubmitはturn_inputをHostファイルへ保存し、contextへJSONを埋め込まない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-turn-input-file', turn_id: 'turn-turn-input-file',
+            prompt: 'この修正を行って', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const output = await processHookPayload(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: bootstrapReceipt(args) })
+            })
+        });
+        const context = output.hookSpecificOutput.additionalContext;
+        const turnInputPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.turn-input.json`);
+        expect(existsSync(turnInputPath)).toBe(true);
+        expect(canonicalJson(JSON.parse(readFileSync(turnInputPath, 'utf8')))).toBe(canonicalJson(args));
+        expect(context).toContain(`The Host stored turn_input unchanged at ${turnInputPath}`);
+        expect(context).not.toContain(canonicalJson(args));
+        expect(context).toContain('the PostToolUse system message names the new Host-generated judgment line');
+        expect(context.split('\n').length).toBeLessThanOrEqual(20);
+    });
+
+    it('resolve_turn成功のPostToolUseは置き換え後の判断行をsystemMessageで返す', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-resolved-line', turn_id: 'turn-resolved-line',
+            prompt: 'この修正を行って', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: bootstrapReceipt(args) })
+            })
+        });
+        const modelInterpretation = {
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'low', confidence: 'confirmed', signals: []
+        };
+        const resolved = {
+            ...validReceipt(args),
+            resolution_id: 'jr_resolved',
+            request_digest: hash(canonicalJson({ ...args, model_interpretation: modelInterpretation })),
+            status: 'resolved',
+            classification: modelInterpretation,
+            required_capabilities: [],
+            selected_dag_ids: [],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const output = await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'tool-resolve-turn',
+            tool_input: { turn_input: episode.turn_input, model_interpretation: modelInterpretation },
+            tool_response: { status: 'ok', data: resolved }
+        }, { env });
+        expect(output.systemMessage).toContain('判断契約を確定しました');
+        expect(output.systemMessage).toContain('🧠 判断参照: 「この修正を行って」を参照 → 実装依頼として継続 ✓');
+
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: `🧠 判断参照: 「この修正を行って」を参照 → 実装依頼として継続 ✓\n${episode.audit_contract.zero_call_display_line}\n修正しました。`
+        }, { env });
+        expect(stopped.output.decision).toBeUndefined();
+        expect(stopped.final.completion_status).toBe('complete');
+    });
+});
