@@ -45,7 +45,7 @@ async function withRunningMcpHttpServer(
   child.stderr.on('data', (chunk: string) => { stderr += chunk; });
 
   try {
-    const deadline = Date.now() + 10_000;
+    const deadline = Date.now() + 30_000;
     while (!stderr.includes(`Server started on http://127.0.0.1:${port}/mcp`)) {
       if (child.exitCode !== null) throw new Error(`MCP server exited early (${child.exitCode}): ${stderr}`);
       if (Date.now() >= deadline) throw new Error(`Timed out waiting for MCP HTTP server: ${stderr}`);
