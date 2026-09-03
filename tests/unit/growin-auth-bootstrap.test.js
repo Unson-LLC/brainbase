@@ -93,6 +93,18 @@ describe('Growin auth bootstrap', () => {
                 personName: '川村 達見',
                 email: 't.kawamura@growin.jp',
                 role: 'member'
+            },
+            {
+                personId: 'person_inoue_nozomi',
+                personName: '井上 希望',
+                email: 'no.inoue@growin.jp',
+                role: 'member'
+            },
+            {
+                personId: 'person_sano_tetsuya',
+                personName: '佐野 哲哉',
+                email: 't.sano@growin.jp',
+                role: 'member'
             }
         ]);
     });
@@ -100,11 +112,11 @@ describe('Growin auth bootstrap', () => {
     it('creates an idempotent, Growin-only grant and identity plan', () => {
         const plan = buildGrowinAuthBootstrapPlan(GROWIN_INITIAL_USERS);
 
-        expect(plan).toHaveLength(2);
+        expect(plan).toHaveLength(4);
         expect(plan.every((entry) => entry.organizationId === 'org_growin')).toBe(true);
         expect(plan.every((entry) => entry.provider === 'google-workspace')).toBe(true);
         expect(plan.every((entry) => entry.providerTenant === 'growin.jp')).toBe(true);
         expect(plan.every((entry) => entry.projectCodes.join(',') === 'growin')).toBe(true);
-        expect(new Set(plan.map((entry) => entry.identityId)).size).toBe(2);
+        expect(new Set(plan.map((entry) => entry.identityId)).size).toBe(4);
     });
 });

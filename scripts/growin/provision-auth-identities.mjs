@@ -17,6 +17,18 @@ export const GROWIN_INITIAL_USERS = Object.freeze([
         personName: '川村 達見',
         email: 't.kawamura@growin.jp',
         role: 'member'
+    }),
+    Object.freeze({
+        personId: 'person_inoue_nozomi',
+        personName: '井上 希望',
+        email: 'no.inoue@growin.jp',
+        role: 'member'
+    }),
+    Object.freeze({
+        personId: 'person_sano_tetsuya',
+        personName: '佐野 哲哉',
+        email: 't.sano@growin.jp',
+        role: 'member'
     })
 ]);
 
