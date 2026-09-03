@@ -939,6 +939,13 @@ export async function startEpisode(payload, {
 
 // Codex Desktop truncates long hook context, so turn_input is handed to the
 // model as a Host-owned file instead of an inline JSON line.
+function samePath(left, right) {
+    const canonical = (path) => {
+        try { return realpathSync(path); } catch { return resolve(path); }
+    };
+    return canonical(left) === canonical(right);
+}
+
 function persistTurnInput(payload, episode, env) {
     const identity = payloadIdentity(payload);
     if (!identity || !record(episode?.turn_input)) return null;
@@ -1604,7 +1611,14 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         }
         if (kind === 'turn_resolution') {
             const turnToolInput = record(inputValue);
-            const turnInput = record(turnToolInput?.turn_input);
+            const suppliedTurnInput = record(turnToolInput?.turn_input);
+            // A file reference is bound to this turn's Host-saved turn_input.
+            const turnInput = suppliedTurnInput
+                && Object.keys(suppliedTurnInput).join(',') === 'turn_input_path'
+                && typeof suppliedTurnInput.turn_input_path === 'string'
+                && samePath(suppliedTurnInput.turn_input_path, paths.turnInput)
+                ? episode.turn_input
+                : suppliedTurnInput;
             const interpretation = record(turnToolInput?.model_interpretation);
             if (!turnInput || !interpretation
                 || canonicalJson(turnInput) !== canonicalJson(episode.turn_input)
@@ -3106,7 +3120,7 @@ export function successOutput(
             'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
         ] : [
             typeof turnInputPath === 'string'
-                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. The Host stored turn_input unchanged at ${turnInputPath} (one JSON object). Load that file and pass its parsed content as turn_input without editing or rebuilding it (in exec: JSON.parse(fs.readFileSync(${JSON.stringify(turnInputPath)}, 'utf8'))). Add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`
+                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_input set to the file reference {"turn_input_path": ${JSON.stringify(turnInputPath)}} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input at that path and the server loads it itself; do not read, print, rebuild, or inline the file. ${MODEL_INTERPRETATION_SHAPE}`
                 : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
             'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
             'After that call succeeds, the PostToolUse system message names the new Host-generated judgment line; it replaces the bootstrap judgment line below as the first line of the final response.'
