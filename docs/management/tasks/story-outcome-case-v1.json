@@ -1,0 +1,22 @@
+{
+  "task_id": "story-outcome-case-v1",
+  "status": "implementation",
+  "done": false,
+  "deliverables": [
+    "docs/management/stories/active/story-outcome-case-v1.md",
+    "docs/architecture/story-outcome-case-v1.md",
+    ".vibepro/spec/story-outcome-case-v1/spec.json",
+    "server/services/outcome-case/outcome-case-service.js",
+    "server/services/outcome-case/outcome-case-postgres-repository.js",
+    "server/routes/outcome-cases.js",
+    "tests/server/services/outcome-case-service.test.js",
+    "tests/server/routes/outcome-cases.test.js"
+  ],
+  "acceptance_boundary": "local contract and route tests only; no production Graph write, external send, deploy, or production migration",
+  "forbidden": [
+    "RunReceipt v1 schema change",
+    "KnowledgeEvent automatic promotion",
+    "generic workflow engine",
+    "closure inferred from HTTP, test, persistence, or deploy"
+  ]
+}

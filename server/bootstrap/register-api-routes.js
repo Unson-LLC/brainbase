@@ -18,6 +18,7 @@ import { createJudgmentResolutionRouter } from '../routes/judgment-resolution.js
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
 import { createRunReceiptRouter } from '../routes/run-receipts.js';
+import { createOutcomeCaseRouter } from '../routes/outcome-cases.js';
 import { createMeetingMinutesContextReceiptRouter } from '../routes/meeting-minutes-context-receipts.js';
 import { createRoutineRouter } from '../routes/routines.js';
 import { createMeetingSourceSettingsRouter } from '../routes/meeting-source-settings.js';
@@ -237,6 +238,7 @@ export function registerApiRoutes(app, {
     meetingAutomationService,
     automationRunService,
     runReceiptQueryService,
+    outcomeCaseService,
     companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
@@ -433,6 +435,9 @@ export function registerApiRoutes(app, {
         ingestService: runReceiptIngestService,
         queryService: runReceiptQueryService,
         routineLivenessService
+    }));
+    app.use('/api/outcome-cases', workflowAuthGuard, createOutcomeCaseRouter({
+        service: outcomeCaseService
     }));
     app.use(
         '/api/meeting-minutes/context-receipts',

@@ -43,6 +43,8 @@ import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
 import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
+import { OutcomeCasePostgresRepository } from '../services/outcome-case/outcome-case-postgres-repository.js';
+import { OutcomeCaseService } from '../services/outcome-case/outcome-case-service.js';
 import { resolveRoutineReceiptPaths } from '../../scripts/routines/runtime-paths.mjs';
 import { countRoutineOutbox, listRoutineDeadLetters } from '../services/routine-runtime/dead-letter-reader.js';
 import { loadRoutineExpectations } from '../services/routine-runtime/expectation-parser.js';
@@ -246,6 +248,26 @@ export function createCoreServices({
         projectAccessPolicy,
         canonicalTaskService
     });
+    const outcomeCaseRepository = infoSSOTService.pool
+        ? new OutcomeCasePostgresRepository({ pool: infoSSOTService.pool })
+        : null;
+    const outcomeCaseService = outcomeCaseRepository
+        ? new OutcomeCaseService({
+            repository: outcomeCaseRepository,
+            readRunReceipt: async ({ projectCode, runReceiptRef, actor }) => {
+                try {
+                    const diagnosis = await automationRuntime.runReceiptQueryService.diagnose({
+                        projectId: projectCode,
+                        runId: runReceiptRef
+                    }, actor);
+                    return diagnosis.receipt;
+                } catch (error) {
+                    if (error?.status === 404 || error?.code === 'not_found') return null;
+                    throw error;
+                }
+            }
+        })
+        : null;
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({
         stateFile: path.join(varDir, 'meeting-source-mcp-state.json'),
         meetingAutomationService: automationRuntime.meetingAutomationService,
@@ -403,6 +425,7 @@ export function createCoreServices({
         onboardingRuntimeService,
         tokenUsageService,
         ...automationRuntime,
+        outcomeCaseService,
         meetingSourceMcpSyncService,
         externalRunnerIngestService,
         runReceiptIngestService,
