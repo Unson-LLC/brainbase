@@ -165,26 +165,6 @@ test('hookVisibleFinalAnswer preserves multiple citation blocks joined by a blan
     assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
 });
 
-function assertRenderedAuditTrace(answer, expectedLines) {
-    const lines = answer.replaceAll('\r\n', '\n').split('\n');
-    assert.deepEqual(
-        lines.slice(0, expectedLines.length),
-        expectedLines,
-        'The final user-visible answer must begin with the stored owner/tool audit lines in journal commit order'
-    );
-    const expectedCounts = new Map(expectedLines.map((line) => [
-        line,
-        expectedLines.filter((candidate) => candidate === line).length
-    ]));
-    for (const [line, count] of expectedCounts) {
-        assert.equal(
-            lines.filter((candidate) => candidate === line).length,
-            count,
-            `Stored audit line must appear exactly as many times as its recorded event: ${line}`
-        );
-    }
-}
-
 function readBoundEpisode() {
     const eventDirectory = EVIDENCE_EPISODE_PATH.replace(/\.episode\.json$/u, '.events');
     const finalPath = EVIDENCE_EPISODE_PATH.replace(/\.episode\.json$/u, '.final.json');
@@ -445,7 +425,11 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.equal(candidate.episode.state, 'open', 'Episode remains immutable after finalization');
     assert.equal(candidate.episode.episode_origin, 'user_prompt_submit');
     assert.equal(candidate.episode.route_application, 'pre_generation');
-    assert.equal(candidate.episode.initial_route_receipt?.status, 'resolved');
+    assert.equal(
+        candidate.episode.initial_route_receipt?.status,
+        'needs_classification',
+        'UserPromptSubmit must preserve the immutable pre-model receipt until the model supplies semantic interpretation'
+    );
     assert.equal(
         candidate.episode.initial_route_receipt?.runtime_version,
         runtimeManifest.runtime_version,
@@ -461,6 +445,16 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         ...EXPECTED_TOOLS,
         'mcp__brainbase__brainbase_judgment_state_record'
     ]);
+    const resolvedTurnContract = candidate.events[0]?.safe_metadata?.turn_contract;
+    assert.equal(
+        resolvedTurnContract?.status,
+        'resolved',
+        'The first lifecycle event must retain the model-assisted resolved TurnContract'
+    );
+    assert.equal(resolvedTurnContract?.turn_id, candidate.episode.initial_route_receipt?.turn_id);
+    assert.equal(resolvedTurnContract?.runtime_version, runtimeManifest.runtime_version);
+    assert.equal(resolvedTurnContract?.manifest_digest, expectedManifestDigest);
+    assert.equal(resolvedTurnContract?.classification_evidence?.source, 'current_request');
     assert.deepEqual(retrievalEvents.map((event) => event.tool_name), EXPECTED_TOOLS);
     assert.deepEqual(
         retrievalEvents.map((event) => event.success),
@@ -489,7 +483,11 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.match(retrievalEvents[1].display_line, /^📚 Brainbase検索:/u);
     assert.match(retrievalEvents[2].display_line, /^📚 Brainbase検索:/u);
     assert.match(retrievalEvents[3].display_line, /^📚 Brainbase取得:/u);
-    assert.match(candidate.episode.owner_audit?.display_line || '', /^🧠 判断参照:/u);
+    assert.match(
+        candidate.episode.owner_audit?.display_line || '',
+        /^⚠️ 判断参照:/u,
+        'The immutable owner audit must describe the pre-model classification state'
+    );
     assert.equal(candidate.final.completion_status, 'complete');
     assert.equal(candidate.final.owner_audit_complete, true);
     assert.equal(candidate.final.owner_audit_line_count, 5);
@@ -500,11 +498,12 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         EVIDENCE_TRANSCRIPT_PATH,
         candidate.episode.initial_route_receipt.turn_id
     );
-    const expectedAuditLines = [
-        candidate.episode.owner_audit.display_line,
-        ...retrievalEvents.map((event) => event.display_line)
-    ];
-    assertRenderedAuditTrace(renderedAnswer, expectedAuditLines);
+    assert.equal(renderedAnswer, '実ターンE2Eを完了しました。');
+    assert.doesNotMatch(
+        renderedAnswer,
+        /^(?:🧠|📚|⚠️) /mu,
+        'The model answer must not reproduce audit lines that Stop renders as its own systemMessage'
+    );
     assert.equal(
         candidate.final.answer_digest,
         createHash('sha256').update(hookVisibleFinalAnswer(renderedAnswer)).digest('hex'),
@@ -576,8 +575,8 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         'story-brainbase-judgment-resolver-v1 ac:12 digest and stable plan evidence must pass'
     );
     assert.ok(
-        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'model-callable toolとして公開しない', regression.status),
-        'story-brainbase-judgment-resolver-v1 ac:13 Host-only bridge publication evidence must pass'
+        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'model-callable `brainbase_resolve_turn`', regression.status),
+        'story-brainbase-judgment-resolver-v1 ac:13 model-callable bridge publication evidence must pass'
     );
     assert.ok(
         retrievalEvents[1].display_line.includes('該当なし')
