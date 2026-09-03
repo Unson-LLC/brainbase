@@ -5,6 +5,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'n
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import test from 'node:test';
+import { verifyOwnerVisibleSource } from '../../scripts/lib/codex-owner-visible-readback.mjs';
 
 const CODEX_HOME = process.env.CODEX_HOME || join(homedir(), '.codex');
 const JOURNAL_ROOT = join(CODEX_HOME, 'var', 'judgment-resolver');
@@ -91,10 +92,8 @@ function assertOwnerVisibleReadback({
     );
     const artifact = readJson(realpathSync(path));
     assert.equal(artifact.schema_version, OWNER_VISIBLE_SCHEMA);
-    assert.ok(
-        artifact.source === 'codex_ui' || artifact.source === 'codex_event_stream',
-        'Owner-visible readback source must be Codex UI or event stream'
-    );
+    assert.equal(artifact.source, 'codex_event_stream', 'Owner-visible readback must come from the Codex event stream');
+    verifyOwnerVisibleSource(artifact);
     assert.equal(artifact.task_id, taskId, 'Owner-visible readback must bind session_meta.payload.id');
     assert.equal(artifact.turn_id, turnId, 'Owner-visible readback must bind the current judgment turn');
     assert.equal(typeof artifact.event_id, 'string', 'Owner-visible readback must retain the source event identity');

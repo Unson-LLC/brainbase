@@ -17,6 +17,15 @@ function expectProductionNotRunInUserFacingPrBody(body) {
 }
 
 describe('judgment resolver publication surfaces', () => {
+    it('knowledge readback trace is Host-rendered and never model-reproduced', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/knowledge-resolve.md');
+        expect(runbook).toContain('machine-readable owner-audit metadata envelope');
+        expect(runbook).toContain('`PostToolUse` validates the envelope');
+        expect(runbook).toContain('`Stop` renders the validated receipt exactly once');
+        expect(runbook).toContain('The model-authored assistant body contains none of these lines');
+        expect(runbook).not.toContain('reproduce it exactly once in the next user-facing assistant message');
+    });
+
     it('本番hotfix退避先を複数行出力から1件だけ抽出し、不正markerを拒否する', () => {
         const parser = 'scripts/extract-lightsail-hotfix-backup-dir.mjs';
         const validPath = '/home/ubuntu/brainbase-production-hotfix-20260902T000000Z';
@@ -333,6 +342,7 @@ describe('judgment resolver publication surfaces', () => {
         const machineSpec = JSON.parse(read('.vibepro/spec/story-brainbase-production-artifact-reconciliation/spec.json'));
         const normalVerifier = 'tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts';
         const delegatedVerifier = 'tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts';
+        const ownerVisibleCapture = 'scripts/capture-codex-owner-visible-readback.mjs';
         const normalCase = 'story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する';
         const delegatedCase = 'delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit';
 
@@ -348,6 +358,12 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('occurrences');
         expect(runbook).toContain('event_id');
         expect(runbook).toContain('final_event_fingerprint');
+        expect(runbook).toContain(ownerVisibleCapture);
+        expect(runbook).toContain('thread_history_1.sqlite');
+        expect(runbook).toContain('source_row_digest');
+        expect(runbook).toContain('Do not construct or edit this artifact by hand');
+        expect(read(ownerVisibleCapture)).toContain('selectOwnerVisibleEvent');
+        expect(read(ownerVisibleCapture)).toContain('verifyOwnerVisibleSource');
         expect(runbook).toContain('never use a recovered Stop episode as evidence that `UserPromptSubmit` guided generation');
         expect(runbook).toContain("Never substitute one path's evidence for the other");
         expect(read(normalVerifier)).toContain('BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH');
@@ -357,6 +373,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(read(normalVerifier)).toContain('event_id');
         expect(read(normalVerifier)).toContain('final_event_fingerprint');
         expect(read(normalVerifier)).toContain('journalEventFingerprint:');
+        expect(read(normalVerifier)).toContain('verifyOwnerVisibleSource');
         expect(read(normalVerifier)).toContain('session_meta.payload.id');
         expect(read(delegatedVerifier)).toContain('BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH');
         expect(read(delegatedVerifier)).toContain('brainbase-owner-visible-readback-v1');
@@ -365,6 +382,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(read(delegatedVerifier)).toContain('event_id');
         expect(read(delegatedVerifier)).toContain('final_event_fingerprint');
         expect(read(delegatedVerifier)).toContain('journalEventFingerprint:');
+        expect(read(delegatedVerifier)).toContain('verifyOwnerVisibleSource');
         expect(read(delegatedVerifier)).toContain('session_meta.payload.id');
         expect(read(delegatedVerifier)).toContain('Brainbase判断レシート exactly once');
         expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
@@ -1039,6 +1057,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('occurrences');
         expect(runbook).toContain('event_id');
         expect(runbook).toContain('final_event_fingerprint');
+        expect(runbook).toContain('scripts/capture-codex-owner-visible-readback.mjs');
+        expect(runbook).toContain('source_database');
+        expect(runbook).toContain('source_row_digest');
         expect(runbook).toContain('query-embedded source HEAD differs');
         expect(runbook).toContain('final receipt is at most one hour old');
         for (const surface of [capability, runbook, architecture, spec]) {

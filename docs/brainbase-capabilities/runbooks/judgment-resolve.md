@@ -755,19 +755,29 @@ JUDGMENT_E2E_TRANSCRIPTS="$(
 )"
 test "$(printf '%s\n' "$JUDGMENT_E2E_TRANSCRIPTS" | sed '/^$/d' | wc -l | tr -d ' ')" = 1
 export BRAINBASE_JUDGMENT_E2E_TRANSCRIPT_PATH="$JUDGMENT_E2E_TRANSCRIPTS"
-export BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH="<owner-journal>/owner-visible-readback/<session_meta.payload.id>.json"
+export BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH="${CODEX_HOME:-$HOME/.codex}/var/judgment-resolver/owner-visible-readback/<session_meta.payload.id>.json"
+node scripts/capture-codex-owner-visible-readback.mjs \
+  --task-id "<session_meta.payload.id>" \
+  --turn-id "<episode.initial_route_receipt.turn_id>" \
+  --final-event-fingerprint "<last-journal-event.event_fingerprint>" \
+  --output "$BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH"
 node --test tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts
 ```
 
-Before running the verifier, capture the exact owner-visible Stop `systemMessage` from the Codex UI or its event stream into the path above. The artifact must be a single JSON object with this shape (the placeholders are values read from the same run):
+The capture command reads the exact owner-visible Stop `systemMessage` directly from Codex's canonical `thread_history_1.sqlite` event stream. It accepts exactly one matching `hookPrompt` row for the bound task and turn, then writes one owner-only artifact atomically. Do not construct or edit this artifact by hand. Its source-bound shape is:
 
 ```json
 {
   "schema_version": "brainbase-owner-visible-readback-v1",
-  "source": "codex_ui",
+  "source": "codex_event_stream",
+  "source_database": "codex_thread_history_v1",
+  "source_item_type": "hookPrompt",
+  "source_rollout_ordinal": 123,
+  "source_created_at_ms": 1700000000000,
+  "source_row_digest": "sha256:<sha256 of exact item_json>",
   "task_id": "<session_meta.payload.id>",
   "turn_id": "<episode.initial_route_receipt.turn_id>",
-  "event_id": "<Codex UI or event-stream event identity>",
+  "event_id": "<thread_items.item_id>",
   "final_event_fingerprint": "<last-journal-event.event_fingerprint>",
   "captured_at": "<ISO-8601 timestamp>",
   "system_message": "<exact Host Stop systemMessage>",
@@ -776,7 +786,7 @@ Before running the verifier, capture the exact owner-visible Stop `systemMessage
 }
 ```
 
-`source` must be `codex_ui` or `codex_event_stream`; `task_id` must be copied from `session_meta.payload.id`, `turn_id` from the bound episode, `event_id` from the actual Codex UI or event-stream record, and `final_event_fingerprint` from the final journal event. The source event identity and journal fingerprint are independent bindings and must not be copied from one another. `system_message_digest` is computed over the exact UTF-8 `system_message` value, including line breaks. Do not construct this artifact from `.final.json` or the transcript, and do not omit it: the verifier fails closed when the path is missing, outside the owner journal's `owner-visible-readback` directory, malformed, stale, digest-mismatched, or duplicated. It verifies the expected owner audit lines in journal order and exactly once, and the normal path requires that they are the complete Host `systemMessage`.
+The verifier independently reopens the canonical Codex database and requires the artifact's `task_id`, `turn_id`, `event_id`, item type, rollout ordinal, source timestamp, exact raw-row digest, exact `system_message`, and occurrence count to match that database row. `final_event_fingerprint` is separately bound to the final journal event and must not equal `event_id`. `system_message_digest` covers the exact UTF-8 text including line breaks. `.final.json`, assistant transcript text, screenshots, arbitrary database paths, and hand-authored JSON cannot substitute for this proof. Missing, out-of-bound, malformed, stale, duplicated, or source-mismatched evidence fails closed.
 
 The command also fails if the current `hooks/list` state is not `ready_for_fresh_task`, if the transcript task was created before the current Hook/trust files, if the nonce resolves to zero or multiple episodes/transcripts, or if the query-embedded source HEAD differs from `BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD`; it also requires that the final receipt is at most one hour old. It reads the installed global Hook bindings, the owner-only journal, the exact Codex JSONL transcript, and the owner-visible readback artifact. It passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` resolve to the same installed entrypoint, both lifecycle adapter files at every resolved Hook root are content-equivalent to the current contract checkout, the post-approval fresh episode has a verified initial route with `route_application=pre_generation`, the four successful Brainbase events preserve the result-dependent query sequence, the final receipt has `owner_audit_complete=true` and `owner_audit_source=stop_hook_system_message`, and the complete Host-rendered audit `systemMessage` is actually visible once in the owner UI or event stream in journal-commit order. `answer_digest` must match the exact model-authored `last_assistant_message`/business body; the verifier must not require an audit prefix in that body or treat transcript `response_item` formatting as a stable hook contract. Transcript data remains correlation/answer-body evidence only. This result proves `judgment_lifecycle_active`; it does not by itself prove the value-proof path or a user-visible judgment receipt, and it is not proof that the installed Hook checkout has the same Git SHA as the contract checkout. The check does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.
 
@@ -787,11 +797,16 @@ export BRAINBASE_JUDGMENT_DELEGATION_E2E_EXPECTED_HEAD="$TARGET_SHA"
 export BRAINBASE_JUDGMENT_DELEGATION_E2E_SOURCE_THREAD_ID="<source-task-id>"
 export BRAINBASE_JUDGMENT_DELEGATION_E2E_EPISODE_PATH="<owner-journal-episode.json>"
 export BRAINBASE_JUDGMENT_DELEGATION_E2E_TRANSCRIPT_PATH="<codex-session.jsonl>"
-export BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH="<owner-journal>/owner-visible-readback/<session_meta.payload.id>.json"
+export BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH="${CODEX_HOME:-$HOME/.codex}/var/judgment-resolver/owner-visible-readback/<session_meta.payload.id>.json"
+node scripts/capture-codex-owner-visible-readback.mjs \
+  --task-id "<session_meta.payload.id>" \
+  --turn-id "<recovered-episode.initial_route_receipt.turn_id>" \
+  --final-event-fingerprint "<last-journal-event.event_fingerprint>" \
+  --output "$BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH"
 node --test tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts
 ```
 
-Capture the delegated retry's exact owner-visible Stop `systemMessage` into the same artifact schema before running this verifier. Use `source=codex_ui` or `source=codex_event_stream`, copy `task_id` from that transcript's `session_meta.payload.id`, bind `turn_id` to the recovered episode, copy `event_id` from the actual Codex UI or event-stream record, and bind `final_event_fingerprint` to the final journal event. The two event identities must remain distinct. The digest must be `sha256` of the exact captured `system_message`, and `occurrences` must be `1`; the verifier rejects a missing, out-of-bound, malformed, stale, duplicated, or digest-mismatched artifact. It verifies the owner audit lines in order and exactly once, and additionally requires the Host-rendered `Brainbase判断レシート` to occur exactly once after that audit block. The UI/event-stream capture is the source of this proof; `.final.json` and the assistant transcript cannot substitute for it.
+Run the same source-bound capture command for the delegated retry. The verifier independently reads the bound `thread_items` row and additionally requires the Host-rendered `Brainbase判断レシート` exactly once after the audit block. A manually supplied event identity, `.final.json`, assistant transcript text, or copied journal fingerprint cannot substitute for the Codex event-stream row.
 
 This verifier accepts only one complete current-turn `create_thread` or `send_message_to_thread` delegation envelope. It requires `episode_origin=stop_delegation_recovery` and `route_application=post_generation_recovery`, a real interruption candidate, successful execution evidence, successful canonical readback, exactly one value proof bound to both event IDs, a final journal-sourced `completed` state event, matching value-proof/final digests, `owner_audit_source=stop_hook_system_message`, and actual owner UI/event-stream rendering of the complete Host `systemMessage` audit/value surface exactly once. `answer_digest` binds the exact model-authored answer body and does not require a transcript audit prefix. It explicitly rejects any claim that recovered Stop routing was applied before generation. Passing both this verifier and the normal fresh-task verifier proves `proven_active`; either result alone does not.
 
