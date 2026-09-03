@@ -310,7 +310,6 @@ function assertAuditTraceIsNotDuplicatedInAssistantBody(answer, expectedLines) {
         );
     }
 }
-
 function readBoundEpisode() {
     const eventDirectory = EVIDENCE_EPISODE_PATH.replace(/\.episode\.json$/u, '.events');
     const finalPath = EVIDENCE_EPISODE_PATH.replace(/\.episode\.json$/u, '.final.json');
@@ -565,7 +564,11 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.equal(candidate.episode.state, 'open', 'Episode remains immutable after finalization');
     assert.equal(candidate.episode.episode_origin, 'user_prompt_submit');
     assert.equal(candidate.episode.route_application, 'pre_generation');
-    assert.equal(candidate.episode.initial_route_receipt?.status, 'resolved');
+    assert.equal(
+        candidate.episode.initial_route_receipt?.status,
+        'needs_classification',
+        'UserPromptSubmit must preserve the immutable pre-model receipt until the model supplies semantic interpretation'
+    );
     assert.equal(
         candidate.episode.initial_route_receipt?.runtime_version,
         runtimeManifest.runtime_version,
@@ -581,6 +584,16 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         ...EXPECTED_TOOLS,
         'mcp__brainbase__brainbase_judgment_state_record'
     ]);
+    const resolvedTurnContract = candidate.events[0]?.safe_metadata?.turn_contract;
+    assert.equal(
+        resolvedTurnContract?.status,
+        'resolved',
+        'The first lifecycle event must retain the model-assisted resolved TurnContract'
+    );
+    assert.equal(resolvedTurnContract?.turn_id, candidate.episode.initial_route_receipt?.turn_id);
+    assert.equal(resolvedTurnContract?.runtime_version, runtimeManifest.runtime_version);
+    assert.equal(resolvedTurnContract?.manifest_digest, expectedManifestDigest);
+    assert.equal(resolvedTurnContract?.classification_evidence?.source, 'current_request');
     assert.deepEqual(retrievalEvents.map((event) => event.tool_name), EXPECTED_TOOLS);
     assert.deepEqual(
         retrievalEvents.map((event) => event.success),
@@ -609,7 +622,11 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.match(retrievalEvents[1].display_line, /^📚 Brainbase検索:/u);
     assert.match(retrievalEvents[2].display_line, /^📚 Brainbase検索:/u);
     assert.match(retrievalEvents[3].display_line, /^📚 Brainbase取得:/u);
-    assert.match(candidate.episode.owner_audit?.display_line || '', /^🧠 判断参照:/u);
+    assert.match(
+        candidate.episode.owner_audit?.display_line || '',
+        /^⚠️ 判断参照:/u,
+        'The immutable owner audit must describe the pre-model classification state'
+    );
     assert.equal(candidate.final.completion_status, 'complete');
     assert.equal(candidate.final.owner_audit_complete, true);
     assert.equal(candidate.final.owner_audit_line_count, 5);
@@ -628,10 +645,11 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assertOwnerVisibleReadback(EVIDENCE_OWNER_VISIBLE_PATH, {
         taskId: taskIdentity.taskId,
         turnId: candidate.episode.initial_route_receipt.turn_id,
-        eventId: candidate.events.at(-1)?.event_fingerprint || '',
+        journalEventFingerprint: candidate.events.at(-1)?.event_fingerprint || '',
         capturedAfter: taskIdentity.createdAt,
         expectedLines: expectedAuditLines
     });
+    assert.equal(renderedAnswer, '実ターンE2Eを完了しました。');
     assertAuditTraceIsNotDuplicatedInAssistantBody(renderedAnswer, expectedAuditLines);
     assert.equal(
         candidate.final.answer_digest,
