@@ -1,10 +1,10 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-t0-slack-installation-failure-diagnostics",
-  "created_at": "2026-09-03T04:47:17.462Z",
+  "created_at": "2026-09-03T04:50:50.936Z",
   "status": "ready",
   "git": {
-    "head_sha": "769af14b60d0ba418abdedbffaeeaf7a1a39a6af"
+    "head_sha": "52d11853b7d191a817aa612cb2a0c1cb4c594a12"
   },
   "checks": [
     {
@@ -37,7 +37,7 @@
   },
   "engineering_judgment": null,
   "pr_prepare": {
-    "created_at": "2026-09-03T04:47:17.416Z",
+    "created_at": "2026-09-03T04:50:50.893Z",
     "artifact": ".vibepro/pr/story-t0-slack-installation-failure-diagnostics/pr-prepare.json"
   },
   "next_actions": []
