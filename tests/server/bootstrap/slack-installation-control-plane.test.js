@@ -19,6 +19,21 @@ function authService() {
 }
 
 describe('Slack installation control-plane production adapters', () => {
+    it.each([
+        ['network failure', async () => { throw new Error('secret network detail'); }, 'OAUTH_EXCHANGE_UNAVAILABLE'],
+        ['invalid JSON', async () => new Response('not-json', { status: 200 }), 'OAUTH_EXCHANGE_INVALID'],
+        ['provider rejection', async () => Response.json({ ok: false, error: 'invalid_code' }, { status: 400 }), 'OAUTH_EXCHANGE_REJECTED'],
+        ['missing credential', async () => Response.json({ ok: true, api_app_id: appId }), 'OAUTH_CREDENTIAL_MISSING']
+    ])('classifies %s with a stable non-secret OAuth code', async (_name, fetchImpl, code) => {
+        const client = createSlackOAuthClient({ authService: authService(), fetchImpl });
+        const exchange = () => client.exchangeCode({
+            authorization_code: 'one-time-code',
+            redirect_uri: 'https://mana.example.test/callback'
+        });
+        await expect(exchange()).rejects.toMatchObject({ code });
+        await expect(exchange()).rejects.not.toThrow(/one-time-code|invalid_code|secret network detail/u);
+    });
+
     it('normalizes Slack OAuth response without exposing token material in errors', async () => {
         const fetchImpl = vi.fn(async (_url, init) => {
             const body = new URLSearchParams(init.body);

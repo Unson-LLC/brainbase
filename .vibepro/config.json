@@ -34,8 +34,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-t0-slack-installation-failure-diagnostics",
+        "title": "Slack installation失敗を秘密なしで段階別に再読込できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
       }
     ],
-    "current_story_id": "story-brainbase-production-artifact-reconciliation"
+    "current_story_id": "story-t0-slack-installation-failure-diagnostics"
   }
 }

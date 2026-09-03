@@ -373,6 +373,8 @@ CREATE TABLE IF NOT EXISTS slack_installation_intents (
     CONSTRAINT slack_installation_intents_tenant_revision_history_fk
         FOREIGN KEY (tenant_id, tenant_revision_at_write)
         REFERENCES brainbase_tenant_revisions(tenant_id, tenant_revision),
+    CONSTRAINT slack_installation_intents_tenant_intent_uq
+        UNIQUE (tenant_id, installation_intent_id),
     UNIQUE (state_hash),
     CHECK (expires_at > issued_at),
     CHECK (expires_at <= issued_at + INTERVAL '10 minutes'),
@@ -410,13 +412,38 @@ BEGIN
 END
 $slack_installation_intents_revision_fk$;
 
+DO $slack_installation_intents_tenant_intent_uq$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+          FROM slack_installation_intents
+         GROUP BY tenant_id, installation_intent_id
+        HAVING COUNT(*) > 1
+    ) THEN
+        RAISE EXCEPTION 'slack_installation_intents contains duplicate tenant/installation-intent ownership rows';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'slack_installation_intents'::regclass
+           AND conname = 'slack_installation_intents_tenant_intent_uq'
+    ) THEN
+        ALTER TABLE slack_installation_intents
+            ADD CONSTRAINT slack_installation_intents_tenant_intent_uq
+            UNIQUE (tenant_id, installation_intent_id);
+    END IF;
+END
+$slack_installation_intents_tenant_intent_uq$;
+
 CREATE INDEX IF NOT EXISTS slack_installation_intents_tenant_idx
     ON slack_installation_intents (tenant_id, expires_at, consumed_at);
 
 CREATE TABLE IF NOT EXISTS slack_installation_exchange_ledger (
-    installation_intent_id TEXT PRIMARY KEY
-        REFERENCES slack_installation_intents(installation_intent_id),
+    installation_intent_id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+    CONSTRAINT slack_installation_exchange_ledger_tenant_intent_fk
+        FOREIGN KEY (tenant_id, installation_intent_id)
+        REFERENCES slack_installation_intents(tenant_id, installation_intent_id),
     request_digest TEXT NOT NULL CHECK (request_digest ~ '^sha256:[a-f0-9]{64}$'),
     status TEXT NOT NULL CHECK (status IN ('processing', 'completed', 'failed')),
     connection_id TEXT,
@@ -426,11 +453,60 @@ CREATE TABLE IF NOT EXISTS slack_installation_exchange_ledger (
     claimed_at TIMESTAMPTZ,
     attempt BIGINT NOT NULL DEFAULT 1 CHECK (attempt > 0),
     failure_code TEXT,
+    failure_stage TEXT CHECK (failure_stage IS NULL OR failure_stage IN ('oauth_exchange', 'exchange_normalize', 'connection_reserve', 'credential_store', 'db_register')),
+    cleanup_status TEXT CHECK (cleanup_status IS NULL OR cleanup_status IN ('not_needed', 'revoked', 'failed')),
     created_at TIMESTAMPTZ NOT NULL,
     completed_at TIMESTAMPTZ,
     UNIQUE (tenant_id, installation_intent_id),
     CHECK (status <> 'completed' OR (connection_id IS NOT NULL AND connection_revision IS NOT NULL AND response_payload IS NOT NULL))
 );
+
+DO $slack_installation_exchange_owner_fk$
+DECLARE
+    fk RECORD;
+BEGIN
+    IF EXISTS (
+        SELECT 1
+          FROM slack_installation_intents
+         GROUP BY tenant_id, installation_intent_id
+        HAVING COUNT(*) > 1
+    ) THEN
+        RAISE EXCEPTION 'slack_installation_intents contains duplicate tenant/installation-intent ownership rows';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM slack_installation_exchange_ledger AS ledger
+          LEFT JOIN slack_installation_intents AS intent
+            ON intent.tenant_id = ledger.tenant_id
+           AND intent.installation_intent_id = ledger.installation_intent_id
+         WHERE intent.installation_intent_id IS NULL
+    ) THEN
+        RAISE EXCEPTION 'slack_installation_exchange_ledger contains tenant/installation-intent ownership mismatches';
+    END IF;
+
+    FOR fk IN
+        SELECT conname
+          FROM pg_constraint
+         WHERE conrelid = 'slack_installation_exchange_ledger'::regclass
+           AND confrelid = 'slack_installation_intents'::regclass
+           AND contype = 'f'
+           AND conname <> 'slack_installation_exchange_ledger_tenant_intent_fk'
+    LOOP
+        EXECUTE format('ALTER TABLE slack_installation_exchange_ledger DROP CONSTRAINT %I', fk.conname);
+    END LOOP;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'slack_installation_exchange_ledger'::regclass
+           AND conname = 'slack_installation_exchange_ledger_tenant_intent_fk'
+    ) THEN
+        ALTER TABLE slack_installation_exchange_ledger
+            ADD CONSTRAINT slack_installation_exchange_ledger_tenant_intent_fk
+            FOREIGN KEY (tenant_id, installation_intent_id)
+            REFERENCES slack_installation_intents(tenant_id, installation_intent_id);
+    END IF;
+END
+$slack_installation_exchange_owner_fk$;
 
 CREATE INDEX IF NOT EXISTS slack_installation_exchange_ledger_tenant_idx
     ON slack_installation_exchange_ledger (tenant_id, created_at DESC);
@@ -442,7 +518,9 @@ ALTER TABLE slack_installation_exchange_ledger
     ADD COLUMN IF NOT EXISTS claim_token_hash TEXT,
     ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS attempt BIGINT NOT NULL DEFAULT 1,
-    ADD COLUMN IF NOT EXISTS failure_code TEXT;
+    ADD COLUMN IF NOT EXISTS failure_code TEXT,
+    ADD COLUMN IF NOT EXISTS failure_stage TEXT,
+    ADD COLUMN IF NOT EXISTS cleanup_status TEXT;
 
 DO $slack_installation_exchange_status_migration$
 BEGIN
@@ -459,6 +537,31 @@ BEGIN
         CHECK (status IN ('processing', 'completed', 'failed'));
 END
 $slack_installation_exchange_status_migration$;
+
+DO $slack_installation_exchange_diagnostic_checks$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'slack_installation_exchange_ledger'::regclass
+           AND conname = 'slack_installation_exchange_ledger_failure_stage_check'
+    ) THEN
+        ALTER TABLE slack_installation_exchange_ledger
+            ADD CONSTRAINT slack_installation_exchange_ledger_failure_stage_check
+            CHECK (failure_stage IS NULL OR failure_stage IN (
+                'oauth_exchange', 'exchange_normalize', 'connection_reserve', 'credential_store', 'db_register'
+            ));
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'slack_installation_exchange_ledger'::regclass
+           AND conname = 'slack_installation_exchange_ledger_cleanup_status_check'
+    ) THEN
+        ALTER TABLE slack_installation_exchange_ledger
+            ADD CONSTRAINT slack_installation_exchange_ledger_cleanup_status_check
+            CHECK (cleanup_status IS NULL OR cleanup_status IN ('not_needed', 'revoked', 'failed'));
+    END IF;
+END
+$slack_installation_exchange_diagnostic_checks$;
 
 CREATE INDEX IF NOT EXISTS slack_installation_exchange_ledger_claim_idx
     ON slack_installation_exchange_ledger (tenant_id, status, claimed_at);

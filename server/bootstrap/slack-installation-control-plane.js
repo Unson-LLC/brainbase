@@ -31,7 +31,10 @@ function parseJson(text) {
     try {
         return text ? JSON.parse(text) : {};
     } catch {
-        throw new Error('upstream_response_invalid');
+        throw new ContractError('OAUTH_EXCHANGE_INVALID', {
+            status: 502,
+            fault_domain: 'external_provider'
+        });
     }
 }
 
@@ -61,23 +64,37 @@ function createSlackOAuthClient({ authService, fetchImpl = globalThis.fetch } = 
                     body
                 });
             } catch {
-                throw new Error('slack_oauth_exchange_unavailable');
+                throw new ContractError('OAUTH_EXCHANGE_UNAVAILABLE', {
+                    status: 503,
+                    retryable: true,
+                    fault_domain: 'external_provider'
+                });
             }
             let payload;
             try {
                 payload = parseJson(await response.text());
-            } catch {
-                throw new Error('slack_oauth_exchange_invalid');
+            } catch (error) {
+                if (error instanceof ContractError && error.code === 'OAUTH_EXCHANGE_INVALID') throw error;
+                throw new ContractError('OAUTH_EXCHANGE_INVALID', {
+                    status: 502,
+                    fault_domain: 'external_provider'
+                });
             }
             if (!response.ok || payload.ok === false) {
-                throw new Error('slack_oauth_exchange_rejected');
+                throw new ContractError('OAUTH_EXCHANGE_REJECTED', {
+                    status: 502,
+                    fault_domain: 'external_provider'
+                });
             }
 
             const credentialMaterial = payload.access_token
                 ?? payload.authed_user?.access_token
                 ?? null;
             if (typeof credentialMaterial !== 'string' || credentialMaterial.length === 0) {
-                throw new Error('slack_oauth_credential_missing');
+                throw new ContractError('OAUTH_CREDENTIAL_MISSING', {
+                    status: 502,
+                    fault_domain: 'external_provider'
+                });
             }
             const workspaceId = payload.team?.id ?? payload.team_id ?? null;
             const enterpriseId = payload.enterprise?.id ?? payload.enterprise_id ?? null;

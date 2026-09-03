@@ -1,0 +1,100 @@
+{
+  "task_id": "t0-slack-installation-failure-diagnostics",
+  "story_id": "story-t0-slack-installation-failure-diagnostics",
+  "status": "done",
+  "t0_program_status": "implementing",
+  "production_executed": false,
+  "deploy_allowed": false,
+  "scope": {
+    "include": [
+      "internal Slack installation failure ledger contract",
+      "safe adapter classification",
+      "focused local tests",
+      "internal failure diagnostic readback",
+      "composed local bootstrap/auth/CSRF/OAuth/credential adapter failure readback"
+    ],
+    "exclude": [
+      "production OAuth retry",
+      "deploy or secret changes",
+      "public diagnostic exposure",
+      "past generic failure inference",
+      "T0 done promotion"
+    ]
+  },
+  "production_evidence": {
+    "bridge": "not_collected",
+    "oauth_exchange": "not_collected",
+    "postgresql_readback": "not_collected",
+    "credential_store_round_trip": "not_collected",
+    "usage_and_receipt_readback": "not_collected"
+  },
+  "local_evidence": {
+    "unit_and_schema": {
+      "files": 6,
+      "tests": 84,
+      "result": "pass"
+    },
+    "shared_public_route_regression": {
+      "files": 7,
+      "tests": 104,
+      "result": "pass"
+    },
+    "public_diagnostic_redaction_tdd": {
+      "pre_fix_base": "f2d9cff9ecac31c1e0d6629e242f49aa19dc715f",
+      "red": {
+        "command": "npm run test:run -- tests/server/routes/slack-installation-control-plane.test.js --maxWorkers=1",
+        "result": "fail_as_expected",
+        "tests_passed": 9,
+        "tests_failed": 1,
+        "assertion": "CREDENTIAL_REF_INVALID: expected HTTP 503, received HTTP 502"
+      },
+      "green": {
+        "command": "npm run test:run -- tests/server/routes/slack-installation-control-plane.test.js --maxWorkers=1",
+        "result": "pass",
+        "tests": 10
+      },
+      "related_regression": {
+        "command": "npm run test:run -- tests/server/routes/slack-installation-control-plane.test.js tests/server/services/multitenant/slack-installation-control-plane.test.js --maxWorkers=1",
+        "result": "pass",
+        "tests": 26
+      }
+    },
+    "postgresql_integration": {
+      "files": 3,
+      "tests": 19,
+      "result": "pass"
+    },
+    "composed_local_failure_flow": {
+      "test": "composes local bootstrap -> auth/CSRF -> authorize/exchange -> OAuth/credential adapter -> PostgreSQL failure readback (repository-level operator boundary)",
+      "result": "pass",
+      "operator_readback_boundary": "repository-level",
+      "public_diagnostic_api_or_ui": false
+    },
+    "legacy_ledger_migration": {
+      "result": "pass",
+      "preserved_rows": true,
+      "idempotent_apply": true
+    },
+    "typecheck": "pass",
+    "eslint": "pass",
+    "task_json_parse": "pass",
+    "diff_check": "pass",
+    "independent_review": {
+      "result": "pass",
+      "reviewed_commit": "dff0762bd3b093396dba66bd2585ac6171a414cb",
+      "reviewed_base": "e3e94d2ce660b1a3676f613e01393486aff3e4b8",
+      "blocking_findings": 0,
+      "non_blocking_findings": 0,
+      "previous_result": "needs_changes",
+      "previous_blocking_findings": 1,
+      "previous_reviewed_commit": "527247714aa4af40f1d5307a97d554352015c89c"
+    }
+  },
+  "completion_boundary": {
+    "local_diagnostic_contract": "done",
+    "composed_local_flow": "done_repository_level",
+    "t0_program": "implementing",
+    "past_generic_failures_reclassified": false,
+    "production_exit_gate_satisfied": false
+  }
+}
