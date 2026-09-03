@@ -450,6 +450,7 @@ function journalPaths(sessionRef, turnId, env) {
         turnRef,
         target: join(directory, `${turnRef}.json`),
         episode: join(directory, `${turnRef}.episode.json`),
+        turnInput: join(directory, `${turnRef}.turn-input.json`),
         events: join(directory, `${turnRef}.events`),
         continuation: join(directory, `${turnRef}.continuation.json`),
         autonomy: join(directory, `${turnRef}.autonomy.json`),
@@ -919,6 +920,17 @@ export async function startEpisode(payload, {
             () => verifyEpisode(createImmutableJson(paths.episode, entry, 'judgment_episode_start_conflict'))
         );
     }, env, 'judgment_episode_start_timeout'));
+}
+
+// Codex Desktop truncates long hook context, so turn_input is handed to the
+// model as a Host-owned file instead of an inline JSON line.
+function persistTurnInput(payload, episode, env) {
+    const identity = payloadIdentity(payload);
+    if (!identity || !record(episode?.turn_input)) return null;
+    const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+    mkdirSync(paths.directory, { recursive: true, mode: 0o700 });
+    createImmutableJson(paths.turnInput, episode.turn_input, 'judgment_turn_input_conflict');
+    return paths.turnInput;
 }
 
 async function bootstrapDelegatedEpisodeAtStop(payload, dependencies) {
@@ -1587,6 +1599,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                 throw new Error('judgment_turn_resolution_binding_invalid');
             }
         }
+        const turnResolutionMessage = kind === 'turn_resolution' && responseSuccess && turnResolution
+            ? `🧠 判断契約を確定しました。最終回答の先頭行は次のHost生成行に置き換えてください:\n${buildOwnerAudit(episode.turn_input, turnResolution).display_line}`
+            : null;
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
         const finalized = existingFinal(paths, episode);
@@ -1639,7 +1654,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             query_excerpt: callScope,
             safe_metadata: safeMetadata,
             display_line: displayLine,
-            system_message: systemMessage
+            system_message: systemMessage ?? turnResolutionMessage
         };
         return createImmutableJson(target, entry, 'judgment_tool_event_conflict');
     }, env);
@@ -2688,7 +2703,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
         const reasons = [
             ...(missingTurnResolution ? [
-                'mcp__brainbase__brainbase_resolve_turnを実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する'
+                `mcp__brainbase__brainbase_resolve_turnを実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputは${paths.turnInput}に保存済み。確定後はPostToolUseが返す新しい判断行を先頭行にする）`
             ] : []),
             ...(missingKnowledge ? [capabilityActionInstruction(
                 CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'],
@@ -3021,7 +3036,8 @@ export function successOutput(
     ownerAudit = buildOwnerAudit(args, receipt),
     auditContract = buildAuditContract(receipt),
     env = process.env,
-    hostSurface = null
+    hostSurface = null,
+    turnInputPath = null
 ) {
     const ownerReferenceLine = ownerAudit.display_line;
     const surfaceDegraded = hostSurface?.turn_resolution === 'unavailable';
@@ -3059,10 +3075,12 @@ export function successOutput(
             `This Codex thread cannot call ${TURN_RESOLUTION_TOOL_NAME}: its MCP tool surface predates the current Brainbase contract, and the Host recorded that tool failure from the transcript. Do not retry it, do not ask the user a classification question, and do not ask the user to restart; the Host-generated judgment line already reports the degraded state and that a new Codex task restores full judgment routing.`,
             'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
         ] : [
-            `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request.`,
-            'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed.'
+            typeof turnInputPath === 'string'
+                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. The Host stored turn_input unchanged at ${turnInputPath} (one JSON object). Load that file and pass its parsed content as turn_input without editing or rebuilding it (in exec: JSON.parse(fs.readFileSync(${JSON.stringify(turnInputPath)}, 'utf8'))). Add model_interpretation containing your semantic classification of the user request.`
+                : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request.`,
+            'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
+            'After that call succeeds, the PostToolUse system message names the new Host-generated judgment line; it replaces the bootstrap judgment line below as the first line of the final response.'
         ]),
-        'Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
         ...autonomyInstructions,
         ...implementationWorkflowInstructions,
         ...requiredCapabilityInstructions,
@@ -3118,9 +3136,11 @@ export async function processHookPayload(payload, dependencies = {}) {
     if (eventName === 'UserPromptSubmit') {
         const episode = await startEpisode(payload, dependencies);
         await dependencies.onEpisodeStarted?.(episode);
+        const env = dependencies.env ?? process.env;
+        const turnInputPath = withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, episode, env));
         return successOutput(
             episode.turn_input, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode),
-            dependencies.env ?? process.env, episode.host_surface ?? null
+            env, episode.host_surface ?? null, turnInputPath
         );
     }
     if (eventName === 'PostToolUse') {
