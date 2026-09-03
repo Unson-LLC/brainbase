@@ -344,8 +344,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain("Never substitute one path's evidence for the other");
         expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
         expect(read(delegatedVerifier)).toContain(
-            'Delegated live evidence must show exactly one user-visible Brainbase judgment receipt'
+            "assert.equal(final.owner_audit_source, 'stop_hook_system_message')"
         );
+        expect(read(delegatedVerifier)).toContain('The Host-rendered judgment receipt must not be duplicated in the assistant body');
         expect(read(delegatedVerifier)).toContain('Stop recovery must never claim pre-generation guidance');
         expect(story).toContain('2つのfresh task');
         expect(spec).toContain('2つの新しいCodexタスク');
@@ -1007,21 +1008,11 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_RUN_QUERY');
         expect(runbook).toContain('query-embedded source HEAD differs');
         expect(runbook).toContain('final receipt is at most one hour old');
-        expect(capability).toContain('exact Stop Hook-visible answer body');
-        expect(runbook).toContain('exact Stop Hook-visible answer body');
-        for (const surface of [capability, runbook]) {
-            expect(surface).toContain('only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block');
-            expect(surface).toMatch(/incomplete, embedded, or multiple citation block.*fails closed/iu);
-            expect(surface).not.toContain('answer digest binds that rendered message');
-            expect(surface).not.toContain('answer digest must match that rendered message');
-        }
-        for (const surface of [architecture, spec]) {
-            expect(surface).toContain('exact Stop Hook-visible answer body');
-            expect(surface).toContain('only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block');
-            expect(surface).toMatch(/incomplete, embedded, or multiple citation blocks.*fail(?:s)? closed/iu);
-            expect(surface).not.toMatch(/answer digest.*final assistant (?:message|`response_item`).*canonical JSONL transcript/iu);
-            expect(surface).not.toContain('that its digest matches the final receipt');
-            expect(surface).not.toContain('answer digest matching the final assistant message');
+        for (const surface of [capability, runbook, architecture, spec]) {
+            expect(surface).toContain('owner_audit_source=stop_hook_system_message');
+            expect(surface).toMatch(/owner UI or event stream|Codex Hook UI or event stream/iu);
+            expect(surface).toMatch(/model-authored.*(?:last_assistant_message|answer)/iu);
+            expect(surface).not.toMatch(/final (?:user-visible )?(?:answer|assistant message).*begins? with.*owner-visible|final user-visible answer starts with/iu);
         }
         expect(runbook).toContain('scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"');
         expect(runbook).toContain('brainbase-mcp-reconcile.last');

@@ -117,8 +117,11 @@ test('delegated fresh task proves post-generation recovery without impersonating
     assert.equal(final.route_application, 'post_generation_recovery');
     assert.equal(final.value_proof_state, 'outcome_verified');
     assert.equal(final.value_proof_digest, digest(valueProof));
+    assert.equal(final.owner_audit_source, 'stop_hook_system_message');
     assert.equal(final.stop_state?.status, 'completed');
     assert.equal(final.stop_state?.source, 'journal');
+    assert.equal(final.autonomy_continuation?.status, 'completed');
+    assert.equal(final.autonomy_continuation?.trigger_code, 'unnecessary_user_question');
     const finalizedAt = Date.parse(final.finalized_at);
     assert.ok(Number.isFinite(finalizedAt), 'Final receipt must retain a valid timestamp');
     assert.ok(Date.now() - finalizedAt <= 60 * 60 * 1000, 'Delegated live evidence must be finalized within one hour');
@@ -141,12 +144,23 @@ test('delegated fresh task proves post-generation recovery without impersonating
 
     const rendered = finalAnswer(entries, turnId);
     const expectedAudit = [episode.owner_audit.display_line, ...events.flatMap((event) => event.display_line ? [event.display_line] : [])];
-    assert.deepEqual(rendered.replaceAll('\r\n', '\n').split('\n').slice(0, expectedAudit.length), expectedAudit);
+    const renderedLines = rendered.replaceAll('\r\n', '\n').split('\n');
+    for (const line of new Set(expectedAudit)) {
+        assert.equal(
+            renderedLines.filter((candidate) => candidate === line).length,
+            0,
+            `Stop systemMessage owns the delegated audit surface; the assistant body must not duplicate it: ${line}`
+        );
+    }
     assert.equal(
         rendered.match(/Brainbase判断レシート/gu)?.length ?? 0,
-        1,
-        'Delegated live evidence must show exactly one user-visible Brainbase judgment receipt'
+        0,
+        'The Host-rendered judgment receipt must not be duplicated in the assistant body'
     );
-    assert.match(rendered, /🔁 自律継続:/u, 'Value proof must be bound to an actual Host continuation');
+    assert.equal(
+        final.autonomy_continuation?.interruption_candidate?.resolution,
+        'continued_without_human',
+        'Value proof must be bound to an actual Host continuation recorded in the final receipt'
+    );
     assert.notEqual(episode.route_application, 'pre_generation', 'Stop recovery must never claim pre-generation guidance');
 });

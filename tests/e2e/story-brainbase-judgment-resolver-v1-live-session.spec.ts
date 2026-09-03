@@ -110,7 +110,7 @@ function readFinalAssistantMessage(path, turnId) {
     return messages.at(-1).text;
 }
 
-function hookVisibleFinalAnswer(renderedAnswer) {
+function modelAuthoredAnswerBeforeAppMetadata(renderedAnswer) {
     const openingTag = '<oai-mem-citation>';
     const closingTag = '</oai-mem-citation>';
     const openingTags = [...renderedAnswer.matchAll(/<oai-mem-citation>/gu)];
@@ -133,54 +133,45 @@ function hookVisibleFinalAnswer(renderedAnswer) {
     return prefix;
 }
 
-test('hookVisibleFinalAnswer preserves an answer without a citation block', () => {
+test('modelAuthoredAnswerBeforeAppMetadata preserves an answer without a citation block', () => {
     const renderedAnswer = '本文のみ';
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-test('hookVisibleFinalAnswer removes one complete trailing citation block', () => {
+test('modelAuthoredAnswerBeforeAppMetadata removes one complete trailing citation block', () => {
     const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource\n</oai-mem-citation>';
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), '本文\n\n');
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), '本文\n\n');
 });
 
-test('hookVisibleFinalAnswer preserves an incomplete citation block', () => {
+test('modelAuthoredAnswerBeforeAppMetadata preserves an incomplete citation block', () => {
     const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource';
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-test('hookVisibleFinalAnswer preserves an embedded citation block', () => {
+test('modelAuthoredAnswerBeforeAppMetadata preserves an embedded citation block', () => {
     const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource\n</oai-mem-citation>\n\n続き';
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-test('hookVisibleFinalAnswer preserves multiple citation blocks joined by one newline', () => {
+test('modelAuthoredAnswerBeforeAppMetadata preserves multiple citation blocks joined by one newline', () => {
     const citation = '<oai-mem-citation>\nsource\n</oai-mem-citation>';
     const renderedAnswer = `本文\n${citation}\n${citation}`;
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-test('hookVisibleFinalAnswer preserves multiple citation blocks joined by a blank line', () => {
+test('modelAuthoredAnswerBeforeAppMetadata preserves multiple citation blocks joined by a blank line', () => {
     const citation = '<oai-mem-citation>\nsource\n</oai-mem-citation>';
     const renderedAnswer = `本文\n\n${citation}\n\n${citation}`;
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-function assertRenderedAuditTrace(answer, expectedLines) {
+function assertAuditTraceIsNotDuplicatedInAssistantBody(answer, expectedLines) {
     const lines = answer.replaceAll('\r\n', '\n').split('\n');
-    assert.deepEqual(
-        lines.slice(0, expectedLines.length),
-        expectedLines,
-        'The final user-visible answer must begin with the stored owner/tool audit lines in journal commit order'
-    );
-    const expectedCounts = new Map(expectedLines.map((line) => [
-        line,
-        expectedLines.filter((candidate) => candidate === line).length
-    ]));
-    for (const [line, count] of expectedCounts) {
+    for (const line of new Set(expectedLines)) {
         assert.equal(
             lines.filter((candidate) => candidate === line).length,
-            count,
-            `Stored audit line must appear exactly as many times as its recorded event: ${line}`
+            0,
+            `Stop systemMessage owns the audit surface; the assistant body must not duplicate it: ${line}`
         );
     }
 }
@@ -487,6 +478,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.equal(candidate.final.completion_status, 'complete');
     assert.equal(candidate.final.owner_audit_complete, true);
     assert.equal(candidate.final.owner_audit_line_count, 5);
+    assert.equal(candidate.final.owner_audit_source, 'stop_hook_system_message');
     assert.equal(candidate.final.event_count, 4);
     assert.equal(candidate.final.qualifying_event_count, 0);
     assert.match(candidate.final.answer_digest, /^[0-9a-f]{64}$/u);
@@ -498,11 +490,11 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         candidate.episode.owner_audit.display_line,
         ...candidate.events.map((event) => event.display_line)
     ];
-    assertRenderedAuditTrace(renderedAnswer, expectedAuditLines);
+    assertAuditTraceIsNotDuplicatedInAssistantBody(renderedAnswer, expectedAuditLines);
     assert.equal(
         candidate.final.answer_digest,
-        createHash('sha256').update(hookVisibleFinalAnswer(renderedAnswer)).digest('hex'),
-        'Final receipt must bind the exact Stop Hook-visible final answer before app-added memory citation metadata'
+        createHash('sha256').update(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer)).digest('hex'),
+        'Final receipt must bind the model-authored assistant body before app-added memory citation metadata'
     );
     const finalizedAt = Date.parse(candidate.final.finalized_at);
     const evidenceAgeMs = Date.now() - finalizedAt;
