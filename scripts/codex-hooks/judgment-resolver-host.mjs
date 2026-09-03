@@ -270,6 +270,7 @@ function readCanonicalTranscript(payload, env) {
     const delegations = [];
     const parsedEvents = [];
     const turnResolutionAttempts = new Map();
+    const injectedUserTurns = new Set();
     let turnResolutionSurface = { status: 'unknown', evidence: null };
     const text = readFileSync(canonicalPath, 'utf8');
     for (const line of text.split('\n')) {
@@ -346,9 +347,14 @@ function readCanonicalTranscript(payload, env) {
         if (eventPayload.type !== 'message') continue;
         if (!['user', 'assistant'].includes(String(eventPayload.role))) continue;
         const body = contentText(eventPayload.content);
-        if (!body.trim() || isInjectedHostEnvelope(body)) continue;
         const metadata = record(eventPayload.internal_chat_message_metadata_passthrough)
             ?? record(eventPayload.metadata);
+        if (!body.trim() || isInjectedHostEnvelope(body)) {
+            if (eventPayload.role === 'user' && body.trim() && typeof metadata?.turn_id === 'string') {
+                injectedUserTurns.add(metadata.turn_id);
+            }
+            continue;
+        }
         messages.push({
             sequence,
             turn_id: typeof metadata?.turn_id === 'string'
@@ -366,6 +372,7 @@ function readCanonicalTranscript(payload, env) {
         messages,
         delegations,
         turn_resolution_surface: turnResolutionSurface,
+        injected_user_turns: [...injectedUserTurns],
         complete: true
     };
 }
@@ -2417,6 +2424,20 @@ function assertNoOrphanAuditBarrier(identity, paths, env) {
     throw new Error('judgment_audit_degraded_start_conflict');
 }
 
+// Multi-agent wake-up turns (a subagent report resuming the parent thread)
+// carry only injected envelopes and no user request, so UserPromptSubmit never
+// opened an episode. They are not judgment turns and must not be audited as
+// orphans on every wake-up.
+function agentContinuationTurn(payload, identity, env) {
+    if (typeof payload.prompt === 'string' && payload.prompt.trim()) return false;
+    const transcript = readCanonicalTranscript(payload, env);
+    if (!transcript.complete) return false;
+    const turnId = identity.turnId;
+    return transcript.injected_user_turns.includes(turnId)
+        && !transcript.messages.some((message) => message.role === 'user' && message.turn_id === turnId)
+        && !transcript.delegations.some((delegation) => delegation.turn_id === turnId);
+}
+
 function handleOrphanStop(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new Error('judgment_episode_identity_missing');
@@ -2424,6 +2445,7 @@ function handleOrphanStop(payload, { env = process.env } = {}) {
     return withEpisodeTransitionLock(paths, () => {
         const episode = existingEpisode(payload, env);
         if (episode) return finalizeEpisodeLocked(payload, episode, paths, env).output;
+        if (agentContinuationTurn(payload, identity, env)) return {};
         const diagnosticState = existingOrCreateAuditFailure(payload, identity, paths, env);
         if (payload.stop_hook_active !== true && diagnosticState.created) {
             return {
