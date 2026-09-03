@@ -287,7 +287,12 @@ function isJudgmentReceipt(
     'suppressed_policies', 'required_capabilities', 'active_nodes', 'active_edges', 'active_node_definitions',
     'unresolved', 'rationale', 'plan_digest',
   ];
-  if (!isRecord(value) || !hasOnlyKeys(value, fields)) return false;
+  if (!isRecord(value)) return false;
+  // Servers before judgment-runtime-2.4.4 omit autonomy_policy_ids entirely.
+  const expectedFields = value.autonomy_policy_ids === undefined
+    ? fields.filter((field) => field !== 'autonomy_policy_ids')
+    : fields;
+  if (!hasOnlyKeys(value, expectedFields)) return false;
   if (!isNonEmptyString(value.resolution_id) || !isNonEmptyString(value.turn_id) || value.turn_id !== expected.args.turn_id) return false;
   if (typeof value.resolved_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value.resolved_at)) return false;
   const resolvedAt = new Date(value.resolved_at);
