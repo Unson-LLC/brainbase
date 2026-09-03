@@ -8,6 +8,14 @@ function read(path) {
     return readFileSync(path, 'utf8');
 }
 
+function expectProductionNotRunInUserFacingPrBody(body) {
+    expect(body).not.toContain('保存済み説明は現在の証拠と一致しないため表示していません');
+    const acceptanceCriteriaIndex = body.indexOf('## Acceptance criteria');
+    expect(acceptanceCriteriaIndex).toBeGreaterThanOrEqual(0);
+    const userFacingSummary = body.slice(0, acceptanceCriteriaIndex);
+    expect(userFacingSummary).toContain('現在の本番実行状態は production_execution_status=not_run');
+}
+
 describe('judgment resolver publication surfaces', () => {
     it('本番hotfix退避先を複数行出力から1件だけ抽出し、不正markerを拒否する', () => {
         const parser = 'scripts/extract-lightsail-hotfix-backup-dir.mjs';
@@ -289,13 +297,33 @@ describe('judgment resolver publication surfaces', () => {
         rmSync(remoteRoot, { recursive: true, force: true });
     });
 
-    it('PR成果物が本番実行前であることを明示する', () => {
+    it('利用者向けPR本文がAC引用とは別に本番実行前であることを明示する', () => {
         const marker = 'production_execution_status=not_run';
         expect(read('docs/management/stories/active/story-brainbase-production-artifact-reconciliation.md')).toContain(
             marker
         );
         expect(read('docs/architecture/story-brainbase-production-artifact-reconciliation.md')).toContain(marker);
         expect(read('.vibepro/spec/story-brainbase-production-artifact-reconciliation/spec.json')).toContain(marker);
+
+        expectProductionNotRunInUserFacingPrBody(`### 保存済みの判断説明
+
+現在の本番実行状態は production_execution_status=not_run。PR・CI完了後に本番反映します。
+
+## Acceptance criteria
+
+- AC-007: ${marker}
+`);
+        expect(() => expectProductionNotRunInUserFacingPrBody(`### 保存済みの判断説明
+
+> ⚠️ 保存済み説明は現在の証拠と一致しないため表示していません。
+
+## Acceptance criteria
+
+- AC-007: ${marker}
+`)).toThrow();
+
+        const generatedPrBody = '.vibepro/pr/story-brainbase-production-artifact-reconciliation/pr-body.md';
+        if (existsSync(generatedPrBody)) expectProductionNotRunInUserFacingPrBody(read(generatedPrBody));
     });
 
     it('通常taskと委譲taskの本番証拠を別E2E・別rollback条件に保つ', () => {
