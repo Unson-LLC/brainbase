@@ -439,9 +439,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(read(delegatedVerifier)).toContain('session_meta.payload.id');
         expect(read(delegatedVerifier)).toContain('Brainbase判断レシート exactly once');
         expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
-        expect(read(delegatedVerifier)).toContain(
-            "assert.equal(final.owner_audit_source, 'stop_hook_system_message')"
-        );
+        expect(read(delegatedVerifier)).toContain("'post_tool_use_system_message'");
         expect(read(delegatedVerifier)).toContain('The Host-rendered judgment receipt must not be duplicated in the assistant body');
         expect(read(delegatedVerifier)).toContain('Stop recovery must never claim pre-generation guidance');
         expect(story).toContain('2つのfresh task');
@@ -1115,6 +1113,18 @@ describe('judgment resolver publication surfaces', () => {
         expect(skill).toContain('既存task、過去artifact、direct entrypoint実行はlive activationの代用にならない');
     });
 
+    it('公開面がruntime 2.4のDesktop継続完了境界を同じ言葉で説明する', () => {
+        const readme = read('docs/brainbase-capabilities/README.md');
+        const capabilityMap = read('.claude/skills/brainbase-capability-map/SKILL.md');
+        const entrypoint = read('scripts/codex-hooks/judgment-resolver-entry.sh');
+
+        for (const surface of [readme, capabilityMap, entrypoint]) {
+            expect(surface).toContain('runtime 2.4');
+            expect(surface).toContain('PostToolUse');
+            expect(surface).toMatch(/継続.*完了|continuation.*complete/iu);
+        }
+    });
+
     it('audit fail-closed Story・Architecture・Spec・Taskを公開する', () => {
         const story = read('docs/management/stories/active/story-brainbase-judgment-audit-fail-closed.md');
         const architecture = read('docs/architecture/story-brainbase-judgment-audit-fail-closed.md');
@@ -1206,7 +1216,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('query-embedded source HEAD differs');
         expect(runbook).toContain('final receipt is at most one hour old');
         for (const surface of [capability, runbook, architecture, spec]) {
-            expect(surface).toContain('owner_audit_source=stop_hook_system_message');
+            expect(surface).toContain('stop_hook_system_message');
+            expect(surface).toContain('post_tool_use_system_message');
             expect(surface).toMatch(/owner UI or event stream|Codex Hook UI or event stream/iu);
             expect(surface).toMatch(/model-authored.*(?:last_assistant_message|answer)/iu);
             expect(surface).not.toMatch(/final (?:user-visible )?(?:answer|assistant message).*begins? with.*owner-visible|final user-visible answer starts with/iu);

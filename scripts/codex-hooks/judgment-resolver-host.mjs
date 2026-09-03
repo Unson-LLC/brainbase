@@ -5,6 +5,7 @@ import {
     chmodSync,
     closeSync,
     constants as fsConstants,
+    existsSync,
     linkSync,
     mkdirSync,
     openSync,
@@ -54,6 +55,7 @@ if (builtInSqlite) {
 
         pragma(statement) { this.database.exec(`PRAGMA ${statement}`); }
         exec(statement) { return this.database.exec(statement); }
+        prepare(statement) { return this.database.prepare(statement); }
         close() { return this.database.close(); }
     };
 } else {
@@ -1722,6 +1724,84 @@ function routeDisplayLine(input, data, success) {
     return `📚 Brainbase参照先: 「${query}」→ 採用: ${source}（${location}・${reason}）${exclusions ? `／除外: ${exclusions}` : ''} ✓`;
 }
 
+function codexDesktopSafePathRef(value, workingDirectory) {
+    const base = resolve(workingDirectory);
+    const target = isAbsolute(value) ? resolve(value) : resolve(base, value);
+    const reference = relative(base, target);
+    if (!reference || reference === '..' || reference.startsWith(`..${sep}`) || isAbsolute(reference)) {
+        return null;
+    }
+    return reference.split(sep).join('/');
+}
+
+function codexDesktopToolEvidence(payload, env) {
+    const databasePath = String(env.BRAINBASE_CODEX_THREAD_HISTORY_DB
+        || join(env.CODEX_HOME || join(homedir(), '.codex'), 'thread_history_1.sqlite'));
+    if (!existsSync(databasePath)) return null;
+    let database;
+    try {
+        database = new Database(databasePath, { timeout: 1000 });
+        const rows = database.prepare(`
+            SELECT item_type, item_json
+            FROM thread_items
+            WHERE thread_id = ? AND turn_id = ? AND item_id = ?
+            LIMIT 2
+        `).all(payload.session_id, payload.turn_id, payload.tool_use_id);
+        if (rows.length !== 1) return null;
+        const item = JSON.parse(rows[0].item_json);
+        if (item?.id !== payload.tool_use_id || item?.status !== 'completed') return null;
+        if (item?.type !== rows[0].item_type) return null;
+        const itemDigest = sha256(canonicalJson(item));
+        const workingDirectory = typeof item.cwd === 'string' && item.cwd
+            ? item.cwd
+            : typeof payload.cwd === 'string' && payload.cwd
+                ? payload.cwd
+                : REPO_ROOT;
+        const safePathRef = (value) => codexDesktopSafePathRef(value, workingDirectory);
+        if (rows[0].item_type === 'fileChange' && Array.isArray(item.changes)) {
+            const candidateRefs = item.changes
+                .map((change) => typeof change?.path === 'string' ? change.path.trim() : '')
+                .filter((value) => value && !value.includes('\0'))
+                .map(safePathRef);
+            if (candidateRefs.length !== item.changes.length || candidateRefs.some((value) => value === null)) return null;
+            const artifactRefs = [...new Set(candidateRefs)];
+            if (artifactRefs.length === 0) return null;
+            return {
+                eventKind: 'execution',
+                itemDigest,
+                safeMetadata: {
+                    artifact_refs: artifactRefs,
+                    evidence_source: 'codex_desktop_thread_history'
+                }
+            };
+        }
+        if (rows[0].item_type === 'commandExecution' && item.exitCode === 0 && Array.isArray(item.commandActions)) {
+            if (item.commandActions.length !== 1) return null;
+            const [action] = item.commandActions;
+            if (action?.type !== 'read' || typeof action.path !== 'string') return null;
+            const subjectPath = action.path.trim();
+            if (!subjectPath || subjectPath.includes('\0')) return null;
+            const subjectRef = safePathRef(subjectPath);
+            if (!subjectRef) return null;
+            return {
+                eventKind: 'retrieve',
+                itemDigest,
+                queryExcerpt: subjectRef,
+                safeMetadata: {
+                    subject_ref: subjectRef,
+                    retrieval_outcome: 'result',
+                    evidence_source: 'codex_desktop_thread_history'
+                }
+            };
+        }
+        return null;
+    } catch {
+        return null;
+    } finally {
+        database?.close();
+    }
+}
+
 export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
     const toolNameValue = payload?.tool_name ?? payload?.toolName;
@@ -1742,12 +1822,21 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     const inputValue = payload.tool_input === undefined ? null : payload.tool_input;
     const responseValue = payload.tool_response === undefined ? null : payload.tool_response;
-    const inputDigest = sha256(canonicalJson(inputValue));
+    const desktopEvidence = brainbaseTool ? null : codexDesktopToolEvidence(payload, env);
+    const inputDigest = sha256(canonicalJson(desktopEvidence
+        ? { hook_input: inputValue, desktop_item_digest: desktopEvidence.itemDigest }
+        : inputValue));
     const responseDigest = sha256(canonicalJson(responseValue));
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
     const callScope = brainbaseTool ? toolCallScope(toolName, inputValue) : 'tool execution';
     const resultCount = responseCount(responseValue);
-    const fallbackKind = judgmentStateTool ? 'state' : judgmentValueProofTool ? 'value_proof' : brainbaseTool ? eventKind(toolName) : 'execution';
+    const fallbackKind = judgmentStateTool
+        ? 'state'
+        : judgmentValueProofTool
+            ? 'value_proof'
+            : brainbaseTool
+                ? eventKind(toolName)
+                : desktopEvidence?.eventKind ?? 'execution';
     const retrieval = ['search', 'retrieve'].includes(fallbackKind)
         ? retrievalAudit(responseValue)
         : null;
@@ -1771,7 +1860,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const retrievalSemanticSuccess = BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME[toolName.replace(/^mcp__brainbase__/u, '')] === 'owner_audit'
         ? Boolean(retrieval)
         : Boolean(retrieval && semanticResult);
-    const responseSuccess = responseSucceeded(responseValue, {
+    const responseSuccess = Boolean(desktopEvidence) || responseSucceeded(responseValue, {
         allowTransportSuccess: brainbaseTool && ['search', 'retrieve'].includes(kind) && retrievalSemanticSuccess,
         allowExplicitSuccess: !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
@@ -1789,7 +1878,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     });
     const satisfiesKnowledgeExecution = kind === 'route';
     const retrievalResult = responseSuccess && ['search', 'retrieve'].includes(kind)
-        ? retrieval?.outcome ?? null
+        ? desktopEvidence?.safeMetadata?.retrieval_outcome ?? retrieval?.outcome ?? null
         : null;
     const patchText = toolName === 'apply_patch'
         ? typeof inputValue === 'string'
@@ -1812,7 +1901,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             path: typeof resolution.canonical_location.path === 'string' ? resolution.canonical_location.path : null
         } : null,
         retrieval_capability: typeof resolution.retrieval_capability === 'string' ? resolution.retrieval_capability : null
-    } : ['search', 'retrieve'].includes(kind) ? {
+    } : desktopEvidence ? desktopEvidence.safeMetadata : ['search', 'retrieve'].includes(kind) ? {
         subject_ref: callScope,
         retrieval_outcome: retrievalResult
     } : kind === 'execution' && executionArtifactRefs.length > 0 ? {
@@ -1956,7 +2045,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             input_digest: inputDigest,
             response_digest: responseDigest,
             event_fingerprint: fingerprint,
-            query_excerpt: callScope,
+            query_excerpt: desktopEvidence?.queryExcerpt ?? callScope,
             safe_metadata: safeMetadata,
             display_line: displayLine,
             system_message: systemMessage ?? turnResolutionMessage
@@ -2077,6 +2166,28 @@ function verifiedAutonomyContinuation(marker, auditContract) {
         throw new Error('judgment_autonomy_continuation_invalid');
     }
     return continuation;
+}
+
+function effectiveContinuationMarker(marker, episode) {
+    if (!record(marker) || record(marker.autonomy_continuation)) return marker;
+    const observed = record(marker.observed_interruption_candidate);
+    const contract = episodeAutonomyContract(episode);
+    if (contract?.decision !== 'continue'
+        || observed?.resolution !== 'continued_without_human'
+        || typeof observed.question_display_text !== 'string'
+        || observed.question_digest !== `sha256:${sha256(observed.question_display_text)}`) {
+        return marker;
+    }
+    return {
+        ...marker,
+        autonomy_continuation: {
+            count: 1,
+            trigger_code: 'unnecessary_user_question',
+            reason_code: contract.reasonCode,
+            status: 'requested',
+            interruption_candidate: observed
+        }
+    };
 }
 
 function verifiedStopRepair(marker, auditContract) {
@@ -2455,20 +2566,23 @@ function verifyExistingJudgmentValueProofAttention(paths, finalized = null) {
     }
 }
 
-export function finalizeEpisode(payload, { env = process.env } = {}) {
+export function finalizeEpisode(payload, {
+    env = process.env,
+    ownerAuditSource = 'stop_hook_system_message'
+} = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new Error('judgment_episode_identity_missing');
     const currentPaths = journalPaths(identity.sessionRef, identity.turnId, env);
     const directResult = withEpisodeTransitionLock(currentPaths, () => {
         const episode = existingEpisode(payload, env);
-        return episode ? finalizeEpisodeLocked(payload, episode, currentPaths, env) : null;
+        return episode ? finalizeEpisodeLocked(payload, episode, currentPaths, env, ownerAuditSource) : null;
     }, env);
     if (directResult) return directResult;
     const resolved = recoverEpisode(payload, identity, currentPaths, env);
     if (!resolved) throw new Error('judgment_episode_not_found');
     return withEpisodeTransitionLock(resolved.paths, () => {
         const episode = verifyEpisode(readJson(resolved.paths.episode));
-        return finalizeEpisodeLocked(payload, episode, resolved.paths, env);
+        return finalizeEpisodeLocked(payload, episode, resolved.paths, env, ownerAuditSource);
     }, env);
 }
 
@@ -2846,7 +2960,7 @@ export async function evaluateAutonomyStop(payload, {
     };
 }
 
-function finalizeEpisodeLocked(payload, episode, paths, env) {
+function finalizeEpisodeLocked(payload, episode, paths, env, ownerAuditSource = 'stop_hook_system_message') {
     const events = episodeEvents(paths);
     const hasTurnResolution = events.some((event) => event.success && event.satisfies.includes('judgment.resolve_turn'));
     const bootstrapEpisode = episode;
@@ -2862,6 +2976,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     try { existingContinuation = readJson(paths.continuation); } catch (error) {
         if (error?.code !== 'ENOENT') throw error;
     }
+    existingContinuation = effectiveContinuationMarker(existingContinuation, episode);
     const completedAuditOutput = (valueProof = null, valueProofAttention = null) => {
         const auditBlock = requiredAuditLines(episode, events, existingContinuation).join('\n');
         const valueSurface = renderJudgmentValueProofSurface(valueProof);
@@ -2952,6 +3067,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         let marker = existingContinuation;
         if (!marker) {
             const autonomyContract = episodeAutonomyContract(episode);
+            const observedQuestionBody = normalizedAnswerBody(answer, expectedAuditLines) ?? '';
+            const observedQuestion = missingTurnResolution && requestsUserInput(observedQuestionBody)
+                ? displayedQuestion(observedQuestionBody)
+                : null;
             const markerEntry = {
                 schema_version: 'brainbase-judgment-continuation-v2',
                 requested_at: new Date().toISOString(),
@@ -2960,6 +3079,15 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                     stop_repair: {
                         count: 1,
                         status: 'requested'
+                    }
+                } : {}),
+                ...(observedQuestion ? {
+                    observed_interruption_candidate: {
+                        resolution: 'continued_without_human',
+                        question_display_text: observedQuestion,
+                        question_digest: `sha256:${sha256(observedQuestion)}`,
+                        reason_code: null,
+                        source: 'pre_resolution_stop'
                     }
                 } : {}),
                 ...(autonomyContinuationRequested ? {
@@ -3083,7 +3211,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         event_set_digest: orderedEventSetDigest(events),
         owner_audit_complete: true,
         owner_audit_line_count: expectedAuditLines.length,
-        owner_audit_source: 'stop_hook_system_message',
+        owner_audit_source: ownerAuditSource,
         autonomy_compliance_status: autonomyCompliance.status,
         ...(autonomyCompliance.stopState ? {
             stop_state: {
@@ -3435,6 +3563,45 @@ export async function processHookPayload(payload, dependencies = {}) {
         const event = recordBrainbaseToolUse(payload, dependencies);
         if (event?.schema_version === 'brainbase-judgment-orphan-tool-event-v1') {
             return { systemMessage: ORPHAN_TOOL_EVENT_WARNING };
+        }
+        if (event?.event_kind === 'state' && event.success) {
+            const identity = payloadIdentity(payload);
+            const env = dependencies.env ?? process.env;
+            const paths = identity ? journalPaths(identity.sessionRef, identity.turnId, env) : null;
+            let continuation = null;
+            let episode = null;
+            if (paths) {
+                try {
+                    episode = verifyEpisode(readJson(paths.episode));
+                    continuation = readJson(paths.continuation);
+                } catch (error) {
+                    if (error?.code !== 'ENOENT') throw error;
+                }
+            }
+            const completedState = event.safe_metadata?.stop_state?.status === 'completed';
+            const effectiveReceipt = episode && paths
+                ? effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt
+                : null;
+            const postToolFinalizable = journalStopStateRequired(effectiveReceipt) && (
+                continuation?.autonomy_continuation
+                || continuation?.outcome_continuation
+                || continuation?.observed_interruption_candidate
+                || continuation?.stop_repair
+            );
+            if (completedState && postToolFinalizable) {
+                const result = finalizeEpisode({
+                    ...payload,
+                    last_assistant_message: null
+                }, {
+                    ...dependencies,
+                    env,
+                    ownerAuditSource: 'post_tool_use_system_message'
+                });
+                if (result.output?.decision === 'block') {
+                    return { systemMessage: result.output.reason };
+                }
+                return result.output;
+            }
         }
         return typeof event?.system_message === 'string'
             ? { systemMessage: event.system_message }

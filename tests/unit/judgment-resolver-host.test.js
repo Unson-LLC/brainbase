@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import Database from 'better-sqlite3';
 
 import {
     BRAINBASE_TOOL_KIND_BY_NAME,
@@ -47,6 +48,28 @@ function temporaryDirectory() {
     const path = mkdtempSync(join(tmpdir(), 'brainbase-judgment-host-'));
     temporaryPaths.push(path);
     return path;
+}
+
+function codexHistoryDatabase(path, items) {
+    const database = new Database(path);
+    database.exec(`
+        CREATE TABLE thread_items (
+            thread_id TEXT NOT NULL,
+            turn_id TEXT NOT NULL,
+            item_id TEXT NOT NULL,
+            item_json TEXT NOT NULL,
+            item_type TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (thread_id, turn_id, item_id)
+        )
+    `);
+    const insert = database.prepare(`
+        INSERT INTO thread_items (thread_id, turn_id, item_id, item_type, item_json)
+        VALUES (?, ?, ?, ?, ?)
+    `);
+    for (const item of items) {
+        insert.run(item.threadId, item.turnId, item.itemId ?? item.value.id, item.type, JSON.stringify(item.value));
+    }
+    database.close();
 }
 
 function hash(value) {
@@ -2650,6 +2673,234 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
+    it('Codex DesktopのfileChangeと単一readをtool_use_idで照合しvalue proof用証拠へ変換する', async () => {
+        const root = temporaryDirectory();
+        const databasePath = join(root, 'thread-history.sqlite');
+        const artifact = join(root, 'docs', 'existing.md');
+        const payload = {
+            session_id: 'session-desktop-evidence', turn_id: 'turn-desktop-evidence',
+            prompt: '既存文書を修正して読み戻して', cwd: root
+        };
+        codexHistoryDatabase(databasePath, [
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'fileChange',
+                value: {
+                    type: 'fileChange', id: 'desktop-file-change', status: 'completed',
+                    changes: [{ path: artifact, kind: { type: 'update' }, diff: '@@ -1 +1 @@\n-old\n+new' }]
+                }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
+                value: {
+                    type: 'commandExecution', id: 'desktop-readback', status: 'completed', exitCode: 0, cwd: root,
+                    command: `sed -n '1p' ${artifact}`,
+                    commandActions: [{ type: 'read', path: artifact }]
+                }
+            }
+        ]);
+        const env = {
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_CODEX_THREAD_HISTORY_DB: databasePath
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env, fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(args) })
+            })
+        });
+
+        const mutation = recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse', tool_name: 'apply_patch',
+            tool_use_id: 'desktop-file-change', tool_response: null
+        }, { env });
+        const readback = recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse', tool_name: 'exec_command',
+            tool_use_id: 'desktop-readback', tool_response: null
+        }, { env });
+
+        expect(mutation).toMatchObject({
+            event_kind: 'execution', success: true,
+            safe_metadata: {
+                artifact_refs: ['docs/existing.md'], evidence_source: 'codex_desktop_thread_history'
+            }
+        });
+        expect(readback).toMatchObject({
+            event_kind: 'retrieve', success: true, query_excerpt: 'docs/existing.md',
+            safe_metadata: {
+                subject_ref: 'docs/existing.md', retrieval_outcome: 'result',
+                evidence_source: 'codex_desktop_thread_history'
+            }
+        });
+        expect(JSON.stringify([mutation, readback])).not.toContain(root);
+    });
+
+    it('Codex Desktop履歴は別identity・不一致tool・未完了・複数read・読取不能を証拠へ採用しない', async () => {
+        const root = temporaryDirectory();
+        const databasePath = join(root, 'thread-history.sqlite');
+        const artifact = join(root, 'docs', 'existing.md');
+        const payload = {
+            session_id: 'session-desktop-negative', turn_id: 'turn-desktop-negative',
+            prompt: '既存文書を修正して読み戻して', cwd: root
+        };
+        codexHistoryDatabase(databasePath, [
+            {
+                threadId: 'other-session', turnId: payload.turn_id, type: 'fileChange',
+                value: { type: 'fileChange', id: 'wrong-session', status: 'completed', changes: [{ path: artifact }] }
+            },
+            {
+                threadId: payload.session_id, turnId: 'other-turn', type: 'fileChange',
+                value: { type: 'fileChange', id: 'wrong-turn', status: 'completed', changes: [{ path: artifact }] }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, itemId: 'mismatched-tool', type: 'fileChange',
+                value: { type: 'fileChange', id: 'different-item-id', status: 'completed', changes: [{ path: artifact }] }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'fileChange',
+                value: { type: 'fileChange', id: 'incomplete-item', status: 'inProgress', changes: [{ path: artifact }] }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
+                value: {
+                    type: 'commandExecution', id: 'multiple-read', status: 'completed', exitCode: 0, cwd: root,
+                    commandActions: [{ type: 'read', path: artifact }, { type: 'read', path: join(root, 'docs', 'other.md') }]
+                }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
+                value: {
+                    type: 'commandExecution', id: 'read-with-write', status: 'completed', exitCode: 0, cwd: root,
+                    commandActions: [{ type: 'read', path: artifact }, { type: 'write', path: artifact }]
+                }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
+                value: {
+                    type: 'commandExecution', id: 'failed-read', status: 'completed', exitCode: 1, cwd: root,
+                    commandActions: [{ type: 'read', path: artifact }]
+                }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'fileChange',
+                value: {
+                    type: 'fileChange', id: 'outside-file-change', status: 'completed', cwd: root,
+                    changes: [{ path: join(root, '..', 'outside.md') }]
+                }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'fileChange',
+                value: {
+                    type: 'fileChange', id: 'mixed-malformed-file-change', status: 'completed', cwd: root,
+                    changes: [{ path: artifact }, { path: '' }, { path: 42 }, { path: 'docs/\u0000invalid.md' }]
+                }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'fileChange',
+                value: {
+                    type: 'commandExecution', id: 'mismatched-item-type', status: 'completed', cwd: root,
+                    changes: [{ path: artifact }]
+                }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
+                value: {
+                    type: 'commandExecution', id: 'outside-read', status: 'completed', exitCode: 0, cwd: root,
+                    commandActions: [{ type: 'read', path: join(root, '..', 'outside.md') }]
+                }
+            }
+        ]);
+        const env = {
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_CODEX_THREAD_HISTORY_DB: databasePath
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env, fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(args) })
+            })
+        });
+
+        for (const toolUseId of [
+            'wrong-session', 'wrong-turn', 'mismatched-tool', 'incomplete-item',
+            'multiple-read', 'read-with-write', 'failed-read', 'outside-file-change',
+            'mixed-malformed-file-change', 'mismatched-item-type', 'outside-read'
+        ]) {
+            const recorded = recordBrainbaseToolUse({
+                ...payload, hook_event_name: 'PostToolUse', tool_name: 'exec_command',
+                tool_use_id: toolUseId, tool_response: null
+            }, { env });
+            expect(recorded).toMatchObject({ success: false, safe_metadata: {} });
+        }
+
+        const unreadable = recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse', tool_name: 'exec_command',
+            tool_use_id: 'unreadable-history', tool_response: null
+        }, {
+            env: {
+                ...env,
+                BRAINBASE_CODEX_THREAD_HISTORY_DB: root
+            }
+        });
+        expect(unreadable).toMatchObject({ success: false, safe_metadata: {} });
+    });
+
+    it('Codex Desktopが継続後にStopを再実行しなくても最後の状態PostToolUseで監査を確定して表示する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-post-tool-finalize', turn_id: 'turn-post-tool-finalize', prompt: '修正して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        await startEpisode(payload, {
+            env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+
+        const blocked = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: 'この修正を進めてもよいですか？'
+        }, { env });
+        expect(blocked.output).toMatchObject({ decision: 'block' });
+
+        await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'apply_patch', tool_use_id: 'tool-post-finalize-apply',
+            tool_input: { patch_digest: 'post-finalize' }, tool_response: { success: true }
+        }, { env });
+        const completed = await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-post-finalize-state',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }, { env });
+
+        expect(completed.systemMessage).toContain('🧠 判断参照:');
+        expect(completed.systemMessage).toContain('📚 Brainbase未参照:');
+        const final = JSON.parse(readFileSync(join(
+            env.BRAINBASE_JUDGMENT_JOURNAL_DIR,
+            hash(payload.session_id),
+            `${hash(payload.turn_id)}.final.json`
+        ), 'utf8'));
+        expect(final).toMatchObject({
+            completion_status: 'complete',
+            owner_audit_source: 'post_tool_use_system_message',
+            stop_state: { status: 'completed', source: 'journal' }
+        });
+        expect(final.answer_digest).toBeNull();
+    });
+
     it('runtime 2.4のescalateはHost確定理由と異なるjournal状態をPostToolUseで拒否する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
@@ -2724,12 +2975,20 @@ describe('Codex Judgment Resolver Host', () => {
                 '本番反映を完了しました。'
             ].join('\n')
         }, { env });
+        const retriedState = await processHookPayload({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-escalate-state-completed-retry',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }, { env });
 
         expect(event).toMatchObject({ success: false });
         expect(event.system_message).toContain('runtime_reason_code=risk_or_external');
         expect(result.output).toMatchObject({ decision: 'block' });
         expect(result.output.reason).toContain('Host確定判断は人間確認必須');
         expect(result.final).toBeNull();
+        expect(retriedState.systemMessage).toContain('runtime_reason_code=risk_or_external');
+        expect(existsSync(join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`))).toBe(false);
     });
 
     it('runtime 2.4のescalateは安全な作業が残るpendingを受理しStopで継続を要求する', async () => {
@@ -3729,6 +3988,196 @@ describe('turn_input handoff and resolved judgment line', () => {
         }, { env });
         expect(stopped.output.decision).toBeUndefined();
         expect(stopped.final.completion_status).toBe('complete');
+    });
+
+    it('未分類の初回Stopで観測した確認質問をresolve_turn後の最終状態へ束縛してPostToolUseで完了する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-resolved-post-tool', turn_id: 'turn-resolved-post-tool',
+            prompt: 'この修正を行って', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: bootstrapReceipt(args) })
+            })
+        });
+
+        const blocked = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: 'この修正を進めてもよいですか？'
+        }, { env });
+        expect(blocked.output).toMatchObject({ decision: 'block' });
+        expect(blocked.continuation).toMatchObject({
+            observed_interruption_candidate: {
+                resolution: 'continued_without_human',
+                question_display_text: 'この修正を進めてもよいですか？',
+                source: 'pre_resolution_stop'
+            }
+        });
+
+        const modelInterpretation = {
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'low', confidence: 'confirmed', signals: []
+        };
+        const resolved = {
+            ...validReceipt(args),
+            resolution_id: 'jr_resolved_post_tool',
+            runtime_version: 'judgment-runtime-2.4.0',
+            request_digest: hash(canonicalJson({ ...args, model_interpretation: modelInterpretation })),
+            status: 'resolved', classification: modelInterpretation, required_capabilities: [], selected_dag_ids: [],
+            autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const turnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
+        await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'tool-resolve-post-tool',
+            tool_input: { turn_ref: turnRef, model_interpretation: modelInterpretation },
+            tool_response: { status: 'ok', data: resolved }
+        }, { env });
+        await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'apply_patch', tool_use_id: 'tool-resolved-post-tool-apply',
+            tool_input: { patch_digest: 'resolved-post-tool' }, tool_response: { success: true }
+        }, { env });
+        const completed = await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-resolved-post-tool-state',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }, { env });
+
+        expect(completed.systemMessage).toContain('🔁 自律継続:');
+        const final = JSON.parse(readFileSync(join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`), 'utf8'));
+        expect(final).toMatchObject({
+            completion_status: 'complete',
+            owner_audit_source: 'post_tool_use_system_message',
+            autonomy_continuation: {
+                status: 'completed', trigger_code: 'unnecessary_user_question', reason_code: 'routine_in_scope',
+                interruption_candidate: { question_display_text: 'この修正を進めてもよいですか？' }
+            }
+        });
+    });
+
+    it('runtime 2.3はcompleted state PostToolUseだけではfinal receiptを確定しない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-runtime-23-post-tool',
+            turn_id: 'turn-runtime-23-post-tool', prompt: 'この修正を行って', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args), runtime_version: 'judgment-runtime-2.3.0',
+                    classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+                    selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
+                    allowed_runtime_escalation_reasons: [
+                        'irreversible_action', 'missing_authority', 'owner_value_choice',
+                        'required_input_unavailable', 'evidenced_terminal_blocker'
+                    ]
+                } })
+            })
+        });
+
+        const blocked = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: 'この修正を進めてもよいですか？'
+        }, { env });
+        expect(blocked.output).toMatchObject({ decision: 'block' });
+
+        await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'apply_patch', tool_use_id: 'tool-runtime-23-apply',
+            tool_input: {}, tool_response: { success: true }
+        }, { env });
+        const completed = await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-runtime-23-state',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }, { env });
+
+        expect(completed.systemMessage).toBeUndefined();
+        expect(existsSync(join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`))).toBe(false);
+    });
+
+    it('runtime 2.4の必須参照だけを差し戻したStop修復も最後のstate PostToolUseで確定する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-runtime-24-knowledge-repair',
+            turn_id: 'turn-runtime-24-knowledge-repair', prompt: '正本を確認して修正して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'implement', action_kind: 'write', risk: 'low', domains: ['engineering'] },
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }],
+            autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({
+            ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt })
+        }) });
+        recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse', tool_name: 'apply_patch', tool_use_id: 'knowledge-repair-apply',
+            tool_input: {}, tool_response: { success: true }
+        }, { env });
+        await processHookPayload({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'knowledge-repair-state-before-stop',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }, { env });
+
+        const blocked = finalizeEpisode({
+            ...payload, hook_event_name: 'Stop', stop_hook_active: false,
+            last_assistant_message: '正本を修正しました。'
+        }, { env });
+        expect(blocked.output).toMatchObject({ decision: 'block' });
+        expect(blocked.continuation).toMatchObject({
+            missing_capabilities: ['knowledge.resolve'], stop_repair: { count: 1, status: 'requested' }
+        });
+        expect(blocked.continuation.autonomy_continuation).toBeUndefined();
+
+        recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'knowledge-repair-route',
+            tool_input: { intent: '正本を確認', audience: 'team', content_type: 'team_document' },
+            tool_response: { status: 'ok', data: {
+                resolution_id: 'kr_runtime_24_repair', status: 'resolved', source_class: 'owning_repo',
+                canonical_location: { repository: 'project:brainbase', path: 'docs/' },
+                retrieval_capability: 'repository.read', searched_scope: ['owning_repo'], absence_confirmed: false,
+                excluded_sources: [], rationale: '正本を採用'
+            } }
+        }, { env });
+        const completed = await processHookPayload({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'knowledge-repair-final-state',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }, { env });
+
+        expect(completed.systemMessage).toContain('🛠️ Stop修復:');
+        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
+        expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
+            completion_status: 'complete', owner_audit_source: 'post_tool_use_system_message',
+            stop_repair: { count: 1, status: 'completed' }
+        });
     });
 
     it('resolve_turnをturn_refで呼んだPostToolUseもbindingを認め、他turnのturn_refは拒否する', async () => {

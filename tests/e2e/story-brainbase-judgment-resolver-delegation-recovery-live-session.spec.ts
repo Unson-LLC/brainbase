@@ -241,7 +241,16 @@ test('delegated fresh task proves post-generation recovery without impersonating
     assert.equal(final.route_application, 'post_generation_recovery');
     assert.equal(final.value_proof_state, 'outcome_verified');
     assert.equal(final.value_proof_digest, digest(valueProof));
-    assert.equal(final.owner_audit_source, 'stop_hook_system_message');
+    assert.equal(
+        final.owner_audit_source,
+        'post_tool_use_system_message',
+        'A delegated continuation must finalize at its last completed state PostToolUse event'
+    );
+    assert.equal(
+        final.answer_digest,
+        null,
+        'PostToolUse finalization must not claim an unavailable model-answer digest'
+    );
     assert.equal(final.stop_state?.status, 'completed');
     assert.equal(final.stop_state?.source, 'journal');
     assert.equal(final.autonomy_continuation?.status, 'completed');
@@ -281,7 +290,7 @@ test('delegated fresh task proves post-generation recovery without impersonating
         assert.equal(
             renderedLines.filter((candidate) => candidate === line).length,
             0,
-            `Stop systemMessage owns the delegated audit surface; the assistant body must not duplicate it: ${line}`
+            `The Host lifecycle systemMessage owns the delegated audit surface; the assistant body must not duplicate it: ${line}`
         );
     }
     assert.equal(

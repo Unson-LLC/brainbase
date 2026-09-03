@@ -1,16 +1,17 @@
 id: judgment.resolve
 name: Host judgment episode lifecycle
-purpose: Open one unresolved context-bound judgment episode at UserPromptSubmit, require the Codex model to resolve it through Brainbase before answering, record actual Brainbase calls, and finalize one auditable episode receipt at Stop without authorizing the eventual action.
+purpose: Open one unresolved context-bound judgment episode at UserPromptSubmit, require the Codex model to resolve it through Brainbase before answering, record actual Brainbase calls, and finalize one auditable episode receipt at its contract-defined lifecycle boundary without authorizing the eventual action.
 surfaces:
   ui:
     - Codex in-progress systemMessage when Stop rejects an unnecessary user question
-    - Complete Stop systemMessage containing the journal-derived owner audit and optional judgment value-proof surfaces
+    - Completing lifecycle-event systemMessage containing the journal-derived owner audit and optional judgment value-proof surfaces
     - Final autonomy-continuation and Stop-repair lines only when the immutable continuation journal proves completion
   mcp: [brainbase_resolve_turn]
   host:
     - UserPromptSubmit -> POST http://127.0.0.1:39002/host/judgment/resolve
     - PostToolUse -> append-only Brainbase tool event
-    - Stop -> bounded Codex App delegation recovery when needed, then atomic final episode receipt
+    - Stop -> bounded Codex App delegation recovery when needed, then normal atomic final episode receipt
+    - final completed state PostToolUse -> atomic final receipt for a previously rejected runtime 2.4 continuation
   api:
     - POST /api/judgment/resolve
   code:
@@ -50,10 +51,11 @@ visibility_rules:
   - Knowledge Resolver deterministically chooses a canonical source route and required retrieval capability; it does not search or retrieve content.
   - PostToolUse records only actual `mcp__brainbase__*` outcomes and emits a short owner-visible line that accurately distinguishes reference routing, searching, retrieval, and writes.
   - Only successful exact `mcp__brainbase__brainbase_knowledge_resolve` calls satisfy a required `knowledge.resolve`; unrelated or failed calls do not.
-  - Same-turn episode start, PostToolUse commits, and Stop finalization share a per-turn SQLite immediate transaction; concurrent calls receive a unique event sequence in journal-commit order, and process exit releases the lock without stale-path deletion.
+  - Same-turn episode start, PostToolUse commits, and lifecycle finalization share a per-turn SQLite immediate transaction; concurrent calls receive a unique event sequence in journal-commit order, and process exit releases the lock without stale-path deletion.
   - Episode creation stores the exact Stop audit contract and lifecycle marker. A runtime deployment during an active turn cannot add a new owner-visible line or repair policy to that already-open episode.
   - >-
     Stop validates required capabilities, autonomy, continuation, and business-body evidence, binds the exact Stop Hook-visible model answer, then finalizes one complete episode receipt and returns the complete journal-derived owner audit/value surface as one `systemMessage`; the model does not reproduce those lines. `final.json` records `owner_audit_source=stop_hook_system_message`; `answer_digest` binds the exact raw model-authored `last_assistant_message`, not the Host `systemMessage`. Transcript comparison may exclude only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block added later by the Codex application; an incomplete, embedded, or multiple citation block remains part of comparison and fails closed on mismatch. When a continue receipt rejects an unnecessary user question, the first Stop emits the short Host-generated `🔁` in-progress systemMessage and stores count, trigger, reason, and requested status in the immutable continuation journal. After the safe work completes, the Host renders the episode-bound `🔁 自律継続` line and any journal-proven `🛠️ Stop修復` line in the completed Stop `systemMessage`. Every repairable Stop rejection records one Host-owned `stop_repair` marker. A model-authored `🛠️` line without that marker is rejected; any unjournaled `🔁` copy is also rejected. A missing required route, autonomy, continuation, or business-body condition returns `decision:block` on the first repairable Stop and writes no final receipt. Stop blocks at most once per episode: if a continuation marker already exists and the active repeated Stop (stop_hook_active=true) is still incomplete, it converges to a finalized `audit_degraded` receipt (`degradation_reason` names the first missing capability, `missing_capabilities` lists them all) and appends `⚠️ 監査縮退: <reason>` to the Host `systemMessage`. audit_degraded finals are never enqueued to the knowledge outbox (only `completion_status: complete` is). A true orphan Stop requests one warning-preserving repair, then exits 0 with a non-final `audit_degraded` receipt; that immutable barrier rejects a late Start for the same identity. Missing identity, diagnostic or degraded integrity conflict, and transaction-acquisition timeout remain terminal fail-closed errors. When knowledge is optional and zero Brainbase calls were recorded, the Host audit block explicitly reports zero calls. Audit-only repair stores only the normalized non-audit body digest and character count, then rejects a retry if the business body was deleted, summarized, or replaced.
+  - 差し戻し済みruntime 2.4 continuationでは、最後の正常なstate PostToolUseが将来のStop有無に依存しない正規の確定境界となり、`owner_audit_source=post_tool_use_system_message`と`answer_digest=null`を記録する。後続Stopは同じimmutable finalをreplayする。差し戻しのない通常経路をStopで確定した場合は`owner_audit_source=stop_hook_system_message`となる。
   - For implement/operate requests, Stop also rejects a final answer that only describes a pending remediation target or future fix without completion or no-change evidence. It stores trigger `unfinished_safe_work`, uses the owner-visible `🔁 未完了` progress line, and requires the episode-bound `🔁 実行継続` completion line. This completion contract does not claim semantic content verification.
   - Static Hook definitions are only installed state. Codex Host hooks/list must report all three current bindings as trusted and matcher-correct before the checker returns ready_for_fresh_task. Modified or untrusted definitions are trust_required; the owner approves them through /hooks, and only a task created afterwards can provide proven_active live evidence. Repository code never writes trusted_hash.
   - Each active node has a manifest-owned executable definition; only selected branches run.
@@ -76,7 +78,7 @@ verification:
     - A normal start and recovered start are distinguishable in both episode and final receipts; a recovered route cannot be represented as pre-generation.
     - A mixed-session transcript cannot provide a recovery candidate even when a foreign delegation reuses the current turn ID.
     - Multiple distinct Brainbase calls create multiple immutable events; replay creates no duplicate.
-    - The completed Stop `systemMessage` contains the stored owner judgment and tool-event lines exactly once in journal-commit order, followed by optional value-proof surfaces, and `final.json` records `owner_audit_source=stop_hook_system_message`. The final receipt `answer_digest` binds the exact model-authored `last_assistant_message`; the assistant body does not duplicate the Host audit surface. Production acceptance reads the actual owner UI or event stream because transcript `response_item` formatting is not the Hook surface contract.
+    - The completing Stop or final state PostToolUse `systemMessage` contains the stored owner judgment and tool-event lines exactly once in journal-commit order, followed by optional value-proof surfaces. `final.json` records the matching source as `stop_hook_system_message` or `post_tool_use_system_message`. Production acceptance reads the actual owner UI or event stream because transcript `response_item` formatting is not the Hook surface contract.
     - The Stop audit contract is bound at episode start, and an audit-only continuation cannot complete after shortening the original non-audit answer body.
     - Raw tool input/output and secret-like values are absent from journals and owner-visible lines.
     - Zero Brainbase calls is complete when no Brainbase capability is required.

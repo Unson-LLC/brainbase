@@ -3,12 +3,14 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import Database from 'better-sqlite3';
 
 import {
   buildJudgmentRequest,
   buildOwnerReferenceLine,
   canonicalJson,
   finalizeEpisode,
+  processHookPayload,
   recordBrainbaseToolUse,
   startEpisode,
   successOutput,
@@ -20,6 +22,22 @@ function temporaryDirectory() {
   const path = mkdtempSync(join(tmpdir(), 'brainbase-value-proof-host-'));
   temporaryPaths.push(path);
   return path;
+}
+
+function codexHistoryDatabase(path, items) {
+  const database = new Database(path);
+  database.exec(`
+    CREATE TABLE thread_items (
+      thread_id TEXT NOT NULL, turn_id TEXT NOT NULL, item_id TEXT NOT NULL,
+      item_json TEXT NOT NULL, item_type TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (thread_id, turn_id, item_id)
+    )
+  `);
+  const insert = database.prepare('INSERT INTO thread_items VALUES (?, ?, ?, ?, ?)');
+  for (const item of items) {
+    insert.run(item.threadId, item.turnId, item.value.id, JSON.stringify(item.value), item.type);
+  }
+  database.close();
 }
 
 function hash(value) {
@@ -105,6 +123,101 @@ function valueProofInput(overrides = {}) {
 }
 
 describe('Judgment Resolver Host value proof integration', () => {
+  it('Codex Desktopの実行とreadback証拠で最後の状態PostToolUseから確認済みレシートを表示する', async () => {
+    const root = temporaryDirectory();
+    const artifact = join(root, 'docs', 'existing.md');
+    const databasePath = join(root, 'thread-history.sqlite');
+    const payload = {
+      session_id: 'session-desktop-value-proof', turn_id: 'turn-desktop-value-proof',
+      prompt: '既存の正本を更新して読み戻して', cwd: root,
+    };
+    codexHistoryDatabase(databasePath, [
+      {
+        threadId: payload.session_id, turnId: payload.turn_id, type: 'fileChange',
+        value: {
+          type: 'fileChange', id: 'desktop-execution', status: 'completed',
+          changes: [{ path: artifact, kind: { type: 'update' }, diff: '@@ -1 +1 @@\n-old\n+new' }],
+        },
+      },
+      {
+        threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
+        value: {
+          type: 'commandExecution', id: 'desktop-readback', status: 'completed', exitCode: 0, cwd: root,
+          command: `sed -n '1p' ${artifact}`,
+          commandActions: [{ type: 'read', path: artifact }],
+        },
+      },
+    ]);
+    const env = {
+      BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+      BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'enabled',
+      BRAINBASE_CODEX_THREAD_HISTORY_DB: databasePath,
+    };
+    const args = buildJudgmentRequest(payload, { env });
+    const receipt = receiptFor(args);
+    await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }),
+    }) });
+
+    const question = '既存文書を更新するか、新規文書を作るか？';
+    const interrupted = finalizeEpisode({
+      hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+      stop_hook_active: false, last_assistant_message: question,
+    }, { env });
+    expect(interrupted.output.decision).toBe('block');
+
+    recordBrainbaseToolUse({
+      ...payload, hook_event_name: 'PostToolUse', tool_name: 'apply_patch',
+      tool_use_id: 'desktop-execution', tool_response: null,
+    }, { env });
+    recordBrainbaseToolUse({
+      ...payload, hook_event_name: 'PostToolUse', tool_name: 'exec_command',
+      tool_use_id: 'desktop-readback', tool_response: null,
+    }, { env });
+    const proof = valueProofInput({
+      interruption: { question_display_text: question },
+      execution: {
+        summary: '既存文書を更新した',
+        artifact_refs: [{ kind: 'file', ref: 'docs/existing.md', label: '既存文書' }],
+      },
+      outcome: {
+        status: 'outcome_verified', summary: '変更後の正本を読み戻した',
+        evidence_refs: [
+          { kind: 'tool_event', tool_use_id: 'desktop-execution', subject_ref: 'docs/existing.md', label: '正本更新' },
+          { kind: 'canonical_readback', tool_use_id: 'desktop-readback', subject_ref: 'docs/existing.md', label: '正本読み戻し' },
+        ],
+      },
+    });
+    recordBrainbaseToolUse({
+      ...payload, hook_event_name: 'PostToolUse',
+      tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record',
+      tool_use_id: 'desktop-value-proof', tool_input: proof,
+      tool_response: { status: 'ok', data: proof },
+    }, { env });
+    const completed = await processHookPayload({
+      ...payload, hook_event_name: 'PostToolUse',
+      tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
+      tool_use_id: 'desktop-final-state',
+      tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+      tool_response: { status: 'ok', data: {
+        schema_version: 'brainbase-stop-state-v1', status: 'completed',
+        pending_safe_work: false, runtime_reason_code: null,
+      } },
+    }, { env });
+
+    expect(completed.systemMessage).toContain('Brainbase判断レシート');
+    expect(completed.systemMessage).toContain('結果: 変更後の正本を読み戻した');
+    expect(completed.systemMessage).toContain('状態: 成果確認済み');
+    const directory = join(root, 'journal', hash(payload.session_id));
+    const turnRef = hash(payload.turn_id);
+    expect(JSON.parse(readFileSync(join(directory, `${turnRef}.final.json`), 'utf8'))).toMatchObject({
+      completion_status: 'complete', owner_audit_source: 'post_tool_use_system_message',
+      value_proof_state: 'outcome_verified',
+    });
+    expect(JSON.parse(readFileSync(join(directory, `${turnRef}.value-proof.json`), 'utf8')))
+      .toMatchObject({ state: 'outcome_verified' });
+  });
+
   it('records a hidden structured event and appends a result-first receipt after the legacy audit block', async () => {
     const root = temporaryDirectory();
     const env = {

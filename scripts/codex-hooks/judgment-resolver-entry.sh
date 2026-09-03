@@ -1,6 +1,7 @@
 #!/bin/bash
-# Codex judgment lifecycle entrypoint: open on UserPromptSubmit, record Brainbase
-# calls on PostToolUse, and finalize once on Stop.
+# Codex judgment lifecycle entrypoint: open on UserPromptSubmit and record Brainbase
+# calls on PostToolUse. Runtime 2.3 finalizes on Stop; runtime 2.4 may finalize a
+# previously rejected continuation on completed-state PostToolUse when Desktop omits Stop.
 
 set -euo pipefail
 

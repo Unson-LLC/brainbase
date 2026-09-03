@@ -53,7 +53,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T00:58:56.303Z",
-      "last_revised_at": "2026-09-02T01:17:31.525Z"
+      "last_revised_at": "2026-09-03T20:35:42.267Z"
     },
     {
       "id": "INV-001",
@@ -109,7 +109,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T00:58:56.303Z",
-      "last_revised_at": "2026-09-02T01:17:31.525Z"
+      "last_revised_at": "2026-09-03T20:35:42.267Z"
     },
     {
       "id": "C-002",
@@ -158,7 +158,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T00:58:56.303Z",
-      "last_revised_at": "2026-09-02T01:17:31.525Z"
+      "last_revised_at": "2026-09-03T20:35:42.267Z"
     },
     {
       "id": "C-003",
@@ -207,7 +207,72 @@
         ]
       },
       "first_seen_at": "2026-09-02T02:43:00.000Z",
-      "last_revised_at": "2026-09-02T02:43:00.000Z"
+      "last_revised_at": "2026-09-03T20:35:42.267Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "差し戻し済みruntime 2.4 continuationは、将来のStop有無を予測せず、同一episodeの最後の正常なcompleted state PostToolUseを正規の確定境界としてcomplete finalと判断レシートを確定する。owner_audit_sourceはpost_tool_use_system_message、answer_digestはnullとし、後続Stopはimmutable finalをreplayする。成果物と正本読戻しはthread_itemsをsession_id、turn_id、tool_use_idで照合した完了済みfileChangeと単一readだけから採用する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-judgment-episode-live-value-receipt.md",
+            "section": "データ経路"
+          },
+          {
+            "file": "docs/architecture/story-judgment-episode-live-value-receipt.md",
+            "section": "真実性境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "codexDesktopToolEvidence"
+          },
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "processHookPayload"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "Codex DesktopのfileChangeと単一readをtool_use_idで照合しvalue proof用証拠へ変換する"
+          },
+          {
+            "file": "tests/unit/judgment-resolver-host-value-proof.test.js",
+            "case": "Codex Desktopの実行とreadback証拠で最後の状態PostToolUseから確認済みレシートを表示する"
+          },
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "runtime 2.4の$intent/$actionKindは差し戻し後のcompleted state PostToolUseでStop再送なしに確定する"
+          },
+          {
+            "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "case": "runtime 2.4のescalateは実Hook入口で不正状態を可視拒否し、Host確定理由のwaiting_humanだけを完了させる"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host*.test.js",
+            "must_cover": "Codex Desktop"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-03T20:35:42.267Z",
+      "last_revised_at": "2026-09-03T20:35:42.267Z"
     }
   ],
   "planned_test_suites": [
@@ -234,5 +299,5 @@
   ],
   "open_questions": [],
   "generated_at": "2026-09-02T00:58:56.300Z",
-  "previous_spec_id": null
+  "previous_spec_id": "2026-09-02T00:58:56.300Z"
 }
