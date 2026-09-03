@@ -79,17 +79,21 @@ const classificationSchema = {
 
 export const judgmentResolutionTools: Tool[] = [{
   name: 'brainbase_resolve_turn',
-  description: 'Resolve the current turn contract after the model has interpreted the user request. Call exactly once before other work; pass the Hook-provided turn_input unchanged (or, preferably, the Hook-provided file reference as turn_input: {"turn_input_path": "<path>"}) and add only model_interpretation.',
+  description: 'Resolve the current turn contract after the model has interpreted the user request. Call exactly once before other work; pass the Hook-provided turn_ref unchanged (preferred; e.g. turn_ref: "<sessionRef>/<turnRef>") and add only model_interpretation. Legacy forms turn_input: {"turn_ref": "..."}, turn_input: {"turn_input_path": "<path>"}, and a full turn_input object are also accepted for older callers.',
   inputSchema: {
     type: 'object',
     properties: {
+      turn_ref: {
+        type: 'string',
+        description: 'The Hook-provided reference "<sessionRef>/<turnRef>" identifying the journal-saved *.turn-input.json; the server loads it itself so the content never passes through the model.',
+      },
       turn_input: {
         type: 'object',
-        description: 'Either the full Hook-provided turn_input object, or {"turn_input_path": "<absolute path of the Hook-saved *.turn-input.json>"}; the server loads the file itself so the content never passes through the model.',
+        description: 'Legacy: either the full Hook-provided turn_input object, {"turn_ref": "<sessionRef>/<turnRef>"}, or {"turn_input_path": "<absolute path of the Hook-saved *.turn-input.json>"}; the server loads referenced content itself so it never passes through the model.',
       },
       model_interpretation: classificationSchema,
     },
-    required: ['turn_input', 'model_interpretation'],
+    required: ['model_interpretation'],
     additionalProperties: false,
   },
 }];
@@ -409,22 +413,82 @@ function loadTurnInputReference(
   return { turnInput: parsed };
 }
 
+const TURN_REF_SEGMENT = /^[a-f0-9]{64}$/;
+
+function parseTurnRef(value: unknown): { sessionRef: string; turnRef: string } | null {
+  if (typeof value !== 'string') return null;
+  const segments = value.split('/');
+  if (segments.length !== 2) return null;
+  const [sessionRef, turnRef] = segments;
+  if (!TURN_REF_SEGMENT.test(sessionRef) || !TURN_REF_SEGMENT.test(turnRef)) return null;
+  return { sessionRef, turnRef };
+}
+
+// turn_ref is the Host↔server direct channel: the model carries only a
+// "<sessionRef>/<turnRef>" pointer, never the turn_input JSON or a filesystem
+// path, so the server reads the Host-saved journal file itself.
+function loadTurnInputByRef(
+  ref: { sessionRef: string; turnRef: string },
+  dependencies: JudgmentResolutionDependencies,
+): { turnInput?: Record<string, unknown>; error?: string } {
+  const root = resolve(dependencies.judgmentJournalRoot ?? join(homedir(), '.codex', 'var', 'judgment-resolver'));
+  const requested = join(root, ref.sessionRef, `${ref.turnRef}.turn-input.json`);
+  let canonical: string;
+  try {
+    canonical = realpathSync(requested);
+  } catch {
+    return { error: 'turn_ref does not resolve to an existing turn_input file' };
+  }
+  let canonicalRoot = root;
+  try { canonicalRoot = realpathSync(root); } catch { /* keep configured root */ }
+  if (!pathInside(canonical, canonicalRoot) || !canonical.endsWith('.turn-input.json')) {
+    return { error: 'turn_ref must point at a Hook-saved *.turn-input.json inside the judgment journal' };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse((dependencies.readTurnInputFile ?? ((path: string) => readFileSync(path, 'utf8')))(canonical));
+  } catch {
+    return { error: 'turn_ref content is not valid JSON' };
+  }
+  if (!isRecord(parsed)) return { error: 'turn_ref content is not a turn_input object' };
+  return { turnInput: parsed };
+}
+
 export async function handleJudgmentResolutionToolCall(
   name: string,
   args: Record<string, unknown>,
   dependencies: JudgmentResolutionDependencies,
 ): Promise<ToolResult | null> {
   if (name === 'brainbase_resolve_turn') {
-    if (!isRecord(args.turn_input) || !isRecord(args.model_interpretation)) {
-      return toolError('error', 'judgment_resolution_input_invalid', 'turn_input and model_interpretation are required', []);
+    if (!isRecord(args.model_interpretation)) {
+      return toolError('error', 'judgment_resolution_input_invalid', 'model_interpretation is required', []);
     }
-    let turnInput: Record<string, unknown> = args.turn_input;
-    if (hasOnlyKeys(args.turn_input, ['turn_input_path'])) {
+    // Primary channel: a top-level turn_ref pointer.
+    const topLevelTurnRef = parseTurnRef(args.turn_ref);
+    // Legacy channel: a cached tool schema that still requires turn_input, whose
+    // content may itself be {"turn_ref": "..."}, {"turn_input_path": "..."}, or
+    // the full turn_input object.
+    const legacyTurnRef = isRecord(args.turn_input) && hasOnlyKeys(args.turn_input, ['turn_ref'])
+      ? parseTurnRef(args.turn_input.turn_ref)
+      : null;
+    const ref = topLevelTurnRef ?? legacyTurnRef;
+    let turnInput: Record<string, unknown>;
+    if (ref) {
+      const loaded = loadTurnInputByRef(ref, dependencies);
+      if (!loaded.turnInput) {
+        return toolError('error', 'judgment_resolution_input_invalid', loaded.error ?? 'turn_ref is invalid', []);
+      }
+      turnInput = loaded.turnInput;
+    } else if (isRecord(args.turn_input) && hasOnlyKeys(args.turn_input, ['turn_input_path'])) {
       const loaded = loadTurnInputReference(args.turn_input, dependencies);
       if (!loaded.turnInput) {
         return toolError('error', 'judgment_resolution_input_invalid', loaded.error ?? 'turn_input_path is invalid', []);
       }
       turnInput = loaded.turnInput;
+    } else if (isRecord(args.turn_input)) {
+      turnInput = args.turn_input;
+    } else {
+      return toolError('error', 'judgment_resolution_input_invalid', 'turn_ref or turn_input is required', []);
     }
     return resolveJudgmentBeforeModel({
       ...turnInput,

@@ -991,7 +991,9 @@ function persistTurnInput(payload, episode, env) {
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     mkdirSync(paths.directory, { recursive: true, mode: 0o700 });
     createImmutableJson(paths.turnInput, episode.turn_input, 'judgment_turn_input_conflict');
-    return paths.turnInput;
+    // The model carries only this "<sessionRef>/<turnRef>" pointer across the
+    // Host↔server direct channel; it never sees the turn_input JSON or a path.
+    return `${identity.sessionRef}/${paths.turnRef}`;
 }
 
 async function bootstrapDelegatedEpisodeAtStop(payload, dependencies) {
@@ -1484,13 +1486,24 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         if (kind === 'turn_resolution') {
             const turnToolInput = record(inputValue);
             const suppliedTurnInput = record(turnToolInput?.turn_input);
-            // A file reference is bound to this turn's Host-saved turn_input.
-            const turnInput = suppliedTurnInput
-                && Object.keys(suppliedTurnInput).join(',') === 'turn_input_path'
-                && typeof suppliedTurnInput.turn_input_path === 'string'
-                && samePath(suppliedTurnInput.turn_input_path, paths.turnInput)
+            const expectedTurnRef = `${identity.sessionRef}/${paths.turnRef}`;
+            // A turn_ref pointer (top-level, or legacy nested in turn_input) or a
+            // legacy file reference is bound to this turn's Host-saved turn_input.
+            const suppliedTurnRef = typeof turnToolInput?.turn_ref === 'string'
+                ? turnToolInput.turn_ref
+                : (suppliedTurnInput
+                    && Object.keys(suppliedTurnInput).join(',') === 'turn_ref'
+                    && typeof suppliedTurnInput.turn_ref === 'string')
+                    ? suppliedTurnInput.turn_ref
+                    : null;
+            const turnInput = suppliedTurnRef === expectedTurnRef
                 ? episode.turn_input
-                : suppliedTurnInput;
+                : (suppliedTurnInput
+                    && Object.keys(suppliedTurnInput).join(',') === 'turn_input_path'
+                    && typeof suppliedTurnInput.turn_input_path === 'string'
+                    && samePath(suppliedTurnInput.turn_input_path, paths.turnInput))
+                    ? episode.turn_input
+                    : suppliedTurnInput;
             const interpretation = record(turnToolInput?.model_interpretation);
             if (!turnInput || !interpretation
                 || canonicalJson(turnInput) !== canonicalJson(episode.turn_input)
@@ -2620,7 +2633,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
         const reasons = [
             ...(missingTurnResolution ? [
-                `mcp__brainbase__brainbase_resolve_turnを実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputは${paths.turnInput}に保存済み。確定後はPostToolUseが返す新しい判断行を先頭行にする）`
+                `mcp__brainbase__brainbase_resolve_turnをturn_ref="${basename(paths.directory)}/${paths.turnRef}"で実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputはHostのjournalに保存済みでturn_refからserverが読み込む。turn_inputやpathを渡さない。確定後はPostToolUseが返す新しい判断行を先頭行にする）`
             ] : []),
             ...(missingKnowledge ? [capabilityActionInstruction(
                 CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'],
@@ -2955,7 +2968,7 @@ export function successOutput(
     auditContract = buildAuditContract(receipt),
     env = process.env,
     hostSurface = null,
-    turnInputPath = null,
+    turnRef = null,
     hostAutonomy = null
 ) {
     const ownerReferenceLine = ownerAudit.display_line;
@@ -2994,8 +3007,8 @@ export function successOutput(
             `This Codex thread cannot call ${TURN_RESOLUTION_TOOL_NAME}: its MCP tool surface predates the current Brainbase contract, and the Host recorded that tool failure from the transcript. Do not retry it, do not ask the user a classification question, and do not ask the user to restart; the Host-generated judgment line already reports the degraded state and that a new Codex task restores full judgment routing.`,
             'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
         ] : [
-            typeof turnInputPath === 'string'
-                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_input set to the file reference {"turn_input_path": ${JSON.stringify(turnInputPath)}} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input at that path and the server loads it itself; do not read, print, rebuild, or inline the file. ${MODEL_INTERPRETATION_SHAPE}`
+            typeof turnRef === 'string'
+                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input. ${MODEL_INTERPRETATION_SHAPE}`
                 : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
             'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
             'After that call succeeds, the PostToolUse system message names the new Host-generated judgment line; it replaces the bootstrap judgment line below as the first line of the final response.'
@@ -3059,10 +3072,10 @@ export async function processHookPayload(payload, dependencies = {}) {
         const episode = await startEpisode(payload, dependencies);
         await dependencies.onEpisodeStarted?.(episode);
         const env = dependencies.env ?? process.env;
-        const turnInputPath = withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, episode, env));
+        const turnRef = withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, episode, env));
         return successOutput(
             episode.turn_input, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode),
-            env, episode.host_surface ?? null, turnInputPath, episode.host_autonomy ?? null
+            env, episode.host_surface ?? null, turnRef, episode.host_autonomy ?? null
         );
     }
     if (eventName === 'PostToolUse') {

@@ -169,6 +169,57 @@ describe('judgment resolver Host bridge', () => {
     }
   });
 
+  it('turn_refならjournal内のturn-inputファイルをserver側で読み込み、JSONもpathもmodelを経由しない', async () => {
+    const mergedArgs = { ...args, model_interpretation: classification };
+    const journalRoot = mkdtempSync(join(tmpdir(), 'brainbase-judgment-journal-'));
+    const sessionRef = 'a'.repeat(64);
+    const turnRef = 'b'.repeat(64);
+    mkdirSync(join(journalRoot, sessionRef));
+    writeFileSync(join(journalRoot, sessionRef, `${turnRef}.turn-input.json`), JSON.stringify(args));
+    let posted: unknown = null;
+    const deps = {
+      ...dependencies(async (_url, init) => {
+        posted = JSON.parse(String(init?.body));
+        return new Response(JSON.stringify(receipt({
+          request_digest: computeJudgmentRequestDigest(mergedArgs),
+        })), { status: 200 });
+      }),
+      judgmentJournalRoot: journalRoot,
+    };
+    try {
+      const result = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_ref: `${sessionRef}/${turnRef}`,
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(result?.status, 'ok');
+      assert.deepEqual(posted, mergedArgs);
+
+      // Legacy cached tool schema: old Codex threads still send a turn_input
+      // object, but its content may itself be {"turn_ref": "..."}.
+      posted = null;
+      const legacy = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_input: { turn_ref: `${sessionRef}/${turnRef}` },
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(legacy?.status, 'ok');
+      assert.deepEqual(posted, mergedArgs);
+
+      const malformed = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_ref: 'not-a-valid-ref',
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(malformed?.status, 'error');
+
+      const missing = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_ref: `${sessionRef}/${'c'.repeat(64)}`,
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(missing?.status, 'error');
+    } finally {
+      rmSync(journalRoot, { recursive: true, force: true });
+    }
+  });
+
   it('Host内部callだけが署名付きAPI requestを送る', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const result = await resolveJudgmentBeforeModel(args, dependencies(async (url, init) => {
