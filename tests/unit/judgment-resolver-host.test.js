@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -3548,5 +3548,99 @@ describe('agent continuation turns', () => {
             last_assistant_message: '監視を始めます。'
         }, { env });
         expect(orphan).toMatchObject({ decision: 'block' });
+    });
+});
+
+describe('answered escalation continuation', () => {
+    const bootstrapReceipt = (args) => ({
+        ...validReceipt(args),
+        status: 'needs_classification',
+        reconciliation_reasons: ['model_interpretation_missing'],
+        classification: null,
+        required_capabilities: [],
+        autonomy_decision: 'escalate',
+        autonomy_reason_code: 'classification_missing',
+        allowed_runtime_escalation_reasons: []
+    });
+    const externalInterpretation = {
+        intent: 'operate', domains: ['engineering', 'operations'], action_kind: 'external', risk: 'high', confidence: 'confirmed', signals: ['external_outcome']
+    };
+    const resolvedExternal = (args) => ({
+        ...validReceipt(args),
+        resolution_id: 'jr_external',
+        request_digest: hash(canonicalJson({ ...args, model_interpretation: externalInterpretation })),
+        status: 'resolved',
+        classification: externalInterpretation,
+        required_capabilities: [],
+        selected_dag_ids: [],
+        autonomy_decision: 'escalate',
+        autonomy_reason_code: 'risk_or_external',
+        allowed_runtime_escalation_reasons: []
+    });
+    const runTurn = async ({ root, sessionId, turnId, prompt, priorEscalated }) => {
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        if (priorEscalated) {
+            // The escalated turn never finalized; only its episode and the
+            // waiting_human state event exist, as in real Codex journals.
+            const directory = join(root, 'journal', hash(sessionId));
+            mkdirSync(join(directory, `${hash('turn-previous')}.events`), { recursive: true });
+            writeFileSync(join(directory, `${hash('turn-previous')}.episode.json`), JSON.stringify({
+                schema_version: 'brainbase-judgment-episode-v1', state: 'open', started_at: '2026-09-03T00:41:30.000Z'
+            }));
+            writeFileSync(join(directory, `${hash('turn-previous')}.events`, 'state.json'), JSON.stringify({
+                schema_version: 'brainbase-judgment-tool-event-v1', event_sequence: 0, event_kind: 'state', success: true,
+                safe_metadata: { stop_state: { schema_version: 'brainbase-stop-state-v1', status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'risk_or_external' } }
+            }));
+        }
+        const payload = { hook_event_name: 'UserPromptSubmit', session_id: sessionId, turn_id: turnId, prompt, cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const output = await processHookPayload(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: bootstrapReceipt(args) })
+            })
+        });
+        const episodePath = join(root, 'journal', hash(sessionId), `${hash(turnId)}.episode.json`);
+        const episode = JSON.parse(readFileSync(episodePath, 'utf8'));
+        const resolveOutput = await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: sessionId, turn_id: turnId,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'tool-resolve-external',
+            tool_input: { turn_input: episode.turn_input, model_interpretation: externalInterpretation },
+            tool_response: { status: 'ok', data: resolvedExternal(args) }
+        }, { env });
+        return { env, episode, context: output.hookSpecificOutput.additionalContext, resolveOutput };
+    };
+
+    it('直前turnが人間確認待ちで終わっていれば、同じrisk_or_external判断でも継続させる', async () => {
+        const root = temporaryDirectory();
+        const sessionId = 'session-answered-escalation';
+        const { env, episode, context, resolveOutput } = await runTurn({ root, sessionId, turnId: 'turn-answer', prompt: '行えよ', priorEscalated: true });
+        expect(episode.host_autonomy).toMatchObject({ basis: 'prior_escalation_answered', prior_turn_ref: hash('turn-previous'), prior_reason_code: 'risk_or_external' });
+        expect(context).toContain('前turnのHost確認に人間が回答済みです');
+        const ownerLine = '🧠 判断参照: 「行えよ」を参照 → 前turnの確認への回答として継続 ✓';
+        expect(resolveOutput.systemMessage).toContain(ownerLine);
+
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: 'turn-answer', stop_hook_active: false,
+            last_assistant_message: `${ownerLine}\n${episode.audit_contract.zero_call_display_line}\n再実行を完了しました。Canonical Taskを作成し、Slackへ投稿しました。`
+        }, { env });
+        expect(stopped.output.decision).toBeUndefined();
+        expect(stopped.final.completion_status).toBe('complete');
+    });
+
+    it('直前turnが確認待ちでなければrisk_or_externalは従来どおり人間確認を要求する', async () => {
+        const root = temporaryDirectory();
+        const sessionId = 'session-fresh-escalation';
+        const { env, episode, resolveOutput } = await runTurn({ root, sessionId, turnId: 'turn-first', prompt: '本番で再実行して', priorEscalated: false });
+        expect(episode.host_autonomy).toBeUndefined();
+        const ownerLine = '🧠 判断参照: 「本番で再実行して」を参照 → 高リスク・外部作用または必須確認のため停止 ✓';
+        expect(resolveOutput.systemMessage).toContain(ownerLine);
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: 'turn-first', stop_hook_active: false,
+            last_assistant_message: `${ownerLine}\n${episode.audit_contract.zero_call_display_line}\n再実行を完了しました。`
+        }, { env });
+        expect(stopped.output).toMatchObject({ decision: 'block' });
+        expect(stopped.output.reason).toContain('⚠️ 確認が必要[risk_or_external]:');
     });
 });
