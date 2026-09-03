@@ -454,6 +454,12 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(diagnostic).toMatchObject({
             schema_version: 'brainbase-judgment-audit-failure-v1',
             reason: 'judgment_episode_not_found',
+            reason_code: 'judgment_episode_not_found',
+            audit_status: 'missing',
+            blocking: false,
+            affected_range: { turn_refs: [hash(orphanIdentity.turn_id)] },
+            recovery_result: 'continuation_recorded',
+            next_action: 'preserve_answer_and_record_gap',
             session_ref: hash(orphanIdentity.session_id),
             turn_ref: hash(orphanIdentity.turn_id),
             episode_candidate_count: 0,
@@ -486,6 +492,12 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             schema_version: 'brainbase-judgment-audit-degraded-v1',
             completion_status: 'audit_degraded',
             reason: 'judgment_episode_not_found',
+            reason_code: 'judgment_episode_not_found',
+            audit_status: 'degraded',
+            blocking: false,
+            affected_range: { turn_refs: [hash(orphanIdentity.turn_id)] },
+            recovery_result: 'continuation_recorded',
+            next_action: 'continue_existing_task',
             stop_hook_active: true,
             owner_warning_displayed: true,
             answer_body_preserved: true
@@ -515,7 +527,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             })
         });
         expect(orphanReplay).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(orphanReplay.stdout)).toEqual({ systemMessage: warning });
+        expect(JSON.parse(orphanReplay.stdout)).toEqual({});
 
         const degradedReceipt = JSON.parse(readFileSync(degradedPath, 'utf8'));
         delete degradedReceipt.finalized_at;

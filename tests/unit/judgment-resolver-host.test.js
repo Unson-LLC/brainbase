@@ -2299,6 +2299,55 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
+    it('compaction後にsessionが変わっても同一turnのepisodeを再発見して既存chainを完了する', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+        const original = {
+            session_id: 'session-before-compaction', turn_id: 'turn-stable-after-compaction',
+            prompt: 'Issue 499を修正して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(original, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'implement', action_kind: 'write', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1']
+        };
+        const episode = await startEpisode(original, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        const answer = [
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '修正しました。'
+        ].join('\n');
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop', session_id: 'session-after-compaction',
+            turn_id: original.turn_id, stop_hook_active: false,
+            last_assistant_message: answer
+        }, { env });
+
+        expect(result).toMatchObject({ systemMessage: expect.stringContaining('🧠 判断参照:') });
+        const recovery = JSON.parse(readFileSync(join(
+            journal, hash('session-after-compaction'), `${hash(original.turn_id)}.recovery.json`
+        ), 'utf8'));
+        expect(recovery).toMatchObject({
+            schema_version: 'brainbase-judgment-recovery-v1',
+            reason_code: 'direct_episode_missing',
+            audit_status: 'recovered',
+            blocking: false,
+            affected_range: { turn_refs: [hash(original.turn_id)] },
+            recovery_result: 'rediscovered_existing_episode',
+            next_action: 'continue_existing_episode',
+            source_session_ref: hash(original.session_id)
+        });
+    });
+
     it('journalに差し戻しがないturnではAIがStop修復監査を自己申告しても採用しない', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
