@@ -37,8 +37,8 @@ visibility_rules:
   - A normal Codex turn opens one unresolved judgment episode at UserPromptSubmit because answering is also a judgment. The model then calls `brainbase_resolve_turn` with its semantic interpretation before other work.
   - If Codex App delegation omitted UserPromptSubmit, the first Stop may recover exactly one current-turn complete `codex_delegation` from `create_thread` or `send_message_to_thread` only when the transcript contains one connected current-session alias component. Foreign session components, multiple candidates, malformed envelopes, and other tools fail closed. The recovered episode records `episode_origin=stop_delegation_recovery` and `route_application=post_generation_recovery`; its route governs Stop and later continuation, never the already-generated initial answer.
   - The Host constructs canonical conversation_context from ordered raw conversation messages, prior finalized episodes, runtime/project data, and instruction digests.
-  - The model cannot call Judgment Resolver and cannot submit classification or a model-authored context summary.
-  - Judgment Resolver has no internal LLM; deterministic manifest-owned semantic_matchers, bounded prior-context inheritance, safety floors, and policies select the initial route.
+  - The model calls Judgment Resolver through the model-visible `brainbase_resolve_turn` MCP tool. It submits a semantic interpretation plus `turn_ref`; the server reads canonical turn input from the journal, so raw turn input and its absolute path are not carried through model context.
+  - Judgment Resolver has no second internal LLM. The current Codex model supplies semantic classification; deterministic manifest-owned semantic_matchers, bounded prior-context inheritance, safety floors, and policies may only strengthen that interpretation before selecting the initial route.
   - The model interpretation owns semantic classification. Deterministic keyword matches may only add obligations, action floors, risks, domains, or signals; an unmatched rule never removes a capability or implies `general/answer`.
   - UserPromptSubmit opens exactly one unresolved episode and stores canonical turn input; it does not classify semantics or decide whether Brainbase is required.
   - The model calls `brainbase_resolve_turn` exactly once with the unchanged turn input and its semantic interpretation. Brainbase returns the immutable TurnContract; hard keyword matchers may add obligations and risk but may never remove model-inferred requirements.
@@ -68,8 +68,8 @@ verification:
     - npm run typecheck
     - cmp -s CLAUDE.md AGENTS.md
   expected:
-    - Resolver is absent from model-visible MCP tools.
-    - Resolver classification is manifest-backed and has no LLM provider or model API dependency.
+    - Resolver is available to the model as `brainbase_resolve_turn`; the preferred request carries `turn_ref` and a semantic interpretation, never raw journal paths.
+    - Resolver classification combines the current Codex model interpretation with monotonic manifest-backed safety floors and has no separate LLM provider or model API dependency.
     - Host preserves exact ordered user/assistant text and removes host envelopes and tool internals structurally.
     - The same turn reuses its initial route without another Resolver request.
     - A normal start and recovered start are distinguishable in both episode and final receipts; a recovered route cannot be represented as pre-generation.
@@ -80,14 +80,14 @@ verification:
     - Raw tool input/output and secret-like values are absent from journals and owner-visible lines.
     - Zero Brainbase calls is complete when no Brainbase capability is required.
     - A continue receipt rejects an unnecessary user decision request, accepts completion with an optional follow-up offer, and accepts only exact allowed runtime-escalation reasons. An escalate receipt requires the Resolver reason marker at the start of the answer body.
-    - An unnecessary-question rejection emits exactly one short in-progress `systemMessage`; its final `🔁` audit line and count are accepted only from the immutable continuation journal. Normal turns emit neither line, and an incomplete active retry never emits a completion line.
-    - A completed Stop repair emits one final `🛠️` audit line only from the immutable `stop_repair` marker. A normal turn emits no repair line, and an unjournaled model-authored repair claim is rejected.
+    - An unnecessary-question rejection emits exactly one short in-progress `systemMessage`; any final `🔁` audit line and count are rendered only from the immutable continuation journal. Normal turns emit neither line.
+    - A completed Stop repair emits one final `🛠️` audit line only from the immutable `stop_repair` marker. A normal turn emits no repair line.
     - Required `knowledge.resolve` is complete only after a successful exact route call.
     - A replayed complete Stop reuses the same final receipt; an evidence-incomplete active repeated Stop for an existing episode (one block already happened) converges to a finalized `audit_degraded` receipt with exit 0 instead of blocking again or exiting non-zero, while a true orphan Stop converges to non-final `audit_degraded` with exit 0 and rejects a late Start for the same identity. Neither writes a fabricated `complete` final, and neither reaches the knowledge outbox.
     - Current Codex Hook trust is ready_for_fresh_task before live verification, and proven_active evidence comes from a task created after owner trust approval.
     - Local UI/MCP rollback uses the shared disposable runtime and a validated full-SHA pin that launchd start and periodic update both honor; missing roots, root mismatches, invalid pins, and unavailable commits fail closed without modifying the canonical checkout.
 common_failures:
-  - Asking the model to call Resolver after generation has already begun.
+  - Asking the model to carry raw turn input or an absolute journal path instead of calling Resolver with `turn_ref` and its semantic interpretation.
   - Describing an internal "Resolver LLM" even though the current Resolver is deterministic and the Codex model owns open-ended investigation.
   - Treating the initial route receipt as proof that Brainbase knowledge was retrieved.
   - Counting any Brainbase tool call as satisfying `knowledge.resolve`.
