@@ -985,7 +985,8 @@ FAILED_SHA="$(git rev-parse HEAD)"
 git cat-file -e "${ROLLBACK_SHA}^{commit}"
 git switch --detach "$ROLLBACK_SHA"
 if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock.json; then
-  npm ci --omit=dev
+  npm ci --include=dev
+  npm prune --omit=dev --ignore-scripts
 fi
 sudo systemctl restart brainbase-ssot.service
 if test -n "$HOTFIX_BACKUP_DIR"; then

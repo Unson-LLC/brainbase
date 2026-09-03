@@ -1275,6 +1275,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(lightsailRunbook.match(/npm ci --include=dev/gu)).toHaveLength(2);
         expect(lightsailRunbook.match(/npm prune --omit=dev --ignore-scripts/gu)).toHaveLength(2);
         expect(lightsailRunbook).not.toContain('npm ci --omit=dev --ignore-scripts');
+        expect(runbook).toContain('npm ci --include=dev');
+        expect(runbook).toContain('npm prune --omit=dev --ignore-scripts');
+        expect(runbook).not.toContain('npm ci --omit=dev');
         expect(lightsailRunbook).not.toContain('sleep 3');
         expect(lightsailRunbook).toContain('git switch --detach "$ROLLBACK_SHA"');
         expect(lightsailRunbook).toContain('four-surface rollback order');
