@@ -1174,6 +1174,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"');
         expect(runbook).toContain('brainbase_wait_for_runtime_ready');
         expect(runbook).toContain('brainbase_wait_for_public_runtime_ready');
+        expect(runbook).toContain('BRAINBASE_PRODUCTION_STAGE=lightsail_public_readiness');
         expect(runbook.indexOf('brainbase_wait_for_public_runtime_ready')).toBeLessThan(
             runbook.indexOf('# 3. 4面を推測せず個別取得する。')
         );
@@ -1209,7 +1210,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(lightsailRunbook).toContain('TARGET_SHA="$(git rev-parse HEAD)"');
         expect(lightsailRunbook).toContain('git?.sha !== process.env.TARGET_SHA');
         expect(lightsailRunbook).toContain('Unexpected public runtime Git state');
-        expect(lightsailRunbook).toContain('https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node');
+        expect(lightsailRunbook).toContain('brainbase_wait_for_lightsail_ready');
+        expect(lightsailRunbook).toContain('brainbase_wait_for_public_version');
+        expect(lightsailRunbook).not.toContain('sleep 3');
         expect(lightsailRunbook).toContain('git switch --detach "$ROLLBACK_SHA"');
         expect(lightsailRunbook).toContain('four-surface rollback order');
         expect(lightsailRunbook).not.toContain('127.0.0.1:55123/api/version | jq');

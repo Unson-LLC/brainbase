@@ -150,7 +150,19 @@ node scripts/migrate-tenant-production-provisioning.js --check
 
 ```bash
 sudo systemctl restart brainbase-ssot.service
-sleep 3
+brainbase_wait_for_lightsail_ready() {
+  local attempt
+  for attempt in $(seq 1 30); do
+    if curl -fsS --connect-timeout 5 --max-time 10 \
+      http://127.0.0.1:55123/api/health >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "Lightsail runtime did not become ready" >&2
+  return 1
+}
+brainbase_wait_for_lightsail_ready
 systemctl status brainbase-ssot.service --no-pager | head -8
 ```
 
@@ -179,15 +191,25 @@ From your Mac, bind the same merged develop SHA explicitly and verify the public
 ```bash
 TARGET_SHA="<40-character merged develop SHA>"
 [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
-curl -fsS https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
+brainbase_wait_for_public_version() {
+  local attempt
+  for attempt in $(seq 1 30); do
+    if curl -fsS --connect-timeout 5 --max-time 10 https://bb.unson.jp/api/version \
+      | TARGET_SHA="$TARGET_SHA" node -e '
 const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
 const git = value.runtime?.git;
 if (git?.sha !== process.env.TARGET_SHA || git?.dirty !== false) {
-  console.error(`Unexpected public runtime Git state: ${JSON.stringify(git)}`);
   process.exit(1);
 }
-console.log(JSON.stringify(git));
-'
+' 2>/dev/null; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "Unexpected public runtime Git state or readiness timeout" >&2
+  return 1
+}
+brainbase_wait_for_public_version
 curl -fsS -o /dev/null -w "%{http_code}\n" https://bb.unson.jp/api/health
 TOKEN=$(jq -r .access_token ~/.brainbase/tokens.json)
 curl -s -H "Authorization: Bearer $TOKEN" \
@@ -239,8 +261,7 @@ if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock
   npm ci --omit=dev
 fi
 sudo systemctl restart brainbase-ssot.service
-sleep 3
-curl -fsS http://127.0.0.1:55123/api/health
+brainbase_wait_for_lightsail_ready
 curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
 const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
 const git = value.runtime?.git;

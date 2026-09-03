@@ -565,6 +565,7 @@ fi
 
 # Lightsailのsystemd activeはHTTP readyを保証しない。公開面が対象SHAを返すまで
 # bounded pollingし、再起動直後の502をMCP障害として誤判定しない。
+BRAINBASE_PRODUCTION_STAGE=lightsail_public_readiness
 brainbase_wait_for_public_runtime_ready() {
   local attempt public_version
   public_version="$BRAINBASE_PRODUCTION_RUN_DIR/lightsail.ready.version.json"
