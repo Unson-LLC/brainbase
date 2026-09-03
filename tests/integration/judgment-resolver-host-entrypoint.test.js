@@ -1764,7 +1764,25 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         let readbackLine = null;
         for (const event of [
             { tool_name: 'apply_patch', tool_use_id: 'entrypoint-execution', tool_input: { patch: '*** Begin Patch\n*** Update File: docs/example.md\n@@\n-old\n+new\n*** End Patch' }, tool_response: { success: true } },
-            { tool_name: 'mcp__brainbase__get_context', tool_use_id: 'entrypoint-evidence', tool_input: { topic: 'docs/example.md' }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('取得') }], structuredContent: { items: [{ id: 'updated-ssot' }] } } },
+            { tool_name: 'mcp__brainbase__get_context', tool_use_id: 'entrypoint-evidence', tool_input: { topic: 'docs/example.md' }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('取得') }], structuredContent: { items: [{ id: 'updated-ssot' }] } } }
+        ]) {
+            const recorded = await run('bash', [wrapper], { env, input: JSON.stringify({ hook_event_name: 'PostToolUse', ...identity, ...event }) });
+            expect(recorded).toMatchObject({ code: 0, stderr: '' });
+            if (event.tool_use_id === 'entrypoint-evidence') {
+                readbackLine = JSON.parse(recorded.stdout).systemMessage;
+            }
+        }
+        const stateBeforeProof = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'PostToolUse', ...identity,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'entrypoint-state-before-proof',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }) });
+        expect(stateBeforeProof).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(stateBeforeProof.stdout)).toMatchObject({ decision: 'block' });
+        expect(JSON.parse(stateBeforeProof.stdout).reason).toContain('brainbase_judgment_value_proof_record');
+
+        for (const event of [
             { tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record', tool_use_id: 'entrypoint-proof', tool_input: proofToolArgs, tool_response: proofToolResponse },
             { tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'entrypoint-state',
                 tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
@@ -1772,9 +1790,6 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         ]) {
             const recorded = await run('bash', [wrapper], { env, input: JSON.stringify({ hook_event_name: 'PostToolUse', ...identity, ...event }) });
             expect(recorded).toMatchObject({ code: 0, stderr: '' });
-            if (event.tool_use_id === 'entrypoint-evidence') {
-                readbackLine = JSON.parse(recorded.stdout).systemMessage;
-            }
         }
         const completed = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: true,
