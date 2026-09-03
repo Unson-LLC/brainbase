@@ -212,4 +212,29 @@ BEGIN
 END
 $project_provisioning_readback$;
 
+DO $outcome_case_readback$
+DECLARE
+  required_column text;
+BEGIN
+  IF to_regclass(format('%I.outcome_cases', current_schema())) IS NULL THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing outcome_cases table';
+  END IF;
+  FOREACH required_column IN ARRAY ARRAY[
+    'case_id', 'project_code', 'capability_id', 'authority',
+    'reference_resolution', 'evaluation_history', 'run_receipt_refs',
+    'terminal_evaluation', 'closure_status', 'revision'
+  ] LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'outcome_cases'
+        AND column_name = required_column
+    ) THEN
+      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing outcome_cases column %', required_column;
+    END IF;
+  END LOOP;
+END
+$outcome_case_readback$;
+
 SELECT 'INFO_SSOT_READBACK_OK' AS marker;

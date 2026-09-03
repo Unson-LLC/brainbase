@@ -7,6 +7,7 @@ const EXTERNAL_STATES = new Set([
 const EVIDENCE_STATES = new Set(['confirmed', 'unconfirmed', 'no_data']);
 const READBACK_STATES = new Set(['confirm', 'unconfirmed', 'no_data']);
 const CONSTRAINT_STATES = new Set(['satisfied', 'violated', 'unknown']);
+const REFERENCE_STATES = new Set(['confirmed', 'unresolved']);
 const CREATE_FIELDS = new Set([
     'case_id', 'project_code', 'capability_id', 'user_observable_outcome',
     'protected_constraints', 'non_goals', 'authority', 'selected_domain_pack',
@@ -70,6 +71,89 @@ function uniqueRefs(value, field) {
     return [...new Set(requireArray(value, field))];
 }
 
+function normalizeAuthority(value) {
+    const authority = requirePlainObject(value, 'authority');
+    const fields = new Set(['closure_authorized_person_ids']);
+    rejectUnknownFields(authority, fields, 'authority');
+    const closureAuthorizedPersonIds = uniqueRefs(
+        authority.closure_authorized_person_ids,
+        'authority.closure_authorized_person_ids'
+    );
+    if (closureAuthorizedPersonIds.length === 0) {
+        throw validation('authority.closure_authorized_person_ids must not be empty');
+    }
+    return { closure_authorized_person_ids: closureAuthorizedPersonIds };
+}
+
+function unresolvedReference(ref, reason) {
+    return { ref, state: 'unresolved', reason };
+}
+
+function normalizeReference(value, field, expectedRef) {
+    const reference = requirePlainObject(value, field);
+    rejectUnknownFields(reference, new Set(['ref', 'state', 'reason']), field);
+    if (requireString(reference.ref, `${field}.ref`) !== expectedRef) {
+        throw validation(`${field}.ref must match the OutcomeCase reference`, { field });
+    }
+    const state = requireEnum(reference.state, `${field}.state`, REFERENCE_STATES);
+    const reason = reference.reason === undefined || reference.reason === null
+        ? null
+        : requireString(reference.reason, `${field}.reason`);
+    if (state === 'unresolved' && !reason) {
+        throw validation(`${field}.reason is required when the reference is unresolved`, { field });
+    }
+    return { ref: expectedRef, state, reason };
+}
+
+function normalizeReferenceResolution(value, { projectCode, capabilityId }) {
+    const resolution = requirePlainObject(value, 'reference_resolution');
+    rejectUnknownFields(resolution, new Set(['project', 'capability']), 'reference_resolution');
+    return {
+        project: normalizeReference(resolution.project, 'reference_resolution.project', projectCode),
+        capability: normalizeReference(resolution.capability, 'reference_resolution.capability', capabilityId)
+    };
+}
+
+async function resolveReferences(resolveOutcomeReferences, outcomeCase, actor) {
+    try {
+        const resolution = await resolveOutcomeReferences({
+            projectCode: outcomeCase.project_code,
+            capabilityId: outcomeCase.capability_id,
+            actor: clone(actor)
+        });
+        return normalizeReferenceResolution(resolution, {
+            projectCode: outcomeCase.project_code,
+            capabilityId: outcomeCase.capability_id
+        });
+    } catch (error) {
+        return {
+            project: unresolvedReference(outcomeCase.project_code, 'authoritative_resolver_unavailable'),
+            capability: unresolvedReference(outcomeCase.capability_id, 'authoritative_resolver_unavailable')
+        };
+    }
+}
+
+function closureActorPersonId(actor) {
+    const personId = actor?.person_id;
+    return typeof personId === 'string' && personId.trim() ? personId.trim() : null;
+}
+
+function assertClosureAuthority(authority, actor) {
+    const personId = closureActorPersonId(actor);
+    if (!personId) {
+        throw new OutcomeCaseError('closure_actor_unauthenticated', 'A verified actor is required to close an OutcomeCase', {
+            status: 403
+        });
+    }
+    if (!authority.closure_authorized_person_ids.includes(personId)) {
+        throw new OutcomeCaseError('closure_authority_denied', 'The authenticated actor is not authorized to close this OutcomeCase', {
+            status: 403,
+            details: { person_id: personId }
+        });
+    }
+    return personId;
+}
+
 function clone(value) {
     return structuredClone(value);
 }
@@ -85,8 +169,10 @@ function normalizeCreate(input, { now, generateCaseId }) {
         user_observable_outcome: requireString(input.user_observable_outcome, 'user_observable_outcome'),
         protected_constraints: requireArray(input.protected_constraints, 'protected_constraints'),
         non_goals: requireArray(input.non_goals, 'non_goals'),
-        authority: requirePlainObject(input.authority, 'authority'),
+        authority: normalizeAuthority(input.authority),
         selected_domain_pack: requireString(input.selected_domain_pack, 'selected_domain_pack'),
+        reference_resolution: null,
+        evaluation_history: [],
         terminal_evaluation: null,
         closure_status: 'open',
         current_external_state: requireEnum(
@@ -132,7 +218,7 @@ function normalizeEvaluation(input) {
         run_receipt_refs: uniqueRefs(input.run_receipt_refs, 'run_receipt_refs'),
         external_readback: { status: externalReadbackStatus, ref: externalReadbackRef },
         constraints_status: requireEnum(input.constraints_status, 'constraints_status', CONSTRAINT_STATES),
-        evaluator: requireString(input.evaluator, 'evaluator'),
+        evaluator_claim: requireString(input.evaluator, 'evaluator'),
         observed_at: requireIsoTimestamp(input.observed_at, 'observed_at'),
         current_external_state: input.current_external_state === undefined
             ? undefined
@@ -145,16 +231,20 @@ function normalizeEvaluation(input) {
     };
 }
 
-export function deriveClosureStatus({ technicalEvidence, runReceipts, externalReadback, constraintsStatus }) {
+export function deriveClosureStatus({ technicalEvidence, runReceipts, externalReadback, constraintsStatus, referenceResolution }) {
     const allReceiptsConfirmed = runReceipts.length > 0
         && runReceipts.every((receipt) => receipt.evidence_state === 'confirmed');
+    const referencesConfirmed = referenceResolution?.project?.state === 'confirmed'
+        && referenceResolution?.capability?.state === 'confirmed';
     const closeEligible = technicalEvidence.status === 'confirmed'
         && allReceiptsConfirmed
         && externalReadback.status === 'confirm'
-        && constraintsStatus === 'satisfied';
+        && constraintsStatus === 'satisfied'
+        && referencesConfirmed;
     if (closeEligible) return { closure_status: 'closed', close_eligible: true };
     if (externalReadback.status === 'no_data'
         || constraintsStatus === 'unknown'
+        || !referencesConfirmed
         || runReceipts.some((receipt) => receipt.evidence_state === 'no_data')) {
         return { closure_status: 'waiting_human', close_eligible: false };
     }
@@ -162,17 +252,23 @@ export function deriveClosureStatus({ technicalEvidence, runReceipts, externalRe
 }
 
 export class OutcomeCaseService {
-    constructor({ repository, readRunReceipt, now = () => new Date(), generateCaseId = () => `oc_${crypto.randomUUID()}` } = {}) {
+    constructor({ repository, readRunReceipt, resolveOutcomeReferences, now = () => new Date(), generateCaseId = () => `oc_${crypto.randomUUID()}` } = {}) {
         if (!repository) throw new Error('OutcomeCaseService requires repository');
         if (typeof readRunReceipt !== 'function') throw new Error('OutcomeCaseService requires readRunReceipt');
+        if (typeof resolveOutcomeReferences !== 'function') throw new Error('OutcomeCaseService requires resolveOutcomeReferences');
         this.repository = repository;
         this.readRunReceipt = readRunReceipt;
+        this.resolveOutcomeReferences = resolveOutcomeReferences;
         this.now = now;
         this.generateCaseId = generateCaseId;
     }
 
     async create(input, actor = {}) {
-        const outcomeCase = normalizeCreate(input, { now: this.now(), generateCaseId: this.generateCaseId });
+        const baseCase = normalizeCreate(input, { now: this.now(), generateCaseId: this.generateCaseId });
+        const outcomeCase = {
+            ...baseCase,
+            reference_resolution: await resolveReferences(this.resolveOutcomeReferences, baseCase, actor)
+        };
         const existing = await this.repository.findByCaseId(outcomeCase.case_id);
         if (existing) throw new OutcomeCaseError('outcome_case_already_exists', 'OutcomeCase already exists', { status: 409 });
         return this.repository.create(outcomeCase, actor);
@@ -187,7 +283,11 @@ export class OutcomeCaseService {
     async evaluate(caseId, input, actor = {}) {
         const outcomeCase = await this.read(caseId, actor);
         const evaluation = normalizeEvaluation(input);
-        const runReceipts = await Promise.all(evaluation.run_receipt_refs.map(async (runReceiptRef) => {
+        const retainedRunReceiptRefs = [...new Set([
+            ...(outcomeCase.run_receipt_refs || []),
+            ...evaluation.run_receipt_refs
+        ])];
+        const runReceipts = await Promise.all(retainedRunReceiptRefs.map(async (runReceiptRef) => {
             const receipt = await this.readRunReceipt({
                 projectCode: outcomeCase.project_code,
                 runReceiptRef,
@@ -200,24 +300,37 @@ export class OutcomeCaseService {
                     : 'no_data'
             };
         }));
+        const referenceResolution = await resolveReferences(this.resolveOutcomeReferences, outcomeCase, actor);
         const closure = deriveClosureStatus({
             technicalEvidence: evaluation.technical_evidence,
             runReceipts,
             externalReadback: evaluation.external_readback,
-            constraintsStatus: evaluation.constraints_status
+            constraintsStatus: evaluation.constraints_status,
+            referenceResolution
         });
+        const evaluatedBy = closure.close_eligible
+            ? assertClosureAuthority(outcomeCase.authority, actor)
+            : closureActorPersonId(actor);
+        const evaluationRecord = {
+            technical_evidence: evaluation.technical_evidence,
+            run_receipt_refs: evaluation.run_receipt_refs,
+            retained_run_receipt_refs: retainedRunReceiptRefs,
+            run_receipts: runReceipts,
+            external_readback: evaluation.external_readback,
+            constraints_status: evaluation.constraints_status,
+            evaluator_claim: evaluation.evaluator_claim,
+            evaluated_by: evaluatedBy,
+            observed_at: evaluation.observed_at,
+            reference_resolution: referenceResolution,
+            closure_status: closure.closure_status,
+            close_eligible: closure.close_eligible
+        };
         const updated = {
             ...clone(outcomeCase),
-            run_receipt_refs: evaluation.run_receipt_refs,
-            terminal_evaluation: {
-                technical_evidence: evaluation.technical_evidence,
-                run_receipts: runReceipts,
-                external_readback: evaluation.external_readback,
-                constraints_status: evaluation.constraints_status,
-                evaluator: evaluation.evaluator,
-                observed_at: evaluation.observed_at,
-                close_eligible: closure.close_eligible
-            },
+            run_receipt_refs: retainedRunReceiptRefs,
+            reference_resolution: referenceResolution,
+            evaluation_history: [...(outcomeCase.evaluation_history || []), evaluationRecord],
+            terminal_evaluation: evaluationRecord,
             closure_status: closure.closure_status,
             current_external_state: evaluation.current_external_state ?? outcomeCase.current_external_state,
             unresolved_failure_boundary: evaluation.unresolved_failure_boundary === undefined

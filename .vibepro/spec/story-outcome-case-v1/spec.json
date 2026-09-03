@@ -1,0 +1,69 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-outcome-case-v1",
+  "generated_by": { "caller": "codex", "stage": "architecture" },
+  "lifecycle": "draft",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "OutcomeCase create/read/evaluate API は、成果・制約・明示的な closure authority・参照・参照解決状態・追記専用 evaluation history・revision・時刻を OutcomeCase 専用 record として扱い、既存 RunReceipt v1 schema を変更しない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }, { "kind": "acceptance_criteria", "ac_id": "AC-002" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "境界" }],
+        "code_refs": [{ "file": "server/services/outcome-case/outcome-case-service.js", "anchor": "OutcomeCaseService" }, { "file": "server/services/outcome-case/outcome-case-postgres-repository.js", "anchor": "OutcomeCasePostgresRepository" }],
+        "test_refs": [{ "file": "tests/server/services/outcome-case-service.test.js", "case": "creates the required control-plane record with an explicit external state" }]
+      }
+    },
+    {
+      "id": "C-002",
+      "type": "invariant",
+      "statement": "closed は technical confirmed、初回から保持された全参照 RunReceipt confirmed、external readback confirm、constraints satisfied、project/capability confirmed、認証済み actor の明示 authority の同時成立でのみ導出する。評価 payload は既存 RunReceipt ref を削除できず、各 retained ref を診断する。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "閉鎖不変条件" }],
+        "code_refs": [{ "file": "server/services/outcome-case/outcome-case-service.js", "anchor": "deriveClosureStatus" }, { "file": "server/services/outcome-case/outcome-case-service.js", "anchor": "assertClosureAuthority" }],
+        "test_refs": [{ "file": "tests/server/services/outcome-case-service.test.js", "case": "retains every previously stored receipt ref, appends the evaluation history, and diagnoses all retained refs before close" }, { "file": "tests/server/routes/outcome-cases.test.js", "case": "wires the authenticated route actor into actual service-layer closure authority" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/server/services/outcome-case-service.test.js", "must_cover": "retains every previously stored receipt ref, appends the evaluation history, and diagnoses all retained refs before close" }]
+      }
+    },
+    {
+      "id": "C-003",
+      "type": "negative_boundary",
+      "statement": "HTTP 200、テスト、保存、デプロイ、欠落 receipt、external no_data、unknown constraints は close の証拠へ自動変換しない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "証拠境界" }],
+        "code_refs": [{ "file": "server/services/outcome-case/outcome-case-service.js", "anchor": "deriveClosureStatus" }],
+        "test_refs": [{ "file": "tests/server/services/outcome-case-service.test.js", "case": "does not close from technical evidence when receipt readback is unconfirmed" }]
+      }
+    },
+    {
+      "id": "C-004",
+      "type": "negative_boundary",
+      "statement": "authoritative project/capability resolver が未解決、registry 未適用、または利用不能なら理由付き unresolved を保存し、close を禁止する。request の evaluator 文字列は認可根拠にしない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }, { "kind": "acceptance_criteria", "ac_id": "AC-004" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "データと権限" }],
+        "code_refs": [{ "file": "server/services/outcome-case/outcome-case-reference-resolver.js", "anchor": "createOutcomeCaseReferenceResolver" }],
+        "test_refs": [{ "file": "tests/server/services/outcome-case-reference-resolver.test.js", "case": "represents an absent capability registry as unresolved instead of inferring authority" }, { "file": "tests/server/services/outcome-case-service.test.js", "case": "records unresolved authoritative references and forbids closure" }]
+      }
+    },
+    {
+      "id": "C-005",
+      "type": "migration_boundary",
+      "statement": "OutcomeCase schema は established Info SSOT idempotent apply bundle と readback に登録される。本 Story は Graph write、production migration、deploy を実行しない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }, { "kind": "acceptance_criteria", "ac_id": "AC-005" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "データと権限" }],
+        "code_refs": [{ "file": "scripts/info-ssot-apply.sh", "anchor": "OUTCOME_CASE_SCHEMA_SQL" }, { "file": "server/sql/info-ssot-readback.sql", "anchor": "outcome_case_readback" }],
+        "test_refs": [{ "file": "tests/server/scripts/info-ssot-apply.test.js", "case": "runs schema, RLS, readback and smoke in fail-closed single-transaction mode" }]
+      }
+    }
+  ],
+  "open_questions": [
+    { "id": "OQ-001", "question": "production migration and Graph entity lifecycle remain explicitly outside v1 local implementation evidence" }
+  ]
+}

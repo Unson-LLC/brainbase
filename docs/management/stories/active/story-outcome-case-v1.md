@@ -14,12 +14,21 @@ done: false
 
 ## 受け入れ条件
 
-- [ ] AC-001: OutcomeCase は case_id、project_code、capability_id、利用者可観測成果、保護制約、非目標、authority、domain pack、評価、閉鎖状態、外部状態、各参照、不解決失敗境界、revision、時刻を保持する。
-- [ ] AC-002: create/read/evaluate の最小 API だけを提供し、既存 RunReceipt v1 の schema・ingest・query 契約を変更しない。
-- [ ] AC-003: `closed` は technical evidence が confirmed、全 RunReceipt 参照が既存照会で confirmed、external readback が confirm、constraints が satisfied の全条件を満たす場合に限る。
-- [ ] AC-004: HTTP 応答、テスト、保存、デプロイはそれだけで close 判定へ変換されない。証拠未収集・参照不明・外部読戻し no_data は close しない。
-- [ ] AC-005: Graph に未知の entity type を書き込まない。OutcomeCase は既存 project/capability への参照を持つ制御面 record とし、本 Story では本番 Graph 書込み・外部送信・deploy を実施しない。
+- [x] AC-001: OutcomeCase は case_id、project_code、capability_id、利用者可観測成果、保護制約、非目標、authority、domain pack、追記専用の評価履歴、閉鎖状態、外部状態、各参照、参照解決状態、不解決失敗境界、revision、時刻を保持する。
+- [x] AC-002: create/read/evaluate の最小 API だけを提供し、既存 RunReceipt v1 の schema・ingest・query 契約を変更しない。OutcomeCase schema は既存の idempotent Info SSOT 適用経路へ登録する。
+- [x] AC-003: `closed` は technical evidence が confirmed、初回以降に保持した**全** RunReceipt 参照が既存照会で confirmed、external readback が confirm、constraints が satisfied、project/capability が authoritative resolver で confirmed、かつ認証済み actor が authority の閉鎖許可者である場合に限る。
+- [x] AC-004: HTTP 応答、テスト、保存、デプロイはそれだけで close 判定へ変換されない。証拠未収集・参照不明・外部読戻し no_data・resolver 未解決は close しない。
+- [x] AC-005: Graph に未知の entity type を書き込まない。OutcomeCase は既存 project/capability への参照を持つ制御面 record とし、本 Story では本番 Graph 書込み・外部送信・deploy を実施しない。resolver は read-only で、capability registry が未適用なら明示的に unresolved とする。
 
 ## 非目標
 
 KnowledgeEvent の自動昇格、汎用 workflow engine、RunReceipt v1 の変更、Graph ontology の active release 更新、本番 migration、外部送信、deploy。
+
+## 実装済みローカル証拠
+
+- `tests/server/services/outcome-case-service.test.js`: 追記履歴、保持 receipt 全件診断、actor 認可、未解決参照の閉鎖禁止。
+- `tests/server/routes/outcome-cases.test.js`: 認証 route から service-layer authority までの配線。
+- `tests/server/services/outcome-case-reference-resolver.test.js`: scope 付き read-only resolver と registry 未適用時の unresolved。
+- `tests/server/scripts/info-ssot-apply.test.js`: OutcomeCase schema を含む idempotent apply bundle の二回実行。
+
+本番 migration、production DB の readback、外部受領は未実施であり、ここでのチェック完了はその証拠ではない。

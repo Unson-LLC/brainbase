@@ -8,11 +8,23 @@
     ".vibepro/spec/story-outcome-case-v1/spec.json",
     "server/services/outcome-case/outcome-case-service.js",
     "server/services/outcome-case/outcome-case-postgres-repository.js",
+    "server/services/outcome-case/outcome-case-reference-resolver.js",
+    "server/sql/outcome-case-schema.sql",
+    "scripts/info-ssot-apply.sh",
     "server/routes/outcome-cases.js",
     "tests/server/services/outcome-case-service.test.js",
-    "tests/server/routes/outcome-cases.test.js"
+    "tests/server/routes/outcome-cases.test.js",
+    "tests/server/services/outcome-case-reference-resolver.test.js",
+    "tests/server/scripts/info-ssot-apply.test.js"
   ],
   "acceptance_boundary": "local contract and route tests only; no production Graph write, external send, deploy, or production migration",
+  "acceptance_traceability": {
+    "AC-001": ["evaluation_history append-only", "reference_resolution", "outcome-case-service.test.js"],
+    "AC-002": ["scripts/info-ssot-apply.sh", "info-ssot-apply.test.js"],
+    "AC-003": ["retained RunReceipt diagnosis", "authenticated closure authority", "authoritative resolver"],
+    "AC-004": ["unresolved/no_data close prohibition", "outcome-case-service.test.js"],
+    "AC-005": ["read-only resolver", "outcome-case-reference-resolver.test.js"]
+  },
   "forbidden": [
     "RunReceipt v1 schema change",
     "KnowledgeEvent automatic promotion",

@@ -20,9 +20,11 @@ function actorFromRequest(req) {
         ...(req.auth || {}),
         person_id: req.access?.personId || req.auth?.person_id || req.auth?.sub || null,
         projectCodes: Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [],
+        clearance: Array.isArray(req.access?.clearance) ? req.access.clearance : [],
         role: req.access?.role || req.auth?.role || null,
         authSource: req.authSource || null,
-        organizationId: req.access?.organizationId || req.access?.tenantId || null
+        organizationId: req.access?.organizationId || req.access?.tenantId || null,
+        tenantId: req.access?.tenantId || null
     };
 }
 

@@ -9,8 +9,13 @@ const record = {
     user_observable_outcome: '利用者が外部完了を読戻せる',
     protected_constraints: ['外部読戻しなしで閉鎖しない'],
     non_goals: ['workflow'],
-    authority: { accountable: 'per_owner' },
+    authority: { closure_authorized_person_ids: ['per_owner'] },
     selected_domain_pack: 'delivery-control/v1',
+    reference_resolution: {
+        project: { ref: 'brainbase', state: 'confirmed', reason: null },
+        capability: { ref: 'cap_outcome_control', state: 'confirmed', reason: null }
+    },
+    evaluation_history: [],
     terminal_evaluation: null,
     closure_status: 'open',
     current_external_state: 'processing',
@@ -32,6 +37,7 @@ describe('OutcomeCasePostgresRepository', () => {
                 revision: 2,
                 closure_status: 'incomplete',
                 run_receipt_refs: ['run-1'],
+                evaluation_history: [{ close_eligible: false }],
                 terminal_evaluation: { close_eligible: false }
             }] }) };
         const repository = new OutcomeCasePostgresRepository({ pool });
@@ -42,13 +48,17 @@ describe('OutcomeCasePostgresRepository', () => {
             revision: 2,
             closure_status: 'incomplete',
             run_receipt_refs: ['run-1'],
+            evaluation_history: [{ close_eligible: false }],
             terminal_evaluation: { close_eligible: false }
         }, { expectedRevision: 1 });
 
         expect(created).toMatchObject({ case_id: 'oc_01', revision: 1 });
         expect(updated).toMatchObject({ closure_status: 'incomplete', revision: 2 });
         expect(pool.query.mock.calls[0][0]).toContain('INSERT INTO outcome_cases');
-        expect(pool.query.mock.calls[1][0]).toContain('WHERE case_id = $1 AND revision = $9');
+        expect(pool.query.mock.calls[0][0]).toContain('evaluation_history');
+        expect(pool.query.mock.calls[0][0]).toContain('reference_resolution');
+        expect(pool.query.mock.calls[1][0]).toContain('evaluation_history = $4::jsonb');
+        expect(pool.query.mock.calls[1][0]).toContain('WHERE case_id = $1 AND revision = $11');
         expect(pool.query.mock.calls[1][0]).not.toContain('user_observable_outcome =');
     });
 

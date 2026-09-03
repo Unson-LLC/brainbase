@@ -13,6 +13,8 @@ function normalizeRow(row) {
         technical_story_refs: row.technical_story_refs || [],
         run_receipt_refs: row.run_receipt_refs || [],
         prior_attempt_refs: row.prior_attempt_refs || [],
+        evaluation_history: row.evaluation_history || [],
+        reference_resolution: row.reference_resolution || {},
         terminal_evaluation: row.terminal_evaluation || null,
         revision: Number(row.revision),
         created_at: normalizeTimestamp(row.created_at),
@@ -52,19 +54,20 @@ export class OutcomeCasePostgresRepository {
             INSERT INTO outcome_cases (
                 case_id, project_code, capability_id, user_observable_outcome,
                 protected_constraints, non_goals, authority, selected_domain_pack,
-                terminal_evaluation, closure_status, current_external_state,
+                reference_resolution, evaluation_history, terminal_evaluation, closure_status, current_external_state,
                 technical_story_refs, run_receipt_refs, prior_attempt_refs,
                 unresolved_failure_boundary, revision, created_at, updated_at
             ) VALUES (
                 $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8,
-                $9::jsonb, $10, $11, $12::jsonb, $13::jsonb, $14::jsonb,
-                $15, $16, $17::timestamptz, $18::timestamptz
+                $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14::jsonb, $15::jsonb, $16::jsonb,
+                $17, $18, $19::timestamptz, $20::timestamptz
             ) RETURNING *
         `, [
             outcomeCase.case_id, outcomeCase.project_code, outcomeCase.capability_id,
             outcomeCase.user_observable_outcome, JSON.stringify(outcomeCase.protected_constraints),
             JSON.stringify(outcomeCase.non_goals), JSON.stringify(outcomeCase.authority),
-            outcomeCase.selected_domain_pack, JSON.stringify(outcomeCase.terminal_evaluation),
+            outcomeCase.selected_domain_pack, JSON.stringify(outcomeCase.reference_resolution),
+            JSON.stringify(outcomeCase.evaluation_history), JSON.stringify(outcomeCase.terminal_evaluation),
             outcomeCase.closure_status, outcomeCase.current_external_state,
             JSON.stringify(outcomeCase.technical_story_refs), JSON.stringify(outcomeCase.run_receipt_refs),
             JSON.stringify(outcomeCase.prior_attempt_refs), outcomeCase.unresolved_failure_boundary,
@@ -77,16 +80,19 @@ export class OutcomeCasePostgresRepository {
         const result = await this.query(`
             UPDATE outcome_cases
                SET run_receipt_refs = $2::jsonb,
-                   terminal_evaluation = $3::jsonb,
-                   closure_status = $4,
-                   current_external_state = $5,
-                   unresolved_failure_boundary = $6,
-                   revision = $7,
-                   updated_at = $8::timestamptz
-             WHERE case_id = $1 AND revision = $9
+                   reference_resolution = $3::jsonb,
+                   evaluation_history = $4::jsonb,
+                   terminal_evaluation = $5::jsonb,
+                   closure_status = $6,
+                   current_external_state = $7,
+                   unresolved_failure_boundary = $8,
+                   revision = $9,
+                   updated_at = $10::timestamptz
+             WHERE case_id = $1 AND revision = $11
          RETURNING *
         `, [
             outcomeCase.case_id, JSON.stringify(outcomeCase.run_receipt_refs),
+            JSON.stringify(outcomeCase.reference_resolution), JSON.stringify(outcomeCase.evaluation_history),
             JSON.stringify(outcomeCase.terminal_evaluation), outcomeCase.closure_status,
             outcomeCase.current_external_state, outcomeCase.unresolved_failure_boundary,
             outcomeCase.revision, outcomeCase.updated_at, expectedRevision
