@@ -693,6 +693,65 @@ function verifyAutonomyContract(receipt, { required = false } = {}) {
     };
 }
 
+// An escalate contract asks the human once. When the previous finalized turn
+// in this session already stopped for a human answer, the current user turn is
+// that answer, so the same risk_or_external classification continues instead of
+// re-asking forever.
+function previousTurnEscalated(sessionRef, currentTurnId, env) {
+    const { directory, turnRef } = journalPaths(sessionRef, currentTurnId, env);
+    let names;
+    try { names = readdirSync(directory).filter((name) => name.endsWith('.final.json')); } catch { return null; }
+    let latest = null;
+    for (const name of names) {
+        if (name.startsWith(`${turnRef}.`)) continue;
+        let entry;
+        try { entry = readJson(join(directory, name)); } catch { continue; }
+        if (!['brainbase-judgment-episode-final-v1', 'brainbase-judgment-episode-final-v2'].includes(entry?.schema_version)) continue;
+        if (!latest || String(entry.finalized_at ?? '').localeCompare(String(latest.entry.finalized_at ?? '')) > 0) {
+            latest = { name, entry };
+        }
+    }
+    if (!latest) return null;
+    const { entry } = latest;
+    const escalated = ['escalated', 'runtime_escalated'].includes(entry.autonomy_compliance_status)
+        || entry.stop_state?.status === 'waiting_human';
+    if (!escalated) return null;
+    return {
+        schema_version: 'brainbase-judgment-host-autonomy-v1',
+        basis: 'prior_escalation_answered',
+        prior_turn_ref: latest.name.replace(/\.final\.json$/u, ''),
+        prior_reason_code: typeof entry.stop_state?.runtime_reason_code === 'string' ? entry.stop_state.runtime_reason_code : null
+    };
+}
+
+function verifyHostAutonomy(value) {
+    if (value === undefined) return null;
+    if (!record(value)
+        || value.schema_version !== 'brainbase-judgment-host-autonomy-v1'
+        || value.basis !== 'prior_escalation_answered'
+        || typeof value.prior_turn_ref !== 'string') {
+        throw new Error('judgment_episode_host_autonomy_invalid');
+    }
+    return value;
+}
+
+function escalationAnswered(hostAutonomy, receipt) {
+    return hostAutonomy?.basis === 'prior_escalation_answered'
+        && receipt?.autonomy_decision === 'escalate'
+        && receipt?.autonomy_reason_code === 'risk_or_external';
+}
+
+function episodeAutonomyContract(episode, receipt = episode?.initial_route_receipt) {
+    const contract = verifyAutonomyContract(receipt);
+    if (!contract || !escalationAnswered(episode?.host_autonomy, receipt)) return contract;
+    return {
+        decision: 'continue',
+        reasonCode: 'routine_in_scope',
+        allowedRuntimeReasons: [...AUTONOMY_RUNTIME_ESCALATION_REASONS],
+        answeredEscalation: true
+    };
+}
+
 function adoptReceipt(args, receipt, env) {
     const sessionRef = args.conversation_context.session_ref;
     const { directory, target } = journalPaths(sessionRef, args.turn_id, env);
@@ -809,6 +868,7 @@ function verifyEpisode(entry) {
     }
     if (entry.audit_contract !== undefined) verifyAuditContract(entry.audit_contract);
     verifyHostSurface(entry.host_surface);
+    verifyHostAutonomy(entry.host_autonomy);
     return entry;
 }
 
@@ -873,6 +933,10 @@ export async function startEpisode(payload, {
             'judgment_episode_surface_detect_failed',
             () => hostSurfaceForEpisode(payload, env)
         );
+        const hostAutonomy = withJudgmentStage(
+            'judgment_episode_autonomy_detect_failed',
+            () => previousTurnEscalated(identity.sessionRef, identity.turnId, env)
+        );
         const entry = withJudgmentStage('judgment_episode_audit_build_failed', () => ({
             schema_version: 'brainbase-judgment-episode-v1',
             state: 'open',
@@ -883,9 +947,10 @@ export async function startEpisode(payload, {
             turn_input: args,
             initial_route_receipt_digest: sha256(canonicalJson(initialRouteReceipt)),
             initial_route_receipt: initialRouteReceipt,
-            owner_audit: buildOwnerAudit(args, initialRouteReceipt, { hostSurface }),
+            owner_audit: buildOwnerAudit(args, initialRouteReceipt, { hostSurface, hostAutonomy }),
             audit_contract: buildAuditContract(initialRouteReceipt),
-            ...(hostSurface ? { host_surface: hostSurface } : {})
+            ...(hostSurface ? { host_surface: hostSurface } : {}),
+            ...(hostAutonomy ? { host_autonomy: hostAutonomy } : {})
         }));
         return withJudgmentStage(
             'judgment_episode_persist_failed',
@@ -1156,8 +1221,8 @@ function judgmentStopStateData(response) {
     return null;
 }
 
-function judgmentStopStateContract(state, receipt) {
-    const contract = verifyAutonomyContract(receipt);
+function judgmentStopStateContract(state, receipt, episode = null) {
+    const contract = episode ? episodeAutonomyContract(episode, receipt) : verifyAutonomyContract(receipt);
     if (!state || !contract) return { valid: Boolean(state), expectedReason: null };
     if (contract.decision === 'escalate' && state.status === 'completed') {
         return { valid: false, expectedReason: contract.reasonCode };
@@ -1419,7 +1484,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             }
         }
         const turnResolutionMessage = kind === 'turn_resolution' && responseSuccess && turnResolution
-            ? `🧠 判断契約を確定しました。最終回答の先頭行は次のHost生成行に置き換えてください:\n${buildOwnerAudit(episode.turn_input, turnResolution).display_line}`
+            ? `🧠 判断契約を確定しました。最終回答の先頭行は次のHost生成行に置き換えてください:\n${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}`
             : null;
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
@@ -1448,7 +1513,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             .filter(Number.isSafeInteger)
             .reduce((maximum, sequence) => Math.max(maximum, sequence), -1) + 1;
         const stateContract = judgmentStateTool
-            ? judgmentStopStateContract(stopState, effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt)
+            ? judgmentStopStateContract(stopState, effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt, episode)
             : { valid: true, expectedReason: null };
         const success = responseSuccess && stateContract.valid;
         const systemMessage = judgmentStateTool && responseSuccess && !stateContract.valid
@@ -1507,7 +1572,7 @@ function effectiveEpisode(episode, events) {
     return {
         ...episode,
         initial_route_receipt: resolved,
-        owner_audit: buildOwnerAudit(args, resolved),
+        owner_audit: buildOwnerAudit(args, resolved, { hostAutonomy: episode.host_autonomy ?? null }),
         audit_contract: buildAuditContract(resolved)
     };
 }
@@ -1786,8 +1851,8 @@ function leavesRequestedWorkUnfinished(body, receipt) {
         || /(?:未実施|未完了|まだ[^。\n]{0,60}(?:していません|できていません)|作業が残っています)/u.test(body);
 }
 
-function autonomyAnswerCompliance(answer, expectedLines, receipt, events = []) {
-    const contract = verifyAutonomyContract(receipt);
+function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], episode = null) {
+    const contract = episode ? episodeAutonomyContract(episode, receipt) : verifyAutonomyContract(receipt);
     if (!contract) return { status: 'legacy', violation: null };
     const body = normalizedAnswerBody(answer, expectedLines) ?? '';
     const bodyLines = body.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -2443,7 +2508,8 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             answer,
             expectedAuditLines,
             episode.initial_route_receipt,
-            events
+            events,
+            episode
         );
     const missingAutonomyCompliance = autonomyCompliance.violation !== null;
     const auditContract = episodeAuditContract(episode);
@@ -2493,7 +2559,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 && !unauthorizedStopRepairAudit
                 && !missingAutonomyCompliance
                 && episodeAuditContract(episode)?.repair_body_policy === 'preserve';
-            const autonomyContract = verifyAutonomyContract(episode.initial_route_receipt);
+            const autonomyContract = episodeAutonomyContract(episode);
             const markerEntry = {
                 schema_version: 'brainbase-judgment-continuation-v2',
                 requested_at: new Date().toISOString(),
@@ -2771,7 +2837,8 @@ function requiredKnowledgeResolution(receipt) {
     ));
 }
 
-function ownerDecision(receipt) {
+function ownerDecision(receipt, hostAutonomy = null) {
+    if (escalationAnswered(hostAutonomy, receipt)) return '前turnの確認への回答として継続';
     if (receipt?.autonomy_decision === 'escalate') return '高リスク・外部作用または必須確認のため停止';
     if (requiredKnowledgeResolution(receipt)) return 'Brainbase参照先の判断が必要';
     const intent = receipt?.classification?.intent;
@@ -2794,11 +2861,11 @@ function ownerDecision(receipt) {
     }[receipt?.classification?.action_kind] ?? '回答方針を確認';
 }
 
-export function buildOwnerAudit(args, receipt, { historicalExact = true, hostSurface = null } = {}) {
+export function buildOwnerAudit(args, receipt, { historicalExact = true, hostSurface = null, hostAutonomy = null } = {}) {
     const evidence = ownerEvidenceSource(args, receipt);
     const excerpt = sanitizeOwnerExcerpt(evidence.text);
     const dagIds = Array.isArray(receipt?.selected_dag_ids) ? receipt.selected_dag_ids : [];
-    let decision = ownerDecision(receipt);
+    let decision = ownerDecision(receipt, hostAutonomy);
     let displayLine;
 
     if (hostSurface?.turn_resolution === 'unavailable') {
@@ -2871,7 +2938,8 @@ export function successOutput(
     auditContract = buildAuditContract(receipt),
     env = process.env,
     hostSurface = null,
-    turnInputPath = null
+    turnInputPath = null,
+    hostAutonomy = null
 ) {
     const ownerReferenceLine = ownerAudit.display_line;
     const surfaceDegraded = hostSurface?.turn_resolution === 'unavailable';
@@ -2916,6 +2984,9 @@ export function successOutput(
             'After that call succeeds, the PostToolUse system message names the new Host-generated judgment line; it replaces the bootstrap judgment line below as the first line of the final response.'
         ]),
         ...autonomyInstructions,
+        ...(hostAutonomy?.basis === 'prior_escalation_answered' ? [
+            '前turnのHost確認に人間が回答済みです。resolve後の判断がrisk_or_externalでも再度確認せず、通常の権限・承認の範囲で要求された操作を実行し、状態はcompletedまたはpendingで記録する。'
+        ] : []),
         ...implementationWorkflowInstructions,
         ...requiredCapabilityInstructions,
         ...(journalStopStateRequired(receipt) && valueProofRolloutEnabled({ initial_route_receipt: receipt }, env) ? [
@@ -2974,7 +3045,7 @@ export async function processHookPayload(payload, dependencies = {}) {
         const turnInputPath = withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, episode, env));
         return successOutput(
             episode.turn_input, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode),
-            env, episode.host_surface ?? null, turnInputPath
+            env, episode.host_surface ?? null, turnInputPath, episode.host_autonomy ?? null
         );
     }
     if (eventName === 'PostToolUse') {
