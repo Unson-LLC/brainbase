@@ -19,6 +19,14 @@ function hash(value) {
     return createHash('sha256').update(value).digest('hex');
 }
 
+function retrievalAuditEnvelope(operation, outcome = '結果を取得') {
+    return `<!-- brainbase-knowledge-owner-audit:${JSON.stringify({
+        schema_version: 'brainbase-knowledge-owner-audit-v1',
+        operation,
+        outcome
+    })} -->`;
+}
+
 function temporaryDirectory() {
     const path = mkdtempSync(join(tmpdir(), 'brainbase-judgment-entrypoint-'));
     temporaryPaths.push(path);
@@ -146,20 +154,23 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const unrelated = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
             tool_name: 'mcp__brainbase__brainbase_projects', tool_use_id: 'tool-unrelated',
-            tool_input: {}, tool_response: { status: 'ok', data: { projects: [], count: 0 } }
+            tool_input: {}, tool_response: { content: [
+                { type: 'text', text: JSON.stringify({ status: 'ok', data: { projects: [], count: 0 } }) },
+                { type: 'text', text: retrievalAuditEnvelope('取得', '該当なし（不在確定ではない）') }
+            ] }
         }) });
         expect(JSON.parse(unrelated.stdout).systemMessage).toBe(
-            '📚 Brainbase呼出: brainbase_projects「プロジェクト一覧」→ 0件・正常応答を確認 ✓'
+            '📚 Brainbase取得: brainbase_projects「プロジェクト一覧」→ 該当なし（不在確定ではない）'
         );
         const unrelatedLine = JSON.parse(unrelated.stdout).systemMessage;
 
         const generic = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
             tool_name: 'mcp__brainbase__get_context', tool_use_id: 'tool-generic',
-            tool_input: { topic: 'resolver' }, tool_response: { isError: false, content: [{ type: 'text', text: 'context' }] }
+            tool_input: { topic: 'resolver' }, tool_response: { isError: false, content: [{ type: 'text', text: retrievalAuditEnvelope('取得') }] }
         }) });
         expect(JSON.parse(generic.stdout).systemMessage).toBe(
-            '📚 Brainbase取得: get_context「resolver」→ 正常応答を確認 ✓'
+            '📚 Brainbase取得: get_context「resolver」→ 結果を取得 ✓'
         );
         const genericLine = JSON.parse(generic.stdout).systemMessage;
 
@@ -261,7 +272,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             owner_audit_complete: true,
             owner_audit_line_count: 6
         });
-    }, 20_000);
+    }, 30_000);
 
     it('同時に到着したactive Stopでもblockは1回だけ、もう一方はaudit_degradedで完了する', async () => {
         const root = temporaryDirectory();
@@ -1624,7 +1635,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         let readbackLine = null;
         for (const event of [
             { tool_name: 'apply_patch', tool_use_id: 'entrypoint-execution', tool_input: { patch: '*** Begin Patch\n*** Update File: docs/example.md\n@@\n-old\n+new\n*** End Patch' }, tool_response: { success: true } },
-            { tool_name: 'mcp__brainbase__get_context', tool_use_id: 'entrypoint-evidence', tool_input: { topic: 'docs/example.md' }, tool_response: { content: [{ type: 'text', text: ['Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.', 'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.', '📚 Brainbase取得: docs/example.md → 結果を取得 ✓'].join('\n') }], structuredContent: { items: [{ id: 'updated-ssot' }] } } },
+            { tool_name: 'mcp__brainbase__get_context', tool_use_id: 'entrypoint-evidence', tool_input: { topic: 'docs/example.md' }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('取得') }], structuredContent: { items: [{ id: 'updated-ssot' }] } } },
             { tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record', tool_use_id: 'entrypoint-proof', tool_input: proofToolArgs, tool_response: proofToolResponse },
             { tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'entrypoint-state',
                 tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },

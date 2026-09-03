@@ -31,7 +31,13 @@ grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
 printf 'Record this Lightsail rollback SHA before deployment: %s\n' "$ROLLBACK_SHA"
 ```
 
-Do not proceed if the worktree is dirty — inspect the diff first and decide whether it is server-only state that must be preserved or stale changes.
+Do not proceed if the worktree is dirty. First save the exact patch, untracked
+file list, HEAD, service status, and `/api/version` response in an operator-only
+rollback directory outside the checkout. Classify every tracked change against
+the intended target commit. Restore a clean checkout only after proving each
+change is already present in the target or preserving it as a reviewed patch;
+never reset, clean, or stash an unclassified production change. Read back the
+instance and public version with `dirty=false` before starting section 2.
 
 ## 2. Fast-forward to the target develop commit
 

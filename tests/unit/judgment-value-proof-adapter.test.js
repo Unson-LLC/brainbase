@@ -94,6 +94,44 @@ describe('judgment value proof organization adapter', () => {
     })).toBeNull();
   });
 
+  it('extracts a strict value proof from a Claude content block array', () => {
+    const input = valueProofInput({
+      interruption: {
+        resolution: 'human_required',
+        question_display_text: '本番へ公開してよいか',
+        reason_code: 'owner_value_choice',
+      },
+      decision: { summary: null, work_impact: null, basis: [] },
+      execution: { summary: null, artifact_refs: [] },
+      outcome: { status: 'not_applicable', summary: null, evidence_refs: [] },
+      human_decision: {
+        question: '本番へ公開してよいか',
+        why_human: '外部公開は本人判断が必要なため',
+        options: [{ id: 'yes', label: '公開する', impact: '外部へ公開される' }],
+      },
+    });
+    expect(extractJudgmentValueProofInput([{
+      type: 'text',
+      text: JSON.stringify({ status: 'ok', data: input }),
+    }])).toEqual(input);
+    expect(extractJudgmentValueProofInput([{
+      type: 'text',
+      text: JSON.stringify({ status: 'ok', data: { ...input, feedback_requested: 'yes' } }),
+    }])).toBeNull();
+    expect(extractJudgmentValueProofInput(JSON.stringify([
+      { status: 'ok', data: input },
+    ]))).toEqual(input);
+    expect(extractJudgmentValueProofInput('[not-json')).toBeNull();
+  });
+
+  it('rejects not_applicable when work continued without a human', () => {
+    const input = valueProofInput({
+      outcome: { status: 'not_applicable', summary: null, evidence_refs: [] },
+    });
+
+    expect(extractJudgmentValueProofInput({ status: 'ok', data: input })).toBeNull();
+  });
+
   it('builds a portable verified projection only when referenced execution evidence exists', () => {
     const event = { ...valueProofEvent(), event_sequence: 2 };
     const proof = buildJudgmentValueProofProjection({

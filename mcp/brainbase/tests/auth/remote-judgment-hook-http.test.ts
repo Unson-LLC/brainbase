@@ -1,4 +1,5 @@
 import { describe, it } from 'node:test';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,6 +11,8 @@ import {
 
 const authorize = (authorization: string | undefined, token: string) =>
   authorization === `Bearer ${token}`;
+
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
 function request(overrides: Record<string, unknown> = {}) {
   return {
@@ -196,23 +199,110 @@ describe('remote judgment Hook HTTP boundary', () => {
     });
   });
 
-  it('accepts an empty audit result for the internal judgment state tool', async () => {
-    const result = await handleRemoteJudgmentHookRequest(request({
-      body: Buffer.from(JSON.stringify({
-        hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
-        tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
-      })),
-      dispatch: async () => ({ output: {} }),
-    }));
-    assert.deepEqual(result, {
-      status: 200,
-      body: {
-        schema_version: '1', accepted: true,
-        hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
-        output: {},
-      },
-    });
+  it('dispatches remote toolName through the Host and returns its journal audit', async () => {
+    const journalRoot = await mkdtemp(join(tmpdir(), 'remote-judgment-hook-'));
+    try {
+      const host = await import('../../../../scripts/codex-hooks/judgment-resolver-host.mjs');
+      const env = { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journalRoot };
+      const promptPayload = {
+        hook_event_name: 'UserPromptSubmit',
+        session_id: 'remote-tool-name-session',
+        turn_id: 'remote-tool-name-turn',
+        prompt: 'Brainbaseを検索して',
+        cwd: process.cwd(),
+      };
+      const args = host.buildJudgmentRequest(promptPayload, { env });
+      const receipt = {
+        resolution_id: 'remote-tool-name-resolution',
+        turn_id: args.turn_id,
+        request_digest: sha256(host.canonicalJson(args)),
+        context_digest: sha256(host.canonicalJson(args.conversation_context)),
+        status: 'resolved',
+        host_binding: { status: 'managed' },
+        classification_evidence: {
+          source: 'current_request',
+          source_turn_ids: [args.turn_id],
+        },
+        active_node_definitions: [{ id: 'entry', kind: 'common', instruction: 'Judge first.' }],
+      };
+      await host.startEpisode(promptPayload, {
+        env,
+        fetchImpl: async () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({ management_status: 'managed', receipt }),
+        }),
+      });
+
+      const result = await handleRemoteJudgmentHookRequest(request({
+        body: Buffer.from(JSON.stringify({
+          hook_event_name: 'PostToolUse',
+          session_id: promptPayload.session_id,
+          turn_id: promptPayload.turn_id,
+          toolName: 'mcp__brainbase__search',
+          tool_use_id: 'remote-tool-name-use',
+          tool_input: { query: 'remote toolName alias' },
+          tool_response: {
+            content: [{
+              type: 'text',
+              text: '<!-- brainbase-knowledge-owner-audit:{"schema_version":"brainbase-knowledge-owner-audit-v1","operation":"検索","outcome":"結果を取得"} -->',
+            }],
+          },
+        })),
+        dispatch: async (payload: Record<string, unknown>) => ({
+          output: await host.processHookPayload(payload, { env }),
+        }),
+      }));
+
+      assert.equal(result?.status, 200);
+      assert.equal(result?.body.accepted, true);
+      assert.match(String(result?.body.output?.systemMessage ?? ''), /^📚 Brainbase検索:/);
+    } finally {
+      await rm(journalRoot, { recursive: true, force: true });
+    }
   });
+
+  for (const [field, toolName] of [
+    ['tool_name', 'mcp__brainbase__brainbase_judgment_state_record'],
+    ['toolName', 'mcp__brainbase__brainbase_judgment_state_record'],
+  ] as const) {
+    it(`accepts an empty audit result for the canonical internal judgment state tool form ${field}:${toolName}`, async () => {
+      const result = await handleRemoteJudgmentHookRequest(request({
+        body: Buffer.from(JSON.stringify({
+          hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
+          [field]: toolName,
+        })),
+        dispatch: async () => ({ output: {} }),
+      }));
+      assert.deepEqual(result, {
+        status: 200,
+        body: {
+          schema_version: '1', accepted: true,
+          hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
+          output: {},
+        },
+      });
+    });
+  }
+
+  for (const toolName of [
+    'brainbase_judgment_state_record',
+    'prefix_brainbase_judgment_state_record',
+    'brainbase_judgment_state_record_suffix',
+  ]) {
+    it(`rejects an empty audit result for a near-match internal tool name ${toolName}`, async () => {
+      const result = await handleRemoteJudgmentHookRequest(request({
+        body: Buffer.from(JSON.stringify({
+          hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
+          tool_name: toolName,
+        })),
+        dispatch: async () => ({ output: {} }),
+      }));
+      assert.deepEqual(result, {
+        status: 503, body: { error: 'judgment_hook_audit_not_recorded' },
+      });
+    });
+  }
 
   it('story-remote-judgment-hook:ac:4 fails closed when the canonical dispatcher is unavailable', async () => {
     const diagnostics: unknown[] = [];

@@ -30,11 +30,7 @@ function retrievalResultResponse(subject) {
   return {
     content: [{
       type: 'text',
-      text: [
-        'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
-        'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
-        `📚 Brainbase取得: ${subject} → 結果を取得 ✓`,
-      ].join('\n'),
+      text: '<!-- brainbase-knowledge-owner-audit:{"schema_version":"brainbase-knowledge-owner-audit-v1","operation":"取得","outcome":"結果を取得"} -->',
     }],
     structuredContent: { items: [{ id: 'updated-ssot' }] },
   };

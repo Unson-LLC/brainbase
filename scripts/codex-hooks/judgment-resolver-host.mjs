@@ -103,6 +103,49 @@ const AUTONOMY_QUESTION_PATTERN = /^⚠️ 確認が必要\[([a-z_]+)\]:\s*(.+)$
 const STRUCTURED_STOP_STATE_PATTERN = /^<!-- brainbase-stop-state:(\{.*\}) -->$/u;
 const JUDGMENT_STATE_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_state_record';
 const JUDGMENT_VALUE_PROOF_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_value_proof_record';
+const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
+    'get_context', 'list_entities', 'get_entity', 'list_extension_types', 'list_extension_entities',
+    'search', 'resolve_entity', 'search_wiki', 'get_wiki_page', 'search_personal_kg',
+    'brainbase_projects', 'brainbase_bootstrap_config', 'brainbase_admin_read',
+    'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
+    'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
+    'brainbase_resolve_turn', 'brainbase_knowledge_resolve', 'brainbase_get_meeting_minutes_context', 'authorize_tenant_resource',
+    'mesh_peers', 'graph_get_plan_receipt', 'graph_validate'
+]);
+const BRAINBASE_WRITE_TOOL_NAMES = Object.freeze([
+    'brainbase_judgment_value_proof_record', 'brainbase_judgment_state_record',
+    'brainbase_automation_human_step_resolve', 'brainbase_onboarding_start', 'brainbase_onboarding_ingest',
+    'brainbase_onboarding_review', 'brainbase_onboarding_first_value', 'brainbase_knowledge_event_record',
+    'create_task', 'update_task', 'transition_task', 'graph_record_human_gate_receipt',
+    'graph_plan_mutations', 'graph_apply_plan', 'graph_rollback_plan', 'graph_export_snapshot', 'mesh_query'
+]);
+export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
+    ...BRAINBASE_READ_TOOL_NAMES.map((name) => [name, 'retrieve']),
+    ...BRAINBASE_WRITE_TOOL_NAMES.map((name) => [name, 'write']),
+    ['search', 'search'],
+    ['search_wiki', 'search'],
+    ['search_personal_kg', 'search'],
+    ['brainbase_resolve_turn', 'turn_resolution'],
+    ['brainbase_knowledge_resolve', 'route'],
+    ['brainbase_judgment_state_record', 'state'],
+    ['brainbase_judgment_value_proof_record', 'value_proof']
+]));
+export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
+    get_context: 'owner_audit', list_entities: 'owner_audit', get_entity: 'owner_audit',
+    list_extension_types: 'owner_audit', list_extension_entities: 'owner_audit', search: 'owner_audit',
+    resolve_entity: 'owner_audit', search_wiki: 'owner_audit', get_wiki_page: 'owner_audit', search_personal_kg: 'owner_audit',
+    brainbase_projects: 'control_plane', brainbase_bootstrap_config: 'published_contract', brainbase_admin_read: 'control_plane',
+    brainbase_run_receipt_inbox: 'control_plane', brainbase_run_receipt_history: 'control_plane', brainbase_run_receipt_diagnosis: 'published_contract',
+    brainbase_automation_run_detail: 'published_contract', brainbase_meeting_automation_diagnosis: 'published_contract', brainbase_onboarding_get: 'published_contract',
+    brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', authorize_tenant_resource: 'tenant_authorization',
+    mesh_peers: 'mesh_peers', graph_get_plan_receipt: 'graph_contract', graph_validate: 'graph_contract',
+    brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
+    brainbase_automation_human_step_resolve: 'published_contract', brainbase_onboarding_start: 'published_contract', brainbase_onboarding_ingest: 'published_contract',
+    brainbase_onboarding_review: 'published_contract', brainbase_onboarding_first_value: 'published_contract', brainbase_knowledge_event_record: 'published_contract',
+    create_task: 'task_contract', update_task: 'task_contract', transition_task: 'task_contract', graph_record_human_gate_receipt: 'graph_contract',
+    graph_plan_mutations: 'graph_contract', graph_apply_plan: 'graph_contract', graph_rollback_plan: 'graph_contract', graph_export_snapshot: 'graph_contract',
+    mesh_query: 'mesh_query'
+});
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -1273,12 +1316,17 @@ function toolCallScope(toolName, input) {
     return query === '対象未指定' ? '入力なし' : query;
 }
 
+function isJsonContainerText(value) {
+    const text = typeof value === 'string' ? value.trim() : '';
+    return text.startsWith('{') || text.startsWith('[');
+}
+
 function nestedRecords(value, depth = 0, { parseContent = true } = {}) {
     if (depth > 5) return [];
     if (Array.isArray(value)) {
         return value.flatMap((entry) => nestedRecords(entry, depth + 1, { parseContent }));
     }
-    if (typeof value === 'string' && value.trim().startsWith('{')) {
+    if (isJsonContainerText(value)) {
         try { return nestedRecords(JSON.parse(value), depth + 1, { parseContent }); } catch { return []; }
     }
     const item = record(value);
@@ -1290,11 +1338,11 @@ function nestedRecords(value, depth = 0, { parseContent = true } = {}) {
     if (parseContent && Array.isArray(item.content)) {
         for (const block of item.content) {
             const text = record(block)?.text;
-            if (typeof text !== 'string' || !text.trim().startsWith('{')) continue;
+            if (!isJsonContainerText(text)) continue;
             try { direct.push(...nestedRecords(JSON.parse(text), depth + 1, { parseContent })); } catch {}
         }
     }
-    if (parseContent && typeof item.text === 'string' && item.text.trim().startsWith('{')) {
+    if (parseContent && isJsonContainerText(item.text)) {
         try { direct.push(...nestedRecords(JSON.parse(item.text), depth + 1, { parseContent })); } catch {}
     }
     return direct;
@@ -1307,7 +1355,7 @@ function validCallToolResultEnvelope(value) {
     return content.every((block) => {
         const entry = record(block);
         if (!entry || typeof entry.type !== 'string') return false;
-        if (entry.type === 'text') return typeof entry.text === 'string';
+        if (entry.type === 'text') return typeof entry.text === 'string' && Boolean(entry.text.trim());
         if (entry.type === 'image' || entry.type === 'audio') return typeof entry.data === 'string' && typeof entry.mimeType === 'string';
         if (entry.type === 'resource') {
             const resource = record(entry.resource);
@@ -1324,9 +1372,10 @@ function responseSucceeded(response, {
     allowImplicitSuccess = false,
     semanticSuccess = false
 } = {}) {
+    const explicitEnvelope = record(response);
     const items = nestedRecords(response);
     if (items.length === 0) {
-        return allowImplicitSuccess && response !== null && response !== undefined;
+        return semanticSuccess || (allowImplicitSuccess && response !== null && response !== undefined);
     }
     const failed = items.some((item) => (
         Object.hasOwn(item, 'Err') || item.isError === true
@@ -1334,7 +1383,7 @@ function responseSucceeded(response, {
         || item.ok === false
         || item.success === false
         || (Number.isSafeInteger(item.exit_code) && item.exit_code !== 0)
-        || ['error', 'unavailable', 'failed', 'failure'].includes(String(item.status).toLowerCase())
+        || ['error', 'unavailable', 'failed', 'failure', 'partial', 'unknown'].includes(String(item.status).toLowerCase())
         || (item.error !== undefined && item.error !== null && item.error !== false && item.status !== 'ok')
     ));
     if (failed) return false;
@@ -1342,9 +1391,9 @@ function responseSucceeded(response, {
     return semanticSuccess || trustedEnvelopeItems.some((item) => (
         (allowTransportSuccess && validCallToolResultEnvelope(item.Ok))
         || (allowTransportSuccess && validCallToolResultEnvelope(item))
-        || (allowExplicitSuccess && (item.isError === false || item.is_error === false || item.ok === true || item.success === true || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())))
+        || (allowExplicitSuccess && explicitEnvelope === item && (item.isError === false || item.is_error === false || item.ok === true || item.success === true || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())))
         || (allowImplicitSuccess && response !== null && response !== undefined)
-    )) || (allowTransportSuccess && validCallToolResultEnvelope(response));
+    )) || (allowTransportSuccess && !Array.isArray(response) && validCallToolResultEnvelope(response));
 }
 
 function responseCount(response) {
@@ -1359,19 +1408,25 @@ function retrievalAudit(response) {
         const content = Array.isArray(item) ? item : record(item)?.content;
         const text = Array.isArray(content)
             ? record(content.at(-1))?.text
-            : typeof item === 'string' ? item : null;
+            : typeof item === 'string' ? item : record(item)?.text;
         if (typeof text !== 'string') continue;
-        const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
-        if (lines.length !== 3
-            || lines[0] !== 'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.'
-            || lines[1] !== 'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.') {
+        const match = text.trim().match(/^<!-- brainbase-knowledge-owner-audit:(\{[^\r\n]+\}) -->$/u);
+        if (!match) continue;
+        let audit;
+        try {
+            audit = JSON.parse(match[1]);
+        } catch {
             continue;
         }
-        const terminalLine = lines[2];
-        const noResult = terminalLine.match(/^📚 Brainbase(検索|取得): [^\r\n]* → 該当なし（不在確定ではない）$/u);
-        if (noResult) return { kind: noResult[1] === '検索' ? 'search' : 'retrieve', outcome: 'no_result' };
-        const result = terminalLine.match(/^📚 Brainbase(検索|取得): [^\r\n]* → 結果を取得 ✓$/u);
-        if (result) return { kind: result[1] === '検索' ? 'search' : 'retrieve', outcome: 'result' };
+        if (audit?.schema_version !== 'brainbase-knowledge-owner-audit-v1'
+            || !['検索', '取得'].includes(audit.operation)
+            || !['結果を取得', '該当なし（不在確定ではない）'].includes(audit.outcome)) {
+            continue;
+        }
+        return {
+            kind: audit.operation === '検索' ? 'search' : 'retrieve',
+            outcome: audit.outcome === '結果を取得' ? 'result' : 'no_result'
+        };
     }
     return null;
 }
@@ -1385,6 +1440,163 @@ function knowledgeResolutionData(response) {
 
 function taskResultData(response) {
     return nestedRecords(response).find((item) => item.status === 'ok' && record(item.task) && typeof item.task.id === 'string' && item.task.id.trim()) ?? null;
+}
+
+function controlPlaneReadData(toolName, response) {
+    const name = String(toolName).replace(/^mcp__brainbase__/u, '');
+    const expectedCollection = {
+        brainbase_projects: 'projects',
+        brainbase_run_receipt_inbox: 'items',
+        brainbase_run_receipt_history: 'items'
+    }[name];
+    return nestedRecords(response).find((item) => {
+        if (item.status !== 'ok') return false;
+        const data = record(item.data);
+        if (!data) return false;
+        if (expectedCollection) return Array.isArray(data[expectedCollection]);
+        if (name !== 'brainbase_admin_read') return false;
+        return Object.values(data).some((value) => Array.isArray(value) || record(value));
+    }) ?? null;
+}
+
+function nonEmptyString(value) {
+    return typeof value === 'string' && value.trim().length > 0;
+}
+
+function objectArray(value) {
+    return Array.isArray(value) && value.every((item) => Boolean(record(item)));
+}
+
+function stringArray(value) {
+    return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function receiptContract(data, type = null) {
+    return nonEmptyString(data?.receipt_id) && nonEmptyString(data?.plan_id)
+        && (type === null || data.receipt_type === type) && nonEmptyString(data?.status)
+        && nonEmptyString(data?.before_hash) && nonEmptyString(data?.after_hash)
+        && Boolean(record(data?.result)) && nonEmptyString(data?.created_at);
+}
+
+function graphToolContract(name, data, input = null) {
+    if (name === 'graph_export_snapshot') {
+        return nonEmptyString(data.snapshot_id) && nonEmptyString(data.snapshot_hash) && nonEmptyString(data.project_code)
+            && Array.isArray(data.entities) && Array.isArray(data.edges);
+    }
+    if (name === 'graph_record_human_gate_receipt') {
+        return nonEmptyString(data.receipt_id) && nonEmptyString(data.decision_id) && data.status === 'approved'
+            && nonEmptyString(data.approved_by) && nonEmptyString(data.approved_at) && Boolean(record(data.evidence));
+    }
+    if (name === 'graph_plan_mutations') {
+        return ['plan_id', 'status', 'snapshot_id', 'snapshot_hash', 'after_snapshot_hash', 'reason', 'idempotency_key'].every((key) => nonEmptyString(data[key]))
+            && typeof data.dry_run === 'boolean' && Array.isArray(data.operations)
+            && data.operation_count === data.operations.length && Boolean(record(data.before)) && Boolean(record(data.after)) && Boolean(record(data.diff_summary));
+    }
+    if (name === 'graph_apply_plan') return receiptContract(data, 'apply');
+    if (name === 'graph_rollback_plan') return receiptContract(data, 'rollback');
+    if (name === 'graph_get_plan_receipt') return nonEmptyString(data.plan_id) && Array.isArray(data.receipts) && data.receipts.every((entry) => receiptContract(record(entry)));
+    if (name === 'graph_validate') {
+        const counts = record(data.counts);
+        const baseContractSatisfied = data.valid === true && nonEmptyString(data.snapshot_hash) && Array.isArray(data.issues)
+            && Boolean(record(data.ontology)) && Boolean(record(data.required_relation_scope_summary))
+            && ['entities', 'edges', 'issues', 'duplicates', 'orphans'].every((key) => Number.isFinite(counts?.[key]) && counts[key] >= 0);
+        if (!baseContractSatisfied || record(input)?.strict_collection !== true) return baseContractSatisfied;
+        const validationScope = record(data.validation_scope);
+        const suppressionSummary = record(data.suppression_summary);
+        const ontology = record(data.ontology);
+        return data.collection_complete === true && validationScope?.strict_collection === true
+            && data.issues.length === 0 && counts.issues === 0
+            && ontology?.valid === true && Array.isArray(ontology.violations) && ontology.violations.length === 0
+            && suppressionSummary?.edge_count === 0;
+    }
+    return false;
+}
+
+function responseText(response) {
+    if (typeof response === 'string') return response;
+    const content = Array.isArray(response) ? response : record(response)?.content;
+    if (!Array.isArray(content)) return null;
+    return content.map((block) => record(block)?.text).find((text) => typeof text === 'string' && text.trim()) ?? null;
+}
+
+function publishedToolSemanticData(toolName, response, input) {
+    const name = String(toolName).replace(/^mcp__brainbase__/u, '');
+    if (name === 'mesh_peers') {
+        const text = responseText(response);
+        return typeof text === 'string' && (text === '接続中のピアはありません。' || /^# メッシュピア一覧 \(\d+\)\n/u.test(text)) ? { text } : null;
+    }
+    return nestedRecords(response).find((item) => {
+        if (name === 'brainbase_get_meeting_minutes_context') {
+            const expected = record(input);
+            const receipt = record(item.receipt);
+            const identity = record(receipt?.identity);
+            return item.status === 'ok' && ['resolved', 'confirmed_empty'].includes(receipt?.status)
+                && nonEmptyString(expected?.receipt_id) && nonEmptyString(receipt?.receipt_id)
+                && receipt.receipt_id === expected.receipt_id
+                && nonEmptyString(expected?.run_id) && nonEmptyString(identity?.run_id)
+                && identity.run_id === expected.run_id
+                && nonEmptyString(expected?.project_code) && nonEmptyString(identity?.project_code)
+                && identity.project_code === expected.project_code
+                && nonEmptyString(expected?.transcript_sha256) && nonEmptyString(identity?.transcript_sha256)
+                && identity.transcript_sha256 === expected.transcript_sha256;
+        }
+        if (name === 'authorize_tenant_resource') {
+            const resource = record(item.resource_ref);
+            return item.authorized === true && item.entry_point === 'mcp' && nonEmptyString(item.tenant_id)
+                && nonEmptyString(item.tenant_revision_at_write) && nonEmptyString(resource?.object_type) && nonEmptyString(resource?.resource_id);
+        }
+        if (name === 'mesh_query') return nonEmptyString(item.queryId) && item.status === 'sent';
+        if (item.status !== 'ok') return false;
+        if (name === 'brainbase_onboarding_get' && item.data === null) return true;
+        const data = record(item.data);
+        if (!data) return false;
+        if (name.startsWith('graph_')) return graphToolContract(name, data, input);
+        if (name === 'brainbase_bootstrap_config') {
+            const config = record(data.bootstrap_config);
+            const user = record(config?.user);
+            return config?.config_write_mode === 'create_only'
+                && ['id', 'name', 'slackUserId', 'workspaceId'].every((key) => nonEmptyString(user?.[key]))
+                && Array.isArray(config.projects) && config.projects.every((project) => nonEmptyString(record(project)?.id))
+                && nonEmptyString(config.config_yaml) && data.count === config.projects.length;
+        }
+        if (name === 'brainbase_run_receipt_diagnosis') {
+            const diagnosis = record(data.diagnosis);
+            return nonEmptyString(record(data.receipt)?.project_id) && nonEmptyString(diagnosis?.state)
+                && stringArray(diagnosis.issue_codes)
+                && (diagnosis.recommended_action === null || typeof diagnosis.recommended_action === 'string')
+                && data.count === 1;
+        }
+        if (name === 'brainbase_automation_run_detail') {
+            return nonEmptyString(record(data.run)?.project_id)
+                && ['run_steps', 'context_snapshots', 'human_steps', 'outputs', 'audit_logs'].every((key) => objectArray(data[key]));
+        }
+        if (name === 'brainbase_automation_human_step_resolve') {
+            const resumedRun = data.resumed_run;
+            return Boolean(record(data.human_step))
+                && (resumedRun === null || nonEmptyString(record(resumedRun)?.project_id));
+        }
+        if (name === 'brainbase_meeting_automation_diagnosis') {
+            const diagnosis = record(data.meeting_automation);
+            return nonEmptyString(diagnosis?.project_id) && nonEmptyString(diagnosis?.state)
+                && stringArray(diagnosis.issue_codes) && stringArray(diagnosis.recommended_actions);
+        }
+        if (['brainbase_onboarding_start', 'brainbase_onboarding_get', 'brainbase_onboarding_ingest', 'brainbase_onboarding_first_value'].includes(name)) {
+            return nonEmptyString(data.id) && nonEmptyString(data.status);
+        }
+        if (name === 'brainbase_onboarding_review') {
+            const candidate = record(data.candidate);
+            return nonEmptyString(candidate?.id) && nonEmptyString(candidate?.promotion_status)
+                && (data.graph_entity_id === null || nonEmptyString(data.graph_entity_id));
+        }
+        if (name === 'brainbase_knowledge_event_record') {
+            return data.schema_version === 'brainbase-vibepro-knowledge-event-record-receipt.v1'
+                && ['recorded', 'already_recorded'].includes(data.status)
+                && ['event_id', 'project_code', 'story_id', 'body_hash', 'parent_episode_id', 'candidate_id', 'record_ref', 'candidate_ref'].every((key) => nonEmptyString(data[key]))
+                && data.processing_stage === 'retrievable' && data.candidate_only === true
+                && data.graph_promoted === false && data.external_action_executed === false;
+        }
+        return false;
+    }) ?? null;
 }
 
 function validJudgmentStopState(value) {
@@ -1435,13 +1647,8 @@ function waitingHumanReasonAllowed(contract, reasonCode) {
 function eventKind(toolName) {
     const exactToolName = String(toolName);
     if (exactToolName === 'mcp__brainbase__brainbase_resolve_turn') return 'turn_resolution';
-    if (exactToolName === JUDGMENT_VALUE_PROOF_TOOL_NAME) return 'value_proof';
-    if (exactToolName === CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'].exactTool) return 'route';
     const name = exactToolName.replace(/^mcp__brainbase__/u, '');
-    if (/(?:create|update|transition|delete|write|record|link|unlink)/iu.test(name)) return 'write';
-    if (/search/iu.test(name)) return 'search';
-    if (/(?:get|list|resolve|context|read)/iu.test(name)) return 'retrieve';
-    return 'call';
+    return BRAINBASE_TOOL_KIND_BY_NAME[name] ?? 'call';
 }
 
 function judgmentTurnResolutionData(response) {
@@ -1512,7 +1719,8 @@ function routeDisplayLine(input, data, success) {
 
 export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
-    const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : '';
+    const toolNameValue = payload?.tool_name ?? payload?.toolName;
+    const toolName = typeof toolNameValue === 'string' ? toolNameValue : '';
     const toolUseId = typeof payload?.tool_use_id === 'string' ? payload.tool_use_id : '';
     const brainbaseTool = /^mcp__brainbase__/u.test(toolName);
     const judgmentStateTool = toolName === JUDGMENT_STATE_TOOL_NAME;
@@ -1542,6 +1750,10 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const turnResolution = kind === 'turn_resolution' ? judgmentTurnResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
+    const publishedToolResult = brainbaseTool ? publishedToolSemanticData(toolName, responseValue, inputValue) : null;
+    const controlPlaneRead = kind === 'call' || kind === 'retrieve'
+        ? controlPlaneReadData(toolName, responseValue)
+        : null;
     const stopState = kind === 'state' ? judgmentStopStateData(responseValue) : null;
     const valueProofInput = kind === 'value_proof' ? extractJudgmentValueProofInput(responseValue) : null;
     const requestedStopState = kind === 'state' ? {
@@ -1550,21 +1762,25 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         pending_safe_work: record(inputValue)?.pending_safe_work,
         runtime_reason_code: record(inputValue)?.runtime_reason_code
     } : null;
+    const semanticResult = Boolean(controlPlaneRead || publishedToolResult);
+    const retrievalSemanticSuccess = BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME[toolName.replace(/^mcp__brainbase__/u, '')] === 'owner_audit'
+        ? Boolean(retrieval)
+        : Boolean(retrieval && semanticResult);
     const responseSuccess = responseSucceeded(responseValue, {
-        allowTransportSuccess: ['search', 'retrieve'].includes(kind),
-        allowExplicitSuccess: !['write', 'route'].includes(kind) || !brainbaseTool,
+        allowTransportSuccess: brainbaseTool && ['search', 'retrieve'].includes(kind) && retrievalSemanticSuccess,
+        allowExplicitSuccess: !brainbaseTool,
         allowImplicitSuccess: !brainbaseTool,
         semanticSuccess: kind === 'turn_resolution'
             ? Boolean(turnResolution)
             : ['search', 'retrieve'].includes(kind)
-                ? Boolean(retrieval)
+                ? retrievalSemanticSuccess
             : kind === 'value_proof'
             ? Boolean(valueProofInput)
             : kind === 'route'
                 ? resolution?.status === 'resolved'
-                : kind === 'state'
+            : kind === 'state'
                     ? Boolean(stopState && canonicalJson(stopState) === canonicalJson(requestedStopState))
-                    : Boolean(taskResult)
+                    : Boolean(taskResult || controlPlaneRead || publishedToolResult)
     });
     const satisfiesKnowledgeExecution = kind === 'route';
     const retrievalResult = responseSuccess && ['search', 'retrieve'].includes(kind)
@@ -1681,7 +1897,10 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             }
         }
         const turnResolutionMessage = kind === 'turn_resolution' && responseSuccess && turnResolution
-            ? `🧠 判断契約を確定しました。監査行はStop時にHostがsystemMessageとして表示するため、回答本文へ再現する必要はありません（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）`
+            ? [
+                `🧠 判断契約を確定しました。監査行はStop時にHostがsystemMessageとして表示するため、回答本文へ再現する必要はありません（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）`,
+                ...turnContractExecutionInstructions(turnResolution, env, { hostAutonomy: episode.host_autonomy ?? null })
+            ].join('\n')
             : null;
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
@@ -3088,20 +3307,13 @@ function mandatoryVibeProImplementationInstructions(receipt) {
     ];
 }
 
-export function successOutput(
-    args,
-    receipt,
-    ownerAudit = buildOwnerAudit(args, receipt),
-    auditContract = buildAuditContract(receipt),
-    env = process.env,
-    hostSurface = null,
-    turnRef = null,
-    hostAutonomy = null
-) {
-    const surfaceDegraded = hostSurface?.turn_resolution === 'unavailable';
-    const requiredCapabilityInstructions = requiredCapabilityActionContracts(receipt)
-        .map((contract) => capabilityActionInstruction(contract));
-    const implementationWorkflowInstructions = mandatoryVibeProImplementationInstructions(receipt);
+function answeredEscalationInstructions(hostAutonomy) {
+    return hostAutonomy?.basis === 'prior_escalation_answered' ? [
+        `このセッションで人間が承認済みのpolicy（${JSON.stringify(hostAutonomy.approved_policy_ids ?? [])}）またはreason_code（${JSON.stringify(hostAutonomy.approved_reason_codes ?? [])}）に該当する場合、resolve後の判断がrisk_or_externalでも再度確認せず、通常の権限・承認の範囲で要求された操作を実行し、状態はcompletedまたはpendingで記録する。それ以外のpolicy/reason_codeでrisk_or_externalへ escalateした場合は改めて確認する。`
+    ] : [];
+}
+
+function turnContractExecutionInstructions(receipt, env, { surfaceDegraded = false, hostAutonomy = null } = {}) {
     const autonomy = verifyAutonomyContract(receipt);
     const autonomyInstructions = surfaceDegraded
         ? [
@@ -3111,37 +3323,24 @@ export function successOutput(
             'この自律判断は通常の権限・承認を置き換えません。'
         ]
         : autonomy?.decision === 'continue'
-        ? [
-            'Autonomy decision: continue.',
-            '安全なスコープ内の読解、調査、テスト、可逆な実装はそのまま完了まで続ける。複雑さ、好みの確認、念のための確認だけを理由に停止しない。',
-            `実行中に確認が必須になった場合だけ、許可された理由コードの確認行「⚠️ 確認が必要[reason_code]:」を回答本文の先頭に置く。許可コード: ${autonomy.allowedRuntimeReasons.join(', ')}。例: ⚠️ 確認が必要[missing_authority]:`,
-            'この自律判断は通常の権限・承認を置き換えません。'
-        ]
-        : autonomy?.decision === 'escalate'
             ? [
-                'Autonomy decision: escalate.',
-                `境界操作を実行せず、回答本文の先頭に「⚠️ 確認が必要[${autonomy.reasonCode}]:」を置き、必要な確認を一つだけ求める。`,
+                'Autonomy decision: continue.',
+                '安全なスコープ内の読解、調査、テスト、可逆な実装はそのまま完了まで続ける。複雑さ、好みの確認、念のための確認だけを理由に停止しない。',
+                `実行中に確認が必須になった場合だけ、許可された理由コードの確認行「⚠️ 確認が必要[reason_code]:」を回答本文の先頭に置く。許可コード: ${autonomy.allowedRuntimeReasons.join(', ')}。例: ⚠️ 確認が必要[missing_authority]:`,
                 'この自律判断は通常の権限・承認を置き換えません。'
             ]
-            : [];
-    const context = [
-        'Brainbase Judgment Resolver Host opened one unresolved judgment episode before model generation. This bootstrap receipt is not a semantic classification or the final episode receipt.',
-        ...(surfaceDegraded ? [
-            `This Codex thread cannot call ${TURN_RESOLUTION_TOOL_NAME}: its MCP tool surface predates the current Brainbase contract, and the Host recorded that tool failure from the transcript. Do not retry it, do not ask the user a classification question, and do not ask the user to restart; the Host-generated judgment line already reports the degraded state and that a new Codex task restores full judgment routing.`,
-            'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
-        ] : [
-            typeof turnRef === 'string'
-                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input (if the tool rejects a missing turn_input, pass turn_input as {"turn_ref": ${JSON.stringify(turnRef)}}). ${MODEL_INTERPRETATION_SHAPE}`
-                : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
-            'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
-            'After that call succeeds, the PostToolUse system message confirms the judgment contract. Stop always renders the complete owner-visible audit block itself as its own systemMessage; do not write, reproduce, or verify 🧠/📚/⚠️ audit lines in the answer.'
-        ]),
+            : autonomy?.decision === 'escalate'
+                ? [
+                    'Autonomy decision: escalate.',
+                    `境界操作を実行せず、回答本文の先頭に「⚠️ 確認が必要[${autonomy.reasonCode}]:」を置き、必要な確認を一つだけ求める。`,
+                    'この自律判断は通常の権限・承認を置き換えません。'
+                ]
+                : [];
+    return [
         ...autonomyInstructions,
-        ...(hostAutonomy?.basis === 'prior_escalation_answered' ? [
-            `このセッションで人間が承認済みのpolicy（${JSON.stringify(hostAutonomy.approved_policy_ids ?? [])}）またはreason_code（${JSON.stringify(hostAutonomy.approved_reason_codes ?? [])}）に該当する場合、resolve後の判断がrisk_or_externalでも再度確認せず、通常の権限・承認の範囲で要求された操作を実行し、状態はcompletedまたはpendingで記録する。それ以外のpolicy/reason_codeでrisk_or_externalへ escalateした場合は改めて確認する。`
-        ] : []),
-        ...implementationWorkflowInstructions,
-        ...requiredCapabilityInstructions,
+        ...answeredEscalationInstructions(hostAutonomy),
+        ...mandatoryVibeProImplementationInstructions(receipt),
+        ...requiredCapabilityActionContracts(receipt).map((contract) => capabilityActionInstruction(contract)),
         ...(journalStopStateRequired(receipt) && valueProofRolloutEnabled({ initial_route_receipt: receipt }, env) ? [
             'Brainbaseが本当に人間判断を必要とした場合、またはHostが直前のStopで不要な確認質問を差し戻した場合だけ、全作業と検証の後にmcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。continued_without_humanでは、差し戻された質問文を一字一句同じquestion_display_textとして使う。canonical_readbackのsubject_refは実行成果物のrefと実際の取得入力に完全一致させ、結果ありの取得だけを指定する。先行する中断候補がない単なる代理判断ではvalue proofを記録しない。raw tool response、秘密情報、内部監査ログは入れない。',
             'value proofを記録した場合も、その後にmcp__brainbase__brainbase_judgment_state_recordを実行し、状態toolを必ず最後のtool callにする。'
@@ -3156,7 +3355,41 @@ export function successOutput(
         ...(surfaceDegraded ? [] : [
             'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.'
         ]),
-        'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
+        'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.'
+    ];
+}
+
+export function successOutput(
+    args,
+    receipt,
+    ownerAudit = buildOwnerAudit(args, receipt),
+    auditContract = buildAuditContract(receipt),
+    env = process.env,
+    hostSurface = null,
+    turnRef = null,
+    hostAutonomy = null
+) {
+    const surfaceDegraded = hostSurface?.turn_resolution === 'unavailable';
+    const contractInstructions = surfaceDegraded || receipt?.status !== 'needs_classification'
+        ? turnContractExecutionInstructions(receipt, env, { surfaceDegraded, hostAutonomy })
+        : [];
+    const bootstrapHostAutonomyInstructions = receipt?.status === 'needs_classification'
+        ? answeredEscalationInstructions(hostAutonomy)
+        : [];
+    const context = [
+        'Brainbase Judgment Resolver Host opened one unresolved judgment episode before model generation. This bootstrap receipt is not a semantic classification or the final episode receipt.',
+        ...(surfaceDegraded ? [
+            `This Codex thread cannot call ${TURN_RESOLUTION_TOOL_NAME}: its MCP tool surface predates the current Brainbase contract, and the Host recorded that tool failure from the transcript. Do not retry it, do not ask the user a classification question, and do not ask the user to restart; the Host-generated judgment line already reports the degraded state and that a new Codex task restores full judgment routing.`,
+            'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
+        ] : [
+            typeof turnRef === 'string'
+                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input (if the tool rejects a missing turn_input, pass turn_input as {"turn_ref": ${JSON.stringify(turnRef)}}). ${MODEL_INTERPRETATION_SHAPE}`
+                : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
+            'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
+            'After that call succeeds, the PostToolUse system message confirms the judgment contract. Stop always renders the complete owner-visible audit block itself as its own systemMessage; do not write, reproduce, or verify 🧠/📚/⚠️ audit lines in the answer.'
+        ]),
+        ...bootstrapHostAutonomyInstructions,
+        ...contractInstructions,
         `The full route receipt stays in the per-session judgment journal and is never printed into model context.`
     ].join('\n');
     return {

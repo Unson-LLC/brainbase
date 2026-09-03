@@ -86,6 +86,88 @@
       "last_revised_at": "2026-09-02T05:40:58.443Z"
     },
     {
+      "id": "C-002",
+      "type": "invariant",
+      "statement": "公開Brainbase toolの成功監査はtoolごとの意味的成功schemaで判定し、空・失敗・503・partial・unknown・transport envelopeだけを成功として表示してはならない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6,
+            "ac_id": "AC-007",
+            "text_snippet": "失敗・503・部分取得・不明を成功として扱わず"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "証拠契約"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "公開MCPツールの検証済みresponse契約だけを意味的成功として採用する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "公開MCPツールの検証済みresponse契約だけを意味的成功として採用する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:00:00.000Z",
+      "last_revised_at": "2026-09-02T14:15:00.000Z"
+    },
+    {
+      "id": "C-005",
+      "type": "invariant",
+      "statement": "proven_activeは、通常のfresh taskでjudgment_lifecycle_activeを実証し、別のfresh taskで同一turnのepisode、実Brainbase tool event、実際の中断候補、権限内の継続、実行成果物、正本読戻し、value proof、complete final、owner_audit_source=stop_hook_system_message、Codex UIまたはevent stream上のユーザー向け判断レシート一回表示がevent IDとdigestで一意に対応する場合だけ成立する。assistant本文への監査行複製や不安定なJSONL transcript表現をHook表示の代替証拠にしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 7,
+            "ac_id": "AC-008",
+            "text_snippet": "同一turnで照合できた場合だけproven_active"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-production-artifact-reconciliation.md",
+            "section": "証拠契約"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
+          {
+            "file": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
+            "case": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "must_cover": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
+          {
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
+            "must_cover": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-02T05:00:00.000Z",
+      "last_revised_at": "2026-09-02T14:15:00.000Z"
+    },
+    {
       "id": "S-001",
       "type": "scenario",
       "statement": "Given 本番ホットフィックスが正式なPRへ統合され、本番4ファイルだけがpatch・content hash・専用rollback commitへ保全され4面の切替前状態が取得済み、When global Hook・ローカル31013・常駐MCP・Lightsailを統合SHAへ揃える、Then 4面のcheckout・稼働process・version/readinessが同じ統合SHAを示し対象checkoutがcleanである。",
@@ -112,8 +194,12 @@
         ],
         "test_refs": [
           {
+            "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
+          {
             "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
-            "case": "accepts an empty audit result for the internal judgment state tool"
+            "case": "accepts an empty audit result for the canonical internal judgment state tool form ${field}:${toolName}"
           },
           {
             "file": "tests/unit/judgment-resolver-host.test.js",
@@ -132,8 +218,12 @@
       "verifiable_by": {
         "test_pattern": [
           {
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "must_cover": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
+          {
             "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
-            "must_cover": "accepts an empty audit result for the internal judgment state tool"
+            "must_cover": "accepts an empty audit result for the canonical internal judgment state tool form ${field}:${toolName}"
           },
           {
             "file_glob": "tests/unit/judgment-resolver-host.test.js",
@@ -298,7 +388,7 @@
     {
       "id": "S-003",
       "type": "scenario",
-      "statement": "Given 4面が統合SHAへ揃い必要なHook trust承認が完了済み、When その後にfresh Codex taskを作成する、Then 同一turnのJudgment episodeに期待する実Brainbase eventと完全なowner auditが記録されproven_activeとなる。",
+      "statement": "Given 4面が統合SHAへ揃い必要なHook trust承認が完了済み、When 通常のfresh taskでJudgment episodeと完全なowner auditを実証し、別のfresh taskで実際の中断候補から権限内の継続、実行成果物、正本読戻し、value proof、complete final、ユーザー向け判断レシートまでを同一turnへ束縛する、Then 前者をjudgment_lifecycle_active、両方が一意に対応した状態だけをproven_activeとする。",
       "origin": {
         "story_refs": [
           {
@@ -316,16 +406,24 @@
         ],
         "test_refs": [
           {
-            "file": "tests/unit/judgment-resolver-host.test.js",
-            "case": "継続中にknowledge routeを取得すればcompleteとして一度だけ確定する"
+            "file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "case": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
+          {
+            "file": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
+            "case": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/unit/judgment-resolver-host.test.js",
-            "must_cover": "継続中にknowledge routeを取得すればcompleteとして一度だけ確定する"
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts",
+            "must_cover": "story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する"
+          },
+          {
+            "file_glob": "tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts",
+            "must_cover": "delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit"
           }
         ]
       },

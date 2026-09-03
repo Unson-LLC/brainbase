@@ -178,6 +178,7 @@ export function normalizeJudgmentValueProofInput(args: Record<string, unknown>):
   const resolution = interruption.resolution as JudgmentValueProofInputV1['interruption']['resolution'];
   const outcomeStatus = outcome.status as JudgmentValueProofInputV1['outcome']['status'];
   if (resolution === 'continued_without_human' && (!questionDisplayText || !decisionSummary)) return null;
+  if (resolution === 'continued_without_human' && outcomeStatus === 'not_applicable') return null;
   if (resolution === 'human_required' && !humanDecision) return null;
   if (resolution !== 'human_required' && humanDecision !== null) return null;
   if (outcomeStatus === 'outcome_verified' && (!outcomeSummary || evidenceRefs.length === 0)) return null;
@@ -215,6 +216,21 @@ export const judgmentValueProofTools: Tool[] = [{
     type: 'object',
     additionalProperties: false,
     required: ['interruption', 'decision', 'execution', 'outcome', 'human_decision', 'feedback_requested'],
+    allOf: [{
+      not: {
+        required: ['interruption', 'outcome'],
+        properties: {
+          interruption: {
+            required: ['resolution'],
+            properties: { resolution: { const: 'continued_without_human' } },
+          },
+          outcome: {
+            required: ['status'],
+            properties: { status: { const: 'not_applicable' } },
+          },
+        },
+      },
+    }],
     properties: {
       interruption: {
         type: 'object', additionalProperties: false,

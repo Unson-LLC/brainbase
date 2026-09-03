@@ -24,9 +24,7 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'brainbase_resolve_turn',
   'brainbase_get_meeting_minutes_context',
   'authorize_tenant_resource',
-  'mesh_query',
   'mesh_peers',
-  'graph_export_snapshot',
   'graph_get_plan_receipt',
   'graph_validate',
 ]);
@@ -47,6 +45,8 @@ const WRITE_TOOL_NAMES = new Set([
   'graph_plan_mutations',
   'graph_apply_plan',
   'graph_rollback_plan',
+  'graph_export_snapshot',
+  'mesh_query',
 ]);
 
 export function annotateToolCapabilities(tools: Tool[]): Tool[] {

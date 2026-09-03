@@ -13,6 +13,8 @@
 - Infisical productionでは署名用の秘密鍵と`key_id`を維持し、重複して壊れている公開鍵overrideだけを除去する。この除去はforward-only incident remediationとして扱い、コード/runtime rollbackでも復元しない。rollbackは変更前に秘密鍵・`key_id`のdriftをfail-closed検査してoperator Receiptを保存し、修復後にoverride不在を再取得する。秘密一時ファイルは終了時に削除し、Lightsail転送物のchecksumをlive反映前に、target checksumを反映後に読戻す。
 - Judgment Resolverの変更はglobal Hook checkout、ローカル`:31013`、常駐MCP、本番Lightsailの4面を一つの互換セットとして扱い、各面のSHAを推測せず個別に読み戻す。
 - 切替前に4面のSHAとglobal Hookファイルを保全し、統合SHAへ揃えた後に各面のclean/readinessを確認する。
+- 4面のreadinessと取得監査だけのfresh taskは`judgment_lifecycle_active`までを証明する。`proven_active`には、別のfresh taskで実際の中断候補、権限内の継続、実行成果物と正本読戻し、value proof、complete final、ユーザー向け判断レシートを同一turnへ束縛する。
+- 判断レシートはHostの意味的成功判定、`judgment-value-proof-adapter`、owner journalの`value-proof.json`、Stop final、ユーザー向け表示の順で派生させる。失敗、503、`partial`、不明値に成功監査を付けない。
 - Infisical再投影後に`brainbase-ssot.service`を再起動し、checkout SHA、process SHA、API version、dirty状態を読み戻す。
 - Graph SSOTは変更せず、本番収束でのみ`graph_validate(strict_collection=true)`を読み取り検証として実行する。通常の認可scopeによる意図的なEdge非表示は従来通り有効とし、strict検証で抑止されたEdgeの件数と理由をReceiptへ保存し、1件でもあれば収束成功にしない。
 - 本番収束は一つのrun IDへ束縛した秘密値非保持のReceiptを正本とする。Receiptは公開鍵overrideの変更前後の存在、秘密鍵・key_idの同一性、4面のcheckout/process SHA・dirty・readiness、Ontology 1.1.0のrepository/production digest・key_id・trust source・署名検証、Graph ValidateのDB `snapshot_hash`・strict scope・HTTP状態・`collection_complete`・構造/Ontology違反件数・`valid`を持つ。いずれかを取得できなければReceiptを`passed`として作らない。
@@ -26,7 +28,9 @@
 5. global Hook checkout、ローカル`:31013`、常駐MCP、本番Lightsailを統合SHAへ揃え、各面のclean/readinessを読み戻す。
 6. Infisicalの不正な公開鍵overrideだけを削除してproductionへ再投影し、Lightsailサービスを再起動する。
 7. health、version、dirty状態、journal、Ontology検証、Graph全体検証を同一runで読み戻し、秘密値を含まないproduction convergence Receiptへ固定する。
-8. Hook trust状態を確認し、必要ならowner承認後に作成したfresh taskでJudgment episode、実Brainbase event、完全なowner auditを実証する。
+8. Hook trust状態を確認し、owner承認後に作成したfresh taskでJudgment lifecycleを実証する。続けて、実際の中断候補から成果物・正本読戻し・value proof・complete final・ユーザー向け判断レシートまで進む別のfresh taskを実証する。
+
+## 証拠契約
 
 手順1はPR前の静的・自動検証、手順2は前進デプロイの権限境界、手順3〜8はマージ後の本番実行である。手順3〜8の証跡をPR前の合格条件にはせず、反対に手順1〜2だけで本番完了とも報告しない。VibeProのPR成果物には`production_execution_status=not_run`を明示し、PR時点の検証可能性だけを示す。本番readbackはマージ後の同一runで別途取得する。
 

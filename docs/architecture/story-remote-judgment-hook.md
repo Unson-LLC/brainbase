@@ -13,7 +13,7 @@ Brainbase MCP HTTP serverへ認証必須の `POST /host/judgment/hook` を追加
 - 正常応答は `schema_version`、`accepted`、event、session、turn、canonical Hook出力を束縛したenvelopeとする。
 - `UserPromptSubmit`はcanonical episodeの`initial_route_receipt.resolution_id`を`receipt_id`、`initial_route_receipt_digest`を`route_resolution_sha256`として返す。外部Hostは表示用contextからdigestを再生成しない。
 - `UserPromptSubmit`のreceipt ID欠落またはdigestが64桁の小文字hexでない場合は503にする。
-- `PostToolUse`はcanonical出力の非空`systemMessage`を監査記録receiptとして要求し、未記録なら503にする。
+- `PostToolUse`はcanonical出力の非空`systemMessage`を監査記録receiptとして要求し、未記録なら503にする。利用者向け監査行を生成しない内部状態記録の完全名`mcp__brainbase__brainbase_judgment_state_record`だけは空出力を受理し、短縮名や他toolへ例外を拡張しない。
 - Hook結果がblockまたは内部例外ならHTTP成功へ丸めず、外部Hostがfail closedに扱える契約を返す。
 
 ## データフロー

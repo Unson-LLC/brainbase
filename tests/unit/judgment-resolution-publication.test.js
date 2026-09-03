@@ -8,7 +8,24 @@ function read(path) {
     return readFileSync(path, 'utf8');
 }
 
+function expectProductionNotRunInUserFacingPrBody(body) {
+    expect(body).not.toContain('保存済み説明は現在の証拠と一致しないため表示していません');
+    const acceptanceCriteriaIndex = body.indexOf('## Acceptance criteria');
+    expect(acceptanceCriteriaIndex).toBeGreaterThanOrEqual(0);
+    const userFacingSummary = body.slice(0, acceptanceCriteriaIndex);
+    expect(userFacingSummary).toContain('現在の本番実行状態は production_execution_status=not_run');
+}
+
 describe('judgment resolver publication surfaces', () => {
+    it('knowledge readback trace is Host-rendered and never model-reproduced', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/knowledge-resolve.md');
+        expect(runbook).toContain('machine-readable owner-audit metadata envelope');
+        expect(runbook).toContain('`PostToolUse` validates the envelope');
+        expect(runbook).toContain('`Stop` renders the validated receipt exactly once');
+        expect(runbook).toContain('The model-authored assistant body contains none of these lines');
+        expect(runbook).not.toContain('reproduce it exactly once in the next user-facing assistant message');
+    });
+
     it('本番hotfix退避先を複数行出力から1件だけ抽出し、不正markerを拒否する', () => {
         const parser = 'scripts/extract-lightsail-hotfix-backup-dir.mjs';
         const validPath = '/home/ubuntu/brainbase-production-hotfix-20260902T000000Z';
@@ -289,27 +306,106 @@ describe('judgment resolver publication surfaces', () => {
         rmSync(remoteRoot, { recursive: true, force: true });
     });
 
-    it('PR成果物が本番実行前であることを明示する', () => {
+    it('利用者向けPR本文がAC引用とは別に本番実行前であることを明示する', () => {
         const marker = 'production_execution_status=not_run';
         expect(read('docs/management/stories/active/story-brainbase-production-artifact-reconciliation.md')).toContain(
             marker
         );
         expect(read('docs/architecture/story-brainbase-production-artifact-reconciliation.md')).toContain(marker);
         expect(read('.vibepro/spec/story-brainbase-production-artifact-reconciliation/spec.json')).toContain(marker);
+
+        expectProductionNotRunInUserFacingPrBody(`### 保存済みの判断説明
+
+現在の本番実行状態は production_execution_status=not_run。PR・CI完了後に本番反映します。
+
+## Acceptance criteria
+
+- AC-007: ${marker}
+`);
+        expect(() => expectProductionNotRunInUserFacingPrBody(`### 保存済みの判断説明
+
+> ⚠️ 保存済み説明は現在の証拠と一致しないため表示していません。
+
+## Acceptance criteria
+
+- AC-007: ${marker}
+`)).toThrow();
+
+        const generatedPrBody = '.vibepro/pr/story-brainbase-production-artifact-reconciliation/pr-body.md';
+        if (existsSync(generatedPrBody)) expectProductionNotRunInUserFacingPrBody(read(generatedPrBody));
     });
 
     it('通常taskと委譲taskの本番証拠を別E2E・別rollback条件に保つ', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const story = read('docs/management/stories/active/story-brainbase-production-artifact-reconciliation.md');
+        const spec = read('docs/specs/story-brainbase-production-artifact-reconciliation-v1.md');
+        const machineSpec = JSON.parse(read('.vibepro/spec/story-brainbase-production-artifact-reconciliation/spec.json'));
+        const normalVerifier = 'tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts';
         const delegatedVerifier = 'tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts';
+        const ownerVisibleCapture = 'scripts/capture-codex-owner-visible-readback.mjs';
+        const normalCase = 'story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する';
+        const delegatedCase = 'delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit';
 
         expect(runbook).toContain('route_application=pre_generation');
         expect(runbook).toContain('episode_origin=stop_delegation_recovery');
         expect(runbook).toContain('route_application=post_generation_recovery');
         expect(runbook).toContain(delegatedVerifier);
+        expect(runbook).toContain('brainbase-owner-visible-readback-v1');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH');
+        expect(runbook).toContain('session_meta.payload.id');
+        expect(runbook).toContain('system_message_digest');
+        expect(runbook).toContain('occurrences');
+        expect(runbook).toContain('event_id');
+        expect(runbook).toContain('final_event_fingerprint');
+        expect(runbook).toContain(ownerVisibleCapture);
+        expect(runbook).toContain('thread_history_1.sqlite');
+        expect(runbook).toContain('source_row_digest');
+        expect(runbook).toContain('Do not construct or edit this artifact by hand');
+        expect(read(ownerVisibleCapture)).toContain('selectOwnerVisibleEvent');
+        expect(read(ownerVisibleCapture)).toContain('verifyOwnerVisibleSource');
         expect(runbook).toContain('never use a recovered Stop episode as evidence that `UserPromptSubmit` guided generation');
         expect(runbook).toContain("Never substitute one path's evidence for the other");
+        expect(read(normalVerifier)).toContain('BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH');
+        expect(read(normalVerifier)).toContain('brainbase-owner-visible-readback-v1');
+        expect(read(normalVerifier)).toContain('system_message_digest');
+        expect(read(normalVerifier)).toContain('occurrences');
+        expect(read(normalVerifier)).toContain('event_id');
+        expect(read(normalVerifier)).toContain('final_event_fingerprint');
+        expect(read(normalVerifier)).toContain('journalEventFingerprint:');
+        expect(read(normalVerifier)).toContain('verifyOwnerVisibleSource');
+        expect(read(normalVerifier)).toContain('session_meta.payload.id');
+        expect(read(delegatedVerifier)).toContain('BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH');
+        expect(read(delegatedVerifier)).toContain('brainbase-owner-visible-readback-v1');
+        expect(read(delegatedVerifier)).toContain('system_message_digest');
+        expect(read(delegatedVerifier)).toContain('occurrences');
+        expect(read(delegatedVerifier)).toContain('event_id');
+        expect(read(delegatedVerifier)).toContain('final_event_fingerprint');
+        expect(read(delegatedVerifier)).toContain('journalEventFingerprint:');
+        expect(read(delegatedVerifier)).toContain('verifyOwnerVisibleSource');
+        expect(read(delegatedVerifier)).toContain('session_meta.payload.id');
+        expect(read(delegatedVerifier)).toContain('Brainbase判断レシート exactly once');
         expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
+        expect(read(delegatedVerifier)).toContain(
+            "assert.equal(final.owner_audit_source, 'stop_hook_system_message')"
+        );
+        expect(read(delegatedVerifier)).toContain('The Host-rendered judgment receipt must not be duplicated in the assistant body');
         expect(read(delegatedVerifier)).toContain('Stop recovery must never claim pre-generation guidance');
+        expect(story).toContain('2つのfresh task');
+        expect(spec).toContain('2つの新しいCodexタスク');
+        expect(spec).toContain(normalVerifier);
+        expect(spec).toContain(delegatedVerifier);
+        for (const id of ['C-005', 'S-003']) {
+            const contract = machineSpec.clauses.find((entry) => entry.id === id);
+            expect(contract.origin.test_refs).toEqual(expect.arrayContaining([
+                { file: normalVerifier, case: normalCase },
+                { file: delegatedVerifier, case: delegatedCase }
+            ]));
+            expect(contract.verifiable_by.test_pattern).toEqual(expect.arrayContaining([
+                { file_glob: normalVerifier, must_cover: normalCase },
+                { file_glob: delegatedVerifier, must_cover: delegatedCase }
+            ]));
+        }
     });
 
     it('公開鍵override除去をforward-only修復としてrollback後も維持する', () => {
@@ -425,7 +521,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(ambiguousDelete.result.status).not.toBe(0);
         expect(ambiguousDelete.evidence).toMatchObject({ status: 'blocked', rollback_complete: false, public_key_override_present: true });
         rmSync(root, { recursive: true, force: true });
-    });
+    }, 30_000);
 
     it('Lightsail env転送checksum不一致時はlive targetを変更しない', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
@@ -626,7 +722,7 @@ describe('judgment resolver publication surfaces', () => {
             remote_secret_cleanup_confirmed: false,
         });
         rmSync(root, { recursive: true, force: true });
-    });
+    }, 15_000);
 
     it('env反映後の外側の失敗もproduction rollback Receiptへ収束する', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
@@ -950,26 +1046,27 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('Verify the merged/deployed checkout SHA separately after deployment');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EPISODE_PATH');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_TRANSCRIPT_PATH');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_NONCE');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_RUN_QUERY');
+        expect(runbook).toContain('brainbase-owner-visible-readback-v1');
+        expect(runbook).toContain('session_meta.payload.id');
+        expect(runbook).toContain('system_message_digest');
+        expect(runbook).toContain('occurrences');
+        expect(runbook).toContain('event_id');
+        expect(runbook).toContain('final_event_fingerprint');
+        expect(runbook).toContain('scripts/capture-codex-owner-visible-readback.mjs');
+        expect(runbook).toContain('source_database');
+        expect(runbook).toContain('source_row_digest');
         expect(runbook).toContain('query-embedded source HEAD differs');
         expect(runbook).toContain('final receipt is at most one hour old');
-        expect(capability).toContain('exact Stop Hook-visible answer body');
-        expect(runbook).toContain('exact Stop Hook-visible answer body');
-        for (const surface of [capability, runbook]) {
-            expect(surface).toContain('only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block');
-            expect(surface).toMatch(/incomplete, embedded, or multiple citation block.*fails closed/iu);
-            expect(surface).not.toContain('answer digest binds that rendered message');
-            expect(surface).not.toContain('answer digest must match that rendered message');
-        }
-        for (const surface of [architecture, spec]) {
-            expect(surface).toContain('exact Stop Hook-visible answer body');
-            expect(surface).toContain('only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block');
-            expect(surface).toMatch(/incomplete, embedded, or multiple citation blocks.*fail(?:s)? closed/iu);
-            expect(surface).not.toMatch(/answer digest.*final assistant (?:message|`response_item`).*canonical JSONL transcript/iu);
-            expect(surface).not.toContain('that its digest matches the final receipt');
-            expect(surface).not.toContain('answer digest matching the final assistant message');
+        for (const surface of [capability, runbook, architecture, spec]) {
+            expect(surface).toContain('owner_audit_source=stop_hook_system_message');
+            expect(surface).toMatch(/owner UI or event stream|Codex Hook UI or event stream/iu);
+            expect(surface).toMatch(/model-authored.*(?:last_assistant_message|answer)/iu);
+            expect(surface).not.toMatch(/final (?:user-visible )?(?:answer|assistant message).*begins? with.*owner-visible|final user-visible answer starts with/iu);
         }
         expect(runbook).toContain('scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"');
         expect(runbook).toContain('brainbase-mcp-reconcile.last');

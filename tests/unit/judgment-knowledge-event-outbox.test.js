@@ -45,14 +45,17 @@ function validReceipt(args) {
     };
 }
 
-async function startManagedEpisode(payload, env) {
+async function startManagedEpisode(payload, env, receiptOverrides = {}) {
     const args = buildJudgmentRequest(payload, { env });
     return startEpisode(payload, {
         env,
         fetchImpl: vi.fn().mockResolvedValue({
             ok: true,
             status: 200,
-            json: async () => ({ management_status: 'managed', receipt: validReceipt(args) })
+            json: async () => ({
+                management_status: 'managed',
+                receipt: { ...validReceipt(args), ...receiptOverrides }
+            })
         })
     });
 }
@@ -492,7 +495,7 @@ describe('Judgment Host knowledge event outbox', () => {
         expect(queued.event.payload.summary).not.toContain('📚 Brainbase');
     });
 
-    it('Stopがblockされた時はknowledge eventを登録しない', async () => {
+    it('必須knowledge未参照でStopがblockされた時はknowledge eventを登録しない', async () => {
         const root = temporaryDirectory();
         const outboxDir = join(root, 'knowledge-event-outbox', 'codex-judgment');
         const env = {
@@ -502,10 +505,12 @@ describe('Judgment Host knowledge event outbox', () => {
         const payload = {
             session_id: 'session-outbox-blocked',
             turn_id: 'turn-outbox-blocked',
-            prompt: '判断結果を返して',
+            prompt: '正本を確認して判断結果を返して',
             cwd: process.cwd()
         };
-        await startManagedEpisode(payload, env);
+        await startManagedEpisode(payload, env, {
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+        });
 
         const blocked = finalizeEpisode({
             session_id: payload.session_id,
