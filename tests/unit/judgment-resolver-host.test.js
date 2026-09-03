@@ -3868,6 +3868,8 @@ describe('turn_input handoff and resolved judgment line', () => {
         expect(context).toContain(`The Host stored turn_input unchanged at ${turnInputPath}`);
         expect(context).not.toContain(canonicalJson(args));
         expect(context).toContain('the PostToolUse system message names the new Host-generated judgment line');
+        expect(context).toContain('model_interpretation must contain exactly these keys and nothing else: intent (one of answer|investigate|diagnose|design|implement|review|operate)');
+        expect(context).toContain('signals (array, possibly empty, from cumulative_effect|');
         expect(context.split('\n').length).toBeLessThanOrEqual(20);
     });
 
