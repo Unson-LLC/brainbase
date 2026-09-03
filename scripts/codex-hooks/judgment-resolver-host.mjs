@@ -157,6 +157,14 @@ function isInjectedHostEnvelope(text) {
 }
 
 const TURN_RESOLUTION_TOOL_NAME = 'mcp__brainbase__brainbase_resolve_turn';
+// Mirrors the brainbase_resolve_turn inputSchema; exec-mode models do not
+// reliably read tool schemas, so the exact shape is stated in the context.
+const MODEL_INTERPRETATION_SHAPE = 'model_interpretation must contain exactly these keys and nothing else: '
+    + 'intent (one of answer|investigate|diagnose|design|implement|review|operate), '
+    + 'domains (non-empty array from general|knowledge|personal_judgment|engineering|organization|operations), '
+    + 'action_kind (none|read|write|external), risk (low|medium|high|critical), '
+    + 'confidence (confirmed|inferred|unknown), '
+    + 'signals (array, possibly empty, from cumulative_effect|complexity_growth|threshold_proposal|parallel_exploration|authority_boundary|problem_frame_uncertain|external_outcome).';
 const TURN_RESOLUTION_UNAVAILABLE_PATTERN = new RegExp(
     `(?:${TURN_RESOLUTION_TOOL_NAME}\\b[^\\n]{0,40}\\bis not a function\\b`
     + `|(?:unknown tool|tool not found|no such tool)[^\\n]{0,80}${TURN_RESOLUTION_TOOL_NAME}\\b)`,
@@ -219,6 +227,7 @@ function readCanonicalTranscript(payload, env) {
     const delegations = [];
     const parsedEvents = [];
     const turnResolutionAttempts = new Map();
+    const injectedUserTurns = new Set();
     let turnResolutionSurface = { status: 'unknown', evidence: null };
     const text = readFileSync(canonicalPath, 'utf8');
     for (const line of text.split('\n')) {
@@ -295,9 +304,14 @@ function readCanonicalTranscript(payload, env) {
         if (eventPayload.type !== 'message') continue;
         if (!['user', 'assistant'].includes(String(eventPayload.role))) continue;
         const body = contentText(eventPayload.content);
-        if (!body.trim() || isInjectedHostEnvelope(body)) continue;
         const metadata = record(eventPayload.internal_chat_message_metadata_passthrough)
             ?? record(eventPayload.metadata);
+        if (!body.trim() || isInjectedHostEnvelope(body)) {
+            if (eventPayload.role === 'user' && body.trim() && typeof metadata?.turn_id === 'string') {
+                injectedUserTurns.add(metadata.turn_id);
+            }
+            continue;
+        }
         messages.push({
             sequence,
             turn_id: typeof metadata?.turn_id === 'string'
@@ -315,6 +329,7 @@ function readCanonicalTranscript(payload, env) {
         messages,
         delegations,
         turn_resolution_surface: turnResolutionSurface,
+        injected_user_turns: [...injectedUserTurns],
         complete: true
     };
 }
@@ -2199,6 +2214,20 @@ function assertNoOrphanAuditBarrier(identity, paths, env) {
     throw new Error('judgment_audit_degraded_start_conflict');
 }
 
+// Multi-agent wake-up turns (a subagent report resuming the parent thread)
+// carry only injected envelopes and no user request, so UserPromptSubmit never
+// opened an episode. They are not judgment turns and must not be audited as
+// orphans on every wake-up.
+function agentContinuationTurn(payload, identity, env) {
+    if (typeof payload.prompt === 'string' && payload.prompt.trim()) return false;
+    const transcript = readCanonicalTranscript(payload, env);
+    if (!transcript.complete) return false;
+    const turnId = identity.turnId;
+    return transcript.injected_user_turns.includes(turnId)
+        && !transcript.messages.some((message) => message.role === 'user' && message.turn_id === turnId)
+        && !transcript.delegations.some((delegation) => delegation.turn_id === turnId);
+}
+
 function handleOrphanStop(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new Error('judgment_episode_identity_missing');
@@ -2206,6 +2235,7 @@ function handleOrphanStop(payload, { env = process.env } = {}) {
     return withEpisodeTransitionLock(paths, () => {
         const episode = existingEpisode(payload, env);
         if (episode) return finalizeEpisodeLocked(payload, episode, paths, env).output;
+        if (agentContinuationTurn(payload, identity, env)) return {};
         const diagnosticState = existingOrCreateAuditFailure(payload, identity, paths, env);
         if (payload.stop_hook_active !== true && diagnosticState.created) {
             return {
@@ -2866,8 +2896,8 @@ export function successOutput(
             'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
         ] : [
             typeof turnInputPath === 'string'
-                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. The Host stored turn_input unchanged at ${turnInputPath} (one JSON object). Load that file and pass its parsed content as turn_input without editing or rebuilding it (in exec: JSON.parse(fs.readFileSync(${JSON.stringify(turnInputPath)}, 'utf8'))). Add model_interpretation containing your semantic classification of the user request.`
-                : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request.`,
+                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. The Host stored turn_input unchanged at ${turnInputPath} (one JSON object). Load that file and pass its parsed content as turn_input without editing or rebuilding it (in exec: JSON.parse(fs.readFileSync(${JSON.stringify(turnInputPath)}, 'utf8'))). Add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`
+                : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
             'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
             'After that call succeeds, the PostToolUse system message names the new Host-generated judgment line; it replaces the bootstrap judgment line below as the first line of the final response.'
         ]),
