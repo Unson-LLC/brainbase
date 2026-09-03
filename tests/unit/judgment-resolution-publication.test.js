@@ -544,12 +544,20 @@ describe('judgment resolver publication surfaces', () => {
         const arrayFinal = run('final', asRows(alreadyRepaired), 'array-final');
         expect(arrayFinal.result.status).toBe(0);
 
+        const mutateSigningRow = (key, mutation) => asRows(beforeValue).map((row) => (
+            row.key === key ? { ...row, ...mutation } : row
+        ));
         for (const [name, invalid] of [
-            ['duplicate', [...asRows(beforeValue), { key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', value: 'private-secret' }]],
+            ['duplicate', [...asRows(beforeValue), {
+                key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY',
+                value: 'private-secret',
+                type: 'shared',
+                secretPath: '/',
+            }]],
             ['missing-value', [{ key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY' }]],
             ['empty-key', [{ key: ' ', value: 'secret' }]],
-            ['wrong-type', [{ key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', value: 'private-secret', type: 'personal', secretPath: '/' }]],
-            ['wrong-secret-path', [{ key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', value: 'private-secret', type: 'shared', secretPath: '/nested' }]],
+            ['wrong-type', mutateSigningRow('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', { type: 'personal' })],
+            ['wrong-secret-path', mutateSigningRow('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', { secretPath: '/nested' })],
             ['invalid-top-level', null],
         ]) {
             const invalidRun = run('pre-delete', invalid, name);
