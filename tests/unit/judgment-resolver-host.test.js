@@ -3556,3 +3556,29 @@ describe('answered escalation continuation', () => {
         expect(stopped.output.reason).toContain('⚠️ 確認が必要[risk_or_external]:');
     });
 });
+
+describe('pre-2.4.4 control-plane compatibility', () => {
+    it('autonomy_policy_idsを持たない旧serverのreceiptでもepisodeを開始できる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { hook_event_name: 'UserPromptSubmit', session_id: 'session-old-server', turn_id: 'turn-old-server', prompt: 'この修正を行って', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            status: 'needs_classification',
+            reconciliation_reasons: ['model_interpretation_missing'],
+            classification: null,
+            required_capabilities: [],
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'classification_missing',
+            allowed_runtime_escalation_reasons: []
+        };
+        delete receipt.autonomy_policy_ids;
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+        expect(episode.initial_route_receipt.autonomy_reason_code).toBe('classification_missing');
+        expect(episode.initial_route_receipt.autonomy_policy_ids).toBeUndefined();
+    });
+});

@@ -321,9 +321,13 @@ function isJudgmentReceipt(
     : [];
   if (value.autonomy_decision !== expectedDecision
     || canonicalJson(value.allowed_runtime_escalation_reasons) !== canonicalJson(expectedRuntimeReasons)) return false;
-  if (!isStringArray(value.autonomy_policy_ids, { unique: true })) return false;
-  if (value.autonomy_decision === 'continue' && value.autonomy_policy_ids.length !== 0) return false;
-  if (value.autonomy_reason_code !== 'risk_or_external' && value.autonomy_policy_ids.length !== 0) return false;
+  // Servers before judgment-runtime-2.4.4 do not emit autonomy_policy_ids;
+  // treat absence as an empty list so a control-plane rollout lag never
+  // blocks every Codex turn with brainbase_api_response_invalid.
+  const policyIds = value.autonomy_policy_ids === undefined ? [] : value.autonomy_policy_ids;
+  if (!isStringArray(policyIds, { unique: true })) return false;
+  if (value.autonomy_decision === 'continue' && policyIds.length !== 0) return false;
+  if (value.autonomy_reason_code !== 'risk_or_external' && policyIds.length !== 0) return false;
   if (!isClassificationEvidence(value.classification_evidence)) return false;
   if (!['verified', 'bounded', 'unknown'].includes(String(value.classification_assurance))) return false;
   if (!isStringArray(value.reconciliation_reasons, { unique: true }) || !isStringArray(value.selected_dag_ids, { nonEmpty: true, unique: true })) return false;
