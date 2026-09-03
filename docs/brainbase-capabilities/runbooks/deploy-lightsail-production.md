@@ -53,8 +53,11 @@ Only fast-forward merges are allowed. If `--ff-only` fails, the server checkout 
 If `package.json` / `package-lock.json` changed in the range:
 
 ```bash
-npm ci --omit=dev --ignore-scripts
+npm ci --include=dev
+npm prune --omit=dev --ignore-scripts
 ```
+
+The full install intentionally runs production dependency install scripts (including native addons) while Husky is available. The prune step removes development dependencies without rerunning lifecycle scripts.
 
 Before restarting or switching the API/MCP service, run the mandatory Info SSOT RLS gate. A failed gate means no restart or SHA switch may proceed; verify the current service state and do not treat a previous Receipt as a successful current apply.
 
@@ -221,6 +224,9 @@ test -z "$(git status --porcelain)"
 FAILED_SHA="$(git rev-parse HEAD)"
 grep -Eq '^[0-9a-f]{40}$' <<<"$FAILED_SHA"
 git cat-file -e "${ROLLBACK_SHA}^{commit}"
+ROLLBACK_READY_DIR="$(mktemp -d /tmp/brainbase-runtime-ready.XXXXXX)"
+install -m 600 scripts/wait-for-brainbase-runtime.mjs "$ROLLBACK_READY_DIR/wait-for-brainbase-runtime.mjs"
+trap 'rm -rf -- "$ROLLBACK_READY_DIR"' EXIT
 INFO_SSOT_GIT_SHA="$FAILED_SHA" \
 INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA" \
 INFO_SSOT_OPERATION_MODE="rollback_prepare" \
@@ -228,16 +234,19 @@ INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-rollback-receipt.json" \
 bash scripts/info-ssot-apply.sh
 git switch --detach "$ROLLBACK_SHA"
 if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock.json; then
-  npm ci --omit=dev --ignore-scripts
+  npm ci --include=dev
+  npm prune --omit=dev --ignore-scripts
 fi
 sudo systemctl restart brainbase-ssot.service
-node scripts/wait-for-brainbase-runtime.mjs http://127.0.0.1:55123/api/health
+node "$ROLLBACK_READY_DIR/wait-for-brainbase-runtime.mjs" http://127.0.0.1:55123/api/health
 curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
 const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
 const git = value.runtime?.git;
 if (git?.sha !== process.env.TARGET_SHA || git?.dirty !== false) process.exit(1);
 console.log(JSON.stringify(git));
 '
+rm -rf -- "$ROLLBACK_READY_DIR"
+trap - EXIT
 ```
 
 From the Mac, repeat the public `/api/version`, `/api/health`, and authenticated Graph checks from section 4 with `TARGET_SHA="$ROLLBACK_SHA"`. A successful instance check alone does not complete rollback.

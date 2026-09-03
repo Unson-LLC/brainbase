@@ -1264,9 +1264,17 @@ describe('judgment resolver publication surfaces', () => {
         expect(read('scripts/wait-for-brainbase-runtime.mjs')).toContain(
           'git?.sha === expectedSha',
         );
-        expect(lightsailRunbook.match(/scripts\/wait-for-brainbase-runtime\.mjs http:\/\/127\.0\.0\.1:55123\/api\/health/gu)).toHaveLength(2);
+        expect(lightsailRunbook).toContain('node scripts/wait-for-brainbase-runtime.mjs http://127.0.0.1:55123/api/health');
+        expect(lightsailRunbook).toContain('ROLLBACK_READY_DIR="$(mktemp -d /tmp/brainbase-runtime-ready.XXXXXX)"');
+        expect(lightsailRunbook).toContain('install -m 600 scripts/wait-for-brainbase-runtime.mjs "$ROLLBACK_READY_DIR/wait-for-brainbase-runtime.mjs"');
+        expect(lightsailRunbook.indexOf('install -m 600 scripts/wait-for-brainbase-runtime.mjs')).toBeLessThan(
+          lightsailRunbook.indexOf('git switch --detach "$ROLLBACK_SHA"'),
+        );
+        expect(lightsailRunbook).toContain('node "$ROLLBACK_READY_DIR/wait-for-brainbase-runtime.mjs" http://127.0.0.1:55123/api/health');
         expect(lightsailRunbook).toContain('scripts/wait-for-brainbase-runtime.mjs https://bb.unson.jp/api/version "$TARGET_SHA"');
-        expect(lightsailRunbook.match(/npm ci --omit=dev --ignore-scripts/gu)).toHaveLength(2);
+        expect(lightsailRunbook.match(/npm ci --include=dev/gu)).toHaveLength(2);
+        expect(lightsailRunbook.match(/npm prune --omit=dev --ignore-scripts/gu)).toHaveLength(2);
+        expect(lightsailRunbook).not.toContain('npm ci --omit=dev --ignore-scripts');
         expect(lightsailRunbook).not.toContain('sleep 3');
         expect(lightsailRunbook).toContain('git switch --detach "$ROLLBACK_SHA"');
         expect(lightsailRunbook).toContain('four-surface rollback order');
