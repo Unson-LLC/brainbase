@@ -3443,7 +3443,8 @@ describe('turn_input handoff and resolved judgment line', () => {
         const turnInputPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.turn-input.json`);
         expect(existsSync(turnInputPath)).toBe(true);
         expect(canonicalJson(JSON.parse(readFileSync(turnInputPath, 'utf8')))).toBe(canonicalJson(args));
-        expect(context).toContain(`The Host stored turn_input unchanged at ${turnInputPath}`);
+        expect(context).toContain(`with turn_input set to the file reference {"turn_input_path": ${JSON.stringify(turnInputPath)}}`);
+        expect(context).toContain('do not read, print, rebuild, or inline the file');
         expect(context).not.toContain(canonicalJson(args));
         expect(context).toContain('the PostToolUse system message names the new Host-generated judgment line');
         expect(context).toContain('model_interpretation must contain exactly these keys and nothing else: intent (one of answer|investigate|diagnose|design|implement|review|operate)');
@@ -3483,10 +3484,18 @@ describe('turn_input handoff and resolved judgment line', () => {
                 'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
             ]
         };
+        const turnInputPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.turn-input.json`);
+        writeFileSync(turnInputPath, JSON.stringify(episode.turn_input));
+        await expect(processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'tool-resolve-turn-foreign',
+            tool_input: { turn_input: { turn_input_path: join(root, 'other.turn-input.json') }, model_interpretation: modelInterpretation },
+            tool_response: { status: 'ok', data: resolved }
+        }, { env })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
         const output = await processHookPayload({
             hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
             tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'tool-resolve-turn',
-            tool_input: { turn_input: episode.turn_input, model_interpretation: modelInterpretation },
+            tool_input: { turn_input: { turn_input_path: turnInputPath }, model_interpretation: modelInterpretation },
             tool_response: { status: 'ok', data: resolved }
         }, { env });
         expect(output.systemMessage).toContain('判断契約を確定しました');

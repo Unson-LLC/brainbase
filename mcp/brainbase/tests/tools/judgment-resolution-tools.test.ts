@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -123,6 +125,48 @@ describe('judgment resolver Host bridge', () => {
     }));
     assert.equal(result?.status, 'ok');
     assert.deepEqual(posted, mergedArgs);
+  });
+
+  it('turn_input_path参照ならjournal内のturn-inputファイルをserver側で読み込む', async () => {
+    const mergedArgs = { ...args, model_interpretation: classification };
+    const journalRoot = mkdtempSync(join(tmpdir(), 'brainbase-judgment-journal-'));
+    mkdirSync(join(journalRoot, 'session-ref'));
+    const path = join(journalRoot, 'session-ref', 'turn-ref.turn-input.json');
+    writeFileSync(path, JSON.stringify(args));
+    const outsideRoot = mkdtempSync(join(tmpdir(), 'brainbase-outside-'));
+    const outsidePath = join(outsideRoot, 'turn-ref.turn-input.json');
+    writeFileSync(outsidePath, JSON.stringify(args));
+    let posted: unknown = null;
+    const deps = {
+      ...dependencies(async (_url, init) => {
+        posted = JSON.parse(String(init?.body));
+        return new Response(JSON.stringify(receipt({
+          request_digest: computeJudgmentRequestDigest(mergedArgs),
+        })), { status: 200 });
+      }),
+      judgmentJournalRoot: journalRoot,
+    };
+    try {
+      const result = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_input: { turn_input_path: path },
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(result?.status, 'ok');
+      assert.deepEqual(posted, mergedArgs);
+      const outside = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_input: { turn_input_path: outsidePath },
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(outside?.status, 'error');
+      const missing = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_input: { turn_input_path: join(journalRoot, 'missing.turn-input.json') },
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(missing?.status, 'error');
+    } finally {
+      rmSync(journalRoot, { recursive: true, force: true });
+      rmSync(outsideRoot, { recursive: true, force: true });
+    }
   });
 
   it('Host内部callだけが署名付きAPI requestを送る', async () => {
