@@ -428,6 +428,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     }
 
     const candidate = readBoundEpisode();
+    const retrievalEvents = candidate.events.filter((event) => EXPECTED_TOOLS.includes(event.tool_name));
     const runtimeManifest = readJson(join(process.cwd(), 'config/judgment-runtime-manifest.json'));
     const expectedManifestDigest = createHash('sha256')
         .update(canonicalJson(runtimeManifest))
@@ -446,40 +447,45 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         expectedManifestDigest,
         'Live evidence must use the Resolver manifest declared by current HEAD'
     );
-    assert.deepEqual(candidate.events.map((event) => event.tool_name), EXPECTED_TOOLS);
+    assert.deepEqual(candidate.events.map((event) => event.tool_name), [
+        'mcp__brainbase__brainbase_resolve_turn',
+        ...EXPECTED_TOOLS,
+        'mcp__brainbase__brainbase_judgment_state_record'
+    ]);
+    assert.deepEqual(retrievalEvents.map((event) => event.tool_name), EXPECTED_TOOLS);
     assert.deepEqual(
-        candidate.events.map((event) => event.success),
+        retrievalEvents.map((event) => event.success),
         [false, true, true, true],
         'Unconfirmed routing is executed once but must not be promoted to a successful result'
     );
     for (const [index, expected] of EXPECTED_QUERY_EXCERPTS.entries()) {
-        const excerpt = candidate.events[index].query_excerpt || '';
+        const excerpt = retrievalEvents[index].query_excerpt || '';
         assert.ok(expected.includes().every((token) => excerpt.includes(token)));
     }
     const runQuery = EXPECTED_RUN_QUERY;
-    assert.equal(candidate.events[0].input_digest, inputDigest({
+    assert.equal(retrievalEvents[0].input_digest, inputDigest({
         audience: 'team',
         content_type: 'unknown',
         intent: runQuery,
         project_code: 'brainbase'
     }));
-    assert.equal(candidate.events[1].input_digest, inputDigest({
+    assert.equal(retrievalEvents[1].input_digest, inputDigest({
         project: 'brainbase',
         query: runQuery
     }));
-    assert.match(candidate.events[1].display_line, /該当なし/u);
-    assert.match(candidate.events[2].display_line, /結果を取得/u);
-    assert.match(candidate.events[3].display_line, /結果を取得/u);
-    assert.match(candidate.events[0].display_line, /^(?:📚|⚠️) Brainbase参照先:/u);
-    assert.match(candidate.events[1].display_line, /^📚 Brainbase検索:/u);
-    assert.match(candidate.events[2].display_line, /^📚 Brainbase検索:/u);
-    assert.match(candidate.events[3].display_line, /^📚 Brainbase取得:/u);
+    assert.match(retrievalEvents[1].display_line, /該当なし/u);
+    assert.match(retrievalEvents[2].display_line, /結果を取得/u);
+    assert.match(retrievalEvents[3].display_line, /結果を取得/u);
+    assert.match(retrievalEvents[0].display_line, /^(?:📚|⚠️) Brainbase参照先:/u);
+    assert.match(retrievalEvents[1].display_line, /^📚 Brainbase検索:/u);
+    assert.match(retrievalEvents[2].display_line, /^📚 Brainbase検索:/u);
+    assert.match(retrievalEvents[3].display_line, /^📚 Brainbase取得:/u);
     assert.match(candidate.episode.owner_audit?.display_line || '', /^🧠 判断参照:/u);
     assert.equal(candidate.final.completion_status, 'complete');
     assert.equal(candidate.final.owner_audit_complete, true);
     assert.equal(candidate.final.owner_audit_line_count, 5);
     assert.equal(candidate.final.owner_audit_source, 'stop_hook_system_message');
-    assert.equal(candidate.final.event_count, 4);
+    assert.equal(candidate.final.event_count, 6);
     assert.equal(candidate.final.qualifying_event_count, 0);
     assert.match(candidate.final.answer_digest, /^[0-9a-f]{64}$/u);
     const renderedAnswer = readFinalAssistantMessage(
@@ -488,7 +494,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     );
     const expectedAuditLines = [
         candidate.episode.owner_audit.display_line,
-        ...candidate.events.map((event) => event.display_line)
+        ...retrievalEvents.map((event) => event.display_line)
     ];
     assertAuditTraceIsNotDuplicatedInAssistantBody(renderedAnswer, expectedAuditLines);
     assert.equal(
@@ -566,9 +572,9 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         'story-brainbase-judgment-resolver-v1 ac:13 Host-only bridge publication evidence must pass'
     );
     assert.ok(
-        candidate.events[1].display_line.includes('該当なし')
-            && candidate.events[2].display_line.includes('結果を取得')
-            && candidate.events[3].display_line.includes('結果を取得'),
+        retrievalEvents[1].display_line.includes('該当なし')
+            && retrievalEvents[2].display_line.includes('結果を取得')
+            && retrievalEvents[3].display_line.includes('結果を取得'),
         'story-brainbase-judgment-resolver-v1 ac:14 live result-dependent 0..N retrieval evidence must pass'
     );
     assert.ok(
