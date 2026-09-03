@@ -1,0 +1,119 @@
+{
+  "schema_version": "0.1.0",
+  "kind": "vibepro_bug_diagnosis_dag",
+  "story_id": "story-t0-slack-installation-failure-diagnostics",
+  "run_id": "2026-09-02T234234Z",
+  "target_head_sha": "47258f1bd5dcc44b417b9aadeaaeb6588f1e86ac",
+  "created_at": "2026-09-02T23:42:37.875Z",
+  "updated_at": "2026-09-02T23:43:58.442Z",
+  "nodes": [
+    {
+      "id": "failure_reproduced",
+      "label": "再現と実測",
+      "status": "passed",
+      "head_sha": "47258f1bd5dcc44b417b9aadeaaeb6588f1e86ac",
+      "evidence_refs": [
+        "docs/management/stories/active/story-t0-slack-installation-failure-diagnostics.md"
+      ],
+      "reason": "期待値は失敗段階・stable code・cleanupを秘密なしで再読込できること。旧実装はgeneric failureだけで段階診断不能。",
+      "path_id": "slack-installation-callback",
+      "analyses": [
+        "data_flow"
+      ]
+    },
+    {
+      "id": "failure_localized",
+      "label": "発生箇所の特定",
+      "status": "passed",
+      "head_sha": "47258f1bd5dcc44b417b9aadeaaeb6588f1e86ac",
+      "evidence_refs": [
+        "server/services/multitenant/slack-installation-control-plane.js"
+      ],
+      "reason": "書込み責務をSlackInstallationControlPlane、永続化と読戻しをPostgresRepository、公開境界をrouteへ限定。",
+      "path_id": "slack-installation-callback",
+      "analyses": [
+        "data_flow"
+      ]
+    },
+    {
+      "id": "relationship_analysis",
+      "label": "必要な関係分析",
+      "status": "passed",
+      "head_sha": "47258f1bd5dcc44b417b9aadeaaeb6588f1e86ac",
+      "evidence_refs": [
+        "docs/architecture/story-t0-slack-installation-failure-diagnostics.md"
+      ],
+      "reason": "OAuthからDB登録までのdata flow、credential ref lifecycle、共有materializerの公開route互換を照合。",
+      "path_id": "slack-installation-callback",
+      "analyses": [
+        "data_flow",
+        "module_boundary",
+        "change_history"
+      ]
+    },
+    {
+      "id": "preconditions_confirmed",
+      "label": "前提条件の確認",
+      "status": "passed",
+      "head_sha": "47258f1bd5dcc44b417b9aadeaaeb6588f1e86ac",
+      "evidence_refs": [
+        "docs/specs/story-t0-slack-installation-failure-diagnostics.md"
+      ],
+      "reason": "tenantとintent相関、allowlist code、秘密非保存、opaque ref取得後のみrevokeという前提を固定。",
+      "path_id": "slack-installation-callback",
+      "analyses": []
+    },
+    {
+      "id": "root_cause_confirmed",
+      "label": "根本原因の確定",
+      "status": "passed",
+      "head_sha": "47258f1bd5dcc44b417b9aadeaaeb6588f1e86ac",
+      "evidence_refs": [
+        "server/services/multitenant/slack-installation-diagnostics.js"
+      ],
+      "reason": "段階別分類と安全な診断台帳契約がなく、任意codeを信用すると漏えい・誤分類する境界を根本原因として確定。",
+      "path_id": "slack-installation-callback",
+      "analyses": []
+    },
+    {
+      "id": "regression_test_failed_before_fix",
+      "label": "失敗する回帰テスト",
+      "status": "passed",
+      "head_sha": "47258f1bd5dcc44b417b9aadeaaeb6588f1e86ac",
+      "evidence_refs": [
+        "dff0762bd3b093396dba66bd2585ac6171a414cb^"
+      ],
+      "reason": "修正前コードにcleanup ref-before testと共有route契約testを追加したRED実行で失敗を確認。",
+      "path_id": "slack-installation-callback",
+      "analyses": []
+    },
+    {
+      "id": "root_fix_applied",
+      "label": "根本修正",
+      "status": "passed",
+      "head_sha": "47258f1bd5dcc44b417b9aadeaaeb6588f1e86ac",
+      "evidence_refs": [
+        "dff0762bd3b093396dba66bd2585ac6171a414cb"
+      ],
+      "reason": "credential ref取得後だけcleanupし、materializerでlegacy plain Errorへ戻す根本修正を適用。",
+      "path_id": "slack-installation-callback",
+      "analyses": []
+    },
+    {
+      "id": "same_path_reverified",
+      "label": "同じ経路で再検証",
+      "status": "passed",
+      "head_sha": "47258f1bd5dcc44b417b9aadeaaeb6588f1e86ac",
+      "evidence_refs": [
+        "docs/management/tasks/t0-slack-installation-failure-diagnostics.json"
+      ],
+      "reason": "同じcallback・repository・共有route経路をunit 104件とPostgreSQL integration 18件で再検証。",
+      "path_id": "slack-installation-callback",
+      "analyses": []
+    }
+  ],
+  "status": "ready",
+  "failures": [],
+  "return_to_node": null,
+  "next_actions": []
+}

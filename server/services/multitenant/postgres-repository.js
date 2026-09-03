@@ -3,6 +3,10 @@ import { ContractError } from './errors.js';
 import { canonicalJson } from './canonical-json.js';
 import { isCanonicalId } from './ids.js';
 import {
+    normalizeSlackInstallationFailureCode,
+    normalizeSlackInstallationFailureStage
+} from './slack-installation-diagnostics.js';
+import {
     calculateQuotaDecision,
     resolveQuotaWindowPolicy,
     validateQuotaDecision,
@@ -23,6 +27,28 @@ const OWNED_RESOURCE_TABLES = Object.freeze({
 });
 
 const SLACK_INSTALLATION_CLAIM_STALE_SECONDS = 120;
+const SLACK_INSTALLATION_CLEANUP_STATUSES = new Set(['not_needed', 'revoked', 'failed']);
+const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/u;
+
+function safeStoredSlackInstallationDiagnostic(row) {
+    const failureStage = normalizeSlackInstallationFailureStage(row.failure_stage);
+    const failureCode = row.failure_stage === null || row.failure_stage === undefined
+        ? null
+        : normalizeSlackInstallationFailureCode(row.failure_code, failureStage);
+    const cleanupStatus = SLACK_INSTALLATION_CLEANUP_STATUSES.has(row.cleanup_status)
+        ? row.cleanup_status
+        : null;
+    const attempt = Number(row.attempt);
+    return {
+        tenant_id: row.tenant_id,
+        installation_intent_id: row.installation_intent_id,
+        request_digest: SHA256_DIGEST.test(String(row.request_digest)) ? row.request_digest : null,
+        attempt: Number.isSafeInteger(attempt) && attempt > 0 ? attempt : null,
+        failure_stage: failureStage,
+        failure_code: failureCode,
+        cleanup_status: cleanupStatus
+    };
+}
 
 function sha256(value) {
     return `sha256:${createHash('sha256').update(String(value), 'utf8').digest('hex')}`;
@@ -468,6 +494,7 @@ export class MultitenantPostgresRepository {
                         SET status = 'processing', request_digest = $3,
                             claim_token_hash = $4, claimed_at = $5,
                             attempt = attempt + 1, failure_code = NULL,
+                            failure_stage = NULL, cleanup_status = NULL,
                             connection_id = NULL, connection_revision = NULL,
                             response_payload = NULL, completed_at = NULL
                       WHERE tenant_id = $1 AND installation_intent_id = $2`,
@@ -509,6 +536,21 @@ export class MultitenantPostgresRepository {
             }
             if (row.consumed_at) throw new ContractError('INSTALLATION_STATE_REPLAYED', { status: 409 });
             return null;
+        });
+    }
+
+    async readSlackInstallationFailureDiagnostic({ tenant_id, installation_intent_id }) {
+        return this.withTenant(tenant_id, async (client) => {
+            const result = await client.query(
+                `SELECT tenant_id, installation_intent_id, request_digest, status,
+                        attempt, failure_stage, failure_code, cleanup_status
+                   FROM slack_installation_exchange_ledger
+                  WHERE tenant_id = $1 AND installation_intent_id = $2`,
+                [tenant_id, installation_intent_id]
+            );
+            const row = result.rows[0];
+            if (!row || row.status !== 'failed') return null;
+            return safeStoredSlackInstallationDiagnostic(row);
         });
     }
 
@@ -868,6 +910,7 @@ export class MultitenantPostgresRepository {
                 `UPDATE slack_installation_exchange_ledger
                     SET status = 'completed', claim_token_hash = NULL,
                         claimed_at = NULL, failure_code = NULL,
+                        failure_stage = NULL, cleanup_status = NULL,
                         connection_id = $3, connection_revision = $4,
                         response_payload = $5::jsonb, completed_at = $6
                   WHERE tenant_id = $1 AND installation_intent_id = $2
@@ -890,26 +933,31 @@ export class MultitenantPostgresRepository {
         intent,
         claim_token,
         request_digest,
+        failure_stage,
         failure_code = 'INSTALLATION_EXCHANGE_FAILED',
+        cleanup_status = 'not_needed',
         now = this.now().toISOString()
     }) {
         if (!intent || typeof claim_token !== 'string' || typeof request_digest !== 'string') return false;
-        const safeFailureCode = /^[A-Z0-9_:-]{1,128}$/u.test(String(failure_code))
-            ? String(failure_code)
-            : 'INSTALLATION_EXCHANGE_FAILED';
+        const safeFailureStage = normalizeSlackInstallationFailureStage(failure_stage);
+        const safeFailureCode = normalizeSlackInstallationFailureCode(failure_code, safeFailureStage);
+        const safeCleanupStatus = SLACK_INSTALLATION_CLEANUP_STATUSES.has(cleanup_status)
+            ? cleanup_status
+            : 'failed';
         return this.withTenant(intent.tenant_id, async (client) => {
             const result = await client.query(
                 `UPDATE slack_installation_exchange_ledger
                     SET status = 'failed', claim_token_hash = NULL,
                         claimed_at = NULL, failure_code = $3,
+                        failure_stage = $4, cleanup_status = $5,
                         completed_at = NULL, response_payload = NULL,
                         connection_id = NULL, connection_revision = NULL
                   WHERE tenant_id = $1 AND installation_intent_id = $2
                     AND status = 'processing'
-                    AND request_digest = $4
-                    AND claim_token_hash = $5`,
+                    AND request_digest = $6
+                    AND claim_token_hash = $7`,
                 [intent.tenant_id, intent.installation_intent_id, safeFailureCode,
-                    request_digest, sha256(claim_token)]
+                    safeFailureStage, safeCleanupStatus, request_digest, sha256(claim_token)]
             );
             if (result.rowCount !== 1) return false;
             return true;

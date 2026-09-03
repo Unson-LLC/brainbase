@@ -3,9 +3,16 @@ import { createHash, randomBytes } from 'node:crypto';
 import { canonicalJson } from './canonical-json.js';
 import { ContractError } from './errors.js';
 import { generateCanonicalId, isCanonicalId } from './ids.js';
+import { normalizeSlackInstallationFailureCode } from './slack-installation-diagnostics.js';
 
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const CODE = /^[^\u0000-\u001f\u007f]{1,4096}$/u;
+function safeFailureCode(error, stage) {
+    return normalizeSlackInstallationFailureCode(
+        error instanceof ContractError ? error.code : null,
+        stage
+    );
+}
 
 function invalid(code, status = 400) {
     throw new ContractError(code, { status, fault_domain: 'brainbase_cloud' });
@@ -191,7 +198,9 @@ export class SlackInstallationControlPlane {
                 intent: normalizedIntent,
                 claim_token: claimToken,
                 request_digest: requestDigest,
+                failure_stage: 'oauth_exchange',
                 failure_code: 'UPSTREAM_UNAVAILABLE',
+                cleanup_status: 'not_needed',
                 now: timestamp(this.now())
             });
             invalid('UPSTREAM_UNAVAILABLE', 503);
@@ -203,12 +212,15 @@ export class SlackInstallationControlPlane {
         let connectionId;
         let connectionRevision;
         let storedCredential;
+        let failureStage = 'oauth_exchange';
         try {
             const upstream = await this.oauthClient.exchangeCode({
                 authorization_code,
                 redirect_uri: redirect
             });
+            failureStage = 'exchange_normalize';
             exchanged = exchangedInstallation(upstream, normalizedIntent);
+            failureStage = 'connection_reserve';
             const reservation = await this.repository.reserveSlackInstallationConnection({
                 intent: normalizedIntent,
                 workspace_id: exchanged.workspace_id,
@@ -225,6 +237,7 @@ export class SlackInstallationControlPlane {
             }
             connectionId = reservation.connection_id;
             connectionRevision = String(reservation.connection_revision);
+            failureStage = 'credential_store';
             storedCredential = opaqueCredential(await this.credentialStore.store({
                 tenant_id: normalizedIntent.tenant_id,
                 idempotency_key: normalizedIntent.installation_intent_id,
@@ -234,6 +247,7 @@ export class SlackInstallationControlPlane {
                 credential_material: exchanged.credential_material,
                 credential_refresh_material: exchanged.credential_refresh_material
             }));
+            failureStage = 'db_register';
             const result = await this.repository.registerSlackInstallation({
                 intent: normalizedIntent,
                 exchange: {
@@ -254,22 +268,28 @@ export class SlackInstallationControlPlane {
         } catch (error) {
             // Secret stores may support cleanup of an orphaned reference. The
             // cleanup receives only the opaque reference, never raw material.
+            let cleanupStatus = storedCredential?.credential_ref ? 'failed' : 'not_needed';
             if (storedCredential?.credential_ref && typeof this.credentialStore.revoke === 'function') {
-                try { await this.credentialStore.revoke({
-                    tenant_id: normalizedIntent.tenant_id,
-                    connection_id: connectionId,
-                    connection_revision: connectionRevision,
-                    provider: 'slack',
-                    credential_ref: storedCredential.credential_ref,
-                    reason: 'registration_failed'
-                }); } catch { /* preserve the registration error */ }
+                try {
+                    const cleanup = await this.credentialStore.revoke({
+                        tenant_id: normalizedIntent.tenant_id,
+                        connection_id: connectionId,
+                        connection_revision: connectionRevision,
+                        provider: 'slack',
+                        credential_ref: storedCredential.credential_ref,
+                        reason: 'registration_failed'
+                    });
+                    if (cleanup?.status === 'revoked') cleanupStatus = 'revoked';
+                } catch { /* preserve the registration error and failed cleanup state */ }
             }
             try {
                 await this.repository.failSlackInstallationExchange({
                     intent: normalizedIntent,
                     claim_token: claimToken,
                     request_digest: requestDigest,
-                    failure_code: error?.code ?? 'INSTALLATION_EXCHANGE_FAILED',
+                    failure_stage: failureStage,
+                    failure_code: safeFailureCode(error, failureStage),
+                    cleanup_status: cleanupStatus,
                     now: timestamp(this.now())
                 });
             } catch { /* preserve the external/registration error */ }

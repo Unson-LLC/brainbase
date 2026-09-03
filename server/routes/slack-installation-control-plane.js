@@ -4,7 +4,28 @@ import { ContractError } from '../services/multitenant/errors.js';
 import { generateCanonicalId, isCanonicalId } from '../services/multitenant/ids.js';
 import { validateSlackInstallationBinding } from '../services/multitenant/slack-installation-control-plane.js';
 
+const INTERNAL_FAILURE_DIAGNOSTIC_CODES = new Set([
+    'OAUTH_EXCHANGE_UNAVAILABLE',
+    'OAUTH_EXCHANGE_INVALID',
+    'OAUTH_EXCHANGE_REJECTED',
+    'OAUTH_CREDENTIAL_MISSING',
+    'OAUTH_EXCHANGE_FAILED',
+    'EXCHANGE_NORMALIZATION_FAILED',
+    'CONNECTION_RESERVATION_FAILED',
+    'CREDENTIAL_REF_INVALID',
+    'CREDENTIAL_STORE_UNAVAILABLE',
+    'CREDENTIAL_STORE_INVALID',
+    'CREDENTIAL_STORE_REJECTED',
+    'CREDENTIAL_STORE_FAILED',
+    'DB_REGISTRATION_FAILED'
+]);
+
 function errorResponse(res, error) {
+    if (error instanceof ContractError && INTERNAL_FAILURE_DIAGNOSTIC_CODES.has(error.code)) {
+        return res.status(503).json({
+            error: { code: 'UPSTREAM_UNAVAILABLE', retryable: true, fault_domain: 'brainbase_cloud' }
+        });
+    }
     if (error instanceof ContractError) {
         return res.status(error.status).json({
             error: {

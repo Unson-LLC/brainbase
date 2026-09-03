@@ -115,6 +115,37 @@ postflightは、移行対象request ID集合が全件`pending_owner_approval`へ
 
 このmigration適用後は、A0署名昇格対応前のSHAへ通常rollbackしてはならない。対応SHAが起動できない場合は`brainbase-ssot.service`を停止したままpromotion writeを全面停止し、readback済みのA0対応SHAへforward fixする。DB down migrationや旧writerの再公開はしない。
 
+### Slack installation failure diagnosticを含むrelease
+
+対象差分に`013_slack_installation_failure_diagnostics.sql`、`tenant-production-provisioning-schema.sql`のSlack diagnostic列、またはそれらを参照するruntimeが含まれる場合は、runtimeより先にschemaを適用する。新runtimeは`failure_stage`と`cleanup_status`を通常経路で参照するため、schema未適用のままserviceを再起動してはならない。
+
+```bash
+(
+set -euo pipefail
+TARGET_SHA="$(git rev-parse HEAD)"
+grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
+
+# systemdと同じ秘密管理envを読み、URL自体は表示しない。
+set -a
+. /home/ubuntu/brainbase/.env
+. /home/ubuntu/brainbase/.env.infisical
+set +a
+test -n "${INFO_SSOT_DATABASE_URL:-${INFO_SSOT_DB_URL:-}}"
+
+# apply前に同じDDLをtransaction内で検証し、lock timeout超過時は停止する。
+node scripts/migrate-tenant-production-provisioning.js --dry-run
+
+# 対象環境、TARGET_SHA、actorをrelease記録へ固定した承認済みoperatorだけが実行する。
+BRAINBASE_MIGRATION_ACTOR="<approved operator>" \
+  node scripts/migrate-tenant-production-provisioning.js --apply --approve-apply
+
+# 列、CHECK制約、migration ledgerのschema hashを再読込する。
+node scripts/migrate-tenant-production-provisioning.js --check
+)
+```
+
+`--dry-run`、`--apply`、`--check`のいずれかが失敗した場合はsection 3へ進まず、現在のserviceを維持する。適用前に本番台帳件数と実行中transactionを確認し、`lock_timeout=5s`内に安全に取得できない場合は負荷の低い時間帯へ延期する。apply後は列をdown migrationしない。新runtimeの起動後に失敗した場合はserviceを停止し、追加列を無視できる読戻し済みのservice SHAへ戻すかforward fixする。旧SHAが追加列と互換であることを確認できない場合は起動しない。
+
 ## 3. Restart the service
 
 ```bash
