@@ -28,11 +28,11 @@ T0の運用担当者として、Slack installation callbackが失敗したとき
 
 ## ローカル検証証跡
 
-- 変更面単体・schema: 6 files / 84 tests pass
-- 共有公開routeを含む回帰束: 7 files / 104 tests pass
-- 実PostgreSQL integration: 3 files / 19 tests pass（実failed write/readback、composed local flow、旧台帳からの冪等migrationを含む）
-- TypeScript typecheck、対象ESLint、Task JSON parse、`git diff --check`: pass
-- 初回独立レビュー: NEEDS_CHANGES、blocking 1（stage別allowlist不足）。forward-port後レビューでcleanup契約不一致1件と共有route回帰1件を検出し、修正した。現行`origin/develop@e3e94d2ce660b1a3676f613e01393486aff3e4b8`上のexact code HEAD `dff0762bd3b093396dba66bd2585ac6171a414cb`を再レビューし、PASS（blocking 0 / non-blocking 0）
+- VibePro unit verification: 4 files / 60 tests pass
+- VibePro integration verification: 4 files / 56 tests pass（実PostgreSQLのfailed write/readback、composed local flow、旧台帳からの冪等migrationを含む）
+- VibePro typecheck verification、対象ESLint、Task JSON parse、`git diff --check`: pass
+- exact HEAD、実行時刻、出力digest、作業ツリー不変性は `.vibepro/pr/story-t0-slack-installation-failure-diagnostics/verification-runs/` と `verification-evidence.json` を正本とし、このStory本文へ固定SHAを複製しない。
+- 独立レビューは現行HEADごとに `.vibepro/reviews/story-t0-slack-installation-failure-diagnostics/` へ記録し、古いHEADの結果を再利用しない。
 - production execution / deploy / OAuth retry / secret参照: 0回
 
 ## 完了境界
