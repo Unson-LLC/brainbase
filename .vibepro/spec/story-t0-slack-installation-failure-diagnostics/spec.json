@@ -132,7 +132,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T23:45:24.043Z",
-      "last_revised_at": "2026-09-02T23:45:24.043Z"
+      "last_revised_at": "2026-09-03T00:28:21.393Z"
     },
     {
       "id": "C-002",
@@ -173,7 +173,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T23:45:24.043Z",
-      "last_revised_at": "2026-09-02T23:45:24.043Z"
+      "last_revised_at": "2026-09-03T00:28:21.393Z"
     },
     {
       "id": "C-003",
@@ -214,7 +214,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T23:45:24.043Z",
-      "last_revised_at": "2026-09-02T23:45:24.043Z"
+      "last_revised_at": "2026-09-03T00:28:21.393Z"
     },
     {
       "id": "C-004",
@@ -255,54 +255,109 @@
         ]
       },
       "first_seen_at": "2026-09-02T23:45:24.043Z",
-      "last_revised_at": "2026-09-03T00:00:00.000Z"
+      "last_revised_at": "2026-09-03T00:28:21.393Z"
     },
     {
       "id": "C-005",
       "type": "contract",
       "statement": "Slack installation public routeは従来のstable error応答を維持し内部diagnosticを公開しない。共有credential materializer障害時のtenant runtime provider-forwardも500 INTERNAL_ERRORを維持する。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-005" }],
-        "architecture_refs": [{ "file": "docs/architecture/story-t0-slack-installation-failure-diagnostics.md", "section": "共有 credential adapter の互換性" }],
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-t0-slack-installation-failure-diagnostics.md",
+            "section": "共有 credential adapter の互換性"
+          }
+        ],
         "code_refs": [
-          { "file": "server/routes/slack-installation-control-plane.js", "anchor": "registerSlackInstallationControlPlaneRoutes" },
-          { "file": "server/services/multitenant/remote-credential-store.js", "anchor": "createRemoteCredentialMaterializer" }
+          {
+            "file": "server/routes/slack-installation-control-plane.js",
+            "anchor": "createSlackInstallationControlPlaneRouter"
+          },
+          {
+            "file": "server/services/multitenant/remote-credential-store.js",
+            "anchor": "createRemoteCredentialMaterializer"
+          }
         ],
         "test_refs": [
-          { "file": "tests/server/routes/slack-installation-control-plane.test.js", "case": "keeps internal failure diagnostic %s out of the public response" },
-          { "file": "tests/server/routes/tenant-runtime-contract.test.js", "case": "AC-005: credential materializer障害でもprovider forwardの公開エラー契約を変更しない" }
+          {
+            "file": "tests/server/routes/slack-installation-control-plane.test.js",
+            "case": "keeps internal failure diagnostic %s out of the public response"
+          },
+          {
+            "file": "tests/server/routes/tenant-runtime-contract.test.js",
+            "case": "AC-005: credential materializer障害でもprovider forwardの公開エラー契約を変更しない"
+          }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
-          { "file_glob": "tests/server/routes/slack-installation-control-plane.test.js", "must_cover": "keeps internal failure diagnostic %s out of the public response" },
-          { "file_glob": "tests/server/routes/tenant-runtime-contract.test.js", "must_cover": "AC-005: credential materializer障害でもprovider forwardの公開エラー契約を変更しない" }
+          {
+            "file_glob": "tests/server/routes/slack-installation-control-plane.test.js",
+            "must_cover": "keeps internal failure diagnostic %s out of the public response"
+          },
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "AC-005: credential materializer障害でもprovider forwardの公開エラー契約を変更しない"
+          }
         ]
       },
       "first_seen_at": "2026-09-03T00:00:00.000Z",
-      "last_revised_at": "2026-09-03T00:00:00.000Z"
+      "last_revised_at": "2026-09-03T00:28:21.393Z"
     },
     {
       "id": "C-006",
-      "type": "evidence_boundary",
+      "type": "contract",
       "statement": "focused unit、schema、実PostgreSQL integration、typecheckをlocal evidenceとして記録し、production deploy、OAuth retry、credential round trip、UsageEventまたはOperationReceipt readbackは未収集のまま合格へ変換しない。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
-        "architecture_refs": [{ "file": "docs/architecture/story-t0-slack-installation-failure-diagnostics.md", "section": "検証境界" }],
-        "code_refs": [{ "file": "docs/management/tasks/t0-slack-installation-failure-diagnostics.json", "anchor": "production_evidence" }],
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-t0-slack-installation-failure-diagnostics.md",
+            "section": "検証境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/tasks/t0-slack-installation-failure-diagnostics.json",
+            "anchor": "production_evidence"
+          }
+        ],
         "test_refs": [
-          { "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js", "case": "writes and reads a bounded failed diagnostic without retaining claim or response data" },
-          { "file": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js", "case": "preserves a legacy failed row and adds bounded diagnostic columns idempotently" }
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "writes and reads a bounded failed diagnostic without retaining claim or response data"
+          },
+          {
+            "file": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js",
+            "case": "preserves a legacy failed row and adds bounded diagnostic columns idempotently"
+          }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
-          { "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js", "must_cover": "writes and reads a bounded failed diagnostic without retaining claim or response data" },
-          { "file_glob": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js", "must_cover": "preserves a legacy failed row and adds bounded diagnostic columns idempotently" }
+          {
+            "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "must_cover": "writes and reads a bounded failed diagnostic without retaining claim or response data"
+          },
+          {
+            "file_glob": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js",
+            "must_cover": "preserves a legacy failed row and adds bounded diagnostic columns idempotently"
+          }
         ]
       },
       "first_seen_at": "2026-09-03T00:00:00.000Z",
-      "last_revised_at": "2026-09-03T00:00:00.000Z"
+      "last_revised_at": "2026-09-03T00:28:21.393Z"
     }
   ],
   "open_questions": [
@@ -312,5 +367,5 @@
     }
   ],
   "generated_at": "2026-09-02T23:45:24.041Z",
-  "previous_spec_id": ""
+  "previous_spec_id": "2026-09-02T23:45:24.041Z"
 }
