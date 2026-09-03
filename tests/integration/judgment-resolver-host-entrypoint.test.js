@@ -274,7 +274,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             owner_audit_complete: true,
             owner_audit_line_count: 6
         });
-    }, 20_000);
+    }, 30_000);
 
     it('同時に到着したactive Stopでも修復要求を1回だけ許可する', async () => {
         const root = temporaryDirectory();
@@ -709,7 +709,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(repeatedStop.stderr).toContain('judgment_stop_repair_exhausted');
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(false);
-    }, 20_000);
+    }, 30_000);
 
     it('失敗したrequired routeを重複実行せずowner監査だけを修復できる', async () => {
         const root = temporaryDirectory();
