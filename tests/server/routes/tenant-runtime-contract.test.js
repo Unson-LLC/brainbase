@@ -1,9 +1,11 @@
+import { generateKeyPairSync } from 'node:crypto';
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { createTenantRuntimeRouter } from '../../../server/routes/tenant-runtime.js';
 import { registerTenantRuntimeApiRoute } from '../../../server/bootstrap/register-api-routes.js';
 import { CredentialBroker } from '../../../server/services/multitenant/credential-broker.js';
+import { createTenantRuntimeServicesFromEnv } from '../../../server/services/multitenant/tenant-runtime-services.js';
 import { MeetingMinutesContextReceiptError } from '../../../server/services/meeting-minutes/context-receipt-service.js';
 import { REQUIRED_CAPABILITIES } from '../../../server/services/multitenant/protocol-contract.js';
 
@@ -208,6 +210,87 @@ describe('tenant runtime API', () => {
         expect(JSON.stringify(response.body)).not.toContain('credential_materializer_unavailable');
         expect(materialize).toHaveBeenCalledOnce();
         expect(forward).not.toHaveBeenCalled();
+    });
+
+    it('AC-005: production envが選ぶremote materializer障害を公開APIへ漏らさない', async () => {
+        const { privateKey } = generateKeyPairSync('ed25519');
+        const remoteFailure = vi.fn(async () => {
+            throw new Error('secret remote credential store detail');
+        });
+        const forward = vi.fn();
+        vi.stubGlobal('fetch', remoteFailure);
+        try {
+            const services = createTenantRuntimeServicesFromEnv({
+                env: {
+                    BRAINBASE_TENANT_RUNTIME_ENABLED: '1',
+                    BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN: 'canonical-service-token',
+                    BRAINBASE_SERVICE_TOKEN_SECRET: 'service-token-secret',
+                    BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID: tenantContext.placement.deployment_id,
+                    BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_PROFILE: 'shared_cloud',
+                    BRAINBASE_TENANT_CONTEXT_SIGNING_KEY_ID: 'brainbase-test-key-1',
+                    BRAINBASE_TENANT_CONTEXT_SIGNING_KEY_JWK: JSON.stringify(privateKey.export({ format: 'jwk' })),
+                    BRAINBASE_TENANT_CREDENTIAL_STORE_URL: 'https://credentials.example.test',
+                    BRAINBASE_TENANT_CREDENTIAL_STORE_SERVICE_TOKEN: 'credential-store-service-token'
+                },
+                pool: { query: vi.fn(async () => ({ rows: [] })) },
+                providerForwarders: {
+                    'api.openai.com': { provider: 'slack', forward }
+                },
+                now: () => new Date('2026-08-16T13:00:30Z')
+            });
+            services.credentialBroker.repository = null;
+            services.credentialBroker.register({
+                tenant_id: tenantContext.tenant.tenant_id,
+                connection_id: tenantContext.workspace_connection.connection_id,
+                connection_revision: tenantContext.workspace_connection.connection_revision,
+                credential_ref: tenantContext.credential.credential_ref,
+                credential_mode: tenantContext.credential.mode,
+                provider: 'slack'
+            });
+            const lease = await services.credentialBroker.issueLease({
+                message_type: 'credential_lease_request',
+                protocol_version: '1.0',
+                binding: {
+                    tenant_id: tenantContext.tenant.tenant_id,
+                    connection_id: tenantContext.workspace_connection.connection_id,
+                    connection_revision: tenantContext.workspace_connection.connection_revision,
+                    contract_revision: tenantContext.contract_revision,
+                    operation_id: tenantContext.operation_id,
+                    audience: 'api.openai.com',
+                    credential_mode: tenantContext.credential.mode,
+                    credential_ref: tenantContext.credential.credential_ref
+                },
+                requested_ttl_seconds: 60
+            });
+
+            const response = await request(createApp({ credentialBroker: services.credentialBroker }))
+                .post('/api/v1/runtime/provider-requests:forward')
+                .set({
+                    authorization: 'Bearer service-test',
+                    'Brainbase-Protocol-Version': '1.0',
+                    'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+                })
+                .send({
+                    tenant_context: tenantContext,
+                    lease_id: lease.lease_id,
+                    lease_token: lease.lease_token,
+                    audience: 'api.openai.com',
+                    provider_operation: 'responses.create',
+                    request: {
+                        body: { input: 'hello' },
+                        idempotency_key: 'request-env-materializer-failure'
+                    }
+                });
+
+            expect(response.status).toBe(500);
+            expect(response.body).toMatchObject({ code: 'INTERNAL_ERROR', status: 500 });
+            expect(JSON.stringify(response.body)).not.toContain('CREDENTIAL_STORE_');
+            expect(JSON.stringify(response.body)).not.toContain('secret remote credential store detail');
+            expect(remoteFailure).toHaveBeenCalledOnce();
+            expect(forward).not.toHaveBeenCalled();
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 
     it('D-001/AC-301/AC-305: 各業務境界でEnvelopeを再検証しbodyの越境自己申告を拒否する', async () => {
