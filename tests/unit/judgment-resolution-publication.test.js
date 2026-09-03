@@ -1173,6 +1173,10 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('PIN_TMP="$(mktemp "${BRAINBASE_RUNTIME_PIN_FILE}.XXXXXX")"');
         expect(runbook).toContain('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"');
         expect(runbook).toContain('brainbase_wait_for_runtime_ready');
+        expect(runbook).toContain('brainbase_wait_for_public_runtime_ready');
+        expect(runbook.indexOf('brainbase_wait_for_public_runtime_ready')).toBeLessThan(
+            runbook.indexOf('# 3. 4面を推測せず個別取得する。')
+        );
         expect(runbook).not.toMatch(/launchctl kickstart[^\n]*\n(?:sleep )/u);
         expect(runbook.indexOf('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"')).toBeLessThan(
             runbook.indexOf('launchctl kickstart -k "gui/$(id -u)/com.brainbase.ui"')

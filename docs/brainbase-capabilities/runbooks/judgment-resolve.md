@@ -563,6 +563,28 @@ else
   false
 fi
 
+# Lightsailのsystemd activeはHTTP readyを保証しない。公開面が対象SHAを返すまで
+# bounded pollingし、再起動直後の502をMCP障害として誤判定しない。
+brainbase_wait_for_public_runtime_ready() {
+  local attempt public_version
+  public_version="$BRAINBASE_PRODUCTION_RUN_DIR/lightsail.ready.version.json"
+  for attempt in $(seq 1 30); do
+    if curl -fsS --connect-timeout 5 --max-time 10 \
+      https://bb.unson.jp/api/version > "$public_version" 2>/dev/null \
+      && PUBLIC_VERSION="$public_version" TARGET_SHA="$TARGET_SHA" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(process.env.PUBLIC_VERSION,"utf8"));
+const git=value.runtime?.git;
+if(git?.sha!==process.env.TARGET_SHA||git?.dirty!==false)process.exit(1);
+'; then
+      return 0
+    fi
+    sleep 2
+  done
+  printf 'Lightsail public runtime did not become ready for target SHA\n' >&2
+  return 1
+}
+brainbase_wait_for_public_runtime_ready
+
 # 3. 4面を推測せず個別取得する。
 BRAINBASE_PRODUCTION_STAGE=runtime_surface_readback
 HOOK_ROOT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.root")"
