@@ -181,9 +181,14 @@ describe('Judgment Resolver Host value proof integration', () => {
       } },
     }, { env });
 
+    // Not the Stop-repair-active re-Stop covered by "Stop blocks at most
+    // once" (that flow is tested elsewhere): this call still blocks, once
+    // more, to demonstrate the missing value-proof requirement, so it is
+    // issued as a fresh Stop (stop_hook_active: false) rather than an
+    // active re-Stop signal.
     const proofMissing = finalizeEpisode({
       hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
-      stop_hook_active: true,
+      stop_hook_active: false,
       last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
     }, { env });
     expect(proofMissing.output.decision).toBe('block');

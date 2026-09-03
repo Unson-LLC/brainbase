@@ -50,7 +50,7 @@ describe('completed judgment episode knowledge event adapter', () => {
         expect(JSON.stringify(first)).not.toContain('send');
     });
 
-    it.each(['active', 'blocked'])('%s episodeは登録対象にしない', (completionStatus) => {
+    it.each(['active', 'blocked', 'audit_degraded'])('%s episodeは登録対象にしない', (completionStatus) => {
         expect(toKnowledgeEventFromJudgmentEpisode(completedEpisode({ completion_status: completionStatus }))).toBeNull();
     });
 

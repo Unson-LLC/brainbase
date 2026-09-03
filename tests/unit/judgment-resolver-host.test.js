@@ -1417,7 +1417,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(state).toMatchObject({ success: true, event_kind: 'state', safe_metadata: { stop_state: requestedState } });
     });
 
-    it('story-remote-judgment-hook:ac:6 Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {
+    it('story-remote-judgment-hook:ac:6 Stopはfirstだけblockし、active再Stopはaudit_degradedで確定、以後は同じfinalを返す', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = {
@@ -1452,29 +1452,34 @@ describe('Codex Judgment Resolver Host', () => {
         expect(first.output).toMatchObject({ decision: 'block' });
         expect(replay.output).toEqual(first.output);
 
+        // A continuation marker already exists (from `first`/`replay`
+        // above), so this active re-Stop (stop_hook_active: true) never
+        // blocks again: it finalizes as audit_degraded instead.
         const active = finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: '証拠未取得を明示した回答'
         }, { env });
+        expect(active.output.decision).toBeUndefined();
+        expect(active.output.systemMessage).toContain('⚠️ 監査縮退: knowledge.resolve');
+        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
+        expect(existsSync(finalPath)).toBe(true);
+        expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
+            completion_status: 'audit_degraded',
+            degradation_reason: 'knowledge.resolve',
+            missing_capabilities: ['knowledge.resolve']
+        });
+        // audit_degraded finals never reach the knowledge outbox (the
+        // adapter ignores every completion_status other than 'complete').
+        const outboxDirectory = join(root, 'knowledge-event-outbox', 'codex-judgment');
+        expect(existsSync(outboxDirectory) ? readdirSync(outboxDirectory) : []).toEqual([]);
+
+        // A further Stop just returns the already-persisted final, unchanged.
         const activeReplay = finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: '別の回答'
         }, { env });
-        expect(active.output).toMatchObject({ decision: 'block' });
-        expect(active.output.reason).toContain(
-            '必須capability `knowledge.resolve`が未完了です。許可されている正確なツール ' +
-            '`mcp__brainbase__brainbase_knowledge_resolve` を今実行してください。' +
-            'このツールは正本の所在と次の取得経路を選び、回答本文を取得しません。' +
-            'これはHostが確定したJudgment routeの再分類ではありません。'
-        );
-        expect(active.output.reason).toContain(
-            'このツールは正本の所在と次の取得経路を選び、回答本文を取得しません。' +
-            'これはHostが確定したJudgment routeの再分類ではありません。'
-        );
-        expect(active.output.reason).not.toContain('ではありません。、その後');
         expect(activeReplay.output).toEqual(active.output);
-        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
-        expect(existsSync(finalPath)).toBe(false);
+        expect(activeReplay.final).toEqual(active.final);
     });
 
     it('required knowledgeだけが不足したStop修復でも完了監査行を明示する', async () => {
@@ -2655,7 +2660,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(result.final).toMatchObject({ completion_status: 'complete' });
     });
 
-    it('自律継続の再試行でも不要な質問を返した場合は有限終了し完了監査を出さない', async () => {
+    it('自律継続の再試行でも不要な質問を返した場合は有限終了しaudit_degradedで完了する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-autonomy-exhausted', turn_id: 'turn-autonomy-exhausted', prompt: '修正して', cwd: process.cwd() };
@@ -2688,14 +2693,24 @@ describe('Codex Judgment Resolver Host', () => {
             stop_hook_active: false, last_assistant_message: badAnswer
         }, { env });
 
-        await expect(processHookPayload({
+        // A continuation marker already exists from the first block above,
+        // so this active re-Stop never blocks again (no infinite confirm
+        // loop): it converges to a finite audit_degraded completion instead
+        // of throwing judgment_stop_repair_exhausted.
+        const degraded = await processHookPayload({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: badAnswer
-        }, { env })).rejects.toThrow('judgment_stop_repair_exhausted');
+        }, { env });
+        expect(degraded.decision).toBeUndefined();
+        expect(degraded.systemMessage).toContain('⚠️ 監査縮退: autonomy.continuation');
         const continuationPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.continuation.json`);
         expect(JSON.parse(readFileSync(continuationPath, 'utf8')).autonomy_continuation.count).toBe(1);
         const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
-        expect(existsSync(finalPath)).toBe(false);
+        expect(existsSync(finalPath)).toBe(true);
+        expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
+            completion_status: 'audit_degraded',
+            degradation_reason: 'autonomy.continuation'
+        });
     });
 
     it('continueでも許可理由を明示した限定質問と、完了後の任意提案は通す', async () => {

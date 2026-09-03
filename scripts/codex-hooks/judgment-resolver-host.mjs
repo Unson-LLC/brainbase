@@ -2569,8 +2569,14 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             throw new Error('judgment_episode_final_event_set_mismatch');
         }
         enqueueFinalKnowledgeEvent(payload, finalized, env);
+        const persistedBaseOutput = completedAuditOutput(finalizedValueProof, finalizedValueProofAttention);
+        const persistedOutput = finalized.completion_status === 'audit_degraded'
+            && typeof finalized.degradation_reason === 'string'
+            && finalized.degradation_reason !== 'turn_resolution_unavailable'
+            ? { ...persistedBaseOutput, systemMessage: `${persistedBaseOutput.systemMessage}\n⚠️ 監査縮退: ${finalized.degradation_reason}` }
+            : persistedBaseOutput;
         return {
-            output: completedAuditOutput(finalizedValueProof, finalizedValueProofAttention),
+            output: persistedOutput,
             final: finalized,
             auditRepairWasAlreadyActive: existingContinuation !== null
         };
@@ -2614,16 +2620,19 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     // autonomy contract violation (unnecessary question / unfinished safe
     // work / state-record mismatch). The model's own reproduction of
     // Host-rendered 🧠/📚/⚠️ audit lines is never a block reason.
-    if (missingTurnResolution
-        || missingKnowledge
-        || missingValueProof
-        || missingAutonomyCompliance) {
-        const missingCapabilities = [
-            ...(missingTurnResolution ? ['judgment.resolve_turn'] : []),
-            ...(missingKnowledge ? ['knowledge.resolve'] : []),
-            ...(missingValueProof ? ['judgment.value_proof.record'] : []),
-            ...(missingAutonomyCompliance ? ['autonomy.continuation'] : [])
-        ];
+    const missingCapabilities = [
+        ...(missingTurnResolution ? ['judgment.resolve_turn'] : []),
+        ...(missingKnowledge ? ['knowledge.resolve'] : []),
+        ...(missingValueProof ? ['judgment.value_proof.record'] : []),
+        ...(missingAutonomyCompliance ? ['autonomy.continuation'] : [])
+    ];
+    // Stop blocks at most once per episode. If a continuation marker already
+    // exists, one block already happened for this episode; a second block
+    // would risk an infinite confirm loop (Codex Desktop stop_hook_active
+    // re-Stops indefinitely), so any further gap finalizes as audit_degraded
+    // instead of blocking again.
+    const stopAlreadyBlockedOnce = missingCapabilities.length > 0 && existingContinuation !== null && payload.stop_hook_active === true;
+    if (missingCapabilities.length > 0 && !stopAlreadyBlockedOnce) {
         let marker = existingContinuation;
         if (!marker) {
             const autonomyContract = episodeAutonomyContract(episode);
@@ -2740,6 +2749,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             completion_status: 'audit_degraded',
             degradation_reason: 'turn_resolution_unavailable',
             ...(bootstrapEpisode.host_surface ? { host_surface: bootstrapEpisode.host_surface } : {})
+        } : stopAlreadyBlockedOnce ? {
+            completion_status: 'audit_degraded',
+            degradation_reason: missingCapabilities[0],
+            missing_capabilities: missingCapabilities
         } : { completion_status: 'complete' }),
         protocol_status: 'audit_protocol_complete',
         content_verification_status: 'not_evaluated',
@@ -2791,8 +2804,12 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     };
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
     enqueueFinalKnowledgeEvent(payload, final, env);
+    const baseOutput = completedAuditOutput(valueProof, valueProofAttention);
+    const output = stopAlreadyBlockedOnce
+        ? { ...baseOutput, systemMessage: `${baseOutput.systemMessage}\n⚠️ 監査縮退: ${missingCapabilities[0]}` }
+        : baseOutput;
     return {
-        output: completedAuditOutput(valueProof, valueProofAttention),
+        output,
         final,
         auditRepairWasAlreadyActive: existingContinuation !== null
     };
@@ -3107,11 +3124,11 @@ export async function processHookPayload(payload, dependencies = {}) {
             if (error?.message !== 'judgment_episode_not_found') throw error;
             return handleOrphanStop(payload, dependencies);
         }
-        if (payload.stop_hook_active === true
-            && result.output?.decision === 'block'
-            && result.auditRepairWasAlreadyActive) {
-            throw new Error('judgment_stop_repair_exhausted');
-        }
+        // Stop blocks at most once per episode (see finalizeEpisodeLocked):
+        // a re-Stop after an already-active repair never blocks again, so
+        // there is no longer a finite-but-exhausted repair state to reject
+        // here. Only identity/integrity contradictions and transaction
+        // timeouts still fail loud, from other paths.
         return result.output;
     }
     return {};

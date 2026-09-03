@@ -263,7 +263,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
     }, 20_000);
 
-    it('同時に到着したactive Stopでも修復要求を1回だけ許可する', async () => {
+    it('同時に到着したactive Stopでもblockは1回だけ、もう一方はaudit_degradedで完了する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
@@ -315,12 +315,17 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             run('bash', [wrapper], { env, input: stopInput })
         ]);
 
-        expect(results.map((result) => result.code).sort()).toEqual([0, 1]);
-        const allowed = results.find((result) => result.code === 0);
-        const exhausted = results.find((result) => result.code === 1);
-        expect(JSON.parse(allowed.stdout)).toMatchObject({ decision: 'block' });
-        expect(exhausted.stdout).toBe('');
-        expect(exhausted.stderr).toContain('judgment_stop_repair_exhausted');
+        // Stop blocks at most once per episode: whichever concurrent call
+        // wins the race creates the continuation marker and blocks; the
+        // other observes the marker already exists and finalizes as
+        // audit_degraded instead of blocking again or failing.
+        expect(results.map((result) => result.code)).toEqual([0, 0]);
+        expect(results.map((result) => result.stderr)).toEqual(['', '']);
+        const parsed = results.map((result) => JSON.parse(result.stdout));
+        const blocked = parsed.find((output) => output.decision === 'block');
+        const degraded = parsed.find((output) => output.decision !== 'block');
+        expect(blocked).toMatchObject({ decision: 'block' });
+        expect(degraded.systemMessage).toContain('⚠️ 監査縮退: knowledge.resolve');
     }, 20_000);
 
     it('Codex App委任turnはUserPromptSubmitなしでもStop前に同じturnのepisodeへ復元される', async () => {
@@ -685,17 +690,37 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         expect(JSON.parse(firstStop.stdout)).toMatchObject({ decision: 'block' });
 
+        // A Stop never blocks twice for the same episode. The active
+        // re-Stop (stop_hook_active: true) after an already-active repair
+        // marker finalizes as audit_degraded instead of blocking again or
+        // throwing judgment_stop_repair_exhausted.
         const repeatedStop = await run('bash', [wrapper], {
             env,
             input: JSON.stringify({
                 hook_event_name: 'Stop', ...identity, stop_hook_active: true, last_assistant_message: '未取得のまま回答'
             })
         });
-        expect(repeatedStop.code).not.toBe(0);
-        expect(repeatedStop.stdout).toBe('');
-        expect(repeatedStop.stderr).toContain('judgment_stop_repair_exhausted');
+        expect(repeatedStop).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(repeatedStop.stdout).systemMessage).toContain('⚠️ 監査縮退: knowledge.resolve');
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
-        expect(existsSync(finalPath)).toBe(false);
+        expect(existsSync(finalPath)).toBe(true);
+        expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
+            completion_status: 'audit_degraded',
+            degradation_reason: 'knowledge.resolve',
+            missing_capabilities: ['knowledge.resolve']
+        });
+
+        // A third Stop just returns the already-persisted final, unchanged.
+        const finalBefore = readFileSync(finalPath, 'utf8');
+        const thirdStop = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: true, last_assistant_message: '未取得のまま回答'
+            })
+        });
+        expect(thirdStop).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(thirdStop.stdout).systemMessage).toContain('⚠️ 監査縮退: knowledge.resolve');
+        expect(readFileSync(finalPath, 'utf8')).toBe(finalBefore);
     }, 20_000);
 
     it('失敗したrequired routeを重複実行せずowner監査だけを修復できる', async () => {
