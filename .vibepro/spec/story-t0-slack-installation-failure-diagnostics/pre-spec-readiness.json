@@ -1,10 +1,10 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-t0-slack-installation-failure-diagnostics",
-  "created_at": "2026-09-03T01:29:38.948Z",
+  "created_at": "2026-09-03T04:47:17.462Z",
   "status": "ready",
   "git": {
-    "head_sha": "5f4749a19faca726dd958e18ac6c3e0e03450e1f"
+    "head_sha": "769af14b60d0ba418abdedbffaeeaf7a1a39a6af"
   },
   "checks": [
     {
@@ -15,29 +15,29 @@
     {
       "id": "graphify_context",
       "status": "pass",
-      "reason": "Graphify graph has 8834 nodes and 20401 edges"
+      "reason": "Graphify graph has 8840 nodes and 20426 edges"
     },
     {
       "id": "story_diagnosis",
       "status": "pass",
-      "reason": "Story diagnosis run exists: 2026-09-03T005000Z"
+      "reason": "Story diagnosis run exists: 2026-09-03T014000Z"
     }
   ],
   "graphify": {
     "available": true,
     "artifact": ".vibepro/graphify/graph.json",
-    "node_count": 8834,
-    "edge_count": 20401,
+    "node_count": 8840,
+    "edge_count": 20426,
     "edge_source_key": "links"
   },
   "diagnosis": {
-    "run_id": "2026-09-03T005000Z",
+    "run_id": "2026-09-03T014000Z",
     "gate_status": "needs_review",
-    "evidence_artifact": ".vibepro/diagnostics/2026-09-03T005000Z/evidence.json"
+    "evidence_artifact": ".vibepro/diagnostics/2026-09-03T014000Z/evidence.json"
   },
   "engineering_judgment": null,
   "pr_prepare": {
-    "created_at": "2026-09-03T01:29:38.894Z",
+    "created_at": "2026-09-03T04:47:17.416Z",
     "artifact": ".vibepro/pr/story-t0-slack-installation-failure-diagnostics/pr-prepare.json"
   },
   "next_actions": []

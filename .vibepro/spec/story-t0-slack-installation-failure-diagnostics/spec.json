@@ -88,8 +88,87 @@
       ]
     },
     "verification": {
-      "scanner_coverage": "not_collected",
-      "scope": "local code and PostgreSQL integration only; production OAuth and external readback not collected"
+      "scanner_coverage": "verified",
+      "scope": "local code and PostgreSQL integration; production OAuth and external readback remain outside this Story's release evidence",
+      "evidence": {
+        "propagation_surfaces": [
+          "installation intent",
+          "control plane",
+          "PostgreSQL ledger",
+          "diagnostic readback"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "Slack installation intent and failure ledger",
+              "tenant_key_source": "authenticated installation intent tenant_id",
+              "trust_zone": "Brainbase control plane and PostgreSQL transaction",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "single tenant and installation intent",
+              "tenant_key_source": "tenant_id plus installation_intent_id composite ownership",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound opaque credential reference",
+              "connection_mode": "managed shared control plane",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "evidence_refs": [
+          "server/sql/tenant-production-provisioning-schema.sql:slack_installation_exchange_ledger_tenant_intent_fk",
+          "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js:enforces tenant and installation-intent ownership with the migrated composite foreign key",
+          "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js:writes and reads a bounded failed diagnostic without retaining claim or response data",
+          "tests/server/services/multitenant/postgres-repository.test.js:reads only the non-secret failed installation diagnostic",
+          "tests/server/routes/tenant-runtime-contract.test.js:tenant boundary rejection and provider failure redaction"
+        ]
+      }
     }
   },
   "clauses": [
@@ -132,7 +211,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T23:45:24.043Z",
-      "last_revised_at": "2026-09-03T01:31:19.220Z"
+      "last_revised_at": "2026-09-03T04:50:11.449Z"
     },
     {
       "id": "C-002",
@@ -173,7 +252,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T23:45:24.043Z",
-      "last_revised_at": "2026-09-03T01:31:19.220Z"
+      "last_revised_at": "2026-09-03T04:50:11.449Z"
     },
     {
       "id": "C-003",
@@ -214,7 +293,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T23:45:24.043Z",
-      "last_revised_at": "2026-09-03T01:31:19.220Z"
+      "last_revised_at": "2026-09-03T04:50:11.449Z"
     },
     {
       "id": "C-004",
@@ -255,7 +334,7 @@
         ]
       },
       "first_seen_at": "2026-09-02T23:45:24.043Z",
-      "last_revised_at": "2026-09-03T01:31:19.220Z"
+      "last_revised_at": "2026-09-03T04:50:11.449Z"
     },
     {
       "id": "C-005",
@@ -308,7 +387,7 @@
         ]
       },
       "first_seen_at": "2026-09-03T00:00:00.000Z",
-      "last_revised_at": "2026-09-03T01:31:19.220Z"
+      "last_revised_at": "2026-09-03T04:50:11.449Z"
     },
     {
       "id": "C-006",
@@ -365,7 +444,7 @@
         ]
       },
       "first_seen_at": "2026-09-03T00:00:00.000Z",
-      "last_revised_at": "2026-09-03T01:31:19.220Z"
+      "last_revised_at": "2026-09-03T04:50:11.449Z"
     }
   ],
   "open_questions": [
