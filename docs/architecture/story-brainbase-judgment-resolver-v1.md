@@ -87,7 +87,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 - Binding/context/route integrity failure blocks completion.
 - Concurrent `PostToolUse` processes are totally ordered by the Host's atomic journal commit, not by an unverifiable wall-clock call-start time. Episode start, event commit, and Stop finalization share one per-turn SQLite `BEGIN IMMEDIATE` transaction boundary, so no committed event can be inserted into an already finalized episode. The OS releases the transaction lock when a process exits; the Host never guesses whether a stale lock file is safe to delete.
 - The Host uses Node's built-in SQLite when the runtime provides it, avoiding native-addon CPU/ABI coupling between Codex and the interactive shell. Node 20 runtimes fall back to the locally installed `better-sqlite3` build.
-- A missing required route or a final answer that omits, duplicates, or reorders a stored owner-visible audit line returns `decision:block` on the first repairable Stop; no incomplete final receipt is written. If the active repeated Stop is still incomplete, it exits non-zero with `judgment_stop_repair_exhausted` instead of regenerating forever. Body preservation strips only the leading Host audit namespace block, including malformed variants, while keeping audit-like text after the business body starts. A true orphan Stop emits one visible degraded-warning repair, then converges to an immutable non-final `audit_degraded` receipt without asking for a new task; replay cannot reopen the repair loop. Identity or integrity ambiguity and transaction-acquisition timeout remain terminal fail-closed failures.
+- A missing required route or substantive capability returns `decision:block` on the first repairable Stop; no incomplete final receipt is written. If the active repeated Stop is still incomplete, it converges to `audit_degraded` instead of blocking again. The Host binds the business answer and renders its audit namespace separately as a `systemMessage`; the model does not reproduce it. A true orphan Stop emits one visible degraded-warning repair, then converges to an immutable non-final `audit_degraded` receipt without asking for a new task; replay cannot reopen the repair loop. Identity or integrity ambiguity and transaction-acquisition timeout remain terminal fail-closed failures.
 - Runtime 2.3 implement/operate episodes use a hidden structured Stop state rather than prose matching. `pending` blocks, `waiting_human` must match an allowed reason and visible marker, and `completed` requires a successful same-episode execution event. The event proves execution, not semantic correctness; content verification remains a separate test/readback responsibility. Runtime 2.2 and older episodes retain prose matching only for compatibility.
 - Normal platform permissions, approvals, and executor authorization remain responsible for effects. There is no Effect Guard.
 
@@ -95,7 +95,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 
 1. Every `UserPromptSubmit` opens or reuses one unresolved judgment episode and saves canonical turn input.
 2. Every model turn calls `brainbase_resolve_turn` before other work, with the saved input unchanged and an explicit model interpretation.
-2. Judgment Resolver is absent from model-visible MCP tools.
+2. `brainbase_resolve_turn` is model-callable, while canonical turn input remains Host-owned and is loaded by reference inside the MCP server.
 3. Canonical context preserves ordered exact user/assistant text and current request exactly once.
 4. Resolver owns deterministic manifest-backed classification, policy, required capabilities, and active-DAG selection, with no LLM provider/API dependency.
 5. The model may execute 0..N tool calls after the initial route; Brainbase calls alone produce owner-visible Brainbase lines.
@@ -103,8 +103,8 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 7. A replayed identical event is a no-op; a conflicting event fails loudly.
 8. Journals and visible traces exclude raw payloads/secrets and accurately distinguish route, search, retrieval, and write.
 9. Only a successful exact knowledge-route event satisfies required `knowledge.resolve`.
-10. `Stop` accepts owner-visible evidence only when the final answer starts with the stored `🧠` line and all stored `📚`/`⚠️` lines exactly in journal-commit order, then creates one immutable complete final receipt.
-11. Missing required knowledge or an invalid rendered audit prefix triggers one continuation and never an infinite Stop loop.
+10. `Stop` binds the business answer, creates one immutable complete final receipt, and renders the stored `🧠` and all `📚`/`⚠️` lines itself in journal-commit order.
+11. Missing required knowledge or another substantive contract gap triggers at most one continuation and never an infinite Stop loop.
 12. Zero Brainbase calls is valid when the selected judgment requires none.
 13. Open episodes do not become prior accepted receipts; legacy incomplete journals remain readable but are never newly created.
 14. Project scope absence does not reject judgment itself.
