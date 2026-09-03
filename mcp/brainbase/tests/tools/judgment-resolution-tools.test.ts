@@ -128,6 +128,18 @@ describe('judgment resolver Host bridge', () => {
     assert.deepEqual(posted, mergedArgs);
   });
 
+  it('generalを含む複合domainのreceiptを受理する', async () => {
+    const mixedClassification = {
+      ...classification,
+      domains: ['general', 'knowledge', 'operations'],
+    };
+    const result = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(receipt({
+      classification: mixedClassification,
+    })), { status: 200 })));
+
+    assert.equal(result.status, 'ok');
+  });
+
   it('turn_input_path参照ならjournal内のturn-inputファイルをserver側で読み込む', async () => {
     const mergedArgs = { ...args, model_interpretation: classification };
     const journalRoot = mkdtempSync(join(tmpdir(), 'brainbase-judgment-journal-'));
