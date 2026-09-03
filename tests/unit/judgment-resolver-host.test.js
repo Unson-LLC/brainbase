@@ -4002,14 +4002,16 @@ describe('answered escalation continuation', () => {
     const runTurn = async ({ root, sessionId, turnId, prompt, priorEscalated }) => {
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         if (priorEscalated) {
+            // The escalated turn never finalized; only its episode and the
+            // waiting_human state event exist, as in real Codex journals.
             const directory = join(root, 'journal', hash(sessionId));
-            mkdirSync(directory, { recursive: true });
-            writeFileSync(join(directory, `${hash('turn-previous')}.final.json`), JSON.stringify({
-                schema_version: 'brainbase-judgment-episode-final-v2',
-                finalized_at: '2026-09-03T00:41:52.000Z',
-                completion_status: 'complete',
-                autonomy_compliance_status: 'escalated',
-                stop_state: { status: 'waiting_human', evidence_event_count: 0, source: 'journal' }
+            mkdirSync(join(directory, `${hash('turn-previous')}.events`), { recursive: true });
+            writeFileSync(join(directory, `${hash('turn-previous')}.episode.json`), JSON.stringify({
+                schema_version: 'brainbase-judgment-episode-v1', state: 'open', started_at: '2026-09-03T00:41:30.000Z'
+            }));
+            writeFileSync(join(directory, `${hash('turn-previous')}.events`, 'state.json'), JSON.stringify({
+                schema_version: 'brainbase-judgment-tool-event-v1', event_sequence: 0, event_kind: 'state', success: true,
+                safe_metadata: { stop_state: { schema_version: 'brainbase-stop-state-v1', status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'risk_or_external' } }
             }));
         }
         const payload = { hook_event_name: 'UserPromptSubmit', session_id: sessionId, turn_id: turnId, prompt, cwd: process.cwd() };
@@ -4036,7 +4038,7 @@ describe('answered escalation continuation', () => {
         const root = temporaryDirectory();
         const sessionId = 'session-answered-escalation';
         const { env, episode, context, resolveOutput } = await runTurn({ root, sessionId, turnId: 'turn-answer', prompt: '行えよ', priorEscalated: true });
-        expect(episode.host_autonomy).toMatchObject({ basis: 'prior_escalation_answered', prior_turn_ref: hash('turn-previous') });
+        expect(episode.host_autonomy).toMatchObject({ basis: 'prior_escalation_answered', prior_turn_ref: hash('turn-previous'), prior_reason_code: 'risk_or_external' });
         expect(context).toContain('前turnのHost確認に人間が回答済みです');
         const ownerLine = '🧠 判断参照: 「行えよ」を参照 → 前turnの確認への回答として継続 ✓';
         expect(resolveOutput.systemMessage).toContain(ownerLine);

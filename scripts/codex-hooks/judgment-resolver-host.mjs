@@ -743,27 +743,44 @@ function verifyAutonomyContract(receipt, { required = false } = {}) {
 function previousTurnEscalated(sessionRef, currentTurnId, env) {
     const { directory, turnRef } = journalPaths(sessionRef, currentTurnId, env);
     let names;
-    try { names = readdirSync(directory).filter((name) => name.endsWith('.final.json')); } catch { return null; }
+    try { names = readdirSync(directory).filter((name) => name.endsWith('.episode.json')); } catch { return null; }
+    // The previous turn is the latest opened episode other than this one. An
+    // escalated turn often never finalizes (the repaired answer omits the
+    // confirmation marker), so the journal state events are consulted too.
     let latest = null;
     for (const name of names) {
         if (name.startsWith(`${turnRef}.`)) continue;
         let entry;
         try { entry = readJson(join(directory, name)); } catch { continue; }
-        if (!['brainbase-judgment-episode-final-v1', 'brainbase-judgment-episode-final-v2'].includes(entry?.schema_version)) continue;
-        if (!latest || String(entry.finalized_at ?? '').localeCompare(String(latest.entry.finalized_at ?? '')) > 0) {
+        if (entry?.schema_version !== 'brainbase-judgment-episode-v1') continue;
+        if (!latest || String(entry.started_at ?? '').localeCompare(String(latest.entry.started_at ?? '')) > 0) {
             latest = { name, entry };
         }
     }
     if (!latest) return null;
-    const { entry } = latest;
-    const escalated = ['escalated', 'runtime_escalated'].includes(entry.autonomy_compliance_status)
-        || entry.stop_state?.status === 'waiting_human';
+    const priorTurnRef = latest.name.replace(/\.episode\.json$/u, '');
+    let final = null;
+    try { final = readJson(join(directory, `${priorTurnRef}.final.json`)); } catch { /* not finalized */ }
+    let stateEvents = [];
+    try {
+        stateEvents = readdirSync(join(directory, `${priorTurnRef}.events`))
+            .filter((name) => name.endsWith('.json'))
+            .map((name) => { try { return readJson(join(directory, `${priorTurnRef}.events`, name)); } catch { return null; } })
+            .filter((event) => event?.event_kind === 'state' && event.success)
+            .sort((left, right) => (left.event_sequence ?? 0) - (right.event_sequence ?? 0));
+    } catch { /* no events */ }
+    const lastState = stateEvents.at(-1)?.safe_metadata?.stop_state ?? null;
+    const escalated = ['escalated', 'runtime_escalated'].includes(final?.autonomy_compliance_status)
+        || final?.stop_state?.status === 'waiting_human'
+        || lastState?.status === 'waiting_human';
     if (!escalated) return null;
     return {
         schema_version: 'brainbase-judgment-host-autonomy-v1',
         basis: 'prior_escalation_answered',
-        prior_turn_ref: latest.name.replace(/\.final\.json$/u, ''),
-        prior_reason_code: typeof entry.stop_state?.runtime_reason_code === 'string' ? entry.stop_state.runtime_reason_code : null
+        prior_turn_ref: priorTurnRef,
+        prior_reason_code: typeof (final?.stop_state?.runtime_reason_code ?? lastState?.runtime_reason_code) === 'string'
+            ? (final?.stop_state?.runtime_reason_code ?? lastState?.runtime_reason_code)
+            : null
     };
 }
 
