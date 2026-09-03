@@ -50,7 +50,8 @@ function validReceipt(args) {
         status: 'resolved',
         host_binding: { status: 'managed' },
         classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
-        active_node_definitions: [{ id: 'entry', kind: 'common', instruction: 'Judge first.' }]
+        active_node_definitions: [{ id: 'entry', kind: 'common', instruction: 'Judge first.' }],
+        autonomy_policy_ids: []
     };
 }
 
@@ -242,7 +243,7 @@ describe('Codex Judgment Resolver Host', () => {
         );
     });
 
-    it('複数message turnでは監査ブロックを最終回答だけに固定する', () => {
+    it('bootstrap contextはHostが監査行を自分でsystemMessageとして描画すると明示し、モデルへ再現・検証を求めない', () => {
         const args = {
             request: 'この設計をレビューして',
             turn_id: 'turn-current',
@@ -253,22 +254,15 @@ describe('Codex Judgment Resolver Host', () => {
             classification: { intent: 'answer', domains: ['engineering'], action_kind: 'none' },
             selected_dag_ids: ['problem-frame.v1']
         };
-        const line = buildOwnerReferenceLine(args, receipt);
         const output = successOutput(args, receipt);
+        const context = output.hookSpecificOutput.additionalContext;
 
-        expect(output.hookSpecificOutput.additionalContext).toContain(
-            `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${line}`
-        );
-        expect(output.hookSpecificOutput.additionalContext).toContain(
-            'Intermediate commentary may omit the owner-visible audit block.'
-        );
-        expect(output.hookSpecificOutput.additionalContext).toContain(
-            'Put the complete audit block only at the start of the final response, after all Brainbase tool calls are known.'
-        );
-        expect(output.hookSpecificOutput.additionalContext).toContain(
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
-        );
-        expect(output.hookSpecificOutput.additionalContext).not.toContain('The first user-facing assistant message');
+        expect(context).toContain('Stop always renders the complete owner-visible audit block itself as its own systemMessage');
+        expect(context).toContain('do not write, reproduce, or verify 🧠/📚/⚠️ audit lines in the answer');
+        expect(context).not.toContain('must start with exactly this Host-generated line');
+        expect(context).not.toContain('Intermediate commentary may omit the owner-visible audit block.');
+        expect(context).not.toContain('Do not alter, translate, summarize, omit, invent, or duplicate an owner-visible audit line.');
+        expect(context).not.toContain('📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓');
     });
 
     it('successOutputはフルreceipt JSONをモデル文脈に含めない', () => {
@@ -323,6 +317,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -343,28 +338,13 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'escalate',
             autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: []
         }).hookSpecificOutput.additionalContext;
 
         expect(context).toContain('status=waiting_human');
         expect(context).toContain('runtime_reason_code=risk_or_external');
         expect(context).toContain('Host確定理由と一字一句一致');
-    });
-
-    it('内部journal toolだけを使った場合も実Brainbase呼び出し0回の表示を要求する', () => {
-        const context = successOutput({ request: '修正して', conversation_context: { messages: [] } }, {
-            runtime_version: 'judgment-runtime-2.4.0',
-            classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium' },
-            selected_dag_ids: ['engineering.v1', 'authority.v1'],
-            autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
-            allowed_runtime_escalation_reasons: [
-                'irreversible_action', 'missing_authority', 'owner_value_choice',
-                'required_input_unavailable', 'evidenced_terminal_blocker'
-            ]
-        }, undefined, undefined, { BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'enabled' }).hookSpecificOutput.additionalContext;
-
-        expect(context).toContain('brainbase_judgment_state_recordとbrainbase_judgment_value_proof_recordは内部journal tool');
-        expect(context).toContain('これらだけを実行した場合も実呼び出し0回');
     });
 
     it('required capabilityの正確な実行契約を初期指示へ注入し、曖昧なResolver禁止文を使わない', () => {
@@ -516,6 +496,7 @@ describe('Codex Judgment Resolver Host', () => {
                         selected_dag_ids: ['engineering.v1', 'authority.v1'],
                         autonomy_decision: 'continue',
                         autonomy_reason_code: 'routine_in_scope',
+                        autonomy_policy_ids: [],
                         allowed_runtime_escalation_reasons: [
                             'irreversible_action', 'missing_authority', 'owner_value_choice',
                             'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -578,6 +559,7 @@ describe('Codex Judgment Resolver Host', () => {
                         classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
                         selected_dag_ids: ['engineering.v1', 'authority.v1'],
                         autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                        autonomy_policy_ids: [],
                         allowed_runtime_escalation_reasons: [
                             'irreversible_action', 'missing_authority', 'owner_value_choice',
                             'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -1435,7 +1417,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(state).toMatchObject({ success: true, event_kind: 'state', safe_metadata: { stop_state: requestedState } });
     });
 
-    it('story-remote-judgment-hook:ac:6 Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {
+    it('story-remote-judgment-hook:ac:6 Stopはfirstだけblockし、active再Stopはaudit_degradedで確定、以後は同じfinalを返す', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = {
@@ -1470,29 +1452,34 @@ describe('Codex Judgment Resolver Host', () => {
         expect(first.output).toMatchObject({ decision: 'block' });
         expect(replay.output).toEqual(first.output);
 
+        // A continuation marker already exists (from `first`/`replay`
+        // above), so this active re-Stop (stop_hook_active: true) never
+        // blocks again: it finalizes as audit_degraded instead.
         const active = finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: '証拠未取得を明示した回答'
         }, { env });
+        expect(active.output.decision).toBeUndefined();
+        expect(active.output.systemMessage).toContain('⚠️ 監査縮退: knowledge.resolve');
+        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
+        expect(existsSync(finalPath)).toBe(true);
+        expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
+            completion_status: 'audit_degraded',
+            degradation_reason: 'knowledge.resolve',
+            missing_capabilities: ['knowledge.resolve']
+        });
+        // audit_degraded finals never reach the knowledge outbox (the
+        // adapter ignores every completion_status other than 'complete').
+        const outboxDirectory = join(root, 'knowledge-event-outbox', 'codex-judgment');
+        expect(existsSync(outboxDirectory) ? readdirSync(outboxDirectory) : []).toEqual([]);
+
+        // A further Stop just returns the already-persisted final, unchanged.
         const activeReplay = finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: '別の回答'
         }, { env });
-        expect(active.output).toMatchObject({ decision: 'block' });
-        expect(active.output.reason).toContain(
-            '必須capability `knowledge.resolve`が未完了です。許可されている正確なツール ' +
-            '`mcp__brainbase__brainbase_knowledge_resolve` を今実行してください。' +
-            'このツールは正本の所在と次の取得経路を選び、回答本文を取得しません。' +
-            'これはHostが確定したJudgment routeの再分類ではありません。'
-        );
-        expect(active.output.reason).toContain(
-            'このツールは正本の所在と次の取得経路を選び、回答本文を取得しません。' +
-            'これはHostが確定したJudgment routeの再分類ではありません。'
-        );
-        expect(active.output.reason).not.toContain('ではありません。、その後');
         expect(activeReplay.output).toEqual(active.output);
-        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
-        expect(existsSync(finalPath)).toBe(false);
+        expect(activeReplay.final).toEqual(active.final);
     });
 
     it('required knowledgeだけが不足したStop修復でも完了監査行を明示する', async () => {
@@ -1525,10 +1512,11 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env });
 
         expect(repair.output).toMatchObject({ decision: 'block' });
-        expect(repair.output.reason).toContain(
-            'Brainbase参照後の最終監査ブロック末尾に' +
-            '「🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓」を1回だけ表示する'
-        );
+        // Only the real business gap (missing required knowledge.resolve call) blocks;
+        // the model is not asked to reproduce or display any Host audit line.
+        expect(repair.output.reason).toContain('mcp__brainbase__brainbase_knowledge_resolve');
+        expect(repair.output.reason).not.toContain('最終監査ブロック末尾に');
+        expect(repair.output.reason).not.toContain('🛠️ Stop修復');
     });
 
     it('SQLite transition transactionでStopをfinal receiptへ収束させる', async () => {
@@ -1846,38 +1834,78 @@ describe('Codex Judgment Resolver Host', () => {
             })
         });
 
-        const missingZeroCallAudit = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id,
-            stop_hook_active: false,
-            last_assistant_message: `${episode.owner_audit.display_line}\nこんにちは`
-        }, { env });
-        expect(missingZeroCallAudit.output).toMatchObject({ decision: 'block' });
-        expect(missingZeroCallAudit.output.reason).toContain('📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓');
-        expect(missingZeroCallAudit.continuation).toMatchObject({
-            stop_repair: { count: 1, status: 'requested' }
-        });
-
+        // Change B: the model's answer carries no audit lines at all (not even
+        // the judgment line); the Host still finalizes as complete on the first
+        // Stop and renders the full owner-visible audit block itself as
+        // systemMessage. Nothing about the answer text is verified.
         const result = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,
-            stop_hook_active: true,
-            last_assistant_message: `${episode.owner_audit.display_line}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\nこんにちは`
+            stop_hook_active: false,
+            last_assistant_message: 'こんにちは、ご質問ありがとうございます。'
         }, { env });
-        expect(result.output.systemMessage).toBe([
-            episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
-        ].join('\n'));
+        expect(result.output).toEqual({
+            systemMessage: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+            ].join('\n')
+        });
         expect(result.final).toMatchObject({
             completion_status: 'complete', event_count: 0, qualifying_event_count: 0,
-            owner_audit_complete: true, owner_audit_line_count: 3,
-            stop_repair: {
-                count: 1,
-                status: 'completed'
-            }
+            owner_audit_complete: true, owner_audit_line_count: 2,
+            owner_audit_source: 'stop_hook_system_message'
         });
     });
 
-    it('journalに差し戻しがないturnではAIがStop修復監査を自己申告しても採用しない', async () => {
+    it('compaction後にsessionが変わっても同一turnのepisodeを再発見して既存chainを完了する', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+        const original = {
+            session_id: 'session-before-compaction', turn_id: 'turn-stable-after-compaction',
+            prompt: 'Issue 499を修正して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(original, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'implement', action_kind: 'write', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1']
+        };
+        const episode = await startEpisode(original, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        const answer = [
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '修正しました。'
+        ].join('\n');
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop', session_id: 'session-after-compaction',
+            turn_id: original.turn_id, stop_hook_active: false,
+            last_assistant_message: answer
+        }, { env });
+
+        expect(result).toMatchObject({ systemMessage: expect.stringContaining('🧠 判断参照:') });
+        const recovery = JSON.parse(readFileSync(join(
+            journal, hash('session-after-compaction'), `${hash(original.turn_id)}.recovery.json`
+        ), 'utf8'));
+        expect(recovery).toMatchObject({
+            schema_version: 'brainbase-judgment-recovery-v1',
+            reason_code: 'direct_episode_missing',
+            audit_status: 'recovered',
+            blocking: false,
+            affected_range: { turn_refs: [hash(original.turn_id)] },
+            recovery_result: 'rediscovered_existing_episode',
+            next_action: 'continue_existing_episode',
+            source_session_ref: hash(original.session_id)
+        });
+    });
+
+    it('自己申告の誤った🛠️/🔁監査行はStopを差し戻さず、Hostが自分の監査ブロックで完了させる', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-stop-repair-fake', turn_id: 'turn-stop-repair-fake', prompt: '説明して', cwd: process.cwd() };
@@ -1894,6 +1922,9 @@ describe('Codex Judgment Resolver Host', () => {
             })
         });
 
+        // The model writes a self-invented, wrong 🛠️ line (never recorded by
+        // the Host). Change B ignores it entirely: it is neither verified nor
+        // a block reason, and the Host still finalizes as complete.
         const result = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
             last_assistant_message: [
@@ -1904,9 +1935,12 @@ describe('Codex Judgment Resolver Host', () => {
             ].join('\n')
         }, { env });
 
-        expect(result.output).toMatchObject({ decision: 'block' });
-        expect(result.output.reason).toContain('Hostが記録していない🛠️監査行を削除する');
-        expect(result.final).toBeNull();
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output.systemMessage).toBe([
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+        ].join('\n'));
+        expect(result.final).toMatchObject({ completion_status: 'complete' });
     });
 
     it('runtime 2.3の実装turnは本文ではなく構造化pending状態から未完了を差し戻す', async () => {
@@ -1921,6 +1955,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -1962,6 +1997,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2007,6 +2043,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2053,6 +2090,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2095,6 +2133,7 @@ describe('Codex Judgment Resolver Host', () => {
                 selected_dag_ids: ['engineering.v1', 'authority.v1'],
                 autonomy_decision: 'escalate',
                 autonomy_reason_code: 'risk_or_external',
+                autonomy_policy_ids: [],
                 allowed_runtime_escalation_reasons: []
             };
             const episode = await startEpisode(payload, {
@@ -2180,6 +2219,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2228,6 +2268,7 @@ describe('Codex Judgment Resolver Host', () => {
             classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: []
         };
         await startEpisode(payload, {
@@ -2255,6 +2296,7 @@ describe('Codex Judgment Resolver Host', () => {
             classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: []
         };
         const episode = await startEpisode(payload, {
@@ -2308,6 +2350,7 @@ describe('Codex Judgment Resolver Host', () => {
             classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: []
         };
         const episode = await startEpisode(payload, {
@@ -2346,6 +2389,7 @@ describe('Codex Judgment Resolver Host', () => {
             classification: { intent: 'operate', action_kind: 'external', risk: 'high', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: []
         };
         const episode = await startEpisode(payload, {
@@ -2384,6 +2428,7 @@ describe('Codex Judgment Resolver Host', () => {
             ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
             classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'], autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
         };
         const episode = await startEpisode(payload, {
@@ -2409,6 +2454,7 @@ describe('Codex Judgment Resolver Host', () => {
             ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
             classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'], autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
         };
         const episode = await startEpisode(payload, {
@@ -2446,6 +2492,7 @@ describe('Codex Judgment Resolver Host', () => {
             ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
             classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
             selected_dag_ids: ['engineering.v1', 'authority.v1'], autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
         };
         const episode = await startEpisode(payload, {
@@ -2485,6 +2532,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2565,6 +2613,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['engineering.v1', 'authority.v1'],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice',
                 'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2625,7 +2674,7 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
-    it('journalに差し戻しがないturnではAIが自律継続監査を自己申告しても採用しない', async () => {
+    it('自己申告の誤った🔁監査行はStopを差し戻さず、Hostが自分の監査ブロックで完了させる', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-autonomy-fake', turn_id: 'turn-autonomy-fake', prompt: '説明して', cwd: process.cwd() };
@@ -2652,12 +2701,15 @@ describe('Codex Judgment Resolver Host', () => {
             ].join('\n')
         }, { env });
 
-        expect(result.output).toMatchObject({ decision: 'block' });
-        expect(result.output.reason).toContain('Hostが記録していない🔁監査行を削除する');
-        expect(result.final).toBeNull();
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output.systemMessage).toBe([
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+        ].join('\n'));
+        expect(result.final).toMatchObject({ completion_status: 'complete' });
     });
 
-    it('自律継続の再試行でも不要な質問を返した場合は有限終了し完了監査を出さない', async () => {
+    it('自律継続の再試行でも不要な質問を返した場合は有限終了しaudit_degradedで完了する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-autonomy-exhausted', turn_id: 'turn-autonomy-exhausted', prompt: '修正して', cwd: process.cwd() };
@@ -2672,6 +2724,7 @@ describe('Codex Judgment Resolver Host', () => {
                     selected_dag_ids: ['engineering.v1', 'authority.v1'],
                     autonomy_decision: 'continue',
                     autonomy_reason_code: 'routine_in_scope',
+                    autonomy_policy_ids: [],
                     allowed_runtime_escalation_reasons: [
                         'irreversible_action', 'missing_authority', 'owner_value_choice',
                         'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2689,14 +2742,24 @@ describe('Codex Judgment Resolver Host', () => {
             stop_hook_active: false, last_assistant_message: badAnswer
         }, { env });
 
-        await expect(processHookPayload({
+        // A continuation marker already exists from the first block above,
+        // so this active re-Stop never blocks again (no infinite confirm
+        // loop): it converges to a finite audit_degraded completion instead
+        // of throwing judgment_stop_repair_exhausted.
+        const degraded = await processHookPayload({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: badAnswer
-        }, { env })).rejects.toThrow('judgment_stop_repair_exhausted');
+        }, { env });
+        expect(degraded.decision).toBeUndefined();
+        expect(degraded.systemMessage).toContain('⚠️ 監査縮退: autonomy.continuation');
         const continuationPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.continuation.json`);
         expect(JSON.parse(readFileSync(continuationPath, 'utf8')).autonomy_continuation.count).toBe(1);
         const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
-        expect(existsSync(finalPath)).toBe(false);
+        expect(existsSync(finalPath)).toBe(true);
+        expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
+            completion_status: 'audit_degraded',
+            degradation_reason: 'autonomy.continuation'
+        });
     });
 
     it('continueでも許可理由を明示した限定質問と、完了後の任意提案は通す', async () => {
@@ -2716,6 +2779,7 @@ describe('Codex Judgment Resolver Host', () => {
                 selected_dag_ids: ['engineering.v1', 'authority.v1'],
                 autonomy_decision: 'continue',
                 autonomy_reason_code: 'routine_in_scope',
+                autonomy_policy_ids: [],
                 allowed_runtime_escalation_reasons: [
                     'irreversible_action', 'missing_authority', 'owner_value_choice',
                     'required_input_unavailable', 'evidenced_terminal_blocker'
@@ -2763,6 +2827,7 @@ describe('Codex Judgment Resolver Host', () => {
                 selected_dag_ids: ['engineering.v1', 'authority.v1'],
                 autonomy_decision: 'escalate',
                 autonomy_reason_code: 'risk_or_external',
+                autonomy_policy_ids: [],
                 allowed_runtime_escalation_reasons: []
             };
             const episode = await startEpisode(payload, {
@@ -2875,248 +2940,6 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
-    it('Stop差戻し後に監査行以外の回答本文が短縮された場合はcompleteにしない', async () => {
-        const root = temporaryDirectory();
-        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
-        const payload = {
-            session_id: 'session-preserve-answer-body', turn_id: 'turn-preserve-answer-body',
-            prompt: 'どのような修正が入ったか説明して', cwd: process.cwd()
-        };
-        const args = buildJudgmentRequest(payload, { env });
-        const episode = await startEpisode(payload, {
-            env,
-            fetchImpl: vi.fn().mockResolvedValue({
-                ok: true, status: 200,
-                json: async () => ({ management_status: 'managed', receipt: {
-                    ...validReceipt(args),
-                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
-                    selected_dag_ids: ['general.v1']
-                } })
-            })
-        });
-        const detailedBody = [
-            '修正内容は3点です。',
-            '',
-            '- 表示崩れを修正しました。',
-            '- 回帰テストを追加しました。',
-            '- PRへ反映しました。'
-        ].join('\n');
-        const first = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id,
-            stop_hook_active: false,
-            last_assistant_message: `${episode.owner_audit.display_line}\n\n${detailedBody}`
-        }, { env });
-
-        expect(first.output).toMatchObject({ decision: 'block' });
-        expect(first.continuation).toMatchObject({
-            schema_version: 'brainbase-judgment-continuation-v2',
-            missing_capabilities: ['owner.audit.display'],
-            answer_body_binding: {
-                schema_version: 'brainbase-answer-body-binding-v2',
-                character_count: detailedBody.length
-            }
-        });
-        const continuationPath = join(
-            root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.continuation.json`
-        );
-        const legacyContinuation = JSON.parse(readFileSync(continuationPath, 'utf8'));
-        legacyContinuation.answer_body_binding.schema_version = 'brainbase-answer-body-binding-v1';
-        writeFileSync(continuationPath, `${JSON.stringify(legacyContinuation)}\n`, 'utf8');
-
-        const shortened = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id,
-            stop_hook_active: true,
-            last_assistant_message: [
-                episode.owner_audit.display_line,
-                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
-                '修正は完了しました。'
-            ].join('\n')
-        }, { env });
-
-        expect(shortened.output).toMatchObject({ decision: 'block' });
-        expect(shortened.output.reason).toContain('削除・要約・置換せず');
-        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
-        expect(existsSync(finalPath)).toBe(false);
-
-        const preserved = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id,
-            stop_hook_active: true,
-            last_assistant_message: [
-                episode.owner_audit.display_line,
-                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
-                detailedBody
-            ].join('\n')
-        }, { env });
-
-        expect(preserved.output.systemMessage).toBe([
-            episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
-        ].join('\n'));
-        expect(preserved.final).toMatchObject({
-            completion_status: 'complete', owner_audit_line_count: 3
-        });
-    });
-
-    it('先頭の誤形式Brainbase監査行を本文bindingから除外してactive修復を完了する', async () => {
-        const root = temporaryDirectory();
-        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
-        const payload = {
-            session_id: 'session-malformed-audit-repair', turn_id: 'turn-malformed-audit-repair',
-            prompt: '修正結果を説明して', cwd: process.cwd()
-        };
-        const args = buildJudgmentRequest(payload, { env });
-        const episode = await startEpisode(payload, {
-            env,
-            fetchImpl: vi.fn().mockResolvedValue({
-                ok: true, status: 200,
-                json: async () => ({ management_status: 'managed', receipt: {
-                    ...validReceipt(args),
-                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
-                    selected_dag_ids: ['general.v1']
-                } })
-            })
-        });
-        const answerBody = '修正を完了し、回帰テストを追加しました。';
-        const first = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
-            last_assistant_message: [
-                episode.owner_audit.display_line,
-                '📚 Brainbase取得: 未参照として処理しました ✓',
-                answerBody
-            ].join('\n')
-        }, { env });
-        expect(first.output).toMatchObject({ decision: 'block' });
-        expect(first.continuation.answer_body_binding).toMatchObject({
-            schema_version: 'brainbase-answer-body-binding-v2', character_count: answerBody.length
-        });
-
-        const repaired = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
-            last_assistant_message: [
-                episode.owner_audit.display_line,
-                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
-                answerBody
-            ].join('\n')
-        }, { env });
-        expect(repaired.output.systemMessage).toBe([
-            episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
-        ].join('\n'));
-        expect(repaired.final).toMatchObject({ completion_status: 'complete', owner_audit_line_count: 3 });
-    });
-
-    it('本文開始後の行頭予約namespaceと行途中の部分文字列を本文bindingへ保持する', async () => {
-        const root = temporaryDirectory();
-        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
-        const payload = {
-            session_id: 'session-audit-namespace-boundary', turn_id: 'turn-audit-namespace-boundary',
-            prompt: '監査行と本文の境界を確認して', cwd: process.cwd()
-        };
-        const args = buildJudgmentRequest(payload, { env });
-        const episode = await startEpisode(payload, {
-            env,
-            fetchImpl: vi.fn().mockResolvedValue({
-                ok: true, status: 200,
-                json: async () => ({ management_status: 'managed', receipt: {
-                    ...validReceipt(args),
-                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
-                    selected_dag_ids: ['general.v1']
-                } })
-            })
-        });
-        const answerBody = [
-            '本文開始',
-            '📚 Brainbase取得: この行は本文として保持する',
-            '説明中の 📚 Brainbase取得: も本文として保持する'
-        ].join('\n');
-        const first = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
-            last_assistant_message: [
-                episode.owner_audit.display_line,
-                '📚 Brainbase取得: 先頭の誤形式監査行',
-                '',
-                answerBody
-            ].join('\n')
-        }, { env });
-        expect(first.output).toMatchObject({ decision: 'block' });
-        expect(first.continuation.answer_body_binding).toMatchObject({
-            schema_version: 'brainbase-answer-body-binding-v2', character_count: answerBody.length
-        });
-
-        const omitted = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
-            last_assistant_message: [
-                episode.owner_audit.display_line,
-                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
-                '本文開始'
-            ].join('\n')
-        }, { env });
-        expect(omitted.output).toMatchObject({ decision: 'block' });
-        expect(omitted.output.reason).toContain('削除・要約・置換せず');
-
-        const preserved = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
-            last_assistant_message: [
-                episode.owner_audit.display_line,
-                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
-                answerBody
-            ].join('\n')
-        }, { env });
-        expect(preserved.output.systemMessage).toBe([
-            episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
-        ].join('\n'));
-        expect(preserved.final).toMatchObject({ completion_status: 'complete' });
-    });
-
-    it('Stopは保存済み監査行の欠落・順序違い・過剰表示を一度だけ再生成させる', async () => {
-        const root = temporaryDirectory();
-        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
-        const payload = { session_id: 'session-audit', turn_id: 'turn-audit', prompt: '判断証跡を見せて', cwd: process.cwd() };
-        const args = buildJudgmentRequest(payload, { env });
-        const episode = await startEpisode(payload, {
-            env,
-            fetchImpl: vi.fn().mockResolvedValue({
-                ok: true, status: 200,
-                json: async () => ({ management_status: 'managed', receipt: {
-                    ...validReceipt(args),
-                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
-                    selected_dag_ids: ['general.v1']
-                } })
-            })
-        });
-        const eventEntry = recordBrainbaseToolUse({
-            session_id: payload.session_id, turn_id: payload.turn_id,
-            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-audit-search',
-            tool_input: { query: '判断' },
-            tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: Graphで「判断」を検索 → 2件 ✓' }] }
-        }, { env });
-
-        const malformed = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
-            last_assistant_message: `${eventEntry.display_line}\n${episode.owner_audit.display_line}\n${eventEntry.display_line}\n回答`
-        }, { env });
-        expect(malformed.output).toMatchObject({ decision: 'block' });
-        expect(malformed.output.reason).toContain(`${episode.owner_audit.display_line}\n${eventEntry.display_line}`);
-        expect(malformed.continuation).toMatchObject({ missing_capabilities: ['owner.audit.display'] });
-
-        const corrected = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
-            last_assistant_message: `${episode.owner_audit.display_line}\n${eventEntry.display_line}\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n回答`
-        }, { env });
-        expect(corrected.final).toMatchObject({
-            completion_status: 'complete', owner_audit_complete: true, owner_audit_line_count: 3
-        });
-    });
-
     it('監査行末のMarkdown空白は表示上同一として受理する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
@@ -3177,23 +3000,15 @@ describe('Codex Judgment Resolver Host', () => {
             tool_response: { status: 'error', error: { code: 'unavailable' } }
         }, { env });
         expect(failed).toMatchObject({ success: false, satisfies: ['knowledge.resolve'] });
-        const repair = finalizeEpisode({
+
+        // A failed-but-attempted knowledge.resolve call already satisfies the
+        // required capability, and the model's answer carries no audit lines
+        // at all. Change B finalizes as complete on the first Stop regardless.
+        const completed = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
             last_assistant_message: '参照先を確定できなかった回答'
         }, { env });
-        expect(repair.output).toMatchObject({ decision: 'block' });
-        expect(repair.output.reason).not.toContain('`mcp__brainbase__brainbase_knowledge_resolve` を今実行してください');
-        expect(repair.continuation.missing_capabilities).toEqual(['owner.audit.display']);
-
-        const completed = finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
-            last_assistant_message: [
-                episode.owner_audit.display_line,
-                failed.display_line,
-                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
-                '参照先を確定できなかった回答'
-            ].join('\n')
-        }, { env });
+        expect(completed.output.decision).toBeUndefined();
         expect(completed.final).toMatchObject({
             completion_status: 'complete', qualifying_event_count: 0, event_count: 1
         });
@@ -3275,6 +3090,7 @@ describe('turn-resolution surface degradation', () => {
         required_capabilities: [],
         autonomy_decision: 'escalate',
         autonomy_reason_code: 'classification_missing',
+        autonomy_policy_ids: [],
         allowed_runtime_escalation_reasons: []
     });
     const startDegradedEpisode = async ({ transcriptLines, sessionId, turnId, prompt }) => {
@@ -3421,6 +3237,7 @@ describe('turn_input handoff and resolved judgment line', () => {
         required_capabilities: [],
         autonomy_decision: 'escalate',
         autonomy_reason_code: 'classification_missing',
+        autonomy_policy_ids: [],
         allowed_runtime_escalation_reasons: []
     });
 
@@ -3441,12 +3258,17 @@ describe('turn_input handoff and resolved judgment line', () => {
         });
         const context = output.hookSpecificOutput.additionalContext;
         const turnInputPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.turn-input.json`);
+        const turnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
         expect(existsSync(turnInputPath)).toBe(true);
         expect(canonicalJson(JSON.parse(readFileSync(turnInputPath, 'utf8')))).toBe(canonicalJson(args));
-        expect(context).toContain(`with turn_input set to the file reference {"turn_input_path": ${JSON.stringify(turnInputPath)}}`);
-        expect(context).toContain('do not read, print, rebuild, or inline the file');
+        expect(context).toContain(`with turn_ref set to ${JSON.stringify(turnRef)}`);
+        expect(context).toContain('do not read, print, rebuild, or inline any file, and do not pass turn_input');
+        expect(context).toContain(`pass turn_input as {"turn_ref": ${JSON.stringify(turnRef)}}`);
         expect(context).not.toContain(canonicalJson(args));
-        expect(context).toContain('the PostToolUse system message names the new Host-generated judgment line');
+        expect(context).not.toContain(turnInputPath);
+        expect(context).toContain('the PostToolUse system message confirms the judgment contract');
+        expect(context).toContain('Stop always renders the complete owner-visible audit block itself as its own systemMessage');
+        expect(context).not.toContain('must start with exactly this Host-generated line');
         expect(context).toContain('model_interpretation must contain exactly these keys and nothing else: intent (one of answer|investigate|diagnose|design|implement|review|operate)');
         expect(context).toContain('signals (array, possibly empty, from cumulative_effect|');
         expect(context.split('\n').length).toBeLessThanOrEqual(20);
@@ -3480,6 +3302,7 @@ describe('turn_input handoff and resolved judgment line', () => {
             selected_dag_ids: [],
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
             allowed_runtime_escalation_reasons: [
                 'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
             ]
@@ -3507,6 +3330,93 @@ describe('turn_input handoff and resolved judgment line', () => {
         }, { env });
         expect(stopped.output.decision).toBeUndefined();
         expect(stopped.final.completion_status).toBe('complete');
+    });
+
+    it('resolve_turnをturn_refで呼んだPostToolUseもbindingを認め、他turnのturn_refは拒否する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-turn-ref-binding', turn_id: 'turn-turn-ref-binding',
+            prompt: 'この修正を行って', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: bootstrapReceipt(args) })
+            })
+        });
+        const modelInterpretation = {
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'low', confidence: 'confirmed', signals: []
+        };
+        const resolved = {
+            ...validReceipt(args),
+            resolution_id: 'jr_resolved',
+            request_digest: hash(canonicalJson({ ...args, model_interpretation: modelInterpretation })),
+            status: 'resolved',
+            classification: modelInterpretation,
+            required_capabilities: [],
+            selected_dag_ids: [],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const ownTurnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
+        const foreignTurnRef = `${hash(payload.session_id)}/${hash('some-other-turn')}`;
+        await expect(processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'tool-resolve-turn-foreign-ref',
+            tool_input: { turn_ref: foreignTurnRef, model_interpretation: modelInterpretation },
+            tool_response: { status: 'ok', data: resolved }
+        }, { env })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        const output = await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'tool-resolve-turn-ref',
+            tool_input: { turn_ref: ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: { status: 'ok', data: resolved }
+        }, { env });
+        expect(output.systemMessage).toContain('判断契約を確定しました');
+
+        // Legacy cached-schema Codex threads may still nest the pointer inside turn_input.
+        const legacyPayload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-turn-ref-legacy', turn_id: 'turn-turn-ref-legacy',
+            prompt: 'この修正を行って', cwd: process.cwd()
+        };
+        const legacyArgs = buildJudgmentRequest(legacyPayload, { env });
+        await startEpisode(legacyPayload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: bootstrapReceipt(legacyArgs) })
+            })
+        });
+        const legacyResolved = {
+            ...validReceipt(legacyArgs),
+            resolution_id: 'jr_resolved_legacy',
+            request_digest: hash(canonicalJson({ ...legacyArgs, model_interpretation: modelInterpretation })),
+            status: 'resolved',
+            classification: modelInterpretation,
+            required_capabilities: [],
+            selected_dag_ids: [],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const legacyTurnRef = `${hash(legacyPayload.session_id)}/${hash(legacyPayload.turn_id)}`;
+        const legacyOutput = await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: legacyPayload.session_id, turn_id: legacyPayload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'tool-resolve-turn-legacy-ref',
+            tool_input: { turn_input: { turn_ref: legacyTurnRef }, model_interpretation: modelInterpretation },
+            tool_response: { status: 'ok', data: legacyResolved }
+        }, { env });
+        expect(legacyOutput.systemMessage).toContain('判断契約を確定しました');
     });
 });
 
@@ -3560,6 +3470,7 @@ describe('answered escalation continuation', () => {
         required_capabilities: [],
         autonomy_decision: 'escalate',
         autonomy_reason_code: 'classification_missing',
+        autonomy_policy_ids: [],
         allowed_runtime_escalation_reasons: []
     });
     const externalInterpretation = {
@@ -3575,6 +3486,7 @@ describe('answered escalation continuation', () => {
         selected_dag_ids: [],
         autonomy_decision: 'escalate',
         autonomy_reason_code: 'risk_or_external',
+        autonomy_policy_ids: [],
         allowed_runtime_escalation_reasons: []
     });
     const runTurn = async ({ root, sessionId, turnId, prompt, priorEscalated }) => {
@@ -3617,7 +3529,7 @@ describe('answered escalation continuation', () => {
         const sessionId = 'session-answered-escalation';
         const { env, episode, context, resolveOutput } = await runTurn({ root, sessionId, turnId: 'turn-answer', prompt: '行えよ', priorEscalated: true });
         expect(episode.host_autonomy).toMatchObject({ basis: 'prior_escalation_answered', prior_turn_ref: hash('turn-previous'), prior_reason_code: 'risk_or_external' });
-        expect(context).toContain('前turnのHost確認に人間が回答済みです');
+        expect(context).toContain('このセッションで人間が承認済みのpolicy');
         const ownerLine = '🧠 判断参照: 「行えよ」を参照 → 前turnの確認への回答として継続 ✓';
         expect(resolveOutput.systemMessage).toContain(ownerLine);
 

@@ -59,7 +59,7 @@ function receiptFor(args) {
     selected_dag_ids: ['engineering.v1', 'authority.v1'],
     active_node_definitions: [{ id: 'entry', kind: 'common', instruction: 'Judge first.' }],
     autonomy_decision: 'continue',
-    autonomy_reason_code: 'routine_in_scope',
+    autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
     allowed_runtime_escalation_reasons: [
       'irreversible_action', 'missing_authority', 'owner_value_choice',
       'required_input_unavailable', 'evidenced_terminal_blocker',
@@ -181,9 +181,14 @@ describe('Judgment Resolver Host value proof integration', () => {
       } },
     }, { env });
 
+    // Not the Stop-repair-active re-Stop covered by "Stop blocks at most
+    // once" (that flow is tested elsewhere): this call still blocks, once
+    // more, to demonstrate the missing value-proof requirement, so it is
+    // issued as a fresh Stop (stop_hook_active: false) rather than an
+    // active re-Stop signal.
     const proofMissing = finalizeEpisode({
       hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
-      stop_hook_active: true,
+      stop_hook_active: false,
       last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
     }, { env });
     expect(proofMissing.output.decision).toBe('block');
@@ -332,7 +337,7 @@ describe('Judgment Resolver Host value proof integration', () => {
       runtime_version: 'judgment-runtime-2.4.0',
       classification: { intent: 'implement', action_kind: 'write', risk: 'medium' },
       autonomy_decision: 'continue',
-      autonomy_reason_code: 'routine_in_scope',
+      autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
       allowed_runtime_escalation_reasons: [
         'irreversible_action', 'missing_authority', 'owner_value_choice',
         'required_input_unavailable', 'evidenced_terminal_blocker',
@@ -353,7 +358,7 @@ describe('Judgment Resolver Host value proof integration', () => {
     const context = successOutput({ request: '修正して', conversation_context: { messages: [] } }, {
       runtime_version: 'judgment-runtime-2.4.0',
       classification: { intent: 'implement', action_kind: 'write', risk: 'medium' },
-      autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+      autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
       allowed_runtime_escalation_reasons: [
         'irreversible_action', 'missing_authority', 'owner_value_choice',
         'required_input_unavailable', 'evidenced_terminal_blocker',
@@ -393,7 +398,7 @@ describe('Judgment Resolver Host value proof integration', () => {
     const result = {
       runtime_version: 'judgment-runtime-2.4.0',
       classification: { intent: 'implement', action_kind: 'write', risk: 'medium' },
-      autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+      autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
       allowed_runtime_escalation_reasons: [
         'irreversible_action', 'missing_authority', 'owner_value_choice',
         'required_input_unavailable', 'evidenced_terminal_blocker',

@@ -776,7 +776,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('startEpisode');
         expect(host).toContain('recordBrainbaseToolUse');
         expect(host).toContain('finalizeEpisode');
-        expect(host).toContain('answerContainsExactAuditPrefix');
+        expect(host).toContain('completedAuditOutput');
+        expect(host).toContain('owner_audit_source');
+        expect(host).toContain('stop_hook_system_message');
         expect(host).toContain('BEGIN IMMEDIATE');
         expect(host).toContain('transition.sqlite');
         expect(host).toContain('judgment_episode_transition_timeout');
@@ -789,7 +791,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).not.toContain('新しいCodex taskを作り、同じ依頼を送ってください');
         expect(host).toContain('Settings → Hooks');
         expect(host).toContain("completion_status: 'complete'");
-        expect(host).toContain('owner.audit.display');
+        expect(host).toContain('autonomy.continuation');
         expect(host).toContain('there is no one-call-per-turn limit');
         expect(host).not.toContain('classification_proposal');
     });
@@ -860,7 +862,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('Resolver API/server verifier hold the two runtime copies');
         expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
         expect(runbook).toContain('SQLite');
-        expect(runbook).toContain('active repeated Stop exits non-zero with `judgment_stop_repair_exhausted`');
+        expect(runbook).toContain('finalizes as `audit_degraded` and exits 0');
         expect(runbook).toContain('🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓');
         expect(runbook).toContain('never fabricates `.final.json` or asks the operator to create a new task');
         expect(runbook).toContain('official `hooks/list` RPC');
