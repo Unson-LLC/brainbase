@@ -1514,7 +1514,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             }
         }
         const turnResolutionMessage = kind === 'turn_resolution' && responseSuccess && turnResolution
-            ? `🧠 判断契約を確定しました。最終回答の先頭行は次のHost生成行に置き換えてください:\n${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}`
+            ? `🧠 判断契約を確定しました。監査行はStop時にHostがsystemMessageとして表示するため、回答本文へ再現する必要はありません（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）`
             : null;
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
@@ -1748,36 +1748,6 @@ function orderedEventSetDigest(events) {
         };
     });
     return sha256(canonicalJson(orderedBindings));
-}
-
-function answerContainsExactAuditPrefix(answer, expectedLines) {
-    if (typeof answer !== 'string') return false;
-    const lines = answer.replaceAll('\r\n', '\n').split('\n').map((line) => line.replace(/[ \t]+$/u, ''));
-    const normalizedExpectedLines = expectedLines.map((line) => line.replace(/[ \t]+$/u, ''));
-    if (!normalizedExpectedLines.every((expected, index) => lines[index] === expected)) return false;
-    const expectedCounts = new Map(normalizedExpectedLines.map((line) => [
-        line,
-        normalizedExpectedLines.filter((candidate) => candidate === line).length
-    ]));
-    return [...expectedCounts].every(([expected, count]) => (
-        lines.filter((line) => line === expected).length === count
-    ));
-}
-
-function containsUnauthorizedContinuationAudit(answer, expectedLines) {
-    if (typeof answer !== 'string') return false;
-    const allowed = new Set(expectedLines);
-    return answer.replaceAll('\r\n', '\n').split('\n')
-        .map((line) => line.replace(/[ \t]+$/u, ''))
-        .some((line) => /^🔁 /u.test(line) && !allowed.has(line));
-}
-
-function containsUnauthorizedStopRepairAudit(answer, expectedLines) {
-    if (typeof answer !== 'string') return false;
-    const allowed = new Set(expectedLines);
-    return answer.replaceAll('\r\n', '\n').split('\n')
-        .map((line) => line.replace(/[ \t]+$/u, ''))
-        .some((line) => /^🛠️ /u.test(line) && !allowed.has(line));
 }
 
 function normalizedAnswerBody(answer, expectedLines) {
@@ -2037,37 +2007,6 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
         };
     }
     return { status: 'escalated', violation: null };
-}
-
-function buildAnswerBodyBinding(answer, expectedLines) {
-    const body = normalizedAnswerBody(answer, expectedLines);
-    if (body === null) return null;
-    return {
-        schema_version: 'brainbase-answer-body-binding-v2',
-        audit_lines_digest: sha256(canonicalJson(expectedLines)),
-        body_digest: sha256(body),
-        character_count: body.length
-    };
-}
-
-function activeAnswerBodyBinding(marker, expectedLines) {
-    if (marker?.schema_version !== 'brainbase-judgment-continuation-v2') return null;
-    const binding = record(marker.answer_body_binding);
-    if (!binding) return null;
-    if (!['brainbase-answer-body-binding-v1', 'brainbase-answer-body-binding-v2'].includes(binding.schema_version)
-        || !/^[0-9a-f]{64}$/u.test(String(binding.audit_lines_digest ?? ''))
-        || !/^[0-9a-f]{64}$/u.test(String(binding.body_digest ?? ''))
-        || !Number.isSafeInteger(binding.character_count)
-        || binding.character_count < 0) {
-        throw new Error('judgment_answer_body_binding_invalid');
-    }
-    return binding.audit_lines_digest === sha256(canonicalJson(expectedLines)) ? binding : null;
-}
-
-function answerBodyMatchesBinding(answer, expectedLines, binding) {
-    if (!binding) return true;
-    const body = normalizedAnswerBody(answer, expectedLines);
-    return body !== null && body.length === binding.character_count && sha256(body) === binding.body_digest;
 }
 
 function existingFinal(paths, episode) {
@@ -2526,12 +2465,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const missingTurnResolution = requiresTurnResolution && !hasTurnResolution;
     const missingKnowledge = requiredKnowledge && knowledgeExecutionEvents.length === 0;
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
+    // The Host renders the owner-visible audit block itself as the Stop
+    // systemMessage (see completedAuditOutput above); it is never verified
+    // against, or required to be echoed inside, the model-authored answer.
     const expectedAuditLines = requiredAuditLines(episode, events, existingContinuation);
-    const unauthorizedContinuationAudit = containsUnauthorizedContinuationAudit(answer, expectedAuditLines);
-    const unauthorizedStopRepairAudit = containsUnauthorizedStopRepairAudit(answer, expectedAuditLines);
-    const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines)
-        || unauthorizedContinuationAudit
-        || unauthorizedStopRepairAudit;
     const autonomyCompliance = surfaceUnavailable
         ? { status: 'turn_resolution_unavailable', violation: null }
         : autonomyAnswerCompliance(
@@ -2556,39 +2493,23 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         && (autonomyCompliance.triggerCode !== 'unfinished_safe_work'
             || (typeof auditContract?.outcome_continuation_progress_line === 'string'
                 && typeof auditContract?.outcome_continuation_complete_line === 'string'));
-    const answerBodyBinding = activeAnswerBodyBinding(existingContinuation, expectedAuditLines);
-    const missingAnswerBody = !answerBodyMatchesBinding(answer, expectedAuditLines, answerBodyBinding);
-    const hostCanCompleteOwnerAudit = missingOwnerAudit
-        && journalStopStateRequired(episode.initial_route_receipt)
-        && !missingKnowledge
-        && !missingValueProof
-        && !missingAnswerBody
-        && !missingAutonomyCompliance
-        && !unauthorizedContinuationAudit
-        && !unauthorizedStopRepairAudit
-        && existingContinuation === null;
+    // Only real business-state gaps block: missing required turn resolution,
+    // missing required knowledge lookups, missing value proof, or an
+    // autonomy contract violation (unnecessary question / unfinished safe
+    // work / state-record mismatch). The model's own reproduction of
+    // Host-rendered 🧠/📚/⚠️ audit lines is never a block reason.
     if (missingTurnResolution
         || missingKnowledge
         || missingValueProof
-        || (missingOwnerAudit && !hostCanCompleteOwnerAudit)
-        || missingAnswerBody
         || missingAutonomyCompliance) {
         const missingCapabilities = [
             ...(missingTurnResolution ? ['judgment.resolve_turn'] : []),
             ...(missingKnowledge ? ['knowledge.resolve'] : []),
             ...(missingValueProof ? ['judgment.value_proof.record'] : []),
-            ...(missingOwnerAudit ? ['owner.audit.display'] : []),
-            ...(missingAnswerBody ? ['answer.body.preservation'] : []),
             ...(missingAutonomyCompliance ? ['autonomy.continuation'] : [])
         ];
         let marker = existingContinuation;
         if (!marker) {
-            const shouldBindAnswerBody = !missingKnowledge
-                && missingOwnerAudit
-                && !unauthorizedContinuationAudit
-                && !unauthorizedStopRepairAudit
-                && !missingAutonomyCompliance
-                && episodeAuditContract(episode)?.repair_body_policy === 'preserve';
             const autonomyContract = episodeAutonomyContract(episode);
             const markerEntry = {
                 schema_version: 'brainbase-judgment-continuation-v2',
@@ -2618,22 +2539,15 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                     }
                 } : {})
             };
-            if (shouldBindAnswerBody) {
-                markerEntry.answer_body_binding = buildAnswerBodyBinding(
-                    answer,
-                    requiredAuditLines(episode, events, markerEntry)
-                );
-            }
             marker = createImmutableJson(
                 paths.continuation,
                 markerEntry,
                 'judgment_episode_continuation_conflict'
             );
         }
-        const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
         const reasons = [
             ...(missingTurnResolution ? [
-                `mcp__brainbase__brainbase_resolve_turnをturn_ref="${basename(paths.directory)}/${paths.turnRef}"で実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputはHostのjournalに保存済みでturn_refからserverが読み込む。turn_inputやpathを渡さない。確定後はPostToolUseが返す新しい判断行を先頭行にする）`
+                `mcp__brainbase__brainbase_resolve_turnをturn_ref="${basename(paths.directory)}/${paths.turnRef}"で実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputはHostのjournalに保存済みでturn_refからserverが読み込む。turn_inputやpathを渡さない。確定後はPostToolUseが判断契約を確定した旨をsystemMessageで通知する）`
             ] : []),
             ...(missingKnowledge ? [capabilityActionInstruction(
                 CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'],
@@ -2641,20 +2555,6 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             )] : []),
             ...(missingValueProof ? [
                 `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
-            ] : []),
-            ...((missingOwnerAudit || missingAutonomyCompliance) ? [
-                `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
-            ] : []),
-            ...((missingKnowledge
-                && !missingOwnerAudit
-                && !missingAutonomyCompliance
-                && typeof auditContract?.stop_repair_complete_line === 'string') ? [
-                `Brainbase参照後の最終監査ブロック末尾に「${auditContract.stop_repair_complete_line}」を1回だけ表示する`
-            ] : []),
-            ...(unauthorizedContinuationAudit ? ['Hostが記録していない🔁監査行を削除する'] : []),
-            ...(unauthorizedStopRepairAudit ? ['Hostが記録していない🛠️監査行を削除する'] : []),
-            ...((missingAnswerBody || (!missingKnowledge && missingOwnerAudit && marker.answer_body_binding)) ? [
-                '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
             ] : []),
             ...((valueProofRolloutEnabled(episode, env)
                 && marker?.autonomy_continuation?.interruption_candidate?.resolution === 'continued_without_human') ? [
@@ -2734,9 +2634,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         event_count: events.length,
         qualifying_event_count: qualifyingEvents.length,
         event_set_digest: orderedEventSetDigest(events),
-        owner_audit_complete: !missingOwnerAudit || hostCanCompleteOwnerAudit,
+        owner_audit_complete: true,
         owner_audit_line_count: expectedAuditLines.length,
-        owner_audit_source: hostCanCompleteOwnerAudit ? 'stop_hook_system_message' : 'assistant_answer',
+        owner_audit_source: 'stop_hook_system_message',
         autonomy_compliance_status: autonomyCompliance.status,
         ...(autonomyCompliance.stopState ? {
             stop_state: {
@@ -2971,7 +2871,6 @@ export function successOutput(
     turnRef = null,
     hostAutonomy = null
 ) {
-    const ownerReferenceLine = ownerAudit.display_line;
     const surfaceDegraded = hostSurface?.turn_resolution === 'unavailable';
     const requiredCapabilityInstructions = requiredCapabilityActionContracts(receipt)
         .map((contract) => capabilityActionInstruction(contract));
@@ -2998,9 +2897,6 @@ export function successOutput(
                 'この自律判断は通常の権限・承認を置き換えません。'
             ]
             : [];
-    const internalJournalToolNames = valueProofRolloutEnabled({ initial_route_receipt: receipt }, env)
-        ? 'brainbase_judgment_state_recordとbrainbase_judgment_value_proof_record'
-        : 'brainbase_judgment_state_record';
     const context = [
         'Brainbase Judgment Resolver Host opened one unresolved judgment episode before model generation. This bootstrap receipt is not a semantic classification or the final episode receipt.',
         ...(surfaceDegraded ? [
@@ -3008,10 +2904,10 @@ export function successOutput(
             'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
         ] : [
             typeof turnRef === 'string'
-                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input. ${MODEL_INTERPRETATION_SHAPE}`
+                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input (if the tool rejects a missing turn_input, pass turn_input as {"turn_ref": ${JSON.stringify(turnRef)}}). ${MODEL_INTERPRETATION_SHAPE}`
                 : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
             'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
-            'After that call succeeds, the PostToolUse system message names the new Host-generated judgment line; it replaces the bootstrap judgment line below as the first line of the final response.'
+            'After that call succeeds, the PostToolUse system message confirms the judgment contract. Stop always renders the complete owner-visible audit block itself as its own systemMessage; do not write, reproduce, or verify 🧠/📚/⚠️ audit lines in the answer.'
         ]),
         ...autonomyInstructions,
         ...(hostAutonomy?.basis === 'prior_escalation_answered' ? [
@@ -3034,14 +2930,6 @@ export function successOutput(
             'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.'
         ]),
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
-        `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
-        ...(typeof auditContract?.zero_call_display_line === 'string' ? [
-            `If this episode records zero actual Brainbase knowledge, retrieval, or business-action calls, add this exact line immediately after the judgment line:\n${auditContract.zero_call_display_line}\n${internalJournalToolNames}は内部journal toolであり、実Brainbase呼び出しとして数えない。これらだけを実行した場合も実呼び出し0回の行を残す。If an actual Brainbase knowledge, retrieval, or business-action call is recorded, omit that zero-call line and use the Host-generated PostToolUse audit lines instead.`
-        ] : []),
-        'Intermediate commentary may omit the owner-visible audit block. Put the complete audit block only at the start of the final response, after all Brainbase tool calls are known.',
-        'Do not alter, translate, summarize, omit, invent, or duplicate an owner-visible audit line. Include every Host-generated PostToolUse audit line after the judgment line in journal commit order and with recorded multiplicity.',
-        'It reports a turn-level judgment, not a Brainbase retrieval, action authorization, or completed knowledge retrieval. Actual successful retrievals have separate tool-generated 📚 Brainbase検索 or 📚 Brainbase取得 lines.',
-        'PostToolUse records each actual Brainbase call, and Stop finalizes exactly one episode receipt after the tool loop.',
         `The full route receipt stays in the per-session judgment journal and is never printed into model context.`
     ].join('\n');
     return {
