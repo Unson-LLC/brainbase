@@ -269,6 +269,31 @@ describe('MultitenantPostgresRepository', () => {
         expect(sql).not.toMatch(/credential_ref|response_payload|claim_token_hash/u);
     });
 
+    it('does not reclassify a legacy failed row when its stage is null', async () => {
+        const tenantId = CLAIM_INTENT.tenant_id;
+        const { pool } = poolWithRows({
+            'FROM slack_installation_exchange_ledger': [{
+                tenant_id: tenantId,
+                installation_intent_id: CLAIM_INTENT.installation_intent_id,
+                request_digest: digest('legacy-request'),
+                status: 'failed',
+                attempt: 1,
+                failure_stage: null,
+                failure_code: 'UPSTREAM_UNAVAILABLE',
+                cleanup_status: null
+            }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.readSlackInstallationFailureDiagnostic({
+            tenant_id: tenantId,
+            installation_intent_id: CLAIM_INTENT.installation_intent_id
+        })).resolves.toMatchObject({
+            failure_stage: null,
+            failure_code: null
+        });
+    });
+
     it('fails closed when a stored failure diagnostic contains untrusted values', async () => {
         const tenantId = CLAIM_INTENT.tenant_id;
         const { pool } = poolWithRows({

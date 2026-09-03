@@ -37,6 +37,8 @@ describe('tenant production provisioning schema', () => {
         expect(sql).toContain('workspace_connections_tenant_provider_workspace_app_uq');
         expect(sql).toContain("WHERE status IN ('pending', 'active')");
         expect(sql).toContain('UNIQUE (tenant_key, idempotency_key)');
+        expect(sql).toContain('slack_installation_intents_tenant_intent_uq');
+        expect(sql).toMatch(/CONSTRAINT slack_installation_exchange_ledger_tenant_intent_fk\s+FOREIGN KEY \(tenant_id, installation_intent_id\)\s+REFERENCES slack_installation_intents\(tenant_id, installation_intent_id\)/u);
         expect(sql).toContain('desired_state_sha256');
         expect(sql).toContain('canonical_project_id');
         expect(sql).toContain('brainbase_service_actor_capabilities');

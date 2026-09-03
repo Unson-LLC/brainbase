@@ -205,22 +205,23 @@ describe.sequential('tenant production provisioning migration catalog readback',
         }
     }, 120_000);
 
-    it('rejects a wrong multiline inline foreign key before ledger readback succeeds', async () => {
-        await pool.query('ALTER TABLE slack_installation_exchange_ledger DROP CONSTRAINT slack_installation_exchange_ledger_installation_intent_id_fkey');
+    it('rejects a wrong ownership foreign key before ledger readback succeeds', async () => {
+        await pool.query('ALTER TABLE slack_installation_exchange_ledger DROP CONSTRAINT slack_installation_exchange_ledger_tenant_intent_fk');
         try {
             await pool.query(
                 `ALTER TABLE slack_installation_exchange_ledger
-                 ADD CONSTRAINT slack_installation_exchange_ledger_installation_intent_id_fkey
+                 ADD CONSTRAINT slack_installation_exchange_ledger_tenant_intent_fk
                  FOREIGN KEY (tenant_id) REFERENCES slack_installation_intents(installation_intent_id)`
             );
             await expect(runTenantProvisioningMigration({ argv: ['--check'], pool }))
                 .rejects.toMatchObject({ code: 'SCHEMA_READBACK_FAILED' });
         } finally {
-            await pool.query('ALTER TABLE slack_installation_exchange_ledger DROP CONSTRAINT slack_installation_exchange_ledger_installation_intent_id_fkey');
+            await pool.query('ALTER TABLE slack_installation_exchange_ledger DROP CONSTRAINT slack_installation_exchange_ledger_tenant_intent_fk');
             await pool.query(
                 `ALTER TABLE slack_installation_exchange_ledger
-                 ADD CONSTRAINT slack_installation_exchange_ledger_installation_intent_id_fkey
-                 FOREIGN KEY (installation_intent_id) REFERENCES slack_installation_intents(installation_intent_id)`
+                 ADD CONSTRAINT slack_installation_exchange_ledger_tenant_intent_fk
+                 FOREIGN KEY (tenant_id, installation_intent_id)
+                 REFERENCES slack_installation_intents(tenant_id, installation_intent_id)`
             );
         }
     }, 120_000);
@@ -288,6 +289,8 @@ describe.sequential('tenant production provisioning migration from the legacy Sl
     let container;
     let pool;
     const legacyIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+    const ownershipIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAY';
+    const otherTenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAZ';
 
     beforeAll(async () => {
         container = await new PostgreSqlContainer('postgres:16-alpine').start();
@@ -299,6 +302,12 @@ describe.sequential('tenant production provisioning migration from the legacy Sl
                 tenant_id, tenant_revision, tenant_key, status, display_name, created_at, updated_at
              ) VALUES ($1, 1, 'unson-business', 'active', 'Unson Business', $2, $2)`,
             [tenantId, now]
+        );
+        await pool.query(
+            `INSERT INTO brainbase_tenants (
+                tenant_id, tenant_revision, tenant_key, status, display_name, created_at, updated_at
+             ) VALUES ($1, 1, 'other-business', 'active', 'Other Business', $2, $2)`,
+            [otherTenantId, now]
         );
         await pool.query(`
             CREATE TABLE brainbase_tenant_revisions (
@@ -322,6 +331,13 @@ describe.sequential('tenant production provisioning migration from the legacy Sl
                 created_at, updated_at, recorded_at
              ) VALUES ($1, 1, 'unson-business', 'active', 'Unson Business', $2, $2, $2)`,
             [tenantId, now]
+        );
+        await pool.query(
+            `INSERT INTO brainbase_tenant_revisions (
+                tenant_id, tenant_revision, tenant_key, status, display_name,
+                created_at, updated_at, recorded_at
+             ) VALUES ($1, 1, 'other-business', 'active', 'Other Business', $2, $2, $2)`,
+            [otherTenantId, now]
         );
         await pool.query(`
             CREATE TABLE slack_installation_intents (
@@ -380,6 +396,13 @@ describe.sequential('tenant production provisioning migration from the legacy Sl
             [legacyIntentId, tenantId, now, new Date(now.getTime() + 10 * 60 * 1000)]
         );
         await pool.query(
+            `INSERT INTO slack_installation_intents (
+                installation_intent_id, tenant_id, tenant_revision_at_write, app_id,
+                initiated_by_principal_id, issued_at, expires_at, created_at
+             ) VALUES ($1, $2, 1, 'A_CROSS', 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY', $3, $4, $3)`,
+            [ownershipIntentId, tenantId, now, new Date(now.getTime() + 10 * 60 * 1000)]
+        );
+        await pool.query(
             `INSERT INTO slack_installation_exchange_ledger (
                 installation_intent_id, tenant_id, request_digest, status,
                 attempt, failure_code, created_at, completed_at
@@ -429,5 +452,59 @@ describe.sequential('tenant production provisioning migration from the legacy Sl
               WHERE installation_intent_id = $1`,
             [legacyIntentId]
         )).rejects.toMatchObject({ code: '23514' });
+    }, 120_000);
+
+    it('enforces tenant and installation-intent ownership with the migrated composite foreign key', async () => {
+        const foreignKeys = await pool.query(
+            `SELECT conname, pg_get_constraintdef(oid) AS definition
+               FROM pg_constraint
+              WHERE conrelid = 'slack_installation_exchange_ledger'::regclass
+                AND confrelid = 'slack_installation_intents'::regclass
+                AND contype = 'f'`
+        );
+        expect(foreignKeys.rows).toEqual([
+            expect.objectContaining({
+                conname: 'slack_installation_exchange_ledger_tenant_intent_fk',
+                definition: expect.stringContaining(
+                    'FOREIGN KEY (tenant_id, installation_intent_id) REFERENCES slack_installation_intents(tenant_id, installation_intent_id)'
+                )
+            })
+        ]);
+
+        await expect(pool.query(
+            `INSERT INTO slack_installation_exchange_ledger (
+                installation_intent_id, tenant_id, request_digest, status, attempt, created_at
+             ) VALUES ($1, $2, $3, 'failed', 1, $4)`,
+            [ownershipIntentId, otherTenantId, `sha256:${'b'.repeat(64)}`, now]
+        )).rejects.toMatchObject({ code: '23503' });
+    }, 120_000);
+
+    it('fails loudly when legacy data violates tenant and installation-intent ownership', async () => {
+        await pool.query('ALTER TABLE slack_installation_exchange_ledger DROP CONSTRAINT slack_installation_exchange_ledger_tenant_intent_fk');
+        try {
+            await pool.query(
+                `INSERT INTO slack_installation_exchange_ledger (
+                    installation_intent_id, tenant_id, request_digest, status, attempt, created_at
+                 ) VALUES ($1, $2, $3, 'failed', 1, $4)`,
+                [ownershipIntentId, otherTenantId, `sha256:${'c'.repeat(64)}`, now]
+            );
+            await expect(runTenantProvisioningMigration({
+                argv: ['--apply', '--approve-apply'],
+                env: { BRAINBASE_MIGRATION_ACTOR: 'integration-test' },
+                pool
+            })).rejects.toMatchObject({ code: 'UPSTREAM_UNAVAILABLE' });
+        } finally {
+            await pool.query(
+                `DELETE FROM slack_installation_exchange_ledger
+                  WHERE installation_intent_id = $1`,
+                [ownershipIntentId]
+            );
+            await pool.query(
+                `ALTER TABLE slack_installation_exchange_ledger
+                 ADD CONSTRAINT slack_installation_exchange_ledger_tenant_intent_fk
+                 FOREIGN KEY (tenant_id, installation_intent_id)
+                 REFERENCES slack_installation_intents(tenant_id, installation_intent_id)`
+            );
+        }
     }, 120_000);
 });

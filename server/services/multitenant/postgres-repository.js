@@ -32,7 +32,9 @@ const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/u;
 
 function safeStoredSlackInstallationDiagnostic(row) {
     const failureStage = normalizeSlackInstallationFailureStage(row.failure_stage);
-    const failureCode = normalizeSlackInstallationFailureCode(row.failure_code, failureStage);
+    const failureCode = row.failure_stage === null || row.failure_stage === undefined
+        ? null
+        : normalizeSlackInstallationFailureCode(row.failure_code, failureStage);
     const cleanupStatus = SLACK_INSTALLATION_CLEANUP_STATUSES.has(row.cleanup_status)
         ? row.cleanup_status
         : null;
