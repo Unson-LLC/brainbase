@@ -53,7 +53,7 @@ Only fast-forward merges are allowed. If `--ff-only` fails, the server checkout 
 If `package.json` / `package-lock.json` changed in the range:
 
 ```bash
-npm ci --omit=dev
+npm ci --omit=dev --ignore-scripts
 ```
 
 Before restarting or switching the API/MCP service, run the mandatory Info SSOT RLS gate. A failed gate means no restart or SHA switch may proceed; verify the current service state and do not treat a previous Receipt as a successful current apply.
@@ -150,19 +150,7 @@ node scripts/migrate-tenant-production-provisioning.js --check
 
 ```bash
 sudo systemctl restart brainbase-ssot.service
-brainbase_wait_for_lightsail_ready() {
-  local attempt
-  for attempt in $(seq 1 30); do
-    if curl -fsS --connect-timeout 5 --max-time 10 \
-      http://127.0.0.1:55123/api/health >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 2
-  done
-  echo "Lightsail runtime did not become ready" >&2
-  return 1
-}
-brainbase_wait_for_lightsail_ready
+node scripts/wait-for-brainbase-runtime.mjs http://127.0.0.1:55123/api/health
 systemctl status brainbase-ssot.service --no-pager | head -8
 ```
 
@@ -191,25 +179,7 @@ From your Mac, bind the same merged develop SHA explicitly and verify the public
 ```bash
 TARGET_SHA="<40-character merged develop SHA>"
 [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
-brainbase_wait_for_public_version() {
-  local attempt
-  for attempt in $(seq 1 30); do
-    if curl -fsS --connect-timeout 5 --max-time 10 https://bb.unson.jp/api/version \
-      | TARGET_SHA="$TARGET_SHA" node -e '
-const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-const git = value.runtime?.git;
-if (git?.sha !== process.env.TARGET_SHA || git?.dirty !== false) {
-  process.exit(1);
-}
-' 2>/dev/null; then
-      return 0
-    fi
-    sleep 2
-  done
-  echo "Unexpected public runtime Git state or readiness timeout" >&2
-  return 1
-}
-brainbase_wait_for_public_version
+node scripts/wait-for-brainbase-runtime.mjs https://bb.unson.jp/api/version "$TARGET_SHA"
 curl -fsS -o /dev/null -w "%{http_code}\n" https://bb.unson.jp/api/health
 TOKEN=$(jq -r .access_token ~/.brainbase/tokens.json)
 curl -s -H "Authorization: Bearer $TOKEN" \
@@ -258,22 +228,10 @@ INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-rollback-receipt.json" \
 bash scripts/info-ssot-apply.sh
 git switch --detach "$ROLLBACK_SHA"
 if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock.json; then
-  npm ci --omit=dev
+  npm ci --omit=dev --ignore-scripts
 fi
 sudo systemctl restart brainbase-ssot.service
-brainbase_wait_for_lightsail_ready() {
-  local attempt
-  for attempt in $(seq 1 30); do
-    if curl -fsS --connect-timeout 5 --max-time 10 \
-      http://127.0.0.1:55123/api/health >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 2
-  done
-  echo "Lightsail rollback runtime did not become ready" >&2
-  return 1
-}
-brainbase_wait_for_lightsail_ready
+node scripts/wait-for-brainbase-runtime.mjs http://127.0.0.1:55123/api/health
 curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
 const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
 const git = value.runtime?.git;
