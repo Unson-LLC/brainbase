@@ -157,6 +157,14 @@ function isInjectedHostEnvelope(text) {
 }
 
 const TURN_RESOLUTION_TOOL_NAME = 'mcp__brainbase__brainbase_resolve_turn';
+// Mirrors the brainbase_resolve_turn inputSchema; exec-mode models do not
+// reliably read tool schemas, so the exact shape is stated in the context.
+const MODEL_INTERPRETATION_SHAPE = 'model_interpretation must contain exactly these keys and nothing else: '
+    + 'intent (one of answer|investigate|diagnose|design|implement|review|operate), '
+    + 'domains (non-empty array from general|knowledge|personal_judgment|engineering|organization|operations), '
+    + 'action_kind (none|read|write|external), risk (low|medium|high|critical), '
+    + 'confidence (confirmed|inferred|unknown), '
+    + 'signals (array, possibly empty, from cumulative_effect|complexity_growth|threshold_proposal|parallel_exploration|authority_boundary|problem_frame_uncertain|external_outcome).';
 const TURN_RESOLUTION_UNAVAILABLE_PATTERN = new RegExp(
     `(?:${TURN_RESOLUTION_TOOL_NAME}\\b[^\\n]{0,40}\\bis not a function\\b`
     + `|(?:unknown tool|tool not found|no such tool)[^\\n]{0,80}${TURN_RESOLUTION_TOOL_NAME}\\b)`,
@@ -2866,8 +2874,8 @@ export function successOutput(
             'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
         ] : [
             typeof turnInputPath === 'string'
-                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. The Host stored turn_input unchanged at ${turnInputPath} (one JSON object). Load that file and pass its parsed content as turn_input without editing or rebuilding it (in exec: JSON.parse(fs.readFileSync(${JSON.stringify(turnInputPath)}, 'utf8'))). Add model_interpretation containing your semantic classification of the user request.`
-                : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request.`,
+                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. The Host stored turn_input unchanged at ${turnInputPath} (one JSON object). Load that file and pass its parsed content as turn_input without editing or rebuilding it (in exec: JSON.parse(fs.readFileSync(${JSON.stringify(turnInputPath)}, 'utf8'))). Add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`
+                : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
             'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
             'After that call succeeds, the PostToolUse system message names the new Host-generated judgment line; it replaces the bootstrap judgment line below as the first line of the final response.'
         ]),
