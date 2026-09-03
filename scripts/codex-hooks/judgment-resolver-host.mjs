@@ -720,11 +720,13 @@ function verifyAutonomyContract(receipt, { required = false } = {}) {
         || !AUTONOMY_REASON_CODES.has(receipt?.autonomy_reason_code)
         || !Array.isArray(receipt?.allowed_runtime_escalation_reasons)
         || new Set(receipt.allowed_runtime_escalation_reasons).size !== receipt.allowed_runtime_escalation_reasons.length
-        || !Array.isArray(receipt?.autonomy_policy_ids)
-        || receipt.autonomy_policy_ids.some((id) => typeof id !== 'string' || !id)
-        || new Set(receipt.autonomy_policy_ids).size !== receipt.autonomy_policy_ids.length) {
+        || !Array.isArray(receipt?.autonomy_policy_ids ?? [])
+        || (receipt?.autonomy_policy_ids ?? []).some((id) => typeof id !== 'string' || !id)
+        || new Set(receipt?.autonomy_policy_ids ?? []).size !== (receipt?.autonomy_policy_ids ?? []).length) {
         throw new Error('judgment_receipt_autonomy_invalid');
     }
+    // Servers before judgment-runtime-2.4.4 omit autonomy_policy_ids.
+    const policyIds = receipt.autonomy_policy_ids ?? [];
     if (receipt.status === 'needs_classification' && receipt.autonomy_reason_code !== 'classification_missing') {
         throw new Error('judgment_receipt_autonomy_mismatch');
     }
@@ -739,17 +741,17 @@ function verifyAutonomyContract(receipt, { required = false } = {}) {
         || canonicalJson(receipt.allowed_runtime_escalation_reasons) !== canonicalJson(expectedRuntimeReasons)) {
         throw new Error('judgment_receipt_autonomy_mismatch');
     }
-    if (receipt.autonomy_decision === 'continue' && receipt.autonomy_policy_ids.length !== 0) {
+    if (receipt.autonomy_decision === 'continue' && policyIds.length !== 0) {
         throw new Error('judgment_receipt_autonomy_mismatch');
     }
-    if (receipt.autonomy_reason_code !== 'risk_or_external' && receipt.autonomy_policy_ids.length !== 0) {
+    if (receipt.autonomy_reason_code !== 'risk_or_external' && policyIds.length !== 0) {
         throw new Error('judgment_receipt_autonomy_mismatch');
     }
     return {
         decision: receipt.autonomy_decision,
         reasonCode: receipt.autonomy_reason_code,
         allowedRuntimeReasons: [...receipt.allowed_runtime_escalation_reasons],
-        policyIds: [...receipt.autonomy_policy_ids]
+        policyIds: [...policyIds]
     };
 }
 

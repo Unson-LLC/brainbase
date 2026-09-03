@@ -221,6 +221,19 @@ describe('judgment resolver Host bridge', () => {
     }
   });
 
+  it('autonomy_policy_idsを持たない旧serverのreceiptを受理する', async () => {
+    const legacy = receipt() as Record<string, unknown>;
+    delete legacy.autonomy_policy_ids;
+    const legacyPlan = { ...legacy };
+    delete legacyPlan.resolution_id;
+    delete legacyPlan.resolved_at;
+    delete legacyPlan.request_digest;
+    delete legacyPlan.plan_digest;
+    legacy.plan_digest = createHash('sha256').update(canonicalJson(legacyPlan)).digest('hex');
+    const result = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(legacy), { status: 200 })));
+    assert.equal(result.status, 'ok', JSON.stringify(result));
+  });
+
   it('Host内部callだけが署名付きAPI requestを送る', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const result = await resolveJudgmentBeforeModel(args, dependencies(async (url, init) => {
