@@ -6,9 +6,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import Database from 'better-sqlite3';
+import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { registerJudgmentResolutionApiRoute } from '../../server/bootstrap/register-api-routes.js';
+import { JudgmentResolutionService } from '../../server/services/judgment-resolution-service.js';
 import { canonicalJson } from '../../scripts/codex-hooks/judgment-resolver-host.mjs';
+import { handleJudgmentResolutionToolCall } from '../../mcp/brainbase/src/tools/judgment-resolution-tools.ts';
 import { handleJudgmentValueProofToolCall } from '../../mcp/brainbase/src/tools/judgment-value-proof-tools.ts';
 
 const REPO_ROOT = process.cwd();
@@ -17,6 +21,11 @@ const servers = [];
 
 function hash(value) {
     return createHash('sha256').update(value).digest('hex');
+}
+
+function jwt(payload) {
+    const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    return `${encode({ alg: 'none' })}.${encode(payload)}.`;
 }
 
 function retrievalAuditEnvelope(operation, outcome = '結果を取得') {
@@ -417,11 +426,67 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const directory = join(journal, hash(identity.session_id));
         const episodes = readdirSync(directory).filter((name) => name.endsWith('.episode.json'));
         expect(episodes).toHaveLength(1);
-        expect(JSON.parse(readFileSync(join(directory, episodes[0]), 'utf8'))).toMatchObject({
+        const episode = JSON.parse(readFileSync(join(directory, episodes[0]), 'utf8'));
+        expect(episode).toMatchObject({
             schema_version: 'brainbase-judgment-episode-v1', state: 'open', request_text_digest: hash(prompt),
             episode_origin: 'stop_delegation_recovery', route_application: 'post_generation_recovery'
         });
+        const turnInputPath = join(directory, `${hash(identity.turn_id)}.turn-input.json`);
+        expect(existsSync(turnInputPath)).toBe(true);
+        expect(JSON.parse(readFileSync(turnInputPath, 'utf8'))).toEqual(episode.turn_input);
         expect(existsSync(join(directory, `${hash(identity.turn_id)}.audit-failure.json`))).toBe(false);
+
+        const bindingSecret = 'delegated-turn-input-e2e-secret-at-least-32-bytes';
+        const now = new Date('2026-08-07T00:00:00.000Z');
+        const runtime = new JudgmentResolutionService({
+            now: () => now,
+            id: () => 'jr_delegated_turn_input_e2e',
+            personalOwnerPersonId: 'person_owner'
+        });
+        const app = express();
+        app.use(express.json());
+        registerJudgmentResolutionApiRoute(app, {
+            authService: {
+                verifyToken: () => ({
+                    sub: 'person_owner', tenantId: 'unson', role: 'ceo', projectCodes: ['brainbase']
+                })
+            },
+            service: runtime,
+            bindingSecret,
+            now: () => now
+        });
+        const apiUrl = await listen(app);
+        const resolved = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+            turn_ref: `${hash(identity.session_id)}/${hash(identity.turn_id)}`,
+            model_interpretation: {
+                intent: 'implement', domains: ['operations'], action_kind: 'write',
+                risk: 'medium', confidence: 'confirmed', signals: []
+            }
+        }, {
+            apiUrl,
+            configuredProjectCodes: ['brainbase'],
+            bindingSecret,
+            adapterId: 'brainbase-mcp',
+            adapterVersion: '1',
+            now: () => now,
+            judgmentJournalRoot: journal,
+            tokenManager: {
+                getToken: async () => jwt({ sub: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] })
+            },
+            fetch: globalThis.fetch
+        });
+        expect(resolved).toMatchObject({ status: 'ok' });
+
+        rmSync(turnInputPath);
+        await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, transcript_path: transcript,
+                cwd: REPO_ROOT, stop_hook_active: true,
+                last_assistant_message: '委任処理を継続しました。'
+            })
+        });
+        expect(JSON.parse(readFileSync(turnInputPath, 'utf8'))).toEqual(episode.turn_input);
     }, 20_000);
 
     // Traceability: story-judgment-audit-continuity-v1:ac:3

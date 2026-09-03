@@ -46,8 +46,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-delegation-turn-input-handoff",
+        "title": "委任復旧時の判断入力をMCPへ渡せる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
       }
     ],
-    "current_story_id": "story-t0-slack-installation-failure-diagnostics"
+    "current_story_id": "story-delegation-turn-input-handoff"
   }
 }
