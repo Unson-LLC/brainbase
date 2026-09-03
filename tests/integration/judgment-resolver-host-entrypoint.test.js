@@ -243,7 +243,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             `${hash('turn-symlink-entrypoint')}.episode.json`,
             `${hash('turn-symlink-entrypoint')}.events`,
             `${hash('turn-symlink-entrypoint')}.final.json`,
-            `${hash('turn-symlink-entrypoint')}.transition.sqlite`
+            `${hash('turn-symlink-entrypoint')}.transition.sqlite`,
+            `${hash('turn-symlink-entrypoint')}.turn-input.json`
         ]);
         expect(JSON.parse(readFileSync(join(journalDirectory, `${hash('turn-symlink-entrypoint')}.episode.json`), 'utf8'))).toMatchObject({
             schema_version: 'brainbase-judgment-episode-v1',
