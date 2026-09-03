@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { writePrivateJsonAtomically } from '../../scripts/lib/infisical-export.mjs';
 
 function read(path) {
     return readFileSync(path, 'utf8');
@@ -422,18 +423,19 @@ describe('judgment resolver publication surfaces', () => {
 
         expect(capture).toContain('infisical.before.json');
         expect(capture).toContain('ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
+        expect(capture).toContain('is optional here');
         expect(capture).toContain('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY');
         expect(capture).toContain('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID');
         expect(rollback).toContain('forward-only incident remediation');
         expect(rollback).toContain('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
         expect(rollback).toContain('infisical.rollback-final.json');
-        expect(rollback).toContain('$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" final');
+        expect(rollback).toContain('$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" final');
         expect(verifier).toContain('private_key_preserved_after_rollback');
         expect(verifier).toContain('key_id_preserved_after_rollback');
         expect(rollback).toContain('infisical.rollback.evidence.json');
         expect(verifier).toContain('private_key_preserved_before_delete');
         expect(verifier).toContain('key_id_preserved_before_delete');
-        expect(rollback.indexOf('$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" pre-delete')).toBeLessThan(
+        expect(rollback.indexOf('$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" pre-delete')).toBeLessThan(
             rollback.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')
         );
         expect(rollback).toContain('REMOTE_TRANSFER_SHA');
@@ -520,8 +522,89 @@ describe('judgment resolver publication surfaces', () => {
         const ambiguousDelete = run('final', beforeValue, 'ambiguous-delete');
         expect(ambiguousDelete.result.status).not.toBe(0);
         expect(ambiguousDelete.evidence).toMatchObject({ status: 'blocked', rollback_complete: false, public_key_override_present: true });
+
+        const asRows = (value) => Object.entries(value).map(([key, itemValue]) => ({
+            key,
+            value: itemValue,
+            type: 'shared',
+            secretPath: '/',
+        }));
+        const arrayReady = run('pre-delete', asRows(beforeValue).reverse(), 'array-ready');
+        expect(arrayReady.result.status).toBe(0);
+        expect(arrayReady.evidence.status).toBe('ready_to_repair');
+
+        const alreadyRepaired = { ...beforeValue };
+        delete alreadyRepaired.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        const arrayAlreadyRepaired = run('pre-delete', asRows(alreadyRepaired), 'array-already-repaired');
+        expect(arrayAlreadyRepaired.result.status).toBe(0);
+        expect(arrayAlreadyRepaired.evidence).toMatchObject({
+            status: 'ready_to_repair',
+            public_key_override_present: false,
+        });
+        const arrayFinal = run('final', asRows(alreadyRepaired), 'array-final');
+        expect(arrayFinal.result.status).toBe(0);
+
+        for (const [name, invalid] of [
+            ['duplicate', [...asRows(beforeValue), { key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', value: 'private-secret' }]],
+            ['missing-value', [{ key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY' }]],
+            ['empty-key', [{ key: ' ', value: 'secret' }]],
+            ['wrong-type', [{ key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', value: 'private-secret', type: 'personal', secretPath: '/' }]],
+            ['wrong-secret-path', [{ key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', value: 'private-secret', type: 'shared', secretPath: '/nested' }]],
+            ['invalid-top-level', null],
+        ]) {
+            const invalidRun = run('pre-delete', invalid, name);
+            expect(invalidRun.result.status).not.toBe(0);
+            expect(invalidRun.evidence).toMatchObject({ status: 'blocked', partial_state: true });
+            expect(`${invalidRun.result.stdout}${invalidRun.result.stderr}${JSON.stringify(invalidRun.evidence)}`).not.toContain('private-secret');
+        }
         rmSync(root, { recursive: true, force: true });
     }, 30_000);
+
+    it('Infisical実配列を秘密値を出力せず安全に正規化する', () => {
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-infisical-normalize-'));
+        const snapshot = join(root, 'snapshot.json');
+        writeFileSync(snapshot, JSON.stringify([
+            { key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', value: 'normalizer-private', type: 'shared', secretPath: '/' },
+            { key: 'ONTOLOGY_PUBLICATION_SIGNING_KEY_ID', value: 'normalizer-key-id', type: 'shared', secretPath: '/' },
+        ]), { mode: 0o600 });
+        const result = spawnSync(process.execPath, ['scripts/normalize-infisical-export.mjs', snapshot], { encoding: 'utf8' });
+        expect(result.status).toBe(0);
+        expect(`${result.stdout}${result.stderr}`).not.toContain('normalizer-private');
+        expect(JSON.parse(readFileSync(snapshot, 'utf8'))).toEqual({
+            ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY: 'normalizer-private',
+            ONTOLOGY_PUBLICATION_SIGNING_KEY_ID: 'normalizer-key-id',
+        });
+        expect(statSync(snapshot).mode & 0o777).toBe(0o600);
+
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const exports = [...runbook.matchAll(/--format json \\\n\s+--output-file "([^"]+)"/gu)];
+        expect(exports.length).toBeGreaterThanOrEqual(4);
+        for (const match of exports) {
+            const tail = runbook.slice(match.index, match.index + 500);
+            expect(tail).toContain('normalize-infisical-export.mjs');
+            expect(tail).toContain(`"${match[1]}"`);
+        }
+        expect(runbook).toContain('umask 077');
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('Infisical正規化のrename失敗時に秘密一時ファイルを残さない', () => {
+        const calls = [];
+        const temporaryPath = '/safe/.infisical-normalized.tmp';
+
+        expect(() => writePrivateJsonAtomically('/safe/snapshot.json', { secret: 'private' }, {
+            temporaryPath,
+            writeFileSync: (...args) => calls.push(['write', ...args]),
+            chmodSync: (...args) => calls.push(['chmod', ...args]),
+            renameSync: () => {
+                throw new Error('rename failed');
+            },
+            unlinkSync: (...args) => calls.push(['unlink', ...args]),
+        })).toThrow('rename failed');
+
+        expect(calls.map(([operation]) => operation)).toEqual(['write', 'chmod', 'unlink']);
+        expect(calls.at(-1)).toEqual(['unlink', temporaryPath]);
+    });
 
     it('Lightsail env転送checksum不一致時はlive targetを変更しない', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');

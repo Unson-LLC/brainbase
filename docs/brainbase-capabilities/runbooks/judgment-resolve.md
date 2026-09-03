@@ -147,6 +147,7 @@ Trust approval affects the Host lifecycle boundary. Create a new Codex task afte
 
 ```bash
 set -euo pipefail
+umask 077
 : "${FORMAL_HOTFIX_COMMIT:?Set the reviewed hotfix commit SHA}"
 export BRAINBASE_DIRTY_RECONCILIATION_DIR="$(mktemp -d "${TMPDIR:-/tmp}/brainbase-production-hotfix.XXXXXX")"
 chmod 700 "$BRAINBASE_DIRTY_RECONCILIATION_DIR"
@@ -215,6 +216,7 @@ Before changing any of the four runtime surfaces, capture the exact working Hook
 
 ```bash
 set -euo pipefail
+umask 077
 export BRAINBASE_SOURCE_ROOT=/Users/ksato/workspace/repos/brainbase
 export BRAINBASE_UI_RUNTIME_ROOT=/Users/ksato/workspace/repos/.runtime/brainbase-31013
 export BRAINBASE_MCP_RUNTIME_ROOT="$BRAINBASE_UI_RUNTIME_ROOT"
@@ -232,16 +234,32 @@ INFISICAL_PROJECT_ID=ce20541c-02b9-4523-bbe0-49d50b2fcc19
   --projectId "$INFISICAL_PROJECT_ID" --format json \
   --output-file "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
 chmod 600 "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
+node scripts/normalize-infisical-export.mjs \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
+# ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY is optional here because a prior
+# forward-only repair may already have removed it. Private key and key_id remain mandatory.
 INFISICAL_SNAPSHOT="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" node <<'NODE'
 const values = JSON.parse(require('node:fs').readFileSync(process.env.INFISICAL_SNAPSHOT, 'utf8'));
 for (const name of [
-  'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY',
   'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY',
   'ONTOLOGY_PUBLICATION_SIGNING_KEY_ID'
 ]) {
-  if (!Object.hasOwn(values, name) || !values[name]) process.exit(1);
+  if (!Object.hasOwn(values, name) || typeof values[name] !== 'string' || !values[name].trim()) process.exit(1);
 }
 NODE
+mkdir -p "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/lib"
+cp scripts/verify-production-signing-config.mjs \
+  scripts/normalize-infisical-export.mjs \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/"
+cp scripts/lib/infisical-export.mjs "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/lib/"
+chmod 500 "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/normalize-infisical-export.mjs"
+chmod 400 "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/lib/infisical-export.mjs"
+shasum -a 256 \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/normalize-infisical-export.mjs" \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/lib/infisical-export.mjs" \
+  > "$BRAINBASE_ROLLBACK_STATE_DIR/signing-verifiers.sha256"
 source "$BRAINBASE_SOURCE_ROOT/scripts/launchd/brainbase-runtime-readiness.sh"
 CAPTURE_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
 CAPTURE_MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
@@ -377,6 +395,7 @@ REMOTE
 
 ```bash
 set -euo pipefail
+umask 077
 export BRAINBASE_PRODUCTION_STAGE=preflight
 # この手順は4面をTARGET_SHAへ切り替えた後に開始する。設定変更前の失敗でも
 # release全体は変更済みなので、必ず保存済み4面stateからrollbackする。
@@ -440,6 +459,8 @@ chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json"
   --projectId "$INFISICAL_PROJECT_ID" --format json \
   --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json"
 chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json"
+node scripts/normalize-infisical-export.mjs \
+  "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json"
 BEFORE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json" \
 DEPLOYED_BEFORE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json" \
 EVIDENCE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.evidence.json" node <<'NODE'
@@ -452,13 +473,13 @@ const evidence = {
   private_key_present_before: names.includes('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY'),
   key_id_present_before: names.includes('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID')
 };
-if (!Object.values(evidence).every(Boolean)) process.exit(1);
+if (!evidence.private_key_present_before || !evidence.key_id_present_before) process.exit(1);
 for (const name of [
   'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY',
   'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY',
   'ONTOLOGY_PUBLICATION_SIGNING_KEY_ID'
 ]) {
-  if (before[name] !== deployedBefore[name]) process.exit(1);
+  if (Object.hasOwn(before, name) !== Object.hasOwn(deployedBefore, name) || before[name] !== deployedBefore[name]) process.exit(1);
 }
 fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence));
 fs.chmodSync(process.env.EVIDENCE, 0o600);
@@ -467,14 +488,21 @@ NODE
 BRAINBASE_PRODUCTION_STAGE=infisical_public_key_removal
 # deleteはサーバー反映後の応答断でも非zeroになり得る。上で設定した
 # 変更済み状態を維持し、失敗時にrollback不要と誤記録しない。
-"$INFISICAL" secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY \
-  --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
-  --projectId "$INFISICAL_PROJECT_ID" --type shared
+if EVIDENCE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.evidence.json" node -e '
+const evidence=JSON.parse(require("node:fs").readFileSync(process.env.EVIDENCE,"utf8"));
+process.exit(evidence.public_key_override_present_before ? 0 : 1);
+'; then
+  "$INFISICAL" secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY \
+    --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+    --projectId "$INFISICAL_PROJECT_ID" --type shared
+fi
 BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_after
 "$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --format json \
   --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json"
 chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json"
+node scripts/normalize-infisical-export.mjs \
+  "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json"
 BEFORE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json" \
 AFTER="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json" \
 EVIDENCE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.evidence.json" node <<'NODE'
@@ -1016,10 +1044,14 @@ chmod 600 "$ROLLBACK_INFISICAL_CURRENT"
 "$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
   --projectId "$INFISICAL_PROJECT_ID" --format json \
   --output-file "$ROLLBACK_INFISICAL_CURRENT"
+chmod 600 "$ROLLBACK_INFISICAL_CURRENT"
+shasum -a 256 -c "$BRAINBASE_ROLLBACK_STATE_DIR/signing-verifiers.sha256"
+node "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/normalize-infisical-export.mjs" \
+  "$ROLLBACK_INFISICAL_CURRENT"
 # Fail before mutation if the current signing identity drifted from the
 # pre-deployment capture. This writes a secret-free operator receipt before a
 # non-zero exit. The public override may be present or already absent.
-node "$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" pre-delete \
+node "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" pre-delete \
   "$ROLLBACK_INFISICAL_BEFORE" \
   "$ROLLBACK_INFISICAL_CURRENT" \
   "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.pre-delete.evidence.json"
@@ -1038,7 +1070,9 @@ fi
   --projectId "$INFISICAL_PROJECT_ID" --format json \
   --output-file "$ROLLBACK_INFISICAL_FINAL"
 chmod 600 "$ROLLBACK_INFISICAL_FINAL"
-node "$BRAINBASE_SOURCE_ROOT/scripts/verify-production-signing-config.mjs" final \
+node "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/normalize-infisical-export.mjs" \
+  "$ROLLBACK_INFISICAL_FINAL"
+node "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" final \
   "$ROLLBACK_INFISICAL_BEFORE" \
   "$ROLLBACK_INFISICAL_FINAL" \
   "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.evidence.json"
