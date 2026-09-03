@@ -11,6 +11,7 @@ import {
     readdirSync,
     readFileSync,
     realpathSync,
+    renameSync,
     statSync,
     unlinkSync,
     writeFileSync
@@ -441,6 +442,49 @@ function readJson(path) {
     return JSON.parse(readFileSync(path, 'utf8'));
 }
 
+// Session-persistent human approvals. A risk_or_external escalation the human
+// already answered (the next user turn after a waiting_human Stop) stays
+// approved for the rest of the session — not only for the immediately next
+// turn — so the same production-deploy / external-send / shared-delete /
+// charge policy is not re-asked every turn. append-only JSON array, atomic
+// read-modify-write via temp file + rename (unlike the turn journal's other
+// files, this one is mutated more than once per session so it cannot use the
+// create-once linkSync pattern).
+function approvalsPath(sessionRef, env) {
+    return join(journalRoot(env), sessionRef, 'approvals.json');
+}
+
+function readApprovals(sessionRef, env) {
+    try {
+        const parsed = readJson(approvalsPath(sessionRef, env));
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        if (error?.code === 'ENOENT') return [];
+        return [];
+    }
+}
+
+function appendApproval(sessionRef, entry, env) {
+    const path = approvalsPath(sessionRef, env);
+    const directory = dirname(path);
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const existing = readApprovals(sessionRef, env);
+    if (existing.some((candidate) => candidate?.turn_ref === entry.turn_ref && candidate?.prior_turn_ref === entry.prior_turn_ref)) {
+        return existing;
+    }
+    const next = [...existing, entry];
+    const temp = join(directory, `.approvals.${process.pid}.${randomUUID()}.tmp`);
+    const descriptor = openSync(temp, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
+    try { writeFileSync(descriptor, `${JSON.stringify(next)}\n`); } finally { closeSync(descriptor); }
+    try {
+        renameSync(temp, path);
+    } catch (error) {
+        try { unlinkSync(temp); } catch { /* best effort */ }
+        throw error;
+    }
+    return next;
+}
+
 function createImmutableJson(target, value, conflictReason) {
     const directory = dirname(target);
     mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -660,6 +704,14 @@ function verifyReceipt(receipt, args) {
     return receipt;
 }
 
+// The server-owned manifest is the only place that decides which policy
+// triggers a human-approval escalation (a matched policy.human_approval rule).
+// The Host no longer recomputes that decision from classification risk/action_kind
+// — it only checks the receipt's internal shape is self-consistent: the reason
+// code matches the status for the two structural escalations, routine_in_scope
+// iff continue (anything else iff escalate), the runtime-escalation-reason
+// allowlist matches the decision, and autonomy_policy_ids has the right shape
+// (non-empty only for a risk_or_external escalate).
 function verifyAutonomyContract(receipt, { required = false } = {}) {
     const fieldsPresent = ['autonomy_decision', 'autonomy_reason_code', 'allowed_runtime_escalation_reasons']
         .some((field) => Object.hasOwn(receipt || {}, field));
@@ -667,30 +719,37 @@ function verifyAutonomyContract(receipt, { required = false } = {}) {
     if (!['continue', 'escalate'].includes(receipt?.autonomy_decision)
         || !AUTONOMY_REASON_CODES.has(receipt?.autonomy_reason_code)
         || !Array.isArray(receipt?.allowed_runtime_escalation_reasons)
-        || new Set(receipt.allowed_runtime_escalation_reasons).size !== receipt.allowed_runtime_escalation_reasons.length) {
+        || new Set(receipt.allowed_runtime_escalation_reasons).size !== receipt.allowed_runtime_escalation_reasons.length
+        || !Array.isArray(receipt?.autonomy_policy_ids)
+        || receipt.autonomy_policy_ids.some((id) => typeof id !== 'string' || !id)
+        || new Set(receipt.autonomy_policy_ids).size !== receipt.autonomy_policy_ids.length) {
         throw new Error('judgment_receipt_autonomy_invalid');
     }
-    const expectedReason = receipt.status === 'needs_classification'
-        ? 'classification_missing'
-        : receipt.status === 'needs_policy_resolution'
-            ? 'policy_conflict'
-            : ['high', 'critical'].includes(receipt?.classification?.risk)
-                || receipt?.classification?.action_kind === 'external'
-                ? 'risk_or_external'
-                : 'routine_in_scope';
-    const expectedDecision = expectedReason === 'routine_in_scope' ? 'continue' : 'escalate';
+    if (receipt.status === 'needs_classification' && receipt.autonomy_reason_code !== 'classification_missing') {
+        throw new Error('judgment_receipt_autonomy_mismatch');
+    }
+    if (receipt.status === 'needs_policy_resolution' && receipt.autonomy_reason_code !== 'policy_conflict') {
+        throw new Error('judgment_receipt_autonomy_mismatch');
+    }
+    const expectedDecision = receipt.autonomy_reason_code === 'routine_in_scope' ? 'continue' : 'escalate';
     const expectedRuntimeReasons = expectedDecision === 'continue'
         ? AUTONOMY_RUNTIME_ESCALATION_REASONS
         : [];
-    if (receipt.autonomy_reason_code !== expectedReason
-        || receipt.autonomy_decision !== expectedDecision
+    if (receipt.autonomy_decision !== expectedDecision
         || canonicalJson(receipt.allowed_runtime_escalation_reasons) !== canonicalJson(expectedRuntimeReasons)) {
+        throw new Error('judgment_receipt_autonomy_mismatch');
+    }
+    if (receipt.autonomy_decision === 'continue' && receipt.autonomy_policy_ids.length !== 0) {
+        throw new Error('judgment_receipt_autonomy_mismatch');
+    }
+    if (receipt.autonomy_reason_code !== 'risk_or_external' && receipt.autonomy_policy_ids.length !== 0) {
         throw new Error('judgment_receipt_autonomy_mismatch');
     }
     return {
         decision: receipt.autonomy_decision,
         reasonCode: receipt.autonomy_reason_code,
-        allowedRuntimeReasons: [...receipt.allowed_runtime_escalation_reasons]
+        allowedRuntimeReasons: [...receipt.allowed_runtime_escalation_reasons],
+        policyIds: [...receipt.autonomy_policy_ids]
     };
 }
 
@@ -732,13 +791,52 @@ function previousTurnEscalated(sessionRef, currentTurnId, env) {
         || final?.stop_state?.status === 'waiting_human'
         || lastState?.status === 'waiting_human';
     if (!escalated) return null;
+    const priorReceipt = record(latest.entry.initial_route_receipt) ? latest.entry.initial_route_receipt : null;
+    const priorPolicyIds = Array.isArray(priorReceipt?.autonomy_policy_ids)
+        ? priorReceipt.autonomy_policy_ids.filter((id) => typeof id === 'string' && id)
+        : [];
     return {
         schema_version: 'brainbase-judgment-host-autonomy-v1',
         basis: 'prior_escalation_answered',
         prior_turn_ref: priorTurnRef,
         prior_reason_code: typeof (final?.stop_state?.runtime_reason_code ?? lastState?.runtime_reason_code) === 'string'
             ? (final?.stop_state?.runtime_reason_code ?? lastState?.runtime_reason_code)
-            : null
+            : null,
+        prior_policy_ids: priorPolicyIds
+    };
+}
+
+// Turn-start entry point: if the immediately preceding turn was left
+// waiting_human on a risk_or_external escalation, this turn is the human's
+// answer to it, so record that approval in the session's append-only
+// approvals.json (idempotent — replaying the same turn never double-appends).
+// The returned host_autonomy carries the full session-approved policy id /
+// reason code sets (union of every approvals.json entry so far), not just
+// the immediately preceding turn's, so an approval answered several turns
+// ago still holds.
+function sessionAutonomyApproval(sessionRef, currentTurnId, currentTurnRef, env) {
+    const escalation = previousTurnEscalated(sessionRef, currentTurnId, env);
+    if (escalation) {
+        appendApproval(sessionRef, {
+            reason_code: escalation.prior_reason_code ?? 'risk_or_external',
+            policy_ids: escalation.prior_policy_ids ?? [],
+            approved_at: new Date().toISOString(),
+            prior_turn_ref: escalation.prior_turn_ref,
+            turn_ref: currentTurnRef
+        }, env);
+    }
+    const approvals = readApprovals(sessionRef, env);
+    if (approvals.length === 0) return null;
+    const approvedPolicyIds = [...new Set(approvals.flatMap((entry) => (Array.isArray(entry?.policy_ids) ? entry.policy_ids : [])))];
+    const approvedReasonCodes = [...new Set(approvals.map((entry) => entry?.reason_code).filter((code) => AUTONOMY_REASON_CODES.has(code)))];
+    const latest = approvals.at(-1);
+    return {
+        schema_version: 'brainbase-judgment-host-autonomy-v1',
+        basis: 'prior_escalation_answered',
+        prior_turn_ref: latest.prior_turn_ref,
+        prior_reason_code: latest.reason_code ?? null,
+        approved_policy_ids: approvedPolicyIds,
+        approved_reason_codes: approvedReasonCodes
     };
 }
 
@@ -747,16 +845,28 @@ function verifyHostAutonomy(value) {
     if (!record(value)
         || value.schema_version !== 'brainbase-judgment-host-autonomy-v1'
         || value.basis !== 'prior_escalation_answered'
-        || typeof value.prior_turn_ref !== 'string') {
+        || typeof value.prior_turn_ref !== 'string'
+        || (value.approved_policy_ids !== undefined
+            && !(Array.isArray(value.approved_policy_ids) && value.approved_policy_ids.every((id) => typeof id === 'string' && id)))
+        || (value.approved_reason_codes !== undefined
+            && !(Array.isArray(value.approved_reason_codes) && value.approved_reason_codes.every((code) => AUTONOMY_REASON_CODES.has(code))))) {
         throw new Error('judgment_episode_host_autonomy_invalid');
     }
     return value;
 }
 
+// A risk_or_external escalation stays "answered" for the rest of the session
+// once the human has responded to it once. When the escalating receipt names
+// specific policy ids (autonomy_policy_ids), every one of them must already be
+// session-approved; a policy-less escalation instead matches on reason code.
 function escalationAnswered(hostAutonomy, receipt) {
-    return hostAutonomy?.basis === 'prior_escalation_answered'
-        && receipt?.autonomy_decision === 'escalate'
-        && receipt?.autonomy_reason_code === 'risk_or_external';
+    if (hostAutonomy?.basis !== 'prior_escalation_answered') return false;
+    if (receipt?.autonomy_decision !== 'escalate' || receipt?.autonomy_reason_code !== 'risk_or_external') return false;
+    const policyIds = Array.isArray(receipt?.autonomy_policy_ids) ? receipt.autonomy_policy_ids : [];
+    const approvedPolicyIds = new Set(Array.isArray(hostAutonomy.approved_policy_ids) ? hostAutonomy.approved_policy_ids : []);
+    if (policyIds.length > 0) return policyIds.every((id) => approvedPolicyIds.has(id));
+    const approvedReasonCodes = new Set(Array.isArray(hostAutonomy.approved_reason_codes) ? hostAutonomy.approved_reason_codes : []);
+    return approvedReasonCodes.has(receipt.autonomy_reason_code);
 }
 
 function episodeAutonomyContract(episode, receipt = episode?.initial_route_receipt) {
@@ -766,7 +876,13 @@ function episodeAutonomyContract(episode, receipt = episode?.initial_route_recei
         decision: 'continue',
         reasonCode: 'routine_in_scope',
         allowedRuntimeReasons: [...AUTONOMY_RUNTIME_ESCALATION_REASONS],
-        answeredEscalation: true
+        answeredEscalation: true,
+        approvalRef: {
+            basis: episode.host_autonomy.basis,
+            prior_turn_ref: episode.host_autonomy.prior_turn_ref,
+            reason_code: receipt.autonomy_reason_code,
+            policy_ids: Array.isArray(receipt.autonomy_policy_ids) ? [...receipt.autonomy_policy_ids] : []
+        }
     };
 }
 
@@ -1001,7 +1117,7 @@ export async function startEpisode(payload, {
         );
         const hostAutonomy = withJudgmentStage(
             'judgment_episode_autonomy_detect_failed',
-            () => previousTurnEscalated(identity.sessionRef, identity.turnId, env)
+            () => sessionAutonomyApproval(identity.sessionRef, identity.turnId, paths.turnRef, env)
         );
         const entry = withJudgmentStage('judgment_episode_audit_build_failed', () => ({
             schema_version: 'brainbase-judgment-episode-v1',
@@ -1040,7 +1156,9 @@ function persistTurnInput(payload, episode, env) {
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     mkdirSync(paths.directory, { recursive: true, mode: 0o700 });
     createImmutableJson(paths.turnInput, episode.turn_input, 'judgment_turn_input_conflict');
-    return paths.turnInput;
+    // The model carries only this "<sessionRef>/<turnRef>" pointer across the
+    // Host↔server direct channel; it never sees the turn_input JSON or a path.
+    return `${identity.sessionRef}/${paths.turnRef}`;
 }
 
 async function bootstrapDelegatedEpisodeAtStop(payload, dependencies) {
@@ -1533,13 +1651,24 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         if (kind === 'turn_resolution') {
             const turnToolInput = record(inputValue);
             const suppliedTurnInput = record(turnToolInput?.turn_input);
-            // A file reference is bound to this turn's Host-saved turn_input.
-            const turnInput = suppliedTurnInput
-                && Object.keys(suppliedTurnInput).join(',') === 'turn_input_path'
-                && typeof suppliedTurnInput.turn_input_path === 'string'
-                && samePath(suppliedTurnInput.turn_input_path, paths.turnInput)
+            const expectedTurnRef = `${identity.sessionRef}/${paths.turnRef}`;
+            // A turn_ref pointer (top-level, or legacy nested in turn_input) or a
+            // legacy file reference is bound to this turn's Host-saved turn_input.
+            const suppliedTurnRef = typeof turnToolInput?.turn_ref === 'string'
+                ? turnToolInput.turn_ref
+                : (suppliedTurnInput
+                    && Object.keys(suppliedTurnInput).join(',') === 'turn_ref'
+                    && typeof suppliedTurnInput.turn_ref === 'string')
+                    ? suppliedTurnInput.turn_ref
+                    : null;
+            const turnInput = suppliedTurnRef === expectedTurnRef
                 ? episode.turn_input
-                : suppliedTurnInput;
+                : (suppliedTurnInput
+                    && Object.keys(suppliedTurnInput).join(',') === 'turn_input_path'
+                    && typeof suppliedTurnInput.turn_input_path === 'string'
+                    && samePath(suppliedTurnInput.turn_input_path, paths.turnInput))
+                    ? episode.turn_input
+                    : suppliedTurnInput;
             const interpretation = record(turnToolInput?.model_interpretation);
             if (!turnInput || !interpretation
                 || canonicalJson(turnInput) !== canonicalJson(episode.turn_input)
@@ -1550,7 +1679,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             }
         }
         const turnResolutionMessage = kind === 'turn_resolution' && responseSuccess && turnResolution
-            ? `🧠 判断契約を確定しました。最終回答の先頭行は次のHost生成行に置き換えてください:\n${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}`
+            ? `🧠 判断契約を確定しました。監査行はStop時にHostがsystemMessageとして表示するため、回答本文へ再現する必要はありません（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）`
             : null;
         mkdirSync(paths.events, { recursive: true, mode: 0o700 });
         const target = join(paths.events, `${sha256(toolUseId)}.json`);
@@ -1784,36 +1913,6 @@ function orderedEventSetDigest(events) {
         };
     });
     return sha256(canonicalJson(orderedBindings));
-}
-
-function answerContainsExactAuditPrefix(answer, expectedLines) {
-    if (typeof answer !== 'string') return false;
-    const lines = answer.replaceAll('\r\n', '\n').split('\n').map((line) => line.replace(/[ \t]+$/u, ''));
-    const normalizedExpectedLines = expectedLines.map((line) => line.replace(/[ \t]+$/u, ''));
-    if (!normalizedExpectedLines.every((expected, index) => lines[index] === expected)) return false;
-    const expectedCounts = new Map(normalizedExpectedLines.map((line) => [
-        line,
-        normalizedExpectedLines.filter((candidate) => candidate === line).length
-    ]));
-    return [...expectedCounts].every(([expected, count]) => (
-        lines.filter((line) => line === expected).length === count
-    ));
-}
-
-function containsUnauthorizedContinuationAudit(answer, expectedLines) {
-    if (typeof answer !== 'string') return false;
-    const allowed = new Set(expectedLines);
-    return answer.replaceAll('\r\n', '\n').split('\n')
-        .map((line) => line.replace(/[ \t]+$/u, ''))
-        .some((line) => /^🔁 /u.test(line) && !allowed.has(line));
-}
-
-function containsUnauthorizedStopRepairAudit(answer, expectedLines) {
-    if (typeof answer !== 'string') return false;
-    const allowed = new Set(expectedLines);
-    return answer.replaceAll('\r\n', '\n').split('\n')
-        .map((line) => line.replace(/[ \t]+$/u, ''))
-        .some((line) => /^🛠️ /u.test(line) && !allowed.has(line));
 }
 
 function normalizedAnswerBody(answer, expectedLines) {
@@ -2073,37 +2172,6 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
         };
     }
     return { status: 'escalated', violation: null };
-}
-
-function buildAnswerBodyBinding(answer, expectedLines) {
-    const body = normalizedAnswerBody(answer, expectedLines);
-    if (body === null) return null;
-    return {
-        schema_version: 'brainbase-answer-body-binding-v2',
-        audit_lines_digest: sha256(canonicalJson(expectedLines)),
-        body_digest: sha256(body),
-        character_count: body.length
-    };
-}
-
-function activeAnswerBodyBinding(marker, expectedLines) {
-    if (marker?.schema_version !== 'brainbase-judgment-continuation-v2') return null;
-    const binding = record(marker.answer_body_binding);
-    if (!binding) return null;
-    if (!['brainbase-answer-body-binding-v1', 'brainbase-answer-body-binding-v2'].includes(binding.schema_version)
-        || !/^[0-9a-f]{64}$/u.test(String(binding.audit_lines_digest ?? ''))
-        || !/^[0-9a-f]{64}$/u.test(String(binding.body_digest ?? ''))
-        || !Number.isSafeInteger(binding.character_count)
-        || binding.character_count < 0) {
-        throw new Error('judgment_answer_body_binding_invalid');
-    }
-    return binding.audit_lines_digest === sha256(canonicalJson(expectedLines)) ? binding : null;
-}
-
-function answerBodyMatchesBinding(answer, expectedLines, binding) {
-    if (!binding) return true;
-    const body = normalizedAnswerBody(answer, expectedLines);
-    return body !== null && body.length === binding.character_count && sha256(body) === binding.body_digest;
 }
 
 function existingFinal(paths, episode) {
@@ -2591,8 +2659,14 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             throw new Error('judgment_episode_final_event_set_mismatch');
         }
         enqueueFinalKnowledgeEvent(payload, finalized, env);
+        const persistedBaseOutput = completedAuditOutput(finalizedValueProof, finalizedValueProofAttention);
+        const persistedOutput = finalized.completion_status === 'audit_degraded'
+            && typeof finalized.degradation_reason === 'string'
+            && finalized.degradation_reason !== 'turn_resolution_unavailable'
+            ? { ...persistedBaseOutput, systemMessage: `${persistedBaseOutput.systemMessage}\n⚠️ 監査縮退: ${finalized.degradation_reason}` }
+            : persistedBaseOutput;
         return {
-            output: completedAuditOutput(finalizedValueProof, finalizedValueProofAttention),
+            output: persistedOutput,
             final: finalized,
             auditRepairWasAlreadyActive: existingContinuation !== null
         };
@@ -2603,12 +2677,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const missingTurnResolution = requiresTurnResolution && !hasTurnResolution;
     const missingKnowledge = requiredKnowledge && knowledgeExecutionEvents.length === 0;
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
+    // The Host renders the owner-visible audit block itself as the Stop
+    // systemMessage (see completedAuditOutput above); it is never verified
+    // against, or required to be echoed inside, the model-authored answer.
     const expectedAuditLines = requiredAuditLines(episode, events, existingContinuation);
-    const unauthorizedContinuationAudit = containsUnauthorizedContinuationAudit(answer, expectedAuditLines);
-    const unauthorizedStopRepairAudit = containsUnauthorizedStopRepairAudit(answer, expectedAuditLines);
-    const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines)
-        || unauthorizedContinuationAudit
-        || unauthorizedStopRepairAudit;
     const autonomyCompliance = surfaceUnavailable
         ? { status: 'turn_resolution_unavailable', violation: null }
         : autonomyAnswerCompliance(
@@ -2633,39 +2705,26 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         && (autonomyCompliance.triggerCode !== 'unfinished_safe_work'
             || (typeof auditContract?.outcome_continuation_progress_line === 'string'
                 && typeof auditContract?.outcome_continuation_complete_line === 'string'));
-    const answerBodyBinding = activeAnswerBodyBinding(existingContinuation, expectedAuditLines);
-    const missingAnswerBody = !answerBodyMatchesBinding(answer, expectedAuditLines, answerBodyBinding);
-    const hostCanCompleteOwnerAudit = missingOwnerAudit
-        && journalStopStateRequired(episode.initial_route_receipt)
-        && !missingKnowledge
-        && !missingValueProof
-        && !missingAnswerBody
-        && !missingAutonomyCompliance
-        && !unauthorizedContinuationAudit
-        && !unauthorizedStopRepairAudit
-        && existingContinuation === null;
-    if (missingTurnResolution
-        || missingKnowledge
-        || missingValueProof
-        || (missingOwnerAudit && !hostCanCompleteOwnerAudit)
-        || missingAnswerBody
-        || missingAutonomyCompliance) {
-        const missingCapabilities = [
-            ...(missingTurnResolution ? ['judgment.resolve_turn'] : []),
-            ...(missingKnowledge ? ['knowledge.resolve'] : []),
-            ...(missingValueProof ? ['judgment.value_proof.record'] : []),
-            ...(missingOwnerAudit ? ['owner.audit.display'] : []),
-            ...(missingAnswerBody ? ['answer.body.preservation'] : []),
-            ...(missingAutonomyCompliance ? ['autonomy.continuation'] : [])
-        ];
+    // Only real business-state gaps block: missing required turn resolution,
+    // missing required knowledge lookups, missing value proof, or an
+    // autonomy contract violation (unnecessary question / unfinished safe
+    // work / state-record mismatch). The model's own reproduction of
+    // Host-rendered 🧠/📚/⚠️ audit lines is never a block reason.
+    const missingCapabilities = [
+        ...(missingTurnResolution ? ['judgment.resolve_turn'] : []),
+        ...(missingKnowledge ? ['knowledge.resolve'] : []),
+        ...(missingValueProof ? ['judgment.value_proof.record'] : []),
+        ...(missingAutonomyCompliance ? ['autonomy.continuation'] : [])
+    ];
+    // Stop blocks at most once per episode. If a continuation marker already
+    // exists, one block already happened for this episode; a second block
+    // would risk an infinite confirm loop (Codex Desktop stop_hook_active
+    // re-Stops indefinitely), so any further gap finalizes as audit_degraded
+    // instead of blocking again.
+    const stopAlreadyBlockedOnce = missingCapabilities.length > 0 && existingContinuation !== null && payload.stop_hook_active === true;
+    if (missingCapabilities.length > 0 && !stopAlreadyBlockedOnce) {
         let marker = existingContinuation;
         if (!marker) {
-            const shouldBindAnswerBody = !missingKnowledge
-                && missingOwnerAudit
-                && !unauthorizedContinuationAudit
-                && !unauthorizedStopRepairAudit
-                && !missingAutonomyCompliance
-                && episodeAuditContract(episode)?.repair_body_policy === 'preserve';
             const autonomyContract = episodeAutonomyContract(episode);
             const markerEntry = {
                 schema_version: 'brainbase-judgment-continuation-v2',
@@ -2695,22 +2754,15 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                     }
                 } : {})
             };
-            if (shouldBindAnswerBody) {
-                markerEntry.answer_body_binding = buildAnswerBodyBinding(
-                    answer,
-                    requiredAuditLines(episode, events, markerEntry)
-                );
-            }
             marker = createImmutableJson(
                 paths.continuation,
                 markerEntry,
                 'judgment_episode_continuation_conflict'
             );
         }
-        const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
         const reasons = [
             ...(missingTurnResolution ? [
-                `mcp__brainbase__brainbase_resolve_turnを実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputは${paths.turnInput}に保存済み。確定後はPostToolUseが返す新しい判断行を先頭行にする）`
+                `mcp__brainbase__brainbase_resolve_turnをturn_ref="${basename(paths.directory)}/${paths.turnRef}"で実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputはHostのjournalに保存済みでturn_refからserverが読み込む。turn_inputやpathを渡さない。確定後はPostToolUseが判断契約を確定した旨をsystemMessageで通知する）`
             ] : []),
             ...(missingKnowledge ? [capabilityActionInstruction(
                 CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'],
@@ -2718,20 +2770,6 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             )] : []),
             ...(missingValueProof ? [
                 `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
-            ] : []),
-            ...((missingOwnerAudit || missingAutonomyCompliance) ? [
-                `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
-            ] : []),
-            ...((missingKnowledge
-                && !missingOwnerAudit
-                && !missingAutonomyCompliance
-                && typeof auditContract?.stop_repair_complete_line === 'string') ? [
-                `Brainbase参照後の最終監査ブロック末尾に「${auditContract.stop_repair_complete_line}」を1回だけ表示する`
-            ] : []),
-            ...(unauthorizedContinuationAudit ? ['Hostが記録していない🔁監査行を削除する'] : []),
-            ...(unauthorizedStopRepairAudit ? ['Hostが記録していない🛠️監査行を削除する'] : []),
-            ...((missingAnswerBody || (!missingKnowledge && missingOwnerAudit && marker.answer_body_binding)) ? [
-                '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
             ] : []),
             ...((valueProofRolloutEnabled(episode, env)
                 && marker?.autonomy_continuation?.interruption_candidate?.resolution === 'continued_without_human') ? [
@@ -2793,6 +2831,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             'judgment_value_proof_attention_conflict'
         );
     }
+    const finalAutonomyContract = episodeAutonomyContract(episode);
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
         finalized_at: finalizedAt,
@@ -2800,9 +2839,14 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             completion_status: 'audit_degraded',
             degradation_reason: 'turn_resolution_unavailable',
             ...(bootstrapEpisode.host_surface ? { host_surface: bootstrapEpisode.host_surface } : {})
+        } : stopAlreadyBlockedOnce ? {
+            completion_status: 'audit_degraded',
+            degradation_reason: missingCapabilities[0],
+            missing_capabilities: missingCapabilities
         } : { completion_status: 'complete' }),
         protocol_status: 'audit_protocol_complete',
         content_verification_status: 'not_evaluated',
+        ...(finalAutonomyContract?.approvalRef ? { approval_ref: finalAutonomyContract.approvalRef } : {}),
         ...(episode.episode_origin !== undefined ? {
             episode_origin: episode.episode_origin,
             route_application: episode.route_application
@@ -2811,9 +2855,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         event_count: events.length,
         qualifying_event_count: qualifyingEvents.length,
         event_set_digest: orderedEventSetDigest(events),
-        owner_audit_complete: !missingOwnerAudit || hostCanCompleteOwnerAudit,
+        owner_audit_complete: true,
         owner_audit_line_count: expectedAuditLines.length,
-        owner_audit_source: hostCanCompleteOwnerAudit ? 'stop_hook_system_message' : 'assistant_answer',
+        owner_audit_source: 'stop_hook_system_message',
         autonomy_compliance_status: autonomyCompliance.status,
         ...(autonomyCompliance.stopState ? {
             stop_state: {
@@ -2850,8 +2894,12 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     };
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
     enqueueFinalKnowledgeEvent(payload, final, env);
+    const baseOutput = completedAuditOutput(valueProof, valueProofAttention);
+    const output = stopAlreadyBlockedOnce
+        ? { ...baseOutput, systemMessage: `${baseOutput.systemMessage}\n⚠️ 監査縮退: ${missingCapabilities[0]}` }
+        : baseOutput;
     return {
-        output: completedAuditOutput(valueProof, valueProofAttention),
+        output,
         final,
         auditRepairWasAlreadyActive: existingContinuation !== null
     };
@@ -3045,10 +3093,9 @@ export function successOutput(
     auditContract = buildAuditContract(receipt),
     env = process.env,
     hostSurface = null,
-    turnInputPath = null,
+    turnRef = null,
     hostAutonomy = null
 ) {
-    const ownerReferenceLine = ownerAudit.display_line;
     const surfaceDegraded = hostSurface?.turn_resolution === 'unavailable';
     const requiredCapabilityInstructions = requiredCapabilityActionContracts(receipt)
         .map((contract) => capabilityActionInstruction(contract));
@@ -3075,24 +3122,21 @@ export function successOutput(
                 'この自律判断は通常の権限・承認を置き換えません。'
             ]
             : [];
-    const internalJournalToolNames = valueProofRolloutEnabled({ initial_route_receipt: receipt }, env)
-        ? 'brainbase_judgment_state_recordとbrainbase_judgment_value_proof_record'
-        : 'brainbase_judgment_state_record';
     const context = [
         'Brainbase Judgment Resolver Host opened one unresolved judgment episode before model generation. This bootstrap receipt is not a semantic classification or the final episode receipt.',
         ...(surfaceDegraded ? [
             `This Codex thread cannot call ${TURN_RESOLUTION_TOOL_NAME}: its MCP tool surface predates the current Brainbase contract, and the Host recorded that tool failure from the transcript. Do not retry it, do not ask the user a classification question, and do not ask the user to restart; the Host-generated judgment line already reports the degraded state and that a new Codex task restores full judgment routing.`,
             'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
         ] : [
-            typeof turnInputPath === 'string'
-                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_input set to the file reference {"turn_input_path": ${JSON.stringify(turnInputPath)}} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input at that path and the server loads it itself; do not read, print, rebuild, or inline the file. ${MODEL_INTERPRETATION_SHAPE}`
+            typeof turnRef === 'string'
+                ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input (if the tool rejects a missing turn_input, pass turn_input as {"turn_ref": ${JSON.stringify(turnRef)}}). ${MODEL_INTERPRETATION_SHAPE}`
                 : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
             'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
-            'After that call succeeds, the PostToolUse system message names the new Host-generated judgment line; it replaces the bootstrap judgment line below as the first line of the final response.'
+            'After that call succeeds, the PostToolUse system message confirms the judgment contract. Stop always renders the complete owner-visible audit block itself as its own systemMessage; do not write, reproduce, or verify 🧠/📚/⚠️ audit lines in the answer.'
         ]),
         ...autonomyInstructions,
         ...(hostAutonomy?.basis === 'prior_escalation_answered' ? [
-            '前turnのHost確認に人間が回答済みです。resolve後の判断がrisk_or_externalでも再度確認せず、通常の権限・承認の範囲で要求された操作を実行し、状態はcompletedまたはpendingで記録する。'
+            `このセッションで人間が承認済みのpolicy（${JSON.stringify(hostAutonomy.approved_policy_ids ?? [])}）またはreason_code（${JSON.stringify(hostAutonomy.approved_reason_codes ?? [])}）に該当する場合、resolve後の判断がrisk_or_externalでも再度確認せず、通常の権限・承認の範囲で要求された操作を実行し、状態はcompletedまたはpendingで記録する。それ以外のpolicy/reason_codeでrisk_or_externalへ escalateした場合は改めて確認する。`
         ] : []),
         ...implementationWorkflowInstructions,
         ...requiredCapabilityInstructions,
@@ -3111,14 +3155,6 @@ export function successOutput(
             'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.'
         ]),
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
-        `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
-        ...(typeof auditContract?.zero_call_display_line === 'string' ? [
-            `If this episode records zero actual Brainbase knowledge, retrieval, or business-action calls, add this exact line immediately after the judgment line:\n${auditContract.zero_call_display_line}\n${internalJournalToolNames}は内部journal toolであり、実Brainbase呼び出しとして数えない。これらだけを実行した場合も実呼び出し0回の行を残す。If an actual Brainbase knowledge, retrieval, or business-action call is recorded, omit that zero-call line and use the Host-generated PostToolUse audit lines instead.`
-        ] : []),
-        'Intermediate commentary may omit the owner-visible audit block. Put the complete audit block only at the start of the final response, after all Brainbase tool calls are known.',
-        'Do not alter, translate, summarize, omit, invent, or duplicate an owner-visible audit line. Include every Host-generated PostToolUse audit line after the judgment line in journal commit order and with recorded multiplicity.',
-        'It reports a turn-level judgment, not a Brainbase retrieval, action authorization, or completed knowledge retrieval. Actual successful retrievals have separate tool-generated 📚 Brainbase検索 or 📚 Brainbase取得 lines.',
-        'PostToolUse records each actual Brainbase call, and Stop finalizes exactly one episode receipt after the tool loop.',
         `The full route receipt stays in the per-session judgment journal and is never printed into model context.`
     ].join('\n');
     return {
@@ -3149,10 +3185,10 @@ export async function processHookPayload(payload, dependencies = {}) {
         const episode = await startEpisode(payload, dependencies);
         await dependencies.onEpisodeStarted?.(episode);
         const env = dependencies.env ?? process.env;
-        const turnInputPath = withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, episode, env));
+        const turnRef = withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, episode, env));
         return successOutput(
             episode.turn_input, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode),
-            env, episode.host_surface ?? null, turnInputPath, episode.host_autonomy ?? null
+            env, episode.host_surface ?? null, turnRef, episode.host_autonomy ?? null
         );
     }
     if (eventName === 'PostToolUse') {
@@ -3178,11 +3214,11 @@ export async function processHookPayload(payload, dependencies = {}) {
             if (error?.message !== 'judgment_episode_not_found') throw error;
             return handleOrphanStop(payload, dependencies);
         }
-        if (payload.stop_hook_active === true
-            && result.output?.decision === 'block'
-            && result.auditRepairWasAlreadyActive) {
-            throw new Error('judgment_stop_repair_exhausted');
-        }
+        // Stop blocks at most once per episode (see finalizeEpisodeLocked):
+        // a re-Stop after an already-active repair never blocks again, so
+        // there is no longer a finite-but-exhausted repair state to reject
+        // here. Only identity/integrity contradictions and transaction
+        // timeouts still fail loud, from other paths.
         return result.output;
     }
     return {};

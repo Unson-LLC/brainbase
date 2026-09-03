@@ -63,6 +63,7 @@ function receipt(overrides: Record<string, unknown> = {}) {
       'irreversible_action', 'missing_authority', 'owner_value_choice',
       'required_input_unavailable', 'evidenced_terminal_blocker',
     ],
+    autonomy_policy_ids: [],
     runtime_version: 'judgment-runtime-2.1.0',
     manifest_digest: 'b'.repeat(64),
     host_binding: { adapter_id: 'brainbase-mcp', adapter_version: '1', status: 'managed', enforcement_level: 'host_contract' },
@@ -166,6 +167,57 @@ describe('judgment resolver Host bridge', () => {
     } finally {
       rmSync(journalRoot, { recursive: true, force: true });
       rmSync(outsideRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('turn_refならjournal内のturn-inputファイルをserver側で読み込み、JSONもpathもmodelを経由しない', async () => {
+    const mergedArgs = { ...args, model_interpretation: classification };
+    const journalRoot = mkdtempSync(join(tmpdir(), 'brainbase-judgment-journal-'));
+    const sessionRef = 'a'.repeat(64);
+    const turnRef = 'b'.repeat(64);
+    mkdirSync(join(journalRoot, sessionRef));
+    writeFileSync(join(journalRoot, sessionRef, `${turnRef}.turn-input.json`), JSON.stringify(args));
+    let posted: unknown = null;
+    const deps = {
+      ...dependencies(async (_url, init) => {
+        posted = JSON.parse(String(init?.body));
+        return new Response(JSON.stringify(receipt({
+          request_digest: computeJudgmentRequestDigest(mergedArgs),
+        })), { status: 200 });
+      }),
+      judgmentJournalRoot: journalRoot,
+    };
+    try {
+      const result = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_ref: `${sessionRef}/${turnRef}`,
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(result?.status, 'ok');
+      assert.deepEqual(posted, mergedArgs);
+
+      // Legacy cached tool schema: old Codex threads still send a turn_input
+      // object, but its content may itself be {"turn_ref": "..."}.
+      posted = null;
+      const legacy = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_input: { turn_ref: `${sessionRef}/${turnRef}` },
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(legacy?.status, 'ok');
+      assert.deepEqual(posted, mergedArgs);
+
+      const malformed = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_ref: 'not-a-valid-ref',
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(malformed?.status, 'error');
+
+      const missing = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_ref: `${sessionRef}/${'c'.repeat(64)}`,
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(missing?.status, 'error');
+    } finally {
+      rmSync(journalRoot, { recursive: true, force: true });
     }
   });
 

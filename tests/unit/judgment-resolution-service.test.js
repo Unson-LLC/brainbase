@@ -373,7 +373,7 @@ describe('JudgmentResolutionService', () => {
         ['complexity_growth', 'API設計の正味複雑性を確認して', ['engineering.v1', 'cumulative-complexity.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1', 'global.external-outcome-first.v1', 'global.subtraction-first.v1']],
         ['threshold_proposal', 'API設計の閾値を確認して', ['engineering.v1', 'threshold.v1'], ['global.goal-before-solution.v1', 'global.no-unsupported-threshold.v1', 'global.problem-frame-rederive.v1']],
         ['parallel_exploration', 'API設計の並列な候補生成を確認して', ['engineering.v1', 'parallel.v1'], ['global.goal-before-solution.v1', 'global.preserve-parallel-exploration.v1', 'global.problem-frame-rederive.v1']],
-        ['authority_boundary', 'API設計の権限境界を確認して', ['engineering.v1', 'authority.v1'], ['global.action-authorization-separate.v1', 'global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
+        ['authority_boundary', 'API設計の権限境界を確認して', ['engineering.v1', 'authority.v1'], ['global.high-stakes-human-approval.v1', 'global.action-authorization-separate.v1', 'global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
         ['problem_frame_uncertain', 'API設計の問題設定を確認して', ['engineering.v1', 'problem-frame.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
         ['external_outcome', 'API設計の外部成果を確認して', ['engineering.v1', 'external-outcome.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1', 'global.external-outcome-first.v1']]
     ])('%s signalは対応するconstraint DAGを合成する', (signal, request, dagIds, policyIds) => {
@@ -567,14 +567,21 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.classification_evidence.matcher_ids).toEqual(['model_interpretation']);
     });
 
-    it('現在の命令にあるPR公開は引き続きexternalとして分類する', () => {
+    it('現在の命令にあるPR公開は引き続きexternalとして分類するが、人間承認ポリシーが明示されない限りescalateしない', () => {
         const receipt = service.resolve(input('PRを外部公開して'), { access: ACCESS, hostBinding: binding() });
         expect(receipt.classification).toMatchObject({ intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high' });
+        // PR公開はrisk=highだがcriticalではないので、human_approvalを明示するポリシーに
+        // マッチしない。分類（action_kind=external / risk=high）だけからの自動escalateは
+        // もう存在しない: routine devワークフローとして自律的に継続する。
         expect(receipt).toMatchObject({
-            autonomy_decision: 'escalate',
-            autonomy_reason_code: 'risk_or_external',
-            allowed_runtime_escalation_reasons: []
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: []
         });
+        expect(receipt.allowed_runtime_escalation_reasons).toEqual([
+            'irreversible_action', 'missing_authority', 'owner_value_choice',
+            'required_input_unavailable', 'evidenced_terminal_blocker'
+        ]);
     });
 
     it('fresh taskの禁止境界を実行要求へ反転せずローカル書込みとして解決する', () => {
@@ -779,7 +786,14 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification.action_kind).toBe('none');
         expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
-        expect(receipt).toMatchObject({ autonomy_decision: 'escalate', autonomy_reason_code: 'risk_or_external' });
+        // risk=high (not critical) and action_kind=none never match the
+        // human_approval rule on global.high-stakes-human-approval.v1, so this
+        // stays autonomous — classification alone no longer auto-escalates.
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: []
+        });
     });
 
     it('制約内の手動マージ言及をwrite命令と誤認せずVibeProの判断DAGを一度で解決する', () => {
@@ -980,6 +994,7 @@ describe('JudgmentResolutionService', () => {
         expectExactResolvedPlan(firstReceipt, {
             dagIds: ['engineering.v1', 'operations.v1', 'authority.v1', 'external-outcome.v1'],
             policyIds: [
+                'global.high-stakes-human-approval.v1',
                 'global.action-authorization-separate.v1',
                 'global.goal-before-solution.v1',
                 'global.problem-frame-rederive.v1',
@@ -1072,6 +1087,108 @@ describe('judgment manifest validation', () => {
         expect(() => serviceWithManifest((manifest) => {
             manifest.composition_edges.push(['generate', 'constraints']);
         })).toThrowError(/selectable judgment graph contains a cycle/);
+    });
+});
+
+describe('policy human_approval駆動のautonomy escalation', () => {
+    // Trace: judgment-host-direct-channel-v1:change-c
+    // 分類（risk/action_kind）からの自動escalateは廃止された。escalateするのは
+    // (1) needs_classification、(2) needs_policy_resolution、(3) 適用ポリシーが
+    // human_approvalを明示し、かつ分類がそれにマッチする場合、の3つだけ。
+
+    it('human_approval.risksにマッチする適用ポリシーがあればautonomy_policy_idsを添えてescalateする', () => {
+        const service = serviceWithManifest((manifest) => {
+            addPoliciesToDirect(manifest, [testPolicy('test.requires-human-approval.v1', {
+                priority: 200,
+                human_approval: { risks: ['critical'] }
+            })]);
+        });
+        const receipt = service.resolve(input('この作業を進めて', proposal({
+            intent: 'operate', domains: ['general'], action_kind: 'write', risk: 'critical'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.status).toBe('resolved');
+        // risk=critical also matches the manifest's own
+        // global.high-stakes-human-approval.v1 (risks: ['critical']) once
+        // authority.v1 is selected; autonomy_policy_ids lists every matching
+        // policy id, sorted deterministically by id.
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'risk_or_external',
+            allowed_runtime_escalation_reasons: [],
+            autonomy_policy_ids: ['global.high-stakes-human-approval.v1', 'test.requires-human-approval.v1']
+        });
+    });
+
+    it('human_approval.action_kindsにマッチする適用ポリシーがあればescalateする', () => {
+        const service = serviceWithManifest((manifest) => {
+            addPoliciesToDirect(manifest, [testPolicy('test.requires-human-approval-action.v1', {
+                priority: 200,
+                human_approval: { action_kinds: ['external'] }
+            })]);
+        });
+        const receipt = service.resolve(input('第三者へ共有ファイルを外部送信して', proposal({
+            intent: 'operate', domains: ['general'], action_kind: 'external', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: ['test.requires-human-approval-action.v1']
+        });
+    });
+
+    it('マッチするhuman_approvalポリシーが無ければ分類のrisk/action_kindだけでは自動escalateしない', () => {
+        const receipt = serviceWithManifest(() => {}).resolve(input('リポジトリへ変更をpushして', proposal({
+            intent: 'operate', domains: ['general'], action_kind: 'external', risk: 'high'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: []
+        });
+    });
+
+    it('needs_classificationとneeds_policy_resolutionのautonomy_policy_idsは常に空', () => {
+        const bootstrapInput = input('意味を説明して', undefined);
+        delete bootstrapInput.model_interpretation;
+        const bootstrap = serviceWithManifest(() => {}).resolve(bootstrapInput, { access: ACCESS, hostBinding: binding() });
+        expect(bootstrap.status).toBe('needs_classification');
+        expect(bootstrap).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'classification_missing',
+            autonomy_policy_ids: []
+        });
+
+        const conflicted = serviceWithManifest((manifest) => {
+            addPoliciesToDirect(manifest, [
+                testPolicy('test.conflict-require.v1', { priority: 100, effect: { decision: 'require', target: 'test.conflict' } }),
+                testPolicy('test.conflict-forbid.v1', { priority: 100, effect: { decision: 'forbid', target: 'test.conflict' } })
+            ]);
+        }).resolve(input('意味を説明して'), { access: ACCESS, hostBinding: binding() });
+        expect(conflicted.status).toBe('needs_policy_resolution');
+        expect(conflicted).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'policy_conflict',
+            autonomy_policy_ids: []
+        });
+    });
+
+    it.each([
+        ['action_kindsが空配列', { human_approval: { action_kinds: [] } }, /human_approval action_kinds is invalid/],
+        ['risksに未知の値', { human_approval: { risks: ['imaginary'] } }, /human_approval risks is invalid/],
+        ['未知のキー', { human_approval: { channels: ['slack'] } }, /human_approval is invalid/],
+        ['空オブジェクト', { human_approval: {} }, /human_approval is invalid/]
+    ])('不正なhuman_approval形状(%s)を起動時に拒否する', (_label, overrides, expected) => {
+        expect(() => serviceWithManifest((manifest) => {
+            addPoliciesToDirect(manifest, [testPolicy('test.invalid-human-approval.v1', overrides)]);
+        })).toThrowError(expected);
+    });
+
+    it('manifestのescalate_risks/escalate_action_kindsは空配列を許容し、autonomy決定には使われない', () => {
+        expect(MANIFEST.autonomy.escalate_risks).toEqual([]);
+        expect(MANIFEST.autonomy.escalate_action_kinds).toEqual([]);
+        // 空配列でもmanifestは正常にロードできる（過去バージョンのように固定の
+        // ['high','critical'] / ['external'] を強制しない）。
+        expect(() => serviceWithManifest(() => {})).not.toThrow();
     });
 });
 
