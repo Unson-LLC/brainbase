@@ -273,7 +273,7 @@ test('delegated fresh task proves post-generation recovery without impersonating
         path: OWNER_VISIBLE_PATH,
         taskId: taskIdentity.taskId,
         turnId,
-        eventId: events.at(-1)?.event_fingerprint || '',
+        journalEventFingerprint: events.at(-1)?.event_fingerprint || '',
         capturedAfter: taskIdentity.createdAt,
         expectedLines: expectedAudit
     });

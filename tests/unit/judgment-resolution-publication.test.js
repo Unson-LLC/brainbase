@@ -356,6 +356,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(read(normalVerifier)).toContain('occurrences');
         expect(read(normalVerifier)).toContain('event_id');
         expect(read(normalVerifier)).toContain('final_event_fingerprint');
+        expect(read(normalVerifier)).toContain('journalEventFingerprint:');
         expect(read(normalVerifier)).toContain('session_meta.payload.id');
         expect(read(delegatedVerifier)).toContain('BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH');
         expect(read(delegatedVerifier)).toContain('brainbase-owner-visible-readback-v1');
@@ -363,6 +364,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(read(delegatedVerifier)).toContain('occurrences');
         expect(read(delegatedVerifier)).toContain('event_id');
         expect(read(delegatedVerifier)).toContain('final_event_fingerprint');
+        expect(read(delegatedVerifier)).toContain('journalEventFingerprint:');
         expect(read(delegatedVerifier)).toContain('session_meta.payload.id');
         expect(read(delegatedVerifier)).toContain('Brainbase判断レシート exactly once');
         expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
