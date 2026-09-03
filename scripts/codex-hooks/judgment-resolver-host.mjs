@@ -429,6 +429,7 @@ function journalPaths(sessionRef, turnId, env) {
         autonomy: join(directory, `${turnRef}.autonomy.json`),
         auditFailure: join(directory, `${turnRef}.audit-failure.json`),
         auditDegraded: join(directory, `${turnRef}.audit-degraded.json`),
+        recovery: join(directory, `${turnRef}.recovery.json`),
         auditOrphanEvents: join(directory, `${turnRef}.audit-orphan-events`),
         final: join(directory, `${turnRef}.final.json`),
         valueProof: join(directory, `${turnRef}.value-proof.json`),
@@ -1020,6 +1021,54 @@ function existingEpisode(payload, env) {
         if (error?.code === 'ENOENT') return null;
         throw error;
     }
+}
+
+function matchingEpisodeCandidates(identity, env) {
+    const root = journalRoot(env);
+    const candidates = [];
+    let sessionRefs;
+    try {
+        sessionRefs = readdirSync(root);
+    } catch (error) {
+        if (error?.code === 'ENOENT') return candidates;
+        throw error;
+    }
+    for (const sessionRef of sessionRefs) {
+        if (sessionRef === identity.sessionRef) continue;
+        const paths = journalPaths(sessionRef, identity.turnId, env);
+        try {
+            const episode = verifyEpisode(readJson(paths.episode));
+            if (episode?.turn_input?.turn_id === identity.turnId) {
+                candidates.push({ episode, paths, sessionRef });
+            }
+        } catch (error) {
+            if (error?.code !== 'ENOENT') continue;
+        }
+    }
+    return candidates;
+}
+
+function recoverEpisode(payload, identity, currentPaths, env) {
+    const candidates = matchingEpisodeCandidates(identity, env);
+    if (candidates.length !== 1) return null;
+    const candidate = candidates[0];
+    const recovery = {
+        schema_version: 'brainbase-judgment-recovery-v1',
+        recorded_at: new Date().toISOString(),
+        reason_code: 'direct_episode_missing',
+        audit_status: 'recovered',
+        blocking: false,
+        affected_range: { turn_refs: [currentPaths.turnRef] },
+        recovery_result: 'rediscovered_existing_episode',
+        next_action: 'continue_existing_episode',
+        session_ref: identity.sessionRef,
+        turn_ref: currentPaths.turnRef,
+        source_session_ref: candidate.sessionRef,
+        initial_route_receipt_digest: candidate.episode.initial_route_receipt_digest,
+        episode_candidate_count: candidates.length
+    };
+    createImmutableJson(currentPaths.recovery, recovery, 'judgment_episode_recovery_conflict');
+    return candidate;
 }
 
 async function resolveInitialRoute(args, { env, fetchImpl }) {
@@ -2183,21 +2232,22 @@ function verifyExistingJudgmentValueProofAttention(paths, finalized = null) {
 export function finalizeEpisode(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new Error('judgment_episode_identity_missing');
-    const paths = journalPaths(identity.sessionRef, identity.turnId, env);
-    return withEpisodeTransitionLock(paths, () => {
+    const currentPaths = journalPaths(identity.sessionRef, identity.turnId, env);
+    const directResult = withEpisodeTransitionLock(currentPaths, () => {
         const episode = existingEpisode(payload, env);
-        if (!episode) throw new Error('judgment_episode_not_found');
-        return finalizeEpisodeLocked(payload, episode, paths, env);
+        return episode ? finalizeEpisodeLocked(payload, episode, currentPaths, env) : null;
+    }, env);
+    if (directResult) return directResult;
+    const resolved = recoverEpisode(payload, identity, currentPaths, env);
+    if (!resolved) throw new Error('judgment_episode_not_found');
+    return withEpisodeTransitionLock(resolved.paths, () => {
+        const episode = verifyEpisode(readJson(resolved.paths.episode));
+        return finalizeEpisodeLocked(payload, episode, resolved.paths, env);
     }, env);
 }
 
-function orphanEpisodeCandidateCount(paths) {
-    try {
-        return readdirSync(paths.directory).filter((name) => name.endsWith('.episode.json')).length;
-    } catch (error) {
-        if (error?.code === 'ENOENT') return 0;
-        throw error;
-    }
+function orphanEpisodeCandidateCount(identity, env) {
+    return matchingEpisodeCandidates(identity, env).length;
 }
 
 function orphanAnswerBodyBinding(answer) {
@@ -2220,9 +2270,10 @@ function validIsoTimestamp(value) {
 
 function validateAuditFailure(entry, identity, paths, env) {
     const expectedKeys = [
-        'answer_body_binding', 'episode_candidate_count', 'host_digest', 'journal_root_digest',
-        'reason', 'recorded_at', 'repair_requested', 'schema_version', 'session_ref',
-        'stop_hook_active', 'turn_ref', 'warning_line_digest'
+        'affected_range', 'answer_body_binding', 'audit_status', 'blocking',
+        'episode_candidate_count', 'host_digest', 'journal_root_digest', 'next_action',
+        'reason', 'reason_code', 'recorded_at', 'recovery_result', 'repair_requested',
+        'schema_version', 'session_ref', 'stop_hook_active', 'turn_ref', 'warning_line_digest'
     ];
     const binding = entry?.answer_body_binding;
     const bindingValid = binding === null || (
@@ -2237,6 +2288,12 @@ function validateAuditFailure(entry, identity, paths, env) {
         || Object.keys(entry).sort().join(',') !== expectedKeys.sort().join(',')
         || entry.schema_version !== 'brainbase-judgment-audit-failure-v1'
         || entry.reason !== 'judgment_episode_not_found'
+        || entry.reason_code !== 'judgment_episode_not_found'
+        || entry.audit_status !== 'missing'
+        || entry.blocking !== false
+        || canonicalJson(entry.affected_range) !== canonicalJson({ turn_refs: [paths.turnRef] })
+        || entry.recovery_result !== 'continuation_recorded'
+        || entry.next_action !== 'preserve_answer_and_record_gap'
         || entry.session_ref !== identity.sessionRef
         || entry.turn_ref !== paths.turnRef
         || entry.journal_root_digest !== sha256(journalRoot(env))
@@ -2268,11 +2325,17 @@ function existingOrCreateAuditFailure(payload, identity, paths, env) {
         schema_version: 'brainbase-judgment-audit-failure-v1',
         recorded_at: new Date().toISOString(),
         reason: 'judgment_episode_not_found',
+        reason_code: 'judgment_episode_not_found',
+        audit_status: 'missing',
+        blocking: false,
+        affected_range: { turn_refs: [paths.turnRef] },
+        recovery_result: 'continuation_recorded',
+        next_action: 'preserve_answer_and_record_gap',
         session_ref: identity.sessionRef,
         turn_ref: paths.turnRef,
         journal_root_digest: sha256(journalRoot(env)),
         host_digest: sha256(readFileSync(SCRIPT_PATH)),
-        episode_candidate_count: orphanEpisodeCandidateCount(paths),
+        episode_candidate_count: orphanEpisodeCandidateCount(identity, env),
         repair_requested: payload.stop_hook_active !== true,
         stop_hook_active: payload.stop_hook_active === true,
         warning_line_digest: sha256(ORPHAN_AUDIT_WARNING),
@@ -2302,6 +2365,12 @@ function createAuditDegraded(payload, paths, diagnostic) {
         schema_version: 'brainbase-judgment-audit-degraded-v1',
         completion_status: 'audit_degraded',
         reason: 'judgment_episode_not_found',
+        reason_code: 'judgment_episode_not_found',
+        audit_status: 'degraded',
+        blocking: false,
+        affected_range: { turn_refs: [diagnostic.turn_ref] },
+        recovery_result: 'continuation_recorded',
+        next_action: 'continue_existing_task',
         session_ref: diagnostic.session_ref,
         turn_ref: diagnostic.turn_ref,
         diagnostic_digest: sha256(canonicalJson(diagnostic)),
@@ -2330,15 +2399,22 @@ function createAuditDegraded(payload, paths, diagnostic) {
 
 function validateAuditDegraded(entry, diagnostic) {
     const expectedKeys = [
-        'answer_body_preserved', 'answer_digest', 'completion_status', 'diagnostic_digest',
-        'finalized_at', 'owner_warning_displayed', 'reason', 'schema_version', 'session_ref',
-        'stop_hook_active', 'turn_ref'
+        'affected_range', 'answer_body_preserved', 'answer_digest', 'audit_status', 'blocking',
+        'completion_status', 'diagnostic_digest', 'finalized_at', 'next_action',
+        'owner_warning_displayed', 'reason', 'reason_code', 'recovery_result',
+        'schema_version', 'session_ref', 'stop_hook_active', 'turn_ref'
     ];
     if (!record(entry)
         || Object.keys(entry).sort().join(',') !== expectedKeys.sort().join(',')
         || entry.schema_version !== 'brainbase-judgment-audit-degraded-v1'
         || entry.completion_status !== 'audit_degraded'
         || entry.reason !== 'judgment_episode_not_found'
+        || entry.reason_code !== 'judgment_episode_not_found'
+        || entry.audit_status !== 'degraded'
+        || entry.blocking !== false
+        || canonicalJson(entry.affected_range) !== canonicalJson({ turn_refs: [diagnostic.turn_ref] })
+        || entry.recovery_result !== 'continuation_recorded'
+        || entry.next_action !== 'continue_existing_task'
         || entry.session_ref !== diagnostic.session_ref
         || entry.turn_ref !== diagnostic.turn_ref
         || entry.diagnostic_digest !== sha256(canonicalJson(diagnostic))
@@ -2396,6 +2472,12 @@ function handleOrphanStop(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new Error('judgment_episode_identity_missing');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+    const recovered = recoverEpisode(payload, identity, paths, env);
+    if (recovered) {
+        return withEpisodeTransitionLock(recovered.paths, () => finalizeEpisodeLocked(
+            payload, verifyEpisode(readJson(recovered.paths.episode)), recovered.paths, env
+        ).output, env);
+    }
     return withEpisodeTransitionLock(paths, () => {
         const episode = existingEpisode(payload, env);
         if (episode) return finalizeEpisodeLocked(payload, episode, paths, env).output;
@@ -2407,6 +2489,14 @@ function handleOrphanStop(payload, { env = process.env } = {}) {
                 reason: `judgment_episode_not_found。${ORPHAN_AUDIT_WARNING}\n最終回答の先頭に上の監査行をそのまま1回追加し、その後に元の回答本文を削除・要約・置換せずそのまま続けてください。`
             };
         }
+        let alreadyDegraded = false;
+        try {
+            validateAuditDegraded(readJson(paths.auditDegraded), diagnosticState.entry);
+            alreadyDegraded = true;
+        } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+        }
+        if (alreadyDegraded) return {};
         createAuditDegraded(payload, paths, diagnosticState.entry);
         return { systemMessage: ORPHAN_AUDIT_WARNING };
     }, env);
