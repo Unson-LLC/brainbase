@@ -3,6 +3,7 @@
 import { chmodSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
+import { hasNonEmptySecret, normalizeInfisicalExport } from './lib/infisical-export.mjs';
 
 const [mode, beforePath, observedPath, evidencePath] = process.argv.slice(2);
 if (!['pre-delete', 'final'].includes(mode) || !beforePath || !observedPath || !evidencePath) {
@@ -17,14 +18,14 @@ let before = {};
 let observed = {};
 let parseError = false;
 try {
-    before = JSON.parse(readFileSync(beforePath, 'utf8'));
-    observed = JSON.parse(readFileSync(observedPath, 'utf8'));
+    before = normalizeInfisicalExport(JSON.parse(readFileSync(beforePath, 'utf8')));
+    observed = normalizeInfisicalExport(JSON.parse(readFileSync(observedPath, 'utf8')));
 } catch {
     parseError = true;
 }
 
-const beforeSchemaValid = [PUBLIC, PRIVATE, KEY_ID].every((key) => Object.hasOwn(before, key));
-const observedSchemaValid = [PRIVATE, KEY_ID].every((key) => Object.hasOwn(observed, key));
+const beforeSchemaValid = [PRIVATE, KEY_ID].every((key) => hasNonEmptySecret(before, key));
+const observedSchemaValid = [PRIVATE, KEY_ID].every((key) => hasNonEmptySecret(observed, key));
 const privateKeyPreserved = beforeSchemaValid && observedSchemaValid && before[PRIVATE] === observed[PRIVATE];
 const keyIdPreserved = beforeSchemaValid && observedSchemaValid && before[KEY_ID] === observed[KEY_ID];
 const publicOverridePresent = Object.hasOwn(observed, PUBLIC);
