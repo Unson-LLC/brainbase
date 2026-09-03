@@ -1,4 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
+import { readFileSync, realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import {
   authenticateProject,
@@ -21,6 +24,8 @@ export type JudgmentResolutionDependencies = AuthenticatedApiDependencies & {
   adapterId: string;
   adapterVersion: string;
   now?: () => Date;
+  judgmentJournalRoot?: string;
+  readTurnInputFile?: (path: string) => string;
 };
 
 export type TurnInput = {
@@ -74,11 +79,14 @@ const classificationSchema = {
 
 export const judgmentResolutionTools: Tool[] = [{
   name: 'brainbase_resolve_turn',
-  description: 'Resolve the current turn contract after the model has interpreted the user request. Call exactly once before other work; pass the Hook-provided turn_input unchanged and add only model_interpretation.',
+  description: 'Resolve the current turn contract after the model has interpreted the user request. Call exactly once before other work; pass the Hook-provided turn_input unchanged (or, preferably, the Hook-provided file reference as turn_input: {"turn_input_path": "<path>"}) and add only model_interpretation.',
   inputSchema: {
     type: 'object',
     properties: {
-      turn_input: { type: 'object' },
+      turn_input: {
+        type: 'object',
+        description: 'Either the full Hook-provided turn_input object, or {"turn_input_path": "<absolute path of the Hook-saved *.turn-input.json>"}; the server loads the file itself so the content never passes through the model.',
+      },
       model_interpretation: classificationSchema,
     },
     required: ['turn_input', 'model_interpretation'],
@@ -366,6 +374,41 @@ export async function resolveJudgmentBeforeModel(
 }
 
 /** Dispatch the model-callable turn resolver and the temporary internal compatibility name. */
+function pathInside(path: string, root: string): boolean {
+  const delta = relative(root, path);
+  return delta === '' || (!delta.startsWith(`..${sep}`) && delta !== '..' && !isAbsolute(delta));
+}
+
+// The Host saves turn_input to its journal because Codex Desktop cannot carry a
+// large turn_input through model context or tool output without truncation.
+function loadTurnInputReference(
+  reference: Record<string, unknown>,
+  dependencies: JudgmentResolutionDependencies,
+): { turnInput?: Record<string, unknown>; error?: string } {
+  const requested = reference.turn_input_path;
+  if (typeof requested !== 'string' || !requested.trim()) return { error: 'turn_input_path must be a non-empty string' };
+  const root = resolve(dependencies.judgmentJournalRoot ?? join(homedir(), '.codex', 'var', 'judgment-resolver'));
+  let canonical: string;
+  try {
+    canonical = realpathSync(resolve(requested));
+  } catch {
+    return { error: 'turn_input_path does not exist' };
+  }
+  let canonicalRoot = root;
+  try { canonicalRoot = realpathSync(root); } catch { /* keep configured root */ }
+  if (!pathInside(canonical, canonicalRoot) || !canonical.endsWith('.turn-input.json')) {
+    return { error: 'turn_input_path must point at a Hook-saved *.turn-input.json inside the judgment journal' };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse((dependencies.readTurnInputFile ?? ((path: string) => readFileSync(path, 'utf8')))(canonical));
+  } catch {
+    return { error: 'turn_input_path content is not valid JSON' };
+  }
+  if (!isRecord(parsed)) return { error: 'turn_input_path content is not a turn_input object' };
+  return { turnInput: parsed };
+}
+
 export async function handleJudgmentResolutionToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -375,8 +418,16 @@ export async function handleJudgmentResolutionToolCall(
     if (!isRecord(args.turn_input) || !isRecord(args.model_interpretation)) {
       return toolError('error', 'judgment_resolution_input_invalid', 'turn_input and model_interpretation are required', []);
     }
+    let turnInput: Record<string, unknown> = args.turn_input;
+    if (hasOnlyKeys(args.turn_input, ['turn_input_path'])) {
+      const loaded = loadTurnInputReference(args.turn_input, dependencies);
+      if (!loaded.turnInput) {
+        return toolError('error', 'judgment_resolution_input_invalid', loaded.error ?? 'turn_input_path is invalid', []);
+      }
+      turnInput = loaded.turnInput;
+    }
     return resolveJudgmentBeforeModel({
-      ...args.turn_input,
+      ...turnInput,
       model_interpretation: args.model_interpretation,
     }, dependencies);
   }
