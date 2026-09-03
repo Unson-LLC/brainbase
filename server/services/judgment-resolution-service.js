@@ -344,7 +344,6 @@ function sortByOrder(values, order) {
 function validatedClassification(value, name, manifest) {
     exactFields(value, CLASSIFICATION_FIELDS, name);
     const domains = uniqueEnumArray(value.domains, `${name}.domains`, DOMAINS);
-    if (domains.includes('general') && domains.length > 1) fail('general cannot be combined with another domain');
     return {
         intent: enumValue(value.intent, `${name}.intent`, INTENTS),
         domains: sortByOrder(domains, manifest.selectors.domain_order),
@@ -1041,13 +1040,18 @@ function topologicallySortNodes(nodes, edges) {
 
 function knowledgeCapabilities(input, classification) {
     if (!classification?.domains.includes('knowledge')) return [];
+    const contentType = classification.domains.includes('personal_judgment')
+        ? 'personal_knowledge'
+        : classification.domains.includes('operations')
+            ? 'operational_state'
+            : 'unknown';
     return [{
         capability: 'knowledge.resolve',
         status: 'required',
         input: {
             intent: 'lookup',
             audience: classification.domains.includes('personal_judgment') ? 'personal' : 'team',
-            content_type: 'unknown',
+            content_type: contentType,
             project_code: input.project_code
         },
         receipt_required: true

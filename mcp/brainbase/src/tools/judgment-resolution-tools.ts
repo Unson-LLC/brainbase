@@ -176,7 +176,6 @@ function isClassification(value: unknown): value is Record<string, unknown> {
   return INTENTS.includes(value.intent as typeof INTENTS[number])
     && isStringArray(domains, { nonEmpty: true, unique: true })
     && domains.every((domain) => DOMAINS.includes(domain as typeof DOMAINS[number]))
-    && (!domains.includes('general') || domains.length === 1)
     && ACTIONS.includes(value.action_kind as typeof ACTIONS[number])
     && RISKS.includes(value.risk as typeof RISKS[number])
     && CONFIDENCES.includes(value.confidence as typeof CONFIDENCES[number])
