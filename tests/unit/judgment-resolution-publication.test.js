@@ -1211,6 +1211,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(lightsailRunbook).toContain('git?.sha !== process.env.TARGET_SHA');
         expect(lightsailRunbook).toContain('Unexpected public runtime Git state');
         expect(lightsailRunbook).toContain('brainbase_wait_for_lightsail_ready');
+        expect(lightsailRunbook.match(/brainbase_wait_for_lightsail_ready\(\)/gu)).toHaveLength(2);
         expect(lightsailRunbook).toContain('brainbase_wait_for_public_version');
         expect(lightsailRunbook).not.toContain('sleep 3');
         expect(lightsailRunbook).toContain('git switch --detach "$ROLLBACK_SHA"');

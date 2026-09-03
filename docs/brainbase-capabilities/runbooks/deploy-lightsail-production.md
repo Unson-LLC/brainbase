@@ -261,6 +261,18 @@ if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock
   npm ci --omit=dev
 fi
 sudo systemctl restart brainbase-ssot.service
+brainbase_wait_for_lightsail_ready() {
+  local attempt
+  for attempt in $(seq 1 30); do
+    if curl -fsS --connect-timeout 5 --max-time 10 \
+      http://127.0.0.1:55123/api/health >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "Lightsail rollback runtime did not become ready" >&2
+  return 1
+}
 brainbase_wait_for_lightsail_ready
 curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
 const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
