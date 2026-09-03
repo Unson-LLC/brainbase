@@ -4,6 +4,8 @@ set -euo pipefail
 mcp_url="${GROWIN_BRAINBASE_MCP_URL:-https://brainbase-mcp-lmc74punpa-an.a.run.app/mcp}"
 api_url="${GROWIN_BRAINBASE_API_URL:-https://brainbase-api-lmc74punpa-an.a.run.app}"
 token_file="${GROWIN_BRAINBASE_TOKEN_FILE:-${HOME}/.brainbase/growin/tokens.json}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/../.." && pwd)"
 
 command -v claude >/dev/null || { echo "Claude Code が必要です" >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq が必要です" >&2; exit 1; }
@@ -15,9 +17,19 @@ token_is_current() {
   ' "$token_file" >/dev/null 2>&1
 }
 
+token_can_refresh() {
+  [[ -f "$token_file" ]] && jq -e '
+    .refresh_token | type == "string" and length > 0
+  ' "$token_file" >/dev/null 2>&1
+}
+
+if ! token_is_current && token_can_refresh; then
+  BRAINBASE_API_URL="$api_url" BRAINBASE_TOKEN_FILE="$token_file" node "$repo_root/scripts/refresh-auth-token.mjs" || true
+fi
+
 if ! token_is_current; then
   echo "Growin専用の個人認証を開始します。ブラウザでGrowinのGoogle Workspace認証を完了してください。"
-  BRAINBASE_API_URL="$api_url" BRAINBASE_TOKEN_FILE="$token_file" node scripts/auth-setup.mjs
+  BRAINBASE_API_URL="$api_url" BRAINBASE_TOKEN_FILE="$token_file" node "$repo_root/scripts/auth-setup.mjs"
 fi
 token="$(jq -er '.access_token | select(type == "string" and length > 0)' "$token_file")" || {
   echo "Growin専用の個人トークンを読み込めません。再認証してください: $token_file" >&2

@@ -51,7 +51,7 @@ describe('minimal device web surface', () => {
         expect(controller).not.toContain("addEventListener('message'");
     });
 
-    it('re-authenticates the isolated Growin launcher before an access token expires', () => {
+    it('refreshes the isolated Growin launcher before falling back to interactive authentication', () => {
         const launcher = fs.readFileSync(
             path.join(repoRoot, 'scripts/growin/run-claude-isolated.sh'),
             'utf8'
@@ -59,6 +59,8 @@ describe('minimal device web surface', () => {
 
         expect(launcher).toContain('token_is_current');
         expect(launcher).toContain('(.issued_at // 0) + (.expires_in // 0) > (now + 60)');
-        expect(launcher).toContain('BRAINBASE_TOKEN_FILE="$token_file" node scripts/auth-setup.mjs');
+        expect(launcher).toContain('token_can_refresh');
+        expect(launcher).toContain('node "$repo_root/scripts/refresh-auth-token.mjs" || true');
+        expect(launcher).toContain('BRAINBASE_TOKEN_FILE="$token_file" node "$repo_root/scripts/auth-setup.mjs"');
     });
 });
