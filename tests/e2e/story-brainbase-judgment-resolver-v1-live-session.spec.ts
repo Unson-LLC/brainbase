@@ -302,7 +302,7 @@ test('story-brainbase-judgment-resolver-v1 AC-9 ac:9 clarification continuation 
 
     assert.ok(
         REGRESSION_SCRIPT.includes(managedTurnTestPath)
-            && readFileSync(join(process.cwd(), managedTurnTestPath), 'utf8').includes("active_nodes).toContain('clarification')"),
+            && readFileSync(join(process.cwd(), managedTurnTestPath), 'utf8').includes("bootstrap.receipt.active_nodes).toContain('clarification')"),
         'AC-9/ac:9 clarification continuation regression must remain in the release suite'
     );
 });
@@ -546,7 +546,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         'story-brainbase-judgment-resolver-v1 ac:8 structured Knowledge Resolver handoff evidence must pass'
     );
     assert.ok(
-        regressionCovers('tests/integration/judgment-managed-turn-e2e.test.js', 'clarification.execution_status', regression.status),
+        regressionCovers('tests/integration/judgment-managed-turn-e2e.test.js', "bootstrap.receipt.active_nodes).toContain('clarification')", regression.status),
         'story-brainbase-judgment-resolver-v1 ac:9 clarification continuation evidence must pass'
     );
     assert.ok(
@@ -572,11 +572,11 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         'story-brainbase-judgment-resolver-v1 ac:14 live result-dependent 0..N retrieval evidence must pass'
     );
     assert.ok(
-        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'Claude Codeは将来のHost adapter候補', regression.status),
+        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'future Host-adapter candidate', regression.status),
         'story-brainbase-judgment-resolver-v1 ac:15 future Claude Code adapter boundary evidence must pass'
     );
     assert.ok(
-        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'Skill・capability・runbook・specがmodel非依存の同じ境界を公開する', regression.status),
+        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'Skill・capability・runbook・specがmodel-firstの同じ境界を公開する', regression.status),
         'story-brainbase-judgment-resolver-v1 ac:16 publication surface consistency evidence must pass'
     );
     assert.ok(
