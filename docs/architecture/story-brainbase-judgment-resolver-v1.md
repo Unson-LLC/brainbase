@@ -18,7 +18,7 @@ The first issue was a trust-boundary defect. The remaining issue is a lifecycle 
 The purpose is to apply Brainbase judgment to every answer and make actual knowledge use auditable without constraining the model's useful investigation loop. From that purpose:
 
 1. Judgment begins before the model chooses how to answer.
-2. The Host owns canonical `conversation_context`; the model calls `brainbase_resolve_turn` once with only the Host-issued `turn_ref` and its semantic interpretation, then Resolver reads the unchanged canonical input from the Host journal and selects the initial route from the runtime manifest.
+2. The Host owns canonical `conversation_context`; the preferred model path calls `brainbase_resolve_turn` once with only the Host-issued `turn_ref` and its semantic interpretation, then Resolver reads the unchanged canonical input from the Host journal and selects the initial route from the runtime manifest. During cached-schema migration the server also accepts legacy `turn_input.turn_ref`, `turn_input_path`, and full `turn_input` forms; these are compatibility inputs, not alternate canonical ownership.
 3. One turn is one judgment episode, not one Resolver attempt and not one Brainbase call.
 4. The model calls Judgment Resolver exactly once for the current turn, then may call Brainbase knowledge/retrieval tools 0..N times as results create new questions.
 5. `PostToolUse` records actual Brainbase outcomes in an atomic journal-commit order; `Stop` shares that transition boundary and finalizes one episode receipt.
@@ -97,8 +97,8 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 ## Acceptance criteria
 
 1. Every `UserPromptSubmit` opens or reuses one unresolved judgment episode and saves canonical turn input.
-2. Every model turn calls `brainbase_resolve_turn` before other work, with the saved input unchanged and an explicit model interpretation.
-3. `brainbase_resolve_turn` is the single model-visible Judgment Resolver entrypoint; it accepts only the Host-issued `turn_ref` and model interpretation, while the server reads unchanged canonical input from the Host journal.
+2. Every model turn calls `brainbase_resolve_turn` before other work, using the Host-issued `turn_ref` for the unchanged saved input and an explicit model interpretation.
+3. `brainbase_resolve_turn` is the single model-visible Judgment Resolver entrypoint. Its preferred input is the Host-issued `turn_ref` and model interpretation, while the server reads unchanged canonical input from the Host journal. Cached-schema legacy forms (`turn_input.turn_ref`, `turn_input_path`, or full `turn_input`) remain migration-only compatibility paths and cannot replace Host ownership in the preferred path.
 4. Canonical context preserves ordered exact user/assistant text and current request exactly once.
 5. Resolver owns deterministic manifest-backed classification, policy, required capabilities, and active-DAG selection, with no LLM provider/API dependency.
 6. The model may execute 0..N tool calls after the initial route; Brainbase calls alone produce owner-visible Brainbase lines.

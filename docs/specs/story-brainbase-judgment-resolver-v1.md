@@ -34,7 +34,7 @@ The invariant is not one network call or one knowledge call per turn. Bounded tr
 
 ### UserPromptSubmit
 
-Required `turn_input` is `session_id`, `turn_id`, non-empty `prompt`, optional `transcript_path`, `cwd`, `model`, and `permission_mode`. The Host constructs canonical context and saves that exact input. `brainbase_resolve_turn` must submit it unchanged with `model_interpretation`; an invalid payload or untrusted/mismatched context fails closed.
+Canonical `turn_input` contains `session_id`, `turn_id`, non-empty `prompt`, optional `transcript_path`, `cwd`, `model`, and `permission_mode`. The Host constructs canonical context and saves that exact input. The preferred model path submits only the Host-issued `turn_ref` with `model_interpretation`; the server loads the unchanged canonical input from the Host journal. Cached-schema compatibility may submit `turn_input.turn_ref`, `turn_input_path`, or full `turn_input`, but those legacy forms are not the new canonical ownership path. An invalid payload or untrusted/mismatched context fails closed.
 
 ### PostToolUse
 
