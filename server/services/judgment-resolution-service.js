@@ -375,6 +375,18 @@ function validatePolicy(policy, seen) {
     if (policy.strength === 'hard' && !['require', 'forbid'].includes(decision)) throw new TypeError(`policy ${policy.id} hard effect is invalid`);
     if (policy.strength === 'soft' && decision !== 'prefer') throw new TypeError(`policy ${policy.id} soft effect is invalid`);
     if (typeof policy.instruction !== 'string' || !policy.instruction) throw new TypeError(`policy ${policy.id} instruction is invalid`);
+    if (policy.human_approval !== undefined) {
+        const approval = policy.human_approval;
+        if (!approval || typeof approval !== 'object' || Array.isArray(approval)) throw new TypeError(`policy ${policy.id} human_approval is invalid`);
+        const keys = Object.keys(approval);
+        if (keys.length === 0 || keys.some((key) => !['action_kinds', 'risks'].includes(key))) throw new TypeError(`policy ${policy.id} human_approval is invalid`);
+        if (approval.action_kinds !== undefined && (!Array.isArray(approval.action_kinds) || approval.action_kinds.length === 0 || approval.action_kinds.some((kind) => !ACTIONS.includes(kind)))) {
+            throw new TypeError(`policy ${policy.id} human_approval action_kinds is invalid`);
+        }
+        if (approval.risks !== undefined && (!Array.isArray(approval.risks) || approval.risks.length === 0 || approval.risks.some((risk) => !RISKS.includes(risk)))) {
+            throw new TypeError(`policy ${policy.id} human_approval risks is invalid`);
+        }
+    }
 }
 
 function validateStringTerms(value, name, { allowEmpty = false } = {}) {
@@ -505,12 +517,15 @@ function validateManifest(manifest, lock) {
     const autonomy = manifest.autonomy;
     if (!autonomy || autonomy.schema_version !== 'brainbase-autonomy-policy-v1') throw new TypeError('judgment autonomy policy is invalid');
     validateStringTerms(autonomy.continue_risks, 'judgment autonomy continue risks');
-    validateStringTerms(autonomy.escalate_risks, 'judgment autonomy escalate risks');
-    validateStringTerms(autonomy.escalate_action_kinds, 'judgment autonomy escalate action kinds');
+    validateStringTerms(autonomy.escalate_risks, 'judgment autonomy escalate risks', { allowEmpty: true });
+    validateStringTerms(autonomy.escalate_action_kinds, 'judgment autonomy escalate action kinds', { allowEmpty: true });
     validateStringTerms(autonomy.runtime_escalation_reasons, 'judgment autonomy runtime escalation reasons');
+    // escalate_risks / escalate_action_kinds are no longer consulted by autonomyResolution
+    // (classification alone never auto-escalates); they stay schema-validated so a stale
+    // manifest cannot silently reintroduce a hidden auto-escalation source.
     if (canonicalJson(autonomy.continue_risks) !== canonicalJson(['low', 'medium'])
-        || canonicalJson(autonomy.escalate_risks) !== canonicalJson(['high', 'critical'])
-        || canonicalJson(autonomy.escalate_action_kinds) !== canonicalJson(['external'])
+        || autonomy.escalate_risks.some((risk) => !RISKS.includes(risk))
+        || autonomy.escalate_action_kinds.some((kind) => !ACTIONS.includes(kind))
         || autonomy.runtime_escalation_reasons.length !== RUNTIME_ESCALATION_REASONS.size
         || autonomy.runtime_escalation_reasons.some((reason) => !RUNTIME_ESCALATION_REASONS.has(reason))) {
         throw new TypeError('judgment autonomy policy boundary is invalid');
@@ -521,22 +536,40 @@ function validateManifest(manifest, lock) {
     return digest;
 }
 
-function autonomyResolution(status, classification, manifest) {
+// Policies whose `human_approval` rule matches this turn's classification, in
+// deterministic policy-id order. A non-empty result is the only source of a
+// risk_or_external escalation now — classification alone never auto-escalates.
+function humanApprovalPolicyIds(classification, applicablePolicies) {
+    const matched = [];
+    for (const policy of applicablePolicies) {
+        const rule = policy?.human_approval;
+        if (!rule) continue;
+        const riskMatch = Array.isArray(rule.risks) && rule.risks.includes(classification.risk);
+        const actionMatch = Array.isArray(rule.action_kinds) && rule.action_kinds.includes(classification.action_kind);
+        if (riskMatch || actionMatch) matched.push(policy.id);
+    }
+    return matched.sort(compareCodePoints);
+}
+
+function autonomyResolution(status, classification, manifest, applicablePolicies = []) {
     let decision;
     let reasonCode;
+    let policyIds = [];
     if (status === 'needs_classification') {
         decision = 'escalate';
         reasonCode = 'classification_missing';
     } else if (status === 'needs_policy_resolution') {
         decision = 'escalate';
         reasonCode = 'policy_conflict';
-    } else if (manifest.autonomy.escalate_risks.includes(classification.risk)
-        || manifest.autonomy.escalate_action_kinds.includes(classification.action_kind)) {
-        decision = 'escalate';
-        reasonCode = 'risk_or_external';
     } else {
-        decision = 'continue';
-        reasonCode = 'routine_in_scope';
+        policyIds = humanApprovalPolicyIds(classification, applicablePolicies);
+        if (policyIds.length > 0) {
+            decision = 'escalate';
+            reasonCode = 'risk_or_external';
+        } else {
+            decision = 'continue';
+            reasonCode = 'routine_in_scope';
+        }
     }
     if (!AUTONOMY_DECISIONS.has(decision) || !AUTONOMY_REASON_CODES.has(reasonCode)) {
         throw new TypeError('judgment autonomy resolution is invalid');
@@ -546,7 +579,8 @@ function autonomyResolution(status, classification, manifest) {
         autonomy_reason_code: reasonCode,
         allowed_runtime_escalation_reasons: decision === 'continue'
             ? [...manifest.autonomy.runtime_escalation_reasons]
-            : []
+            : [],
+        autonomy_policy_ids: policyIds
     };
 }
 
@@ -1077,7 +1111,7 @@ export class JudgmentResolutionService {
             : policies.conflict
                 ? 'needs_policy_resolution'
                 : 'resolved';
-        const autonomy = autonomyResolution(status, reconciliation.classification, this.manifest);
+        const autonomy = autonomyResolution(status, reconciliation.classification, this.manifest, policies.applicable);
         const requestDigest = computeRequestDigest(rawInput);
         const contextDigest = rawInput.conversation_context === undefined
             ? null

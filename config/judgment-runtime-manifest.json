@@ -1,14 +1,14 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-2.4.3",
+  "runtime_version": "judgment-runtime-2.4.4",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
   "autonomy": {
     "schema_version": "brainbase-autonomy-policy-v1",
     "continue_risks": ["low", "medium"],
-    "escalate_risks": ["high", "critical"],
-    "escalate_action_kinds": ["external"],
+    "escalate_risks": [],
+    "escalate_action_kinds": [],
     "runtime_escalation_reasons": [
       "irreversible_action",
       "missing_authority",
@@ -113,6 +113,19 @@
       "evidence_requirement": "Observation, hypothesis, prediction, falsification, and update are visible.",
       "effect": { "decision": "require", "target": "hypothesis_falsification_loop" },
       "instruction": "Observe, hypothesize, derive a prediction, falsify it, then update the model."
+    },
+    {
+      "id": "global.high-stakes-human-approval.v1",
+      "version": "1",
+      "priority": 120,
+      "strength": "hard",
+      "scope": { "type": "global", "id": null },
+      "visibility": "organization",
+      "owner_person_id": null,
+      "evidence_requirement": "The action is a production deployment, an external send to a third party, deletion of shared data, or a financial charge, and an explicit human approval for it is on record.",
+      "effect": { "decision": "require", "target": "human_approval" },
+      "instruction": "Stop and get explicit human approval before a production deploy, third-party external send, shared-data delete, or charge. Do not treat routine git push/merge/CI/restart/local reflect/company Slack posts as requiring this.",
+      "human_approval": { "risks": ["critical"] }
     }
   ],
   "nodes": [
@@ -172,7 +185,7 @@
     { "id": "cumulative-complexity.v1", "kind": "constraint", "path": ["controller-scope", "subtract-first", "external-outcome-check"], "policy_ids": ["global.subtraction-first.v1", "global.external-outcome-first.v1"] },
     { "id": "threshold.v1", "kind": "constraint", "path": ["threshold-source", "measurability", "false-decision-cost"], "policy_ids": ["global.no-unsupported-threshold.v1"] },
     { "id": "parallel.v1", "kind": "constraint", "path": ["separate-generation-adoption", "parallel-adoption-control"], "policy_ids": ["global.preserve-parallel-exploration.v1"] },
-    { "id": "authority.v1", "kind": "constraint", "path": ["authority-check", "enforcement-point", "human-approval"], "policy_ids": ["global.action-authorization-separate.v1"] },
+    { "id": "authority.v1", "kind": "constraint", "path": ["authority-check", "enforcement-point", "human-approval"], "policy_ids": ["global.action-authorization-separate.v1", "global.high-stakes-human-approval.v1"] },
     { "id": "problem-frame.v1", "kind": "constraint", "path": ["problem-definition", "challenge-problem-frame", "rederive"], "policy_ids": ["global.problem-frame-rederive.v1"] },
     { "id": "external-outcome.v1", "kind": "constraint", "path": ["internal-output", "downstream-outcome"], "policy_ids": ["global.external-outcome-first.v1"] },
     { "id": "clarification.v1", "kind": "fail_closed", "path": ["clarification"], "policy_ids": [] }
