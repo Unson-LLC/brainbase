@@ -245,11 +245,7 @@ describe('remote judgment Hook HTTP boundary', () => {
           tool_response: {
             content: [{
               type: 'text',
-              text: [
-                'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
-                'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
-                '📚 Brainbase検索: Graphで「remote toolName alias」を検索 → 結果を取得 ✓',
-              ].join('\n'),
+              text: '<!-- brainbase-knowledge-owner-audit:{"schema_version":"brainbase-knowledge-owner-audit-v1","operation":"検索","outcome":"結果を取得"} -->',
             }],
           },
         })),

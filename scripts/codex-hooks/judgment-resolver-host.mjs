@@ -1410,17 +1410,23 @@ function retrievalAudit(response) {
             ? record(content.at(-1))?.text
             : typeof item === 'string' ? item : record(item)?.text;
         if (typeof text !== 'string') continue;
-        const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
-        if (lines.length !== 3
-            || lines[0] !== 'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.'
-            || lines[1] !== 'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.') {
+        const match = text.trim().match(/^<!-- brainbase-knowledge-owner-audit:(\{[^\r\n]+\}) -->$/u);
+        if (!match) continue;
+        let audit;
+        try {
+            audit = JSON.parse(match[1]);
+        } catch {
             continue;
         }
-        const terminalLine = lines[2];
-        const noResult = terminalLine.match(/^📚 Brainbase(検索|取得): [^\r\n]* → 該当なし（不在確定ではない）$/u);
-        if (noResult) return { kind: noResult[1] === '検索' ? 'search' : 'retrieve', outcome: 'no_result' };
-        const result = terminalLine.match(/^📚 Brainbase(検索|取得): [^\r\n]* → 結果を取得 ✓$/u);
-        if (result) return { kind: result[1] === '検索' ? 'search' : 'retrieve', outcome: 'result' };
+        if (audit?.schema_version !== 'brainbase-knowledge-owner-audit-v1'
+            || !['検索', '取得'].includes(audit.operation)
+            || !['結果を取得', '該当なし（不在確定ではない）'].includes(audit.outcome)) {
+            continue;
+        }
+        return {
+            kind: audit.operation === '検索' ? 'search' : 'retrieve',
+            outcome: audit.outcome === '結果を取得' ? 'result' : 'no_result'
+        };
     }
     return null;
 }

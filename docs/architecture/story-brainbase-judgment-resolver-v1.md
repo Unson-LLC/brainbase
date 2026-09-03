@@ -18,9 +18,9 @@ The first issue was a trust-boundary defect. The remaining issue is a lifecycle 
 The purpose is to apply Brainbase judgment to every answer and make actual knowledge use auditable without constraining the model's useful investigation loop. From that purpose:
 
 1. Judgment begins before the model chooses how to answer.
-2. The Host owns canonical `conversation_context`; Resolver deterministically classifies that context and selects the initial route from the runtime manifest.
+2. The Host owns canonical `conversation_context`; the model calls `brainbase_resolve_turn` once with only the Host-issued `turn_ref` and its semantic interpretation, then Resolver reads the unchanged canonical input from the Host journal and selects the initial route from the runtime manifest.
 3. One turn is one judgment episode, not one Resolver attempt and not one Brainbase call.
-4. The model cannot call Judgment Resolver, but may call Brainbase knowledge/retrieval tools 0..N times as results create new questions.
+4. The model calls Judgment Resolver exactly once for the current turn, then may call Brainbase knowledge/retrieval tools 0..N times as results create new questions.
 5. `PostToolUse` records actual Brainbase outcomes in an atomic journal-commit order; `Stop` shares that transition boundary and finalizes one episode receipt.
 6. Required knowledge gets one continuation opportunity; if it is still missing, the active Stop fails explicitly without fabricating a final receipt.
 7. Judgment evidence constrains reasoning but is not action authorization.
@@ -30,9 +30,12 @@ The purpose is to apply Brainbase judgment to every answer and make actual knowl
 ```text
 UserPromptSubmit
   -> canonical transcript/context
-  -> loopback signed Resolver bridge
-  -> immutable initial route + judgment episode
-  -> model generation with selected active DAG
+  -> immutable bootstrap judgment episode
+
+model
+  -> brainbase_resolve_turn(turn_ref, model_interpretation)
+  -> loopback signed Resolver bridge reads canonical input from Host journal
+  -> immutable resolved route + selected active DAG
 
 model/tool loop (0..N)
   -> any tool call
@@ -46,17 +49,17 @@ Stop
      or one continuation -> explicit failure with no final receipt
 ```
 
-The model-visible MCP catalog has no Judgment Resolver tool. The persistent runtime remains the trusted signing bridge because it owns the API token, binding secret, and adapter identity. Model-visible Brainbase knowledge tools remain available for iterative use.
+The model-visible MCP catalog exposes only `brainbase_resolve_turn` for this lifecycle. Its input cannot replace canonical conversation text, policy, routing rules, or authority; it carries the Host-issued `turn_ref` and the model's semantic interpretation. The persistent runtime remains the trusted signing bridge because it owns the API token, binding secret, and adapter identity. Model-visible Brainbase knowledge tools remain available for iterative use.
 
 ## Runtime responsibility split
 
 | Component | Current responsibility | Model use |
 | --- | --- | --- |
-| Codex lifecycle Host adapter | Preserve canonical conversation context, call the loopback bridge, verify the returned receipt binding, own episode/event/finalization lifecycle, and publish audit lines. It neither holds the Resolver signing secret nor semantically reclassifies after episode creation. | No internal LLM |
+| Codex lifecycle Host adapter | Preserve canonical conversation context in the journal, issue `turn_ref`, verify the returned receipt binding, own episode/event/finalization lifecycle, and publish audit lines. It neither holds the Resolver signing secret nor supplies model interpretation. | No internal LLM |
 | Persistent Brainbase Host bridge | Hold the API token, its copy of the shared `BRAINBASE_JUDGMENT_BINDING_SECRET`, and adapter identity outside model context; bind and sign the Resolver API request. | No internal LLM; transports the model-callable request |
 | Resolver API/server | Hold the verifier copy of the same shared `BRAINBASE_JUDGMENT_BINDING_SECRET`, then verify the bridge signature and binding before passing canonical input to the Judgment Resolver service. | No internal LLM |
 | Judgment Resolver service | Reconcile model interpretation with canonical input and manifest-owned policy, inherit bounded context for under-specified follow-ups, apply monotonic keyword safety rails and select the active DAG. | No LLM provider; does not own natural-language understanding |
-| Codex model | Decide how to answer inside the returned active DAG, formulate and refine queries from observed evidence, and call Brainbase knowledge/retrieval tools 0..N times. It cannot author or replace the initial classification. | The open-ended LLM in the current execution loop |
+| Codex model | Call `brainbase_resolve_turn` once with `turn_ref` and an explicit semantic interpretation, then decide how to answer inside the returned active DAG, formulate and refine queries from observed evidence, and call Brainbase knowledge/retrieval tools 0..N times. It cannot supply canonical input, policy, or replace the resolved route. | The open-ended LLM in the current execution loop |
 | Knowledge Resolver | Deterministically select the canonical source route and required retrieval capability. It does not search or retrieve content. | No internal LLM |
 | Tool adapters | Perform file, shell, Graph, Personal KG, repo, Drive, wiki, and other operations. Every completed call produces a non-visible execution event; direct `mcp__brainbase__*` outcomes additionally produce owner-visible Brainbase audit lines. | Called by the Codex model |
 
@@ -95,23 +98,23 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 
 1. Every `UserPromptSubmit` opens or reuses one unresolved judgment episode and saves canonical turn input.
 2. Every model turn calls `brainbase_resolve_turn` before other work, with the saved input unchanged and an explicit model interpretation.
-2. Judgment Resolver is absent from model-visible MCP tools.
-3. Canonical context preserves ordered exact user/assistant text and current request exactly once.
-4. Resolver owns deterministic manifest-backed classification, policy, required capabilities, and active-DAG selection, with no LLM provider/API dependency.
-5. The model may execute 0..N tool calls after the initial route; Brainbase calls alone produce owner-visible Brainbase lines.
-6. Every matching `PostToolUse` creates at most one immutable event per `tool_use_id`.
-7. A replayed identical event is a no-op; a conflicting event fails loudly.
-8. Journals and visible traces exclude raw payloads/secrets and accurately distinguish route, search, retrieval, and write.
-9. Only a successful exact knowledge-route event satisfies required `knowledge.resolve`.
-10. `Stop` creates one immutable complete final receipt only after required capability, autonomy, continuation, and business-body evidence pass, then returns the journal-derived owner audit/value surface once as `systemMessage`.
-11. Missing required evidence triggers one continuation; an incomplete active retry converges to `audit_degraded` and never creates an infinite Stop loop.
-12. Zero Brainbase calls is valid when the selected judgment requires none.
-13. Open episodes do not become prior accepted receipts; legacy incomplete journals remain readable but are never newly created.
-14. Project scope absence does not reject judgment itself.
-15. Judgment receipts never authorize writes/external actions or introduce duplicate authorization.
-16. `CLAUDE.md`, `AGENTS.md`, Skill, capability, runbook, spec, and tests publish this same contract.
-17. The current Codex model remains responsible for open-ended query formulation and iterative investigation inside the selected DAG; Host and Resolver do not silently perform that model work. Claude Code support requires a separate Host adapter and lifecycle integration.
-18. Runtime 2.3 implement/operate completion is accepted only from one valid structured Stop state plus successful same-episode execution evidence; answer wording is not the primary completion signal.
+3. `brainbase_resolve_turn` is the single model-visible Judgment Resolver entrypoint; it accepts only the Host-issued `turn_ref` and model interpretation, while the server reads unchanged canonical input from the Host journal.
+4. Canonical context preserves ordered exact user/assistant text and current request exactly once.
+5. Resolver owns deterministic manifest-backed classification, policy, required capabilities, and active-DAG selection, with no LLM provider/API dependency.
+6. The model may execute 0..N tool calls after the initial route; Brainbase calls alone produce owner-visible Brainbase lines.
+7. Every matching `PostToolUse` creates at most one immutable event per `tool_use_id`.
+8. A replayed identical event is a no-op; a conflicting event fails loudly.
+9. Journals and visible traces exclude raw payloads/secrets and accurately distinguish route, search, retrieval, and write.
+10. Only a successful exact knowledge-route event satisfies required `knowledge.resolve`.
+11. `Stop` creates one immutable complete final receipt only after required capability, autonomy, continuation, and business-body evidence pass, then returns the journal-derived owner audit/value surface once as `systemMessage`.
+12. Missing required evidence triggers one continuation; an incomplete active retry converges to `audit_degraded` and never creates an infinite Stop loop.
+13. Zero Brainbase calls is valid when the selected judgment requires none.
+14. Open episodes do not become prior accepted receipts; legacy incomplete journals remain readable but are never newly created.
+15. Project scope absence does not reject judgment itself.
+16. Judgment receipts never authorize writes/external actions or introduce duplicate authorization.
+17. `CLAUDE.md`, `AGENTS.md`, Skill, capability, runbook, spec, and tests publish this same contract.
+18. The current Codex model remains responsible for open-ended query formulation and iterative investigation inside the selected DAG; Host and Resolver do not silently perform that model work. Claude Code support requires a separate Host adapter and lifecycle integration.
+19. Runtime 2.3 implement/operate completion is accepted only from one valid structured Stop state plus successful same-episode execution evidence; answer wording is not the primary completion signal.
 
 ## Deployment boundary
 

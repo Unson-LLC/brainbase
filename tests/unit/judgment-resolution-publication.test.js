@@ -340,8 +340,31 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('episode_origin=stop_delegation_recovery');
         expect(runbook).toContain('route_application=post_generation_recovery');
         expect(runbook).toContain(delegatedVerifier);
+        expect(runbook).toContain('brainbase-owner-visible-readback-v1');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH');
+        expect(runbook).toContain('session_meta.payload.id');
+        expect(runbook).toContain('system_message_digest');
+        expect(runbook).toContain('occurrences');
+        expect(runbook).toContain('event_id');
+        expect(runbook).toContain('final_event_fingerprint');
         expect(runbook).toContain('never use a recovered Stop episode as evidence that `UserPromptSubmit` guided generation');
         expect(runbook).toContain("Never substitute one path's evidence for the other");
+        expect(read(normalVerifier)).toContain('BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH');
+        expect(read(normalVerifier)).toContain('brainbase-owner-visible-readback-v1');
+        expect(read(normalVerifier)).toContain('system_message_digest');
+        expect(read(normalVerifier)).toContain('occurrences');
+        expect(read(normalVerifier)).toContain('event_id');
+        expect(read(normalVerifier)).toContain('final_event_fingerprint');
+        expect(read(normalVerifier)).toContain('session_meta.payload.id');
+        expect(read(delegatedVerifier)).toContain('BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH');
+        expect(read(delegatedVerifier)).toContain('brainbase-owner-visible-readback-v1');
+        expect(read(delegatedVerifier)).toContain('system_message_digest');
+        expect(read(delegatedVerifier)).toContain('occurrences');
+        expect(read(delegatedVerifier)).toContain('event_id');
+        expect(read(delegatedVerifier)).toContain('final_event_fingerprint');
+        expect(read(delegatedVerifier)).toContain('session_meta.payload.id');
+        expect(read(delegatedVerifier)).toContain('Brainbase判断レシート exactly once');
         expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
         expect(read(delegatedVerifier)).toContain(
             "assert.equal(final.owner_audit_source, 'stop_hook_system_message')"
@@ -1003,9 +1026,17 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('Verify the merged/deployed checkout SHA separately after deployment');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EPISODE_PATH');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_TRANSCRIPT_PATH');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_NONCE');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_RUN_QUERY');
+        expect(runbook).toContain('brainbase-owner-visible-readback-v1');
+        expect(runbook).toContain('session_meta.payload.id');
+        expect(runbook).toContain('system_message_digest');
+        expect(runbook).toContain('occurrences');
+        expect(runbook).toContain('event_id');
+        expect(runbook).toContain('final_event_fingerprint');
         expect(runbook).toContain('query-embedded source HEAD differs');
         expect(runbook).toContain('final receipt is at most one hour old');
         for (const surface of [capability, runbook, architecture, spec]) {

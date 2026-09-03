@@ -236,11 +236,11 @@ export function buildKnowledgeToolContent(
 
   content.push({
     type: 'text',
-    text: [
-      'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
-      'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
-      audit.display_line,
-    ].join('\n'),
+    text: `<!-- brainbase-knowledge-owner-audit:${JSON.stringify({
+      schema_version: audit.schema_version,
+      operation: audit.operation,
+      outcome: audit.outcome,
+    })} -->`,
   });
   return content;
 }

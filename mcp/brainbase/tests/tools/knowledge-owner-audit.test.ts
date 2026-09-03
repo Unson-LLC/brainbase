@@ -147,20 +147,17 @@ describe('knowledge owner audit', () => {
     assert.doesNotMatch(JSON.stringify(content), /結果を取得 ✓/u);
   });
 
-  it('appends exactly one audit block only when an actual retrieval ran', () => {
+  it('appends machine-readable audit metadata without instructing the model to reproduce owner output', () => {
     const audit = buildKnowledgeOwnerAudit('search', { query: '公開方針' }, '1 result');
 
     assert.deepStrictEqual(buildKnowledgeToolContent('1 result', audit), [
       { type: 'text', text: '1 result' },
       {
         type: 'text',
-        text: [
-          'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
-          'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
-          '📚 Brainbase検索: Graphで「公開方針」を検索 → 結果を取得 ✓',
-        ].join('\n'),
+        text: '<!-- brainbase-knowledge-owner-audit:{"schema_version":"brainbase-knowledge-owner-audit-v1","operation":"検索","outcome":"結果を取得"} -->',
       },
     ]);
+    assert.doesNotMatch(JSON.stringify(buildKnowledgeToolContent('1 result', audit)), /reproduce|user-facing assistant message/u);
     assert.deepStrictEqual(buildKnowledgeToolContent('Graph route', null), [
       { type: 'text', text: 'Graph route' },
     ]);
@@ -174,6 +171,9 @@ describe('knowledge owner audit', () => {
     );
     assert.equal(content.length, 2);
     assert.equal(content[0]?.text, '{"status":"ok","data":null}');
-    assert.match(content[1]?.text || '', /📚 Brainbase取得: Brainbaseから「run-204」を取得 → 該当なし/u);
+    assert.equal(
+      content[1]?.text,
+      '<!-- brainbase-knowledge-owner-audit:{"schema_version":"brainbase-knowledge-owner-audit-v1","operation":"取得","outcome":"該当なし（不在確定ではない）"} -->',
+    );
   });
 });
