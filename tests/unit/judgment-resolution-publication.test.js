@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { writePrivateJsonAtomically } from '../../scripts/lib/infisical-export.mjs';
+import { waitForBrainbaseRuntime } from '../../scripts/wait-for-brainbase-runtime.mjs';
 
 function read(path) {
     return readFileSync(path, 'utf8');
@@ -18,6 +19,57 @@ function expectProductionNotRunInUserFacingPrBody(body) {
 }
 
 describe('judgment resolver publication surfaces', () => {
+    it('本番runtime readyを再試行し、SHA不一致とtimeoutをfail-closedにする', async () => {
+        const targetSha = 'a'.repeat(40);
+        let calls = 0;
+        const retryResult = await waitForBrainbaseRuntime({
+            url: 'https://bb.example/api/version',
+            expectedSha: targetSha,
+            attempts: 3,
+            delayMs: 0,
+            sleep: async () => {},
+            fetchImpl: async () => {
+                calls += 1;
+                if (calls === 1) return { ok: false };
+                return {
+                    ok: true,
+                    json: async () => ({ runtime: { git: { sha: targetSha, dirty: false } } }),
+                };
+            },
+        });
+        expect(retryResult).toEqual({ attempts: 2 });
+        expect(calls).toBe(2);
+
+        await expect(
+            waitForBrainbaseRuntime({
+                url: 'https://bb.example/api/version',
+                expectedSha: targetSha,
+                attempts: 2,
+                delayMs: 0,
+                sleep: async () => {},
+                fetchImpl: async () => ({
+                    ok: true,
+                    json: async () => ({ runtime: { git: { sha: 'b'.repeat(40), dirty: false } } }),
+                }),
+            })
+        ).rejects.toThrow('did not become ready after 2 attempts');
+
+        let timeoutCalls = 0;
+        await expect(
+            waitForBrainbaseRuntime({
+                url: 'https://bb.example/api/health',
+                attempts: 3,
+                delayMs: 0,
+                sleep: async () => {},
+                fetchImpl: async () => {
+                    timeoutCalls += 1;
+                    throw new Error('connection refused');
+                },
+            })
+        ).rejects.toThrow('did not become ready after 3 attempts');
+        expect(timeoutCalls).toBe(3);
+    });
+
     it('knowledge readback trace is Host-rendered and never model-reproduced', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/knowledge-resolve.md');
         expect(runbook).toContain('machine-readable owner-audit metadata envelope');
@@ -1173,6 +1225,11 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('PIN_TMP="$(mktemp "${BRAINBASE_RUNTIME_PIN_FILE}.XXXXXX")"');
         expect(runbook).toContain('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"');
         expect(runbook).toContain('brainbase_wait_for_runtime_ready');
+        expect(runbook).toContain('scripts/wait-for-brainbase-runtime.mjs https://bb.unson.jp/api/version "$TARGET_SHA"');
+        expect(runbook).toContain('BRAINBASE_PRODUCTION_STAGE=lightsail_public_readiness');
+        expect(runbook.indexOf('scripts/wait-for-brainbase-runtime.mjs')).toBeLessThan(
+            runbook.indexOf('# 3. 4面を推測せず個別取得する。')
+        );
         expect(runbook).not.toMatch(/launchctl kickstart[^\n]*\n(?:sleep )/u);
         expect(runbook.indexOf('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"')).toBeLessThan(
             runbook.indexOf('launchctl kickstart -k "gui/$(id -u)/com.brainbase.ui"')
@@ -1204,8 +1261,24 @@ describe('judgment resolver publication surfaces', () => {
         const lightsailRunbook = read('docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md');
         expect(lightsailRunbook).toContain('TARGET_SHA="$(git rev-parse HEAD)"');
         expect(lightsailRunbook).toContain('git?.sha !== process.env.TARGET_SHA');
-        expect(lightsailRunbook).toContain('Unexpected public runtime Git state');
-        expect(lightsailRunbook).toContain('https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node');
+        expect(read('scripts/wait-for-brainbase-runtime.mjs')).toContain(
+          'git?.sha === expectedSha',
+        );
+        expect(lightsailRunbook).toContain('node scripts/wait-for-brainbase-runtime.mjs http://127.0.0.1:55123/api/health');
+        expect(lightsailRunbook).toContain('ROLLBACK_READY_DIR="$(mktemp -d /tmp/brainbase-runtime-ready.XXXXXX)"');
+        expect(lightsailRunbook).toContain('install -m 600 scripts/wait-for-brainbase-runtime.mjs "$ROLLBACK_READY_DIR/wait-for-brainbase-runtime.mjs"');
+        expect(lightsailRunbook.indexOf('install -m 600 scripts/wait-for-brainbase-runtime.mjs')).toBeLessThan(
+          lightsailRunbook.indexOf('git switch --detach "$ROLLBACK_SHA"'),
+        );
+        expect(lightsailRunbook).toContain('node "$ROLLBACK_READY_DIR/wait-for-brainbase-runtime.mjs" http://127.0.0.1:55123/api/health');
+        expect(lightsailRunbook).toContain('scripts/wait-for-brainbase-runtime.mjs https://bb.unson.jp/api/version "$TARGET_SHA"');
+        expect(lightsailRunbook.match(/npm ci --include=dev/gu)).toHaveLength(2);
+        expect(lightsailRunbook.match(/npm prune --omit=dev --ignore-scripts/gu)).toHaveLength(2);
+        expect(lightsailRunbook).not.toContain('npm ci --omit=dev --ignore-scripts');
+        expect(runbook).toContain('npm ci --include=dev');
+        expect(runbook).toContain('npm prune --omit=dev --ignore-scripts');
+        expect(runbook).not.toContain('npm ci --omit=dev');
+        expect(lightsailRunbook).not.toContain('sleep 3');
         expect(lightsailRunbook).toContain('git switch --detach "$ROLLBACK_SHA"');
         expect(lightsailRunbook).toContain('four-surface rollback order');
         expect(lightsailRunbook).not.toContain('127.0.0.1:55123/api/version | jq');

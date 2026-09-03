@@ -563,6 +563,11 @@ else
   false
 fi
 
+# Lightsailのsystemd activeはHTTP readyを保証しない。公開面が対象SHAを返すまで
+# bounded pollingし、再起動直後の502をMCP障害として誤判定しない。
+BRAINBASE_PRODUCTION_STAGE=lightsail_public_readiness
+node scripts/wait-for-brainbase-runtime.mjs https://bb.unson.jp/api/version "$TARGET_SHA"
+
 # 3. 4面を推測せず個別取得する。
 BRAINBASE_PRODUCTION_STAGE=runtime_surface_readback
 HOOK_ROOT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.root")"
@@ -980,7 +985,8 @@ FAILED_SHA="$(git rev-parse HEAD)"
 git cat-file -e "${ROLLBACK_SHA}^{commit}"
 git switch --detach "$ROLLBACK_SHA"
 if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock.json; then
-  npm ci --omit=dev
+  npm ci --include=dev
+  npm prune --omit=dev --ignore-scripts
 fi
 sudo systemctl restart brainbase-ssot.service
 if test -n "$HOTFIX_BACKUP_DIR"; then
