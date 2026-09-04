@@ -32,6 +32,7 @@ PSQL=(docker exec -i "$CONTAINER_NAME" psql -X -Atq -v ON_ERROR_STOP=1 -U postgr
   -f /workspace/server/sql/project-provisioning-schema.sql \
   -f /workspace/server/sql/outcome-case-schema.sql \
   -f /workspace/server/sql/info-ssot-rls.sql \
+  -f /workspace/server/sql/judgment-receipt-schema.sql \
   -f /workspace/server/sql/info-ssot-readback.sql >/tmp/project-provisioning-postgres-integration.log
 
 "${PSQL[@]}" <<'SQL' >/dev/null
