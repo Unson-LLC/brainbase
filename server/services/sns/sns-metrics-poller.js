@@ -1,5 +1,7 @@
 // @ts-check
 
+import { requireSnsAuthority } from './sns-authority.js';
+
 const DEFAULT_LIMIT = 20;
 const ANOMALY_IMPRESSIONS_THRESHOLD = 1000;
 const ANOMALY_REPLY_RATIO_THRESHOLD = 0.1;
@@ -38,6 +40,22 @@ function withCaptureMetadata(metrics, { tweetId, capturedAt, anomaly }) {
     };
 }
 
+function accountVisibleToAuthority(account, authority) {
+    if (!account || !authority) return false;
+    if (account.scope_type === 'personal') {
+        return account.owner_person_id === authority.owner_person_id;
+    }
+    if (account.scope_type === 'org') {
+        return account.org_id === authority.organization_id
+            || authority.org_ids.includes(account.org_id);
+    }
+    if (account.scope_type === 'project') {
+        const projectCodes = authority.projectCodes || [];
+        return projectCodes.includes(account.project_id);
+    }
+    return false;
+}
+
 export class SnsMetricsPoller {
     constructor({
         ledgerRepository,
@@ -60,8 +78,18 @@ export class SnsMetricsPoller {
         this.now = now;
     }
 
-    async run({ limit = DEFAULT_LIMIT, dry_run = false, date = null, mark_learning_ready = false } = {}) {
-        const candidates = await this._candidatePosts(limit, { date });
+    async run({
+        limit = DEFAULT_LIMIT,
+        dry_run = false,
+        date = null,
+        mark_learning_ready = false,
+        actor = null
+    } = {}) {
+        // Metrics polling is a write-capable operation. Resolve the canonical
+        // actor before reading the ledger so a missing or ambiguous authority
+        // can never result in a provider call.
+        const authority = requireSnsAuthority(actor || {});
+        const candidates = await this._candidatePosts(limit, { date }, authority);
         const result = {
             date,
             scanned: candidates.length,
@@ -93,7 +121,12 @@ export class SnsMetricsPoller {
                 continue;
             }
             try {
-                const account = await this.accountRepository.findById(post.account_id);
+                const account = await this._accountForAuthority(post.account_id, authority);
+                if (!account) {
+                    result.skipped += 1;
+                    result.skipped_posts.push({ post_id: post.id, reason: 'account_outside_authority' });
+                    continue;
+                }
                 if (!account?.credential_ref) {
                     result.skipped += 1;
                     result.skipped_posts.push({ post_id: post.id, reason: 'missing_account_credential' });
@@ -111,7 +144,7 @@ export class SnsMetricsPoller {
                     if (mark_learning_ready && post.status === 'posted') {
                         patch.status = 'learning_ready';
                     }
-                    updated = await this.ledgerRepository.updatePost(post.id, patch, { actor_person_id: 'sns_metrics_poller' });
+                    updated = await this.ledgerRepository.updatePost(post.id, patch, authority);
                 }
                 if (post.status !== 'learning_ready' && updated.status === 'learning_ready') {
                     result.learning_ready.promoted += 1;
@@ -151,14 +184,26 @@ export class SnsMetricsPoller {
         return result;
     }
 
-    async _candidatePosts(limit, { date = null } = {}) {
+    async _candidatePosts(limit, { date = null } = {}, authority) {
         const dateFilter = date ? { startDate: date, endDate: date } : {};
-        const posted = await this.ledgerRepository.listPosts({ ...dateFilter, status: 'posted' });
-        const learningReady = await this.ledgerRepository.listPosts({ ...dateFilter, status: 'learning_ready' });
+        const posted = await this.ledgerRepository.listPosts({ ...dateFilter, status: 'posted' }, authority);
+        const learningReady = await this.ledgerRepository.listPosts({ ...dateFilter, status: 'learning_ready' }, authority);
         return [...posted, ...learningReady]
             .filter((post) => post.status !== 'deleted')
             .sort((a, b) => String(a.posted_at || a.scheduled_at || '').localeCompare(String(b.posted_at || b.scheduled_at || '')))
             .slice(0, limit);
+    }
+
+    async _accountForAuthority(accountId, authority) {
+        // AccountService-style repositories can apply their own visibility
+        // policy. Keep the explicit row check below as a second, local guard
+        // because credential lookup must never rely on an unscoped findById.
+        if (typeof this.accountRepository.listForActor === 'function') {
+            const visibleAccounts = await this.accountRepository.listForActor(authority);
+            return visibleAccounts.find((account) => account.id === accountId && accountVisibleToAuthority(account, authority)) || null;
+        }
+        const account = await this.accountRepository.findById(accountId, authority);
+        return accountVisibleToAuthority(account, authority) ? account : null;
     }
 }
 

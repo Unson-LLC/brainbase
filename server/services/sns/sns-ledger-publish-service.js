@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import { SnsPostValidationError } from './posting-ledger-repository.js';
+import { requireSnsAuthority } from './sns-authority.js';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_PYTHON = '/Users/ksato/workspace/.venv/bin/python';
@@ -74,7 +75,8 @@ export class SnsLedgerPublishService {
         dry_run = false,
         confirm_public_post = false
     } = {}) {
-        const post = await this.ledgerRepository.findById(postId);
+        const authority = requireSnsAuthority(actor);
+        const post = await this.ledgerRepository.findById(postId, authority);
         assertPublishable(post);
         if (!dry_run && !confirm_public_post) {
             throw new SnsPostValidationError('confirm_public_post required for public SNS publish');
@@ -97,7 +99,7 @@ export class SnsLedgerPublishService {
             status: 'posted',
             posted_url: postedUrl,
             posted_at: this.now().toISOString()
-        }, actor);
+        }, authority);
         return { post: updated, publish_result: publishResult };
     }
 }

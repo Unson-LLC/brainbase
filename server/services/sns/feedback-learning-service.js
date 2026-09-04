@@ -115,7 +115,7 @@ export class SnsFeedbackLearningService {
 
     async createLearningCandidateForPost(postId, actor = {}) {
         const identity = requirePersonalKgIdentity(actor);
-        const post = await this.ledgerRepository.findById(postId);
+        const post = await this.ledgerRepository.findById(postId, identity);
         const draft = buildSnsFeedbackCandidateDraft(post, identity);
         try {
             const result = await this.candidateService.createCandidate(draft);
@@ -138,7 +138,7 @@ export class SnsFeedbackLearningService {
             startDate: date,
             endDate: date,
             status: 'learning_ready'
-        });
+        }, identity);
         const results = [];
         for (const post of posts) {
             if (post.learning_candidate_id) {

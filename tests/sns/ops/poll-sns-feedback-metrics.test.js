@@ -8,6 +8,7 @@ import {
     formatSummary,
     parseArgs,
     resolveMetricsPollingEnabled,
+    resolveSnsMetricsPollerActor,
     resolveSnsPostingLedgerDatabaseUrl,
     shouldUseJsonLedgerForTest,
     validateArgs
@@ -69,6 +70,23 @@ describe('poll-sns-feedback-metrics', () => {
         });
     });
 
+    it('requires the canonical metrics actor and organization', () => {
+        expect(() => resolveSnsMetricsPollerActor({})).toThrow('SNS_ACTOR_PERSON_ID is required');
+        expect(() => resolveSnsMetricsPollerActor({ SNS_ACTOR_PERSON_ID: 'person_metrics' }))
+            .toThrow('SNS_ORGANIZATION_ID is required');
+        expect(resolveSnsMetricsPollerActor({
+            SNS_ACTOR_PERSON_ID: 'person_metrics',
+            SNS_ORGANIZATION_ID: 'org_unson',
+            SNS_ACTOR_PROJECT_CODES: 'brainbase,brainbase'
+        })).toMatchObject({
+            owner_person_id: 'person_metrics',
+            actor_person_id: 'person_metrics',
+            organization_id: 'org_unson',
+            org_ids: ['org_unson'],
+            projectCodes: ['brainbase']
+        });
+    });
+
     it('exits nonzero when metrics polling is disabled so oyasumi cannot treat it as success', async () => {
         await expect(execFileAsync('node', [
             'scripts/poll-sns-feedback-metrics.js',
@@ -78,11 +96,32 @@ describe('poll-sns-feedback-metrics', () => {
             env: {
                 ...process.env,
                 BRAINBASE_TEST_MODE: 'true',
-                SNS_METRICS_POLLING_ENABLED: ''
+                SNS_METRICS_POLLING_ENABLED: '',
+                SNS_ACTOR_PERSON_ID: 'person_metrics',
+                SNS_ORGANIZATION_ID: 'org_unson'
             }
         })).rejects.toMatchObject({
             code: 1,
             stdout: expect.stringContaining('"reason": "metrics_polling_disabled"')
+        });
+    });
+
+    it('fails closed for dry-run when the canonical actor is missing', async () => {
+        await expect(execFileAsync('node', [
+            'scripts/poll-sns-feedback-metrics.js',
+            '--dry-run',
+            '--json'
+        ], {
+            env: {
+                ...process.env,
+                BRAINBASE_TEST_MODE: 'true',
+                SNS_POSTING_LEDGER_MODE: 'json_test',
+                SNS_ACTOR_PERSON_ID: '',
+                SNS_ORGANIZATION_ID: ''
+            }
+        })).rejects.toMatchObject({
+            code: 1,
+            stderr: expect.stringContaining('SNS_ACTOR_PERSON_ID is required')
         });
     });
 

@@ -5,6 +5,24 @@
  */
 
 import { SchedulerService } from './scheduler-service.js';
+import {
+    assertPersonalKgCandidateScope,
+    requirePersonalKgIdentity
+} from './personal-kg-identity.js';
+
+function personalKgIdentityFromActor(actor = {}) {
+    const organizationId = actor.organization_id
+        || actor.organizationId
+        || actor.tenant_id
+        || actor.tenantId
+        || (Array.isArray(actor.org_ids) && actor.org_ids.length === 1 ? actor.org_ids[0] : null);
+    return requirePersonalKgIdentity({
+        ...actor,
+        ownerPersonId: actor.owner_person_id || actor.ownerPersonId || actor.person_id || actor.personId || actor.sub,
+        actorPersonId: actor.actor_person_id || actor.actorPersonId || actor.person_id || actor.personId || actor.sub,
+        organizationId
+    });
+}
 
 export class PostingService {
     /**
@@ -44,8 +62,14 @@ export class PostingService {
 
         // INV-2: candidate-store 由来は promoted_to_graph 必須
         if (source_candidate_id && this.candidateRepository) {
-            const c = this.candidateRepository.findById(source_candidate_id);
+            const identity = personalKgIdentityFromActor(actor);
+            const c = await this.candidateRepository.findById(source_candidate_id);
             if (!c) return { posted: false, reason: 'source-candidate-not-found' };
+            try {
+                assertPersonalKgCandidateScope(c, identity);
+            } catch {
+                return { posted: false, reason: 'source-candidate-scope-mismatch' };
+            }
             if (c.promotion_status !== 'promoted_to_graph') {
                 return { posted: false, reason: 'source-candidate-not-promoted' };
             }

@@ -22,6 +22,16 @@ const connectionA = 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAW';
 const credentialRefA = 'credential-ref-a';
 const operationA = 'op_01ARZ3NDEKTSV4RRFFQ69G5FAZ';
 const audienceA = 'provider.internal.test';
+const snsAuthorityA = Object.freeze({
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: tenantA
+});
+const snsSchedulerAuthorityA = Object.freeze({
+    owner_person_id: 'person_scheduler',
+    actor_person_id: 'person_scheduler',
+    organization_id: tenantA
+});
 
 describe.sequential('AC-006 PostgreSQL migration adapter', () => {
     let container;
@@ -554,6 +564,63 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
         }
     });
 
+    it('A0: SNS Ledger RLSは2組織×2利用者を同一slotでも相互に隔離する', async () => {
+        const schema = await readFile(resolve(process.cwd(), 'server/sql/sns-posting-ledger-schema.sql'), 'utf8');
+        await pool.query(schema);
+        const repository = new PgSnsPostingLedgerRepository({ pool });
+        const authorities = [tenantA, tenantB].flatMap((organizationId) => [
+            {
+                owner_person_id: 'person_a',
+                actor_person_id: 'person_a',
+                organization_id: organizationId
+            },
+            {
+                owner_person_id: 'person_b',
+                actor_person_id: 'person_b',
+                organization_id: organizationId
+            }
+        ]);
+
+        for (const authority of authorities) {
+            await repository.upsertReviewPack({
+                account_id: 'acc_rls_isolation',
+                drafts: [{
+                    date: '2026-08-19',
+                    slot_index: 1,
+                    time: '09:00',
+                    body: `RLS ${authority.organization_id} ${authority.owner_person_id}`
+                }]
+            }, authority);
+        }
+
+        await pool.query('CREATE ROLE brainbase_sns_test_app NOLOGIN');
+        await pool.query('GRANT USAGE ON SCHEMA public TO brainbase_sns_test_app');
+        await pool.query('GRANT SELECT ON sns_posting_ledger_posts TO brainbase_sns_test_app');
+
+        for (const authority of authorities) {
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                await client.query('SET LOCAL ROLE brainbase_sns_test_app');
+                await client.query("SELECT set_config('app.person_id', $1, true)", [authority.owner_person_id]);
+                await client.query("SELECT set_config('app.organization_id', $1, true)", [authority.organization_id]);
+                const result = await client.query(
+                    `SELECT owner_person_id, organization_id
+                       FROM sns_posting_ledger_posts
+                      WHERE account_id = 'acc_rls_isolation'
+                        AND date = '2026-08-19'`
+                );
+                expect(result.rows).toEqual([{
+                    owner_person_id: authority.owner_person_id,
+                    organization_id: authority.organization_id
+                }]);
+                await client.query('ROLLBACK');
+            } finally {
+                client.release();
+            }
+        }
+    });
+
     it('AC-205: canonical Receiptとprice/rate/FX revisionを同一transactionで保存しtenant限定readbackする', async () => {
         const repository = new MultitenantPostgresRepository({ pool });
         const receipt = {
@@ -645,13 +712,13 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
                 body: 'tenant boundary integration proof',
                 tenant_boundary: tenantBoundary
             }]
-        });
+        }, snsAuthorityA);
         const postId = imported.created[0].id;
-        await repository.updatePost(postId, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        await repository.updatePost(postId, { status: 'approved' }, snsAuthorityA);
         await repository.updatePost(postId, {
             status: 'scheduled',
             scheduled_at: '2026-08-18T00:00:00.000Z'
-        }, { actor_person_id: 'sato_keigo' });
+        }, snsAuthorityA);
 
         const authorizationCalls = [];
         const publishCalls = [];
@@ -662,20 +729,20 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
                 return { authorized: true, entry_point: 'background_job' };
             },
             publishService: {
-                async publishPost(id) {
+                async publishPost(id, { actor }) {
                     publishCalls.push(id);
                     const post = await repository.updatePost(id, {
                         status: 'posted',
                         posted_at: '2026-08-18T00:01:00.000Z',
                         posted_url: `https://x.example.test/status/${id}`
-                    }, { actor_person_id: 'sns_scheduler' });
+                    }, actor);
                     return { post };
                 }
             },
             now: () => new Date('2026-08-18T00:01:00.000Z')
         });
 
-        await expect(publisher.run({ auto_publish_enabled: true })).resolves.toMatchObject({
+        await expect(publisher.run({ actor: snsAuthorityA, auto_publish_enabled: true })).resolves.toMatchObject({
             scanned: 1,
             due: 1,
             posted: 1,
@@ -683,7 +750,7 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
         });
         expect(authorizationCalls).toEqual([tenantBoundary]);
         expect(publishCalls).toEqual([postId]);
-        await expect(repository.findById(postId)).resolves.toMatchObject({
+        await expect(repository.findById(postId, snsAuthorityA)).resolves.toMatchObject({
             status: 'posted',
             evidence: { tenant_boundary: tenantBoundary }
         });
@@ -716,13 +783,13 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
                 body: 'production scheduler entrypoint proof',
                 tenant_boundary: tenantBoundary
             }]
-        });
+        }, snsSchedulerAuthorityA);
         const postId = imported.created[0].id;
-        await repository.updatePost(postId, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        await repository.updatePost(postId, { status: 'approved' }, snsSchedulerAuthorityA);
         await repository.updatePost(postId, {
             status: 'scheduled',
             scheduled_at: '2026-08-18T00:00:00.000Z'
-        }, { actor_person_id: 'sato_keigo' });
+        }, snsSchedulerAuthorityA);
 
         const authorize = vi.fn(async () => ({ authorized: true, entry_point: 'background_job' }));
         const createServices = vi.fn(() => ({ tenantBoundaryGateway: { authorize } }));
@@ -738,7 +805,10 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
             env: {
                 SNS_POSTING_LEDGER_DATABASE_URL: container.getConnectionUri(),
                 SNS_AUTO_PUBLISH_ENABLED: 'true',
-                BRAINBASE_TENANT_RUNTIME_ENABLED: '1'
+                BRAINBASE_TENANT_RUNTIME_ENABLED: '1',
+                SNS_ACTOR_PERSON_ID: 'person_scheduler',
+                SNS_ORGANIZATION_ID: tenantA,
+                SNS_ACTOR_ROLE: 'gm'
             },
             createServices,
             createPostExecutor,
@@ -756,7 +826,7 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
             resource_ref: tenantBoundary.resource_ref
         });
         expect(providerExecutor).toHaveBeenCalledOnce();
-        await expect(repository.findById(postId)).resolves.toMatchObject({
+        await expect(repository.findById(postId, snsSchedulerAuthorityA)).resolves.toMatchObject({
             status: 'posted',
             posted_url: 'https://x.example.test/status/provider-entrypoint-proof'
         });
@@ -789,20 +859,20 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
                 body: 'postgres claim conflict proof',
                 tenant_boundary: tenantBoundary
             }]
-        });
+        }, snsAuthorityA);
         const postId = imported.created[0].id;
-        await repository.updatePost(postId, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        await repository.updatePost(postId, { status: 'approved' }, snsAuthorityA);
         await repository.updatePost(postId, {
             status: 'scheduled',
             scheduled_at: '2026-08-18T00:00:00.000Z'
-        }, { actor_person_id: 'sato_keigo' });
+        }, snsAuthorityA);
 
         let listedRunners = 0;
         let releaseLists;
         const bothListed = new Promise((resolveBoth) => { releaseLists = resolveBoth; });
         const repositoryForRunner = () => ({
-            async listPosts(filters) {
-                const posts = await repository.listPosts(filters);
+            async listPosts(filters, authority) {
+                const posts = await repository.listPosts(filters, authority);
                 listedRunners += 1;
                 if (listedRunners === 2) releaseLists();
                 await bothListed;
@@ -829,8 +899,8 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
         });
 
         const results = await Promise.all([
-            createPublisher().run({ auto_publish_enabled: true }),
-            createPublisher().run({ auto_publish_enabled: true })
+            createPublisher().run({ actor: snsAuthorityA, auto_publish_enabled: true }),
+            createPublisher().run({ actor: snsAuthorityA, auto_publish_enabled: true })
         ]);
 
         expect(results.reduce((sum, result) => sum + result.posted, 0)).toBe(1);
@@ -839,7 +909,7 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
             { post_id: postId, reason: 'claim_lost' }
         ]);
         expect(providerExecutor).toHaveBeenCalledOnce();
-        await expect(repository.findById(postId)).resolves.toMatchObject({
+        await expect(repository.findById(postId, snsAuthorityA)).resolves.toMatchObject({
             status: 'posted',
             posted_url: 'https://x.example.test/status/provider-claim-winner'
         });

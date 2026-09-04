@@ -63,6 +63,36 @@ export function shouldUseJsonLedgerForTest(env = process.env) {
     return isSnsPostingLedgerJsonTestMode(env);
 }
 
+function requiredEnvironmentValue(env, name) {
+    const value = String(env?.[name] ?? '').trim();
+    if (!value) throw new Error(`${name} is required for scheduled SNS publishing`);
+    return value;
+}
+
+function resolveProjectCodes(value) {
+    if (value === undefined || value === null) return [];
+    const raw = String(value).trim();
+    if (!raw) throw new Error('SNS_ACTOR_PROJECT_CODES must not be empty when provided');
+    const projectCodes = [...new Set(raw.split(',').map((projectCode) => projectCode.trim()).filter(Boolean))];
+    if (projectCodes.length === 0) throw new Error('SNS_ACTOR_PROJECT_CODES must contain at least one project code');
+    return projectCodes;
+}
+
+export function resolveSnsScheduledPublisherActor(env = process.env) {
+    const actorPersonId = requiredEnvironmentValue(env, 'SNS_ACTOR_PERSON_ID');
+    const organizationId = requiredEnvironmentValue(env, 'SNS_ORGANIZATION_ID');
+    const role = String(env?.SNS_ACTOR_ROLE ?? 'member').trim();
+    if (!role) throw new Error('SNS_ACTOR_ROLE must not be empty when provided');
+    return {
+        sub: actorPersonId,
+        actor_person_id: actorPersonId,
+        organization_id: organizationId,
+        org_ids: [organizationId],
+        role,
+        projectCodes: resolveProjectCodes(env?.SNS_ACTOR_PROJECT_CODES)
+    };
+}
+
 export function resolveTenantJobBoundary({
     env = process.env,
     pool,
@@ -92,15 +122,6 @@ export function resolveTenantJobBoundary({
     };
 }
 
-function actor() {
-    return {
-        sub: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        role: 'ceo',
-        org_ids: ['unson', 'salestailor', 'techknight', 'baao']
-    };
-}
-
 export async function runScheduledPosts({
     argv = process.argv.slice(2),
     env = process.env,
@@ -112,6 +133,7 @@ export async function runScheduledPosts({
 } = {}) {
     const args = parseArgs(argv);
     validateArgs(args);
+    const publisherActor = resolveSnsScheduledPublisherActor(env);
     const databaseUrl = resolveSnsPostingLedgerDatabaseUrl(env);
     const pool = databaseUrl ? new PoolClass(databaseConfig({
         ...env,
@@ -145,7 +167,7 @@ export async function runScheduledPosts({
             now: () => args.now ? new Date(args.now) : new Date()
         });
         const result = await publisher.run({
-            actor: actor(),
+            actor: publisherActor,
             dry_run: args.dryRun,
             auto_publish_enabled: autoPublishEnabled,
             limit: args.limit

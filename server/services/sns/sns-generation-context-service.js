@@ -390,7 +390,7 @@ export class SnsGenerationContextService {
         const access = requirePersonalKgIdentity(viewer);
         const targetDate = toDateOnly(date);
         const startDate = addDays(targetDate, -Math.max(1, lookbackDays) + 1);
-        const posts = await this.ledgerRepository.listPosts({ startDate, endDate: targetDate });
+        const posts = await this.ledgerRepository.listPosts({ startDate, endDate: targetDate }, access);
         const allCandidates = this.candidateRepository
             ? await this.candidateRepository.list({ owner_person_id: access.owner_person_id })
             : [];

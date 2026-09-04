@@ -102,7 +102,7 @@ export function parseMetrics(input) {
 export async function maybeRecordFeedback(repository, args, access) {
     const identity = requirePersonalKgIdentity(access);
     if (!args.postId || (!args.postedUrl && !args.metricsJson && !args.learningReady)) return null;
-    const post = await repository.findById(args.postId);
+    const post = await repository.findById(args.postId, identity);
     if (!post) throw new Error(`SNS post not found: ${args.postId}`);
     const metrics = parseMetrics(args.metricsJson);
     if (args.dryRun) {
@@ -131,8 +131,8 @@ export async function maybeRecordFeedback(repository, args, access) {
 async function dryRunCandidates(repository, args, access) {
     const identity = requirePersonalKgIdentity(access);
     const posts = args.postId
-        ? [await repository.findById(args.postId)]
-        : await repository.listPosts({ startDate: args.date, endDate: args.date, status: 'learning_ready' });
+        ? [await repository.findById(args.postId, identity)]
+        : await repository.listPosts({ startDate: args.date, endDate: args.date, status: 'learning_ready' }, identity);
     return posts.filter(Boolean).map((post) => {
         try {
             return { post_id: post.id, candidate: buildSnsFeedbackCandidateDraft(post, identity) };

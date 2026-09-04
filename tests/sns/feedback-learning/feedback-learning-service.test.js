@@ -9,15 +9,34 @@ import {
     SnsFeedbackLearningService
 } from '../../../server/services/sns/feedback-learning-service.js';
 
-const ACCESS = {
+const ACCESS = Object.freeze({
     owner_person_id: 'sato_keigo',
     actor_person_id: 'sato_keigo',
     organization_id: 'unson',
-    org_ids: ['unson']
-};
+    org_ids: ['unson'],
+    role: 'ceo',
+    projectCodes: ['brainbase']
+});
 
-function makeReadyPost(overrides = {}) {
-    const ledgerRepository = new InMemorySnsPostingLedgerRepository();
+const OTHER_PERSON_ACCESS = Object.freeze({
+    owner_person_id: 'other_person',
+    actor_person_id: 'other_person',
+    organization_id: 'unson',
+    org_ids: ['unson'],
+    role: 'member',
+    projectCodes: ['brainbase']
+});
+
+const OTHER_ORGANIZATION_ACCESS = Object.freeze({
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'other_org',
+    org_ids: ['other_org'],
+    role: 'member',
+    projectCodes: ['brainbase']
+});
+
+function seedReadyPost(ledgerRepository, authority, overrides = {}) {
     ledgerRepository.upsertReviewPack({
         account_id: 'acc_x_sato',
         account_handle: '@AIBizNavigator',
@@ -32,14 +51,14 @@ function makeReadyPost(overrides = {}) {
             quality_gate: { status: 'pass' },
             safety: { persona_affect: { likely_reader_feeling: '現場の迷いが言語化された' } }
         }]
-    });
-    const post = ledgerRepository.listPosts({})[0];
+    }, authority);
+    const post = ledgerRepository.listPosts({}, authority)[0];
     ledgerRepository.updatePost(post.id, {
         status: 'approved'
-    }, { actor_person_id: 'sato_keigo' });
+    }, authority);
     ledgerRepository.updatePost(post.id, {
         status: 'scheduled'
-    }, { actor_person_id: 'sato_keigo' });
+    }, authority);
     ledgerRepository.updatePost(post.id, {
         status: 'posted',
         posted_url: 'https://x.com/AIBizNavigator/status/1',
@@ -51,12 +70,18 @@ function makeReadyPost(overrides = {}) {
             reposts: 2,
             bookmarks: 11
         }
-    }, { actor_person_id: 'sato_keigo' });
+    }, authority);
     const ready = ledgerRepository.updatePost(post.id, {
         status: 'learning_ready',
         ...overrides
-    }, { actor_person_id: 'sato_keigo' });
-    return { ledgerRepository, post: ready };
+    }, authority);
+    return ready;
+}
+
+function makeReadyPost(overrides = {}) {
+    const ledgerRepository = new InMemorySnsPostingLedgerRepository({ authority: ACCESS });
+    const post = seedReadyPost(ledgerRepository, ACCESS, overrides);
+    return { ledgerRepository, post };
 }
 
 describe('SNS feedback learning service', () => {
@@ -108,7 +133,7 @@ describe('SNS feedback learning service', () => {
     });
 
     it('rejects handoff before posted URL and metrics are available', () => {
-        const ledgerRepository = new InMemorySnsPostingLedgerRepository();
+        const ledgerRepository = new InMemorySnsPostingLedgerRepository({ authority: ACCESS });
         ledgerRepository.upsertReviewPack({
             account_id: 'acc_x_sato',
             drafts: [{
@@ -117,10 +142,36 @@ describe('SNS feedback learning service', () => {
                 lane: 'trust_balance',
                 body: 'まだ投稿していない'
             }]
-        });
-        const post = ledgerRepository.listPosts({})[0];
+        }, ACCESS);
+        const post = ledgerRepository.listPosts({}, ACCESS)[0];
 
         expect(() => buildSnsFeedbackCandidateDraft(post, ACCESS))
             .toThrow('learning_ready');
+    });
+
+    it('does not expose another person or organization SNS post to learning', async () => {
+        const ledgerRepository = new InMemorySnsPostingLedgerRepository({ authority: ACCESS });
+        const ownPost = seedReadyPost(ledgerRepository, ACCESS);
+        const otherPersonPost = seedReadyPost(ledgerRepository, {
+            ...OTHER_PERSON_ACCESS,
+            account_id: 'acc_x_other_person'
+        });
+        const otherOrganizationPost = seedReadyPost(ledgerRepository, {
+            ...OTHER_ORGANIZATION_ACCESS,
+            account_id: 'acc_x_other_org'
+        });
+        const candidateRepository = new InMemoryCandidateRepository();
+        const candidateService = new PromotionGateService({ repository: candidateRepository });
+        const service = new SnsFeedbackLearningService({ ledgerRepository, candidateService });
+
+        const visible = await service.createLearningCandidatesForDate('2026-05-14', ACCESS);
+
+        expect(visible.map((result) => result.post.id)).toEqual([ownPost.id]);
+        expect(visible.map((result) => result.post.id)).not.toContain(otherPersonPost.id);
+        expect(visible.map((result) => result.post.id)).not.toContain(otherOrganizationPost.id);
+        await expect(service.createLearningCandidateForPost(otherPersonPost.id, ACCESS))
+            .rejects.toThrow('SNS post not found');
+        await expect(service.createLearningCandidateForPost(otherOrganizationPost.id, ACCESS))
+            .rejects.toThrow('SNS post not found');
     });
 });
