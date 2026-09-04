@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
@@ -22,6 +22,7 @@ function parseArgs(argv) {
     const argument = argv[index];
     if (argument === '--base-url') parsed.baseUrl = argv[++index];
     else if (argument === '--mac-result') parsed.macResultPath = argv[++index];
+    else if (argument === '--mac-source-root') parsed.macSourceRoot = argv[++index];
     else if (argument === '--out-dir') parsed.outDir = argv[++index];
     else throw new Error(`Unknown argument: ${argument}`);
   }
@@ -33,6 +34,84 @@ function parseArgs(argv) {
 
 function gitHead(directory) {
   return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: directory, encoding: 'utf8' }).trim();
+}
+
+function relativePathInside(root, candidate, message) {
+  const relative = path.relative(root, candidate);
+  invariant(
+    relative
+      && relative !== '..'
+      && !relative.startsWith(`..${path.sep}`)
+      && !path.isAbsolute(relative),
+    message,
+  );
+  return relative;
+}
+
+async function assertRegularPathWithoutSymlinks(root, relativePath, label) {
+  const rootStat = await lstat(root);
+  invariant(rootStat.isDirectory(), `${label} root is not a directory`);
+  invariant(!rootStat.isSymbolicLink(), `${label} root must not be a symbolic link`);
+
+  let current = root;
+  for (const segment of relativePath.split(path.sep)) {
+    current = path.join(current, segment);
+    const currentStat = await lstat(current);
+    invariant(!currentStat.isSymbolicLink(), `${label} must not use a symbolic link`);
+  }
+  return current;
+}
+
+export async function resolveMacEvidenceSource({
+  rootDir = process.cwd(),
+  macResult,
+  macSourceRoot,
+} = {}) {
+  invariant(macResult?.mac_checkout, 'Mac read-only live contract mac_checkout is required');
+  invariant(path.isAbsolute(macResult.mac_checkout), 'Mac read-only live contract mac_checkout must be absolute');
+  invariant(macResult.raw_log, 'Mac read-only live contract raw_log is required');
+
+  const originalCheckout = path.resolve(macResult.mac_checkout);
+  const originalRawLog = path.isAbsolute(macResult.raw_log)
+    ? path.resolve(macResult.raw_log)
+    : path.resolve(originalCheckout, macResult.raw_log);
+  const rawLogRelativePath = relativePathInside(
+    originalCheckout,
+    originalRawLog,
+    'Mac read-only live contract raw_log is outside the original Mac checkout',
+  );
+
+  if (!macSourceRoot) {
+    return {
+      checkout: originalCheckout,
+      originalCheckout,
+      rawLogPath: originalRawLog,
+    };
+  }
+
+  const snapshotRoot = path.resolve(rootDir, macSourceRoot);
+  const snapshotRawLog = path.resolve(snapshotRoot, rawLogRelativePath);
+  const snapshotRelativeRawLog = relativePathInside(
+    snapshotRoot,
+    snapshotRawLog,
+    'Transported Mac raw_log escapes the snapshot root',
+  );
+  const checkedRawLog = await assertRegularPathWithoutSymlinks(
+    snapshotRoot,
+    snapshotRelativeRawLog,
+    'Transported Mac raw_log',
+  );
+  const rawLogStat = await lstat(checkedRawLog);
+  invariant(rawLogStat.isFile(), 'Transported Mac raw_log is not a regular file');
+  invariant(gitHead(snapshotRoot) === macResult.head_sha, 'Mac read-only live contract source HEAD is stale');
+  const rawLogBytes = await readFile(checkedRawLog);
+  invariant(sha256(rawLogBytes) === macResult.raw_log_hash, 'Mac read-only live contract raw log hash mismatch');
+
+  return {
+    checkout: snapshotRoot,
+    originalCheckout,
+    rawLogPath: checkedRawLog,
+  };
 }
 
 async function readJson(filePath, label) {
@@ -113,6 +192,7 @@ export async function captureCanonicalTaskCutoverEvidence({
   rootDir = process.cwd(),
   baseUrl,
   macResultPath,
+  macSourceRoot,
   outDir,
 } = {}) {
   const sourceHead = gitHead(rootDir);
@@ -166,14 +246,12 @@ export async function captureCanonicalTaskCutoverEvidence({
   invariant(macResult.status === 'pass', 'Mac read-only live contract did not pass');
   invariant(macResult.exit_code === 0, 'Mac read-only live contract exit_code is not zero');
   invariant(macResult.provider_source_head === sourceHead, 'Mac read-only live contract provider HEAD mismatch');
-  invariant(macResult.raw_log, 'Mac read-only live contract raw_log is required');
-  const macCheckout = path.resolve(macResult.mac_checkout);
-  invariant(gitHead(macCheckout) === macResult.head_sha, 'Mac read-only live contract source HEAD is stale');
-  const macRawLog = path.isAbsolute(macResult.raw_log)
-    ? macResult.raw_log
-    : path.resolve(macCheckout, macResult.raw_log);
+  const macSource = await resolveMacEvidenceSource({ rootDir, macResult, macSourceRoot });
+  if (!macSourceRoot) {
+    invariant(gitHead(macSource.checkout) === macResult.head_sha, 'Mac read-only live contract source HEAD is stale');
+  }
   const copiedMacLog = path.join(absoluteOutDir, 'mac-source.log');
-  await copyFile(macRawLog, copiedMacLog);
+  await copyFile(macSource.rawLogPath, copiedMacLog);
   const macRawBytes = await readFile(copiedMacLog);
   invariant(sha256(macRawBytes) === macResult.raw_log_hash, 'Mac read-only live contract raw log hash mismatch');
 
@@ -241,7 +319,7 @@ export async function captureCanonicalTaskCutoverEvidence({
       check_kind: 'mac_live_read_only_contract',
       provider_source_head: sourceHead,
       mac_source_head: macResult.head_sha,
-      mac_checkout: macCheckout,
+      mac_checkout: macSource.originalCheckout,
       source_raw_log_path: path.relative(rootDir, copiedMacLog).split(path.sep).join('/'),
       source_raw_log_hash: sha256(macRawBytes),
       read_only_contract: { pass: true, exit_code: 0, matched_tests: macResult.matched_tests },
