@@ -167,6 +167,31 @@ describe('auth middleware', () => {
         });
     });
 
+    it('organization-only旧JWTは検証済み組織をtenantとしても扱う', async () => {
+        const app = express();
+        const authService = {
+            verifyToken: () => ({
+                role: 'member',
+                projectCodes: ['brainbase'],
+                clearance: ['internal'],
+                sub: 'per_legacy_organization',
+                organizationId: 'ten_unson'
+            })
+        };
+        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app)
+            .get('/secure')
+            .set('Authorization', 'Bearer legacy-organization-token')
+            .expect(200);
+
+        expect(res.body.access).toMatchObject({
+            tenantId: 'ten_unson',
+            organizationId: 'ten_unson'
+        });
+    });
+
     it('bbsvc tokenがある時_service-token認証で通す', async () => {
         const app = express();
         const authService = {

@@ -119,8 +119,8 @@ export function resolveAuthContext(req, authService, options = {}) {
             personId: decoded.sub || decoded.personId || null,
             slackUserId: decoded.slackUserId || null,
             slackWorkspaceId: decoded.slackWorkspaceId || null,
-            tenantId: decoded.tenantId || null,
-            organizationId: decoded.organizationId || null
+            tenantId: decoded.tenantId || decoded.organizationId || null,
+            organizationId: decoded.organizationId || decoded.tenantId || null
         };
         return {
             ok: true,
