@@ -2,7 +2,10 @@ import { createHash, createHmac } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { createVibeproManagedHandoff } from '../../../../server/services/outcome-case/vibepro-managed-handoff.js';
+import {
+    createVibeproHandoffSnapshot,
+    createVibeproManagedHandoff
+} from '../../../../server/services/outcome-case/vibepro-managed-handoff.js';
 
 const SIGNING_KEY = 'brainbase-vibepro-handoff-test-key-at-least-32-characters';
 const PAYLOAD_FIELDS = [
@@ -98,6 +101,52 @@ function input(overrides = {}) {
 }
 
 describe('createVibeproManagedHandoff', () => {
+    it('署名前snapshotはdecisionを厳密JSONで複製し、targetと受入条件だけを正規化する', () => {
+        const value = input({
+            decision: { nested: { status: 'adopted' } },
+            target: { repository: 'https://github.com/Unson-LLC/example.git', repository_root: './services/../.' },
+            productionProbe: { id: 'probe-001', procedure: '保存済み成果ケースを読戻す。' }
+        });
+        const snapshot = createVibeproHandoffSnapshot(value);
+
+        expect(Object.keys(snapshot).sort()).toEqual(['decision', 'productionProbe', 'target', 'technicalAcceptance']);
+        expect(snapshot).toMatchObject({
+            decision: { ...value.decision, nested: { status: 'adopted' } },
+            target: {
+                repository: 'github://Unson-LLC/example', repository_root: '.', project_code: 'brainbase',
+                case_id: 'outcome-case-001', base_sha: 'a'.repeat(40), story_id: null
+            },
+            technicalAcceptance: [{ id: 'TA-1', criterion: 'VibeProが成果ケースを技術受入として投影できる。' }],
+            productionProbe: {
+                id: 'probe-001', procedure: '保存済み成果ケースを読戻す。',
+                terminal_receipt_target: 'brainbase://production-probes/probe-001/receipt'
+            }
+        });
+        expect(snapshot.decision).not.toBe(value.decision);
+        expect(snapshot.decision.nested).not.toBe(value.decision.nested);
+        snapshot.decision.nested.status = 'mutated';
+        expect(value.decision.nested.status).toBe('adopted');
+    });
+
+    it.each([
+        ['case scope mismatch', input({ decision: { case_id: 'another-case' } })],
+        ['project scope mismatch', input({ target: { project_code: 'other-project' } })],
+        ['symbol decision key', (() => {
+            const value = input();
+            value.decision[Symbol('not-json')] = 'hidden';
+            return value;
+        })()],
+        ['symbol or extra decision array property', (() => {
+            const value = input({ decision: { path: ['adopted'] } });
+            value.decision.path[Symbol('not-json')] = 'hidden';
+            value.decision.path.extra = 'hidden';
+            return value;
+        })()],
+        ['non-JSON decision value', input({ decision: { observed_at: new Date('2026-09-04T00:00:00.000Z') } })]
+    ])('snapshotは%sを拒否する', (_name, value) => {
+        expect(() => createVibeproHandoffSnapshot(value)).toThrow();
+    });
+
     it('VibePro v2の正規payloadを署名付きで発行し、OutcomeCaseを7項目だけ投影する', () => {
         const receipt = createVibeproManagedHandoff(input());
 

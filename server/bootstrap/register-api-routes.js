@@ -19,6 +19,7 @@ import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
 import { createRunReceiptRouter } from '../routes/run-receipts.js';
 import { createOutcomeCaseRouter } from '../routes/outcome-cases.js';
+import { createVibeproHandoffRouter } from '../routes/vibepro-handoffs.js';
 import { createMeetingMinutesContextReceiptRouter } from '../routes/meeting-minutes-context-receipts.js';
 import { createRoutineRouter } from '../routes/routines.js';
 import { createMeetingSourceSettingsRouter } from '../routes/meeting-source-settings.js';
@@ -179,6 +180,14 @@ export function registerJudgmentResolutionApiRoute(app, {
     );
 }
 
+export function registerVibeproHandoffApiRoute(app, { authService, runtime }) {
+    app.use(
+        '/api/vibepro-handoffs',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createVibeproHandoffRouter({ runtime })
+    );
+}
+
 export function registerTenantRuntimeApiRoute(app, services) {
     if (!services?.serviceAuth) {
         throw new Error('Tenant runtime service authentication middleware is required');
@@ -241,6 +250,7 @@ export function registerApiRoutes(app, {
     runReceiptQueryService,
     outcomeCaseService,
     outcomeCaseAuditSink,
+    vibeproHandoffRuntime,
     companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
@@ -442,6 +452,7 @@ export function registerApiRoutes(app, {
         service: outcomeCaseService,
         auditSink: outcomeCaseAuditSink
     }));
+    registerVibeproHandoffApiRoute(app, { authService, runtime: vibeproHandoffRuntime });
     app.use(
         '/api/meeting-minutes/context-receipts',
         workflowAuthGuard,

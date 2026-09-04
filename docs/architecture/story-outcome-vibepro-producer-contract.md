@@ -1,5 +1,11 @@
 # BrainbaseからVibeProへ成果契約を引き渡す
 
+## 現在地（2026-09-04）
+
+元の判断記録 → 本人限定の採用契約保存 → 認証付き発行APIまで、ローカルの実PostgreSQLで接続・検証した。VibeProの既存受取との契約互換性も確認した。以下の各節は段階ごとの記録であり、最新の範囲と未完了事項は本節および末尾の検証結果を正とする。
+
+通常起動での有効化、本番DBへの適用、採用許可の実付与、鍵の配備は未実施。議事録やManaメンションへの実返信・受信側読戻しも、このローカル試験では完了としない。Codexから直接利用する経路にManaは必須ではない。
+
 ## Storyと今回の範囲
 
 開発を依頼する利用者として、Brainbaseで決めた成果とVibeProの技術受入条件を同じ案件として引き継ぎ、引渡し成功を成果達成と取り違えずに開発を進めたい。
@@ -97,3 +103,25 @@
 - VibeProの既存受取39件も独立再実行で成功。この結果から本番稼働や議事録・メンション返信の成果達成は推定しない。
 
 実DB試験は専用の一時DBに対し、`RUN_OUTCOME_CASE_DB_TESTS=1 OUTCOME_CASE_DATABASE_URL=<専用DBの接続先> npm run test:run -- tests/server/services/outcome-case-postgres-rls.integration.test.js` で実行する。通常のDBや本番DBを試験先に使わない。
+
+## 採用済みsnapshotの本人限定保存（ローカル）
+
+元の判断記録をそのまま共有せず、本人が明示して採用した最小projectionだけを別表へ保存する。projectionは元記録の本文を複製せず、`turn_id` と論理的な `judgment_receipt_ref` を持つ。`decision_digest` はこの採用snapshotから計算され、通常のTurn receiptを再ハッシュしたものではない。
+
+- `vibepro_handoff_adoptions` は元記録、OutcomeCaseの組織・project・revision、本人をDBで照合し、更新・削除を拒否する。読取りも本人・組織・projectの完全一致だけに制限する。採用snapshotを組織共有の技術情報と同一視しない。
+- 採用の可否は `vibepro_handoff_adoption_grants` の専用行だけで判定する。既存RACIは一般memberが自己付与できるため使わない。この表にアプリケーション、HTTP、MCPからの作成・更新・削除経路は置かない。
+- 専用grantの実登録主体と運用は未決定である。したがって通常起動での自動有効化、本番DBへの適用、本番発行はこの実装に含めない。Bearer認証routeも、明示的に構成されたruntimeなしでは503になる。
+- Bearerヘッダーで検証済みの本人またはservice tokenだけを受け、cookie、insecure header、internal API keyは拒否する。service tokenでも本人・組織・project・専用grantの完全一致が必要であり、無条件の採用権限ではない。
+
+### 保存から発行までの接続と検証結果
+
+`createVibeproHandoffRuntime` は実PostgreSQLの保存・読戻しを既存発行サービスへ接続する。構成済みruntimeを渡した `registerApiRoutes` または `registerVibeproHandoffApiRoute` から、`POST /api/vibepro-handoffs/adoptions`（採用・201）と `POST /api/vibepro-handoffs/issue`（発行・200）を利用する。未構成では有効なBearer認証後も503となる。
+
+採用入力はcaseId、resolutionId、expectedRevision、対象repository、技術受入条件、本番確認手順に限定する。本人・組織・project・出典・採用状態はサーバーが確定する。案件を共有ロックで取得して版番号を照合し、保存済みの列から応答を返す。同一契約の上書きは409。採用後に案件が正規評価で更新されると、古い版の契約からの発行も409になる。
+
+- 親の独立実行でBrainbaseの9ファイル126件成功、skip 0。実DB8件を含む。別人・別組織・別projectの不可視、専用許可なしの拒否、許可表のアプリからの変更不可、保存契約の改変不可、出典の一致、接続再利用時の本人情報消去を確認した。
+- 実認証ミドルウェアと実DBを経由した採用・発行を確認した。トークン検証器と権限の初期登録は試験用であり、本番の認証・採用許可の証拠ではない。サービス用Cookieを不正なBearerヘッダーで認証済みに見せる入力も拒否する。
+- VibePro既存受取39件、リポジトリ間接続4件も親が再実行して成功、skip 0。接続4件の保存元は引き続きメモリ内fixtureであり、実DB→VibePro受取を一続きに実行した試験ではない。
+- Terraへ実装を委任し、別のTerraが権限・認証・DB整合性を独立レビューした。重大な実欠陥の指摘なし。実装と検証に用いた専用DBは本番DBと分離している。
+
+この契約の採用・発行は、外部操作の許可でも技術受入の合格でも成果達成でもない。`authorized` と `graph_promotion_allowed` はfalseを維持する。許可の判定は採用時点、案件の版照合は発行時の取得時点であり、発行後の自動失効や受信時点の最新性は保証しない。

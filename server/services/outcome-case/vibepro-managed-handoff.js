@@ -77,14 +77,24 @@ function canonicalJson(value) {
         seen.add(input);
         let result;
         if (Array.isArray(input)) {
+            if (Object.getOwnPropertySymbols(input).length > 0) {
+                throw new TypeError('canonical JSON does not support symbol keys');
+            }
             for (let index = 0; index < input.length; index += 1) {
                 if (!Object.hasOwn(input, index)) throw new TypeError('canonical JSON does not support sparse arrays');
+            }
+            const expectedKeys = new Set(['length', ...Array.from({ length: input.length }, (_value, index) => String(index))]);
+            if (Object.getOwnPropertyNames(input).some((key) => !expectedKeys.has(key))) {
+                throw new TypeError('canonical JSON does not support array properties');
             }
             result = `[${input.map((entry) => serialize(entry)).join(',')}]`;
         } else {
             const prototype = Object.getPrototypeOf(input);
             if (prototype !== Object.prototype && prototype !== null) {
                 throw new TypeError('canonical JSON only supports plain objects');
+            }
+            if (Object.getOwnPropertySymbols(input).length > 0) {
+                throw new TypeError('canonical JSON does not support symbol keys');
             }
             result = `{${Object.keys(input).sort(compareCodePoints).map((key) => {
                 if (input[key] === undefined) throw new TypeError('canonical JSON does not support undefined');
@@ -171,6 +181,54 @@ function productionProbe(value) {
 }
 
 /**
+ * Validates and normalizes the source boundary before any signing material is
+ * introduced. The decision is a strict JSON deep copy: values that JSON would
+ * discard or coerce are rejected instead of being silently lost.
+ */
+export function createVibeproHandoffSnapshot({
+    outcomeCase,
+    decision,
+    target,
+    technicalAcceptance: acceptanceInput,
+    productionProbe: probeInput
+} = {}) {
+    const sourceCase = object(outcomeCase, 'outcomeCase');
+    const sourceDecision = object(decision, 'decision');
+    const sourceTarget = object(target, 'target');
+    const caseId = safeIdentifier(sourceCase.case_id, 'outcomeCase.case_id');
+    const outcomeProject = projectCode(sourceCase.project_code, 'outcomeCase.project_code');
+    const decisionCase = safeIdentifier(sourceDecision.case_id, 'decision.case_id');
+    const decisionProject = projectCode(sourceDecision.project_code, 'decision.project_code');
+    const targetProject = projectCode(sourceTarget.project_code, 'target.project_code');
+    const targetCaseId = safeIdentifier(sourceTarget.case_id ?? caseId, 'target.case_id');
+    if (caseId !== decisionCase || caseId !== targetCaseId) {
+        throw new Error('OutcomeCase, decision, and target case_id must match');
+    }
+    if (outcomeProject !== decisionProject || outcomeProject !== targetProject) {
+        throw new Error('OutcomeCase, decision, and target project_code must match');
+    }
+
+    managedIdentifier(sourceDecision.resolution_id, 'decision.resolution_id');
+    managedIdentifier(sourceDecision.turn_id, 'decision.turn_id');
+    const baseSha = requiredString(sourceTarget.base_sha, 'target.base_sha');
+    if (!SHA.test(baseSha)) throw new Error('target.base_sha must be a lowercase 40 or 64 character Git SHA digest');
+
+    return {
+        decision: JSON.parse(canonicalJson(sourceDecision)),
+        target: {
+            repository: normalizeRepository(sourceTarget.repository),
+            repository_root: normalizeRepositoryRoot(sourceTarget.repository_root),
+            project_code: outcomeProject,
+            case_id: targetCaseId,
+            base_sha: baseSha,
+            story_id: sourceTarget.story_id === null ? null : safeIdentifier(sourceTarget.story_id, 'target.story_id')
+        },
+        technicalAcceptance: technicalAcceptance(acceptanceInput),
+        productionProbe: productionProbe(probeInput)
+    };
+}
+
+/**
  * Produces the VibePro v2 managed-handoff wire only; it performs no I/O and
  * does not authenticate its snapshots. `brainbase://` values are logical
  * references, not API/readback proof. Its HMAC is for one shared trust domain,
@@ -187,25 +245,12 @@ export function createVibeproManagedHandoff({
     issuedAt,
     expiresAt
 } = {}) {
+    const snapshot = createVibeproHandoffSnapshot({
+        outcomeCase, decision, target, technicalAcceptance: acceptanceInput, productionProbe: probeInput
+    });
     const sourceCase = object(outcomeCase, 'outcomeCase');
-    const sourceDecision = object(decision, 'decision');
-    const sourceTarget = object(target, 'target');
-    const caseId = safeIdentifier(sourceCase.case_id, 'outcomeCase.case_id');
-    const outcomeProject = projectCode(sourceCase.project_code, 'outcomeCase.project_code');
-    const decisionCase = safeIdentifier(sourceDecision.case_id, 'decision.case_id');
-    const decisionProject = projectCode(sourceDecision.project_code, 'decision.project_code');
-    const targetProject = projectCode(sourceTarget.project_code, 'target.project_code');
-    if (caseId !== decisionCase || caseId !== safeIdentifier(sourceTarget.case_id ?? caseId, 'target.case_id')) {
-        throw new Error('OutcomeCase, decision, and target case_id must match');
-    }
-    if (outcomeProject !== decisionProject || outcomeProject !== targetProject) {
-        throw new Error('OutcomeCase, decision, and target project_code must match');
-    }
-
-    const resolutionId = managedIdentifier(sourceDecision.resolution_id, 'decision.resolution_id');
-    const turnId = managedIdentifier(sourceDecision.turn_id, 'decision.turn_id');
-    const baseSha = requiredString(sourceTarget.base_sha, 'target.base_sha');
-    if (!SHA.test(baseSha)) throw new Error('target.base_sha must be a lowercase 40 or 64 character Git SHA digest');
+    const resolutionId = managedIdentifier(snapshot.decision.resolution_id, 'decision.resolution_id');
+    const turnId = managedIdentifier(snapshot.decision.turn_id, 'decision.turn_id');
     const normalizedIssuedAt = timestamp(issuedAt, 'issuedAt');
     const normalizedExpiresAt = timestamp(expiresAt, 'expiresAt');
     if (new Date(normalizedExpiresAt).valueOf() <= new Date(normalizedIssuedAt).valueOf()) {
@@ -216,25 +261,25 @@ export function createVibeproManagedHandoff({
 
     const receipt = {
         schema_version: SCHEMA_VERSION,
-        repository: normalizeRepository(sourceTarget.repository),
-        repository_root: normalizeRepositoryRoot(sourceTarget.repository_root),
-        project_code: outcomeProject,
-        base_sha: baseSha,
+        repository: snapshot.target.repository,
+        repository_root: snapshot.target.repository_root,
+        project_code: snapshot.target.project_code,
+        base_sha: snapshot.target.base_sha,
         issued_at: normalizedIssuedAt,
         expires_at: normalizedExpiresAt,
         turn_id: turnId,
         resolution_id: resolutionId,
-        story_id: sourceTarget.story_id === null ? null : safeIdentifier(sourceTarget.story_id, 'target.story_id'),
+        story_id: snapshot.target.story_id,
         authorized: false,
         graph_promotion_allowed: false,
         outcome_case: {
-            case_id: caseId,
-            outcome_case_ref: `brainbase://outcome-cases/${caseId}`,
+            case_id: snapshot.target.case_id,
+            outcome_case_ref: `brainbase://outcome-cases/${snapshot.target.case_id}`,
             judgment_receipt_ref: `brainbase://judgment-receipts/${resolutionId}`,
-            decision_digest: sha256(canonicalJson(sourceDecision)),
+            decision_digest: sha256(canonicalJson(snapshot.decision)),
             user_observable_outcome: requiredString(sourceCase.user_observable_outcome, 'outcomeCase.user_observable_outcome'),
-            technical_acceptance: technicalAcceptance(acceptanceInput),
-            production_probe: productionProbe(probeInput)
+            technical_acceptance: snapshot.technicalAcceptance,
+            production_probe: snapshot.productionProbe
         }
     };
     const payload = canonicalManagedHandoffPayload(receipt);

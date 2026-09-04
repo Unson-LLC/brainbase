@@ -7,7 +7,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createOutcomeCaseService } from '../../../server/bootstrap/core-services.js';
-import { registerApiRoutes, registerJudgmentResolutionApiRoute } from '../../../server/bootstrap/register-api-routes.js';
+import { registerApiRoutes, registerJudgmentResolutionApiRoute, registerVibeproHandoffApiRoute } from '../../../server/bootstrap/register-api-routes.js';
 import { JudgmentReceiptPostgresRepository } from '../../../server/services/judgment-receipt/judgment-receipt-postgres-repository.js';
 import { JudgmentResolutionService, canonicalJson, computeRequestDigest } from '../../../server/services/judgment-resolution-service.js';
 import { createOutcomeCaseRouter } from '../../../server/routes/outcome-cases.js';
@@ -16,6 +16,7 @@ import { OutcomeCasePostgresRepository } from '../../../server/services/outcome-
 import { createOutcomeCaseClosureAuthorityResolver } from '../../../server/services/outcome-case/outcome-case-reference-resolver.js';
 import { OutcomeCaseService } from '../../../server/services/outcome-case/outcome-case-service.js';
 import { RunReceiptQueryService } from '../../../server/services/run-receipt/query-service.js';
+import { createVibeproHandoffRuntime } from '../../../server/services/outcome-case/vibepro-handoff-runtime.js';
 
 // VibePro traceability: story-outcome-case-v1:ac:db-rls-api-roundtrip.
 // This is opt-in because it applies an isolated schema to a real PostgreSQL
@@ -275,6 +276,182 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         expect(persisted.rows).toEqual([{ receipt }]);
     });
 
+    it('adopts and issues only the author-owned projection with a dedicated grant, not ordinary RACI', async () => {
+        const info = new InfoSSOTService({ pool: appPool });
+        const rawRepository = new JudgmentReceiptPostgresRepository({ pool: appPool, infoSSOTService: info });
+        const created = await request(serviceFor(projectActor)).post('/api/outcome-cases').send({
+            ...createPayload,
+            run_receipt_refs: ['run-handoff-adoption']
+        }).expect(201);
+        const resolutionId = `jr_handoff_${Date.now()}`;
+        await rawRepository.record({
+            resolution_id: resolutionId,
+            turn_id: 'turn-handoff-adoption',
+            project_code: 'brainbase',
+            status: 'resolved',
+            personal_judgment: 'raw judgment must never be copied to VibePro'
+        }, projectActor);
+        await adminPool.query(`
+            INSERT INTO ${schema}.people (id, name) VALUES ('per_raci_only', 'RACI only') ON CONFLICT DO NOTHING;
+            INSERT INTO ${schema}.raci_assignments
+                (id, project_id, person_id, role_code, authority_scope, sensitivity_min, sensitivity)
+            VALUES
+                ('raci_handoff_close', 'project_brainbase', 'per_raci_only', 'outcome_case:close', '', 'member', 'internal'),
+                ('raci_handoff_gm', 'project_brainbase', 'per_raci_only', 'vibepro_handoff:adopt', '', 'member', 'internal')
+            ON CONFLICT DO NOTHING;
+            INSERT INTO ${schema}.vibepro_handoff_adoption_grants (organization_id, project_code, person_id)
+            VALUES ('org_unson', 'brainbase', 'per_owner');
+        `);
+
+        const outcomeCaseService = new OutcomeCaseService({
+            repository: new OutcomeCasePostgresRepository({ pool: appPool, infoSSOTService: info }),
+            readRunReceipt: async () => null,
+            resolveOutcomeReferences: async () => ({ project: { state: 'confirmed' }, capability: { state: 'confirmed' } }),
+            resolveClosureAuthority: async () => ({ state: 'unresolved', reason: 'not-used-for-read' })
+        });
+        const runtime = createVibeproHandoffRuntime({
+            pool: appPool,
+            infoSSOTService: info,
+            outcomeCaseService,
+            signingKey: 'outcome-case-handoff-integration-signing-key-32-chars',
+            keyId: 'handoff-integration-key',
+            clock: () => new Date('2026-09-04T00:00:00.000Z')
+        });
+        const adoptionInput = {
+            caseId: created.body.case_id,
+            resolutionId,
+            expectedRevision: created.body.revision,
+            target: {
+                repository: 'https://github.com/Unson-LLC/example.git', repository_root: '.',
+                base_sha: 'a'.repeat(40), story_id: 'story-outcome-vibepro-producer-contract'
+            },
+            technicalAcceptance: [{ id: 'TA-adopt', criterion: '保存済みsnapshotを読戻せる' }],
+            productionProbe: { id: 'probe-adopt', procedure: 'ローカルDBのsnapshotを読戻す' }
+        };
+        const handoffApp = express();
+        handoffApp.use(express.json());
+        registerVibeproHandoffApiRoute(handoffApp, {
+            authService: { verifyToken: () => ({ ...projectActor, sub: projectActor.personId }) },
+            runtime
+        });
+        const adopted = await request(handoffApp)
+            .post('/api/vibepro-handoffs/adoptions').set('Authorization', 'Bearer handoff-owner').send(adoptionInput).expect(201);
+        expect(adopted.body).toMatchObject({
+            status: 'adopted', owner_person_id: 'per_owner', case_id: created.body.case_id,
+            resolution_id: resolutionId, outcome_case_revision: created.body.revision,
+            decision: { turn_id: 'turn-handoff-adoption', judgment_receipt_ref: `brainbase://judgment-receipts/${resolutionId}` }
+        });
+        expect(JSON.stringify(adopted.body)).not.toContain('raw judgment');
+        const issued = await request(handoffApp)
+            .post('/api/vibepro-handoffs/issue').set('Authorization', 'Bearer handoff-owner')
+            .send({ caseId: created.body.case_id, resolutionId }).expect(200);
+        expect(issued.body).toMatchObject({ authorized: false, graph_promotion_allowed: false, resolution_id: resolutionId });
+
+        await expect(runtime.adopt({ ...adoptionInput, expectedRevision: created.body.revision + 1 }, projectActor))
+            .rejects.toMatchObject({ code: 'vibepro_handoff_adoption_revision_conflict', status: 409 });
+        await expect(runtime.adopt(adoptionInput, projectActor))
+            .rejects.toMatchObject({ code: 'vibepro_handoff_adoption_conflict', status: 409 });
+
+        const raciOnlyActor = { ...projectActor, personId: 'per_raci_only' };
+        await rawRepository.record({
+            resolution_id: resolutionId,
+            turn_id: 'turn-raci-only',
+            project_code: 'brainbase',
+            status: 'resolved'
+        }, raciOnlyActor);
+        await expect(runtime.adopt(adoptionInput, raciOnlyActor))
+            .rejects.toMatchObject({ code: 'vibepro_handoff_adoption_denied', status: 403 });
+        expect(await runtime.store.readAdoptedHandoff({
+            caseId: created.body.case_id, resolutionId, organizationId: 'org_unson', projectCode: 'brainbase', actor: raciOnlyActor
+        })).toBeNull();
+
+        const directGrantMutation = (sql, values = []) => info.withAccessContext(projectActor, async (client) => {
+            await client.query("SELECT set_config('app.judgment_receipt_owner_id', $1, true)", [projectActor.personId]);
+            await client.query("SELECT set_config('app.vibepro_handoff_adoption_owner_id', $1, true)", [projectActor.personId]);
+            return client.query(sql, values);
+        }, { requireCanonicalTenant: true });
+        await expect(directGrantMutation(
+            `INSERT INTO vibepro_handoff_adoption_grants (organization_id, project_code, person_id) VALUES ('org_unson', 'brainbase', 'per_raci_only')`
+        )).rejects.toMatchObject({ code: '42501' });
+        expect((await directGrantMutation(
+            `UPDATE vibepro_handoff_adoption_grants SET person_id = 'per_other' WHERE person_id = 'per_owner'`
+        )).rowCount).toBe(0);
+        expect((await directGrantMutation(
+            `DELETE FROM vibepro_handoff_adoption_grants WHERE person_id = 'per_owner'`
+        )).rowCount).toBe(0);
+
+        const insertSnapshot = `INSERT INTO vibepro_handoff_adoptions (
+            organization_id, project_code, owner_person_id, case_id, resolution_id,
+            outcome_case_revision, decision, target, technical_acceptance, production_probe
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb)`;
+        const snapshotTarget = {
+            ...adoptionInput.target, case_id: created.body.case_id, project_code: 'brainbase'
+        };
+        const insertValuesFor = (mismatchResolutionId, decision) => [
+            'org_unson', 'brainbase', 'per_owner', created.body.case_id, mismatchResolutionId,
+            created.body.revision, JSON.stringify(decision), JSON.stringify(snapshotTarget),
+            JSON.stringify(adoptionInput.technicalAcceptance), JSON.stringify(adoptionInput.productionProbe)
+        ];
+        const directPositiveResolutionId = `jr_handoff_positive_${Date.now()}`;
+        await rawRepository.record({
+            resolution_id: directPositiveResolutionId, turn_id: 'turn-positive', project_code: 'brainbase', status: 'resolved'
+        }, projectActor);
+        await expect(directGrantMutation(insertSnapshot, insertValuesFor(directPositiveResolutionId, {
+            case_id: created.body.case_id, project_code: 'brainbase', resolution_id: directPositiveResolutionId,
+            turn_id: 'turn-positive', judgment_receipt_ref: `brainbase://judgment-receipts/${directPositiveResolutionId}`
+        }))).resolves.toMatchObject({ rowCount: 1 });
+        const turnMismatchResolutionId = `jr_handoff_turn_mismatch_${Date.now()}`;
+        await rawRepository.record({
+            resolution_id: turnMismatchResolutionId, turn_id: 'turn-real', project_code: 'brainbase', status: 'resolved'
+        }, projectActor);
+        await expect(directGrantMutation(insertSnapshot, insertValuesFor(turnMismatchResolutionId, {
+            case_id: created.body.case_id, project_code: 'brainbase', resolution_id: turnMismatchResolutionId,
+            turn_id: 'turn-forged', judgment_receipt_ref: `brainbase://judgment-receipts/${turnMismatchResolutionId}`
+        }))).rejects.toMatchObject({ code: '42501' });
+        const refMismatchResolutionId = `jr_handoff_ref_mismatch_${Date.now()}`;
+        await rawRepository.record({
+            resolution_id: refMismatchResolutionId, turn_id: 'turn-ref-real', project_code: 'brainbase', status: 'resolved'
+        }, projectActor);
+        await expect(directGrantMutation(insertSnapshot, insertValuesFor(refMismatchResolutionId, {
+            case_id: created.body.case_id, project_code: 'brainbase', resolution_id: refMismatchResolutionId,
+            turn_id: 'turn-ref-real', judgment_receipt_ref: 'brainbase://judgment-receipts/forged'
+        }))).rejects.toMatchObject({ code: '23514' });
+        expect((await directGrantMutation(
+            `UPDATE vibepro_handoff_adoptions SET decision = '{}'::jsonb WHERE case_id = $1`, [created.body.case_id]
+        )).rowCount).toBe(0);
+        expect((await directGrantMutation(
+            `DELETE FROM vibepro_handoff_adoptions WHERE case_id = $1`, [created.body.case_id]
+        )).rowCount).toBe(0);
+        await expect(adminPool.query(
+            `UPDATE ${schema}.vibepro_handoff_adoptions SET decision = '{}'::jsonb WHERE case_id = $1`, [created.body.case_id]
+        )).rejects.toThrow('VIBEPRO_HANDOFF_ADOPTIONS_IMMUTABLE');
+        await expect(adminPool.query(
+            `DELETE FROM ${schema}.vibepro_handoff_adoptions WHERE case_id = $1`, [created.body.case_id]
+        )).rejects.toThrow('VIBEPRO_HANDOFF_ADOPTIONS_IMMUTABLE');
+
+        expect(await runtime.store.readAdoptedHandoff({
+            caseId: created.body.case_id, resolutionId, organizationId: 'org_other', projectCode: 'brainbase',
+            actor: { ...projectActor, organizationId: 'org_other', tenantId: 'org_other' }
+        })).toBeNull();
+        expect(await runtime.store.readAdoptedHandoff({
+            caseId: created.body.case_id, resolutionId, organizationId: 'org_unson', projectCode: 'vibepro',
+            actor: { ...projectActor, projectCodes: ['vibepro'] }
+        })).toBeNull();
+
+        const evaluatedAfterAdoption = await request(serviceFor(projectActor))
+            .post(`/api/outcome-cases/${created.body.case_id}/evaluations`)
+            .send({
+                technical_evidence: { status: 'confirmed', refs: ['test:handoff-stale-revision'] },
+                run_receipt_refs: ['run-handoff-adoption'],
+                external_readback: { status: 'confirm', ref: 'external:handoff-stale-revision' },
+                constraints_status: 'satisfied', evaluator: 'authenticated-evaluator',
+                observed_at: '2026-09-04T00:01:00.000Z'
+            }).expect(200);
+        expect(evaluatedAfterAdoption.body.revision).toBe(Number(created.body.revision) + 1);
+        await expect(runtime.issue({ caseId: created.body.case_id, resolutionId }, projectActor))
+            .rejects.toMatchObject({ code: 'vibepro_handoff_source_incoherent', status: 409 });
+    });
+
     it('does not retain author or tenant context after commit or rollback on a reused connection', async () => {
         const pool = new Pool({ connectionString: connectionUrl({ role: appRole, password: APP_PASSWORD, searchPath: schema }), max: 1 });
         try {
@@ -284,11 +461,17 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
             await repository.record(receipt, projectActor);
             const assertNoContext = async () => {
                 const result = await pool.query(`SELECT current_setting('app.organization_id', true) AS org,
-                    current_setting('app.judgment_receipt_owner_id', true) AS owner`);
+                    current_setting('app.judgment_receipt_owner_id', true) AS owner,
+                    current_setting('app.vibepro_handoff_adoption_owner_id', true) AS handoff_owner`);
                 expect(result.rows[0].org || '').toBe('');
                 expect(result.rows[0].owner || '').toBe('');
+                expect(result.rows[0].handoff_owner || '').toBe('');
                 expect((await pool.query('SELECT * FROM judgment_receipts')).rows).toEqual([]);
             };
+            await assertNoContext();
+            await info.withAccessContext(projectActor, async (client) => {
+                await client.query("SELECT set_config('app.vibepro_handoff_adoption_owner_id', $1, true)", [projectActor.personId]);
+            }, { requireCanonicalTenant: true });
             await assertNoContext();
             await expect(repository.record(receipt, projectActor)).rejects.toMatchObject({ status: 409 });
             await assertNoContext();
