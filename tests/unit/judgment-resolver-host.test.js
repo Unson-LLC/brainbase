@@ -565,7 +565,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(fetchImpl).toHaveBeenCalledTimes(1);
         expect(result).toMatchObject({ decision: 'block' });
         expect(result.systemMessage).toBe('🔁 確認不要と判定しました。回答を差し戻して処理を続けています');
-        expect(result.reason).toContain('不要な確認質問を回答本文に残さず');
+        expect(result.reason).toContain('状態登録、監査行の追加、将来の作業予定だけで終了しない');
         const episodeFiles = readdirSync(join(root, 'journal', hash(sessionId)))
             .filter((name) => name.endsWith('.episode.json'));
         expect(episodeFiles).toHaveLength(1);
@@ -623,7 +623,7 @@ describe('Codex Judgment Resolver Host', () => {
 
         expect(fetchImpl).toHaveBeenCalledTimes(1);
         expect(result).toMatchObject({ decision: 'block' });
-        expect(result.reason).toContain('安全な範囲の作業結果を続けてください');
+        expect(result.reason).toContain('安全な残作業があればpendingのまま実行を続け');
         const episodePath = join(root, 'journal', hash(sessionId), `${hash(turnId)}.episode.json`);
         expect(JSON.parse(readFileSync(episodePath, 'utf8'))).toMatchObject({
             episode_origin: 'stop_delegation_recovery',
@@ -2437,6 +2437,16 @@ describe('Codex Judgment Resolver Host', () => {
         expect(result.continuation.autonomy_continuation).toMatchObject({
             trigger_code: 'unfinished_safe_work', status: 'requested'
         });
+        const retried = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                'まだ安全な作業が残っています。',
+                structuredStopState('pending', { pendingSafeWork: true })
+            ].join('\n')
+        }, { env });
+        expect(retried.output.decision).toBe('block');
+        expect(retried.final).toBeNull();
     });
 
     it('runtime 2.3のcompletedはCodexが文字列で返すBash実行証跡で裏付け、本文中の質問語では誤判定しない', async () => {
@@ -3142,6 +3152,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(result.output).toMatchObject({ decision: 'block' });
         expect(result.output.reason).toContain('brainbase_judgment_state_record');
         expect(result.output.reason).not.toContain('<!-- brainbase-stop-state:');
+        expect(result.continuation.autonomy_continuation).toBeUndefined();
         expect(result.final).toBeNull();
     });
 
@@ -3271,12 +3282,16 @@ describe('Codex Judgment Resolver Host', () => {
             }
         });
 
+        recordBrainbaseToolUse({
+            ...payload, tool_name: 'apply_patch', tool_use_id: 'continued-implementation',
+            tool_input: {}, tool_response: { success: true }
+        }, { env });
         const completed = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
+                '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
                 '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '安全な範囲の実装と検証を完了しました。'
             ].join('\n')
@@ -3285,7 +3300,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(completed.output.systemMessage).toBe([
             episode.owner_audit.display_line,
             '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
+            '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
             '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
         ].join('\n'));
         expect(completed.final).toMatchObject({
@@ -3351,12 +3366,16 @@ describe('Codex Judgment Resolver Host', () => {
             }
         });
 
+        recordBrainbaseToolUse({
+            ...payload, tool_name: 'apply_patch', tool_use_id: 'continued-outcome',
+            tool_input: {}, tool_response: { success: true }
+        }, { env });
         const completed = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓',
+                '🔁 実行継続: 安全な残作業の再開要求を記録',
                 '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '検証処理を修正しました。回帰テストも完了しました。'
             ].join('\n')
@@ -3439,10 +3458,14 @@ describe('Codex Judgment Resolver Host', () => {
             stop_hook_active: false, last_assistant_message: badAnswer
         }, { env });
 
-        // A continuation marker already exists from the first block above,
-        // so this active re-Stop never blocks again (no infinite confirm
-        // loop): it converges to a finite audit_degraded completion instead
-        // of throwing judgment_stop_repair_exhausted.
+        // Persist two further requests, then finish visibly unresolved.
+        for (let attempt = 2; attempt <= 3; attempt += 1) {
+            const retry = await processHookPayload({
+                hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+                stop_hook_active: true, last_assistant_message: badAnswer
+            }, { env });
+            expect(retry.decision).toBe('block');
+        }
         const degraded = await processHookPayload({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: badAnswer
@@ -3455,7 +3478,8 @@ describe('Codex Judgment Resolver Host', () => {
         expect(existsSync(finalPath)).toBe(true);
         expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
             completion_status: 'audit_degraded',
-            degradation_reason: 'autonomy.continuation'
+            degradation_reason: 'autonomy.continuation',
+            autonomy_continuation: { status: 'unresolved', attempt_count: 3, execution_event_count: 0 }
         });
     });
 
@@ -3587,12 +3611,12 @@ describe('Codex Judgment Resolver Host', () => {
             zero_call_display_line_digest: hash('📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'),
             autonomy_continuation_progress_line: '🔁 確認不要と判定しました。回答を差し戻して処理を続けています',
             autonomy_continuation_progress_line_digest: hash('🔁 確認不要と判定しました。回答を差し戻して処理を続けています'),
-            autonomy_continuation_complete_line: '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
-            autonomy_continuation_complete_line_digest: hash('🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓'),
+            autonomy_continuation_complete_line: '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
+            autonomy_continuation_complete_line_digest: hash('🔁 自律継続: 不要な確認を差し戻し、再開要求を記録'),
             outcome_continuation_progress_line: '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています',
             outcome_continuation_progress_line_digest: hash('🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'),
-            outcome_continuation_complete_line: '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓',
-            outcome_continuation_complete_line_digest: hash('🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓'),
+            outcome_continuation_complete_line: '🔁 実行継続: 安全な残作業の再開要求を記録',
+            outcome_continuation_complete_line_digest: hash('🔁 実行継続: 安全な残作業の再開要求を記録'),
             stop_repair_complete_line: '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
             stop_repair_complete_line_digest: hash('🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'),
             repair_body_policy: 'preserve'
