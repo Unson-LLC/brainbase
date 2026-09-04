@@ -4,7 +4,6 @@ import process from 'node:process';
 import path from 'node:path';
 import pg from 'pg';
 
-import { databaseConfig } from './migrate-m5a-production-schema.js';
 import {
     JsonFileSnsPostingLedgerRepository,
     PgSnsPostingLedgerRepository,
@@ -136,10 +135,7 @@ export async function runScheduledPosts({
     validateArgs(args);
     const publisherActor = resolveSnsScheduledPublisherActor(env);
     const databaseUrl = resolveSnsPostingLedgerDatabaseUrl(env);
-    const pool = databaseUrl ? new PoolClass(databaseConfig({
-        ...env,
-        SNS_POSTING_LEDGER_DATABASE_URL: databaseUrl
-    })) : null;
+    const pool = databaseUrl ? new PoolClass({ connectionString: databaseUrl }) : null;
     try {
         if (!pool && !shouldUseJsonLedgerForTest(env)) {
             throw new Error('SNS Posting Ledger PostgreSQL URL is required outside explicit JSON test mode');
