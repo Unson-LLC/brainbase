@@ -22,6 +22,7 @@ const runPostgresTests = ['1', 'true'].includes(
 const describeWithPostgres = runPostgresTests && databaseUrl ? describe : describe.skip;
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const schemaPath = path.join(sourceRoot, 'server/sql/info-ssot-schema.sql');
+const outcomeCaseSchemaPath = path.join(sourceRoot, 'server/sql/outcome-case-schema.sql');
 const rlsPath = path.join(sourceRoot, 'server/sql/info-ssot-rls.sql');
 
 const access = {
@@ -66,6 +67,7 @@ async function applyInfoSSOTSchema(pool) {
 }
 
 async function applyInfoSSOTRls(pool) {
+    await pool.query(await readFile(outcomeCaseSchemaPath, 'utf8'));
     await pool.query(await readFile(rlsPath, 'utf8'));
 }
 
