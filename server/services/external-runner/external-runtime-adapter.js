@@ -1,7 +1,11 @@
 // @ts-check
 
 import crypto from 'node:crypto';
-import { validateExternalRunnerEnvelope } from './contract-schema.js';
+import { canonicalJson } from '../../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
+import {
+    ExternalRunnerContractError,
+    validateExternalRunnerEnvelope
+} from './contract-schema.js';
 
 const APPROVAL_REQUIRED_STATUSES = new Set(['approval_required', 'waiting_human']);
 
@@ -49,6 +53,20 @@ function firstNonBlank(...values) {
         if (typeof value === 'string' && value.trim() !== '') return value.trim();
     }
     return '';
+}
+
+function withoutUndefined(value) {
+    if (Array.isArray(value)) return value.map((item) => withoutUndefined(item));
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value)
+        .filter(([, child]) => child !== undefined)
+        .map(([key, child]) => [key, withoutUndefined(child)]));
+}
+
+function companyAuthorityHandoffDigest(handoff) {
+    return crypto.createHash('sha256')
+        .update(canonicalJson(withoutUndefined(handoff)))
+        .digest('hex');
 }
 
 export class ExternalRuntimeAdapter {
@@ -153,11 +171,58 @@ export class ExternalRuntimeAdapter {
             }
         }));
 
+        const companyAuthorityHandoffs = [];
         const humanSteps = (envelope.human_steps || []).map((step, index) => {
             const actionableText = firstNonBlank(step.prompt, step.title, step.description, step.approval_reason);
-            const approvalOwnerId = step.required_by || envelope.loop_control.approval_owner_id;
+            const humanStepId = step.id || `human_${runId}_${index + 1}`;
+            const handoff = step.company_authority_handoff;
+            const observedRequesterId = handoff?.observed_request?.provider_identity?.authenticated_subject_id;
+            const requestedBy = handoff
+                ? handoff.requested_by || observedRequesterId
+                : undefined;
+            const handoffDigest = handoff ? companyAuthorityHandoffDigest(handoff) : null;
+            const approvalOwnerId = handoff?.target_approver_id
+                || step.required_by
+                || envelope.loop_control.approval_owner_id;
+            if (handoff) {
+                for (const [field, actual] of [
+                    ['requested_by', step.requested_by],
+                    ['required_by', step.required_by],
+                    ['requested_to', step.requested_to]
+                ]) {
+                    if (actual !== undefined && actual !== null && actual !== requestedBy && field === 'requested_by') {
+                        throw new ExternalRunnerContractError(
+                            'company_authority_human_approval_requester_mismatch',
+                            `human_steps[${index}].${field} must match the observed Company Authority requester`,
+                            { index, field, expected: requestedBy, actual }
+                        );
+                    }
+                    if (actual !== undefined && actual !== null && actual !== approvalOwnerId && field !== 'requested_by') {
+                        throw new ExternalRunnerContractError(
+                            'company_authority_human_approval_approver_mismatch',
+                            `human_steps[${index}].${field} must match the Company Authority target approver`,
+                            { index, field, expected: approvalOwnerId, actual }
+                        );
+                    }
+                }
+                if (requestedBy !== observedRequesterId) {
+                    throw new ExternalRunnerContractError(
+                        'company_authority_human_approval_requester_mismatch',
+                        `human_steps[${index}].company_authority_handoff.requested_by must match observed_request.provider_identity.authenticated_subject_id`,
+                        { index, expected: observedRequesterId, actual: requestedBy }
+                    );
+                }
+                companyAuthorityHandoffs.push({
+                    humanStepId,
+                    observedRequest: handoff.observed_request,
+                    authorityResponse: handoff.authority_response,
+                    executionHash: handoff.execution_hash || null,
+                    handoffIdempotencyKey: handoff.handoff_idempotency_key,
+                    targetApproverId: handoff.target_approver_id
+                });
+            }
             return {
-                id: step.id || `human_${runId}_${index + 1}`,
+                id: humanStepId,
                 workspace_id: workspaceId,
                 org_id: orgId,
                 project_id: projectId,
@@ -170,10 +235,12 @@ export class ExternalRuntimeAdapter {
                 description: firstNonBlank(step.description, actionableText) || null,
                 required_by: approvalOwnerId,
                 requested_to: approvalOwnerId,
+                ...(requestedBy ? { requested_by: requestedBy } : {}),
                 metadata: {
                     prompt: actionableText || null,
                     approval_reason: step.approval_reason || null,
-                    evidence_refs: step.evidence_refs || []
+                    evidence_refs: step.evidence_refs || [],
+                    ...(handoffDigest ? { company_authority_handoff_digest: handoffDigest } : {})
                 }
             };
         });
@@ -261,6 +328,7 @@ export class ExternalRuntimeAdapter {
             run,
             contextSnapshots,
             humanSteps,
+            companyAuthorityHandoffs,
             outputs,
             auditEvents,
             learningCandidates

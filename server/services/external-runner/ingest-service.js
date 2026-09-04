@@ -45,10 +45,16 @@ function sha256(value) {
 }
 
 export class ExternalRunnerIngestService {
-    constructor({ workflowRepository, candidateRepository = null, adapter = new ExternalRuntimeAdapter() }) {
+    constructor({
+        workflowRepository,
+        candidateRepository = null,
+        adapter = new ExternalRuntimeAdapter(),
+        companyAuthorityHumanApprovalService = null
+    }) {
         this.workflowRepository = workflowRepository;
         this.candidateRepository = candidateRepository;
         this.adapter = adapter;
+        this.companyAuthorityHumanApprovalService = companyAuthorityHumanApprovalService;
     }
 
     async ingest(payload) {
@@ -86,9 +92,47 @@ export class ExternalRunnerIngestService {
             const contextSnapshots = normalized.contextSnapshots.map((snapshot) => (
                 this.workflowRepository.createContextSnapshot(snapshot)
             ));
-            const humanSteps = normalized.humanSteps.map((step) => (
-                this.workflowRepository.createHumanStep(step)
-            ));
+            const handoffs = new Map((normalized.companyAuthorityHandoffs || [])
+                .map((handoff) => [handoff.humanStepId, handoff]));
+            const humanSteps = normalized.humanSteps.map((step) => {
+                const handoff = handoffs.get(step.id);
+                if (!handoff) return this.workflowRepository.createHumanStep(step);
+                if (typeof this.companyAuthorityHumanApprovalService?.createBinding !== 'function') {
+                    throw new ExternalRunnerContractError(
+                        'company_authority_human_approval_unavailable',
+                        'Company Authority human approval binding is unavailable; the human step was not created',
+                        { human_step_id: step.id, workflow_run_id: normalized.run.id }
+                    );
+                }
+                let marker;
+                try {
+                    marker = this.companyAuthorityHumanApprovalService.createBinding(step, {
+                        observedRequest: handoff.observedRequest,
+                        authorityResponse: handoff.authorityResponse,
+                        executionHash: handoff.executionHash,
+                        handoffIdempotencyKey: handoff.handoffIdempotencyKey,
+                        targetApproverId: handoff.targetApproverId
+                    });
+                } catch (error) {
+                    if (error instanceof ExternalRunnerContractError) throw error;
+                    throw new ExternalRunnerContractError(
+                        'invalid_company_authority_human_approval_handoff',
+                        'Company Authority human approval handoff was rejected; the human step was not created',
+                        {
+                            human_step_id: step.id,
+                            workflow_run_id: normalized.run.id,
+                            cause: error?.code || error?.message || String(error)
+                        }
+                    );
+                }
+                return this.workflowRepository.createHumanStep({
+                    ...step,
+                    metadata: {
+                        ...(step.metadata || {}),
+                        company_authority_human_approval: marker
+                    }
+                });
+            });
             const outputs = normalized.outputs.map((output) => (
                 this.workflowRepository.createOutput(output)
             ));
