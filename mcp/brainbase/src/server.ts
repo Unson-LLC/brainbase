@@ -35,7 +35,7 @@ import { CORE_ENTITY_TYPES } from './indexer/ontology.js';
 import { loadConfig, resolveBrainbaseApiUrl } from './config.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
 import type { EntitySource } from './sources/entity-source.js';
-import { TokenManager } from './auth/token-manager.js';
+import { TokenManager, createConnectionTokenManager } from './auth/token-manager.js';
 import { filterWikiPages } from './tools/wiki-search.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
 import {
@@ -1144,15 +1144,11 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     console.error(`  - Project codes: ${config.projectCodes.join(', ')}`);
   }
 
-  const tokenManager = new TokenManager(config.graphApiUrl);
-  // Personal KG routes must run as the signed-in owner, never as the service identity.
-  const ownerTokenManager = new TokenManager(
-    config.graphApiUrl,
-    undefined,
-    { allowEnvironmentToken: false },
-  );
+  const { mode: authMode, tokenManager } = createConnectionTokenManager(config.graphApiUrl);
+  console.error(`[brainbase] Authentication mode: ${authMode}`);
   globalTokenManager = tokenManager;
-  globalOwnerTokenManager = ownerTokenManager;
+  // All routes share the connection actor. Personal APIs still enforce owner authorization.
+  globalOwnerTokenManager = tokenManager;
   wikiApiBaseUrl = resolveWikiApiBaseUrl(config.graphApiUrl);
   const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
   globalGraphSource = source;

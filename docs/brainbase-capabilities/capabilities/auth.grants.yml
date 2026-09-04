@@ -25,6 +25,9 @@ depends_on:
   - INFO_SSOT_DATABASE_URL
   - auth_grants
 visibility_rules:
+  - MCP接続の認証元はBRAINBASE_AUTH_MODEで固定する。interactiveは保存済み利用者認証、serviceは環境変数認証のみを使う。
+  - 認証モード未指定時は環境変数トークンがあればservice、それ以外はinteractiveとなる。対話型クライアントではinteractiveを明示する。
+  - 判断・参照・個人向けツールは同じ接続認証を使う。serviceは保存済み利用者認証へ切り替わらず、個人向けAPIの所有者認可も維持する。
   - auth_grants.active must be true.
   - Login, device flow, and refresh require an exact slack_user_id + slack_workspace_id match in auth_grants.
   - project_codes is copied into JWT access.projectCodes.
@@ -43,6 +46,7 @@ verification:
     - An invalid or missing token cannot read /api/brainbase/projects.
     - MCP auth rejection is status:error; token acquisition or upstream outage is status:unavailable.
 common_failures:
+  - 対話型クライアントにサービス認証が注入されているのにinteractiveが未指定だと、サービスの範囲が適用される。認証不一致をプロジェクト未登録と解釈しない。
   - auth_grants has techknight but config has tech-knight.
   - auth_grants was updated but JWT/localStorage still contains the old projectCodes.
   - A user has project access for Graph but not for the session selector because different normalization rules are used.
