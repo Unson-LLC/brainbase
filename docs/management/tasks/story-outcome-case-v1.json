@@ -48,7 +48,7 @@
       "authenticated clearance = empty"
     ],
     "C-002/C-003_technical_evidence_negative_tests": [
-      "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is unconfirmed/no_data",
+      "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is %s",
       "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
       "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
     ]
@@ -82,7 +82,7 @@
       "tests/server/services/outcome-case-postgres-rls.integration.test.js"
     ],
     "C-002/C-003_technical_evidence_negative_tests": [
-      "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is unconfirmed/no_data",
+      "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is %s",
       "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
       "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
     ]

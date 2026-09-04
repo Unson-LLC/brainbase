@@ -3,7 +3,7 @@
 - Story ID: story-outcome-case-v1
 - Authority: accepted
 - Input: docs/management/tasks/story-outcome-case-v1.authority.json
-- SHA-256: eefe01f05518c43848f60e052234772236c45b1ecc8e544aab8275370a8934dd
+- SHA-256: 0816f63200a338bd878be323335e4309b0cca263ecc6f614e1780411887be541
 
 | Task ID | Allowed paths | Status |
 |---|---|---|

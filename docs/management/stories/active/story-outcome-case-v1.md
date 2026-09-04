@@ -26,7 +26,7 @@ KnowledgeEvent の自動昇格、汎用 workflow engine、RunReceipt v1 の変�
 
 ## 実装済みローカル証拠
 
-- `tests/server/services/outcome-case-service.test.js`: 追記履歴、保持 receipt 全件診断、評価ごとの状態/revision、自己申告 authority 拒否、actor/project scope、resolver 障害の close 禁止。
+- `tests/server/services/outcome-case-service.test.js`: 追記履歴、保持 receipt 全件診断、評価ごとの状態/revision、自己申告 authority 拒否、actor/project scope、resolver 障害の close 禁止。parameterized technical-evidence 回帰ケースは `does not close when only technical evidence is %s` を正確な test_case 参照とする。
 - `tests/server/routes/outcome-cases.test.js`: 実 `registerApiRoutes` + `workflowAuthGuard` の未認証拒否と create/read/evaluate 配線。
 - `tests/server/services/outcome-case-reference-resolver.test.js`: scope 付き read-only project/capability/RACI resolver、access-context/query 障害時の unresolved、empty clearance を internal に格上げしないこと。
 - `tests/server/scripts/info-ssot-apply.test.js`: OutcomeCase schema/RLS/readback/negative smoke を含む idempotent apply bundle の二回実行。

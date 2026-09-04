@@ -213,7 +213,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
-      "last_revised_at": "2026-09-04T02:54:26.071Z"
+      "last_revised_at": "2026-09-04T03:19:09.570Z"
     },
     {
       "id": "C-002",
@@ -253,7 +253,7 @@
           },
           {
             "file": "tests/server/services/outcome-case-service.test.js",
-            "case": "does not close when only technical evidence is unconfirmed/no_data"
+            "case": "does not close when only technical evidence is %s"
           },
           {
             "file": "tests/server/services/outcome-case-service.test.js",
@@ -274,7 +274,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
-      "last_revised_at": "2026-09-04T02:54:26.071Z",
+      "last_revised_at": "2026-09-04T03:19:09.570Z",
       "regression_guard": "technical_evidence が unconfirmed/no_data、retained receipt が no_data、external_readback が no_data、constraints が unknown、または authoritative resolver/RACI が未確認なら closed を導出しない。C-002/C-003 の technical-evidence negative tests で固定する。",
       "path_surface_coverage": [
         "route/auth",
@@ -314,7 +314,7 @@
           },
           {
             "file": "tests/server/services/outcome-case-service.test.js",
-            "case": "does not close when only technical evidence is unconfirmed/no_data"
+            "case": "does not close when only technical evidence is %s"
           },
           {
             "file": "tests/server/services/outcome-case-service.test.js",
@@ -323,7 +323,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
-      "last_revised_at": "2026-09-04T02:54:26.071Z",
+      "last_revised_at": "2026-09-04T03:19:09.570Z",
       "regression_guard": "technical_evidence が unconfirmed/no_data、receipt/external が no_data、または constraints が unknown を HTTP・テスト・保存・デプロイ成功と組み合わせても close の証拠に変換しない。C-002/C-003 の technical-evidence negative tests で固定する。",
       "path_surface_coverage": [
         "service",
@@ -389,7 +389,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
-      "last_revised_at": "2026-09-04T02:54:26.071Z",
+      "last_revised_at": "2026-09-04T03:19:09.570Z",
       "regression_guard": "unknown/ambiguous tenant、cross-organization candidate、empty organization/project scope、または empty clearance は tenant access・authority escalation・closed を許可しない。",
       "path_surface_coverage": [
         "route/auth",
@@ -449,7 +449,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
-      "last_revised_at": "2026-09-04T02:54:26.071Z"
+      "last_revised_at": "2026-09-04T03:19:09.570Z"
     }
   ],
   "open_questions": [
@@ -476,7 +476,7 @@
         "C-003"
       ],
       "tests": [
-        "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is unconfirmed/no_data",
+        "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is %s",
         "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
         "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
       ]
@@ -610,5 +610,5 @@
     }
   ],
   "generated_at": "2026-09-04T02:54:26.068Z",
-  "previous_spec_id": "2026-09-04T01:09:36.017Z"
+  "previous_spec_id": "2026-09-04T02:54:26.068Z"
 }
