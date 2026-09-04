@@ -50,6 +50,8 @@ function buildRequest(normalization) {
         body_hash: 'sha256:source-evidence-graph-boundary',
         owner_decided_by: 'person_owner',
         owner_decided_at: '2026-08-25T00:00:00.000Z',
+        owner_decision_revision: 1,
+        organization_review_revision: 0,
         normalized_payload: normalization.normalized,
         normalized_payload_hash: normalization.normalized_payload_hash,
         owner_consent_receipt_id: null
@@ -197,7 +199,7 @@ describe('personal knowledge promotion Graph write boundary', () => {
 
         const result = await service.reviewOrganizationPromotion(
             request.request_id,
-            { decision: 'approve' },
+            { decision: 'approve', expected_organization_review_revision: 0 },
             { access: ACCESS, promotionAuthority }
         );
 
@@ -248,7 +250,7 @@ describe('personal knowledge promotion Graph write boundary', () => {
 
         await expect(service.reviewOrganizationPromotion(
             request.request_id,
-            { decision: 'approve' },
+            { decision: 'approve', expected_organization_review_revision: 0 },
             { access: ACCESS, promotionAuthority }
         )).rejects.toThrow('personal_knowledge_promotion_authority_replayed');
 

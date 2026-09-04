@@ -15,6 +15,16 @@
 
 ## CLI Contract
 
+CLIは人物・組織・プロジェクトを引数や固定環境変数から決めない。実行前に次の署名済み会社権限を検証し、`context.scope`と`context.actor`から実行主体を決定する。
+
+- `BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON`: 署名済み会社権限responseのJSON、または`@`で始まるJSONファイル参照
+- `BRAINBASE_COMPANY_AUTHORITY_PUBLIC_JWK_JSON`: 会社権限responseの検証用公開JWK
+- `BRAINBASE_TENANT_CONTEXT_PUBLIC_JWK_JSON`: 内包Tenant Contextの検証用公開JWK。未指定時は会社権限の公開JWKを使う
+- `BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID`: responseの配置先と一致すべきdeployment ID
+- `BRAINBASE_TENANT_RUNTIME_AUDIENCE`: 期待audience。未指定時は`mana-runtime`
+
+routine HTTP実行も同じresponseを`company_authority_response`として送り、serverで再検証する。service tokenや内部API keyは通信元だけを認証し、Personal KG ownerを選択する権限には使わない。
+
 ```bash
 npm run personal-kg:review-projection -- --json
 npm run personal-kg:review-projection -- --projection-plan --json
@@ -27,7 +37,7 @@ npm run personal-kg:review-projection -- --input-json fixture.json --decision-fi
 {
   "mode": "personal_kg_review_projection",
   "source_system": "oyasumi-meeting-personal-kg",
-  "owner_person_id": "sato_keigo",
+  "owner_person_id": "person-sato",
   "summary": {
     "input_candidates": 0,
     "review_candidates": 0,

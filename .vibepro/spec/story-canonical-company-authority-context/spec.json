@@ -1,0 +1,929 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-canonical-company-authority-context",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "draft",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": [
+        "provider_identity",
+        "workspace/app/enterprise/project hint"
+      ],
+      "resolution_point": "Brainbase restricted route resolver before tenant-scoped authority resolution",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "HTTP producer",
+        "TenantContext",
+        "CanonicalExecutionContextV1"
+      ],
+      "verified_surfaces": [
+        "HTTP producer",
+        "TenantContext",
+        "CanonicalExecutionContextV1"
+      ]
+    },
+    "resources": [
+      {
+        "name": "company authority route and execution context",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_id",
+        "partition_key": "tenant_id",
+        "trust_zone": "Brainbase control plane",
+        "residue_policy": "signed context expires by TTL; authority records remain in Graph SSOT",
+        "data_owner": "Brainbase Graph SSOT",
+        "credential_scope": "Brainbase signing key only; never distributed to consumer"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "tenant-scoped Brainbase producer",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Graph SSOT"
+      ],
+      "residency": "pooled PostgreSQL with forced RLS",
+      "migration": "company-authority-schema.v2 after tenant production provisioning schema",
+      "rollback": "dry-run and failed apply roll back transactionally; post-commit recovery disables the new route, preserves additive tables, restores the recorded resolver definition through a forward migration, and requires a recorded schema decision before destructive removal"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "deployment_verification": "not_collected until exact merged SHA, schema hash, and production readback are recorded",
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "cross_person",
+      "stale_revision",
+      "duplicate_delivery"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "tenant",
+        "workspace_connection",
+        "person",
+        "membership",
+        "organization",
+        "project",
+        "authority_context"
+      ],
+      "boundary_edges": [
+        "observed provider identity resolves to one tenant and connection",
+        "tenant-scoped identity and authority resolve before signed context emission"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified for the local producer and restricted route resolver implementation slice",
+      "scope": "producer and restricted route resolver only; Mana cutover, UsageEvent, OperationReceipt, credential broker, and external readback remain not_collected",
+      "evidence": {
+        "propagation_surfaces": [
+          "HTTP producer",
+          "TenantContext",
+          "CanonicalExecutionContextV1"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "company authority producer",
+              "tenant_key_source": "restricted route resolver",
+              "trust_zone": "Brainbase control plane",
+              "data_owner": "Brainbase Graph SSOT"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "company authority producer",
+              "tenant_key_source": "resolved tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "Brainbase signing key only",
+              "connection_mode": "resolved active workspace connection",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "files": [
+            "server/services/multitenant/company-authority-context-producer.js",
+            "server/sql/company-authority-schema.sql"
+          ]
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "Brainbaseは観測済みidentityと任意hintだけを入力として受け、runtimeが自己申告したcanonical actor、organization、project、owner、RACI、approver、decision、credentialをDB参照前に拒否する。",
+      "rationale": "runtimeの自己申告へBrainbaseの署名を付与しないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "信頼境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/company-authority-context-producer.js",
+            "anchor": "validateObservedExecutionRequest"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "case": "rejects runtime-supplied authority before route lookup or any business effect"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "must_cover": "before route lookup or any business effect"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
+    },
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "限定route resolverは固定6引数と任意hintからactiveなtenantとconnectionを最大2件まで返し、0件をCOMPANY_IDENTITY_UNRESOLVED、複数件をCOMPANY_IDENTITY_AMBIGUOUS、DB障害をUPSTREAM_UNAVAILABLEとしてfail closedにする。外側producerはそれぞれPERSON_UNKNOWN、PERSON_AMBIGUOUS、AUTHORITY_UNAVAILABLEへ写像する。",
+      "rationale": "tenant誤選択と上流障害のunknown→成功変換を防ぐため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "信頼境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/postgres-company-authority-repository.js",
+            "anchor": "resolveObservedRoute"
+          },
+          {
+            "file": "server/sql/company-authority-schema.sql",
+            "anchor": "resolve_company_authority_route"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/postgres-company-authority-repository.test.js",
+            "case": "uses only observed identity and project hint to resolve one canonical route"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-company-authority-repository.test.js",
+            "must_cover": "uses only observed identity and project hint"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "producerは要求capabilityとcompany_authority_v1 markerを分離した署名済みTenantContextを内包し、actor、scope、authority、resolution receiptを持つCanonicalExecutionContextV1をdetached JWSで署名する。",
+      "rationale": "Manaが署名済み会社権限だけをconsumer境界で検証できるようにするため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-015"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "発行経路"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/company-authority-context-producer.js",
+            "anchor": "async resolve(input)"
+          },
+          {
+            "file": "server/services/multitenant/company-authority-tenant-context-producer.js",
+            "anchor": "resolveContextWithAuthority"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "case": "resolves the tenant internally and emits two verifiable, request-bound signatures"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "must_cover": "two verifiable, request-bound signatures"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "同じcorrelation_idは同じ正規op_ ULIDへ決定的に束縛し、再配送でoperation_idを変えない。",
+      "rationale": "duplicate deliveryを同一operationとして追跡し、idempotency境界を維持するため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-013"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-014"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "発行経路"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/company-authority-context-producer.js",
+            "anchor": "function operationId"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "case": "resolves the tenant internally and emits two verifiable, request-bound signatures"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "must_cover": "two verifiable, request-bound signatures"
+          }
+        ],
+        "code_pattern": [
+          {
+            "file_glob": "server/services/multitenant/company-authority-context-producer.js",
+            "must_contain": "generateCanonicalId('op'"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "Brainbaseはservice-auth付きPOST /api/v1/runtime/company-authority:resolveだけを公開し、Cloudflare bridgeは同じ固定POST pathだけをorigin allowlistへ追加する。",
+      "rationale": "producerを認証済みの狭いHTTP境界として提供し、汎用proxy化を防ぐため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "配置"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/routes/tenant-runtime.js",
+            "anchor": "company-authority:resolve"
+          },
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "company-authority:resolve"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/routes/tenant-runtime-contract.test.js",
+            "case": "A0: service auth後にcompany authority producerへ観測入力をそのまま渡す"
+          },
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "forwards the exact provider route to the configured Tunnel origin with Access service auth"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "company authority producer"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "Personal KGの登録・検索・候補操作は認証済みaccessからcanonical owner_person_idとorganization_idを決定し、本文やdecisionに含まれる自己申告identityを無視する。別personまたは別tenantのauthorityは、候補、判定、Graphを含むすべての下流effectより前に拒否する。",
+      "rationale": "Personal KGの所有者境界を会社権限producerの信頼境界と同じcanonical identityへ固定し、cross-personまたはcross-tenantの非公開情報を漏らさないため。このPRで変更しない既存Personal KG経路もStory-wide境界の回帰依存として追跡する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-009"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-010"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
+            "section": "6. Personal KGのownerを認証済みpersonからのみ決める"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/learning-service.js",
+            "anchor": "searchPersonalKgCandidates"
+          },
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-service.js",
+            "anchor": "owner_person_id: access.personId"
+          },
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "requireOwner"
+          },
+          {
+            "file": "server/services/sns/personal-kg-identity.js",
+            "anchor": "requirePersonalKgIdentity"
+          },
+          {
+            "file": "server/services/sns/oyasumi-meeting-personal-kg-service.js",
+            "anchor": "writeMeetingPersonalKgCandidates"
+          },
+          {
+            "file": "server/services/sns/feedback-learning-service.js",
+            "anchor": "buildSnsFeedbackCandidateDraft"
+          },
+          {
+            "file": "server/services/sns/sns-generation-context-service.js",
+            "anchor": "buildContext"
+          },
+          {
+            "file": "server/services/sns/personal-knowledge-graph-reader.js",
+            "anchor": "listRecentEntities"
+          },
+          {
+            "file": "server/services/sns/sns-readonly-curator.js",
+            "anchor": "saveDraftsToCandidateStore"
+          },
+          {
+            "file": "server/routes/companion.js",
+            "anchor": "createCompanionAccessGuard"
+          },
+          {
+            "file": "scripts/personal-kg-review-projection.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/generate-personal-kg-sns-weekly-pack.js",
+            "anchor": "viewer"
+          },
+          {
+            "file": "scripts/generate-memory-preamble.mjs",
+            "anchor": "resolvePersonalKgAccess"
+          },
+          {
+            "file": "scripts/link-oyasumi-personal-kg-projects.js",
+            "anchor": "linkOyasumiPersonalKgProjects"
+          },
+          {
+            "file": "scripts/lib/personal-kg-cli-authority.js",
+            "anchor": "resolvePersonalKgCliAuthority"
+          },
+          {
+            "file": "scripts/build-sns-generation-context.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/process-sns-feedback-to-learning.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/oyasumi-conversation-personal-kg.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/oyasumi-conversation-personal-kg-v2.js",
+            "anchor": "resolveConversationPersonalKgIdentity"
+          },
+          {
+            "file": "scripts/oyasumi-conversation-personal-kg-backlog.js",
+            "anchor": "main"
+          },
+          {
+            "file": "scripts/oyasumi-meeting-personal-kg.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/project-oyasumi-sns-ready.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/routines/run.mjs",
+            "anchor": "executeRoutineOverHttp"
+          },
+          {
+            "file": "server/middleware/routine-company-authority.js",
+            "anchor": "requireRoutineCompanyAuthority"
+          },
+          {
+            "file": "server/middleware/personal-knowledge-access.js",
+            "anchor": "companyAuthorityAccess"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/learning-service.test.js",
+            "case": "searchPersonalKgCandidates requires authenticated access instead of falling back to a default owner"
+          },
+          {
+            "file": "tests/server/services/learning-service.test.js",
+            "case": "searchPersonalKgCandidates rejects an owner that differs from authenticated access"
+          },
+          {
+            "file": "tests/server/routes/learning.test.js",
+            "case": "POST /memory-candidates ignores identity claims and uses authenticated actor, owner, and organization"
+          },
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects a valid signed authority for a different authenticated actor before every promotion effect"
+          },
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects cross-tenant organization review through the HTTP runtime with every downstream effect at zero"
+          },
+          {
+            "file": "tests/sns/oyasumi/personal-kg-identity.test.js",
+            "case": "canonicalizes explicit aliases and rejects undelegated actor mismatch"
+          },
+          {
+            "file": "tests/sns/oyasumi/personal-kg-cli-authority.test.js",
+            "case": "derives owner, actor, organization, and project only from a verified context"
+          },
+          {
+            "file": "tests/sns/oyasumi/personal-kg-cli-authority.test.js",
+            "case": "rejects legacy self-asserted identity even when a signed context is present"
+          },
+          {
+            "file": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-service.test.js",
+            "case": "rejects cross-person and cross-tenant candidates before candidate-store writes"
+          },
+          {
+            "file": "tests/sns/feedback-learning/feedback-learning-service.test.js",
+            "case": "requires explicit Personal KG identity before candidate handoff"
+          },
+          {
+            "file": "tests/sns/ops/sns-generation-context.test.js",
+            "case": "filters cross-person and cross-tenant Personal KG candidates from generation context"
+          },
+          {
+            "file": "tests/sns/personal-kg/personal-knowledge-graph-reader.test.js",
+            "case": "S-2b: excludes a same-owner candidate from another organization"
+          },
+          {
+            "file": "tests/sns/curator/invariants/inv-2-write-to-candidate-store.test.js",
+            "case": "INV-2: writes owner, actor, and organization from explicit Personal KG identity"
+          },
+          {
+            "file": "tests/server/routes/companion-reply-draft.test.js",
+            "case": "fails closed when no Personal KG owner is configured"
+          },
+          {
+            "file": "tests/sns/weekly-planner/generate-personal-kg-sns-weekly-pack.test.js",
+            "case": "preserves the verified snake-case identity returned by company authority resolution"
+          },
+          {
+            "file": "tests/sns/personal-kg/generate-memory-preamble.test.js",
+            "case": "requires signed company authority and rejects legacy self-asserted identity"
+          },
+          {
+            "file": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",
+            "case": "scopes project-link reads and writes to the requested owner and organization"
+          },
+          {
+            "file": "tests/e2e/story-personal-kg-review-projection-cli.spec.ts",
+            "case": "story-personal-kg-review-projection ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 CLI dry-run review and projection contract"
+          },
+          {
+            "file": "tests/unit/routine-runner-cycle-executor.test.js",
+            "case": "標準CLIは正規runtime envを読み、ローカルAPIとReceiptを内部APIキーで認証する"
+          },
+          {
+            "file": "tests/server/routes/routine-execution-routes.test.js",
+            "case": "内部・service認証のroutineは署名済み会社権限を必須にする"
+          },
+          {
+            "file": "tests/server/routes/routine-execution-routes.test.js",
+            "case": "改ざんされた会社権限はroutine effectより前に拒否する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/learning-service.test.js",
+            "must_cover": "requires authenticated access instead of falling back to a default owner"
+          },
+          {
+            "file_glob": "tests/server/routes/learning.test.js",
+            "must_cover": "uses authenticated actor, owner, and organization"
+          },
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "different authenticated actor before every promotion effect"
+          },
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "cross-tenant organization review"
+          },
+          {
+            "file_glob": "tests/sns/oyasumi/personal-kg-identity.test.js",
+            "must_cover": "undelegated actor mismatch"
+          },
+          {
+            "file_glob": "tests/sns/oyasumi/personal-kg-cli-authority.test.js",
+            "must_cover": "derives owner, actor, organization, and project only from a verified context"
+          },
+          {
+            "file_glob": "tests/sns/oyasumi/personal-kg-cli-authority.test.js",
+            "must_cover": "rejects legacy self-asserted identity even when a signed context is present"
+          },
+          {
+            "file_glob": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-service.test.js",
+            "must_cover": "cross-person and cross-tenant candidates"
+          },
+          {
+            "file_glob": "tests/sns/ops/sns-generation-context.test.js",
+            "must_cover": "filters cross-person and cross-tenant"
+          },
+          {
+            "file_glob": "tests/sns/personal-kg/personal-knowledge-graph-reader.test.js",
+            "must_cover": "same-owner candidate from another organization"
+          },
+          {
+            "file_glob": "tests/server/routes/companion-reply-draft.test.js",
+            "must_cover": "fails closed when no Personal KG owner is configured"
+          },
+          {
+            "file_glob": "tests/sns/weekly-planner/generate-personal-kg-sns-weekly-pack.test.js",
+            "must_cover": "verified snake-case identity"
+          },
+          {
+            "file_glob": "tests/sns/personal-kg/generate-memory-preamble.test.js",
+            "must_cover": "signed company authority and rejects legacy self-asserted identity"
+          },
+          {
+            "file_glob": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",
+            "must_cover": "project-link reads and writes to the requested owner and organization"
+          },
+          {
+            "file_glob": "tests/unit/routine-runner-cycle-executor.test.js",
+            "must_cover": "標準CLIは正規runtime envを読み、ローカルAPIとReceiptを内部APIキーで認証する"
+          },
+          {
+            "file_glob": "tests/server/routes/routine-execution-routes.test.js",
+            "must_cover": "内部・service認証のroutineは署名済み会社権限を必須にする"
+          },
+          {
+            "file_glob": "tests/server/routes/routine-execution-routes.test.js",
+            "must_cover": "改ざんされた会社権限はroutine effectより前に拒否する"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "Personal KGから組織Graphへの昇格は、owner consentと同一project・同一tenantの別personによるGM/CEO organization reviewを、別state・別actor・別revision・別receiptとして分離する。各decisionは期待revisionとの一致を必要とし、staleまたは再配送されたrevisionを全下流effectより前に拒否する。ownerとreviewerが同一の場合も拒否する。",
+      "rationale": "個人の同意と組織の受入責任を混同せず、自己承認による非公開知識の組織共有を防ぐため。このPRで変更しない既存二段階昇格経路をStory-wide境界の回帰依存として追跡する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
+            "section": "7. PersonalからOrganizationへの昇格を二段階にする"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "reviewOrganizationPromotion"
+          },
+          {
+            "file": "server/services/personal-knowledge/two-stage-promotion-repository.js",
+            "anchor": "reviewOrganizationPromotionRequest"
+          },
+          {
+            "file": "server/services/personal-knowledge/pg-personal-knowledge-repository.js",
+            "anchor": "findPromotionRequest"
+          },
+          {
+            "file": "server/sql/personal-knowledge-two-stage-promotion.sql",
+            "anchor": "owner_decision_revision"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects a stale owner decision revision before claiming authority"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects a stale organization review revision before Knowledge Event or Graph effects"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "requires a distinct organization reviewer with GM/CEO role in the same project"
+          },
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects owner equals reviewer through the HTTP runtime with every downstream effect at zero"
+          },
+          {
+            "file": "tests/server/services/personal-knowledge-schema.test.js",
+            "case": "separates owner consent from organization review and requires a distinct GM reviewer"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "rejects a stale owner decision revision"
+          },
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "rejects a stale organization review revision"
+          },
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "requires a distinct organization reviewer"
+          },
+          {
+            "file_glob": "tests/server/services/personal-knowledge-schema.test.js",
+            "must_cover": "separates owner consent from organization review"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "組織昇格へ渡せるのはownerが選択したallowlist済みnormalized payloadだけであり、raw transcript、private fields、server-controlled evidenceを拒否する。owner承認はpending_org_reviewまで、組織Graph writeは別personのorganization acceptance後だけに限定し、選択済みpayloadを不変に保つ。",
+      "rationale": "個人の生データを組織境界へ持ち出さず、同意対象と実際のGraph書込み内容を一致させるため。このPRで変更しない既存normalization・二段階昇格経路をStory-wide境界の回帰依存として追跡する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-012"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
+            "section": "7. PersonalからOrganizationへの昇格を二段階にする"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-normalization.js",
+            "anchor": "normalizePromotionPayload"
+          },
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "reviewOrganizationPromotion"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects forbidden raw transcript, private fields, and server-controlled evidence"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "moves owner approval only to pending_org_review and keeps Graph write at zero"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "keeps the owner-selected normalized payload immutable"
+          },
+          {
+            "file": "tests/server/routes/learning.test.js",
+            "case": "direct memory-candidate Graph promotion remains disabled after authentication"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "rejects forbidden raw transcript"
+          },
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "keeps the owner-selected normalized payload immutable"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "company-authority-schema.v2 migrationはtenant production provisioningの前提列を適用前に確認し、実行主体が非superuserの専用RLS-bypass roleでbrainbase_appを引受可能であることを検査する。transactionとadvisory lock内でRLS、force RLS、policy、限定route resolverのSECURITY DEFINER・固定設定・非superuser所有者・RLS bypass・実行権限、ledger hashを適用・readbackする。dry-runはrollbackし、applyを明示actorへ束縛する。",
+      "rationale": "schema適用と検証を分離せず、誤接続や部分適用を成功扱いしないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "Migration"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/migrate-company-authority-schema.js",
+            "anchor": "company-authority-schema.v2"
+          },
+          {
+            "file": "server/sql/company-authority-schema.sql",
+            "anchor": "FORCE ROW LEVEL SECURITY"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
+            "case": "rejects a superuser even when it can bypass RLS and assume the runtime role"
+          },
+          {
+            "file": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
+            "case": "rolls back dry-run and persists the exact schema only after approved apply"
+          },
+          {
+            "file": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
+            "case": "resolves one hinted tenant, exposes ambiguity without a hint, and keeps tables private"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
+            "must_cover": "rolls back dry-run and persists the exact schema"
+          }
+        ],
+        "code_pattern": [
+          {
+            "file_glob": "scripts/migrate-company-authority-schema.js",
+            "must_contain": "pg_advisory_xact_lock"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "OQ-001",
+      "question": "production schema application and exact merged SHA deployment evidence remain not_collected"
+    },
+    {
+      "id": "OQ-002",
+      "question": "Mana consumer cutover across all execution boundaries remains not_collected"
+    },
+    {
+      "id": "OQ-003",
+      "question": "2 tenant x 2 person negative E2E, credential broker, UsageEvent, OperationReceipt, and external readback remain not_collected"
+    }
+  ],
+  "generated_at": "2026-09-04T03:00:18.876Z",
+  "previous_spec_id": "2026-09-04T03:00:18.876Z"
+}

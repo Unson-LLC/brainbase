@@ -1,5 +1,6 @@
 // @ts-check
 import { DuplicateCandidateError } from '../candidate-store/candidate-repository.js';
+import { requirePersonalKgIdentity } from './personal-kg-identity.js';
 
 function latestMetrics(post) {
     const snapshots = Array.isArray(post.metrics_snapshots) ? post.metrics_snapshots : [];
@@ -41,23 +42,22 @@ function assertEligible(post) {
     if (!latestMetrics(post)) throw new Error('metrics_snapshot required before candidate handoff');
 }
 
-export function buildSnsFeedbackCandidateDraft(post, {
-    actor_person_id = 'sato_keigo',
-    owner_person_id = 'sato_keigo'
-} = {}) {
+export function buildSnsFeedbackCandidateDraft(post, access) {
     assertEligible(post);
+    const identity = requirePersonalKgIdentity(access);
     const metrics = latestMetrics(post);
     const rate = engagementRate(metrics);
     return {
         id: `cand_sns_feedback_${post.id}`,
         cognitive_type: 'observation',
-        owner_person_id,
-        actor_person_id,
+        owner_person_id: identity.owner_person_id,
+        actor_person_id: identity.actor_person_id,
+        organization_id: identity.organization_id,
         source_system: 'sns-feedback',
         source_event_ids: [`sns-post:${post.id}`],
         workspace: 'unson',
         project_code: 'brainbase',
-        org_ids: ['unson'],
+        org_ids: identity.org_ids,
         project_ids: ['brainbase'],
         visibility: 'owner',
         sensitivity: 'internal',
@@ -79,7 +79,12 @@ export function buildSnsFeedbackCandidateDraft(post, {
                 posted_url: post.posted_url,
                 metrics_snapshot: metrics,
                 engagement_rate: rate,
-                learning_policy: 'observation_only_no_content_optimization'
+                learning_policy: 'observation_only_no_content_optimization',
+                personal_kg_identity: {
+                    owner_person_id: identity.owner_person_id,
+                    actor_person_id: identity.actor_person_id,
+                    organization_id: identity.organization_id
+                }
             }
         },
         body: [
@@ -109,14 +114,15 @@ export class SnsFeedbackLearningService {
     }
 
     async createLearningCandidateForPost(postId, actor = {}) {
-        const post = await this.ledgerRepository.findById(postId);
-        const draft = buildSnsFeedbackCandidateDraft(post, actor);
+        const identity = requirePersonalKgIdentity(actor);
+        const post = await this.ledgerRepository.findById(postId, identity);
+        const draft = buildSnsFeedbackCandidateDraft(post, identity);
         try {
             const result = await this.candidateService.createCandidate(draft);
             if (result.blocked) return { post, blocked: true, findings: result.findings || [] };
             const linked = await this.ledgerRepository.updatePost(post.id, {
                 learning_candidate_id: result.candidate.id
-            }, actor);
+            }, identity);
             return { post: linked, candidate: result.candidate, created: true };
         } catch (error) {
             if (error instanceof DuplicateCandidateError) {
@@ -127,18 +133,19 @@ export class SnsFeedbackLearningService {
     }
 
     async createLearningCandidatesForDate(date, actor = {}) {
+        const identity = requirePersonalKgIdentity(actor);
         const posts = await this.ledgerRepository.listPosts({
             startDate: date,
             endDate: date,
             status: 'learning_ready'
-        });
+        }, identity);
         const results = [];
         for (const post of posts) {
             if (post.learning_candidate_id) {
                 results.push({ post, skipped: true, reason: 'already_linked' });
                 continue;
             }
-            results.push(await this.createLearningCandidateForPost(post.id, actor));
+            results.push(await this.createLearningCandidateForPost(post.id, identity));
         }
         return results;
     }

@@ -13,12 +13,12 @@ import {
     SOURCE_SYSTEM,
     writeMeetingPersonalKgCandidates
 } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
+import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const DEFAULT_OWNER_PERSON_ID = 'sato_keigo';
-const DEFAULT_ACTOR_PERSON_ID = 'sato_keigo';
 const DEFAULT_TMP_ROOT = '/tmp';
 
 function parseArgs(argv) {
@@ -30,7 +30,11 @@ function parseArgs(argv) {
         json: false,
         allowEmpty: false,
         includeCodex: true,
-        includeClaudeCode: true
+        includeClaudeCode: true,
+        ownerPersonId: null,
+        actorPersonId: null,
+        organizationId: null,
+        delegationId: null
     };
     for (let index = 0; index < argv.length; index += 1) {
         const arg = argv[index];
@@ -46,11 +50,30 @@ function parseArgs(argv) {
         else if (arg === '--allow-empty') args.allowEmpty = true;
         else if (arg === '--codex-only') args.includeClaudeCode = false;
         else if (arg === '--claude-code-only') args.includeCodex = false;
+        else if (arg === '--owner-person-id' || arg === '--owner') args.ownerPersonId = argv[++index];
+        else if (arg.startsWith('--owner-person-id=')) args.ownerPersonId = arg.slice('--owner-person-id='.length);
+        else if (arg.startsWith('--owner=')) args.ownerPersonId = arg.slice('--owner='.length);
+        else if (arg === '--actor-person-id' || arg === '--actor') args.actorPersonId = argv[++index];
+        else if (arg.startsWith('--actor-person-id=')) args.actorPersonId = arg.slice('--actor-person-id='.length);
+        else if (arg.startsWith('--actor=')) args.actorPersonId = arg.slice('--actor='.length);
+        else if (arg === '--organization-id' || arg === '--organization') args.organizationId = argv[++index];
+        else if (arg.startsWith('--organization-id=')) args.organizationId = arg.slice('--organization-id='.length);
+        else if (arg.startsWith('--organization=')) args.organizationId = arg.slice('--organization='.length);
+        else if (arg === '--delegation-id') args.delegationId = argv[++index];
+        else if (arg.startsWith('--delegation-id=')) args.delegationId = arg.slice('--delegation-id='.length);
     }
     if (!args.date || !/^\d{4}-\d{2}-\d{2}$/u.test(args.date)) {
         throw new Error('--date YYYY-MM-DD required');
     }
     return args;
+}
+
+function personalKgIdentity(args, env = process.env) {
+    return resolvePersonalKgCliAuthority({
+        assertedIdentity: args,
+        desiredEffect: args.write ? 'write' : 'read',
+        env
+    });
 }
 
 function jstDayRange(date) {
@@ -271,7 +294,8 @@ function hasAny(messages, patterns) {
     return findEvents(messages, patterns, 1).length > 0;
 }
 
-function buildCandidate({ date, messages, key, category, cognitiveType = 'insight', sensitivity = 'internal', confidence = 0.82, patterns, body, reviewReason = null }) {
+function buildCandidate({ date, messages, identity, key, category, cognitiveType = 'insight', sensitivity = 'internal', confidence = 0.82, patterns, body, reviewReason = null }) {
+    const access = requirePersonalKgIdentity(identity);
     const isReview = Boolean(reviewReason);
     const memoryLayer = isReview ? 'needs_review' : 'personal_kg_core';
     const sourceRef = `codex-claude-conversation:${date}#${memoryLayer}:${key}`;
@@ -279,13 +303,14 @@ function buildCandidate({ date, messages, key, category, cognitiveType = 'insigh
     return {
         id: `oyasumi_${date.replace(/-/gu, '')}_conversation_${memoryLayer}_${idPart(key)}`.slice(0, 180),
         cognitive_type: cognitiveType,
-        owner_person_id: DEFAULT_OWNER_PERSON_ID,
-        actor_person_id: DEFAULT_ACTOR_PERSON_ID,
+        owner_person_id: access.owner_person_id,
+        actor_person_id: access.actor_person_id,
+        organization_id: access.organization_id,
         source_system: SOURCE_SYSTEM,
         source_event_ids: sourceEventIds,
         workspace: 'codex-claude-code',
         project_code: 'brainbase',
-        org_ids: ['unson'],
+        org_ids: access.org_ids,
         project_ids: ['brainbase'],
         visibility: 'owner',
         sensitivity,
@@ -321,7 +346,12 @@ function buildCandidate({ date, messages, key, category, cognitiveType = 'insigh
                 extraction_decision: isReview ? 'needs_review' : 'adopted',
                 rule_id: key,
                 source_ref: sourceRef,
-                scan_input_count: messages.length
+                scan_input_count: messages.length,
+                personal_kg_identity: {
+                    owner_person_id: access.owner_person_id,
+                    actor_person_id: access.actor_person_id,
+                    organization_id: access.organization_id
+                }
             }
         },
         evidence_ids: [{ uri: sourceRef, source_ref: sourceRef, sha: null }]
@@ -480,15 +510,16 @@ const REVIEW_RULES = [
     }
 ];
 
-function extractConversationPersonalKgCandidates({ date, messages }) {
+function extractConversationPersonalKgCandidates({ date, messages, identity }) {
+    const access = requirePersonalKgIdentity(identity);
     const adopted = [];
     for (const rule of RULES) {
         if (!hasAny(messages, rule.patterns)) continue;
-        adopted.push(buildCandidate({ date, messages, ...rule }));
+        adopted.push(buildCandidate({ date, messages, identity: access, ...rule }));
     }
     for (const rule of REVIEW_RULES) {
         if (!hasAny(messages, rule.patterns)) continue;
-        adopted.push(buildCandidate({ date, messages, ...rule }));
+        adopted.push(buildCandidate({ date, messages, identity: access, ...rule }));
     }
     const coreCount = adopted.filter((candidate) => candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'personal_kg_core').length;
     const needsReview = adopted.filter((candidate) => candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'needs_review');
@@ -587,6 +618,7 @@ function outputText({ extracted, writeSummary, messagesPath, extractionPath, wri
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
+    const identity = personalKgIdentity(args);
     const outputDir = args.outputDir || path.join(DEFAULT_TMP_ROOT, `oyasumi-${args.date}`);
     fs.mkdirSync(outputDir, { recursive: true });
     const messages = args.input
@@ -600,7 +632,7 @@ async function main() {
     fs.writeFileSync(messagesPath, messages.map((message) => JSON.stringify(message)).join('\n') + (messages.length ? '\n' : ''), { mode: 0o600 });
     fs.chmodSync(messagesPath, 0o600);
 
-    const extracted = extractConversationPersonalKgCandidates({ date: args.date, messages });
+    const extracted = extractConversationPersonalKgCandidates({ date: args.date, messages, identity });
     const extractionPath = path.join(outputDir, 'conversation-personal-kg-extraction.json');
     fs.writeFileSync(extractionPath, JSON.stringify(extracted, null, 2), { mode: 0o600 });
     fs.chmodSync(extractionPath, 0o600);
@@ -626,7 +658,7 @@ async function main() {
         try {
             const repository = new PgCandidateRepository({ pool });
             const candidateService = new PromotionGateService({ repository });
-            writeSummary = await writeMeetingPersonalKgCandidates({ candidateService, extracted });
+            writeSummary = await writeMeetingPersonalKgCandidates({ candidateService, extracted, identity });
         } finally {
             await pool.end();
         }

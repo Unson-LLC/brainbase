@@ -11,7 +11,9 @@ import {
     buildSnsFeedbackCandidateDraft,
     SnsFeedbackLearningService
 } from '../server/services/sns/feedback-learning-service.js';
+import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
 import { databaseConfig } from './migrate-m5a-production-schema.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 
@@ -35,7 +37,11 @@ export function parseArgs(argv) {
         postedAt: new Date().toISOString(),
         learningReady: false,
         dryRun: false,
-        json: false
+        json: false,
+        ownerPersonId: null,
+        actorPersonId: null,
+        organizationId: null,
+        delegationId: null
     };
     for (let i = 0; i < argv.length; i += 1) {
         const arg = argv[i];
@@ -47,8 +53,23 @@ export function parseArgs(argv) {
         if (arg === '--learning-ready') args.learningReady = true;
         if (arg === '--dry-run') args.dryRun = true;
         if (arg === '--json') args.json = true;
+        if (arg === '--owner-person-id' || arg === '--owner') args.ownerPersonId = argv[++i];
+        if (arg.startsWith('--owner-person-id=')) args.ownerPersonId = arg.slice('--owner-person-id='.length);
+        if (arg.startsWith('--owner=')) args.ownerPersonId = arg.slice('--owner='.length);
+        if (arg === '--actor-person-id' || arg === '--actor') args.actorPersonId = argv[++i];
+        if (arg.startsWith('--actor-person-id=')) args.actorPersonId = arg.slice('--actor-person-id='.length);
+        if (arg.startsWith('--actor=')) args.actorPersonId = arg.slice('--actor='.length);
+        if (arg === '--organization-id' || arg === '--organization') args.organizationId = argv[++i];
+        if (arg.startsWith('--organization-id=')) args.organizationId = arg.slice('--organization-id='.length);
+        if (arg.startsWith('--organization=')) args.organizationId = arg.slice('--organization='.length);
+        if (arg === '--delegation-id') args.delegationId = argv[++i];
+        if (arg.startsWith('--delegation-id=')) args.delegationId = arg.slice('--delegation-id='.length);
     }
     return args;
+}
+
+function personalKgIdentity(args, env = process.env) {
+    return resolvePersonalKgCliAuthority({ assertedIdentity: args, desiredEffect: 'write', env });
 }
 
 export function validateArgs(args) {
@@ -72,9 +93,10 @@ export function parseMetrics(input) {
     return JSON.parse(raw);
 }
 
-export async function maybeRecordFeedback(repository, args) {
+export async function maybeRecordFeedback(repository, args, access) {
+    const identity = requirePersonalKgIdentity(access);
     if (!args.postId || (!args.postedUrl && !args.metricsJson && !args.learningReady)) return null;
-    const post = await repository.findById(args.postId);
+    const post = await repository.findById(args.postId, identity);
     if (!post) throw new Error(`SNS post not found: ${args.postId}`);
     const metrics = parseMetrics(args.metricsJson);
     if (args.dryRun) {
@@ -84,7 +106,7 @@ export async function maybeRecordFeedback(repository, args) {
     let current = post;
     if (args.postedUrl || metrics) {
         if (current.status === 'approved') {
-            current = await repository.updatePost(current.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
+            current = await repository.updatePost(current.id, { status: 'scheduled' }, identity);
         }
         const patch = {
             posted_url: args.postedUrl || current.posted_url,
@@ -92,21 +114,22 @@ export async function maybeRecordFeedback(repository, args) {
             metrics_snapshot: metrics || undefined
         };
         if (current.status === 'scheduled') patch.status = 'posted';
-        current = await repository.updatePost(current.id, patch, { actor_person_id: 'sato_keigo' });
+        current = await repository.updatePost(current.id, patch, identity);
     }
     if (args.learningReady && current.status === 'posted') {
-        current = await repository.updatePost(current.id, { status: 'learning_ready' }, { actor_person_id: 'sato_keigo' });
+        current = await repository.updatePost(current.id, { status: 'learning_ready' }, identity);
     }
     return { post: current };
 }
 
-async function dryRunCandidates(repository, args) {
+async function dryRunCandidates(repository, args, access) {
+    const identity = requirePersonalKgIdentity(access);
     const posts = args.postId
-        ? [await repository.findById(args.postId)]
-        : await repository.listPosts({ startDate: args.date, endDate: args.date, status: 'learning_ready' });
+        ? [await repository.findById(args.postId, identity)]
+        : await repository.listPosts({ startDate: args.date, endDate: args.date, status: 'learning_ready' }, identity);
     return posts.filter(Boolean).map((post) => {
         try {
-            return { post_id: post.id, candidate: buildSnsFeedbackCandidateDraft(post) };
+            return { post_id: post.id, candidate: buildSnsFeedbackCandidateDraft(post, identity) };
         } catch (error) {
             return { post_id: post.id, skipped: true, reason: error.message };
         }
@@ -116,12 +139,13 @@ async function dryRunCandidates(repository, args) {
 async function main() {
     const args = parseArgs(process.argv.slice(2));
     validateArgs(args);
+    const access = personalKgIdentity(args);
     const pool = new Pool(databaseConfig());
     try {
         const ledgerRepository = new PgSnsPostingLedgerRepository({ pool });
-        const recorded = await maybeRecordFeedback(ledgerRepository, args);
+        const recorded = await maybeRecordFeedback(ledgerRepository, args, access);
         if (args.dryRun) {
-            const candidates = await dryRunCandidates(ledgerRepository, args);
+            const candidates = await dryRunCandidates(ledgerRepository, args, access);
             console.log(JSON.stringify({ recorded, candidates }, null, 2));
             return;
         }
@@ -129,8 +153,8 @@ async function main() {
         const candidateService = new PromotionGateService({ repository: candidateRepository });
         const service = new SnsFeedbackLearningService({ ledgerRepository, candidateService });
         const results = args.postId
-            ? [await service.createLearningCandidateForPost(args.postId, { actor_person_id: 'sato_keigo' })]
-            : await service.createLearningCandidatesForDate(args.date, { actor_person_id: 'sato_keigo' });
+            ? [await service.createLearningCandidateForPost(args.postId, access)]
+            : await service.createLearningCandidatesForDate(args.date, access);
         console.log(JSON.stringify({
             date: args.date,
             recorded: recorded?.post?.id || null,

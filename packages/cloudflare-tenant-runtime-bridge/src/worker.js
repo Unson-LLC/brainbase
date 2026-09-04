@@ -1,6 +1,7 @@
 export const MAX_REQUEST_BODY_BYTES = 256 * 1024;
 
 export const CANONICAL_RUNTIME_POST_PATHS = Object.freeze([
+    '/api/v1/runtime/company-authority:resolve',
     '/api/v1/runtime/tenant-context:resolve',
     '/api/v1/runtime/workspace-connections:validate-revision',
     '/api/v1/runtime/credential-leases',

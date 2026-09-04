@@ -286,13 +286,16 @@ function encodeCanonicalHeader(value) {
 
 function assertResolvedContextBinding(tenantContext, request) {
     validateCanonicalWire('TenantContextEnvelope', tenantContext);
+    const requestedProjectIds = request.authorization.project_ids || [];
+    const resolvedProjectIds = tenantContext.authorization.project_ids || [];
     if (tenantContext.tenant.tenant_id !== request.tenant_id
         || tenantContext.tenant.tenant_revision !== request.expected_tenant_revision
         || tenantContext.workspace_connection.connection_id !== request.connection_id
         || tenantContext.workspace_connection.connection_revision !== request.expected_connection_revision
         || tenantContext.actor.principal_id !== request.actor.principal_id
+        || tenantContext.actor.authenticated_subject_id !== request.actor.authenticated_subject_id
         || !tenantContext.authorization.capability_ids.includes('sns.review_pack.import')
-        || !tenantContext.authorization.data_scopes.includes('sns.review_pack')) {
+        || requestedProjectIds.some((projectId) => !resolvedProjectIds.includes(projectId))) {
         throw new Error('Resolved tenant context does not match the SNS review-pack binding');
     }
     return tenantContext;

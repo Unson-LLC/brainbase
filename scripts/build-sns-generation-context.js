@@ -11,6 +11,7 @@ import { SnsGenerationContextService } from '../server/services/sns/sns-generati
 import { PgSnsPostingLedgerRepository } from '../server/services/sns/posting-ledger-repository.js';
 import { databaseConfig } from './migrate-m5a-production-schema.js';
 import { resolveSnsRoot } from './workspace-paths.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 
@@ -38,7 +39,11 @@ export function parseArgs(argv) {
         contentPillarsFile: DEFAULT_CONTENT_PILLARS_FILE,
         lookbackDays: 30,
         json: false,
-        dryRun: false
+        dryRun: false,
+        ownerPersonId: null,
+        actorPersonId: null,
+        organizationId: null,
+        delegationId: null
     };
     for (let i = 0; i < argv.length; i += 1) {
         const arg = argv[i];
@@ -49,8 +54,23 @@ export function parseArgs(argv) {
         if (arg === '--lookback-days') args.lookbackDays = Number(argv[++i]);
         if (arg === '--json') args.json = true;
         if (arg === '--dry-run') args.dryRun = true;
+        if (arg === '--owner-person-id' || arg === '--owner') args.ownerPersonId = argv[++i];
+        if (arg.startsWith('--owner-person-id=')) args.ownerPersonId = arg.slice('--owner-person-id='.length);
+        if (arg.startsWith('--owner=')) args.ownerPersonId = arg.slice('--owner='.length);
+        if (arg === '--actor-person-id' || arg === '--actor') args.actorPersonId = argv[++i];
+        if (arg.startsWith('--actor-person-id=')) args.actorPersonId = arg.slice('--actor-person-id='.length);
+        if (arg.startsWith('--actor=')) args.actorPersonId = arg.slice('--actor='.length);
+        if (arg === '--organization-id' || arg === '--organization') args.organizationId = argv[++i];
+        if (arg.startsWith('--organization-id=')) args.organizationId = arg.slice('--organization-id='.length);
+        if (arg.startsWith('--organization=')) args.organizationId = arg.slice('--organization='.length);
+        if (arg === '--delegation-id') args.delegationId = argv[++i];
+        if (arg.startsWith('--delegation-id=')) args.delegationId = arg.slice('--delegation-id='.length);
     }
     return args;
+}
+
+function personalKgIdentity(args, env = process.env) {
+    return resolvePersonalKgCliAuthority({ assertedIdentity: args, desiredEffect: 'read', env });
 }
 
 function readOptionalText(filePath) {
@@ -74,7 +94,7 @@ async function buildWithPg(args) {
         return await service.buildContext({
             date: args.date,
             lookbackDays: args.lookbackDays,
-            viewer: { actor_person_id: 'sato_keigo', org_ids: ['unson'] }
+            viewer: personalKgIdentity(args)
         });
     } finally {
         await pool.end();
@@ -91,7 +111,7 @@ async function buildEmptyDryRun(args) {
     return service.buildContext({
         date: args.date,
         lookbackDays: args.lookbackDays,
-        viewer: { actor_person_id: 'sato_keigo', org_ids: ['unson'] }
+        viewer: personalKgIdentity(args)
     });
 }
 

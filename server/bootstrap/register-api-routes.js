@@ -42,6 +42,7 @@ import {
 } from '../routes/workflows.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePersonalKnowledgeAccess } from '../middleware/personal-knowledge-access.js';
+import { requireRoutineCompanyAuthority } from '../middleware/routine-company-authority.js';
 import {
     createPersonalKnowledgePromotionAuthorityGuard,
     createUnavailablePersonalKnowledgePromotionAuthorityGuard
@@ -253,7 +254,8 @@ export function registerApiRoutes(app, {
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
     resolvePreProvisionedSlackConnection,
-    snsPostExecutor = null
+    snsPostExecutor = null,
+    env = process.env
 }) {
     const adminTenantGuard = tenantRuntimeServices
         ? createTenantEntrypointGuard(tenantRuntimeServices, 'admin_api')
@@ -321,6 +323,7 @@ export function registerApiRoutes(app, {
         ? (entry) => personalKnowledgeService.auditAccess(entry)
         : null;
     const personalKnowledgeAccessGuard = requirePersonalKnowledgeAccess({ audit: auditPersonalAccess });
+    const routineCompanyAuthorityGuard = requireRoutineCompanyAuthority({ env });
     const unavailablePromotionAuthority = createUnavailablePersonalKnowledgePromotionAuthorityGuard();
     const promotionAuthorityGuards = tenantRuntimeServices ? {
         request: createPersonalKnowledgePromotionAuthorityGuard(
@@ -449,6 +452,7 @@ export function registerApiRoutes(app, {
         app.use(
             '/api/routines',
             workflowAuthGuard,
+            routineCompanyAuthorityGuard,
             personalKnowledgeAccessGuard,
             createRoutineRouter({ routineCycleExecutor })
         );

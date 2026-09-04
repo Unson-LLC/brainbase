@@ -79,6 +79,7 @@ describe('Cloudflare tenant runtime private bridge', () => {
     });
 
     it.each([
+        '/api/v1/runtime/company-authority:resolve',
         '/api/v1/runtime/tenant-context:resolve',
         '/api/v1/runtime/workspace-connections:validate-revision',
         '/api/v1/runtime/credential-leases',

@@ -245,7 +245,7 @@ export class PgPersonalKnowledgeRepository {
 
     async findPromotionRequest(requestId, options = {}) {
         const { rows } = await clientFor(this, options).query(
-            'SELECT * FROM knowledge_promotion_requests WHERE request_id = $1 LIMIT 1', [requestId]
+            'SELECT * FROM knowledge_promotion_requests WHERE request_id = $1 LIMIT 1 FOR UPDATE', [requestId]
         );
         return rows[0] || null;
     }

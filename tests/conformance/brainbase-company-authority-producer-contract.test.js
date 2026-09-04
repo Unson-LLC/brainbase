@@ -66,6 +66,13 @@ const schemaValidators = (() => {
 })();
 
 describe('Brainbase company authority producer contract v1', () => {
+    it('keeps delivery optional at the observed boundary for fail-closed diagnostics', () => {
+        const fixture = fixtures.positive[0];
+        const withoutDelivery = structuredClone(fixture.request);
+        delete withoutDelivery.delivery;
+        expect(() => validateObservedExecutionRequest(withoutDelivery)).not.toThrow();
+    });
+
     it('fixes the request/context wire path and company_authority_v1 capability path', () => {
         expect(contract.contract_id).toBe(CONTRACT_ID);
         expect(contract.contract_status).toBe('contract_ready');

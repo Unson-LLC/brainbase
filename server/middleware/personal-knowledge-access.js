@@ -21,16 +21,19 @@ function authenticatedOrganizationId(req) {
 
 export function requirePersonalKnowledgeAccess({ env = process.env } = {}) {
     return (req, res, next) => {
-        // Personal KG is an end-user boundary. Service/internal identities cannot select a human owner.
-        if (['service-token', 'internal'].includes(req.authSource)) {
+        const companyAuthorityAccess = req.companyAuthorityAccess || null;
+        // A service credential authenticates only the transport. It may enter a
+        // human Personal KG boundary only after signed company authority has
+        // independently fixed the owner, actor, organization, and project.
+        if (['service-token', 'internal'].includes(req.authSource) && !companyAuthorityAccess) {
             return res.status(403).json({ error: 'personal_knowledge_service_proxy_denied' });
         }
 
-        const actorPersonId = authenticatedPersonId(req);
-        const organizationId = authenticatedOrganizationId(req);
+        const actorPersonId = companyAuthorityAccess?.actorPersonId || authenticatedPersonId(req);
+        const organizationId = companyAuthorityAccess?.organizationId || authenticatedOrganizationId(req);
         let personId;
         try {
-            personId = canonicalPersonalKgOwner(actorPersonId, env);
+            personId = canonicalPersonalKgOwner(companyAuthorityAccess?.personId || actorPersonId, env);
         } catch {
             return res.status(500).json({ error: 'personal_knowledge_identity_configuration_invalid' });
         }
@@ -58,11 +61,15 @@ export function requirePersonalKnowledgeAccess({ env = process.env } = {}) {
             organizationId,
             actorPersonId,
             role: req.access?.role || 'member',
-            projectCodes: Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [],
-            clearance: Array.isArray(req.access?.clearance) && req.access.clearance.length
-                ? req.access.clearance
-                : ['internal'],
-            proxied: false
+            projectCodes: companyAuthorityAccess?.projectCodes
+                || (Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : []),
+            clearance: companyAuthorityAccess?.clearance
+                || (Array.isArray(req.access?.clearance) && req.access.clearance.length
+                    ? req.access.clearance
+                    : ['internal']),
+            authorityResolutionReceiptId: companyAuthorityAccess?.authorityResolutionReceiptId || null,
+            identityResolutionReceiptId: companyAuthorityAccess?.identityResolutionReceiptId || null,
+            proxied: Boolean(companyAuthorityAccess)
         };
         req.personalKnowledgeAccess = access;
         req.access = {

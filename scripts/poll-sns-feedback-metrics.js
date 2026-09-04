@@ -11,6 +11,7 @@ import {
     PgSnsPostingLedgerRepository,
     isSnsPostingLedgerJsonTestMode
 } from '../server/services/sns/posting-ledger-repository.js';
+import { requireSnsAuthority } from '../server/services/sns/sns-authority.js';
 import { SnsMetricsPoller } from '../server/services/sns/sns-metrics-poller.js';
 import { databaseConfig } from './migrate-m5a-production-schema.js';
 
@@ -58,6 +59,37 @@ export function resolveMetricsPollingEnabled(env = process.env) {
     return ['true', '1', 'yes'].includes(String(env.SNS_METRICS_POLLING_ENABLED || '').toLowerCase());
 }
 
+function requiredEnvironmentValue(env, name) {
+    const value = String(env?.[name] ?? '').trim();
+    if (!value) throw new Error(`${name} is required for SNS metrics polling`);
+    return value;
+}
+
+function resolveProjectCodes(value) {
+    if (value === undefined || value === null) return [];
+    const raw = String(value).trim();
+    if (!raw) throw new Error('SNS_ACTOR_PROJECT_CODES must not be empty when provided');
+    const projectCodes = [...new Set(raw.split(',').map((projectCode) => projectCode.trim()).filter(Boolean))];
+    if (projectCodes.length === 0) throw new Error('SNS_ACTOR_PROJECT_CODES must contain at least one project code');
+    return projectCodes;
+}
+
+export function resolveSnsMetricsPollerActor(env = process.env) {
+    const actorPersonId = requiredEnvironmentValue(env, 'SNS_ACTOR_PERSON_ID');
+    const organizationId = requiredEnvironmentValue(env, 'SNS_ORGANIZATION_ID');
+    const role = String(env?.SNS_ACTOR_ROLE ?? 'member').trim();
+    if (!role) throw new Error('SNS_ACTOR_ROLE must not be empty when provided');
+    return requireSnsAuthority({
+        owner_person_id: actorPersonId,
+        actor_person_id: actorPersonId,
+        organization_id: organizationId,
+        sub: actorPersonId,
+        org_ids: [organizationId],
+        role,
+        projectCodes: resolveProjectCodes(env?.SNS_ACTOR_PROJECT_CODES)
+    });
+}
+
 export function buildMetricsPollingDisabledResult() {
     return {
         skipped: true,
@@ -95,6 +127,10 @@ function consoleAnomalyNotifier(info) {
 async function main() {
     const args = parseArgs(process.argv.slice(2));
     validateArgs(args);
+    // Resolve authority even for dry-runs and disabled polling. A dry-run
+    // still reads tenant data, so it must not silently fall back to a system
+    // actor or an unscoped ledger query.
+    const pollerActor = resolveSnsMetricsPollerActor();
     const enabled = resolveMetricsPollingEnabled();
     if (!enabled && !args.dryRun) {
         console.log(JSON.stringify(buildMetricsPollingDisabledResult(), null, 2));
@@ -120,6 +156,8 @@ async function main() {
                 async findById(id) {
                     return {
                         id,
+                        scope_type: 'personal',
+                        owner_person_id: pollerActor.owner_person_id,
                         credential_ref: {
                             provider: 'env',
                             path: 'SNS_X_ACCESS_TOKEN',
@@ -138,7 +176,8 @@ async function main() {
             limit: args.limit,
             date: args.date,
             dry_run: args.dryRun,
-            mark_learning_ready: args.markLearningReady
+            mark_learning_ready: args.markLearningReady,
+            actor: pollerActor
         });
         const output = JSON.stringify(result, null, 2);
         if (args.json) {

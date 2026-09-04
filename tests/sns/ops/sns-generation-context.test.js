@@ -5,11 +5,23 @@ import { InMemoryCandidateRepository } from '../../../server/services/candidate-
 import { SnsGenerationContextService } from '../../../server/services/sns/sns-generation-context-service.js';
 import { InMemorySnsPostingLedgerRepository } from '../../../server/services/sns/posting-ledger-repository.js';
 
+const VIEWER = Object.freeze({
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
+    org_ids: ['unson'],
+    role: 'ceo',
+    projectCodes: ['brainbase']
+});
+
 function post(overrides = {}) {
     return {
         id: overrides.id || 'post_default',
         account_id: 'acc_x_sato',
         account_handle: '@AIBizNavigator',
+        owner_person_id: 'sato_keigo',
+        actor_person_id: 'sato_keigo',
+        organization_id: 'unson',
         platform: 'x',
         date: overrides.date || '2026-07-27',
         slot_index: 1,
@@ -43,6 +55,7 @@ function candidateRepository() {
     const common = {
         owner_person_id: 'sato_keigo',
         actor_person_id: 'sato_keigo',
+        organization_id: 'unson',
         workspace: 'unson',
         project_code: 'brainbase',
         org_ids: ['unson'],
@@ -101,6 +114,7 @@ function candidateRepository() {
 describe('SNS Generation Context', () => {
     it('builds a public-lifelog policy and exposes only eligible first-person sources', async () => {
         const ledgerRepository = new InMemorySnsPostingLedgerRepository({
+            authority: VIEWER,
             initialPosts: [
                 post({ id: 'posted_log' }),
                 post({ id: 'failed_log', status: 'publish_failed', metrics_snapshots: [] }),
@@ -124,7 +138,7 @@ describe('SNS Generation Context', () => {
 
         const context = await service.buildContext({
             date: '2026-07-28',
-            viewer: { actor_person_id: 'sato_keigo', org_ids: ['unson'] }
+            viewer: VIEWER
         });
 
         expect(context.strategy).toMatchObject({
@@ -173,16 +187,109 @@ describe('SNS Generation Context', () => {
 
     it('states that zero posts is correct when no lived-experience source exists', async () => {
         const service = new SnsGenerationContextService({
-            ledgerRepository: new InMemorySnsPostingLedgerRepository(),
+            ledgerRepository: new InMemorySnsPostingLedgerRepository({ authority: VIEWER }),
             candidateRepository: new InMemoryCandidateRepository()
         });
 
         const context = await service.buildContext({
             date: '2026-07-28',
-            viewer: { actor_person_id: 'sato_keigo', org_ids: ['unson'] }
+            viewer: VIEWER
         });
 
         expect(context.personal_kg.lifelog_entries).toEqual([]);
         expect(context.generation_policy.needs_more_data).toContain('本人の一次体験ソースなし。投稿候補は0件にする');
+    });
+
+    it('filters cross-person and cross-tenant Personal KG candidates from generation context', async () => {
+        const repository = candidateRepository();
+        const base = {
+            cognitive_type: 'insight',
+            actor_person_id: 'delegated_worker',
+            source_system: 'oyasumi-meeting-personal-kg',
+            workspace: 'unson',
+            project_code: 'brainbase',
+            project_ids: ['brainbase'],
+            visibility: 'owner',
+            sensitivity: 'internal',
+            redaction_status: 'none',
+            body: '自分の境界確認用の一次体験',
+            created_at: '2026-07-27T08:00:00.000Z',
+            permission_snapshot: {
+                oyasumi_meeting_personal_kg: {
+                    category: 'work_log',
+                    memory_layer: 'sns_ready',
+                    projection_allowed: true
+                }
+            }
+        };
+        repository.create({
+            ...base,
+            id: 'delegated_same_scope',
+            owner_person_id: 'sato_keigo',
+            organization_id: 'unson',
+            org_ids: ['unson'],
+            source_event_ids: ['event:delegated_same_scope']
+        });
+        repository.create({
+            ...base,
+            id: 'other_person',
+            owner_person_id: 'other_person',
+            organization_id: 'unson',
+            org_ids: ['unson'],
+            source_event_ids: ['event:other_person']
+        });
+        repository.create({
+            ...base,
+            id: 'other_tenant',
+            owner_person_id: 'sato_keigo',
+            organization_id: 'other_org',
+            org_ids: ['other_org'],
+            source_event_ids: ['event:other_tenant']
+        });
+        const service = new SnsGenerationContextService({
+            ledgerRepository: new InMemorySnsPostingLedgerRepository(),
+            candidateRepository: repository
+        });
+
+        const context = await service.buildContext({
+            date: '2026-07-28',
+            viewer: VIEWER
+        });
+        const serialized = JSON.stringify(context.personal_kg);
+
+        expect(serialized).toContain('delegated_same_scope');
+        expect(serialized).not.toContain('other_person');
+        expect(serialized).not.toContain('other_tenant');
+    });
+
+    it('filters cross-person and cross-tenant SNS posts from generation context', async () => {
+        const ledgerRepository = new InMemorySnsPostingLedgerRepository({
+            authority: VIEWER,
+            initialPosts: [
+                post({ id: 'own_post' }),
+                post({
+                    id: 'other_person_post',
+                    owner_person_id: 'other_person',
+                    actor_person_id: 'other_person'
+                }),
+                post({
+                    id: 'other_tenant_post',
+                    organization_id: 'other_org'
+                })
+            ]
+        });
+        const service = new SnsGenerationContextService({
+            ledgerRepository,
+            candidateRepository: new InMemoryCandidateRepository()
+        });
+
+        const context = await service.buildContext({
+            date: '2026-07-28',
+            viewer: VIEWER
+        });
+
+        expect(context.posting_stats.days_30.by_lane.work_log.posts).toBe(1);
+        expect(context.learning.pending_feedback.map((item) => item.id)).toEqual(['own_post']);
+        expect(context.generation_policy.recent_history.posts.map((item) => item.id)).toEqual(['own_post']);
     });
 });

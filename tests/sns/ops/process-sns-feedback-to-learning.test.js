@@ -4,6 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { InMemorySnsPostingLedgerRepository } from '../../../server/services/sns/posting-ledger-repository.js';
 import { maybeRecordFeedback, parseArgs, parseMetrics, validateArgs } from '../../../scripts/process-sns-feedback-to-learning.js';
 
+const ACCESS = {
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
+    org_ids: ['unson']
+};
+
 function makeLedgerPost(status = 'review_needed') {
     const repository = new InMemorySnsPostingLedgerRepository();
     repository.upsertReviewPack({
@@ -14,23 +21,23 @@ function makeLedgerPost(status = 'review_needed') {
             lane: 'trust_balance',
             body: 'Claude Codeを会社で使うならレビュー境界が本体'
         }]
-    });
-    let post = repository.listPosts({})[0];
+    }, ACCESS);
+    let post = repository.listPosts({}, ACCESS)[0];
     if (status === 'approved' || status === 'scheduled' || status === 'posted' || status === 'learning_ready') {
-        post = repository.updatePost(post.id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, { status: 'approved' }, ACCESS);
     }
     if (status === 'scheduled' || status === 'posted' || status === 'learning_ready') {
-        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, { status: 'scheduled' }, ACCESS);
     }
     if (status === 'posted' || status === 'learning_ready') {
         post = repository.updatePost(post.id, {
             status: 'posted',
             posted_url: 'https://x.com/AIBizNavigator/status/2053781211001323851',
             metrics_snapshot: { impressions: 10 }
-        }, { actor_person_id: 'sato_keigo' });
+        }, ACCESS);
     }
     if (status === 'learning_ready') {
-        post = repository.updatePost(post.id, { status: 'learning_ready' }, { actor_person_id: 'sato_keigo' });
+        post = repository.updatePost(post.id, { status: 'learning_ready' }, ACCESS);
     }
     return { repository, post };
 }
@@ -81,7 +88,7 @@ describe('process-sns-feedback-to-learning', () => {
                 '--learning-ready'
             ]),
             postedAt: '2026-05-14T03:00:00.000Z'
-        });
+        }, ACCESS);
 
         expect(result.post).toMatchObject({
             id: post.id,

@@ -23,6 +23,8 @@ describe('PersonalKnowledgePromotionService runtime boundary', () => {
             organization_id: 'unson',
             project_code: 'brainbase',
             status: 'pending_owner_approval',
+            owner_decision_revision: 0,
+            organization_review_revision: 0,
             normalized_payload: normalized.normalized,
             normalized_payload_hash: normalized.normalized_payload_hash
         };
@@ -46,7 +48,8 @@ describe('PersonalKnowledgePromotionService runtime boundary', () => {
 
         const result = await service.decidePromotion('kpr_1', {
             decision: 'approve',
-            normalized_payload_hash: normalized.normalized_payload_hash
+            normalized_payload_hash: normalized.normalized_payload_hash,
+            expected_owner_decision_revision: 0
         }, {
             access: {
                 personId: 'sato_keigo',

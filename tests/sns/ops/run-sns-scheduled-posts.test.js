@@ -4,9 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     parseArgs,
     resolveAutoPublishEnabled,
+    resolveSnsScheduledPublisherActor,
     resolveTenantJobBoundary,
     resolveSnsPostingLedgerDatabaseUrl,
     resolveSnsPostingLedgerFile,
+    runScheduledPosts,
     shouldUseJsonLedgerForTest,
     validateArgs
 } from '../../../scripts/run-sns-scheduled-posts.js';
@@ -36,6 +38,52 @@ describe('run-sns-scheduled-posts', () => {
         expect(resolveAutoPublishEnabled({ SNS_AUTO_PUBLISH_ENABLED: '1' })).toBe(true);
         expect(resolveAutoPublishEnabled({ SNS_AUTO_PUBLISH_ENABLED: 'false' })).toBe(false);
         expect(resolveAutoPublishEnabled({})).toBe(false);
+    });
+
+    it('builds a canonical actor from explicit deployment-local identity settings', () => {
+        expect(resolveSnsScheduledPublisherActor({
+            SNS_ACTOR_PERSON_ID: 'person_scheduler',
+            SNS_ORGANIZATION_ID: 'org_scheduler',
+            SNS_ACTOR_ROLE: 'gm',
+            SNS_ACTOR_PROJECT_CODES: 'brainbase, sns, brainbase'
+        })).toEqual({
+            sub: 'person_scheduler',
+            actor_person_id: 'person_scheduler',
+            organization_id: 'org_scheduler',
+            org_ids: ['org_scheduler'],
+            role: 'gm',
+            projectCodes: ['brainbase', 'sns']
+        });
+    });
+
+    it.each([
+        ['SNS_ACTOR_PERSON_ID', { SNS_ORGANIZATION_ID: 'org_scheduler' }],
+        ['SNS_ORGANIZATION_ID', { SNS_ACTOR_PERSON_ID: 'person_scheduler' }]
+    ])('requires %s even when the runner is only dry-running', async (missingName, env) => {
+        expect(() => resolveSnsScheduledPublisherActor(env)).toThrow(`${missingName} is required for scheduled SNS publishing`);
+        await expect(runScheduledPosts({
+            argv: ['--dry-run'],
+            env: { ...env, BRAINBASE_TEST_MODE: 'true', SNS_POSTING_LEDGER_MODE: 'json_test' },
+            PoolClass: vi.fn(),
+            output: { log: vi.fn() }
+        })).rejects.toThrow(`${missingName} is required for scheduled SNS publishing`);
+    });
+
+    it('uses least privilege defaults and rejects malformed optional actor settings', () => {
+        expect(resolveSnsScheduledPublisherActor({
+            SNS_ACTOR_PERSON_ID: 'person_scheduler',
+            SNS_ORGANIZATION_ID: 'org_scheduler'
+        })).toMatchObject({ role: 'member', projectCodes: [] });
+        expect(() => resolveSnsScheduledPublisherActor({
+            SNS_ACTOR_PERSON_ID: 'person_scheduler',
+            SNS_ORGANIZATION_ID: 'org_scheduler',
+            SNS_ACTOR_ROLE: ' '
+        })).toThrow('SNS_ACTOR_ROLE must not be empty when provided');
+        expect(() => resolveSnsScheduledPublisherActor({
+            SNS_ACTOR_PERSON_ID: 'person_scheduler',
+            SNS_ORGANIZATION_ID: 'org_scheduler',
+            SNS_ACTOR_PROJECT_CODES: ' , '
+        })).toThrow('SNS_ACTOR_PROJECT_CODES must contain at least one project code');
     });
 
     it('uses JSON only with the same explicit two-flag test mode as the SNS Growth route', () => {

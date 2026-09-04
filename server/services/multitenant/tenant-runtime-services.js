@@ -1,5 +1,6 @@
 import { createHash, createPrivateKey, createPublicKey, timingSafeEqual } from 'node:crypto';
 import { CompanyAuthorityResolver } from './company-authority-resolver.js';
+import { CompanyAuthorityContextProducer } from './company-authority-context-producer.js';
 import { CredentialBroker } from './credential-broker.js';
 import { ContractUsageLedger } from './contract-usage-ledger.js';
 import { PostgresCompanyAuthorityRepository } from './postgres-company-authority-repository.js';
@@ -97,10 +98,21 @@ export function createTenantRuntimeServices({
         deploymentProfile,
         now
     });
+    const companyAuthority = companyAuthorityResolver?.repository?.resolveObservedRoute
+        ? new CompanyAuthorityContextProducer({
+            routeRepository: companyAuthorityResolver.repository,
+            tenantContextProducer,
+            signingKey,
+            audience,
+            deploymentId,
+            now
+        })
+        : null;
     return {
         serviceAuth: serviceAuth ?? createServiceAuth(serviceToken),
         verificationKeys,
         tenantAuthority: tenantContextProducer,
+        companyAuthority,
         connectionRegistry,
         credentialBroker,
         usageLedger,

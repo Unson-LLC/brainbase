@@ -7,8 +7,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes.js';
 import { RoutineCycleExecutor } from '../../../server/services/routine-runtime/cycle-executor.js';
 import { ProductionRoutinePorts } from '../../../server/services/routine-runtime/production-routine-ports.js';
+import { createPersonalKgAuthorityEnv } from '../../helpers/personal-kg-authority-fixture.ts';
 
-function createBootstrapApp({ routineCycleExecutor, projectCodes = ['brainbase'] } = {}) {
+function createBootstrapApp({
+    routineCycleExecutor,
+    projectCodes = ['brainbase'],
+    env = createPersonalKgAuthorityEnv({ projectId: 'brainbase' })
+} = {}) {
     const authService = {
         verifyServiceToken: vi.fn(() => ({
             sub: 'routine-worker',
@@ -56,7 +61,8 @@ function createBootstrapApp({ routineCycleExecutor, projectCodes = ['brainbase']
         workspaceRoot: '/tmp',
         uploadsDir: '/tmp/uploads',
         runtimeInfo: {},
-        brainbaseRoot: '/tmp'
+        brainbaseRoot: '/tmp',
+        env
     });
     return { app, authService };
 }
@@ -71,14 +77,14 @@ describe('Routine execution API production wiring', () => {
             }))
         };
         const { app, authService } = createBootstrapApp({ routineCycleExecutor });
+        const authority = JSON.parse(createPersonalKgAuthorityEnv({ projectId: 'brainbase' })
+            .BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON);
         const input = { project_id: 'brainbase', requested_at: '2026-08-13T00:00:00.000Z' };
 
         const response = await request(app)
             .post('/api/routines/ohayo/execute')
             .set('Authorization', 'Bearer bbsvc_routine-test')
-            .set('x-brainbase-proxy-person-id', 'sato_keigo')
-            .set('x-brainbase-organization-id', 'unson')
-            .send({ thread_id: 'thread-route-1', input })
+            .send({ thread_id: 'thread-route-1', company_authority_response: authority, input })
             .expect(200);
 
         expect(authService.verifyServiceToken).toHaveBeenCalledWith('bbsvc_routine-test');
@@ -86,16 +92,19 @@ describe('Routine execution API production wiring', () => {
             { routine: 'ohayo', input },
             {
                 actor: expect.objectContaining({
-                    person_id: 'sato_keigo',
+                    person_id: 'person-sato',
                     projectCodes: ['brainbase'],
                     role: 'member',
                     authSource: 'service-token'
                 }),
                 access: expect.objectContaining({
-                    personId: 'sato_keigo',
-                    organizationId: 'unson',
+                    personId: 'person-sato',
+                    actorPersonId: 'person-sato',
+                    organizationId: 'organization-tenant-a',
                     projectCodes: ['brainbase'],
-                    role: 'member'
+                    role: 'member',
+                    proxied: true,
+                    authorityResolutionReceiptId: 'authority-receipt-tenant-a-person-sato-auto'
                 }),
                 external_run_id: 'thread-route-1'
             }
@@ -106,7 +115,7 @@ describe('Routine execution API production wiring', () => {
         });
     });
 
-    it('内部・service認証のroutineは代理personとorganizationの明示を必須にする', async () => {
+    it('内部・service認証のroutineは署名済み会社権限を必須にする', async () => {
         const routineCycleExecutor = { execute: vi.fn(async () => ({ status: 'completed' })) };
         const { app } = createBootstrapApp({ routineCycleExecutor });
 
@@ -116,7 +125,40 @@ describe('Routine execution API production wiring', () => {
             .send({ input: { project_id: 'brainbase' } })
             .expect(403);
 
-        expect(response.body).toEqual({ error: 'personal_knowledge_proxy_required' });
+        expect(response.body).toEqual({ error: 'routine_company_authority_required' });
+        expect(routineCycleExecutor.execute).not.toHaveBeenCalled();
+    });
+
+    it('改ざんされた会社権限はroutine effectより前に拒否する', async () => {
+        const routineCycleExecutor = { execute: vi.fn(async () => ({ status: 'completed' })) };
+        const { app } = createBootstrapApp({ routineCycleExecutor });
+        const authority = JSON.parse(createPersonalKgAuthorityEnv({ projectId: 'brainbase' })
+            .BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON);
+        authority.context.scope.organization_id = 'organization-attacker';
+
+        const response = await request(app)
+            .post('/api/routines/ohayo/execute')
+            .set('Authorization', 'Bearer bbsvc_routine-test')
+            .send({ company_authority_response: authority, input: { project_id: 'brainbase' } })
+            .expect(403);
+
+        expect(response.body).toEqual({ error: 'routine_company_authority_rejected' });
+        expect(routineCycleExecutor.execute).not.toHaveBeenCalled();
+    });
+
+    it('署名済みprojectがtransport tokenのscope外ならroutine effectより前に拒否する', async () => {
+        const routineCycleExecutor = { execute: vi.fn(async () => ({ status: 'completed' })) };
+        const { app } = createBootstrapApp({ routineCycleExecutor, projectCodes: ['brainbase'] });
+        const authority = JSON.parse(createPersonalKgAuthorityEnv({ projectId: 'customer-project' })
+            .BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON);
+
+        const response = await request(app)
+            .post('/api/routines/ohayo/execute')
+            .set('Authorization', 'Bearer bbsvc_routine-test')
+            .send({ company_authority_response: authority, input: { project_id: 'customer-project' } })
+            .expect(403);
+
+        expect(response.body).toEqual({ error: 'routine_company_authority_transport_scope_mismatch' });
         expect(routineCycleExecutor.execute).not.toHaveBeenCalled();
     });
 
@@ -239,13 +281,17 @@ describe('Routine execution API production wiring', () => {
             ohayoGenerator: productionPorts
         });
         const { app } = createBootstrapApp({ routineCycleExecutor });
+        const authority = JSON.parse(createPersonalKgAuthorityEnv({ projectId: 'brainbase' })
+            .BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON);
 
         const response = await request(app)
             .post('/api/routines/ohayo/execute')
             .set('Authorization', 'Bearer bbsvc_routine-test')
-            .set('x-brainbase-proxy-person-id', 'sato_keigo')
-            .set('x-brainbase-organization-id', 'unson')
-            .send({ thread_id: 'thread-unavailable', input: { project_id: 'brainbase' } })
+            .send({
+                thread_id: 'thread-unavailable',
+                company_authority_response: authority,
+                input: { project_id: 'brainbase' }
+            })
             .expect(200);
 
         expect(['failed', 'partial']).toContain(response.body.status);
@@ -261,13 +307,13 @@ describe('Routine execution API production wiring', () => {
             routineCycleExecutor,
             projectCodes: ['brainbase', 'customer-project']
         });
+        const authority = JSON.parse(createPersonalKgAuthorityEnv({ projectId: 'brainbase' })
+            .BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON);
 
         const response = await request(app)
             .post('/api/routines/ohayo/execute')
             .set('Authorization', 'Bearer bbsvc_routine-test')
-            .set('x-brainbase-proxy-person-id', 'sato_keigo')
-            .set('x-brainbase-organization-id', 'unson')
-            .send({ input: { project_id: 'customer-project' } })
+            .send({ company_authority_response: authority, input: { project_id: 'customer-project' } })
             .expect(403);
 
         expect(response.body).toEqual({ error: 'routine_project_not_supported' });

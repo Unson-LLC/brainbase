@@ -1,5 +1,4 @@
 const ROUTINE_PROJECT_ID = 'brainbase';
-const DEFAULT_PERSONAL_KG_OWNER_PERSON_ID = 'sato_keigo';
 const ROUTINE_AUTOMATION_IDS = Object.freeze([
     'brainbase-ohayo',
     'brainbase-oyasumi',
@@ -95,8 +94,6 @@ export class ProductionRoutinePorts {
         listJudgmentOutboxExceptions,
         knowledgeFeedbackService,
         countRunReceiptOutbox = null,
-        personalKgOwnerPersonId = process.env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID
-            || DEFAULT_PERSONAL_KG_OWNER_PERSON_ID,
         personalVaultReadEnabled = process.env.BRAINBASE_PERSONAL_VAULT_READ_ENABLED !== '0',
         now = () => new Date()
     } = {}) {
@@ -108,7 +105,6 @@ export class ProductionRoutinePorts {
         this.listJudgmentOutboxExceptions = listJudgmentOutboxExceptions;
         this.knowledgeFeedbackService = knowledgeFeedbackService;
         this.countRunReceiptOutbox = countRunReceiptOutbox;
-        this.personalKgOwnerPersonId = personalKgOwnerPersonId;
         this.personalVaultReadEnabled = personalVaultReadEnabled;
         this.now = now;
     }

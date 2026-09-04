@@ -9,12 +9,19 @@ import {
     safeCandidateSummary
 } from '../../../scripts/personal-kg-review-projection.js';
 
+const ACCESS = {
+    ownerPersonId: 'sato_keigo',
+    actorPersonId: 'sato_keigo',
+    organizationId: 'unson'
+};
+
 function candidate(overrides = {}) {
     return {
         id: overrides.id || 'cand_default',
         cognitive_type: 'insight',
         owner_person_id: overrides.owner_person_id || 'sato_keigo',
         actor_person_id: 'sato_keigo',
+        organization_id: overrides.organization_id || 'unson',
         source_system: overrides.source_system || 'oyasumi-meeting-personal-kg',
         source_event_ids: overrides.source_event_ids || ['github:minutes#personal_kg_core:default'],
         workspace: 'github',
@@ -70,7 +77,7 @@ describe('personal KG review projection CLI helpers', () => {
             candidate({ id: 'review_redaction', redaction_status: 'needs_redaction' }),
             candidate({ id: 'other_owner', owner_person_id: 'other', memory_layer: 'needs_review' }),
             candidate({ id: 'other_source', source_system: 'other-source', memory_layer: 'needs_review' })
-        ], { reviewScope: 'all' });
+        ], { ...ACCESS, reviewScope: 'all' });
 
         expect(queue.map((item) => item.id)).toEqual(['review_layer', 'review_redaction']);
         expect(queue[0].review_reasons).toEqual(expect.arrayContaining(['memory_layer:needs_review']));
@@ -90,7 +97,7 @@ describe('personal KG review projection CLI helpers', () => {
             candidate({ id: 'blocked_rejected', promotion_status: 'rejected' }),
             candidate({ id: 'blocked_expired', promotion_status: 'expired' }),
             candidate({ id: 'blocked_non_internal', sensitivity: 'confidential' })
-        ]);
+        ], ACCESS);
 
         expect(plan.summary).toEqual({
             input_candidates: 11,
@@ -130,7 +137,7 @@ describe('personal KG review projection CLI helpers', () => {
             { id: 'expire_me', decision: 'expired' },
             { id: 'blocked_sensitive', decision: 'approved' },
             { id: 'missing', decision: 'expired' }
-        ]);
+        ], ACCESS);
 
         expect(plan.summary).toEqual({ decisions: 5, ready: 3, blocked: 2 });
         expect(plan.items.find((item) => item.id === 'approve_me').status_transitions)
@@ -143,5 +150,22 @@ describe('personal KG review projection CLI helpers', () => {
             .toEqual(expect.arrayContaining(['approved:redaction_still_needs_review']));
         expect(plan.items.find((item) => item.id === 'missing').errors)
             .toEqual(expect.arrayContaining(['candidate:not_found']));
+    });
+
+    it('fails closed when identity is missing or tenant does not match', () => {
+        expect(buildReviewQueue([candidate({ id: 'missing_identity' })], { reviewScope: 'all' })).toEqual([]);
+
+        const queue = buildReviewQueue([
+            candidate({ id: 'other_person', owner_person_id: 'other_person', actor_person_id: 'other_person' }),
+            candidate({ id: 'other_tenant', organization_id: 'other_org' })
+        ], { ...ACCESS, reviewScope: 'all' });
+        expect(queue).toEqual([]);
+
+        const plan = buildSnsProjectionPlan([
+            candidate({ id: 'other_tenant', organization_id: 'other_org' })
+        ], ACCESS);
+        expect(plan.summary).toMatchObject({ input_candidates: 1, eligible: 0, blocked: 1 });
+        expect(plan.blocked[0].projection_blockers)
+            .toContain('organization_id:not_requested_organization');
     });
 });

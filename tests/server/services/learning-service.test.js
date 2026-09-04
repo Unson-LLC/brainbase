@@ -218,6 +218,11 @@ describe('LearningService', () => {
         await service.searchPersonalKgCandidates({
             query: 'AI駆動経営 判断 Ship',
             limit: 5
+        }, {
+            access: {
+                personId: 'sato_keigo',
+                organizationId: 'org_unson'
+            }
         });
 
         const searchCall = pool.query.mock.calls.find(
@@ -243,6 +248,11 @@ describe('LearningService', () => {
             query: '判断',
             cognitiveTypes: ['claim', 'insight'],
             limit: 3
+        }, {
+            access: {
+                personId: 'sato_keigo',
+                organizationId: 'org_unson'
+            }
         });
 
         const searchCall = pool.query.mock.calls.find(
@@ -260,6 +270,33 @@ describe('LearningService', () => {
             ['claim', 'insight'],
             3
         ]);
+    });
+
+    it('searchPersonalKgCandidates requires authenticated access instead of falling back to a default owner', async () => {
+        await expect(service.searchPersonalKgCandidates({ query: '判断' }))
+            .rejects.toMatchObject({
+                message: 'personal_knowledge_identity_required',
+                status: 403
+            });
+
+        expect(pool.query.mock.calls.some(([sql]) => String(sql).includes('SELECT id, cognitive_type, body'))).toBe(false);
+    });
+
+    it('searchPersonalKgCandidates rejects an owner that differs from authenticated access', async () => {
+        await expect(service.searchPersonalKgCandidates({
+            query: '判断',
+            ownerPersonId: 'umeda_ryo'
+        }, {
+            access: {
+                personId: 'sato_keigo',
+                organizationId: 'org_unson'
+            }
+        })).rejects.toMatchObject({
+            message: 'personal_knowledge_scope_spoofing_rejected',
+            status: 403
+        });
+
+        expect(pool.query.mock.calls.some(([sql]) => String(sql).includes('SELECT id, cognitive_type, body'))).toBe(false);
     });
 
     it('recordEpisode accepts session_log and codex_session_log sources', async () => {

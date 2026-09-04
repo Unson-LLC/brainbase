@@ -12,6 +12,9 @@ import {
 
 const viewer = {
     sub: 'sato_keigo',
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
     role: 'ceo',
     workspace: 'unson',
     org_ids: ['unson', 'baao'],
@@ -64,6 +67,7 @@ describe('Sato Keigo BAAO minutes personal KG seed', () => {
             expect(candidate.source_system).toBe(SATO_KEIGO_BAAO_MINUTES_SOURCE_SYSTEM);
             expect(candidate.owner_person_id).toBe('sato_keigo');
             expect(candidate.actor_person_id).toBe('sato_keigo');
+            expect(candidate.organization_id).toBe('unson');
             expect(candidate.workspace).toBe('unson');
             expect(candidate.project_code).toBe('baao');
             expect(candidate.org_ids).toContain('baao');

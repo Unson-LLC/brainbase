@@ -21,7 +21,8 @@ minutes/transcriptからSNS化前の個人KG coreを作り、その後にSNS利�
 - INV-4: `personal_kg_core` は判断再現に必要な family/medical/private/counterparty confidential details を保持してよい。ただし owner-visible, sensitivity tagged, provenance linked, retrieval-purpose gated でなければならない。
 - INV-4b: family/medical/private/counterparty confidential details は `sns_ready`, `team_candidate`, `org_candidate`, Graph promotion body へそのまま入らない。
 - INV-5: transcriptがある場合、extractorはminutesよりtranscriptを優先したsource refを持つcandidateを作れる。
-- INV-6: candidateは `source_system=oyasumi-meeting-personal-kg`, `owner_person_id=sato_keigo`, `visibility=owner` を維持する。
+- INV-6: candidateは `source_system=oyasumi-meeting-personal-kg`, 署名検証済み会社権限contextの `scope.owner_person_id`, `visibility=owner` を維持する。CLI引数や本文の人物IDをownerとして採用しない。
+- INV-6a: 署名検証済みの委任証明を検証する実装がない間、ownerとactorが異なるPersonal KG操作はfail-closedで拒否する。委任ID文字列だけでは許可しない。
 - INV-7: `source_event_ids` は memory layer と rule id を含み、coreとprojectionの重複を独立に防げる。
 - INV-8: projection/promotion は元の `personal_kg_core` を上書きせず、別instance + provenance (`projection_of` / `derived_from`) として作る。
 
