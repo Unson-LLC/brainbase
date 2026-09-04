@@ -30,6 +30,7 @@ WorkflowServiceからAutomationRunServiceへの移行後、承認済み候補を
 6. Canonical Task連携のfocused test、関連回帰テスト、全Vitestが新規失敗なしで完了する。
 7. 本番readinessを有効化する前に、registryで定義されたcurrent-HEAD証跡をすべて収集し、直接writerが存在しないことをpreflightで確認する。
 8. owner認証されたMac Companion経路で作成・更新を確認できない場合、mutationは未開通として扱い、成功を主張しない。
+9. collectorが`VIBEPRO_EVIDENCE_ID`、`VIBEPRO_EVIDENCE_RESULT`、`VIBEPRO_EVIDENCE_NONCE`を注入してregistryのCanonical Task evidence specを明示したときだけ、独立worktreeからそのspecを収集する。通常Playwright discoveryは`.worktrees`と`.codex-worktrees`を引き続き除外し、registry外ID、任意test、reporter/provenanceの検証を緩めない。
 
 ## 境界判断
 
@@ -86,5 +87,6 @@ flowchart LR
 - Automation Runおよびrouteを含む関連回帰テスト
 - full Vitest
 - `scripts/collect-canonical-task-evidence.js`
+- worktree内での明示evidence targetと通常discovery除外を対照するPlaywright collection regression
 - `scripts/preflight-canonical-task-cutover.js`
 - owner認証済みMac Companion create/updateの実動確認
