@@ -17,6 +17,8 @@ import { createJudgmentResolutionRouter } from '../routes/judgment-resolution.js
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
 import { createRunReceiptRouter } from '../routes/run-receipts.js';
+import { createOutcomeCaseRouter } from '../routes/outcome-cases.js';
+import { createVibeproHandoffRouter } from '../routes/vibepro-handoffs.js';
 import { createMeetingMinutesContextReceiptRouter } from '../routes/meeting-minutes-context-receipts.js';
 import { createRoutineRouter } from '../routes/routines.js';
 import { createMeetingSourceSettingsRouter } from '../routes/meeting-source-settings.js';
@@ -102,12 +104,21 @@ export function registerJudgmentResolutionApiRoute(app, {
     bindingSecret = process.env.BRAINBASE_JUDGMENT_BINDING_SECRET,
     now,
     maxAgeMs,
-    maxFutureSkewMs
+    maxFutureSkewMs,
+    receiptWriter
 }) {
     app.use(
         '/api/judgment',
         requireAuth(authService, { allowInsecureHeaders: false }),
-        createJudgmentResolutionRouter({ service, bindingSecret, now, maxAgeMs, maxFutureSkewMs })
+        createJudgmentResolutionRouter({ service, bindingSecret, now, maxAgeMs, maxFutureSkewMs, receiptWriter })
+    );
+}
+
+export function registerVibeproHandoffApiRoute(app, { authService, runtime }) {
+    app.use(
+        '/api/vibepro-handoffs',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createVibeproHandoffRouter({ runtime })
     );
 }
 
@@ -171,6 +182,10 @@ export function registerApiRoutes(app, {
     meetingAutomationService,
     automationRunService,
     runReceiptQueryService,
+    outcomeCaseService,
+    outcomeCaseAuditSink,
+    judgmentReceiptWriter,
+    vibeproHandoffRuntime,
     companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
@@ -323,7 +338,7 @@ export function registerApiRoutes(app, {
             cycleQueryService: knowledgeCycleQueryService
         });
     }
-    registerJudgmentResolutionApiRoute(app, { authService });
+    registerJudgmentResolutionApiRoute(app, { authService, receiptWriter: judgmentReceiptWriter });
     if (candidateRepository) {
         // cross-repo source (mana / salestailor / zeims / SNS) からの
         // Raw Ledger envelope 受信。 STR-006 / ADR-010 で確定した
@@ -357,6 +372,11 @@ export function registerApiRoutes(app, {
         queryService: runReceiptQueryService,
         routineLivenessService
     }));
+    app.use('/api/outcome-cases', workflowAuthGuard, createOutcomeCaseRouter({
+        service: outcomeCaseService,
+        auditSink: outcomeCaseAuditSink
+    }));
+    registerVibeproHandoffApiRoute(app, { authService, runtime: vibeproHandoffRuntime });
     app.use(
         '/api/meeting-minutes/context-receipts',
         workflowAuthGuard,

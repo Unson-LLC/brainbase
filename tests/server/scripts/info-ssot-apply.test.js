@@ -130,7 +130,11 @@ describe('Info SSOT RLS deployment contract', () => {
         expect(invocations[0]).toMatch(/ON_ERROR_STOP=1/u);
         expect(invocations[0]).toMatch(/info-ssot-schema\.sql/u);
         expect(invocations[0]).toMatch(/project-provisioning-schema\.sql/u);
+        expect(invocations[0]).toMatch(/outcome-case-schema\.sql/u);
         expect(invocations[0]).toMatch(/info-ssot-rls\.sql/u);
+        expect(invocations[0]).toMatch(/judgment-receipt-schema\.sql/u);
+        expect(invocations[0].indexOf('judgment-receipt-schema.sql')).toBeGreaterThan(invocations[0].indexOf('info-ssot-rls.sql'));
+        expect(invocations[0]).toMatch(/outcome-case-schema\.sql/u);
         expect(invocations[0]).toMatch(/info-ssot-readback\.sql/u);
         expect(invocations[0]).toMatch(/info-ssot-negative-smoke\.sql/u);
         expect(invocations.filter((invocation) => invocation.includes('info-ssot-negative-smoke.sql'))).toHaveLength(2);
@@ -192,9 +196,12 @@ describe('Info SSOT RLS deployment contract', () => {
     it('keeps the SQL readback and smoke contracts explicit', async () => {
         const readbackSql = await readFile(path.join(repoRoot, 'server/sql/info-ssot-readback.sql'), 'utf8');
         const smokeSql = await readFile(path.join(repoRoot, 'server/sql/info-ssot-negative-smoke.sql'), 'utf8');
+        const outcomeCaseSql = await readFile(path.join(repoRoot, 'server/sql/outcome-case-schema.sql'), 'utf8');
+        const rlsSql = await readFile(path.join(repoRoot, 'server/sql/info-ssot-rls.sql'), 'utf8');
 
         for (const table of ['decisions', 'events', 'raci_assignments', 'graph_entities', 'graph_edges',
-            'project_registry', 'project_provisioning_runs', 'project_provisioning_steps']) {
+            'project_registry', 'project_provisioning_runs', 'project_provisioning_steps', 'outcome_cases',
+            'judgment_receipts', 'vibepro_handoff_adoption_grants', 'vibepro_handoff_adoptions']) {
             expect(readbackSql).toContain(table);
         }
         expect(readbackSql).toContain('INFO_SSOT_READBACK_OK');
@@ -213,7 +220,22 @@ describe('Info SSOT RLS deployment contract', () => {
         expect(smokeSql).toContain('wrong-owner');
         expect(smokeSql).toContain('cross-organization project registry fixture was readable');
         expect(smokeSql).toContain('fixture residual');
+        expect(readbackSql).toContain('handoff grant write policy');
+        expect(smokeSql).toContain('cross-author judgment receipt');
+        expect(smokeSql).toContain('handoff grant self-assignment');
+        expect(smokeSql).toContain('receipt fixture rollback');
         expect(smokeSql).toMatch(/raise exception/iu);
+        expect(outcomeCaseSql).toContain('OUTCOME_CASE_PROJECT_OWNERSHIP_MISMATCH');
+        expect(outcomeCaseSql).toContain('IF force_rls_was_enabled THEN');
+        expect(outcomeCaseSql).toContain('ALTER TABLE outcome_cases NO FORCE ROW LEVEL SECURITY');
+        expect(outcomeCaseSql).toContain('ALTER TABLE outcome_cases FORCE ROW LEVEL SECURITY');
+        expect(outcomeCaseSql).toMatch(/outcome_case\.organization_id IS DISTINCT FROM project\.organization_id/u);
+        const outcomePolicy = rlsSql.slice(
+            rlsSql.indexOf('CREATE POLICY outcome_cases_tenant_project_scope'),
+            rlsSql.indexOf('DROP POLICY IF EXISTS project_registry_organization_isolation'),
+        );
+        expect(outcomePolicy.match(/EXISTS \(/gu)).toHaveLength(2);
+        expect(outcomePolicy.match(/project\.organization_id = outcome_cases\.organization_id/gu)).toHaveLength(2);
     });
 
     it('documents the RLS gate before the API/MCP restart', async () => {
@@ -226,6 +248,8 @@ describe('Info SSOT RLS deployment contract', () => {
         expect(runbook).toContain('API/MCPを再起動する前');
         expect(runbook).toContain('INFO_SSOT_NEGATIVE_SMOKE_OK');
         expect(runbook).toContain('test -r server/sql/project-provisioning-schema.sql');
+        expect(runbook).toContain('test -r server/sql/outcome-case-schema.sql');
+        expect(runbook).toContain('test -r server/sql/judgment-receipt-schema.sql');
         expect(runbook).toContain(': "${ROLLBACK_SHA:?');
         expect(runbook).toContain('INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA"');
         expect(runbook).toContain('INFO_SSOT_OPERATION_MODE="apply"');

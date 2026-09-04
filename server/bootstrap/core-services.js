@@ -43,6 +43,9 @@ import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
 import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
+import { OutcomeCasePostgresRepository } from '../services/outcome-case/outcome-case-postgres-repository.js';
+import { OutcomeCaseService } from '../services/outcome-case/outcome-case-service.js';
+import { createOutcomeCaseClosureAuthorityResolver, createOutcomeCaseReferenceResolver } from '../services/outcome-case/outcome-case-reference-resolver.js';
 import { resolveRoutineReceiptPaths } from '../../scripts/routines/runtime-paths.mjs';
 import { countRoutineOutbox, listRoutineDeadLetters } from '../services/routine-runtime/dead-letter-reader.js';
 import { loadRoutineExpectations } from '../services/routine-runtime/expectation-parser.js';
@@ -70,6 +73,7 @@ import { createAutomationRuntimeServices } from '../services/automation-runtime/
 import { createTenantRuntimeServicesFromEnv } from '../services/multitenant/tenant-runtime-services.js';
 import { createSlackInstallationControlPlaneFromEnv } from './slack-installation-control-plane.js';
 import { createProjectProvisioningService } from '../services/project-provisioning/project-provisioning-service.js';
+import { createVibeproHandoffBootstrap } from './vibepro-handoff-runtime.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -80,6 +84,50 @@ export function createCanonicalTaskRepository({
     return resolvedBackend === 'postgres'
         ? new CanonicalTaskPostgresRepository({ pool, storeConfig })
         : new CanonicalTaskNocoDBRepository({ storeConfig });
+}
+
+export function createOutcomeCaseService({
+    infoSSOTService,
+    runReceiptQueryService,
+    repository = null,
+    readRunReceipt = null,
+    resolveOutcomeReferences = null,
+    resolveClosureAuthority = null
+} = {}) {
+    const outcomeCaseRepository = repository || (infoSSOTService?.pool
+        ? new OutcomeCasePostgresRepository({ pool: infoSSOTService.pool, infoSSOTService })
+        : null);
+    if (!outcomeCaseRepository) return null;
+
+    const receiptReader = readRunReceipt || (async ({ projectCode, runReceiptRef, actor }) => {
+        if (typeof runReceiptQueryService?.diagnose !== 'function') {
+            throw new Error('OutcomeCase requires runReceiptQueryService');
+        }
+        try {
+            const diagnosis = await runReceiptQueryService.diagnose({
+                projectId: projectCode,
+                runId: runReceiptRef
+            }, actor);
+            return {
+                ...diagnosis.receipt,
+                issue_codes: Array.isArray(diagnosis.diagnosis?.issue_codes)
+                    ? diagnosis.diagnosis.issue_codes
+                    : [],
+                recommended_action: diagnosis.diagnosis?.recommended_action ?? null,
+                diagnostics: diagnosis.diagnosis ?? null
+            };
+        } catch (error) {
+            if (error?.status === 404 || error?.code === 'not_found') return null;
+            throw error;
+        }
+    });
+
+    return new OutcomeCaseService({
+        repository: outcomeCaseRepository,
+        readRunReceipt: receiptReader,
+        resolveOutcomeReferences: resolveOutcomeReferences || createOutcomeCaseReferenceResolver({ infoSSOTService }),
+        resolveClosureAuthority: resolveClosureAuthority || createOutcomeCaseClosureAuthorityResolver({ infoSSOTService })
+    });
 }
 
 export function createCoreServices({
@@ -246,6 +294,16 @@ export function createCoreServices({
         projectAccessPolicy,
         canonicalTaskService
     });
+    const outcomeCaseService = createOutcomeCaseService({
+        infoSSOTService,
+        runReceiptQueryService: automationRuntime.runReceiptQueryService
+    });
+    const { judgmentReceiptWriter, vibeproHandoffRuntime } = createVibeproHandoffBootstrap({
+        env: process.env,
+        pool: infoSSOTService.pool,
+        infoSSOTService,
+        outcomeCaseService
+    });
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({
         stateFile: path.join(varDir, 'meeting-source-mcp-state.json'),
         meetingAutomationService: automationRuntime.meetingAutomationService,
@@ -403,6 +461,10 @@ export function createCoreServices({
         onboardingRuntimeService,
         tokenUsageService,
         ...automationRuntime,
+        outcomeCaseService,
+        judgmentReceiptWriter,
+        vibeproHandoffRuntime,
+        outcomeCaseAuditSink: workflowRepository,
         meetingSourceMcpSyncService,
         externalRunnerIngestService,
         runReceiptIngestService,

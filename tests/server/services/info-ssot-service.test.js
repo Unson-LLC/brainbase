@@ -63,6 +63,23 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         vi.restoreAllMocks();
     });
 
+    it('keeps the generic access context compatible while allowing tenant-bound callers to require a canonical claim', async () => {
+        const { service, client } = buildService();
+        await service.withAccessContext(accessContext, async () => 'generic');
+        expect(client.query).toHaveBeenCalledWith(
+            'SELECT set_config($1, $2, true)',
+            ['app.organization_id', '']
+        );
+
+        const handler = vi.fn();
+        await expect(service.withAccessContext({
+            ...accessContext, organizationId: 'org_unson', tenantId: 'org_other'
+        }, handler, { requireCanonicalTenant: true })).rejects.toMatchObject({
+            code: 'canonical_tenant_identity_invalid', status: 403
+        });
+        expect(handler).not.toHaveBeenCalled();
+    });
+
     it.each(['fetchGraphEntities', 'fetchGraphEntitiesByIds'])('%sはactiveかつ閲覧可能なmember_ofだけでprojectless Personを公開する', async (method) => {
         const { service, client } = buildService();
         client.query.mockResolvedValue({ rows: [] });

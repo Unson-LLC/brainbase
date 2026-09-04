@@ -16,7 +16,11 @@ DECLARE
     'graph_edges',
     'project_registry',
     'project_provisioning_runs',
-    'project_provisioning_steps'
+    'project_provisioning_steps',
+    'outcome_cases',
+    'judgment_receipts',
+    'vibepro_handoff_adoption_grants',
+    'vibepro_handoff_adoptions'
   ];
   required_function text;
   required_functions text[] := ARRAY[
@@ -211,5 +215,63 @@ BEGIN
   END IF;
 END
 $project_provisioning_readback$;
+
+DO $outcome_case_readback$
+DECLARE
+  required_column text;
+BEGIN
+  IF to_regclass(format('%I.outcome_cases', current_schema())) IS NULL THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing outcome_cases table';
+  END IF;
+  FOREACH required_column IN ARRAY ARRAY[
+    'case_id', 'project_code', 'capability_id', 'authority',
+    'reference_resolution', 'evaluation_history', 'run_receipt_refs',
+    'terminal_evaluation', 'closure_status', 'revision'
+  ] LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'outcome_cases'
+        AND column_name = required_column
+    ) THEN
+      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing outcome_cases column %', required_column;
+    END IF;
+  END LOOP;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = to_regclass(format('%I.outcome_cases', current_schema()))
+      AND tgname = 'outcome_case_evaluation_history_append_only'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing outcome case append-only history trigger';
+  END IF;
+END
+$outcome_case_readback$;
+
+DO $judgment_handoff_readback$
+DECLARE
+  immutable_table text;
+BEGIN
+  FOREACH immutable_table IN ARRAY ARRAY['judgment_receipts', 'vibepro_handoff_adoptions'] LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_trigger
+      WHERE tgrelid = to_regclass(format('%I.%I', current_schema(), immutable_table))
+        AND tgname = immutable_table || '_immutable'
+        AND NOT tgisinternal AND tgenabled = 'O' AND tgtype = 27
+        AND tgfoid = to_regprocedure(format('%I.%I()', current_schema(), immutable_table || '_immutable'))
+    ) THEN
+      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: immutable handoff trigger binding mismatch';
+    END IF;
+  END LOOP;
+  IF EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = current_schema() AND tablename = 'vibepro_handoff_adoption_grants'
+      AND cmd <> 'SELECT'
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: handoff grant write policy';
+  END IF;
+END
+$judgment_handoff_readback$;
 
 SELECT 'INFO_SSOT_READBACK_OK' AS marker;

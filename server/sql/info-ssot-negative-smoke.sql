@@ -8,6 +8,7 @@ DO $info_ssot_negative_smoke$
 DECLARE
   fixture_project_id text;
   fixture_project_code text;
+  fixture_project_organization_id text;
   other_project_id text;
   other_project_code text;
   fixture_entity_id text := format('info_ssot_negative_smoke_%s', txid_current());
@@ -15,6 +16,7 @@ DECLARE
   fixture_product_id text := format('info_ssot_negative_smoke_product_%s', txid_current());
   fixture_edge_id text := format('info_ssot_negative_smoke_wrong_owner_edge_%s', txid_current());
   fixture_registry_code text := format('info-ssot-rls-%s', txid_current());
+  fixture_outcome_case_id text := format('outcome_case_rls_%s', txid_current());
   fixture_organization_id text := format('org_info_ssot_%s', txid_current());
   visible_count integer;
   deleted_count integer;
@@ -41,10 +43,12 @@ BEGIN
   PERFORM set_config('app.organization_id', fixture_organization_id, true);
   DELETE FROM project_registry WHERE project_code = fixture_registry_code;
 
-  SELECT p.id, p.code
-    INTO fixture_project_id, fixture_project_code
+  SELECT p.id, p.code, p.organization_id
+    INTO fixture_project_id, fixture_project_code, fixture_project_organization_id
   FROM projects p
   WHERE p.code ~ '^[^,[:space:]]+$'
+    AND p.organization_id IS NOT NULL
+    AND btrim(p.organization_id) <> ''
   ORDER BY p.code
   LIMIT 1;
 
@@ -65,8 +69,108 @@ BEGIN
   END IF;
 
   PERFORM set_config('app.role', 'member', true);
+  PERFORM set_config('app.organization_id', fixture_project_organization_id, true);
   PERFORM set_config('app.project_codes', fixture_project_code, true);
   PERFORM set_config('app.clearance', 'internal', true);
+
+  INSERT INTO outcome_cases (
+    case_id, organization_id, project_code, capability_id, user_observable_outcome,
+    protected_constraints, non_goals, authority, selected_domain_pack,
+    reference_resolution, evaluation_history, terminal_evaluation, closure_status,
+    current_external_state, technical_story_refs, run_receipt_refs, prior_attempt_refs,
+    unresolved_failure_boundary, revision
+  ) VALUES (
+    fixture_outcome_case_id, fixture_project_organization_id, fixture_project_code, 'info_ssot_negative_smoke', 'RLS fixture',
+    '[]'::jsonb, '[]'::jsonb, '{"state":"unresolved","reason":"fixture"}'::jsonb, 'fixture/v1',
+    '{}'::jsonb, '[]'::jsonb, NULL, 'open', 'processing', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb,
+    NULL, 1
+  );
+  SELECT count(*) INTO visible_count FROM outcome_cases WHERE case_id = fixture_outcome_case_id;
+  IF visible_count <> 1 THEN
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: authorized outcome case fixture was not readable';
+  END IF;
+  -- Roll back this subtransaction deliberately: immutable receipts cannot be
+  -- deleted for cleanup, and deployment must not retain personal fixtures.
+  BEGIN
+    PERFORM set_config('app.judgment_receipt_owner_id', fixture_entity_id, true);
+    PERFORM set_config('app.vibepro_handoff_adoption_owner_id', fixture_entity_id, true);
+    INSERT INTO judgment_receipts (organization_id, project_code, owner_person_id, resolution_id, turn_id, receipt)
+    VALUES (fixture_project_organization_id, fixture_project_code, fixture_entity_id, fixture_entity_id, fixture_entity_id,
+      jsonb_build_object('resolution_id', fixture_entity_id, 'turn_id', fixture_entity_id, 'project_code', fixture_project_code));
+    SELECT count(*) INTO visible_count FROM judgment_receipts WHERE resolution_id = fixture_entity_id;
+    IF visible_count <> 1 THEN
+      RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: own judgment receipt not readable';
+    END IF;
+    BEGIN
+      UPDATE judgment_receipts SET receipt = receipt WHERE resolution_id = fixture_entity_id;
+      RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: judgment receipt mutation accepted';
+    EXCEPTION WHEN OTHERS THEN
+      IF SQLERRM <> 'JUDGMENT_RECEIPTS_IMMUTABLE' THEN RAISE; END IF;
+    END;
+    PERFORM set_config('app.judgment_receipt_owner_id', '__other_author__', true);
+    SELECT count(*) INTO visible_count FROM judgment_receipts WHERE resolution_id = fixture_entity_id;
+    IF visible_count <> 0 THEN
+      RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: cross-author judgment receipt visible';
+    END IF;
+    PERFORM set_config('app.judgment_receipt_owner_id', fixture_entity_id, true);
+    BEGIN
+      INSERT INTO vibepro_handoff_adoption_grants (organization_id, project_code, person_id)
+      VALUES (fixture_project_organization_id, fixture_project_code, fixture_entity_id);
+      RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: handoff grant self-assignment accepted';
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+    BEGIN
+      INSERT INTO vibepro_handoff_adoptions (
+        organization_id, project_code, owner_person_id, case_id, resolution_id, outcome_case_revision,
+        decision, target, technical_acceptance, production_probe
+      ) VALUES (
+        fixture_project_organization_id, fixture_project_code, fixture_entity_id, fixture_outcome_case_id, fixture_entity_id, 1,
+        jsonb_build_object('case_id', fixture_outcome_case_id, 'project_code', fixture_project_code,
+          'resolution_id', fixture_entity_id, 'turn_id', fixture_entity_id,
+          'judgment_receipt_ref', 'brainbase://judgment-receipts/' || fixture_entity_id),
+        jsonb_build_object('case_id', fixture_outcome_case_id, 'project_code', fixture_project_code), '[]'::jsonb, '{}'::jsonb
+      );
+      RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: adoption without grant accepted';
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+    RAISE EXCEPTION USING ERRCODE = 'P4001', MESSAGE = 'receipt fixture rollback';
+  EXCEPTION WHEN SQLSTATE 'P4001' THEN NULL;
+  END;
+  PERFORM set_config('app.judgment_receipt_owner_id', fixture_entity_id, true);
+  SELECT count(*) INTO visible_count FROM judgment_receipts WHERE resolution_id = fixture_entity_id;
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: receipt fixture residual';
+  END IF;
+  PERFORM set_config('app.judgment_receipt_owner_id', '', true);
+  -- A normal evaluation appends exactly one immutable event. Direct history
+  -- truncation or replacement must be rejected even for an authorized role.
+  UPDATE outcome_cases
+     SET evaluation_history = jsonb_build_array(jsonb_build_object('event', 'first-evaluation')),
+         revision = 2
+   WHERE case_id = fixture_outcome_case_id;
+  BEGIN
+    UPDATE outcome_cases
+       SET evaluation_history = '[]'::jsonb
+     WHERE case_id = fixture_outcome_case_id;
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: outcome case history truncation was accepted';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'OUTCOME_CASE_EVALUATION_HISTORY_APPEND_ONLY' THEN RAISE; END IF;
+  END;
+  BEGIN
+    UPDATE outcome_cases
+       SET evaluation_history = jsonb_build_array(jsonb_build_object('event', 'rewritten-first-evaluation'))
+     WHERE case_id = fixture_outcome_case_id;
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: outcome case history rewrite was accepted';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'OUTCOME_CASE_EVALUATION_HISTORY_APPEND_ONLY' THEN RAISE; END IF;
+  END;
+  PERFORM set_config('app.project_codes', '__info_ssot_denied_scope__', true);
+  SELECT count(*) INTO visible_count FROM outcome_cases WHERE case_id = fixture_outcome_case_id;
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: cross-project outcome case fixture was readable';
+  END IF;
+  PERFORM set_config('app.project_codes', fixture_project_code, true);
+  DELETE FROM outcome_cases WHERE case_id = fixture_outcome_case_id;
 
   INSERT INTO graph_entities (
     id,

@@ -106,6 +106,18 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-outcome-case-v1",
+        "title": "OutcomeCase v1 組織成果の閉鎖判断",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
     "current_story_id": "story-mcp-auth-context-1396"

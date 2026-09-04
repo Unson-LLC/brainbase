@@ -1,6 +1,6 @@
 # Info SSOT RLS 配備ゲート
 
-`server/sql/info-ssot-schema.sql` と `server/sql/info-ssot-rls.sql` を本番へ適用する前後のリリース手順。API/MCPを再起動する前に、このゲートを完了させる。
+`server/sql/info-ssot-schema.sql`、`server/sql/project-provisioning-schema.sql`、`server/sql/outcome-case-schema.sql`、`server/sql/info-ssot-rls.sql`、`server/sql/judgment-receipt-schema.sql` を本番へ適用する前後のリリース手順。API/MCPを再起動する前に、このゲートを完了させる。
 
 ## 安全境界
 
@@ -9,6 +9,8 @@
 - readbackまたはnegative smokeが失敗した場合、transactionをcommitせず、Receiptを作らず、API/MCPを起動しない。
 - SQLは既存の `IF NOT EXISTS` とpolicy再作成規約に従い、再実行可能である。
 - negative smokeのfixtureはtransaction内で作成・認可確認・拒否確認・削除を行う。成功後にGraphへfixtureを残さない。
+- 変更禁止の判断記録は子transactionを意図的に取り消して残さない。本人以外の読取、記録の変更、採用許可の自己付与、許可なしの採用を拒否することも確認する。
+- SQL適用は採用許可を誰にも付与しない。アプリケーションDBロールの表アクセスと、本人・組織・project単位の採用許可は別である。前者は判断記録・採用表のSELECT/INSERT、許可表のSELECTだけを配備担当者が確認する。一般RACIから採用許可を流用しない。
 
 ## 適用前
 
@@ -22,6 +24,8 @@ grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
 test -r scripts/info-ssot-apply.sh
 test -r server/sql/info-ssot-schema.sql
 test -r server/sql/project-provisioning-schema.sql
+test -r server/sql/outcome-case-schema.sql
+test -r server/sql/judgment-receipt-schema.sql
 test -r server/sql/info-ssot-rls.sql
 test -r server/sql/info-ssot-readback.sql
 test -r server/sql/info-ssot-negative-smoke.sql

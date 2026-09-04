@@ -30,8 +30,10 @@ function headers() {
     };
 }
 
-function createApp() {
-    const resolve = vi.fn(() => ({ resolution_id: 'jr_registered', status: 'resolved' }));
+function createApp({ receiptWriter } = {}) {
+    const resolve = vi.fn((input) => ({
+        resolution_id: 'jr_registered', status: 'resolved', turn_id: input.turn_id, project_code: input.project_code
+    }));
     const app = express();
     app.use(express.json());
     app.use(csrfMiddleware());
@@ -42,7 +44,7 @@ function createApp() {
                 return { sub: 'person_owner', tenantId: 'unson', role: 'ceo', projectCodes: ['brainbase'] };
             })
         },
-        service: { resolve, hasHostBinding: vi.fn(() => true) }, bindingSecret: secret, now: () => now
+        service: { resolve, hasHostBinding: vi.fn(() => true) }, bindingSecret: secret, now: () => now, receiptWriter
     });
     return { app, resolve };
 }
@@ -88,5 +90,16 @@ describe('judgment resolution production API registration', () => {
             access: { personId: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] },
             hostBinding: { status: 'managed' }
         });
+    });
+
+    it('任意のreceiptWriterを認証後のrouterへ伝搬する', async () => {
+        const receiptWriter = { record: vi.fn().mockResolvedValue(undefined) };
+        const { app } = createApp({ receiptWriter });
+        await request(app).post('/api/judgment/resolve')
+            .set('authorization', 'Bearer test-token').set(headers()).send(payload).expect(200);
+        expect(receiptWriter.record).toHaveBeenCalledWith(
+            expect.objectContaining({ resolution_id: 'jr_registered', project_code: 'brainbase' }),
+            expect.objectContaining({ personId: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] })
+        );
     });
 });

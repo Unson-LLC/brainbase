@@ -98,8 +98,8 @@ export function resolveAuthContext(req, authService, options = {}) {
                 personId: decoded.sub || decoded.personId || null,
                 slackUserId: null,
                 slackWorkspaceId: null,
-                tenantId: decoded.tenantId || decoded.organizationId || null,
-                organizationId: decoded.organizationId || decoded.tenantId || null
+                tenantId: decoded.tenantId || null,
+                organizationId: decoded.organizationId || null
             };
             return {
                 ok: true,
@@ -163,7 +163,7 @@ export function requireAuth(authService, options = {}) {
                 const organizationId = await authService.resolveOrganizationIdForAccess(access);
                 if (organizationId) {
                     access.organizationId = organizationId;
-                    access.tenantId = organizationId;
+                    if (!access.tenantId) access.tenantId = organizationId;
                 }
             } catch {
                 // Generic authenticated routes remain available. Personal knowledge

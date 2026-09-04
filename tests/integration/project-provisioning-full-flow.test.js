@@ -197,7 +197,9 @@ async function setupDatabase() {
     await applySql('info-ssot-schema.sql');
     await applySql('permission-schema.sql');
     await applySql('project-provisioning-schema.sql');
+    await applySql('outcome-case-schema.sql');
     await applySql('info-ssot-rls.sql');
+    await applySql('judgment-receipt-schema.sql');
     await applySql('info-ssot-readback.sql');
     const runtimeProbePrivilege = await adminPool.query(
         `SELECT has_function_privilege('brainbase_app', 'project_graph_identity_probe(text)', 'EXECUTE') AS allowed`

@@ -7,6 +7,7 @@ import { OntologyError } from './ontology-kernel.js';
 import { OntologyRegistry } from './ontology-registry.js';
 import { canonicalJson, ONTOLOGY_PUBLICATION_RECEIPT_SCHEMA_VERSION } from './ontology-publication.js';
 import { assertCatalogProjectSubjectMutation, lockProjectGraphIdentity } from './project-graph-identity-lock.js';
+import { requireCanonicalTenantIdentity } from '../lib/canonical-tenant-identity.js';
 
 function isMergedGraphEntity(row) {
     const status = row?.payload?.status;
@@ -1067,8 +1068,14 @@ export class InfoSSOTService {
         }
     }
 
-    async withAccessContext(access, handler, { client: externalClient } = {}) {
+    async withAccessContext(access, handler, { client: externalClient, requireCanonicalTenant = false } = {}) {
         this.assertReady();
+        // Info SSOT predates organization-scoped RLS. Keep its established
+        // generic context contract intact; callers that own a tenant boundary
+        // must opt in explicitly instead of silently changing every consumer.
+        const organizationId = requireCanonicalTenant
+            ? requireCanonicalTenantIdentity(access)
+            : (access.organizationId || access.tenantId || '');
         const client = externalClient || await this.pool.connect();
         const ownsTransaction = !externalClient;
         try {
@@ -1076,7 +1083,7 @@ export class InfoSSOTService {
             await client.query('SELECT set_config($1, $2, true)', ['app.role', access.role]);
             await client.query('SELECT set_config($1, $2, true)', ['app.project_codes', access.projectCodes.join(',')]);
             await client.query('SELECT set_config($1, $2, true)', ['app.clearance', access.clearance.join(',')]);
-            await client.query('SELECT set_config($1, $2, true)', ['app.organization_id', access.organizationId || access.tenantId || '']);
+            await client.query('SELECT set_config($1, $2, true)', ['app.organization_id', organizationId]);
             await client.query('SELECT set_config($1, $2, true)', ['app.graph_maintenance_mode', access.graphMaintenanceMode === true ? 'true' : 'false']);
             const result = await handler(client);
             if (ownsTransaction) await client.query('COMMIT');

@@ -120,6 +120,31 @@ ALTER TABLE project_provisioning_runs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_provisioning_runs FORCE ROW LEVEL SECURITY;
 ALTER TABLE project_provisioning_steps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_provisioning_steps FORCE ROW LEVEL SECURITY;
+ALTER TABLE outcome_cases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE outcome_cases FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS outcome_cases_project_scope ON outcome_cases;
+DROP POLICY IF EXISTS outcome_cases_tenant_project_scope ON outcome_cases;
+CREATE POLICY outcome_cases_tenant_project_scope ON outcome_cases
+  FOR ALL
+  USING (
+    organization_id = NULLIF(current_setting('app.organization_id', true), '')
+    AND project_code = ANY(app_project_codes())
+    AND EXISTS (
+      SELECT 1 FROM projects project
+       WHERE project.code = outcome_cases.project_code
+         AND project.organization_id = outcome_cases.organization_id
+    )
+  )
+  WITH CHECK (
+    organization_id = NULLIF(current_setting('app.organization_id', true), '')
+    AND project_code = ANY(app_project_codes())
+    AND EXISTS (
+      SELECT 1 FROM projects project
+       WHERE project.code = outcome_cases.project_code
+         AND project.organization_id = outcome_cases.organization_id
+    )
+  );
 
 DROP POLICY IF EXISTS project_registry_organization_isolation ON project_registry;
 CREATE POLICY project_registry_organization_isolation ON project_registry

@@ -5,7 +5,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 SCHEMA_SQL="$REPO_ROOT/server/sql/info-ssot-schema.sql"
 PROJECT_PROVISIONING_SCHEMA_SQL="$REPO_ROOT/server/sql/project-provisioning-schema.sql"
+OUTCOME_CASE_SCHEMA_SQL="$REPO_ROOT/server/sql/outcome-case-schema.sql"
 RLS_SQL="$REPO_ROOT/server/sql/info-ssot-rls.sql"
+JUDGMENT_RECEIPT_SCHEMA_SQL="$REPO_ROOT/server/sql/judgment-receipt-schema.sql"
 READBACK_SQL="$REPO_ROOT/server/sql/info-ssot-readback.sql"
 NEGATIVE_SMOKE_SQL="$REPO_ROOT/server/sql/info-ssot-negative-smoke.sql"
 
@@ -26,7 +28,7 @@ if [[ -z "$PSQL_BIN" ]]; then
   fi
 fi
 
-for sql_file in "$SCHEMA_SQL" "$PROJECT_PROVISIONING_SCHEMA_SQL" "$RLS_SQL" "$READBACK_SQL" "$NEGATIVE_SMOKE_SQL"; do
+for sql_file in "$SCHEMA_SQL" "$PROJECT_PROVISIONING_SCHEMA_SQL" "$OUTCOME_CASE_SCHEMA_SQL" "$RLS_SQL" "$JUDGMENT_RECEIPT_SCHEMA_SQL" "$READBACK_SQL" "$NEGATIVE_SMOKE_SQL"; do
   if [[ ! -r "$sql_file" ]]; then
     echo "Info SSOT SQL file is missing or unreadable: ${sql_file#"$REPO_ROOT/"}" >&2
     exit 1
@@ -89,7 +91,9 @@ if ! run_psql \
   --single-transaction \
   -f "$SCHEMA_SQL" \
   -f "$PROJECT_PROVISIONING_SCHEMA_SQL" \
+  -f "$OUTCOME_CASE_SCHEMA_SQL" \
   -f "$RLS_SQL" \
+  -f "$JUDGMENT_RECEIPT_SCHEMA_SQL" \
   -f "$READBACK_SQL" \
   -f "$NEGATIVE_SMOKE_SQL" >"$MIGRATION_OUTPUT" 2>&1; then
   echo "Info SSOT schema/RLS transaction failed; do not restart or switch API/MCP, and verify the current service state" >&2
