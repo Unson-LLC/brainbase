@@ -16,7 +16,7 @@
         "authenticated access context",
         "projects.organization_id"
       ],
-      "resolution_point": "OutcomeCase route, service, repository, and InfoSSOTService.withAccessContext",
+      "resolution_point": "OutcomeCase route, service, repository, resolver, and InfoSSOTService.withAccessContext with requireCanonicalTenant: true; generic InfoSSOT callers retain their established context contract",
       "missing_behavior": "deny",
       "ambiguity_behavior": "deny"
     },

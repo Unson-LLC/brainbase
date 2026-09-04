@@ -7,7 +7,7 @@
   },
   "provenance": {
     "input_path": "docs/management/tasks/story-outcome-case-v1.authority.json",
-    "input_sha256": "e0386e90cade063bfb6a2521b45d44e8800315b0e63db0d75f396f8b430df3b6"
+    "input_sha256": "ce246093e7a599eea14f575db6ec7b7c42ecf01277a69ae8c7ad16d1500a3b41"
   },
   "tasks": [
     {
@@ -30,7 +30,10 @@
         "server.js",
         "server/bootstrap/core-services.js",
         "server/bootstrap/register-api-routes.js",
+        "server/lib/canonical-tenant-identity.js",
+        "server/middleware/auth.js",
         "server/routes/outcome-cases.js",
+        "server/services/info-ssot-service.js",
         "server/services/outcome-case/outcome-case-postgres-repository.js",
         "server/services/outcome-case/outcome-case-reference-resolver.js",
         "server/services/outcome-case/outcome-case-service.js",
@@ -38,8 +41,10 @@
         "server/sql/info-ssot-readback.sql",
         "server/sql/info-ssot-rls.sql",
         "server/sql/outcome-case-schema.sql",
+        "tests/server/middleware/auth.test.js",
         "tests/server/routes/outcome-cases.test.js",
         "tests/server/scripts/info-ssot-apply.test.js",
+        "tests/server/services/info-ssot-service.test.js",
         "tests/server/services/outcome-case-postgres-repository.test.js",
         "tests/server/services/outcome-case-postgres-rls.integration.test.js",
         "tests/server/services/outcome-case-reference-resolver.test.js",

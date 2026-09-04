@@ -68,7 +68,7 @@ describe('OutcomeCasePostgresRepository', () => {
         expect(pool.query.mock.calls[1][0]).not.toContain('user_observable_outcome =');
         expect(infoSSOTService.withAccessContext).toHaveBeenNthCalledWith(1, {
             role: 'member', projectCodes: ['brainbase'], clearance: ['internal'], organizationId: 'unson'
-        }, expect.any(Function));
+        }, expect.any(Function), { requireCanonicalTenant: true });
         expect(infoSSOTService.withAccessContext).toHaveBeenCalledTimes(2);
     });
 

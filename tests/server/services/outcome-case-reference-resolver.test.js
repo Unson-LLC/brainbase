@@ -34,7 +34,8 @@ describe('OutcomeCase authoritative reference resolver', () => {
         });
         expect(infoSSOTService.withAccessContext).toHaveBeenCalledWith(
             expect.objectContaining({ projectCodes: ['brainbase'], clearance: ['internal'] }),
-            expect.any(Function)
+            expect.any(Function),
+            { requireCanonicalTenant: true }
         );
         expect(client.query.mock.calls.map(([sql]) => sql.trim())).toEqual(expect.arrayContaining([
             expect.stringContaining('SELECT EXISTS (SELECT 1 FROM projects'),
@@ -95,7 +96,8 @@ describe('OutcomeCase authoritative reference resolver', () => {
         });
         expect(infoSSOTService.withAccessContext).toHaveBeenCalledWith(
             expect.objectContaining({ projectCodes: ['brainbase'], clearance: [] }),
-            expect.any(Function)
+            expect.any(Function),
+            { requireCanonicalTenant: true }
         );
     });
 

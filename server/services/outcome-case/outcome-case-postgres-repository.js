@@ -67,7 +67,8 @@ export class OutcomeCasePostgresRepository {
             // protects requests which establish app.project_codes first.
             return await this.infoSSOTService.withAccessContext(
                 accessFromActor(actor),
-                (client) => client.query(text, values)
+                (client) => client.query(text, values),
+                { requireCanonicalTenant: true }
             );
         } catch (error) {
             if (error?.code === '42501') throw tenantDenied(error);

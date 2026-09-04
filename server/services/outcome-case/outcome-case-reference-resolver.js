@@ -77,7 +77,7 @@ export function createOutcomeCaseReferenceResolver({ infoSSOTService } = {}) {
                             capabilityRegistryExists ? 'capability_not_found' : 'capability_registry_unavailable'
                         )
                 };
-            });
+            }, { requireCanonicalTenant: true });
         } catch {
             return {
                 project: unresolved(projectCode, UNRESOLVED_RESOLVER_REASON),
@@ -113,7 +113,7 @@ export function createOutcomeCaseClosureAuthorityResolver({ infoSSOTService } = 
                 return ids.length
                     ? { state: 'confirmed', closure_authorized_person_ids: ids, provenance: { source: 'info_ssot_raci', project_code: projectCode, role_codes: [...new Set(result.rows.map((row) => row.role_code))] } }
                     : { state: 'unresolved', closure_authorized_person_ids: [], provenance: null, reason: 'closure_authority_not_found' };
-            });
+            }, { requireCanonicalTenant: true });
         } catch {
             return { state: 'unresolved', closure_authorized_person_ids: [], provenance: null, reason: UNRESOLVED_RESOLVER_REASON };
         }

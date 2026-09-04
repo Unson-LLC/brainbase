@@ -1068,9 +1068,14 @@ export class InfoSSOTService {
         }
     }
 
-    async withAccessContext(access, handler, { client: externalClient } = {}) {
+    async withAccessContext(access, handler, { client: externalClient, requireCanonicalTenant = false } = {}) {
         this.assertReady();
-        const organizationId = requireCanonicalTenantIdentity(access);
+        // Info SSOT predates organization-scoped RLS. Keep its established
+        // generic context contract intact; callers that own a tenant boundary
+        // must opt in explicitly instead of silently changing every consumer.
+        const organizationId = requireCanonicalTenant
+            ? requireCanonicalTenantIdentity(access)
+            : (access.organizationId || access.tenantId || '');
         const client = externalClient || await this.pool.connect();
         const ownsTransaction = !externalClient;
         try {
