@@ -1,7 +1,7 @@
 {
   "task_id": "story-outcome-case-v1",
-  "status": "implementation",
-  "done": false,
+  "status": "done",
+  "done": true,
   "deliverables": [
     "docs/management/stories/active/story-outcome-case-v1.md",
     "docs/architecture/story-outcome-case-v1.md",
@@ -20,13 +20,14 @@
     "tests/server/services/outcome-case-reference-resolver.test.js",
     "tests/server/services/outcome-case-postgres-rls.integration.test.js",
     "scripts/verify-outcome-case-postgres-rls-integration.sh",
-    "tests/server/scripts/info-ssot-apply.test.js"
+    "tests/server/scripts/info-ssot-apply.test.js",
+    "docs/management/tasks/story-outcome-case-v1.authority.json"
   ],
   "acceptance_boundary": "local contract and route tests only; no production Graph write, external send, deploy, or production migration",
   "acceptance_traceability": {
     "AC-001": ["evaluation_history append-only DB trigger", "evaluation state/revision snapshot", "RACI authority provenance", "outcome-case-service.test.js", "outcome-case-postgres-rls.integration.test.js"],
     "AC-002": ["scripts/info-ssot-apply.sh", "Info SSOT FORCE RLS/readback/negative smoke", "InfoSSOTService.withAccessContext CRUD", "outcome-case-postgres-rls.integration.test.js", "registerApiRoutes HTTP integration"],
-    "AC-003": ["retained RunReceipt diagnosis", "authenticated actor", "read-only RACI authority resolver", "self-delegation rejection"],
+    "AC-003": ["retained RunReceipt diagnosis", "authenticated actor", "read-only RACI authority resolver", "self-delegation rejection", "empty clearance does not become internal authority"],
     "AC-004": ["unresolved/no_data close prohibition", "resolver exception regression", "cross-project RLS denial", "empty privileged scope rejection", "outcome-case-service.test.js", "outcome-case-postgres-rls.integration.test.js"],
     "AC-005": ["read-only resolver", "no Graph writes", "outcome-case-reference-resolver.test.js"]
   },

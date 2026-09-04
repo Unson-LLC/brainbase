@@ -77,6 +77,26 @@ describe('OutcomeCase authoritative reference resolver', () => {
         expect(client.query.mock.calls[0][0]).not.toMatch(/\b(?:INSERT|UPDATE|DELETE)\b/iu);
     });
 
+    it('passes empty authenticated clearance to the RACI lookup without defaulting to internal', async () => {
+        const client = {
+            query: vi.fn().mockResolvedValue({ rows: [] })
+        };
+        const infoSSOTService = { withAccessContext: vi.fn(async (_access, callback) => callback(client)) };
+        const resolve = createOutcomeCaseClosureAuthorityResolver({ infoSSOTService });
+
+        await expect(resolve({
+            projectCode: 'brainbase',
+            actor: { projectCodes: ['brainbase'], clearance: [] }
+        })).resolves.toMatchObject({
+            state: 'unresolved',
+            reason: 'closure_authority_not_found'
+        });
+        expect(infoSSOTService.withAccessContext).toHaveBeenCalledWith(
+            expect.objectContaining({ projectCodes: ['brainbase'], clearance: [] }),
+            expect.any(Function)
+        );
+    });
+
     async function expectUnavailableAuthority(failure) {
         const client = { query: vi.fn(async () => { throw new Error('query failed'); }) };
         const infoSSOTService = {

@@ -1,69 +1,419 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-outcome-case-v1",
-  "generated_by": { "caller": "codex", "stage": "architecture" },
-  "lifecycle": "draft",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "final",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "authenticated access context",
+        "projects.organization_id"
+      ],
+      "resolution_point": "OutcomeCase route, service, repository, and InfoSSOTService.withAccessContext",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "workflow auth access",
+        "OutcomeCase service actor",
+        "PostgreSQL FORCE RLS"
+      ],
+      "verified_surfaces": [
+        "workflow auth access",
+        "OutcomeCase service actor",
+        "PostgreSQL FORCE RLS"
+      ]
+    },
+    "resources": [
+      {
+        "name": "OutcomeCase control-plane record and evaluation history",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_code",
+        "trust_zone": "Brainbase PostgreSQL scoped transaction",
+        "residue_policy": "evaluation history is append-only and retained for audit",
+        "data_owner": "OutcomeCase PostgreSQL control-plane record in its owning project",
+        "credential_scope": "authenticated organization and explicit project codes"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "authenticated organization and explicit project codes",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "OutcomeCase PostgreSQL control-plane record in its owning project"
+      ],
+      "residency": "tenant-partitioned Brainbase PostgreSQL",
+      "migration": "idempotent Info SSOT schema bundle with local PostgreSQL verification",
+      "rollback": "no production migration is performed; the local schema bundle transaction rolls back on failed readback or smoke"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "empty_project_scope",
+      "empty_clearance_internal_raci"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "projects.organization_id",
+        "outcome_cases.project_code",
+        "raci_assignments.project_id"
+      ],
+      "boundary_edges": [
+        "authenticated actor to explicit projectCodes",
+        "OutcomeCase project to read-only RACI authority"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": [
+          "workflow auth access",
+          "OutcomeCase service actor",
+          "PostgreSQL FORCE RLS"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate",
+          "empty_project_scope",
+          "empty_clearance_internal_raci"
+        ],
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "authenticated organization and explicit project",
+              "tenant_key_source": "authenticated access context and projects.organization_id",
+              "trust_zone": "Brainbase PostgreSQL scoped transaction",
+              "data_owner": "OutcomeCase PostgreSQL control-plane record in its owning project"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "explicit projectCodes only",
+              "tenant_key_source": "authenticated access context",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "authenticated organization and explicit project codes",
+              "connection_mode": "pooled PostgreSQL with transaction-local RLS",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        }
+      }
+    }
+  },
   "clauses": [
     {
       "id": "C-001",
       "type": "contract",
       "statement": "OutcomeCase create/read/evaluate API は、成果・制約・Info SSOT RACI で解決した closure authority/provenance・参照・参照解決状態・DB が厳密接頭辞と1件追記を強制する evaluation history・評価時点の外部状態/失敗境界/結果 revision/status・時刻を OutcomeCase 専用 record として扱い、既存 RunReceipt v1 schema を変更しない。request は closure authority を自己申告できない。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }, { "kind": "acceptance_criteria", "ac_id": "AC-002" }],
-        "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "境界" }],
-        "code_refs": [{ "file": "server/services/outcome-case/outcome-case-service.js", "anchor": "OutcomeCaseService" }, { "file": "server/services/outcome-case/outcome-case-postgres-repository.js", "anchor": "OutcomeCasePostgresRepository" }],
-        "test_refs": [{ "file": "tests/server/services/outcome-case-service.test.js", "case": "creates the required control-plane record with an explicit external state" }, { "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js", "case": "permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS" }]
-      }
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-outcome-case-v1.md",
+            "section": "境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/outcome-case/outcome-case-service.js",
+            "anchor": "OutcomeCaseService"
+          },
+          {
+            "file": "server/services/outcome-case/outcome-case-postgres-repository.js",
+            "anchor": "OutcomeCasePostgresRepository"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/outcome-case-service.test.js",
+            "case": "creates the required control-plane record with an explicit external state"
+          },
+          {
+            "file": "tests/server/routes/outcome-cases.test.js",
+            "case": "registerApiRoutes protects and wires create, read, and evaluate through workflowAuthGuard"
+          },
+          {
+            "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js",
+            "case": "permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T01:09:36.020Z",
+      "last_revised_at": "2026-09-04T01:09:36.020Z"
     },
     {
       "id": "C-002",
       "type": "invariant",
       "statement": "closed は technical confirmed、初回から保持された全参照 RunReceipt confirmed、external readback confirm、constraints satisfied、project/capability confirmed、authoritative RACI authority confirmed、認証済み actor の同時成立でのみ導出する。評価 payload は既存 RunReceipt ref を削除できず、各 retained ref を診断する。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }],
-        "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "閉鎖不変条件" }],
-        "code_refs": [{ "file": "server/services/outcome-case/outcome-case-service.js", "anchor": "deriveClosureStatus" }, { "file": "server/services/outcome-case/outcome-case-service.js", "anchor": "assertClosureAuthority" }],
-        "test_refs": [{ "file": "tests/server/services/outcome-case-service.test.js", "case": "retains every previously stored receipt ref, appends the evaluation history, and diagnoses all retained refs before close" }, { "file": "tests/server/routes/outcome-cases.test.js", "case": "wires the authenticated route actor into actual service-layer closure authority" }]
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-outcome-case-v1.md",
+            "section": "閉鎖不変条件"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/outcome-case/outcome-case-service.js",
+            "anchor": "deriveClosureStatus"
+          },
+          {
+            "file": "server/services/outcome-case/outcome-case-service.js",
+            "anchor": "assertClosureAuthority"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/outcome-case-service.test.js",
+            "case": "retains every previously stored receipt ref, appends the evaluation history, and diagnoses all retained refs before close"
+          },
+          {
+            "file": "tests/server/routes/outcome-cases.test.js",
+            "case": "wires the authenticated route actor into actual service-layer closure authority"
+          }
+        ]
       },
       "verifiable_by": {
-        "test_pattern": [{ "file_glob": "tests/server/services/outcome-case-service.test.js", "must_cover": "retains every previously stored receipt ref, appends the evaluation history, and diagnoses all retained refs before close" }]
-      }
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/outcome-case-service.test.js",
+            "must_cover": "retains every previously stored receipt ref, appends the evaluation history, and diagnoses all retained refs before close"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T01:09:36.020Z",
+      "last_revised_at": "2026-09-04T01:09:36.020Z"
     },
     {
       "id": "C-003",
-      "type": "negative_boundary",
+      "type": "contract",
       "statement": "HTTP 200、テスト、保存、デプロイ、欠落 receipt、external no_data、unknown constraints は close の証拠へ自動変換しない。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004" }],
-        "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "証拠境界" }],
-        "code_refs": [{ "file": "server/services/outcome-case/outcome-case-service.js", "anchor": "deriveClosureStatus" }],
-        "test_refs": [{ "file": "tests/server/services/outcome-case-service.test.js", "case": "does not close from technical evidence when receipt readback is unconfirmed" }]
-      }
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-outcome-case-v1.md",
+            "section": "証拠境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/outcome-case/outcome-case-service.js",
+            "anchor": "deriveClosureStatus"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/outcome-case-service.test.js",
+            "case": "does not close from technical evidence when receipt readback is unconfirmed"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T01:09:36.020Z",
+      "last_revised_at": "2026-09-04T01:09:36.020Z"
     },
     {
       "id": "C-004",
-      "type": "negative_boundary",
-      "statement": "authoritative project/capability/RACI resolver が未解決、registry 未適用、access-context/query 例外、または利用不能なら理由付き unresolved を保存し、close を禁止する。request の evaluator 文字列と authority は認可根拠にしない。repository の create/read/update と table FORCE RLS は actor project scope を越えず、internal/admin/ceo を含む空 project scope は許可しない。",
+      "type": "contract",
+      "statement": "authoritative project/capability/RACI resolver が未解決、registry 未適用、access-context/query 例外、または利用不能なら理由付き unresolved を保存し、close を禁止する。認証済み actor の clearance は resolver/RLS へそのまま伝播し、空または欠落を internal へ既定化しない。request の evaluator 文字列と authority は認可根拠にしない。repository の create/read/update と table FORCE RLS は actor project scope を越えず、internal/admin/ceo を含む空 project scope は許可しない。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }, { "kind": "acceptance_criteria", "ac_id": "AC-004" }],
-        "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "データと権限" }],
-        "code_refs": [{ "file": "server/services/outcome-case/outcome-case-reference-resolver.js", "anchor": "createOutcomeCaseClosureAuthorityResolver" }, { "file": "server/services/outcome-case/outcome-case-postgres-repository.js", "anchor": "OutcomeCasePostgresRepository" }],
-        "test_refs": [{ "file": "tests/server/services/outcome-case-reference-resolver.test.js", "case": "fails closure authority closed when access context failure" }, { "file": "tests/server/services/outcome-case-service.test.js", "case": "persists unavailable authoritative closure authority and forbids close" }, { "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js", "case": "permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS" }, { "file": "tests/server/routes/outcome-cases.test.js", "case": "requires an explicit project scope for internal actors" }]
-      }
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-outcome-case-v1.md",
+            "section": "データと権限"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/outcome-case/outcome-case-reference-resolver.js",
+            "anchor": "createOutcomeCaseClosureAuthorityResolver"
+          },
+          {
+            "file": "server/services/outcome-case/outcome-case-postgres-repository.js",
+            "anchor": "OutcomeCasePostgresRepository"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/outcome-case-reference-resolver.test.js",
+            "case": "fails closure authority closed when access context failure"
+          },
+          {
+            "file": "tests/server/services/outcome-case-reference-resolver.test.js",
+            "case": "passes empty authenticated clearance to the RACI lookup without defaulting to internal"
+          },
+          {
+            "file": "tests/server/services/outcome-case-service.test.js",
+            "case": "persists unavailable authoritative closure authority and forbids close"
+          },
+          {
+            "file": "tests/server/services/outcome-case-service.test.js",
+            "case": "rejects self-declared closure authority and cross-project reads or evaluations"
+          },
+          {
+            "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js",
+            "case": "permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS"
+          },
+          {
+            "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js",
+            "case": "does not derive closure authority from an internal RACI assignment when authenticated clearance is empty"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T01:09:36.020Z",
+      "last_revised_at": "2026-09-04T01:09:36.020Z"
     },
     {
       "id": "C-005",
-      "type": "migration_boundary",
+      "type": "contract",
       "statement": "OutcomeCase schema と project RLS は established Info SSOT idempotent apply bundle、post-commit readback、transaction-local negative smoke に登録される。本 Story は Graph write、production migration、deploy を実行しない。",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }, { "kind": "acceptance_criteria", "ac_id": "AC-005" }],
-        "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "データと権限" }],
-        "code_refs": [{ "file": "scripts/info-ssot-apply.sh", "anchor": "OUTCOME_CASE_SCHEMA_SQL" }, { "file": "server/sql/info-ssot-readback.sql", "anchor": "outcome_case_readback" }],
-        "test_refs": [{ "file": "tests/server/scripts/info-ssot-apply.test.js", "case": "runs schema, RLS, readback and smoke in fail-closed single-transaction mode" }, { "file": "scripts/verify-outcome-case-postgres-rls-integration.sh", "case": "ephemeral PostgreSQL RLS API acceptance" }]
-      }
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-outcome-case-v1.md",
+            "section": "データと権限"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/info-ssot-apply.sh",
+            "anchor": "OUTCOME_CASE_SCHEMA_SQL"
+          },
+          {
+            "file": "server/sql/info-ssot-readback.sql",
+            "anchor": "outcome_case_readback"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/info-ssot-apply.test.js",
+            "case": "runs schema, RLS, readback and smoke in fail-closed single-transaction mode"
+          },
+          {
+            "file": "tests/server/services/outcome-case-reference-resolver.test.js",
+            "case": "uses scoped, read-only project and capability registries"
+          },
+          {
+            "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js",
+            "case": "permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T01:09:36.020Z",
+      "last_revised_at": "2026-09-04T01:09:36.020Z"
     }
   ],
   "open_questions": [
-    { "id": "OQ-001", "question": "production migration and Graph entity lifecycle remain explicitly outside v1 local implementation evidence" }
-  ]
+    {
+      "id": "OQ-001",
+      "question": "production migration and Graph entity lifecycle remain explicitly outside v1 local implementation evidence"
+    }
+  ],
+  "generated_at": "2026-09-04T01:09:36.017Z",
+  "previous_spec_id": ""
 }

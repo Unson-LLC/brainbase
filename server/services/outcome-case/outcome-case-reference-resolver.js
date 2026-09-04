@@ -8,7 +8,10 @@ function accessForActor(actor = {}) {
     return {
         role: typeof actor.role === 'string' && actor.role ? actor.role : 'member',
         projectCodes: Array.isArray(actor.projectCodes) ? actor.projectCodes : [],
-        clearance: Array.isArray(actor.clearance) && actor.clearance.length ? actor.clearance : ['internal'],
+        // Clearance is an authentication claim, not a convenience default.
+        // In particular, an empty claim must not make an internal RACI row
+        // visible and thereby nominate a closer.
+        clearance: Array.isArray(actor.clearance) ? actor.clearance : [],
         organizationId: actor.organizationId || null,
         tenantId: actor.tenantId || null
     };

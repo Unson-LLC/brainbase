@@ -300,12 +300,15 @@ describe('OutcomeCaseService', () => {
     it('persists unavailable authoritative closure authority and forbids close', async () => {
         const { service } = createService({
             receiptStates: { 'run-1': 'confirmed' },
-            resolveClosureAuthority: async () => { throw new Error('Info SSOT unavailable'); }
+            resolveClosureAuthority: async () => ({
+                state: 'unresolved', closure_authorized_person_ids: [], provenance: null,
+                reason: 'authoritative_resolver_unavailable'
+            })
         });
         const actor = { person_id: 'per_owner', projectCodes: ['brainbase'] };
         const outcomeCase = await service.create(createInput(), actor);
         expect(outcomeCase.authority).toMatchObject({
-            state: 'unresolved', reason: 'authoritative_closure_authority_unavailable'
+            state: 'unresolved', reason: 'authoritative_resolver_unavailable'
         });
 
         const evaluated = await service.evaluate(outcomeCase.case_id, {
@@ -318,7 +321,7 @@ describe('OutcomeCaseService', () => {
         }, actor);
         expect(evaluated).toMatchObject({ closure_status: 'waiting_human' });
         expect(evaluated.authority).toMatchObject({
-            state: 'unresolved', reason: 'authoritative_closure_authority_unavailable'
+            state: 'unresolved', reason: 'authoritative_resolver_unavailable'
         });
         expect(evaluated.evaluation_history.at(-1).authority).toMatchObject({ state: 'unresolved' });
     });

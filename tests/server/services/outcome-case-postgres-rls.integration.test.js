@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createOutcomeCaseRouter } from '../../../server/routes/outcome-cases.js';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 import { OutcomeCasePostgresRepository } from '../../../server/services/outcome-case/outcome-case-postgres-repository.js';
+import { createOutcomeCaseClosureAuthorityResolver } from '../../../server/services/outcome-case/outcome-case-reference-resolver.js';
 import { OutcomeCaseService } from '../../../server/services/outcome-case/outcome-case-service.js';
 
 // VibePro traceability: story-outcome-case-v1:ac:db-rls-api-roundtrip.
@@ -70,10 +71,7 @@ function serviceFor(actor) {
             project: { ref: projectCode, state: 'confirmed' },
             capability: { ref: capabilityId, state: 'confirmed' }
         }),
-        resolveClosureAuthority: async ({ projectCode }) => ({
-            state: 'confirmed', closure_authorized_person_ids: ['per_owner'],
-            provenance: { source: 'postgres-fixture-raci', project_code: projectCode }
-        })
+        resolveClosureAuthority: createOutcomeCaseClosureAuthorityResolver({ infoSSOTService })
     });
     const app = express();
     app.use(express.json());
@@ -101,6 +99,12 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
             INSERT INTO ${schema}.projects (id, code, name, organization_id)
             VALUES ('project_brainbase', 'brainbase', 'Brainbase', 'org_unson'),
                    ('project_vibepro', 'vibepro', 'VibePro', 'org_unson');
+            INSERT INTO ${schema}.people (id, name)
+            VALUES ('per_owner', 'OutcomeCase Owner');
+            INSERT INTO ${schema}.raci_assignments
+              (id, project_id, person_id, role_code, authority_scope, sensitivity_min, sensitivity)
+            VALUES
+              ('raci_outcome_case_close', 'project_brainbase', 'per_owner', 'outcome_case:close', '', 'member', 'internal');
         `);
         appPool = new Pool({ connectionString: connectionUrl({ role: appRole, password: APP_PASSWORD, searchPath: schema }) });
         const role = await appPool.query('SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user');
@@ -147,5 +151,33 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         await request(crossProject)
             .post(`/api/outcome-cases/${created.body.case_id}/evaluations`)
             .send({ evaluator: 'per_owner' }).expect(404);
+    });
+
+    it('does not derive closure authority from an internal RACI assignment when authenticated clearance is empty', async () => {
+        const noClearanceActor = { ...projectActor, clearance: [] };
+        const app = serviceFor(noClearanceActor);
+        const created = await request(app).post('/api/outcome-cases').send(createPayload).expect(201);
+        const evaluated = await request(app)
+            .post(`/api/outcome-cases/${created.body.case_id}/evaluations`)
+            .send({
+                technical_evidence: { status: 'confirmed', refs: ['test:empty-clearance'] },
+                run_receipt_refs: ['run-empty-clearance'],
+                external_readback: { status: 'confirm', ref: 'external:empty-clearance' },
+                constraints_status: 'satisfied', evaluator: 'per_owner',
+                observed_at: '2026-09-04T00:00:00.000Z'
+            }).expect(200);
+
+        expect(evaluated.body).toMatchObject({
+            closure_status: 'waiting_human',
+            authority: {
+                state: 'unresolved',
+                closure_authorized_person_ids: [],
+                reason: 'closure_authority_not_found'
+            }
+        });
+        expect(evaluated.body.evaluation_history[0].authority).toMatchObject({
+            state: 'unresolved',
+            reason: 'closure_authority_not_found'
+        });
     });
 });

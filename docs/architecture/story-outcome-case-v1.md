@@ -32,7 +32,7 @@ evaluate → technical evidence (入力)
 
 ## データと権限
 
-`authority` は `{ state, closure_authorized_person_ids, provenance, reason }` の小さな明示契約である。create/evaluate request は authority を渡せず、service は actor の access context を用いて既存 Info SSOT `raci_assignments` を read-only 照会する。resolver の未解決・例外は理由付き unresolved として保存され、close を禁止する。閉鎖時は request の `evaluator` 文字列ではなく route が渡す認証済み actor の `person_id` と照合する。`evaluator` は監査上の claim としてだけ保存する。route と service は internal/admin/ceo も同じ明示 `projectCodes` を要求し、空 scope の特権 bypass を持たない。本 v1 は Graph/RACI を書き換えない。
+`authority` は `{ state, closure_authorized_person_ids, provenance, reason }` の小さな明示契約である。create/evaluate request は authority を渡せず、service は actor の access context を用いて既存 Info SSOT `raci_assignments` を read-only 照会する。resolver は認証済み actor の `clearance` をそのまま渡し、欠落または空の clearance を `internal` に補完しない。resolver の未解決・例外は理由付き unresolved として保存され、close を禁止する。閉鎖時は request の `evaluator` 文字列ではなく route が渡す認証済み actor の `person_id` と照合する。`evaluator` は監査上の claim としてだけ保存する。route と service は internal/admin/ceo も同じ明示 `projectCodes` を要求し、空 scope の特権 bypass を持たない。本 v1 は Graph/RACI を書き換えない。
 
 参照は注入された authoritative resolver で、scope を設定した PostgreSQL の `projects` と active `brainbase_capabilities` を read-only で照会する。repository の create/read/update は actor の `projectCodes` を transaction-local context に設定し、table は `app_project_codes()` を使う FORCE RLS policy で強制する。capability registry が未適用、参照が見つからない、または resolver が利用不能なら、record に `unresolved` と理由を保存し、閉鎖を禁止する。resolver は Graph entity を作成・更新しない。
 

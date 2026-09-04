@@ -76,7 +76,9 @@ function normalizeResolvedAuthority(value) {
     rejectUnknownFields(authority, new Set(['state', 'closure_authorized_person_ids', 'provenance', 'reason']), 'resolved_authority');
     const state = requireEnum(authority.state, 'resolved_authority.state', REFERENCE_STATES);
     const ids = state === 'confirmed' ? uniqueRefs(authority.closure_authorized_person_ids, 'resolved_authority.closure_authorized_person_ids') : [];
-    const provenance = authority.provenance === undefined ? null : requirePlainObject(authority.provenance, 'resolved_authority.provenance');
+    const provenance = authority.provenance === undefined || authority.provenance === null
+        ? null
+        : requirePlainObject(authority.provenance, 'resolved_authority.provenance');
     const reason = authority.reason === undefined ? null : requireString(authority.reason, 'resolved_authority.reason');
     if (state === 'confirmed' && (!ids.length || !provenance)) throw validation('confirmed resolved authority requires ids and provenance');
     if (state === 'unresolved' && !reason) throw validation('unresolved resolved authority requires reason');
