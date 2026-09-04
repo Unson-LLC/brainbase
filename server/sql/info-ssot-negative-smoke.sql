@@ -8,6 +8,7 @@ DO $info_ssot_negative_smoke$
 DECLARE
   fixture_project_id text;
   fixture_project_code text;
+  fixture_project_organization_id text;
   other_project_id text;
   other_project_code text;
   fixture_entity_id text := format('info_ssot_negative_smoke_%s', txid_current());
@@ -42,10 +43,12 @@ BEGIN
   PERFORM set_config('app.organization_id', fixture_organization_id, true);
   DELETE FROM project_registry WHERE project_code = fixture_registry_code;
 
-  SELECT p.id, p.code
-    INTO fixture_project_id, fixture_project_code
+  SELECT p.id, p.code, p.organization_id
+    INTO fixture_project_id, fixture_project_code, fixture_project_organization_id
   FROM projects p
   WHERE p.code ~ '^[^,[:space:]]+$'
+    AND p.organization_id IS NOT NULL
+    AND btrim(p.organization_id) <> ''
   ORDER BY p.code
   LIMIT 1;
 
@@ -66,17 +69,18 @@ BEGIN
   END IF;
 
   PERFORM set_config('app.role', 'member', true);
+  PERFORM set_config('app.organization_id', fixture_project_organization_id, true);
   PERFORM set_config('app.project_codes', fixture_project_code, true);
   PERFORM set_config('app.clearance', 'internal', true);
 
   INSERT INTO outcome_cases (
-    case_id, project_code, capability_id, user_observable_outcome,
+    case_id, organization_id, project_code, capability_id, user_observable_outcome,
     protected_constraints, non_goals, authority, selected_domain_pack,
     reference_resolution, evaluation_history, terminal_evaluation, closure_status,
     current_external_state, technical_story_refs, run_receipt_refs, prior_attempt_refs,
     unresolved_failure_boundary, revision
   ) VALUES (
-    fixture_outcome_case_id, fixture_project_code, 'info_ssot_negative_smoke', 'RLS fixture',
+    fixture_outcome_case_id, fixture_project_organization_id, fixture_project_code, 'info_ssot_negative_smoke', 'RLS fixture',
     '[]'::jsonb, '[]'::jsonb, '{"state":"unresolved","reason":"fixture"}'::jsonb, 'fixture/v1',
     '{}'::jsonb, '[]'::jsonb, NULL, 'open', 'processing', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb,
     NULL, 1
