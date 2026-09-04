@@ -158,12 +158,12 @@ export function requireAuth(authService, options = {}) {
         }
 
         const access = result.access || null;
-        if (access && !access.organizationId && !access.tenantId && authService.resolveOrganizationIdForAccess) {
+        if (access && !access.organizationId && authService.resolveOrganizationIdForAccess) {
             try {
                 const organizationId = await authService.resolveOrganizationIdForAccess(access);
                 if (organizationId) {
                     access.organizationId = organizationId;
-                    access.tenantId = organizationId;
+                    if (!access.tenantId) access.tenantId = organizationId;
                 }
             } catch {
                 // Generic authenticated routes remain available. Personal knowledge
