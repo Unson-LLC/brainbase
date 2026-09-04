@@ -1762,6 +1762,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         );
         expect(proofToolResponse).toEqual({ status: 'ok', data: proofInput });
         let readbackLine = null;
+        let completedStateOutput = null;
         for (const event of [
             { tool_name: 'apply_patch', tool_use_id: 'entrypoint-execution', tool_input: { patch: '*** Begin Patch\n*** Update File: docs/example.md\n@@\n-old\n+new\n*** End Patch' }, tool_response: { success: true } },
             { tool_name: 'mcp__brainbase__get_context', tool_use_id: 'entrypoint-evidence', tool_input: { topic: 'docs/example.md' }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('取得') }], structuredContent: { items: [{ id: 'updated-ssot' }] } } }
@@ -1790,7 +1791,19 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         ]) {
             const recorded = await run('bash', [wrapper], { env, input: JSON.stringify({ hook_event_name: 'PostToolUse', ...identity, ...event }) });
             expect(recorded).toMatchObject({ code: 0, stderr: '' });
+            if (event.tool_use_id === 'entrypoint-state') {
+                completedStateOutput = JSON.parse(recorded.stdout).systemMessage;
+            }
         }
+        expect(completedStateOutput?.match(/Brainbase判断レシート/gu)).toHaveLength(1);
+        expect(completedStateOutput).toContain('結果: 更新内容を読み戻して確認した');
+        const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
+        const finalBeforeStop = JSON.parse(readFileSync(finalPath, 'utf8'));
+        expect(finalBeforeStop).toMatchObject({
+            completion_status: 'complete',
+            owner_audit_source: 'post_tool_use_system_message',
+            answer_digest: null
+        });
         const completed = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: true,
             last_assistant_message: [ownerLine, readbackLine,
@@ -1803,9 +1816,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(output).toContain('結果: 更新内容を読み戻して確認した');
         expect(output).toContain('判断: 既存SSOTを最小更新する');
         expect(readFileSync(join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.value-proof.json`), 'utf8')).toContain(hash(question));
-        expect(JSON.parse(readFileSync(
-            join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`), 'utf8'
-        ))).toMatchObject({
+        const finalAfterStop = JSON.parse(readFileSync(finalPath, 'utf8'));
+        expect(finalAfterStop).toEqual(finalBeforeStop);
+        expect(finalAfterStop).toMatchObject({
             episode_origin: 'stop_delegation_recovery',
             route_application: 'post_generation_recovery'
         });
