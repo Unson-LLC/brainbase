@@ -23,6 +23,7 @@ import {
 const SECRET_OR_PRIVATE = /(secret\s*=|password\s*=|api[_-]?key\s*=|\/Users\/|\/home\/|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i;
 const OWNER_DECISIONS = new Set(['approve', 'reject']);
 const ORGANIZATION_DECISIONS = new Set(['approve', 'reject']);
+const DECISION_REVISION_PATTERN = /^(0|[1-9]\d*)$/;
 
 function hash(value) {
     return createHash('sha256').update(String(value)).digest('hex');
@@ -59,6 +60,38 @@ function promotionError(message, status = 400, details = undefined) {
     error.status = status;
     if (details !== undefined) error.details = details;
     return error;
+}
+
+function requireExpectedDecisionRevision(input, request, {
+    inputField,
+    requestField,
+    action
+}) {
+    const rawExpected = input?.[inputField];
+    if (rawExpected === undefined || rawExpected === null || rawExpected === '') {
+        throw promotionError('personal_knowledge_promotion_expected_revision_required', 400, {
+            action,
+            field: inputField
+        });
+    }
+    const expected = String(rawExpected);
+    if (!DECISION_REVISION_PATTERN.test(expected)) {
+        throw promotionError('personal_knowledge_promotion_expected_revision_invalid', 400, {
+            action,
+            field: inputField,
+            expected_revision: expected
+        });
+    }
+    const current = String(request?.[requestField]);
+    if (expected !== current) {
+        throw promotionError('personal_knowledge_promotion_stale_revision', 409, {
+            action,
+            field: inputField,
+            expected_revision: expected,
+            current_revision: current
+        });
+    }
+    return expected;
 }
 
 function requireAccess(access) {
@@ -306,6 +339,11 @@ export class PersonalKnowledgePromotionService {
                 normalizedPayloadHash: request.normalized_payload_hash,
                 inputNormalizedPayloadHash: input.normalized_payload_hash
             });
+            const expectedOwnerDecisionRevision = requireExpectedDecisionRevision(input, request, {
+                inputField: 'expected_owner_decision_revision',
+                requestField: 'owner_decision_revision',
+                action: 'owner_consent'
+            });
             await claimPromotionAuthorityUse(
                 this.repository,
                 promotionAuthority,
@@ -342,7 +380,8 @@ export class PersonalKnowledgePromotionService {
             const updated = await decideOwnerPromotionRequest(this.repository, requestId, {
                 status,
                 decided_at: decidedAt,
-                owner_consent_receipt_id: consentReceiptId
+                owner_consent_receipt_id: consentReceiptId,
+                expected_owner_decision_revision: expectedOwnerDecisionRevision
             }, options);
             if (!updated) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
             return updated;
@@ -433,6 +472,11 @@ export class PersonalKnowledgePromotionService {
                 requestId,
                 normalizedPayloadHash: request.normalized_payload_hash
             });
+            const expectedOrganizationReviewRevision = requireExpectedDecisionRevision(input, request, {
+                inputField: 'expected_organization_review_revision',
+                requestField: 'organization_review_revision',
+                action: 'organization_review'
+            });
             await claimPromotionAuthorityUse(
                 this.repository,
                 promotionAuthority,
@@ -452,7 +496,8 @@ export class PersonalKnowledgePromotionService {
                 const rejected = await reviewOrganizationPromotionRequest(this.repository, requestId, {
                     status: 'org_rejected',
                     reason: sanitizeReason(input.reason),
-                    reviewed_at: reviewedAt
+                    reviewed_at: reviewedAt,
+                    expected_organization_review_revision: expectedOrganizationReviewRevision
                 }, options);
                 if (!rejected) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
                 return rejected;
@@ -531,7 +576,8 @@ export class PersonalKnowledgePromotionService {
                 reviewed_at: reviewedAt,
                 organization_event_id: organizationEvent.event_id,
                 graph_entity_id: graphResult.id,
-                organization_review_receipt_id: evidence.organization_review_receipt_id
+                organization_review_receipt_id: evidence.organization_review_receipt_id,
+                expected_organization_review_revision: expectedOrganizationReviewRevision
             }, options);
             if (!accepted) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
 

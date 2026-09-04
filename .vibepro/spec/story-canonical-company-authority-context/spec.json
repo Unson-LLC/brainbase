@@ -437,11 +437,15 @@
         ],
         "architecture_refs": [
           {
-            "file": "docs/architecture/story-canonical-company-authority-context.md",
-            "section": "Personal KG境界"
+            "file": "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
+            "section": "6. Personal KGのownerを認証済みpersonからのみ決める"
           }
         ],
         "code_refs": [
+          {
+            "file": "server/services/learning-service.js",
+            "anchor": "searchPersonalKgCandidates"
+          },
           {
             "file": "server/services/personal-knowledge/personal-knowledge-service.js",
             "anchor": "owner_person_id: access.personId"
@@ -452,6 +456,14 @@
           }
         ],
         "test_refs": [
+          {
+            "file": "tests/server/services/learning-service.test.js",
+            "case": "searchPersonalKgCandidates requires authenticated access instead of falling back to a default owner"
+          },
+          {
+            "file": "tests/server/services/learning-service.test.js",
+            "case": "searchPersonalKgCandidates rejects an owner that differs from authenticated access"
+          },
           {
             "file": "tests/server/routes/learning.test.js",
             "case": "POST /memory-candidates ignores identity claims and uses authenticated actor, owner, and organization"
@@ -469,12 +481,20 @@
       "verifiable_by": {
         "test_pattern": [
           {
+            "file_glob": "tests/server/services/learning-service.test.js",
+            "must_cover": "requires authenticated access instead of falling back to a default owner"
+          },
+          {
             "file_glob": "tests/server/routes/learning.test.js",
             "must_cover": "uses authenticated actor, owner, and organization"
           },
           {
             "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
             "must_cover": "different authenticated actor before every promotion effect"
+          },
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "cross-tenant organization review"
           }
         ]
       },
@@ -484,7 +504,7 @@
     {
       "id": "C-005",
       "type": "contract",
-      "statement": "Personal KGから組織Graphへの昇格は、owner consentと同一project・同一tenantの別personによるGM/CEO organization reviewを分離し、ownerとreviewerが同一の場合は全下流effectより前に拒否する。",
+      "statement": "Personal KGから組織Graphへの昇格は、owner consentと同一project・同一tenantの別personによるGM/CEO organization reviewを、別state・別actor・別revision・別receiptとして分離する。各decisionは期待revisionとの一致を必要とし、staleまたは再配送されたrevisionを全下流effectより前に拒否する。ownerとreviewerが同一の場合も拒否する。",
       "rationale": "個人の同意と組織の受入責任を混同せず、自己承認による非公開知識の組織共有を防ぐため。このPRで変更しない既存二段階昇格経路をStory-wide境界の回帰依存として追跡する。",
       "origin": {
         "story_refs": [
@@ -495,8 +515,8 @@
         ],
         "architecture_refs": [
           {
-            "file": "docs/architecture/story-canonical-company-authority-context.md",
-            "section": "Personal KG境界"
+            "file": "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
+            "section": "7. PersonalからOrganizationへの昇格を二段階にする"
           }
         ],
         "code_refs": [
@@ -507,9 +527,25 @@
           {
             "file": "server/services/personal-knowledge/two-stage-promotion-repository.js",
             "anchor": "reviewOrganizationPromotionRequest"
+          },
+          {
+            "file": "server/services/personal-knowledge/pg-personal-knowledge-repository.js",
+            "anchor": "findPromotionRequest"
+          },
+          {
+            "file": "server/sql/personal-knowledge-two-stage-promotion.sql",
+            "anchor": "owner_decision_revision"
           }
         ],
         "test_refs": [
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects a stale owner decision revision before claiming authority"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects a stale organization review revision before Knowledge Event or Graph effects"
+          },
           {
             "file": "tests/unit/personal-knowledge-promotion-service.test.js",
             "case": "requires a distinct organization reviewer with GM/CEO role in the same project"
@@ -526,6 +562,14 @@
       },
       "verifiable_by": {
         "test_pattern": [
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "rejects a stale owner decision revision"
+          },
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "rejects a stale organization review revision"
+          },
           {
             "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
             "must_cover": "requires a distinct organization reviewer"
@@ -553,8 +597,8 @@
         ],
         "architecture_refs": [
           {
-            "file": "docs/architecture/story-canonical-company-authority-context.md",
-            "section": "Personal KG境界"
+            "file": "docs/architecture/ADR-023-brainbase-owned-company-authority.md",
+            "section": "7. PersonalからOrganizationへの昇格を二段階にする"
           }
         ],
         "code_refs": [

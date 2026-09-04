@@ -12,9 +12,13 @@ ALTER TABLE knowledge_promotion_requests
 ALTER TABLE knowledge_promotion_requests
   ADD COLUMN IF NOT EXISTS owner_decided_at TIMESTAMPTZ;
 ALTER TABLE knowledge_promotion_requests
+  ADD COLUMN IF NOT EXISTS owner_decision_revision BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE knowledge_promotion_requests
   ADD COLUMN IF NOT EXISTS organization_reviewed_by TEXT;
 ALTER TABLE knowledge_promotion_requests
   ADD COLUMN IF NOT EXISTS organization_reviewed_at TIMESTAMPTZ;
+ALTER TABLE knowledge_promotion_requests
+  ADD COLUMN IF NOT EXISTS organization_review_revision BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE knowledge_promotion_requests
   ADD COLUMN IF NOT EXISTS organization_review_reason TEXT;
 ALTER TABLE knowledge_promotion_requests
@@ -58,6 +62,10 @@ ALTER TABLE knowledge_promotion_requests
   DROP CONSTRAINT IF EXISTS knowledge_promotion_org_acceptance_evidence_check;
 ALTER TABLE knowledge_promotion_requests
   DROP CONSTRAINT IF EXISTS knowledge_promotion_owner_consent_evidence_check;
+ALTER TABLE knowledge_promotion_requests
+  DROP CONSTRAINT IF EXISTS knowledge_promotion_owner_decision_revision_check;
+ALTER TABLE knowledge_promotion_requests
+  DROP CONSTRAINT IF EXISTS knowledge_promotion_organization_review_revision_check;
 
 -- An earlier release may already have installed guards that reject the
 -- fail-closed back-transition used by the evidence normalization below. Drop
@@ -98,9 +106,24 @@ SET status = 'pending_owner_approval',
     normalized_payload = NULL,
     normalized_payload_hash = NULL,
     normalized_by_person_id = NULL,
-    normalized_at = NULL
+    normalized_at = NULL,
+    owner_decision_revision = 0,
+    organization_review_revision = 0
 WHERE status = 'pending_org_review'
   AND (normalized_payload IS NULL OR normalized_payload_hash IS NULL);
+
+-- Legacy rows have no persisted decision revision. Reconstruct only the first
+-- completed decision, and preserve any revision already written by a newer
+-- release so re-running this migration is idempotent.
+UPDATE knowledge_promotion_requests
+SET owner_decision_revision = 1
+WHERE owner_decision_revision = 0
+  AND status IN ('pending_org_review', 'org_accepted', 'org_rejected', 'owner_rejected');
+
+UPDATE knowledge_promotion_requests
+SET organization_review_revision = 1
+WHERE organization_review_revision = 0
+  AND status IN ('org_accepted', 'org_rejected');
 
 -- Only rows that already existed before M1-C may lack the new evidence contract.
 -- The trigger below prevents any new row or later update from opting into this flag.
@@ -122,6 +145,27 @@ ALTER TABLE knowledge_promotion_requests
       'pending_org_review',
       'org_accepted',
       'org_rejected'
+    )
+  );
+
+ALTER TABLE knowledge_promotion_requests
+  ADD CONSTRAINT knowledge_promotion_owner_decision_revision_check CHECK (
+    (status = 'pending_owner_approval' AND owner_decision_revision = 0)
+    OR (
+      status IN ('owner_rejected', 'pending_org_review', 'org_accepted', 'org_rejected')
+      AND owner_decision_revision = 1
+    )
+  );
+
+ALTER TABLE knowledge_promotion_requests
+  ADD CONSTRAINT knowledge_promotion_organization_review_revision_check CHECK (
+    (
+      status IN ('pending_owner_approval', 'owner_rejected', 'pending_org_review')
+      AND organization_review_revision = 0
+    )
+    OR (
+      status IN ('org_accepted', 'org_rejected')
+      AND organization_review_revision = 1
     )
   );
 

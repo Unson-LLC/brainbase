@@ -222,7 +222,8 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
             normalized_payload_hash: normalized.normalized_payload_hash,
             normalized_by_person_id: 'person_owner_auth', normalized_at: '2026-08-25T00:00:00.000Z',
             normalization_contract_version: 'personal_knowledge_normalized.v1',
-            owner_decided_by: 'person_owner_auth', owner_decided_at: '2026-08-25T00:00:00.000Z'
+            owner_decided_by: 'person_owner_auth', owner_decided_at: '2026-08-25T00:00:00.000Z',
+            owner_decision_revision: 1, organization_review_revision: 0
         };
         promotionRequest.owner_consent_receipt_id = ownerConsentReceipt(promotionRequest);
         const claimed = new Set();
@@ -236,7 +237,10 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
                 claimed.add(use.operation_id);
             }),
             reviewOrganizationPromotionRequest: vi.fn(async (_id, decision) => {
-                Object.assign(promotionRequest, { status: decision.status });
+                Object.assign(promotionRequest, {
+                    status: decision.status,
+                    organization_review_revision: promotionRequest.organization_review_revision + 1
+                });
                 return promotionRequest;
             }),
             createLineage: vi.fn(async (lineage) => lineage)
@@ -281,13 +285,16 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
                 )
             }
         }));
-        const mutation = () => request(app)
+        const mutation = (expectedRevision) => request(app)
             .post('/promotions/kpr_runtime_replay/organization-decision')
             .set('Brainbase-Tenant-Context', header(signed))
-            .send({ decision: 'approve' });
+            .send({
+                decision: 'approve',
+                expected_organization_review_revision: expectedRevision
+            });
 
-        await mutation().expect(200);
-        await mutation().expect(409, { error: 'personal_knowledge_promotion_authority_replayed' });
+        await mutation(0).expect(200);
+        await mutation(1).expect(409, { error: 'personal_knowledge_promotion_authority_replayed' });
         expect(graphRepository.commitNormalizedPromotion).toHaveBeenCalledOnce();
         expect(repository.reviewOrganizationPromotionRequest).toHaveBeenCalledOnce();
         expect(repository.createLineage).toHaveBeenCalledOnce();

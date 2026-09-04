@@ -28,6 +28,8 @@ function projectOrganizationReview(value = {}) {
         normalization_contract_version: value.normalization_contract_version,
         owner_consent_receipt_id: value.owner_consent_receipt_id,
         owner_decided_at: value.owner_decided_at,
+        owner_decision_revision: value.owner_decision_revision,
+        organization_review_revision: value.organization_review_revision,
         created_at: value.created_at
     };
 }
@@ -40,7 +42,9 @@ function projectOrganizationDecisionReceipt(value = {}) {
         graph_entity_id: value.graph_entity_id,
         owner_consent_receipt_id: value.owner_consent_receipt_id,
         organization_review_receipt_id: value.organization_review_receipt_id,
+        owner_decision_revision: value.owner_decision_revision,
         normalized_payload_hash: value.normalized_payload_hash,
+        organization_review_revision: value.organization_review_revision,
         organization_reviewed_at: value.organization_reviewed_at,
         organization_review_reason: value.organization_review_reason
     };

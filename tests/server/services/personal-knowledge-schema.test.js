@@ -86,7 +86,11 @@ describe('personal and organization knowledge schema', () => {
         const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
 
         expect(sql).toContain('owner_decided_by TEXT');
+        expect(sql).toContain('owner_decision_revision BIGINT NOT NULL DEFAULT 0');
         expect(sql).toContain('organization_reviewed_by TEXT');
+        expect(sql).toContain('organization_review_revision BIGINT NOT NULL DEFAULT 0');
+        expect(sql).toMatch(/status = 'pending_owner_approval' AND owner_decision_revision = 0/);
+        expect(sql).toMatch(/status IN \('org_accepted', 'org_rejected'\)[\s\S]*organization_review_revision = 1/);
         expect(sql).toContain("'pending_owner_approval'");
         expect(sql).toContain("'owner_rejected'");
         expect(sql).toContain("'pending_org_review'");
@@ -97,6 +101,15 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toMatch(/owner_person_id <> app_person_id_required\(\)/);
         expect(sql).toMatch(/app_role_rank\(current_setting\('app.role', true\)\) >= app_role_rank\('gm'\)/);
         expect(sql).toMatch(/status IN \('pending_org_review', 'org_accepted', 'org_rejected'\)/);
+    });
+
+    it('uses optimistic CAS for each two-stage decision revision', () => {
+        const repository = read('server/services/personal-knowledge/two-stage-promotion-repository.js');
+
+        expect(repository).toMatch(/owner_decision_revision = owner_decision_revision \+ 1[\s\S]*owner_decision_revision = \$6/);
+        expect(repository).toMatch(/organization_review_revision = organization_review_revision \+ 1[\s\S]*organization_review_revision = \$9/);
+        expect(read('server/services/personal-knowledge/pg-personal-knowledge-repository.js'))
+            .toMatch(/knowledge_promotion_requests WHERE request_id = \$1 LIMIT 1 FOR UPDATE/);
     });
 
     it('requires normalized hashes, both receipts, Knowledge Event, and Graph readback for new acceptance', () => {
