@@ -5,7 +5,7 @@ import {
   TENANT_CONTEXT_PROTECTED_TYP
 } from '../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
 
-export function createPersonalKgAuthorityEnv(): NodeJS.ProcessEnv {
+export function createPersonalKgAuthorityEnv({ projectId = 'project-a' } = {}): NodeJS.ProcessEnv {
   const cases = JSON.parse(fs.readFileSync(
     'contracts/mana-brainbase-company-authority/v1/fixtures/cases.json',
     'utf8'
@@ -16,6 +16,8 @@ export function createPersonalKgAuthorityEnv(): NodeJS.ProcessEnv {
   ));
   const fixture = cases.positive.find((entry: { id: string }) => entry.id === 'POS-PERSONAL-AUTO-OWNER');
   const context = structuredClone(fixture.context);
+  context.scope.project_id = projectId;
+  context.tenant_context.authorization.project_ids = [projectId];
   const issuedAt = new Date(Date.now() - 60_000).toISOString();
   const expiresAt = new Date(Date.now() + 3 * 60_000).toISOString();
 

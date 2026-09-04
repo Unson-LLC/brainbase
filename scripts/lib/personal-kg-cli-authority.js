@@ -17,6 +17,13 @@ function readJsonValue(value, name) {
     }
 }
 
+export function loadCompanyAuthorityResponse(env = process.env) {
+    return readJsonValue(
+        env.BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON,
+        'BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON'
+    );
+}
+
 function hasSelfAssertedIdentity(asserted = {}) {
     return [
         asserted.ownerPersonId,
@@ -52,10 +59,7 @@ export function resolvePersonalKgCliAuthority({
     })) {
         throw new Error('personal_kg_cli_self_asserted_identity_forbidden');
     }
-    const response = readJsonValue(
-        env.BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON,
-        'BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON'
-    );
+    const response = loadCompanyAuthorityResponse(env);
     const publicJwk = readJsonValue(
         env.BRAINBASE_COMPANY_AUTHORITY_PUBLIC_JWK_JSON,
         'BRAINBASE_COMPANY_AUTHORITY_PUBLIC_JWK_JSON'

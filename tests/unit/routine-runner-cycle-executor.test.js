@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as routineRunner from '../../scripts/routines/run.mjs';
+import { createPersonalKgAuthorityEnv } from '../helpers/personal-kg-authority-fixture.ts';
 
 const { runRoutine } = routineRunner;
 
@@ -41,12 +42,11 @@ describe('Routine Runner cycle execution', () => {
             routine: 'ohayo',
             repoDir,
             env: {
+                ...createPersonalKgAuthorityEnv({ projectId: 'brainbase' }),
                 CODEX_THREAD_ID: 'thread-local-auth',
                 BRAINBASE_API_URL: 'https://bb.unson.jp',
                 BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'receipt-must-not-be-used-locally',
                 INTERNAL_API_SECRET: 'local-internal-key',
-                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
-                BRAINBASE_ORGANIZATION_ID: 'unson',
                 BRAINBASE_VAR_DIR: path.join(repoDir, 'canonical-var')
             },
             fetchImpl,
@@ -64,9 +64,12 @@ describe('Routine Runner cycle execution', () => {
             });
             expect(call.options.headers).not.toHaveProperty('Authorization');
         }
-        expect(calls[0].options.headers).toMatchObject({
-            'x-brainbase-proxy-person-id': 'sato_keigo',
-            'x-brainbase-organization-id': 'unson'
+        expect(calls[0].options.headers).not.toHaveProperty('x-brainbase-proxy-person-id');
+        expect(calls[0].options.headers).not.toHaveProperty('x-brainbase-organization-id');
+        expect(calls[0].body.company_authority_response.context.scope).toMatchObject({
+            owner_person_id: 'person-sato',
+            organization_id: 'organization-tenant-a',
+            project_id: 'brainbase'
         });
         expect(result).toMatchObject({ status: 'completed', delivery: { delivered: 1 } });
 
@@ -95,9 +98,7 @@ describe('Routine Runner cycle execution', () => {
             routine: 'ohayo',
             env: {
                 BRAINBASE_ROUTINE_API_URL: 'https://routine.example',
-                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'receipt-token',
-                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
-                BRAINBASE_ORGANIZATION_ID: 'unson'
+                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'receipt-token'
             },
             fetchImpl
         })).rejects.toThrow('routine authentication is required');
@@ -164,13 +165,12 @@ describe('Routine Runner cycle execution', () => {
             routine: 'ohayo',
             repoDir,
             env: {
+                ...createPersonalKgAuthorityEnv({ projectId: 'brainbase' }),
                 CODEX_THREAD_ID: 'thread-http-1',
                 BRAINBASE_ROUTINE_API_URL: 'https://brainbase.example',
                 BRAINBASE_ROUTINE_SERVICE_TOKEN: 'routine-token',
                 BRAINBASE_RUN_RECEIPT_INGEST_URL: 'https://brainbase.example/api/run-receipts/ingest',
-                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'service-token',
-                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
-                BRAINBASE_ORGANIZATION_ID: 'unson'
+                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'service-token'
             },
             input: { requested_at: '2026-08-13T00:00:00.000Z' },
             fetchImpl,
@@ -183,13 +183,20 @@ describe('Routine Runner cycle execution', () => {
                 method: 'POST',
                 headers: expect.objectContaining({
                     Authorization: 'Bearer routine-token',
-                    'Content-Type': 'application/json',
-                    'x-brainbase-proxy-person-id': 'sato_keigo',
-                    'x-brainbase-organization-id': 'unson'
+                    'Content-Type': 'application/json'
                 })
             },
             body: {
                 thread_id: 'thread-http-1',
+                company_authority_response: expect.objectContaining({
+                    context: expect.objectContaining({
+                        scope: expect.objectContaining({
+                            owner_person_id: 'person-sato',
+                            organization_id: 'organization-tenant-a',
+                            project_id: 'brainbase'
+                        })
+                    })
+                }),
                 input: { requested_at: '2026-08-13T00:00:00.000Z' }
             }
         });

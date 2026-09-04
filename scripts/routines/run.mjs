@@ -6,6 +6,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRuntimeEnv } from '../../lib/load-runtime-env.js';
 import expectationManifest from '../../server/config/routine-expectations.json' with { type: 'json' };
 import { parseRoutineExpectations } from '../../server/services/routine-runtime/expectation-parser.js';
+import {
+    loadCompanyAuthorityResponse,
+    resolvePersonalKgCliAuthority
+} from '../lib/personal-kg-cli-authority.js';
 
 import {
     buildCodexAutomationReceipt,
@@ -281,22 +285,18 @@ export async function executeRoutineOverHttp({ routine, input = {}, env = proces
     if (!auth.serviceToken && !auth.internalApiKey) {
         throw new Error('routine authentication is required');
     }
-    const personId = env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID;
-    const organizationId = env.BRAINBASE_ORGANIZATION_ID;
-    if (!personId || !organizationId) {
-        throw new Error('BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID and BRAINBASE_ORGANIZATION_ID are required');
-    }
+    resolvePersonalKgCliAuthority({ desiredEffect: 'read', env });
+    const companyAuthorityResponse = loadCompanyAuthorityResponse(env);
     const headers = {
         'Content-Type': 'application/json',
-        ...routineAuthHeaders(auth),
-        'x-brainbase-proxy-person-id': personId,
-        'x-brainbase-organization-id': organizationId
+        ...routineAuthHeaders(auth)
     };
     const response = await fetchImpl(`${baseUrl}/api/routines/${routine}/execute`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
             thread_id: env.CODEX_THREAD_ID,
+            company_authority_response: companyAuthorityResponse,
             input
         })
     });

@@ -529,6 +529,18 @@
         {
           "file": "scripts/project-oyasumi-sns-ready.js",
           "anchor": "personalKgIdentity"
+        },
+        {
+          "file": "scripts/routines/run.mjs",
+          "anchor": "executeRoutineOverHttp"
+        },
+        {
+          "file": "server/middleware/routine-company-authority.js",
+          "anchor": "requireRoutineCompanyAuthority"
+        },
+        {
+          "file": "server/middleware/personal-knowledge-access.js",
+          "anchor": "companyAuthorityAccess"
         }
         ],
         "test_refs": [
@@ -602,7 +614,15 @@
       },
       {
         "file": "tests/e2e/story-personal-kg-review-projection-cli.spec.ts",
-            "case": "CLI dry-run review and projection contract"
+        "case": "CLI dry-run review and projection contract"
+      },
+      {
+        "file": "tests/unit/routine-runner-cycle-executor.test.js",
+        "case": "routine CLI sends the verified signed company authority response without proxy identity headers"
+      },
+      {
+        "file": "tests/server/routes/routine-execution-routes.test.js",
+        "case": "routine server rejects missing or tampered company authority before executor effects"
           }
         ]
       },
@@ -659,11 +679,19 @@
         {
           "file_glob": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",
           "must_cover": "project-link reads and writes to the requested owner and organization"
-      }
+        },
+        {
+          "file_glob": "tests/unit/routine-runner-cycle-executor.test.js",
+          "must_cover": "signed company authority response without proxy identity headers"
+        },
+        {
+          "file_glob": "tests/server/routes/routine-execution-routes.test.js",
+          "must_cover": "rejects missing or tampered company authority before executor effects"
+        }
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T07:00:00.000Z"
+      "last_revised_at": "2026-09-04T10:00:00.000Z"
     },
     {
       "id": "C-005",

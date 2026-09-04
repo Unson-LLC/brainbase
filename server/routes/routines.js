@@ -7,10 +7,12 @@ const ROUTINES = new Set(['ohayo', 'oyasumi', 'retro']);
 function actorFrom(req) {
     return {
         ...(req.auth || {}),
-        person_id: req.access?.personId || req.auth?.sub || null,
+        person_id: req.access?.actorPersonId || req.access?.personId || req.auth?.sub || null,
         projectCodes: Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [],
         role: req.access?.role || req.auth?.role || null,
-        authSource: req.authSource || null
+        authSource: req.authSource || null,
+        authority_resolution_receipt_id: req.access?.authorityResolutionReceiptId || null,
+        identity_resolution_receipt_id: req.access?.identityResolutionReceiptId || null
     };
 }
 
