@@ -149,6 +149,101 @@ describe('CompanyAuthorityResolver', () => {
         expect(resolved.authorization.data_scopes).toContain('company_authority:policy:8');
     });
 
+    it.each([
+        ['canonical project id', 'project-unson-backoffice', 'unson-backoffice'],
+        ['canonical project code', 'unson-backoffice', 'project-unson-backoffice']
+    ])('uses a stable %s for authority lookup while retaining the hash-bound resource', async (
+        _label,
+        projectRef,
+        projectHint
+    ) => {
+        const payloadHash = 'a'.repeat(64);
+        const resourceRef = `project:${projectRef}#payload_sha256=sha256:${payloadHash}`;
+        const input = observed({
+            requested_action: {
+                ...observed().requested_action,
+                resource_ref: resourceRef,
+                project_hint: projectHint
+            }
+        });
+        const repository = canonicalRepository();
+        const resolver = new CompanyAuthorityResolver({ repository });
+
+        const resolved = await resolver.resolve(input, canonicalRuntime());
+
+        expect(repository.resolveCanonicalAuthority).toHaveBeenCalledWith(expect.objectContaining({
+            project_id: 'project-unson-backoffice',
+            resource_ref: `project:${projectRef}`
+        }));
+        expect(resolved.company_authority.resource_ref).toBe(resourceRef);
+        expect(resolved.authorization.data_scopes).toContain(
+            `company_authority:resource:${resourceRef}@12`
+        );
+        expect(input.requested_action.resource_ref).toBe(resourceRef);
+    });
+
+    it.each([
+        'project:#payload_sha256=sha256:' + 'a'.repeat(64),
+        'project:unson-backoffice#payload_sha256=sha256:' + 'a'.repeat(63),
+        'project:unson-backoffice#payload_sha256=sha256:' + 'A'.repeat(64),
+        'project:unson backoffice#payload_sha256=sha256:' + 'a'.repeat(64),
+        'project:unson-backoffice#payload_sha256=sha256:' + 'a'.repeat(64) + '#extra',
+        'project:unson-backoffice#payload_sha256=sha256:' + 'a'.repeat(64) + '\n',
+        'project:unson-backoffice#payload_sha256=sha256:' + 'a'.repeat(64) + '\r\n',
+        'project:unson-backoffice%23payload_sha256=sha256:' + 'a'.repeat(64)
+    ])('rejects malformed payload resource %s before identity lookup', async (resourceRef) => {
+        const repository = canonicalRepository();
+        const resolver = new CompanyAuthorityResolver({ repository });
+
+        await expect(resolver.resolve(observed({
+            requested_action: {
+                ...observed().requested_action,
+                resource_ref: resourceRef
+            }
+        }), canonicalRuntime())).rejects.toMatchObject({
+            code: 'COMPANY_AUTHORITY_REQUEST_INVALID'
+        });
+        expect(repository.resolveCanonicalIdentity).not.toHaveBeenCalled();
+        expect(repository.resolveCanonicalAuthority).not.toHaveBeenCalled();
+    });
+
+    it('rejects a hash-bound project outside the canonical identity before authority lookup', async () => {
+        const repository = canonicalRepository();
+        const resolver = new CompanyAuthorityResolver({ repository });
+        const resourceRef = `project:project-other#payload_sha256=sha256:${'a'.repeat(64)}`;
+
+        await expect(resolver.resolve(observed({
+            requested_action: {
+                ...observed().requested_action,
+                resource_ref: resourceRef,
+                project_hint: 'unson-backoffice'
+            }
+        }), canonicalRuntime())).rejects.toMatchObject({
+            code: 'PROJECT_SCOPE_MISMATCH'
+        });
+        expect(repository.resolveCanonicalIdentity).toHaveBeenCalledTimes(1);
+        expect(repository.resolveCanonicalAuthority).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing stable-resource grant without falling back to a project-only lookup', async () => {
+        const repository = canonicalRepository();
+        repository.resolveCanonicalAuthority.mockResolvedValue(undefined);
+        const resolver = new CompanyAuthorityResolver({ repository });
+        const resourceRef = `project:project-unson-backoffice#payload_sha256=sha256:${'b'.repeat(64)}`;
+
+        await expect(resolver.resolve(observed({
+            requested_action: {
+                ...observed().requested_action,
+                resource_ref: resourceRef
+            }
+        }), canonicalRuntime())).rejects.toMatchObject({
+            code: 'COMPANY_AUTHORITY_UNRESOLVED'
+        });
+        expect(repository.resolveCanonicalAuthority).toHaveBeenCalledWith(expect.objectContaining({
+            resource_ref: 'project:project-unson-backoffice'
+        }));
+    });
+
     it('fails closed when the requested effect is not present in the binding', async () => {
         const repository = canonicalRepository();
         repository.resolveCanonicalAuthority.mockResolvedValue({

@@ -4,6 +4,8 @@ import { assertPersonalKnowledgePromotionAuthority } from '../personal-knowledge
 const EFFECTS = new Set(['read', 'write', 'external_side_effect']);
 const DECISIONS = new Set(['auto', 'approval', 'human_action', 'deny']);
 const PROVIDERS = new Set(['slack', 'codex', 'claude_code', 'service']);
+const PAYLOAD_RESOURCE_REF_PATTERN = /^project:([^#\s]+)#payload_sha256=sha256:([0-9a-f]{64})$/u;
+const ENCODED_FRAGMENT_SEPARATOR_PATTERN = /%23/iu;
 
 function fail(code, { status = 403, retryable = false, fault_domain = 'protocol', details } = {}) {
     throw new ContractError(code, {
@@ -22,6 +24,60 @@ function nonEmptyString(value, field) {
         });
     }
     return value.trim();
+}
+
+/**
+ * Validate and split the optional payload binding from a requested resource.
+ *
+ * The fragment is carried in the signed request, but authority grants remain
+ * keyed by the stable project resource.  Keep this parser independent of the
+ * repository so callers can reject malformed input before any lookup.
+ */
+export function parseCompanyAuthorityResourceRef(resourceRef) {
+    if (typeof resourceRef !== 'string' || resourceRef.trim().length === 0) {
+        fail('COMPANY_AUTHORITY_REQUEST_INVALID', {
+            status: 400,
+            details: { field: 'requested_action.resource_ref' }
+        });
+    }
+
+    if (ENCODED_FRAGMENT_SEPARATOR_PATTERN.test(resourceRef)) {
+        fail('COMPANY_AUTHORITY_REQUEST_INVALID', {
+            status: 400,
+            details: {
+                field: 'requested_action.resource_ref',
+                reason: 'encoded_fragment_separator'
+            }
+        });
+    }
+
+    if (!resourceRef.includes('#')) {
+        return {
+            originalResourceRef: resourceRef,
+            lookupResourceRef: resourceRef,
+            projectRef: null
+        };
+    }
+
+    const match = PAYLOAD_RESOURCE_REF_PATTERN.exec(resourceRef);
+    // JavaScript's `$` also matches immediately before a final line terminator;
+    // require the entire input to be consumed so hash-bound whitespace cannot
+    // be normalized into a different signed resource.
+    if (!match || match[0] !== resourceRef) {
+        fail('COMPANY_AUTHORITY_REQUEST_INVALID', {
+            status: 400,
+            details: {
+                field: 'requested_action.resource_ref',
+                reason: 'invalid_payload_binding'
+            }
+        });
+    }
+
+    return {
+        originalResourceRef: resourceRef,
+        lookupResourceRef: `project:${match[1]}`,
+        projectRef: match[1]
+    };
 }
 
 function optionalString(value, field) {
@@ -92,7 +148,10 @@ export function normalizeObservedExecutionRequest(input) {
         },
         requested_action: {
             capability_id: nonEmptyString(requestedAction.capability_id, 'requested_action.capability_id'),
-            resource_ref: nonEmptyString(requestedAction.resource_ref, 'requested_action.resource_ref'),
+            resource_ref: nonEmptyString(
+                parseCompanyAuthorityResourceRef(requestedAction.resource_ref).originalResourceRef,
+                'requested_action.resource_ref'
+            ),
             project_hint: optionalString(requestedAction.project_hint, 'requested_action.project_hint'),
             desired_effect: desiredEffect
         },
@@ -104,7 +163,7 @@ export function normalizeObservedExecutionRequest(input) {
     };
 }
 
-function assertResolvedIdentity(identity, request) {
+function assertResolvedIdentity(identity, request, resourceRefBinding) {
     if (!identity || typeof identity !== 'object') {
         fail('COMPANY_IDENTITY_UNRESOLVED');
     }
@@ -118,6 +177,10 @@ function assertResolvedIdentity(identity, request) {
     if (identity.tenant_id !== request.tenant_id) fail('CROSS_TENANT_CANDIDATE');
     if (request.requested_action.project_hint
         && ![identity.project_id, identity.project_code].includes(request.requested_action.project_hint)) {
+        fail('PROJECT_SCOPE_MISMATCH');
+    }
+    if (resourceRefBinding.projectRef !== null
+        && ![identity.project_id, identity.project_code].includes(resourceRefBinding.projectRef)) {
         fail('PROJECT_SCOPE_MISMATCH');
     }
 }
@@ -176,6 +239,7 @@ export class CompanyAuthorityResolver {
 
     async resolve(rawInput, canonicalRuntime) {
         const request = normalizeObservedExecutionRequest(rawInput);
+        const resourceRefBinding = parseCompanyAuthorityResourceRef(request.requested_action.resource_ref);
         const identity = await this.repository.resolveCanonicalIdentity({
             tenant_id: request.tenant_id,
             provider: request.provider_identity.provider,
@@ -184,7 +248,7 @@ export class CompanyAuthorityResolver {
             app_id: request.app_id,
             project_hint: request.requested_action.project_hint
         });
-        assertResolvedIdentity(identity, request);
+        assertResolvedIdentity(identity, request, resourceRefBinding);
         const authority = await this.repository.resolveCanonicalAuthority({
             tenant_id: request.tenant_id,
             canonical_person_id: identity.canonical_person_id,
@@ -192,7 +256,7 @@ export class CompanyAuthorityResolver {
             membership_revision: identity.membership_revision,
             organization_id: identity.organization_id,
             project_id: identity.project_id,
-            resource_ref: request.requested_action.resource_ref,
+            resource_ref: resourceRefBinding.lookupResourceRef,
             capability_id: request.requested_action.capability_id,
             desired_effect: request.requested_action.desired_effect
         });
