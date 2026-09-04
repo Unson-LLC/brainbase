@@ -204,7 +204,7 @@
           },
           {
             "file": "tests/server/routes/outcome-cases.test.js",
-            "case": "registerApiRoutes protects and wires create, read, and evaluate through workflowAuthGuard"
+            "case": "mounts the bootstrap service behind workflowAuthGuard and retains no_data diagnostics on readback"
           },
           {
             "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js",
