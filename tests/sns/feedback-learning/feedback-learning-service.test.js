@@ -9,6 +9,13 @@ import {
     SnsFeedbackLearningService
 } from '../../../server/services/sns/feedback-learning-service.js';
 
+const ACCESS = {
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
+    org_ids: ['unson']
+};
+
 function makeReadyPost(overrides = {}) {
     const ledgerRepository = new InMemorySnsPostingLedgerRepository();
     ledgerRepository.upsertReviewPack({
@@ -56,13 +63,14 @@ describe('SNS feedback learning service', () => {
     it('builds a candidate-store observation from a learning-ready SNS post without Graph mutation', () => {
         const { post } = makeReadyPost();
 
-        const draft = buildSnsFeedbackCandidateDraft(post);
+        const draft = buildSnsFeedbackCandidateDraft(post, ACCESS);
 
         expect(draft).toMatchObject({
             id: `cand_sns_feedback_${post.id}`,
             cognitive_type: 'observation',
             owner_person_id: 'sato_keigo',
             actor_person_id: 'sato_keigo',
+            organization_id: 'unson',
             source_system: 'sns-feedback',
             source_event_ids: [`sns-post:${post.id}`],
             visibility: 'owner',
@@ -79,13 +87,24 @@ describe('SNS feedback learning service', () => {
         const candidateService = new PromotionGateService({ repository: candidateRepository });
         const service = new SnsFeedbackLearningService({ ledgerRepository, candidateService });
 
-        const result = await service.createLearningCandidateForPost(post.id, { actor_person_id: 'sato_keigo' });
+        const result = await service.createLearningCandidateForPost(post.id, ACCESS);
 
         expect(result.created).toBe(true);
         expect(result.candidate.source_system).toBe('sns-feedback');
         expect(result.candidate.promotion_status).toBe('candidate');
         expect(result.post.learning_candidate_id).toBe(result.candidate.id);
         expect(candidateRepository.list({ cognitive_type: 'observation' })).toHaveLength(1);
+    });
+
+    it('requires explicit Personal KG identity before candidate handoff', () => {
+        const { post } = makeReadyPost();
+
+        expect(() => buildSnsFeedbackCandidateDraft(post))
+            .toThrow('personal_kg_access_context_required');
+        expect(() => buildSnsFeedbackCandidateDraft(post, {
+            owner_person_id: 'sato_keigo',
+            actor_person_id: 'sato_keigo'
+        })).toThrow('personal_kg_organization_id_required');
     });
 
     it('rejects handoff before posted URL and metrics are available', () => {
@@ -101,7 +120,7 @@ describe('SNS feedback learning service', () => {
         });
         const post = ledgerRepository.listPosts({})[0];
 
-        expect(() => buildSnsFeedbackCandidateDraft(post))
+        expect(() => buildSnsFeedbackCandidateDraft(post, ACCESS))
             .toThrow('learning_ready');
     });
 });

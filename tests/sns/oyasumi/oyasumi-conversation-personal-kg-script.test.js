@@ -14,6 +14,13 @@ import {
 } from '../../../scripts/oyasumi-conversation-personal-kg.js';
 import { writeMeetingPersonalKgCandidates } from '../../../server/services/sns/oyasumi-meeting-personal-kg-service.js';
 
+const IDENTITY = {
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
+    org_ids: ['unson']
+};
+
 let tmpHome;
 
 function writeJsonl(filePath, rows) {
@@ -118,7 +125,7 @@ describe('oyasumi conversation personal KG script', () => {
             }
         ];
 
-        const extracted = extractConversationPersonalKgCandidates({ date: '2026-05-23', messages });
+        const extracted = extractConversationPersonalKgCandidates({ date: '2026-05-23', messages, identity: IDENTITY });
         const core = extracted.adopted.filter((candidate) => (
             candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'personal_kg_core'
         ));
@@ -141,7 +148,7 @@ describe('oyasumi conversation personal KG script', () => {
 
         const repository = new InMemoryCandidateRepository();
         const candidateService = new PromotionGateService({ repository });
-        const summary = await writeMeetingPersonalKgCandidates({ candidateService, extracted });
+        const summary = await writeMeetingPersonalKgCandidates({ candidateService, extracted, identity: IDENTITY });
 
         expect(summary.inserted).toBe(extracted.adopted.length);
         expect(repository.list({ owner_person_id: 'sato_keigo' })).toHaveLength(extracted.adopted.length);
@@ -162,6 +169,9 @@ describe('oyasumi conversation personal KG script', () => {
                 inputPath,
                 '--output-dir',
                 outputDir,
+                '--owner=sato_keigo',
+                '--actor=sato_keigo',
+                '--organization=unson',
                 '--json'
             ], {
                 cwd: process.cwd(),

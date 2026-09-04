@@ -453,7 +453,51 @@
           {
             "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
             "anchor": "assertOwnerAccess"
-          }
+          },
+          {
+            "file": "server/services/sns/personal-kg-identity.js",
+            "anchor": "requirePersonalKgIdentity"
+          },
+          {
+            "file": "server/services/sns/oyasumi-meeting-personal-kg-service.js",
+            "anchor": "writeMeetingPersonalKgCandidates"
+          },
+          {
+            "file": "server/services/sns/feedback-learning-service.js",
+            "anchor": "buildSnsFeedbackCandidateDraft"
+          },
+      {
+        "file": "server/services/sns/sns-generation-context-service.js",
+        "anchor": "buildContext"
+      },
+      {
+        "file": "server/services/sns/personal-knowledge-graph-reader.js",
+        "anchor": "listRecentEntities"
+      },
+        {
+          "file": "server/services/sns/sns-readonly-curator.js",
+          "anchor": "saveDraftsToCandidateStore"
+        },
+        {
+          "file": "server/routes/companion.js",
+          "anchor": "createCompanionAccessGuard"
+        },
+      {
+        "file": "scripts/personal-kg-review-projection.js",
+        "anchor": "personalKgIdentity"
+      },
+        {
+          "file": "scripts/generate-personal-kg-sns-weekly-pack.js",
+          "anchor": "viewer"
+        },
+        {
+          "file": "scripts/generate-memory-preamble.mjs",
+          "anchor": "resolvePersonalKgAccess"
+        },
+        {
+          "file": "scripts/link-oyasumi-personal-kg-projects.js",
+          "anchor": "linkOyasumiPersonalKgProjects"
+      }
         ],
         "test_refs": [
           {
@@ -475,6 +519,50 @@
           {
             "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
             "case": "rejects cross-tenant organization review through the HTTP runtime with every downstream effect at zero"
+          },
+          {
+            "file": "tests/sns/oyasumi/personal-kg-identity.test.js",
+            "case": "requires explicit owner, actor, and organization"
+          },
+          {
+            "file": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-service.test.js",
+            "case": "rejects cross-person and cross-tenant candidates before candidate-store writes"
+          },
+          {
+            "file": "tests/sns/feedback-learning/feedback-learning-service.test.js",
+            "case": "requires explicit Personal KG identity before candidate handoff"
+          },
+      {
+        "file": "tests/sns/ops/sns-generation-context.test.js",
+        "case": "filters cross-person and cross-tenant Personal KG candidates from generation context"
+      },
+      {
+        "file": "tests/sns/personal-kg/personal-knowledge-graph-reader.test.js",
+        "case": "excludes a same-owner candidate from another organization"
+      },
+        {
+          "file": "tests/sns/curator/invariants/inv-2-write-to-candidate-store.test.js",
+          "case": "writes owner, actor, and organization from explicit Personal KG identity"
+        },
+        {
+          "file": "tests/server/routes/companion-reply-draft.test.js",
+          "case": "fails closed when no Personal KG owner is configured"
+        },
+        {
+          "file": "tests/sns/weekly-planner/generate-personal-kg-sns-weekly-pack.test.js",
+          "case": "fails closed when owner, actor, or organization is omitted"
+        },
+        {
+          "file": "tests/sns/personal-kg/generate-memory-preamble.test.js",
+          "case": "uses owner and organization RLS access and excludes cross-tenant rows"
+        },
+        {
+          "file": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",
+          "case": "scopes project-link reads and writes to the requested owner and organization"
+      },
+      {
+        "file": "tests/e2e/story-personal-kg-review-projection-cli.spec.ts",
+            "case": "CLI dry-run review and projection contract"
           }
         ]
       },
@@ -495,7 +583,39 @@
           {
             "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
             "must_cover": "cross-tenant organization review"
-          }
+          },
+          {
+            "file_glob": "tests/sns/oyasumi/personal-kg-identity.test.js",
+            "must_cover": "requires explicit owner, actor, and organization"
+          },
+          {
+            "file_glob": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-service.test.js",
+            "must_cover": "cross-person and cross-tenant candidates"
+          },
+      {
+        "file_glob": "tests/sns/ops/sns-generation-context.test.js",
+        "must_cover": "filters cross-person and cross-tenant"
+      },
+        {
+          "file_glob": "tests/sns/personal-kg/personal-knowledge-graph-reader.test.js",
+          "must_cover": "same-owner candidate from another organization"
+        },
+        {
+          "file_glob": "tests/server/routes/companion-reply-draft.test.js",
+          "must_cover": "fails closed when no Personal KG owner is configured"
+        },
+        {
+          "file_glob": "tests/sns/weekly-planner/generate-personal-kg-sns-weekly-pack.test.js",
+          "must_cover": "fails closed when owner, actor, or organization is omitted"
+        },
+        {
+          "file_glob": "tests/sns/personal-kg/generate-memory-preamble.test.js",
+          "must_cover": "owner and organization RLS access and excludes cross-tenant rows"
+        },
+        {
+          "file_glob": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",
+          "must_cover": "project-link reads and writes to the requested owner and organization"
+      }
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",

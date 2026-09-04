@@ -18,6 +18,7 @@ import {
     extractMeetingPersonalKgCandidatesSemantic,
     writeMeetingPersonalKgCandidates
 } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
+import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
 import {
     linkOyasumiPersonalKgProjects
 } from './link-oyasumi-personal-kg-projects.js';
@@ -60,7 +61,11 @@ function parseArgs(argv) {
         semantic: false,
         write: false,
         json: false,
-        projectLink: true
+        projectLink: true,
+        ownerPersonId: null,
+        actorPersonId: null,
+        organizationId: null,
+        delegationId: null
     };
     for (let index = 0; index < argv.length; index += 1) {
         const arg = argv[index];
@@ -78,11 +83,33 @@ function parseArgs(argv) {
         else if (arg === '--no-project-link') args.projectLink = false;
         else if (arg === '--json') args.json = true;
         else if (arg === '--dry-run') args.write = false;
+        else if (arg === '--owner-person-id' || arg === '--owner') args.ownerPersonId = argv[++index];
+        else if (arg.startsWith('--owner-person-id=')) args.ownerPersonId = arg.slice('--owner-person-id='.length);
+        else if (arg.startsWith('--owner=')) args.ownerPersonId = arg.slice('--owner='.length);
+        else if (arg === '--actor-person-id' || arg === '--actor') args.actorPersonId = argv[++index];
+        else if (arg.startsWith('--actor-person-id=')) args.actorPersonId = arg.slice('--actor-person-id='.length);
+        else if (arg.startsWith('--actor=')) args.actorPersonId = arg.slice('--actor='.length);
+        else if (arg === '--organization-id' || arg === '--organization') args.organizationId = argv[++index];
+        else if (arg.startsWith('--organization-id=')) args.organizationId = arg.slice('--organization-id='.length);
+        else if (arg.startsWith('--organization=')) args.organizationId = arg.slice('--organization='.length);
+        else if (arg === '--delegation-id') args.delegationId = argv[++index];
+        else if (arg.startsWith('--delegation-id=')) args.delegationId = arg.slice('--delegation-id='.length);
     }
     if (!args.date) {
         throw new Error('--date YYYY-MM-DD required');
     }
     return args;
+}
+
+function personalKgIdentity(args, env = process.env) {
+    return requirePersonalKgIdentity({
+        owner_person_id: args.ownerPersonId || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
+        actor_person_id: args.actorPersonId || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
+        organization_id: args.organizationId
+            || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
+            || env.BRAINBASE_ORGANIZATION_ID,
+        delegation_id: args.delegationId || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID
+    }, env);
 }
 
 function parseJsonObjectFromText(text) {
@@ -383,6 +410,7 @@ function outputText({ extracted, writeSummary, projectLinkSummary, write }) {
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
+    const identity = personalKgIdentity(args);
     const sources = sourceConfigs(args);
     const meetings = await loadMeetings({
         repo: args.repo,
@@ -395,11 +423,13 @@ async function main() {
         ? await extractMeetingPersonalKgCandidatesSemantic({
             date: args.date,
             meetings,
-            llmClient: createSemanticClient()
+            llmClient: createSemanticClient(),
+            identity
         })
         : extractMeetingPersonalKgCandidates({
             date: args.date,
-            meetings
+            meetings,
+            identity
         });
 
     let writeSummary = null;
@@ -411,9 +441,9 @@ async function main() {
         try {
             const repository = new PgCandidateRepository({ pool });
             const candidateService = new PromotionGateService({ repository });
-            writeSummary = await writeMeetingPersonalKgCandidates({ candidateService, extracted });
+            writeSummary = await writeMeetingPersonalKgCandidates({ candidateService, extracted, identity });
             if (args.projectLink) {
-                projectLinkSummary = await linkOyasumiPersonalKgProjects({ write: true, pool });
+                projectLinkSummary = await linkOyasumiPersonalKgProjects({ write: true, pool, identity });
             }
         } finally {
             await pool.end();

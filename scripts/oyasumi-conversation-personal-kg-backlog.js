@@ -10,8 +10,7 @@ import {
     extractConversationPersonalKgCandidates
 } from './oyasumi-conversation-personal-kg.js';
 import { SOURCE_SYSTEM } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
-
-const DEFAULT_OWNER_PERSON_ID = 'sato_keigo';
+import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
 
 function parseArgs(argv) {
     const args = {
@@ -20,7 +19,10 @@ function parseArgs(argv) {
         json: false,
         homeDir: os.homedir(),
         compareServer: false,
-        ownerPersonId: DEFAULT_OWNER_PERSON_ID,
+        ownerPersonId: null,
+        actorPersonId: null,
+        organizationId: null,
+        delegationId: null,
         includeCodex: true,
         includeClaudeCode: true,
         limit: null
@@ -41,8 +43,17 @@ function parseArgs(argv) {
         else if (arg.startsWith('--home=')) args.homeDir = arg.slice('--home='.length);
         else if (arg === '--compare-server') args.compareServer = true;
         else if (arg === '--json') args.json = true;
-        else if (arg === '--owner') args.ownerPersonId = argv[++index];
+        else if (arg === '--owner' || arg === '--owner-person-id') args.ownerPersonId = argv[++index];
         else if (arg.startsWith('--owner=')) args.ownerPersonId = arg.slice('--owner='.length);
+        else if (arg.startsWith('--owner-person-id=')) args.ownerPersonId = arg.slice('--owner-person-id='.length);
+        else if (arg === '--actor' || arg === '--actor-person-id') args.actorPersonId = argv[++index];
+        else if (arg.startsWith('--actor=')) args.actorPersonId = arg.slice('--actor='.length);
+        else if (arg.startsWith('--actor-person-id=')) args.actorPersonId = arg.slice('--actor-person-id='.length);
+        else if (arg === '--organization' || arg === '--organization-id') args.organizationId = argv[++index];
+        else if (arg.startsWith('--organization=')) args.organizationId = arg.slice('--organization='.length);
+        else if (arg.startsWith('--organization-id=')) args.organizationId = arg.slice('--organization-id='.length);
+        else if (arg === '--delegation-id') args.delegationId = argv[++index];
+        else if (arg.startsWith('--delegation-id=')) args.delegationId = arg.slice('--delegation-id='.length);
         else if (arg === '--codex-only') args.includeClaudeCode = false;
         else if (arg === '--claude-code-only') args.includeCodex = false;
         else if (arg === '--limit') args.limit = Number(argv[++index]);
@@ -57,6 +68,21 @@ function parseArgs(argv) {
         }
     }
     return args;
+}
+
+function personalKgIdentity(options, env = process.env) {
+    return requirePersonalKgIdentity({
+        owner_person_id: options?.owner_person_id || options?.ownerPersonId
+            || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
+        actor_person_id: options?.actor_person_id || options?.actorPersonId
+            || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
+        organization_id: options?.organization_id || options?.organizationId
+            || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
+            || env.BRAINBASE_ORGANIZATION_ID,
+        org_ids: options?.org_ids,
+        delegation_id: options?.delegation_id || options?.delegationId
+            || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID
+    }, env);
 }
 
 function databaseConfig() {
@@ -83,9 +109,12 @@ function indexExistingCandidates(candidates = []) {
     return refs;
 }
 
-async function loadExistingConversationCandidates({ connectionString, ownerPersonId }) {
+async function loadExistingConversationCandidates({ connectionString, ownerPersonId, organizationId }) {
     if (!connectionString) {
         throw new Error('--compare-server requires INFO_SSOT_DATABASE_URL, INFO_SSOT_DB_URL, or DATABASE_URL');
+    }
+    if (!ownerPersonId || !organizationId) {
+        throw new Error('ownerPersonId and organizationId are required for Personal KG database reads');
     }
     const pool = new pg.Pool({ connectionString });
     try {
@@ -94,9 +123,10 @@ async function loadExistingConversationCandidates({ connectionString, ownerPerso
              FROM memory_candidates
              WHERE source_system = $1
                AND owner_person_id = $2
+               AND organization_id = $3
                AND workspace = 'codex-claude-code'
                AND permission_snapshot->'oyasumi_meeting_personal_kg'->>'source_kind' = 'daily_interaction'`,
-            [SOURCE_SYSTEM, ownerPersonId]
+            [SOURCE_SYSTEM, ownerPersonId, organizationId]
         );
         return result.rows;
     } finally {
@@ -145,15 +175,17 @@ function buildConversationBacklog({
     includeClaudeCode = true,
     existingCandidates = [],
     limit = null,
-    compareServer = existingCandidates.length > 0
+    compareServer = existingCandidates.length > 0,
+    identity
 } = {}) {
+    const access = personalKgIdentity(identity);
     const groupedMessages = collectConversationMessagesByDate({ homeDir, includeCodex, includeClaudeCode });
     const allDates = filterDates(Object.keys(groupedMessages), { dateFrom, dateTo, limit });
     const existingRefs = indexExistingCandidates(existingCandidates);
     const rawLogFiles = collectConversationLogFiles(homeDir);
     const dates = allDates.map((date) => {
         const messages = groupedMessages[date] || [];
-        const extracted = extractConversationPersonalKgCandidates({ date, messages });
+        const extracted = extractConversationPersonalKgCandidates({ date, messages, identity: access });
         const candidateRules = extracted.adopted.map((candidate) => {
             const kg = candidate.permission_snapshot?.oyasumi_meeting_personal_kg || {};
             const sourceRef = candidateSourceRef(candidate);
@@ -219,10 +251,12 @@ function outputText(backlog) {
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
+    const identity = personalKgIdentity(args);
     const existingCandidates = args.compareServer
         ? await loadExistingConversationCandidates({
             connectionString: databaseConfig()?.connectionString,
-            ownerPersonId: args.ownerPersonId
+            ownerPersonId: identity.owner_person_id,
+            organizationId: identity.organization_id
         })
         : [];
     const backlog = buildConversationBacklog({
@@ -233,7 +267,8 @@ async function main() {
         includeClaudeCode: args.includeClaudeCode,
         existingCandidates,
         limit: args.limit,
-        compareServer: args.compareServer
+        compareServer: args.compareServer,
+        identity
     });
     console.log(args.json ? JSON.stringify(backlog, null, 2) : outputText(backlog));
 }

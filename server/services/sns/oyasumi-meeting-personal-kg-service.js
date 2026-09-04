@@ -1,8 +1,10 @@
 // @ts-check
 import { DuplicateCandidateError } from '../candidate-store/candidate-repository.js';
-
-const DEFAULT_OWNER_PERSON_ID = 'sato_keigo';
-const DEFAULT_ACTOR_PERSON_ID = 'sato_keigo';
+import {
+    assertPersonalKgCandidateScope,
+    isPersonalKgCandidateInScope,
+    requirePersonalKgIdentity
+} from './personal-kg-identity.js';
 const MAX_BODY_LENGTH = 280;
 
 const PROJECT_ORGS = {
@@ -118,6 +120,7 @@ function githubRef(meeting, suffix, sourceKind = 'minutes') {
 function buildCandidate({
     meeting,
     date,
+    identity,
     key,
     category,
     cognitiveType,
@@ -136,6 +139,7 @@ function buildCandidate({
     sensitivityReason = null,
     bodyMaxLength = MAX_BODY_LENGTH
 }) {
+    const access = requirePersonalKgIdentity(identity);
     const projectCode = projectOrDefault(meeting);
     const sourceEventId = githubRef(meeting, `${memoryLayer}:${key}`, sourceKind);
     const sourcePath = sourcePathFor(meeting, sourceKind);
@@ -145,13 +149,14 @@ function buildCandidate({
     return {
         id: stableId,
         cognitive_type: cognitiveType,
-        owner_person_id: DEFAULT_OWNER_PERSON_ID,
-        actor_person_id: DEFAULT_ACTOR_PERSON_ID,
+        owner_person_id: access.owner_person_id,
+        actor_person_id: access.actor_person_id,
+        organization_id: access.organization_id,
         source_system: SOURCE_SYSTEM,
         source_event_ids: [sourceEventId],
         workspace: 'github',
         project_code: projectCode,
-        org_ids: orgsFor(projectCode),
+        org_ids: access.org_ids,
         project_ids: [projectCode],
         visibility: 'owner',
         sensitivity,
@@ -188,7 +193,12 @@ function buildCandidate({
                 sha: meeting.sha || null,
                 extraction_decision: 'adopted',
                 rule_id: key,
-                source_ref: sourceEventId
+                source_ref: sourceEventId,
+                personal_kg_identity: {
+                    owner_person_id: access.owner_person_id,
+                    actor_person_id: access.actor_person_id,
+                    organization_id: access.organization_id
+                }
             }
         },
         evidence_ids: [{
@@ -204,7 +214,9 @@ function coreCandidateProjectionSourceRef(candidate) {
     return `${kg.source_ref || candidate.source_event_ids?.[0] || candidate.id}#sns_ready_projection`;
 }
 
-function projectSnsReadyCandidateFromCore(candidate) {
+function projectSnsReadyCandidateFromCore(candidate, identity) {
+    const access = requirePersonalKgIdentity(identity);
+    if (!isPersonalKgCandidateInScope(candidate, access)) return null;
     const kg = candidate.permission_snapshot?.oyasumi_meeting_personal_kg || {};
     if (kg.memory_layer !== MEMORY_LAYER_CORE) return null;
     if (candidate.sensitivity === 'restricted') return null;
@@ -229,15 +241,16 @@ function projectSnsReadyCandidateFromCore(candidate) {
     return {
         id: projectionId,
         cognitive_type: normalizeCognitiveType(candidate.cognitive_type),
-        owner_person_id: candidate.owner_person_id || DEFAULT_OWNER_PERSON_ID,
-        actor_person_id: DEFAULT_ACTOR_PERSON_ID,
+        owner_person_id: access.owner_person_id,
+        actor_person_id: access.actor_person_id,
+        organization_id: access.organization_id,
         source_system: SOURCE_SYSTEM,
         source_event_ids: [sourceRef],
         workspace: candidate.workspace || 'github',
         channel_id: candidate.channel_id || null,
         thread_ts: candidate.thread_ts || null,
         project_code: candidate.project_code || null,
-        org_ids: candidate.org_ids || [],
+        org_ids: access.org_ids,
         project_ids: candidate.project_ids || [],
         team_id: candidate.team_id || null,
         visibility: 'owner',
@@ -276,7 +289,12 @@ function projectSnsReadyCandidateFromCore(candidate) {
                 sha: kg.sha || null,
                 extraction_decision: 'projected',
                 rule_id: `${kg.rule_id || candidate.id}:sns_ready_projection`,
-                source_ref: sourceRef
+                source_ref: sourceRef,
+                personal_kg_identity: {
+                    owner_person_id: access.owner_person_id,
+                    actor_person_id: access.actor_person_id,
+                    organization_id: access.organization_id
+                }
             }
         },
         evidence_ids: [
@@ -286,9 +304,10 @@ function projectSnsReadyCandidateFromCore(candidate) {
     };
 }
 
-function projectSnsReadyCandidatesFromCoreCandidates(candidates = []) {
+function projectSnsReadyCandidatesFromCoreCandidates(candidates = [], identity) {
+    const access = requirePersonalKgIdentity(identity);
     return dedupeBySourceEvent(candidates
-        .map(projectSnsReadyCandidateFromCore)
+        .map((candidate) => projectSnsReadyCandidateFromCore(candidate, access))
         .filter(Boolean));
 }
 
@@ -548,7 +567,7 @@ function rejectSensitiveSections(meeting, date) {
     return rejected;
 }
 
-function extractSensitiveCoreSections(meeting, date) {
+function extractSensitiveCoreSections(meeting, date, identity) {
     const adopted = [];
     for (const section of extractSections(meeting.content || '')) {
         const text = `${section.title}\n${section.body}`;
@@ -559,6 +578,7 @@ function extractSensitiveCoreSections(meeting, date) {
         adopted.push(buildCandidate({
             meeting,
             date,
+            identity,
             key: `${reason}-${idPart(section.title || 'sensitive-context')}`,
             category: 'persona_understanding',
             cognitiveType: 'observation',
@@ -711,7 +731,7 @@ function semanticSensitivityForDraft(draft, body) {
     };
 }
 
-function semanticCandidateFromDraft({ meeting, date, draft, index }) {
+function semanticCandidateFromDraft({ meeting, date, draft, index, identity }) {
     const body = normalizeSemanticBody(draft);
     if (!body || body.length < 40) return null;
     const sensitivity = semanticSensitivityForDraft(draft, body);
@@ -719,6 +739,7 @@ function semanticCandidateFromDraft({ meeting, date, draft, index }) {
     return buildCandidate({
         meeting,
         date,
+        identity,
         key: `semantic-${idPart(draft?.key || sensitivity.category || `candidate-${index}`)}`,
         category: sensitivity.category,
         cognitiveType: normalizeCognitiveType(draft?.cognitive_type),
@@ -737,7 +758,7 @@ function semanticCandidateFromDraft({ meeting, date, draft, index }) {
     });
 }
 
-async function extractSemanticCoreFromMeeting({ meeting, date, llmClient }) {
+async function extractSemanticCoreFromMeeting({ meeting, date, llmClient, identity }) {
     if (!llmClient) return [];
     const prompt = buildSemanticExtractorPrompt({ meeting, date });
     const raw = typeof llmClient.extractPersonalKgCandidates === 'function'
@@ -745,7 +766,7 @@ async function extractSemanticCoreFromMeeting({ meeting, date, llmClient }) {
         : await llmClient(prompt);
     const drafts = parseSemanticExtractorResponse(raw);
     return drafts
-        .map((draft, index) => semanticCandidateFromDraft({ meeting, date, draft, index }))
+        .map((draft, index) => semanticCandidateFromDraft({ meeting, date, draft, index, identity }))
         .filter(Boolean);
 }
 
@@ -773,7 +794,7 @@ function sanitizeAdopted(candidates) {
     });
 }
 
-function extractCoreFromMeeting({ meeting, date }) {
+function extractCoreFromMeeting({ meeting, date, identity }) {
     const transcript = normalizeSpaces(meeting.transcript_content || '');
     const minutes = normalizeSpaces(meeting.content || '');
     const adopted = [];
@@ -784,6 +805,7 @@ function extractCoreFromMeeting({ meeting, date }) {
         adopted.push(buildCandidate({
             meeting,
             date,
+            identity,
             key: rule.key,
             category: rule.category,
             cognitiveType: rule.cognitiveType,
@@ -804,7 +826,7 @@ function extractCoreFromMeeting({ meeting, date }) {
     return sanitizeAdopted(adopted);
 }
 
-function projectSnsReadyFromMeeting({ meeting, date }) {
+function projectSnsReadyFromMeeting({ meeting, date, identity }) {
     const content = normalizeSpaces(meeting.content || '');
     const adopted = [];
     for (const rule of ADOPTION_RULES) {
@@ -812,6 +834,7 @@ function projectSnsReadyFromMeeting({ meeting, date }) {
         adopted.push(buildCandidate({
             meeting,
             date,
+            identity,
             key: rule.key,
             category: rule.category,
             cognitiveType: rule.cognitiveType,
@@ -826,12 +849,12 @@ function projectSnsReadyFromMeeting({ meeting, date }) {
     return sanitizeAdopted(adopted);
 }
 
-function extractFromMeeting({ meeting, date }) {
-    const core = extractCoreFromMeeting({ meeting, date });
-    const sensitiveCore = extractSensitiveCoreSections(meeting, date);
+function extractFromMeeting({ meeting, date, identity }) {
+    const core = extractCoreFromMeeting({ meeting, date, identity });
+    const sensitiveCore = extractSensitiveCoreSections(meeting, date, identity);
     const snsReady = dedupeBySourceEvent([
-        ...projectSnsReadyFromMeeting({ meeting, date }),
-        ...projectSnsReadyCandidatesFromCoreCandidates([...core, ...sensitiveCore])
+        ...projectSnsReadyFromMeeting({ meeting, date, identity }),
+        ...projectSnsReadyCandidatesFromCoreCandidates([...core, ...sensitiveCore], identity)
     ]);
     return {
         adopted: [...core, ...sensitiveCore, ...snsReady],
@@ -852,12 +875,13 @@ function summarizeExtraction({ date, adopted, rejected, needsReview }) {
     };
 }
 
-function extractMeetingPersonalKgCandidates({ date, meetings = [] }) {
+function extractMeetingPersonalKgCandidates({ date, meetings = [], identity }) {
+    const access = requirePersonalKgIdentity(identity);
     const adopted = [];
     const rejected = [];
     const needsReview = [];
     for (const meeting of meetings) {
-        const result = extractFromMeeting({ meeting, date });
+        const result = extractFromMeeting({ meeting, date, identity: access });
         adopted.push(...result.adopted);
         rejected.push(...result.rejected);
         needsReview.push(...result.needs_review);
@@ -907,14 +931,15 @@ function extractMeetingPersonalKgCandidates({ date, meetings = [] }) {
     };
 }
 
-async function extractMeetingPersonalKgCandidatesSemantic({ date, meetings = [], llmClient }) {
-    const ruleExtracted = extractMeetingPersonalKgCandidates({ date, meetings });
+async function extractMeetingPersonalKgCandidatesSemantic({ date, meetings = [], llmClient, identity }) {
+    const access = requirePersonalKgIdentity(identity);
+    const ruleExtracted = extractMeetingPersonalKgCandidates({ date, meetings, identity: access });
     const semanticCore = [];
     const semanticReview = [];
 
     for (const meeting of meetings) {
         try {
-            semanticCore.push(...await extractSemanticCoreFromMeeting({ meeting, date, llmClient }));
+            semanticCore.push(...await extractSemanticCoreFromMeeting({ meeting, date, llmClient, identity: access }));
         } catch (error) {
             semanticReview.push({
                 reason: 'semantic_extractor_error',
@@ -927,7 +952,7 @@ async function extractMeetingPersonalKgCandidatesSemantic({ date, meetings = [],
         }
     }
 
-    const semanticSnsReady = projectSnsReadyCandidatesFromCoreCandidates(semanticCore);
+    const semanticSnsReady = projectSnsReadyCandidatesFromCoreCandidates(semanticCore, access);
     const finalAdopted = dedupeBySourceEvent([
         ...ruleExtracted.adopted,
         ...semanticCore,
@@ -978,10 +1003,11 @@ async function extractMeetingPersonalKgCandidatesSemantic({ date, meetings = [],
     };
 }
 
-async function writeMeetingPersonalKgCandidates({ candidateService, extracted }) {
+async function writeMeetingPersonalKgCandidates({ candidateService, extracted, identity }) {
     if (!candidateService || typeof candidateService.createCandidate !== 'function') {
         throw new Error('candidateService with createCandidate required');
     }
+    const access = requirePersonalKgIdentity(identity);
     const summary = {
         date: extracted.date,
         source_system: SOURCE_SYSTEM,
@@ -996,6 +1022,7 @@ async function writeMeetingPersonalKgCandidates({ candidateService, extracted })
 
     for (const candidate of extracted.adopted) {
         try {
+            assertPersonalKgCandidateScope(candidate, access, {}, { requireActorMatch: true });
             const result = await candidateService.createCandidate(candidate);
             if (result.blocked) {
                 summary.blocked += 1;

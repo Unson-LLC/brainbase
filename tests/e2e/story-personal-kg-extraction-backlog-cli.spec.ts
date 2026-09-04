@@ -58,6 +58,9 @@ async function runBacklog(tempHome: string, args: string[] = ['--json']) {
     '2026-05-23',
     '--to',
     '2026-05-24',
+    '--owner=sato_keigo',
+    '--actor=sato_keigo',
+    '--organization=unson',
     ...args
   ], { cwd: process.cwd() });
 }

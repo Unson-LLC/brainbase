@@ -19,7 +19,7 @@ describe('oyasumi conversation Personal KG v2 identity boundary', () => {
                 per_graph_sato: 'sato_keigo',
                 per_graph_umeda: 'umeda_ryo'
             }),
-            BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'per_graph_umeda',
+            BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'umeda_ryo',
             BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID: 'per_graph_umeda',
             BRAINBASE_PERSONAL_KG_ORGANIZATION_ID: 'unson',
             BRAINBASE_PERSONAL_KG_PROJECT_CODE: 'back-office'
@@ -27,7 +27,7 @@ describe('oyasumi conversation Personal KG v2 identity boundary', () => {
 
         expect(access).toMatchObject({
             personId: 'umeda_ryo',
-            actorPersonId: 'per_graph_umeda',
+            actorPersonId: 'umeda_ryo',
             organizationId: 'unson',
             projectCode: 'back-office'
         });
@@ -49,17 +49,17 @@ describe('oyasumi conversation Personal KG v2 identity boundary', () => {
             counts: {}
         };
         const umeda = scopeConversationExtraction(extracted, {
-            personId: 'umeda_ryo', actorPersonId: 'per_graph_umeda',
+            personId: 'umeda_ryo', actorPersonId: 'umeda_ryo',
             organizationId: 'unson', projectCode: 'back-office'
         });
         const sato = scopeConversationExtraction(extracted, {
-            personId: 'sato_keigo', actorPersonId: 'per_graph_sato',
+            personId: 'sato_keigo', actorPersonId: 'sato_keigo',
             organizationId: 'unson', projectCode: 'brainbase'
         });
 
         expect(umeda.adopted[0]).toMatchObject({
             owner_person_id: 'umeda_ryo',
-            actor_person_id: 'per_graph_umeda',
+            actor_person_id: 'umeda_ryo',
             organization_id: 'unson',
             project_code: 'back-office',
             org_ids: ['unson'],

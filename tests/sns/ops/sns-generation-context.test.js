@@ -43,6 +43,7 @@ function candidateRepository() {
     const common = {
         owner_person_id: 'sato_keigo',
         actor_person_id: 'sato_keigo',
+        organization_id: 'unson',
         workspace: 'unson',
         project_code: 'brainbase',
         org_ids: ['unson'],
@@ -124,7 +125,7 @@ describe('SNS Generation Context', () => {
 
         const context = await service.buildContext({
             date: '2026-07-28',
-            viewer: { actor_person_id: 'sato_keigo', org_ids: ['unson'] }
+            viewer: { owner_person_id: 'sato_keigo', actor_person_id: 'sato_keigo', organization_id: 'unson', org_ids: ['unson'] }
         });
 
         expect(context.strategy).toMatchObject({
@@ -179,10 +180,76 @@ describe('SNS Generation Context', () => {
 
         const context = await service.buildContext({
             date: '2026-07-28',
-            viewer: { actor_person_id: 'sato_keigo', org_ids: ['unson'] }
+            viewer: { owner_person_id: 'sato_keigo', actor_person_id: 'sato_keigo', organization_id: 'unson', org_ids: ['unson'] }
         });
 
         expect(context.personal_kg.lifelog_entries).toEqual([]);
         expect(context.generation_policy.needs_more_data).toContain('本人の一次体験ソースなし。投稿候補は0件にする');
+    });
+
+    it('filters cross-person and cross-tenant Personal KG candidates from generation context', async () => {
+        const repository = candidateRepository();
+        const base = {
+            cognitive_type: 'insight',
+            actor_person_id: 'delegated_worker',
+            source_system: 'oyasumi-meeting-personal-kg',
+            workspace: 'unson',
+            project_code: 'brainbase',
+            project_ids: ['brainbase'],
+            visibility: 'owner',
+            sensitivity: 'internal',
+            redaction_status: 'none',
+            body: '自分の境界確認用の一次体験',
+            created_at: '2026-07-27T08:00:00.000Z',
+            permission_snapshot: {
+                oyasumi_meeting_personal_kg: {
+                    category: 'work_log',
+                    memory_layer: 'sns_ready',
+                    projection_allowed: true
+                }
+            }
+        };
+        repository.create({
+            ...base,
+            id: 'delegated_same_scope',
+            owner_person_id: 'sato_keigo',
+            organization_id: 'unson',
+            org_ids: ['unson'],
+            source_event_ids: ['event:delegated_same_scope']
+        });
+        repository.create({
+            ...base,
+            id: 'other_person',
+            owner_person_id: 'other_person',
+            organization_id: 'unson',
+            org_ids: ['unson'],
+            source_event_ids: ['event:other_person']
+        });
+        repository.create({
+            ...base,
+            id: 'other_tenant',
+            owner_person_id: 'sato_keigo',
+            organization_id: 'other_org',
+            org_ids: ['other_org'],
+            source_event_ids: ['event:other_tenant']
+        });
+        const service = new SnsGenerationContextService({
+            ledgerRepository: new InMemorySnsPostingLedgerRepository(),
+            candidateRepository: repository
+        });
+
+        const context = await service.buildContext({
+            date: '2026-07-28',
+            viewer: {
+                owner_person_id: 'sato_keigo',
+                actor_person_id: 'sato_keigo',
+                organization_id: 'unson'
+            }
+        });
+        const serialized = JSON.stringify(context.personal_kg);
+
+        expect(serialized).toContain('delegated_same_scope');
+        expect(serialized).not.toContain('other_person');
+        expect(serialized).not.toContain('other_tenant');
     });
 });

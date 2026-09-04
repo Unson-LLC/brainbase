@@ -15,7 +15,7 @@ import {
 import { PgCandidateRepository } from '../server/services/candidate-store/candidate-repository.js';
 import { PromotionGateService } from '../server/services/candidate-store/promotion-gate-service.js';
 import { writeMeetingPersonalKgCandidates } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
-import { canonicalPersonalKgOwner } from '../server/services/personal-kg-owner.js';
+import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
 
 const { Pool } = pg;
 const DEFAULT_TMP_ROOT = '/tmp';
@@ -38,32 +38,27 @@ function requiredIdentityValue(value, code) {
 }
 
 export function resolveConversationPersonalKgIdentity(argv, env = process.env) {
-    const rawOwner = flagValue(argv, ['--owner-person-id', '--owner'])
-        || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID;
-    const ownerPersonId = canonicalPersonalKgOwner(
-        requiredIdentityValue(rawOwner, 'personal_kg_owner_person_id_required'),
-        env
-    );
-    const actorPersonId = requiredIdentityValue(
-        flagValue(argv, ['--actor-person-id', '--actor'])
+    const identity = requirePersonalKgIdentity({
+        owner_person_id: flagValue(argv, ['--owner-person-id', '--owner'])
+            || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
+        actor_person_id: flagValue(argv, ['--actor-person-id', '--actor'])
             || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
-        'personal_kg_actor_person_id_required'
-    );
-    const organizationId = requiredIdentityValue(
-        flagValue(argv, ['--organization-id', '--organization'])
+        organization_id: flagValue(argv, ['--organization-id', '--organization'])
             || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
             || env.BRAINBASE_ORGANIZATION_ID,
-        'personal_kg_organization_id_required'
-    );
+        delegation_id: flagValue(argv, ['--delegation-id'])
+            || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID
+    }, env);
     const projectCode = requiredIdentityValue(
         flagValue(argv, ['--project-code', '--project'])
             || env.BRAINBASE_PERSONAL_KG_PROJECT_CODE,
         'personal_kg_project_code_required'
     );
     return {
-        personId: ownerPersonId,
-        organizationId,
-        actorPersonId,
+        ...identity,
+        personId: identity.owner_person_id,
+        organizationId: identity.organization_id,
+        actorPersonId: identity.actor_person_id,
         projectCodes: [projectCode],
         projectCode,
         role: 'member',
@@ -78,23 +73,25 @@ function scopedCandidateId(candidateId, ownerPersonId) {
 }
 
 export function scopeConversationExtraction(extracted, access) {
+    const identity = requirePersonalKgIdentity(access);
+    const projectCode = requiredIdentityValue(access?.projectCode, 'personal_kg_project_code_required');
     const adopted = (extracted.adopted || []).map((candidate) => ({
         ...candidate,
-        id: scopedCandidateId(candidate.id, access.personId),
-        owner_person_id: access.personId,
-        organization_id: access.organizationId,
-        actor_person_id: access.actorPersonId,
-        project_code: access.projectCode,
-        org_ids: [access.organizationId],
-        project_ids: [access.projectCode],
-        recommended_owner_person_id: access.personId,
+        id: scopedCandidateId(candidate.id, identity.owner_person_id),
+        owner_person_id: identity.owner_person_id,
+        organization_id: identity.organization_id,
+        actor_person_id: identity.actor_person_id,
+        project_code: projectCode,
+        org_ids: identity.org_ids,
+        project_ids: [projectCode],
+        recommended_owner_person_id: identity.owner_person_id,
         permission_snapshot: {
             ...(candidate.permission_snapshot || {}),
             personal_kg_identity: {
-                owner_person_id: access.personId,
-                actor_person_id: access.actorPersonId,
-                organization_id: access.organizationId,
-                project_code: access.projectCode,
+                owner_person_id: identity.owner_person_id,
+                actor_person_id: identity.actor_person_id,
+                organization_id: identity.organization_id,
+                project_code: projectCode,
                 source: 'authenticated_local_profile_required'
             }
         }
@@ -171,7 +168,7 @@ async function writeScopedCandidates(extracted, access, env = process.env) {
                 { access }
             )
         };
-        return await writeMeetingPersonalKgCandidates({ candidateService, extracted });
+        return await writeMeetingPersonalKgCandidates({ candidateService, extracted, identity: access });
     } finally {
         await pool.end();
     }
@@ -198,7 +195,7 @@ export async function runConversationPersonalKg(argv = process.argv.slice(2), en
     );
 
     const extracted = scopeConversationExtraction(
-        extractConversationPersonalKgCandidates({ date: args.date, messages }),
+        extractConversationPersonalKgCandidates({ date: args.date, messages, identity: access }),
         access
     );
     const extractionPath = path.join(outputDir, 'conversation-personal-kg-extraction.json');

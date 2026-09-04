@@ -328,6 +328,7 @@ function makeCandidate(item) {
         body: item.body,
         owner_person_id: OWNER_PERSON_ID,
         actor_person_id: OWNER_PERSON_ID,
+        organization_id: WORKSPACE,
         source_system: SOURCE_SYSTEM,
         source_event_ids: [sourceEventId],
         workspace: WORKSPACE,

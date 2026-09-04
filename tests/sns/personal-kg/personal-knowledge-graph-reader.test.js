@@ -98,6 +98,39 @@ describe('personal KG SNS seed reader', () => {
         expect(sources.map((s) => s.derived_from[0])).toEqual(['session:kg:ok']);
     });
 
+    it('S-2b: excludes a same-owner candidate from another organization', async () => {
+        const { service, reader } = makeReader();
+        await service.createCandidate(baseDraft({
+            cognitive_type: 'insight',
+            source_event_ids: ['session:kg:unson'],
+            organization_id: 'unson',
+            body: '気づいた: unson tenant'
+        }));
+        await service.createCandidate(baseDraft({
+            cognitive_type: 'insight',
+            source_event_ids: ['session:kg:other-org'],
+            organization_id: 'other-org',
+            org_ids: ['other-org'],
+            body: '気づいた: other tenant'
+        }));
+
+        const sources = await reader.listRecentEntities({
+            since: '2026-05-01T00:00:00.000Z',
+            viewer: viewer('sato_keigo')
+        });
+
+        expect(sources.map((source) => source.derived_from[0])).toEqual(['session:kg:unson']);
+        expect(sources[0].organization_id).toBe('unson');
+    });
+
+    it('S-2c: rejects a read without explicit actor and organization identity', async () => {
+        const { reader } = makeReader();
+
+        await expect(reader.listRecentEntities({
+            viewer: { owner_person_id: 'sato_keigo' }
+        })).rejects.toThrow('personal_kg_actor_person_id_required');
+    });
+
     it('S-3: owner-visible first-person memory can seed a public lifelog candidate', async () => {
         const { service, reader } = makeReader();
         await service.createCandidate(baseDraft({

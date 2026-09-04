@@ -12,6 +12,9 @@ import {
 
 const viewer = {
     sub: 'sato_keigo',
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
     role: 'ceo',
     workspace: 'unson',
     org_ids: ['unson'],
@@ -42,6 +45,7 @@ describe('Sato Keigo public lifelog policy seed', () => {
             ids.add(candidate.id);
             expect(candidate.source_system).toBe(SATO_KEIGO_SNS_FOUNDATION_SOURCE_SYSTEM);
             expect(candidate.owner_person_id).toBe('sato_keigo');
+            expect(candidate.organization_id).toBe('unson');
             expect(candidate.visibility).toBe('owner');
             expect(candidate.requires_approval).toBe(true);
             expect(candidate.permission_snapshot.seed.supersedes_seed_version).toBe('2026-05-12-sns-foundation-v1');

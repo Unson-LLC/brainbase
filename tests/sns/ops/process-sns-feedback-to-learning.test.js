@@ -4,6 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { InMemorySnsPostingLedgerRepository } from '../../../server/services/sns/posting-ledger-repository.js';
 import { maybeRecordFeedback, parseArgs, parseMetrics, validateArgs } from '../../../scripts/process-sns-feedback-to-learning.js';
 
+const ACCESS = {
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
+    org_ids: ['unson']
+};
+
 function makeLedgerPost(status = 'review_needed') {
     const repository = new InMemorySnsPostingLedgerRepository();
     repository.upsertReviewPack({
@@ -81,7 +88,7 @@ describe('process-sns-feedback-to-learning', () => {
                 '--learning-ready'
             ]),
             postedAt: '2026-05-14T03:00:00.000Z'
-        });
+        }, ACCESS);
 
         expect(result.post).toMatchObject({
             id: post.id,

@@ -70,6 +70,13 @@ const NCOM_WEBFP_TRANSCRIPT = [
     '佐藤圭吾: よく喋ってくれる2名くらいでいいかなっていうのがこの間分かった感じがあるので、勉強会全体相談というより、シンプルにヒアリングさせてくださいっていうとこから入ればいいかなって思いました。'
 ].join('\n');
 
+const IDENTITY = {
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
+    org_ids: ['unson']
+};
+
 function sampleMeetings() {
     return [
         {
@@ -97,7 +104,8 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
     it('S-1/INV-2 extracts personal core details and rejects them from SNS projection', () => {
         const result = extractMeetingPersonalKgCandidates({
             date: '2026-05-15',
-            meetings: sampleMeetings()
+            meetings: sampleMeetings(),
+            identity: IDENTITY
         });
         const coreCandidates = result.adopted.filter((candidate) => (
             candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'personal_kg_core'
@@ -146,7 +154,8 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
     it('S-1/INV-2 extracts transcript-derived personal_kg_core before SNS projection', () => {
         const result = extractMeetingPersonalKgCandidates({
             date: '2026-05-15',
-            meetings: sampleMeetings()
+            meetings: sampleMeetings(),
+            identity: IDENTITY
         });
 
         const coreCandidates = result.adopted.filter((candidate) => (
@@ -185,7 +194,8 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
                 content: '# empty',
                 transcript_path: 'meetings/transcripts/2026-05-15_empty.txt',
                 transcript_content: '雑談のみで、判断基準として残す内容はない。'
-            }]
+            }],
+            identity: IDENTITY
         });
 
         expect(result.agent_reports).toEqual(expect.arrayContaining([
@@ -209,7 +219,8 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
                 content: NCOM_WEBFP_MINUTES,
                 transcript_path: 'meetings/transcripts/2026-05-22_weekly-progress-meeting-webfp.txt',
                 transcript_content: NCOM_WEBFP_TRANSCRIPT
-            }]
+            }],
+            identity: IDENTITY
         });
 
         const coreCandidates = result.adopted.filter((candidate) => (
@@ -245,17 +256,57 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         const candidateService = new PromotionGateService({ repository });
         const extracted = extractMeetingPersonalKgCandidates({
             date: '2026-05-15',
-            meetings: sampleMeetings()
+            meetings: sampleMeetings(),
+            identity: IDENTITY
         });
 
-        const first = await writeMeetingPersonalKgCandidates({ candidateService, extracted });
-        const second = await writeMeetingPersonalKgCandidates({ candidateService, extracted });
+        const first = await writeMeetingPersonalKgCandidates({ candidateService, extracted, identity: IDENTITY });
+        const second = await writeMeetingPersonalKgCandidates({ candidateService, extracted, identity: IDENTITY });
 
         expect(first.inserted).toBeGreaterThan(0);
         expect(first.skipped).toBe(0);
         expect(second.inserted).toBe(0);
         expect(second.skipped).toBe(first.inserted);
         expect(repository.list({ owner_person_id: 'sato_keigo' })).toHaveLength(first.inserted);
+    });
+
+    it('rejects cross-person and cross-tenant candidates before candidate-store writes', async () => {
+        const extracted = extractMeetingPersonalKgCandidates({
+            date: '2026-05-15',
+            meetings: sampleMeetings(),
+            identity: IDENTITY
+        });
+        let writes = 0;
+        const candidateService = {
+            async createCandidate() {
+                writes += 1;
+                return { candidate: {} };
+            }
+        };
+        const crossPerson = {
+            ...extracted,
+            adopted: [{ ...extracted.adopted[0], owner_person_id: 'other_person' }]
+        };
+        const crossTenant = {
+            ...extracted,
+            adopted: [{
+                ...extracted.adopted[0],
+                organization_id: 'other_org',
+                org_ids: ['other_org']
+            }]
+        };
+
+        await expect(writeMeetingPersonalKgCandidates({
+            candidateService,
+            extracted: crossPerson,
+            identity: IDENTITY
+        })).rejects.toThrow('personal_kg_candidate_owner_mismatch');
+        await expect(writeMeetingPersonalKgCandidates({
+            candidateService,
+            extracted: crossTenant,
+            identity: IDENTITY
+        })).rejects.toThrow('personal_kg_candidate_organization_mismatch');
+        expect(writes).toBe(0);
     });
 
     it('S-3 keeps meeting-derived business claims out of public lifelog entries', async () => {
@@ -267,6 +318,7 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
                 cognitive_type: 'claim',
                 owner_person_id: 'sato_keigo',
                 actor_person_id: 'sato_keigo',
+                organization_id: 'unson',
                 source_system: 'brainbase-personal-kg-seed',
                 source_event_ids: [`seed:${index}`],
                 workspace: 'github',
@@ -284,12 +336,13 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         }
         const extracted = extractMeetingPersonalKgCandidates({
             date: '2026-05-15',
-            meetings: sampleMeetings()
+            meetings: sampleMeetings(),
+            identity: IDENTITY
         });
         const snsReadyCount = extracted.adopted.filter((candidate) => (
             candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'sns_ready'
         )).length;
-        await writeMeetingPersonalKgCandidates({ candidateService, extracted });
+        await writeMeetingPersonalKgCandidates({ candidateService, extracted, identity: IDENTITY });
 
         const contextService = new SnsGenerationContextService({
             ledgerRepository: new InMemorySnsPostingLedgerRepository({ initialPosts: [] }),
@@ -298,7 +351,7 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
 
         const context = await contextService.buildContext({
             date: '2026-05-16',
-            viewer: { actor_person_id: 'sato_keigo', org_ids: ['unson', 'salestailor'] }
+            viewer: { ...IDENTITY, org_ids: ['unson', 'salestailor'] }
         });
 
         expect(context.personal_kg.candidate_sources).toEqual(expect.arrayContaining([
@@ -312,14 +365,15 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
     it('projects owner-only core into redacted sns_ready candidate without leaking details', () => {
         const extracted = extractMeetingPersonalKgCandidates({
             date: '2026-05-15',
-            meetings: sampleMeetings()
+            meetings: sampleMeetings(),
+            identity: IDENTITY
         });
         const core = extracted.adopted.find((candidate) => (
             candidate.permission_snapshot.oyasumi_meeting_personal_kg.memory_layer === 'personal_kg_core'
             && candidate.permission_snapshot.oyasumi_meeting_personal_kg.rule_id === 'ai-sales-agency-confidential-business-context'
         ));
 
-        const projected = projectSnsReadyCandidateFromCore(core);
+        const projected = projectSnsReadyCandidateFromCore(core, IDENTITY);
 
         expect(projected).toEqual(expect.objectContaining({
             source_system: SOURCE_SYSTEM,
@@ -363,7 +417,7 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
             evidence_ids: []
         };
 
-        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+        expect(projectSnsReadyCandidateFromCore(core, IDENTITY)).toBeNull();
     });
 
     it('does not project semantic confidential core details into sns_ready', () => {
@@ -393,7 +447,7 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
             evidence_ids: []
         };
 
-        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+        expect(projectSnsReadyCandidateFromCore(core, IDENTITY)).toBeNull();
     });
 
     it('does not project semantic subsidy or financing details into sns_ready even when classified internal', () => {
@@ -423,7 +477,7 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
             evidence_ids: []
         };
 
-        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+        expect(projectSnsReadyCandidateFromCore(core, IDENTITY)).toBeNull();
     });
 
     it('does not project semantic security incident details into sns_ready', () => {
@@ -453,7 +507,7 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
             evidence_ids: []
         };
 
-        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+        expect(projectSnsReadyCandidateFromCore(core, IDENTITY)).toBeNull();
     });
 
     it('does not project semantic onsite security access details into sns_ready', () => {
@@ -483,7 +537,7 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
             evidence_ids: []
         };
 
-        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+        expect(projectSnsReadyCandidateFromCore(core, IDENTITY)).toBeNull();
     });
 
     it('does not project semantic vulnerability assessment vendor details into sns_ready', () => {
@@ -513,13 +567,14 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
             evidence_ids: []
         };
 
-        expect(projectSnsReadyCandidateFromCore(core)).toBeNull();
+        expect(projectSnsReadyCandidateFromCore(core, IDENTITY)).toBeNull();
     });
 
     it('extracts semantic personal_kg_core candidates through an injected LLM client', async () => {
         const extracted = await extractMeetingPersonalKgCandidatesSemantic({
             date: '2026-05-15',
             meetings: sampleMeetings(),
+            identity: IDENTITY,
             llmClient: {
                 async extractPersonalKgCandidates() {
                     return {
