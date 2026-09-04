@@ -47,7 +47,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - 並列な候補生成と候補採用の制御を分離し、探索速度を不要に落とさない。
 - 根拠のない数値閾値、対象以上に重いガバナンス、判断と強制の混同、内部高度化だけを成果とみなす判断を防ぐ。
 - 選択された判断経路、各active nodeの実行指示、適用基準、後続capability、その入力、未確認事項、host binding状態を監査可能なreceiptとして返す。
-- model生成前にHostが1つの未解決judgment episodeを開始し、Codex modelが最初にHostの`turn_ref`と意味解釈を`brainbase_resolve_turn`へ渡してTurnContractを確定する。実際に完了した後続のdirect `mcp__brainbase__*` callも`PostToolUse`で0..N件記録する。同一turnの並列callはHostが原子的にjournal commit順へ直列化する。契約で定めた完了lifecycle eventは成功した`resolve_turn`証拠とTurnContractの必須capability、autonomy、continuation、business-body evidenceを検証し、complete final receiptだけを1件確定したうえで、保存済み`🧠`行と全`📚`/`⚠️`行を含む判断レシートをHost自身の`systemMessage`として一回表示する。通常経路は`Stop`で回答本文も束縛する。差し戻し済みruntime 2.4 continuationは最後の正常な`completed` state `PostToolUse`を正規の確定境界とし、後続Stopはimmutable finalを再生するだけとする。モデル本文はこの監査面を複製しない。正常episodeの証拠不足は最初の修復可能なStopで`decision:block`となり、なお不完全なactive再Stopはcompleteへ偽装せず`audit_degraded`へ有限収束する。episode開始event自体がないorphan Stopも完全監査へ偽装せず、警告と本文保持を1回だけ要求した後、非finalの`audit_degraded` receiptへ有限収束する。identity・integrity矛盾は従来どおり非zeroで失敗する。TurnContract上で追加参照が必須でなく、判断契約以外のBrainbase callが0件なら、その事実をowner監査行として明示する。local file readや別connectorは現行event matcherの対象外とする。
+- model生成前にHostが1つの未解決judgment episodeを開始し、Codex modelが最初に`brainbase_resolve_turn`でTurnContractを確定する。`PostToolUse`は実際のtoolと状態eventをjournalへ記録するだけでfinalを確定しない。最終assistant回答は保存済み`🧠`行と全`📚`/`⚠️`行からなる完全な監査ブロックで始める。`Stop`だけがevent集合、監査行の順序・重複、業務本文を検証し、合格時に`owner_audit_source=assistant_answer`と正確な回答digestを持つfinal receiptを確定する。最初の監査不備は正確なブロックを示して一度だけ差し戻し、再度不完全なら`owner_audit_complete=false`の`audit_degraded`へ有限収束する。`systemMessage`やjournal保存だけを表示成功にしない。
 - initial/final receiptは判断と監査の証拠であり、writeや外部作用をauthorizeしない。既存の権限、承認、executor境界を置き換えない。
 - project bindingは判断文脈であり、action authorityではない。project access不能時は該当project policyだけを適用対象から外し、一般判断を停止しない。
 - 現行episode lifecycle integrationはCodex Host hookだけを対象とする。Claude Codeは同じ責務分割を適用できる将来のHost adapter候補だが、現行対応として扱わない。
@@ -71,14 +71,14 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - [ ] personal judgment policyは認証されたownerだけへ返り、非ownerとowner不明のservice credentialへ漏れない。
 - [ ] 選択された部分グラフはDAGであり、循環を含まず、request bodyの配列順を保存したexact digestでbindingし、意味的に同じ正規化判断入力と同じmanifest digestからはrequest digestに依存しない同じplan digestを得る。
 - [ ] Host専用APIを再利用しつつ、MCP runtimeは現行Codex modelへ`brainbase_resolve_turn`を公開する。認証、project scope、既存機能の互換性を維持する。
-- [ ] 現行Codex modelは採用済みinitial routeだけを実行し、途中結果を踏まえてBrainbase knowledge/retrieval toolを0..N回呼び、検索queryを必要なだけ組み替える。Knowledge Resolverは正本候補を決定的に選ぶだけで、実際の取得は各retrieval toolが担う。`Stop`は回答本文とは別に、保存済みowner判断行と全tool監査行をHost自身の`systemMessage`としてjournal commit順・記録済みevent回数どおり描画する。
+- [ ] 現行Codex modelは採用済みinitial routeだけを実行し、途中結果を踏まえてBrainbase knowledge/retrieval toolを0..N回呼び、検索queryを必要なだけ組み替える。Knowledge Resolverは正本候補を決定的に選ぶだけで、実際の取得は各retrieval toolが担う。最終assistant回答は、保存済みowner判断行と全tool監査行からなる完全な監査ブロックで始め、`Stop`がjournal commit順・記録済みevent回数との一致を検証する。`systemMessage`単独ではowner表示成功にしない。
 - [ ] Claude Codeは将来のHost adapter候補として明記し、現行episode lifecycle hook integrationの対応範囲に含めない。
 - [ ] capability YAML、runbook、README index、agent entry Skill/always-loaded instructionが実装境界と一致する。
 - [ ] 根拠のない固定閾値を追加せず、分類、reconciliation、適用理由を監査できる。
 
 ## Release operation
 
-- `release_note`: Codexのjudgment lifecycle Hostは、現在のHook trustを`hooks/list`で検査し、正常episodeの監査不足active再Stopをfinalなしの明示failureにする。episode開始eventがないorphan Stopは、完全監査へ偽装せず`audit_degraded`へ有限収束し、長時間taskへ新規task作成を要求しない。Resolverの公開request schemaと「内部Resolver LLMなし」の境界は変えない。
+- `release_note`: Codexのjudgment lifecycle Hostは、現在のHook trustを`hooks/list`で検査し、正常episodeの最初の監査不足Stopを差し戻す。不完全なactive再Stopとepisode開始eventがないorphan Stopは、完全監査へ偽装せず`audit_degraded`へ有限収束し、長時間taskへ新規task作成を要求しない。Resolverの公開request schemaと「内部Resolver LLMなし」の境界は変えない。
 - `rollout_plan`: merge SHAを正本としてglobal Hook checkout、local `:31013`、persistent MCP runtime、Lightsail `brainbase-ssot.service`の4面を同じSHAへ揃える。次にCodex Hostの`hooks/list`をreadiness checkerで照会し、`trust_required`ならownerが`/hooks`で承認する。承認後に作成したfresh Codex taskで実動確認する。
 - `observability_evidence`: local/public `/api/version`のtarget SHAと`dirty=false`、health、MCP runtime check、`ready_for_fresh_task`、承認後に作成したfresh transcript、actual Brainbase event、`owner_audit_complete=true`、final answer digest一致を成功条件とし、その時だけ`proven_active`とする。
 - `rollback_instruction`: 変更前のHook fileと4面のSHAを保存する。失敗時は`docs/brainbase-capabilities/runbooks/judgment-resolve.md#rollback`の順序で、global Hookは独立したclean checkoutのまま保ち、local UI/MCPは共有disposable runtimeを記録済みcommit SHAへpinして復元し、Lightsailを別面として復元し、最後に元の`hooks.json`を復元する。dirtyな正本source checkoutはswitch/reset/clean/stashせず、journalも削除しない。

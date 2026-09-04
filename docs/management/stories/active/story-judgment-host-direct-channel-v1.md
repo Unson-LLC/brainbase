@@ -36,7 +36,7 @@ Codex Desktopで日々作業するownerとして、Brainbase Judgment Resolver h
 
 - [x] AC-001（A）: UserPromptSubmitはturn_inputをjournalの`<sessionRef>/<turnRef>.turn-input.json`へ保存し、model contextには`turn_ref: "<sessionRef>/<turnRef>"`という参照だけを渡す。turn_inputのJSON本文やファイルpathはmodel contextへ渡さない。
 - [x] AC-002（A）: `brainbase_resolve_turn`は`turn_ref`（推奨）と3つのlegacy形式（`{"turn_ref": ...}`、`{"turn_input_path": ...}`、turn_inputそのもの）を受理し、serverがjournal root配下のファイルパスを検証してから自分で読む。
-- [x] AC-003（B）: Stopは監査ブロック（保存済み`🧠`行と全`📚`/`⚠️`/`🔁`/`🛠️`行）を自分でsystemMessageとして毎回描画する。モデルが回答本文へ監査行を書いても、Hostはそれを検証も要求もしない。
+- [x] AC-003（B、後続Storyで置換）: 当初はStopの`systemMessage`をowner表示面とした。Codex Desktopで表示されないことが実証されたため、`story-judgment-owner-audit-visibility-v1`がこの部分だけを置換し、最終assistant回答先頭の完全な監査ブロックをStopが検証する。
 - [x] AC-004（C）: `autonomyResolution`は分類（risk/action_kind）だけからは自動escalateしない。escalateはneeds_classification、needs_policy_resolution、または適用policyの`human_approval`ルールが分類に一致する場合、の3つだけ。
 - [x] AC-005（C）: `config/judgment-runtime-manifest.json`は真に人間承認が必要な操作（本番デプロイ・第三者への外部送信・共有データ削除・課金）にだけ`human_approval`を付けたpolicyを持ち、git push/merge/CI/再起動/ローカル反映/自社Slack投稿には付けない。
 - [x] AC-006（C）: receiptは一致したpolicy idを`autonomy_policy_ids`へ記録し、MCP client・Hostの契約検証は分類からの再計算をやめて形（enum、reason⇔decision、allowlist、policy_ids配列）だけを検証する。

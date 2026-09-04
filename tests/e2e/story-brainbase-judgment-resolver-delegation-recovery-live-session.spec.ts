@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import test from 'node:test';
-import { verifyOwnerVisibleSource } from '../../scripts/lib/codex-owner-visible-readback.mjs';
 
 const CODEX_HOME = process.env.CODEX_HOME || join(homedir(), '.codex');
 const JOURNAL_ROOT = join(CODEX_HOME, 'var', 'judgment-resolver');
@@ -13,9 +12,6 @@ const EPISODE_PATH = process.env.BRAINBASE_JUDGMENT_DELEGATION_E2E_EPISODE_PATH 
 const TRANSCRIPT_PATH = process.env.BRAINBASE_JUDGMENT_DELEGATION_E2E_TRANSCRIPT_PATH || '';
 const EXPECTED_HEAD = process.env.BRAINBASE_JUDGMENT_DELEGATION_E2E_EXPECTED_HEAD || '';
 const EXPECTED_SOURCE_THREAD_ID = process.env.BRAINBASE_JUDGMENT_DELEGATION_E2E_SOURCE_THREAD_ID || '';
-const OWNER_VISIBLE_PATH = process.env.BRAINBASE_JUDGMENT_DELEGATION_E2E_OWNER_VISIBLE_PATH || '';
-const OWNER_VISIBLE_ROOT = join(JOURNAL_ROOT, 'owner-visible-readback');
-const OWNER_VISIBLE_SCHEMA = 'brainbase-owner-visible-readback-v1';
 
 function readJson(path: string) {
     return JSON.parse(readFileSync(path, 'utf8'));
@@ -40,26 +36,6 @@ function boundPath(root: string, path: string, suffix: string) {
     return child !== '' && !child.startsWith('..') && !isAbsolute(child);
 }
 
-function ownerVisiblePathIsBound(path: string) {
-    if (!path || !isAbsolute(path) || !existsSync(path)) return false;
-    try {
-        const canonicalRoot = realpathSync(OWNER_VISIBLE_ROOT);
-        const canonicalPath = realpathSync(path);
-        if (!statSync(canonicalPath).isFile()) return false;
-        const child = relative(canonicalRoot, canonicalPath);
-        return child !== ''
-            && !child.startsWith('..')
-            && !isAbsolute(child)
-            && canonicalPath.endsWith('.json');
-    } catch {
-        return false;
-    }
-}
-
-function exactSha256(value: string) {
-    return `sha256:${createHash('sha256').update(value, 'utf8').digest('hex')}`;
-}
-
 function sessionMetaIdentity(entries: Array<Record<string, any>>) {
     const meta = entries.find((entry) => entry?.type === 'session_meta');
     const taskId = meta?.payload?.id;
@@ -69,94 +45,6 @@ function sessionMetaIdentity(entries: Array<Record<string, any>>) {
     assert.equal(typeof createdAt, 'string', 'session_meta must contain a task creation timestamp');
     assert.ok(Number.isFinite(Date.parse(createdAt)), 'session_meta task creation timestamp must be valid');
     return { taskId, createdAt };
-}
-
-function assertOwnerVisibleReadback({
-    path,
-    taskId,
-    turnId,
-    journalEventFingerprint,
-    capturedAfter,
-    expectedLines
-}: {
-    path: string;
-    taskId: string;
-    turnId: string;
-    journalEventFingerprint: string;
-    capturedAfter: string;
-    expectedLines: string[];
-}) {
-    assert.ok(
-        ownerVisiblePathIsBound(path),
-        `Owner-visible readback must be one JSON artifact under ${OWNER_VISIBLE_ROOT}`
-    );
-    const artifact = readJson(realpathSync(path));
-    assert.equal(artifact.schema_version, OWNER_VISIBLE_SCHEMA);
-    assert.equal(artifact.source, 'codex_event_stream', 'Owner-visible readback must come from the Codex event stream');
-    verifyOwnerVisibleSource(artifact);
-    assert.equal(artifact.task_id, taskId, 'Owner-visible readback must bind session_meta.payload.id');
-    assert.equal(artifact.turn_id, turnId, 'Owner-visible readback must bind the current judgment turn');
-    assert.equal(typeof artifact.event_id, 'string', 'Owner-visible readback must retain the source event identity');
-    assert.ok(artifact.event_id.trim(), 'Owner-visible source event identity must not be empty');
-    assert.ok(artifact.event_id.length <= 256, 'Owner-visible source event identity must be bounded');
-    assert.doesNotMatch(artifact.event_id, /[\r\n]/u, 'Owner-visible source event identity must be one line');
-    assert.equal(
-        typeof artifact.final_event_fingerprint,
-        'string',
-        'Owner-visible readback must retain the final journal event fingerprint'
-    );
-    assert.match(
-        artifact.final_event_fingerprint,
-        /^[0-9a-f]{64}$/u,
-        'Owner-visible final_event_fingerprint must be a journal event fingerprint'
-    );
-    assert.equal(
-        artifact.final_event_fingerprint,
-        journalEventFingerprint,
-        'Owner-visible readback must bind the final journal event fingerprint'
-    );
-    assert.notEqual(
-        artifact.event_id,
-        artifact.final_event_fingerprint,
-        'Owner-visible event_id is the source identity, not a copied journal fingerprint'
-    );
-    assert.equal(typeof artifact.captured_at, 'string', 'Owner-visible readback must record captured_at');
-    const capturedAt = Date.parse(artifact.captured_at);
-    const taskCreatedAt = Date.parse(capturedAfter);
-    assert.ok(Number.isFinite(capturedAt), 'Owner-visible captured_at must be a valid timestamp');
-    assert.ok(Number.isFinite(taskCreatedAt), 'Task creation timestamp must be valid before owner readback');
-    assert.ok(capturedAt >= taskCreatedAt, 'Owner-visible readback must be captured after the bound task started');
-    assert.ok(capturedAt <= Date.now() + 5 * 60 * 1000, 'Owner-visible readback must not be from the future');
-    assert.equal(typeof artifact.system_message, 'string', 'Owner-visible readback must retain exact system_message');
-    assert.equal(artifact.occurrences, 1, 'Owner-visible system_message must occur exactly once');
-    assert.match(artifact.system_message_digest, /^sha256:[0-9a-f]{64}$/u);
-    assert.equal(
-        artifact.system_message_digest,
-        exactSha256(artifact.system_message),
-        'Owner-visible digest must be sha256 of the exact system_message text'
-    );
-    assert.ok(Array.isArray(expectedLines) && expectedLines.length > 0, 'Expected owner audit lines must be explicit');
-    const systemLines = artifact.system_message.split('\n');
-    let previousIndex = -1;
-    for (const [ordinal, line] of expectedLines.entries()) {
-        const index = systemLines.indexOf(line, previousIndex + 1);
-        assert.ok(index >= 0, `Expected owner audit line ${ordinal + 1} is missing or out of order: ${line}`);
-        previousIndex = index;
-    }
-    for (const line of new Set(expectedLines)) {
-        assert.equal(
-            systemLines.filter((candidate: string) => candidate === line).length,
-            expectedLines.filter((candidate) => candidate === line).length,
-            `Expected owner audit line must have the Host event multiplicity exactly once: ${line}`
-        );
-    }
-    assert.equal(
-        artifact.system_message.match(/Brainbase判断レシート/gu)?.length ?? 0,
-        1,
-        'Delegated owner-visible readback must contain Brainbase判断レシート exactly once'
-    );
-    const receiptIndex = systemLines.findIndex((line: string) => line.includes('Brainbase判断レシート'));
-    assert.ok(receiptIndex > previousIndex, 'Judgment receipt must follow the owner audit block');
 }
 
 function transcriptEntries() {
@@ -201,7 +89,7 @@ test('delegated fresh task proves post-generation recovery without impersonating
     assert.equal(episode.initial_route_receipt?.status, 'resolved');
 
     const entries = transcriptEntries();
-    const taskIdentity = sessionMetaIdentity(entries);
+    sessionMetaIdentity(entries);
     const delegationOutputs = entries.flatMap((entry) => {
         const payload = entry?.type === 'response_item' ? entry.payload : null;
         const metadata = payload ? turnMetadata(payload) : {};
@@ -243,14 +131,10 @@ test('delegated fresh task proves post-generation recovery without impersonating
     assert.equal(final.value_proof_digest, digest(valueProof));
     assert.equal(
         final.owner_audit_source,
-        'post_tool_use_system_message',
-        'A delegated continuation must finalize at its last completed state PostToolUse event'
+        'assistant_answer',
+        'A delegated continuation must finalize only after Stop verifies the assistant answer'
     );
-    assert.equal(
-        final.answer_digest,
-        null,
-        'PostToolUse finalization must not claim an unavailable model-answer digest'
-    );
+    assert.match(final.answer_digest, /^[0-9a-f]{64}$/u);
     assert.equal(final.stop_state?.status, 'completed');
     assert.equal(final.stop_state?.source, 'journal');
     assert.equal(final.autonomy_continuation?.status, 'completed');
@@ -277,27 +161,15 @@ test('delegated fresh task proves post-generation recovery without impersonating
 
     const rendered = finalAnswer(entries, turnId);
     const expectedAudit = [episode.owner_audit.display_line, ...events.flatMap((event) => event.display_line ? [event.display_line] : [])];
-    assertOwnerVisibleReadback({
-        path: OWNER_VISIBLE_PATH,
-        taskId: taskIdentity.taskId,
-        turnId,
-        journalEventFingerprint: events.at(-1)?.event_fingerprint || '',
-        capturedAfter: taskIdentity.createdAt,
-        expectedLines: expectedAudit
-    });
     const renderedLines = rendered.replaceAll('\r\n', '\n').split('\n');
-    for (const line of new Set(expectedAudit)) {
+    for (const [index, line] of expectedAudit.entries()) {
+        assert.equal(renderedLines[index], line, `Assistant answer must start with the journal audit: ${line}`);
         assert.equal(
             renderedLines.filter((candidate) => candidate === line).length,
-            0,
-            `The Host lifecycle systemMessage owns the delegated audit surface; the assistant body must not duplicate it: ${line}`
+            1,
+            `Assistant answer must contain each delegated audit line exactly once: ${line}`
         );
     }
-    assert.equal(
-        rendered.match(/Brainbase判断レシート/gu)?.length ?? 0,
-        0,
-        'The Host-rendered judgment receipt must not be duplicated in the assistant body'
-    );
     assert.equal(
         final.autonomy_continuation?.interruption_candidate?.resolution,
         'continued_without_human',

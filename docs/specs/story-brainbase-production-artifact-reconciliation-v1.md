@@ -38,10 +38,10 @@ merge後の配備receiptは、Global Codex lifecycle Hook、canonical local UI/A
 
 ## CL-005 fresh taskによる実動確認
 
-4実行面をmerge SHAへ揃えた後に2つの新しいCodexタスクを作成する。通常taskでJudgment episodeと完全なowner auditを実証して`judgment_lifecycle_active`とする。別の委譲taskで、実際の中断候補、Brainbase tool event、権限内の継続、実行成果物、正本読戻し、value proof、complete final、確定したLifecycle eventに一致する`owner_audit_source`（`stop_hook_system_message`または`post_tool_use_system_message`）、Codex UIまたはevent stream上のユーザー向け判断レシートを同一turnへ束縛する。assistant本文への監査行複製や不安定なJSONL transcript表現をHook表示の代替証拠にしない。両taskの証拠が一意に対応した場合だけ`proven_active`とする。既存タスク、readiness、synthetic entrypoint testは代替にしない。
+4実行面をmerge SHAへ揃えた後に2つの新しいCodexタスクを作成する。通常taskと委譲taskのそれぞれで、実Brainbase event、complete final、`owner_audit_source=assistant_answer`、正確な`answer_digest`、最終assistant回答先頭の完全な監査ブロックを同一turnへ束縛する。Hook `systemMessage`やjournal保存だけを表示証拠にしない。両taskの証拠が一意に対応した場合だけ`proven_active`とする。
 
 - Story: AC-002, AC-003, AC-007, AC-008
-- Regression: `tests/integration/judgment-resolver-host-entrypoint.test.js`で`create_thread`由来の委任入力、同一turnのvalue proof、complete final、Stop `systemMessage`として返す`Brainbase判断レシート`のexact-once表示を固定する
+- Regression: `tests/integration/judgment-resolver-host-entrypoint.test.js`で`create_thread`由来の委任入力、同一turnのvalue proof、最終assistant回答先頭の`Brainbase判断レシート`、Stopによるexact-once検証、complete finalを固定する
 - Production acceptance: 通常taskを`tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts`で検証し、別の委譲taskを`tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts`で検証する。各fresh Codex task id、exact merge SHA、episode/event/value-proof/final paths、assistant本文を対応するturnで読み戻し、Stop表示はCodex UIまたはevent streamで別途読み戻す。synthetic regressionだけでは`proven_active`にしない
 - Normal live-session E2E: `tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts`は通常taskの取得監査と`judgment_lifecycle_active`までを証明し、value proofと判断レシートのproduction acceptanceには数えない
 

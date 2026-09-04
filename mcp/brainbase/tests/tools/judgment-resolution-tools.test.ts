@@ -110,6 +110,15 @@ function dependencies(fetchImpl: typeof globalThis.fetch, configuredProjectCodes
 }
 
 describe('judgment resolver Host bridge', () => {
+  it('production dispatcher uses the owner token instead of the service token', async () => {
+    serverTesting.setTokenManager({ getToken: async () => 'service-token' });
+    serverTesting.setOwnerTokenManager({ getToken: async () => 'owner-token' });
+
+    const dependencies = serverTesting.createDefaultJudgmentResolutionDependencies();
+
+    assert.equal(await dependencies.tokenManager.getToken(), 'owner-token');
+  });
+
   it('resolve_turnをmodel-callable toolとして公開しmodel解釈を原文へ結合する', async () => {
     assert.deepEqual(judgmentResolutionTools.map((tool) => tool.name), ['brainbase_resolve_turn']);
     assert.equal(serverTesting.tools.some((tool) => tool.name === 'brainbase_resolve_turn'), true);

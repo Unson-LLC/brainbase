@@ -125,7 +125,7 @@
     {
       "id": "C-005",
       "type": "invariant",
-      "statement": "proven_activeは、通常のfresh taskでjudgment_lifecycle_activeを実証し、別のfresh taskで同一turnのepisode、実Brainbase tool event、実際の中断候補、権限内の継続、実行成果物、正本読戻し、value proof、complete final、owner_audit_source=stop_hook_system_message、Codex UIまたはevent stream上のユーザー向け判断レシート一回表示がevent IDとdigestで一意に対応する場合だけ成立する。assistant本文への監査行複製や不安定なJSONL transcript表現をHook表示の代替証拠にしない。",
+      "statement": "proven_activeは、通常のfresh taskでjudgment_lifecycle_activeを実証し、別のfresh taskで同一turnのepisode、実Brainbase tool event、実際の中断候補、権限内の継続、実行成果物、正本読戻し、value proof、complete final、owner_audit_source=assistant_answer、正確なanswer_digest、最終assistant回答先頭の判断レシート一回表示がevent IDとdigestで一意に対応する場合だけ成立する。Hook systemMessageやjournal保存だけをユーザー向け表示の代替証拠にしない。",
       "origin": {
         "story_refs": [
           {

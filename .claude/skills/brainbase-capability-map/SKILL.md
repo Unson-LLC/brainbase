@@ -39,7 +39,7 @@ Pick the matching capability_id then **Read the yml** before reasoning. Reading 
 | `development.workflow` | `development.workflow.yml` | Git workflow, commit/PR shape |
 | `git.protected-push` | `git.protected-push.yml` | direct push / force push to develop or main |
 | `graph.ssot` | `graph.ssot.yml` | canonical person/org/customer/decision/story lookup before writing facts |
-| `judgment.resolve` | `judgment.resolve.yml` | Host opens one canonical-context judgment episode before model generation and records 0..N actual Brainbase calls with `PostToolUse`. Runtime 2.3 finalizes at `Stop`; runtime 2.4 may finalize a previously rejected continuation on completed-state `PostToolUse` when Desktop omits the next `Stop` |
+| `judgment.resolve` | `judgment.resolve.yml` | Host opens one canonical-context judgment episode before model generation and records 0..N actual Brainbase calls with `PostToolUse`; `Stop` alone verifies the final assistant answer's audit prefix and finalizes the receipt |
 | `knowledge.resolve` | `knowledge.resolve.yml` | choose Graph / owning repo / team Drive / personal KG / workspace before searching |
 | `onboarding.connected-world` | `onboarding.connected-world.yml` | connector-first onboarding / MCP・Drive・Gmail・local folder / first-value answer |
 | `personal-kg` | `personal-kg.yml` | owner-visible cognitive memory (思想/実績/判断基準) for `/oyasumi`, SNS generation, morning brief; in-progress |

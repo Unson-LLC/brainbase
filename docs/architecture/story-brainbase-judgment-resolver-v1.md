@@ -21,7 +21,7 @@ The purpose is to apply Brainbase judgment to every answer and make actual knowl
 2. The Host owns canonical `conversation_context`; the preferred model path calls `brainbase_resolve_turn` once with only the Host-issued `turn_ref` and its semantic interpretation, then Resolver reads the unchanged canonical input from the Host journal and selects the initial route from the runtime manifest. During cached-schema migration the server also accepts legacy `turn_input.turn_ref`, `turn_input_path`, and full `turn_input` forms; these are compatibility inputs, not alternate canonical ownership.
 3. One turn is one judgment episode, not one Resolver attempt and not one Brainbase call.
 4. The model calls Judgment Resolver exactly once for the current turn, then may call Brainbase knowledge/retrieval tools 0..N times as results create new questions.
-5. `PostToolUse` records actual Brainbase outcomes in an atomic journal-commit order; the contract-defined completing lifecycle event shares that transition boundary and finalizes one episode receipt. This is normally `Stop`, or the last valid completed state `PostToolUse` for a previously rejected runtime 2.4 continuation.
+5. `PostToolUse` records actual Brainbase outcomes and structured state in atomic journal-commit order. It never finalizes the episode; `Stop` shares the same transition boundary and is the sole finalization event.
 6. Required knowledge gets one continuation opportunity; if it is still missing, the active Stop fails explicitly without fabricating a final receipt.
 7. Judgment evidence constrains reasoning but is not action authorization.
 
@@ -43,14 +43,10 @@ model/tool loop (0..N)
   -> immutable safe execution event
   -> Brainbase calls additionally get an accurate owner trace
 
-completing lifecycle event
-  -> normally Stop
-  -> for a previously rejected runtime 2.4+ implementation/operation continuation,
-     the last valid completed state PostToolUse
-  -> required-capability check
+Stop
+  -> required-capability, autonomy, continuation, body, owner-display checks
   -> complete immutable final receipt
-     or one continuation -> explicit failure with no final receipt
-  -> a later Stop replays the immutable final
+     or one continuation -> audit_degraded on incomplete retry
 ```
 
 The model-visible MCP catalog exposes only `brainbase_resolve_turn` for this lifecycle. Its input cannot replace canonical conversation text, policy, routing rules, or authority; it carries the Host-issued `turn_ref` and the model's semantic interpretation. The persistent runtime remains the trusted signing bridge because it owns the API token, binding secret, and adapter identity. Model-visible Brainbase knowledge tools remain available for iterative use.
@@ -65,7 +61,7 @@ The model-visible MCP catalog exposes only `brainbase_resolve_turn` for this lif
 | Judgment Resolver service | Reconcile model interpretation with canonical input and manifest-owned policy, inherit bounded context for under-specified follow-ups, apply monotonic keyword safety rails and select the active DAG. | No LLM provider; does not own natural-language understanding |
 | Codex model | Call `brainbase_resolve_turn` once with `turn_ref` and an explicit semantic interpretation, then decide how to answer inside the returned active DAG, formulate and refine queries from observed evidence, and call Brainbase knowledge/retrieval tools 0..N times. It cannot supply canonical input, policy, or replace the resolved route. | The open-ended LLM in the current execution loop |
 | Knowledge Resolver | Deterministically select the canonical source route and required retrieval capability. It does not search or retrieve content. | No internal LLM |
-| Tool adapters | Perform file, shell, Graph, Personal KG, repo, Drive, wiki, and other operations. Every completed call produces a non-visible execution event; direct `mcp__brainbase__*` outcomes additionally produce owner-visible Brainbase audit lines. | Called by the Codex model |
+| Tool adapters | Perform file, shell, Graph, Personal KG, repo, Drive, wiki, and other operations. Every completed call produces a non-visible execution event; direct `mcp__brainbase__*` outcomes additionally derive Brainbase audit lines for the final assistant answer. The event alone is not owner-visible evidence. | Called by the Codex model |
 
 In the current implementation, `semantic_matchers` is a deterministic safety rail, not semantic understanding. A match may add obligations, action floors, risks, domains, or signals. An unmatched rule cannot remove model-derived requirements or force `general/answer`. A missing model interpretation, a follow-up with no resolvable referent, or a knowledge route without required project context uses the clarification DAG.
 
@@ -94,8 +90,8 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 - Binding/context/route integrity failure blocks completion.
 - Concurrent `PostToolUse` processes are totally ordered by the Host's atomic journal commit, not by an unverifiable wall-clock call-start time. Episode start, event commit, and lifecycle finalization share one per-turn SQLite `BEGIN IMMEDIATE` transaction boundary, so no committed event can be inserted into an already finalized episode. The OS releases the transaction lock when a process exits; the Host never guesses whether a stale lock file is safe to delete.
 - The Host uses Node's built-in SQLite when the runtime provides it, avoiding native-addon CPU/ABI coupling between Codex and the interactive shell. Node 20 runtimes fall back to the locally installed `better-sqlite3` build.
-- Missing required capability, autonomy, continuation, or business-body evidence returns `decision:block` on the first repairable Stop; no incomplete final receipt is written. The model-authored answer is not rejected merely because it omits the Host-owned audit surface. If the active repeated Stop is still incomplete, it converges to a finalized `audit_degraded` receipt instead of regenerating forever or exiting with `judgment_stop_repair_exhausted`. Body preservation strips only the leading Host audit namespace block, including malformed variants, while keeping audit-like text after the business body starts. A true orphan Stop emits one visible degraded-warning repair, then converges to an immutable non-final `audit_degraded` receipt without asking for a new task; replay cannot reopen the repair loop. Identity or integrity ambiguity and transaction-acquisition timeout remain terminal fail-closed failures.
-- Runtime 2.3 implement/operate episodes use a hidden structured Stop state rather than prose matching. `pending` blocks, `waiting_human` must match an allowed reason and visible marker, and `completed` requires a successful same-episode execution event. The event proves execution, not semantic correctness; content verification remains a separate test/readback responsibility. Runtime 2.2 and older episodes retain prose matching only for compatibility.
+- Missing required capability, autonomy, continuation, business-body, or owner-display evidence returns `decision:block` on the first repairable Stop; no incomplete final receipt is written. The model-authored answer must contain the complete journal-derived audit prefix. If the active repeated Stop is still incomplete, it converges to a finalized `audit_degraded` receipt instead of regenerating forever or exiting with `judgment_stop_repair_exhausted`. Body preservation strips only the leading Host audit namespace block, including malformed variants, while keeping audit-like text after the business body starts. A true orphan Stop emits one visible degraded-warning repair, then converges to an immutable non-final `audit_degraded` receipt without asking for a new task; replay cannot reopen the repair loop. Identity or integrity ambiguity and transaction-acquisition timeout remain terminal fail-closed failures.
+- Runtime 2.4 implement/operate episodes use a hidden structured Stop state rather than prose matching. `pending` blocks, `waiting_human` must match an allowed reason and visible marker, and `completed` requires a successful same-episode execution event. The event proves execution, not semantic correctness; content verification remains a separate test/readback responsibility. Runtime 2.2 and older episodes retain prose matching only for compatibility.
 - Normal platform permissions, approvals, and executor authorization remain responsible for effects. There is no Effect Guard.
 
 ## Acceptance criteria
@@ -105,12 +101,12 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 3. `brainbase_resolve_turn` is the single model-visible Judgment Resolver entrypoint. Its preferred input is the Host-issued `turn_ref` and model interpretation, while the server reads unchanged canonical input from the Host journal. Cached-schema legacy forms (`turn_input.turn_ref`, `turn_input_path`, or full `turn_input`) remain migration-only compatibility paths and cannot replace Host ownership in the preferred path.
 4. Canonical context preserves ordered exact user/assistant text and current request exactly once.
 5. Resolver owns deterministic manifest-backed classification, policy, required capabilities, and active-DAG selection, with no LLM provider/API dependency.
-6. The model may execute 0..N tool calls after the initial route; Brainbase calls alone produce owner-visible Brainbase lines.
+6. The model may execute 0..N tool calls after the initial route; Brainbase calls alone derive Brainbase audit lines, and those lines count as owner-visible only when Stop verifies them in the final assistant answer.
 7. Every matching `PostToolUse` creates at most one immutable event per `tool_use_id`.
 8. A replayed identical event is a no-op; a conflicting event fails loudly.
 9. Journals and visible traces exclude raw payloads/secrets and accurately distinguish route, search, retrieval, and write.
 10. Only a successful exact knowledge-route event satisfies required `knowledge.resolve`.
-11. The contract-defined completing lifecycle event creates one immutable complete final receipt only after required capability, autonomy, continuation, and business-body evidence pass, then returns the journal-derived owner audit/value surface once as `systemMessage`. A previously rejected runtime 2.4 continuation finalizes at its last valid completed state `PostToolUse`, without predicting whether a later Stop will arrive; any later Stop replays the immutable final.
+11. `Stop` creates one immutable complete final receipt only after required capability, autonomy, continuation, business-body, and exact assistant-answer audit-prefix evidence pass. It binds `owner_audit_source=assistant_answer` and the exact answer digest. A state `PostToolUse` only records evidence; it never predicts or replaces the later Stop.
 12. Missing required evidence triggers one continuation; an incomplete active retry converges to `audit_degraded` and never creates an infinite Stop loop.
 13. Zero Brainbase calls is valid when the selected judgment requires none.
 14. Open episodes do not become prior accepted receipts; legacy incomplete journals remain readable but are never newly created.
@@ -118,8 +114,8 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 16. Judgment receipts never authorize writes/external actions or introduce duplicate authorization.
 17. `CLAUDE.md`, `AGENTS.md`, Skill, capability, runbook, spec, and tests publish this same contract.
 18. The current Codex model remains responsible for open-ended query formulation and iterative investigation inside the selected DAG; Host and Resolver do not silently perform that model work. Claude Code support requires a separate Host adapter and lifecycle integration.
-19. Runtime 2.3 implement/operate completion is accepted only from one valid structured Stop state plus successful same-episode execution evidence; answer wording is not the primary completion signal.
+19. Runtime 2.4 implement/operate completion is accepted only from one valid structured Stop state plus successful same-episode execution evidence; answer wording is not the primary completion signal.
 
 ## Deployment boundary
 
-A merged code change is not proof that lifecycle Hooks are active. Static definitions and a stored trust section prove only installation. `scripts/check-codex-judgment-hook-readiness.mjs` queries the current Codex Host `hooks/list`; only three enabled, matcher-correct, currently trusted Hooks yield `ready_for_fresh_task`. A modified or untrusted Hook yields `trust_required`, and only the owner may approve it through `/hooks`; repository code never writes `trusted_hash`. Verification reaches `proven_active` only with a task created after that approval, at least one actual Brainbase tool call, an event sidecar, a complete final receipt whose `owner_audit_source` matches the completing lifecycle event (`stop_hook_system_message` or `post_tool_use_system_message`), and a readback proving that the complete Host-rendered audit/value `systemMessage` appeared once in the owner UI or event stream in journal-commit order. The Codex JSONL transcript remains correlation and model-answer evidence, not a stable serialization contract for Hook `systemMessage`. Stop確定時の`answer_digest`は正確な`last_assistant_message`を束縛し、final state PostToolUse確定時は未取得を`null`として保持する。モデル本文はHost監査面を複製しない。
+A merged code change is not proof that lifecycle Hooks are active. Static definitions and a stored trust section prove only installation. `scripts/check-codex-judgment-hook-readiness.mjs` queries the current Codex Host `hooks/list`; only three enabled, matcher-correct, currently trusted Hooks yield `ready_for_fresh_task`. Verification reaches `proven_active` only with a task created after approval, actual Brainbase event evidence, and a complete final receipt with `owner_audit_source=assistant_answer`. Final assistant answer begins with the complete journal audit block exactly once, and its digest must match `answer_digest`. A Hook `systemMessage` or completed `PostToolUse` is not owner-visible completion evidence; `Stop` is the sole finalization boundary.

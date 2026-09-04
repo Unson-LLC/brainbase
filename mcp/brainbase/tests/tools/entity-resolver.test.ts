@@ -335,7 +335,9 @@ describe('Graph entity resolver', () => {
     const tool = __testing.tools.find(item => item.name === 'search_personal_kg');
     assert.ok(tool && 'properties' in tool.inputSchema && 'person_entity_id' in tool.inputSchema.properties);
     __testing.setWikiApiBaseUrl('https://bb.example.test');
-    __testing.setTokenManager({ getToken: async () => jwt({ sub: 'service-runtime', personId: 'per_sato_keigo_merged' }) });
+    __testing.setTokenManager({ getToken: async () => jwt({ sub: 'service-runtime' }) });
+    const ownerToken = jwt({ sub: 'per_sato_keigo_merged' });
+    __testing.setOwnerTokenManager({ getToken: async () => ownerToken });
     const fetchMock = mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ candidates: [] }), { status: 200 }));
     try {
       await __testing.handleToolCall('search_personal_kg', {
@@ -343,6 +345,8 @@ describe('Graph entity resolver', () => {
         person_entity_id: 'per_sato_keigo',
       });
       assert.strictEqual(fetchMock.mock.callCount(), 1);
+      const authorization = new Headers(fetchMock.mock.calls[0].arguments[1]?.headers).get('authorization');
+      assert.equal(authorization, `Bearer ${ownerToken}`);
 
       await assert.rejects(
         __testing.handleToolCall('search_personal_kg', {

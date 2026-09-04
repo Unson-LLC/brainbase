@@ -1,0 +1,131 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-judgment-owner-audit-visibility-v1",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "final",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "session_ref",
+      "resolved_from": ["trusted Codex lifecycle payload"],
+      "resolution_point": "UserPromptSubmit before episode creation",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": ["episode", "event journal", "final receipt", "assistant answer"],
+      "verified_surfaces": ["episode", "event journal", "final receipt", "assistant answer"]
+    },
+    "resources": [{
+      "name": "owner judgment episode",
+      "sharing": "tenant_partitioned",
+      "tenant_key": "session_ref",
+      "partition_key": "session_ref/turn_ref",
+      "trust_zone": "owner-local Codex lifecycle Host",
+      "residue_policy": "retain bounded digest-only audit evidence",
+      "data_owner": "Codex task owner",
+      "credential_scope": "none"
+    }],
+    "credentials": {
+      "lookup_key": "session_ref",
+      "scope": "none",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": ["Codex task owner"],
+      "residency": "owner-local judgment journal and Codex transcript",
+      "migration": "no data migration; new receipts use assistant_answer source",
+      "rollback": "restore prior runtime while retaining existing immutable journals"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": ["self_hosted"],
+    "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+    "graph_metadata": {
+      "tenant_entities": ["Codex session", "judgment episode"],
+      "boundary_edges": ["session_ref to turn_ref journal partition", "final receipt to exact assistant answer"]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "scope": "owner-local lifecycle and transcript boundary"
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "最終assistant回答は完全なHost監査ブロックで始まり、各監査行をjournal順で1回だけ含む。",
+      "rationale": "journal保存ではなく利用者が実際に読む表示を成功条件にするため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "ac_id": "AC-001"}],
+        "architecture_refs": [{"file": "docs/architecture/story-judgment-owner-audit-visibility-v1.md", "section": "契約"}],
+        "code_refs": [{"file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "answerContainsExactAuditPrefix"}],
+        "test_refs": [{"file": "tests/unit/judgment-resolver-host.test.js", "case": "不足した監査表示の再Stopをcompleteと誤認しない"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "exact audit prefix and multiplicity"}]}
+    },
+    {
+      "id": "C-002",
+      "type": "invariant",
+      "statement": "PostToolUseはfinalを確定せず、Stopだけがassistant answerを検査してowner_audit_source=assistant_answerを記録する。",
+      "rationale": "中間通知をowner-visible evidenceへ誤変換しないため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "ac_id": "AC-004"}],
+        "architecture_refs": [{"file": "docs/architecture/story-judgment-owner-audit-visibility-v1.md", "section": "境界"}],
+        "code_refs": [{"file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "finalizeEpisodeLocked"}],
+        "test_refs": [{"file": "tests/unit/judgment-resolver-host.test.js", "case": "最後の状態PostToolUseでは確定せずStopで可視回答を検証する"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "PostToolUse does not finalize"}]}
+    },
+    {
+      "id": "C-003",
+      "type": "failure_semantics",
+      "statement": "最初の監査不備は一度だけ差し戻し、元の業務本文を保持できない再回答は拒否し、次も不完全ならowner_audit_complete=falseのaudit_degradedへ有限収束する。",
+      "rationale": "表示修復で回答価値を失わず、無限再生成も避けるため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "ac_id": "AC-003"}, {"kind": "acceptance_criteria", "ac_id": "AC-005"}],
+        "architecture_refs": [{"file": "docs/architecture/story-judgment-owner-audit-visibility-v1.md", "section": "失敗時"}],
+        "code_refs": [{"file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "buildAnswerBodyBinding"}],
+        "test_refs": [{"file": "tests/unit/judgment-resolver-host.test.js", "case": "story-remote-judgment-hook:ac:6 Stopはfirstだけblockし、active再Stopはaudit_degradedで確定、以後は同じfinalを返す"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "bounded repair and body preservation"}]}
+    },
+    {
+      "id": "C-004",
+      "type": "security_invariant",
+      "statement": "監査行の欠落・順序違いに加え、journalにない継続・修復監査行を最初のStopで拒否する。",
+      "rationale": "モデルが監査履歴を捏造してowner-visible evidenceへ混入させることを防ぐため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "ac_id": "AC-002"}],
+        "architecture_refs": [{"file": "docs/architecture/story-judgment-owner-audit-visibility-v1.md", "section": "契約"}],
+        "code_refs": [{"file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "answerContainsExactAuditPrefix"}],
+        "test_refs": [{"file": "tests/unit/judgment-resolver-host.test.js", "case": "未記録の継続・修復行を拒否する"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "reject unjournaled continuation and repair lines"}]}
+    },
+    {
+      "id": "C-005",
+      "type": "deployment_acceptance",
+      "statement": "deploy後のfresh Codex taskで、実際の最終assistant回答と同一turnのfinal receiptを読み戻し、監査ブロックとanswer_digestが一致するまで本番表示を合格にしない。",
+      "rationale": "unit、Hook stdout、journal保存だけではCodex Desktopの利用者表示を証明できないため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "ac_id": "AC-006"}],
+        "architecture_refs": [{"file": "docs/architecture/story-judgment-owner-audit-visibility-v1.md", "section": "境界"}],
+        "code_refs": [{"file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "finalizeEpisodeLocked"}],
+        "test_refs": [{"file": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "case": "fresh Codex task transcript and final receipt readback"}]
+      },
+      "verifiable_by": {"e2e_pattern": [{"file_glob": "tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts", "must_cover": "deployed fresh-task assistant answer and final receipt readback"}]}
+    }
+  ]
+}
