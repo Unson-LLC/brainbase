@@ -3598,7 +3598,7 @@ export async function processHookPayload(payload, dependencies = {}) {
                     ownerAuditSource: 'post_tool_use_system_message'
                 });
                 if (result.output?.decision === 'block') {
-                    return { systemMessage: result.output.reason };
+                    return result.output;
                 }
                 return result.output;
             }
