@@ -141,38 +141,40 @@ describe('sns ohayo public lifelog brief', () => {
         ]));
     });
 
-    it('CLI writes the new markdown and signal contract from fixtures', () => {
+    it('CLI exits with the retirement code before reading or writing files', () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sns-lifelog-brief-'));
         const out = path.join(dir, 'brief.md');
         const signalsOut = path.join(dir, 'signals.json');
         const generationContext = path.join(dir, 'generation-context.json');
         fs.writeFileSync(generationContext, JSON.stringify(generationContextFixture(), null, 2));
 
-        const stdout = execFileSync('node', [
-            'scripts/generate-sns-ohayo-brief.js',
-            '--date',
-            '2026-07-28',
-            '--jp-json',
-            jpFixture,
-            '--en-json',
-            enFixture,
-            '--generation-context',
-            generationContext,
-            '--out',
-            out,
-            '--signals-out',
-            signalsOut
-        ], {
-            cwd: root,
-            encoding: 'utf8'
-        });
-
-        const result = JSON.parse(stdout);
-        expect(result.review_pack_posts).toBe(1);
-        expect(fs.readFileSync(out, 'utf8')).toContain('SNS Ohayo Brief 2026-07-28');
-        const signals = JSON.parse(fs.readFileSync(signalsOut, 'utf8'));
-        expect(signals.reviewPack.posts).toHaveLength(1);
-        expect(signals.reviewPack.posts[0].body).toContain('自分の記録');
-        expect(signals.peerSignals[0].kind).toBe('reflection_prompt');
+        let error;
+        try {
+            execFileSync('node', [
+                'scripts/generate-sns-ohayo-brief.js',
+                '--date',
+                '2026-07-28',
+                '--jp-json',
+                jpFixture,
+                '--en-json',
+                enFixture,
+                '--generation-context',
+                generationContext,
+                '--out',
+                out,
+                '--signals-out',
+                signalsOut
+            ], {
+                cwd: root,
+                encoding: 'utf8'
+            });
+        } catch (caught) {
+            error = caught;
+        }
+        expect(error).toMatchObject({ status: 1 });
+        expect(error.stderr.toString()).toContain('SNS_CLI_RETIRED');
+        expect(error.stdout.toString()).toBe('');
+        expect(fs.existsSync(out)).toBe(false);
+        expect(fs.existsSync(signalsOut)).toBe(false);
     });
 });

@@ -10,6 +10,7 @@ import { PersonalKnowledgeGraphReader } from '../server/services/sns/personal-kn
 import { PersonalKgSnsWeeklyPlanner } from '../server/services/sns/personal-kg-sns-weekly-planner.js';
 import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
 import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
+import { throwRetiredSnsCli } from './lib/retired-sns-cli.js';
 
 const { Pool } = pg;
 
@@ -104,6 +105,7 @@ function viewer(args) {
 }
 
 async function main() {
+    throwRetiredSnsCli('generate-personal-kg-sns-weekly-pack.js');
     const args = parseArgs(process.argv.slice(2));
     const identity = resolvePersonalKgCliAuthority({
         assertedIdentity: args,

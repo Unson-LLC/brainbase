@@ -501,14 +501,18 @@ describe('managed launchd runtime contract', () => {
       'config/com.brainbase.mcp-slack-techknight.plist',
       'config/com.brainbase.mcp-slack-t0882t8n9uh.plist',
       'config/com.brainbase.mcp-slack-t0882t8n9uh-upload.plist',
-      'config/com.brainbase.sns-feedback-metrics-poller.plist',
-      'config/com.brainbase.sns-scheduled-publisher.plist',
       'scripts/run-nocodb-mcp.sh',
       'scripts/ai-session-adapter/codex-envelope-builder.mjs',
     ];
 
     for (const path of runtimeFiles) {
       expect(read(path), path).not.toContain('/Users/ksato/workspace/code/brainbase');
+    }
+    for (const path of [
+      'config/com.brainbase.sns-feedback-metrics-poller.plist',
+      'config/com.brainbase.sns-scheduled-publisher.plist',
+    ]) {
+      expect(existsSync(resolve(root, path)), path).toBe(false);
     }
   });
 });
