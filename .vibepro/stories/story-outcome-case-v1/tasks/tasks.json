@@ -7,7 +7,7 @@
   },
   "provenance": {
     "input_path": "docs/management/tasks/story-outcome-case-v1.authority.json",
-    "input_sha256": "fc3a5677af00720f64b19ac370db9e0363ddda0a57a0038627c5f02981b37d47"
+    "input_sha256": "f20ea0f85cfd4a790fdd4529fc56ea63b3b840045afdec6d46067fd9f7822d9b"
   },
   "tasks": [
     {
@@ -24,8 +24,10 @@
         "docs/management/stories/active/story-outcome-case-v1.md",
         "docs/management/tasks/story-outcome-case-v1.authority.json",
         "docs/management/tasks/story-outcome-case-v1.json",
+        "docs/runbooks/info-ssot-rls-deployment.md",
         "package.json",
         "scripts/info-ssot-apply.sh",
+        "scripts/test-helpers/info-ssot-docker-psql.sh",
         "scripts/verify-outcome-case-postgres-rls-integration.sh",
         "scripts/verify-project-provisioning-postgres-integration.sh",
         "server.js",

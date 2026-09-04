@@ -1,6 +1,6 @@
 # Info SSOT RLS 配備ゲート
 
-`server/sql/info-ssot-schema.sql` と `server/sql/info-ssot-rls.sql` を本番へ適用する前後のリリース手順。API/MCPを再起動する前に、このゲートを完了させる。
+`server/sql/info-ssot-schema.sql`、`server/sql/project-provisioning-schema.sql`、`server/sql/outcome-case-schema.sql` と `server/sql/info-ssot-rls.sql` を本番へ適用する前後のリリース手順。API/MCPを再起動する前に、このゲートを完了させる。
 
 ## 安全境界
 
@@ -22,6 +22,7 @@ grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
 test -r scripts/info-ssot-apply.sh
 test -r server/sql/info-ssot-schema.sql
 test -r server/sql/project-provisioning-schema.sql
+test -r server/sql/outcome-case-schema.sql
 test -r server/sql/info-ssot-rls.sql
 test -r server/sql/info-ssot-readback.sql
 test -r server/sql/info-ssot-negative-smoke.sql

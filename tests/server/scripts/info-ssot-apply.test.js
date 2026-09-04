@@ -241,6 +241,7 @@ describe('Info SSOT RLS deployment contract', () => {
         expect(runbook).toContain('API/MCPを再起動する前');
         expect(runbook).toContain('INFO_SSOT_NEGATIVE_SMOKE_OK');
         expect(runbook).toContain('test -r server/sql/project-provisioning-schema.sql');
+        expect(runbook).toContain('test -r server/sql/outcome-case-schema.sql');
         expect(runbook).toContain(': "${ROLLBACK_SHA:?');
         expect(runbook).toContain('INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA"');
         expect(runbook).toContain('INFO_SSOT_OPERATION_MODE="apply"');
