@@ -1992,7 +1992,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         }
         const turnResolutionMessage = kind === 'turn_resolution' && responseSuccess && turnResolution
             ? [
-                `🧠 判断契約を確定しました。監査行はStop時にHostがsystemMessageとして表示するため、回答本文へ再現する必要はありません（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）`,
+                `🧠 判断契約を確定しました。最終回答の先頭にHost監査行をそのまま表示してください（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）。正確な全行が不明な場合は、最初のStopが一度だけ完全な監査ブロックを返します。`,
                 ...turnContractExecutionInstructions(turnResolution, env, { hostAutonomy: episode.host_autonomy ?? null })
             ].join('\n')
             : null;
@@ -2206,6 +2206,7 @@ function verifyFinalStopRepair(finalized, continuationMarker, auditContract) {
     const requested = verifiedStopRepair(continuationMarker, auditContract);
     const completed = record(finalized.stop_repair);
     if (!requested && !completed) return;
+    if (finalized.completion_status === 'audit_degraded' && requested && !completed) return;
     if (!requested
         || !completed
         || completed.count !== requested.count
@@ -2239,6 +2240,38 @@ function requiredAuditLines(episode, events, continuationMarker = null) {
     ];
 }
 
+function answerContainsExactAuditPrefix(answer, expectedLines) {
+    if (typeof answer !== 'string') return false;
+    const lines = answer.replaceAll('\r\n', '\n').split('\n')
+        .map((line) => line.replace(/[ \t]+$/u, ''));
+    const normalizedExpectedLines = expectedLines
+        .map((line) => line.replace(/[ \t]+$/u, ''));
+    if (!normalizedExpectedLines.every((expected, index) => lines[index] === expected)) return false;
+    const expectedCounts = new Map(normalizedExpectedLines.map((line) => [
+        line,
+        normalizedExpectedLines.filter((candidate) => candidate === line).length
+    ]));
+    return [...expectedCounts].every(([expected, count]) => (
+        lines.filter((line) => line === expected).length === count
+    ));
+}
+
+function containsUnauthorizedContinuationAudit(answer, expectedLines) {
+    if (typeof answer !== 'string') return false;
+    const allowed = new Set(expectedLines);
+    return answer.replaceAll('\r\n', '\n').split('\n')
+        .map((line) => line.replace(/[ \t]+$/u, ''))
+        .some((line) => /^🔁 /u.test(line) && !allowed.has(line));
+}
+
+function containsUnauthorizedStopRepairAudit(answer, expectedLines) {
+    if (typeof answer !== 'string') return false;
+    const allowed = new Set(expectedLines);
+    return answer.replaceAll('\r\n', '\n').split('\n')
+        .map((line) => line.replace(/[ \t]+$/u, ''))
+        .some((line) => /^🛠️ /u.test(line) && !allowed.has(line));
+}
+
 function orderedEventSetDigest(events) {
     const orderedBindings = events.map((entry, index) => {
         if (entry.event_sequence !== index || !/^[0-9a-f]{64}$/u.test(entry.event_fingerprint)) {
@@ -2265,6 +2298,37 @@ function normalizedAnswerBody(answer, expectedLines) {
     )) bodyLines.shift();
     while (bodyLines.at(-1) === '') bodyLines.pop();
     return bodyLines.join('\n');
+}
+
+function buildAnswerBodyBinding(answer, expectedLines) {
+    const body = normalizedAnswerBody(answer, expectedLines);
+    if (body === null) return null;
+    return {
+        schema_version: 'brainbase-answer-body-binding-v2',
+        audit_lines_digest: sha256(canonicalJson(expectedLines)),
+        body_digest: sha256(body),
+        character_count: body.length
+    };
+}
+
+function activeAnswerBodyBinding(marker, expectedLines) {
+    if (marker?.schema_version !== 'brainbase-judgment-continuation-v2') return null;
+    const binding = record(marker.answer_body_binding);
+    if (!binding) return null;
+    if (!['brainbase-answer-body-binding-v1', 'brainbase-answer-body-binding-v2'].includes(binding.schema_version)
+        || !/^[0-9a-f]{64}$/u.test(String(binding.audit_lines_digest ?? ''))
+        || !/^[0-9a-f]{64}$/u.test(String(binding.body_digest ?? ''))
+        || !Number.isSafeInteger(binding.character_count)
+        || binding.character_count < 0) {
+        throw new Error('judgment_answer_body_binding_invalid');
+    }
+    return binding.audit_lines_digest === sha256(canonicalJson(expectedLines)) ? binding : null;
+}
+
+function answerBodyMatchesBinding(answer, expectedLines, binding) {
+    if (!binding) return true;
+    const body = normalizedAnswerBody(answer, expectedLines);
+    return body !== null && body.length === binding.character_count && sha256(body) === binding.body_digest;
 }
 
 function waitingHumanQuestion(answer, expectedLines, stopState) {
@@ -2567,22 +2631,21 @@ function verifyExistingJudgmentValueProofAttention(paths, finalized = null) {
 }
 
 export function finalizeEpisode(payload, {
-    env = process.env,
-    ownerAuditSource = 'stop_hook_system_message'
+    env = process.env
 } = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new Error('judgment_episode_identity_missing');
     const currentPaths = journalPaths(identity.sessionRef, identity.turnId, env);
     const directResult = withEpisodeTransitionLock(currentPaths, () => {
         const episode = existingEpisode(payload, env);
-        return episode ? finalizeEpisodeLocked(payload, episode, currentPaths, env, ownerAuditSource) : null;
+        return episode ? finalizeEpisodeLocked(payload, episode, currentPaths, env) : null;
     }, env);
     if (directResult) return directResult;
     const resolved = recoverEpisode(payload, identity, currentPaths, env);
     if (!resolved) throw new Error('judgment_episode_not_found');
     return withEpisodeTransitionLock(resolved.paths, () => {
         const episode = verifyEpisode(readJson(resolved.paths.episode));
-        return finalizeEpisodeLocked(payload, episode, resolved.paths, env, ownerAuditSource);
+        return finalizeEpisodeLocked(payload, episode, resolved.paths, env);
     }, env);
 }
 
@@ -2960,7 +3023,7 @@ export async function evaluateAutonomyStop(payload, {
     };
 }
 
-function finalizeEpisodeLocked(payload, episode, paths, env, ownerAuditSource = 'stop_hook_system_message') {
+function finalizeEpisodeLocked(payload, episode, paths, env) {
     const events = episodeEvents(paths);
     const hasTurnResolution = events.some((event) => event.success && event.satisfies.includes('judgment.resolve_turn'));
     const bootstrapEpisode = episode;
@@ -3018,10 +3081,12 @@ function finalizeEpisodeLocked(payload, episode, paths, env, ownerAuditSource = 
     const missingTurnResolution = requiresTurnResolution && !hasTurnResolution;
     const missingKnowledge = requiredKnowledge && knowledgeExecutionEvents.length === 0;
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
-    // The Host renders the owner-visible audit block itself as the Stop
-    // systemMessage (see completedAuditOutput above); it is never verified
-    // against, or required to be echoed inside, the model-authored answer.
     const expectedAuditLines = requiredAuditLines(episode, events, existingContinuation);
+    const unauthorizedContinuationAudit = containsUnauthorizedContinuationAudit(answer, expectedAuditLines);
+    const unauthorizedStopRepairAudit = containsUnauthorizedStopRepairAudit(answer, expectedAuditLines);
+    const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines)
+        || unauthorizedContinuationAudit
+        || unauthorizedStopRepairAudit;
     const autonomyCompliance = surfaceUnavailable
         ? { status: 'turn_resolution_unavailable', violation: null }
         : autonomyAnswerCompliance(
@@ -3046,16 +3111,15 @@ function finalizeEpisodeLocked(payload, episode, paths, env, ownerAuditSource = 
         && (autonomyCompliance.triggerCode !== 'unfinished_safe_work'
             || (typeof auditContract?.outcome_continuation_progress_line === 'string'
                 && typeof auditContract?.outcome_continuation_complete_line === 'string'));
-    // Only real business-state gaps block: missing required turn resolution,
-    // missing required knowledge lookups, missing value proof, or an
-    // autonomy contract violation (unnecessary question / unfinished safe
-    // work / state-record mismatch). The model's own reproduction of
-    // Host-rendered 🧠/📚/⚠️ audit lines is never a block reason.
+    const answerBodyBinding = activeAnswerBodyBinding(existingContinuation, expectedAuditLines);
+    const missingAnswerBody = !answerBodyMatchesBinding(answer, expectedAuditLines, answerBodyBinding);
     const missingCapabilities = [
         ...(missingTurnResolution ? ['judgment.resolve_turn'] : []),
         ...(missingKnowledge ? ['knowledge.resolve'] : []),
         ...(missingValueProof ? ['judgment.value_proof.record'] : []),
-        ...(missingAutonomyCompliance ? ['autonomy.continuation'] : [])
+        ...(missingAutonomyCompliance ? ['autonomy.continuation'] : []),
+        ...(missingOwnerAudit ? ['owner.audit.display'] : []),
+        ...(missingAnswerBody ? ['answer.body.preservation'] : [])
     ];
     // Stop blocks at most once per episode. If a continuation marker already
     // exists, one block already happened for this episode; a second block
@@ -3066,6 +3130,13 @@ function finalizeEpisodeLocked(payload, episode, paths, env, ownerAuditSource = 
     if (missingCapabilities.length > 0 && !stopAlreadyBlockedOnce) {
         let marker = existingContinuation;
         if (!marker) {
+            const shouldBindAnswerBody = !missingTurnResolution
+                && !missingKnowledge
+                && missingOwnerAudit
+                && !unauthorizedContinuationAudit
+                && !unauthorizedStopRepairAudit
+                && !missingAutonomyCompliance
+                && auditContract?.repair_body_policy === 'preserve';
             const autonomyContract = episodeAutonomyContract(episode);
             const observedQuestionBody = normalizedAnswerBody(answer, expectedAuditLines) ?? '';
             const observedQuestion = missingTurnResolution && requestsUserInput(observedQuestionBody)
@@ -3108,12 +3179,19 @@ function finalizeEpisodeLocked(payload, episode, paths, env, ownerAuditSource = 
                     }
                 } : {})
             };
+            if (shouldBindAnswerBody) {
+                markerEntry.answer_body_binding = buildAnswerBodyBinding(
+                    answer,
+                    requiredAuditLines(episode, events, markerEntry)
+                );
+            }
             marker = createImmutableJson(
                 paths.continuation,
                 markerEntry,
                 'judgment_episode_continuation_conflict'
             );
         }
+        const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
         const reasons = [
             ...(missingTurnResolution ? [
                 `mcp__brainbase__brainbase_resolve_turnをturn_ref="${basename(paths.directory)}/${paths.turnRef}"で実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputはHostのjournalに保存済みでturn_refからserverが読み込む。turn_inputやpathを渡さない。確定後はPostToolUseが判断契約を確定した旨をsystemMessageで通知する）`
@@ -3124,6 +3202,14 @@ function finalizeEpisodeLocked(payload, episode, paths, env, ownerAuditSource = 
             )] : []),
             ...(missingValueProof ? [
                 `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
+            ] : []),
+            ...((missingOwnerAudit || missingAutonomyCompliance) ? [
+                `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
+            ] : []),
+            ...(unauthorizedContinuationAudit ? ['Hostが記録していない🔁監査行を削除する'] : []),
+            ...(unauthorizedStopRepairAudit ? ['Hostが記録していない🛠️監査行を削除する'] : []),
+            ...((missingAnswerBody || (!missingKnowledge && missingOwnerAudit && marker.answer_body_binding)) ? [
+                '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
             ] : []),
             ...((valueProofRolloutEnabled(episode, env)
                 && marker?.autonomy_continuation?.interruption_candidate?.resolution === 'continued_without_human') ? [
@@ -3209,9 +3295,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env, ownerAuditSource = 
         event_count: events.length,
         qualifying_event_count: qualifyingEvents.length,
         event_set_digest: orderedEventSetDigest(events),
-        owner_audit_complete: true,
+        owner_audit_complete: !missingOwnerAudit,
         owner_audit_line_count: expectedAuditLines.length,
-        owner_audit_source: ownerAuditSource,
+        owner_audit_source: missingOwnerAudit ? null : 'assistant_answer',
         autonomy_compliance_status: autonomyCompliance.status,
         ...(autonomyCompliance.stopState ? {
             stop_state: {
@@ -3226,7 +3312,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env, ownerAuditSource = 
                 status: 'completed'
             }
         } : {}),
-        ...(verifiedStopRepair(existingContinuation, episodeAuditContract(episode)) ? {
+        ...(!missingOwnerAudit && verifiedStopRepair(existingContinuation, episodeAuditContract(episode)) ? {
             stop_repair: {
                 ...existingContinuation.stop_repair,
                 status: 'completed'
@@ -3519,7 +3605,7 @@ export function successOutput(
                 ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input (if the tool rejects a missing turn_input, pass turn_input as {"turn_ref": ${JSON.stringify(turnRef)}}). ${MODEL_INTERPRETATION_SHAPE}`
                 : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
             'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
-            'After that call succeeds, the PostToolUse system message confirms the judgment contract. Stop always renders the complete owner-visible audit block itself as its own systemMessage; do not write, reproduce, or verify 🧠/📚/⚠️ audit lines in the answer.'
+            'After that call succeeds, the PostToolUse system message confirms the judgment contract. The final user-facing response must start with the complete Host-generated 🧠/📚/⚠️ audit block in journal order. If an exact line is unavailable during generation, Stop will reject the first answer once and provide the complete exact block; preserve the original business body after that block.'
         ]),
         ...bootstrapHostAutonomyInstructions,
         ...contractInstructions,
@@ -3582,25 +3668,17 @@ export async function processHookPayload(payload, dependencies = {}) {
             const effectiveReceipt = episode && paths
                 ? effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt
                 : null;
-            const postToolFinalizable = journalStopStateRequired(effectiveReceipt) && (
-                continuation?.autonomy_continuation
-                || continuation?.outcome_continuation
-                || continuation?.observed_interruption_candidate
-                || continuation?.stop_repair
-            );
-            if (completedState && postToolFinalizable) {
-                const result = finalizeEpisode({
-                    ...payload,
-                    last_assistant_message: null
-                }, {
-                    ...dependencies,
-                    env,
-                    ownerAuditSource: 'post_tool_use_system_message'
-                });
-                if (result.output?.decision === 'block') {
-                    return result.output;
-                }
-                return result.output;
+            const events = episode && paths ? episodeEvents(paths) : [];
+            const missingRequiredValueProof = completedState
+                && journalStopStateRequired(effectiveReceipt)
+                && valueProofRolloutEnabled(episode, env)
+                && continuation?.autonomy_continuation?.interruption_candidate?.resolution === 'continued_without_human'
+                && latestJudgmentValueProofEvent(events) === null;
+            if (missingRequiredValueProof) {
+                return {
+                    decision: 'block',
+                    reason: 'Brainbase judgment episodeを完了する前にmcp__brainbase__brainbase_judgment_value_proof_recordを1回実行し、実際の判断・成果物・canonical readback証拠を記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして再実行する'
+                };
             }
         }
         return typeof event?.system_message === 'string'

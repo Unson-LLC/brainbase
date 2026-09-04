@@ -5,7 +5,6 @@ import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'n
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import test from 'node:test';
-import { verifyOwnerVisibleSource } from '../../scripts/lib/codex-owner-visible-readback.mjs';
 
 const CODEX_HOME = process.env.CODEX_HOME || join(homedir(), '.codex');
 const HOOK_CONFIG = join(CODEX_HOME, 'hooks.json');
@@ -17,9 +16,6 @@ const EVIDENCE_TRANSCRIPT_PATH = process.env.BRAINBASE_JUDGMENT_E2E_TRANSCRIPT_P
 const EXPECTED_HEAD = process.env.BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD || '';
 const EXPECTED_NONCE = process.env.BRAINBASE_JUDGMENT_E2E_NONCE || '';
 const EXPECTED_RUN_QUERY = process.env.BRAINBASE_JUDGMENT_E2E_RUN_QUERY || '';
-const EVIDENCE_OWNER_VISIBLE_PATH = process.env.BRAINBASE_JUDGMENT_E2E_OWNER_VISIBLE_PATH || '';
-const OWNER_VISIBLE_ROOT = join(JOURNAL_ROOT, 'owner-visible-readback');
-const OWNER_VISIBLE_SCHEMA = 'brainbase-owner-visible-readback-v1';
 const REGRESSION_SCRIPT = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'))
     .scripts['test:judgment-resolution'];
 const READINESS_CHECKER = join(process.cwd(), 'scripts', 'check-codex-judgment-hook-readiness.mjs');
@@ -93,26 +89,6 @@ function evidenceTranscriptIsBoundToSessions(path) {
         && path.endsWith('.jsonl');
 }
 
-function ownerVisiblePathIsBound(path) {
-    if (!path || !isAbsolute(path) || !existsSync(path)) return false;
-    try {
-        const canonicalRoot = realpathSync(OWNER_VISIBLE_ROOT);
-        const canonicalPath = realpathSync(path);
-        if (!statSync(canonicalPath).isFile()) return false;
-        const ownerVisibleRelativePath = relative(canonicalRoot, canonicalPath);
-        return ownerVisibleRelativePath !== ''
-            && !ownerVisibleRelativePath.startsWith('..')
-            && !isAbsolute(ownerVisibleRelativePath)
-            && canonicalPath.endsWith('.json');
-    } catch {
-        return false;
-    }
-}
-
-function exactSha256(value) {
-    return `sha256:${createHash('sha256').update(value, 'utf8').digest('hex')}`;
-}
-
 function readSessionMetaIdentity(transcriptPath) {
     const metadata = readFileSync(transcriptPath, 'utf8').split('\n').flatMap((line) => {
         if (!line.trim()) return [];
@@ -129,98 +105,6 @@ function readSessionMetaIdentity(transcriptPath) {
     assert.ok(first.taskId.trim(), 'session_meta.payload.id must not be empty');
     assert.equal(typeof first.timestamp, 'string', 'session_meta must contain a task creation timestamp');
     return { taskId: first.taskId, createdAt: first.timestamp };
-}
-
-function assertOwnerVisibleReadback(path, {
-    taskId,
-    turnId,
-    journalEventFingerprint,
-    capturedAfter,
-    expectedLines,
-    exactMessage = true,
-    requireJudgmentReceipt = false
-}) {
-    assert.ok(
-        ownerVisiblePathIsBound(path),
-        `Owner-visible readback must be one JSON artifact under ${OWNER_VISIBLE_ROOT}`
-    );
-    const artifact = readJson(realpathSync(path));
-    assert.equal(artifact.schema_version, OWNER_VISIBLE_SCHEMA);
-    assert.equal(artifact.source, 'codex_event_stream', 'Owner-visible readback must come from the Codex event stream');
-    verifyOwnerVisibleSource(artifact);
-    assert.equal(artifact.task_id, taskId, 'Owner-visible readback must bind session_meta.payload.id');
-    assert.equal(artifact.turn_id, turnId, 'Owner-visible readback must bind the current judgment turn');
-    assert.equal(typeof artifact.event_id, 'string', 'Owner-visible readback must retain the source event identity');
-    assert.ok(artifact.event_id.trim(), 'Owner-visible source event identity must not be empty');
-    assert.ok(artifact.event_id.length <= 256, 'Owner-visible source event identity must be bounded');
-    assert.doesNotMatch(artifact.event_id, /[\r\n]/u, 'Owner-visible source event identity must be one line');
-    assert.equal(
-        typeof artifact.final_event_fingerprint,
-        'string',
-        'Owner-visible readback must retain the final journal event fingerprint'
-    );
-    assert.match(
-        artifact.final_event_fingerprint,
-        /^[0-9a-f]{64}$/u,
-        'Owner-visible final_event_fingerprint must be a journal event fingerprint'
-    );
-    assert.equal(
-        artifact.final_event_fingerprint,
-        journalEventFingerprint,
-        'Owner-visible readback must bind the final journal event fingerprint'
-    );
-    assert.notEqual(
-        artifact.event_id,
-        artifact.final_event_fingerprint,
-        'Owner-visible event_id is the source identity, not a copied journal fingerprint'
-    );
-    assert.equal(typeof artifact.captured_at, 'string', 'Owner-visible readback must record captured_at');
-    const capturedAt = Date.parse(artifact.captured_at);
-    const taskCreatedAt = Date.parse(capturedAfter);
-    assert.ok(Number.isFinite(capturedAt), 'Owner-visible captured_at must be a valid timestamp');
-    assert.ok(Number.isFinite(taskCreatedAt), 'Task creation timestamp must be valid before owner readback');
-    assert.ok(capturedAt >= taskCreatedAt, 'Owner-visible readback must be captured after the bound task started');
-    assert.ok(capturedAt <= Date.now() + 5 * 60 * 1000, 'Owner-visible readback must not be from the future');
-    assert.equal(typeof artifact.system_message, 'string', 'Owner-visible readback must retain exact system_message');
-    assert.equal(artifact.occurrences, 1, 'Owner-visible system_message must occur exactly once');
-    assert.match(artifact.system_message_digest, /^sha256:[0-9a-f]{64}$/u);
-    assert.equal(
-        artifact.system_message_digest,
-        exactSha256(artifact.system_message),
-        'Owner-visible digest must be sha256 of the exact system_message text'
-    );
-    assert.ok(Array.isArray(expectedLines) && expectedLines.length > 0, 'Expected owner audit lines must be explicit');
-    const systemLines = artifact.system_message.split('\n');
-    let previousIndex = -1;
-    for (const [ordinal, line] of expectedLines.entries()) {
-        const index = systemLines.indexOf(line, previousIndex + 1);
-        assert.ok(index >= 0, `Expected owner audit line ${ordinal + 1} is missing or out of order: ${line}`);
-        previousIndex = index;
-    }
-    for (const line of new Set(expectedLines)) {
-        assert.equal(
-            systemLines.filter((candidate) => candidate === line).length,
-            expectedLines.filter((candidate) => candidate === line).length,
-            `Expected owner audit line must have the Host event multiplicity exactly once: ${line}`
-        );
-    }
-    if (exactMessage) {
-        assert.equal(
-            artifact.system_message,
-            expectedLines.join('\n'),
-            'Normal owner-visible readback must be the complete Host systemMessage'
-        );
-    }
-    if (requireJudgmentReceipt) {
-        assert.equal(
-            artifact.system_message.match(/Brainbase判断レシート/gu)?.length ?? 0,
-            1,
-            'Delegated owner-visible readback must contain Brainbase判断レシート exactly once'
-        );
-        const receiptIndex = systemLines.findIndex((line) => line.includes('Brainbase判断レシート'));
-        assert.ok(receiptIndex > previousIndex, 'Judgment receipt must follow the owner audit block');
-    }
-    return artifact;
 }
 
 function readFinalAssistantMessage(path, turnId) {
@@ -299,14 +183,15 @@ test('modelAuthoredAnswerBeforeAppMetadata preserves multiple citation blocks jo
     assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-function assertAuditTraceIsNotDuplicatedInAssistantBody(answer, expectedLines) {
+function assertAuditTracePrefixesAssistantBody(answer, expectedLines) {
     const lines = answer.replaceAll('\r\n', '\n').split('\n');
-    for (const line of new Set(expectedLines)) {
+    for (const [index, line] of expectedLines.entries()) {
         assert.equal(
-            lines.filter((candidate) => candidate === line).length,
-            0,
-            `Stop systemMessage owns the audit surface; the assistant body must not duplicate it: ${line}`
+            lines[index],
+            line,
+            `The assistant answer must begin with the journal audit in order: ${line}`
         );
+        assert.equal(lines.filter((candidate) => candidate === line).length, 1);
     }
 }
 function readBoundEpisode() {
@@ -514,7 +399,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         evidenceTranscriptIsBoundToSessions(EVIDENCE_TRANSCRIPT_PATH),
         'Evidence must name one exact Codex JSONL transcript inside CODEX_HOME/sessions'
     );
-    const taskIdentity = assertFreshTaskBinding(EVIDENCE_TRANSCRIPT_PATH);
+    assertFreshTaskBinding(EVIDENCE_TRANSCRIPT_PATH);
 
     const config = readJson(HOOK_CONFIG);
     for (const hookName of ['UserPromptSubmit', 'PostToolUse', 'Stop']) {
@@ -629,7 +514,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.equal(candidate.final.completion_status, 'complete');
     assert.equal(candidate.final.owner_audit_complete, true);
     assert.equal(candidate.final.owner_audit_line_count, 5);
-    assert.equal(candidate.final.owner_audit_source, 'stop_hook_system_message');
+    assert.equal(candidate.final.owner_audit_source, 'assistant_answer');
     assert.equal(candidate.final.event_count, 6);
     assert.equal(candidate.final.qualifying_event_count, 0);
     assert.match(candidate.final.answer_digest, /^[0-9a-f]{64}$/u);
@@ -641,15 +526,8 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         candidate.episode.owner_audit.display_line,
         ...retrievalEvents.map((event) => event.display_line)
     ];
-    assertOwnerVisibleReadback(EVIDENCE_OWNER_VISIBLE_PATH, {
-        taskId: taskIdentity.taskId,
-        turnId: candidate.episode.initial_route_receipt.turn_id,
-        journalEventFingerprint: candidate.events.at(-1)?.event_fingerprint || '',
-        capturedAfter: taskIdentity.createdAt,
-        expectedLines: expectedAuditLines
-    });
-    assert.equal(renderedAnswer, '実ターンE2Eを完了しました。');
-    assertAuditTraceIsNotDuplicatedInAssistantBody(renderedAnswer, expectedAuditLines);
+    assert.match(renderedAnswer, /実ターンE2Eを完了しました。/u);
+    assertAuditTracePrefixesAssistantBody(renderedAnswer, expectedAuditLines);
     assert.equal(
         candidate.final.answer_digest,
         createHash('sha256').update(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer)).digest('hex'),

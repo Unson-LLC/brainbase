@@ -15,7 +15,7 @@ Accepted。正本Storyは`docs/management/stories/active/story-judgment-episode-
 - 復元routeは最初のStopと後続処理だけを支配する。すでに生成された初回回答を事前に導いたとは主張しない。
 - 実際に不要質問を差し戻し、同一episodeの実行証拠、canonical readback、value proof、completed stateが揃った場合だけ最終判断レシートを表示する。
 - canonical readbackが欠けるvalue proofは`unconfirmed`のまま保存し、利用者には`Brainbase判断結果（確認待ち）`と警告を表示する。これは最終判断レシートでも成果確認済みの主張でもない。
-- 差し戻し済みruntime 2.4以降の実装・運用turnは、将来の`Stop`有無を予測せず、必須value proofが揃った後の新しい正常な`completed` state `PostToolUse`だけを正規の確定境界とする。value proofより先に来た`completed` stateは`decision:block`をそのまま返してfinalを作らず、単なる`systemMessage`へ弱めない。確定時は`owner_audit_source=post_tool_use_system_message`、`answer_digest=null`を記録し、後続`Stop`はimmutable finalをreplayする。runtime 2.3以前、人間確認の`waiting_human`、差し戻しのない通常turnはこの経路で確定しない。
+- runtime 2.4以降も`PostToolUse`はcompleted stateをjournalへ記録するだけで、`Stop`を正規の確定境界とする。差し戻し済みcontinuationで必須value proofが欠けたcompleted stateは`decision:block`をそのまま返してfinalを作らず、value proofと新しい最後のstateが揃った後もPostToolUseでは確定しない。最終assistant回答の完全な監査ブロックをStopで検証して`owner_audit_source=assistant_answer`と正確な`answer_digest`を記録する。
 - Desktop履歴から成果物とcanonical readbackを採用する場合、`thread_items`を同一`session_id`、`turn_id`、`tool_use_id`で厳密照合する。完了済み`fileChange`と、副作用を含まない単一`read`だけを証拠とし、不一致、未完了、非zero終了、複数操作、DB読取不能はfail-closedとする。
 - 共通Resolverは、禁止節の位置や言語にかかわらず禁止された操作を分類対象から除外し、同じ入力中の肯定されたローカル操作だけを保持する。肯定操作の判定語彙は`judgment-runtime-manifest.json`の`positive_commands`を正本とし、禁止だけの入力を`write`または`external`へ昇格しない。
 
@@ -29,8 +29,8 @@ Accepted。正本Storyは`docs/management/stories/active/story-judgment-episode-
 | AC-004 | continuation、value proof、final renderer | entrypoint integrationの同一episode完全経路 |
 | AC-005 | 通常開始、通常続行、人間判断、既存final、結果未確認のlifecycle整合検証 | Host unit/integrationの通常開始・pending/completed・waiting_human・orphan・unconfirmed経路 |
 | AC-006 | 自動テスト、型検査、fresh task/journal readback | 現HEADのunit・Host entrypoint integration・型検査と、本番反映後のfresh Codex task出力・同一episode journal readback |
-| AC-007 | runtime 2.4以降の差し戻し済み実装・運用turnだけをcompleted state PostToolUseで確定 | Host unitのruntime 2.3非実行、entrypoint integrationのStop再送なし確定、waiting_human回帰 |
+| AC-007 | runtime 2.4 continuationでもcompleted state PostToolUseは状態証拠だけを記録し、Stopだけが実回答を検証して確定 | Host unitのPostToolUse非確定、entrypoint integrationの最終Stop確定、waiting_human回帰 |
 | AC-008 | Desktop `thread_items`の3識別子照合と成果物・単一read証拠のfail-closed採用 | Host unitの正常系と別session/turn/tool、未完了、非zero、複数read、read+write、DB読取不能の負例 |
-| AC-009 | 必須value proof前の`completed` state `PostToolUse`で構造化`decision:block`を保持しfinalを作らず、proof後の新しいstateだけを確定境界にする | Host unitとentrypoint integrationのblock/no-final、proof記録、新state確定の順序検証 |
+| AC-009 | 必須value proof前の`completed` state `PostToolUse`で構造化`decision:block`を保持しfinalを作らず、proof後の新しいstateも記録だけに留めて後続Stopを確定境界にする | Host unitとentrypoint integrationのblock/no-final、proof記録、新state記録、最終Stop確定の順序検証 |
 
 fresh task証拠が揃う前は、AC-006とStory全体を完了扱いしない。
