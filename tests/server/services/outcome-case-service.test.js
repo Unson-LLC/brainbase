@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { OutcomeCaseError, OutcomeCaseService } from '../../../server/services/outcome-case/outcome-case-service.js';
+import { deriveClosureStatus, OutcomeCaseError, OutcomeCaseService } from '../../../server/services/outcome-case/outcome-case-service.js';
 
 class MemoryOutcomeCaseRepository {
     constructor() {
@@ -135,7 +135,7 @@ describe('OutcomeCaseService', () => {
         ]);
     });
 
-    it.each(['unconfirmed', 'no_data'])('does not close when only technical evidence is %s', async (technicalEvidenceStatus) => {
+    it.each(['unconfirmed', 'no_data'])('keeps %s technical evidence out of service closure', async (technicalEvidenceStatus) => {
         const { service, readRunReceipt } = createService({ receiptStates: { 'run-1': 'confirmed' } });
         const outcomeCase = await service.create(createInput(), authenticatedActor());
 
@@ -174,6 +174,29 @@ describe('OutcomeCaseService', () => {
                 close_eligible: false
             }
         });
+    });
+
+    it.each([
+        ['confirmed', true],
+        ['unconfirmed', false],
+        ['no_data', false]
+    ])('derives closure only when technical evidence is confirmed (%s)', (technicalEvidenceStatus, closeEligible) => {
+        expect(deriveClosureStatus({
+            technicalEvidence: { status: technicalEvidenceStatus, refs: ['test:outcome-case'] },
+            runReceipts: [{ ref: 'run-1', evidence_state: 'confirmed' }],
+            externalReadback: { status: 'confirm', ref: 'external:receipt-1' },
+            constraintsStatus: 'satisfied',
+            referenceResolution: {
+                project: { ref: 'brainbase', state: 'confirmed' },
+                capability: { ref: 'cap_outcome_control', state: 'confirmed' }
+            },
+            authority: {
+                state: 'confirmed',
+                closure_authorized_person_ids: ['per_owner']
+            }
+        })).toEqual(closeEligible
+            ? { closure_status: 'closed', close_eligible: true }
+            : { closure_status: 'incomplete', close_eligible: false });
     });
 
     it('does not close from technical evidence when receipt readback is unconfirmed', async () => {

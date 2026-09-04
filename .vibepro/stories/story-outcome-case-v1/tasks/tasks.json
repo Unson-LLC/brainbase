@@ -7,7 +7,7 @@
   },
   "provenance": {
     "input_path": "docs/management/tasks/story-outcome-case-v1.authority.json",
-    "input_sha256": "0816f63200a338bd878be323335e4309b0cca263ecc6f614e1780411887be541"
+    "input_sha256": "fc3a5677af00720f64b19ac370db9e0363ddda0a57a0038627c5f02981b37d47"
   },
   "tasks": [
     {
@@ -57,7 +57,7 @@
         "AC-003: 解決済み RACI authority と認証済み actor だけで閉鎖し、自己申告または空 clearance の格上げを認可根拠にしない",
         "AC-004: 参照・resolver・organization/project scope の不明または権限外では閉鎖しない",
         "AC-005: read-only resolver を使い、Graph write・production migration・deploy を行わない",
-        "AC-006 regression_guard: technical_evidence が unconfirmed/no_data、保持 receipt が no_data、external_readback が no_data、constraints_status が unknown、tenant が unknown/ambiguous、organization をまたぐ candidate、organization/project scope が空、または clearance が空なら、closed・tenant access・authority escalation を許可しない。C-002/C-003 は parameterized test_case `does not close when only technical evidence is %s` を含む technical-evidence negative tests で閉鎖禁止を回帰検証する",
+        "AC-006 regression_guard: technical_evidence が unconfirmed/no_data、保持 receipt が no_data、external_readback が no_data、constraints_status が unknown、tenant が unknown/ambiguous、organization をまたぐ candidate、organization/project scope が空、または clearance が空なら、closed・tenant access・authority escalation を許可しない。C-002/C-003 は `derives closure only when technical evidence is confirmed (%s)` の confirmed-only 予防的不変条件と technical-evidence negative tests で閉鎖禁止を検証する。546a2bd30 の親にも confirmed 条件が存在したため、このケースは pre-fix 回帰ではなく、条件を unconfirmed/no_data まで弱める変異を落とす決定的な感度検証である",
         "AC-007 path_surface_coverage: route/workflowAuthGuard、canonical tenant identity、OutcomeCase service/repository/reference resolver、InfoSSOTService.withAccessContext、schema/FORCE RLS、unit/route/integration tests を対応付け、C-002/C-003 の technical-evidence negative tests を明記する"
       ],
       "depends_on": [],

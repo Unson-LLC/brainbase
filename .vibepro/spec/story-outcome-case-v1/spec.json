@@ -253,7 +253,7 @@
           },
           {
             "file": "tests/server/services/outcome-case-service.test.js",
-            "case": "does not close when only technical evidence is %s"
+            "case": "derives closure only when technical evidence is confirmed (%s)"
           },
           {
             "file": "tests/server/services/outcome-case-service.test.js",
@@ -275,7 +275,7 @@
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
       "last_revised_at": "2026-09-04T03:19:09.570Z",
-      "regression_guard": "technical_evidence が unconfirmed/no_data、retained receipt が no_data、external_readback が no_data、constraints が unknown、または authoritative resolver/RACI が未確認なら closed を導出しない。C-002/C-003 の technical-evidence negative tests で固定する。",
+      "regression_guard": "technical_evidence が unconfirmed/no_data、retained receipt が no_data、external_readback が no_data、constraints が unknown、または authoritative resolver/RACI が未確認なら closed を導出しない。technical evidence の confirmed-only は予防的不変条件として真偽表で固定し、unconfirmed/no_data を許す変異を落とす。",
       "path_surface_coverage": [
         "route/auth",
         "service",
@@ -314,7 +314,7 @@
           },
           {
             "file": "tests/server/services/outcome-case-service.test.js",
-            "case": "does not close when only technical evidence is %s"
+            "case": "derives closure only when technical evidence is confirmed (%s)"
           },
           {
             "file": "tests/server/services/outcome-case-service.test.js",
@@ -324,7 +324,7 @@
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
       "last_revised_at": "2026-09-04T03:19:09.570Z",
-      "regression_guard": "technical_evidence が unconfirmed/no_data、receipt/external が no_data、または constraints が unknown を HTTP・テスト・保存・デプロイ成功と組み合わせても close の証拠に変換しない。C-002/C-003 の technical-evidence negative tests で固定する。",
+      "regression_guard": "technical_evidence が unconfirmed/no_data、receipt/external が no_data、または constraints が unknown を HTTP・テスト・保存・デプロイ成功と組み合わせても close の証拠に変換しない。technical evidence の confirmed-only は予防的不変条件として真偽表で固定し、unconfirmed/no_data を許す変異を落とす。",
       "path_surface_coverage": [
         "service",
         "unit/route/integration tests"
@@ -476,7 +476,7 @@
         "C-003"
       ],
       "tests": [
-        "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is %s",
+        "tests/server/services/outcome-case-service.test.js: derives closure only when technical evidence is confirmed (%s)",
         "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
         "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
       ]

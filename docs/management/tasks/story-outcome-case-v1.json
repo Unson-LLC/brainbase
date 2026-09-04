@@ -48,10 +48,16 @@
       "authenticated clearance = empty"
     ],
     "C-002/C-003_technical_evidence_negative_tests": [
-      "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is %s",
+      "tests/server/services/outcome-case-service.test.js: derives closure only when technical evidence is confirmed (%s)",
       "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
       "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
-    ]
+    ],
+    "confirmed_only_test_classification": {
+      "test_case": "tests/server/services/outcome-case-service.test.js: derives closure only when technical evidence is confirmed (%s)",
+      "classification": "prevention_invariant",
+      "pre_fix_sensitivity": "not_applicable: 546a2bd30^ already required technicalEvidence.status === confirmed; 546a2bd30 changed only the test file",
+      "deterministic_mutation_sensitivity": "weakening the predicate to technicalEvidence.status !== no_data makes the unconfirmed table row fail"
+    }
   },
   "path_surface_coverage": {
     "route_auth": [
@@ -82,7 +88,7 @@
       "tests/server/services/outcome-case-postgres-rls.integration.test.js"
     ],
     "C-002/C-003_technical_evidence_negative_tests": [
-      "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is %s",
+      "tests/server/services/outcome-case-service.test.js: derives closure only when technical evidence is confirmed (%s)",
       "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
       "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
     ]
