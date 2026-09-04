@@ -92,6 +92,56 @@ describe('tenant runtime API', () => {
         expect(response.body.keys[0]).not.toHaveProperty('secret');
     });
 
+    it('A0: service auth後にcompany authority producerへ観測入力をそのまま渡す', async () => {
+        const input = {
+            provider_identity: {
+                provider: 'slack',
+                authenticated_subject_id: 'U-UMEDA',
+                workspace_id: 'workspace-a',
+                app_id: 'app-a'
+            },
+            requested_action: {
+                capability_id: 'task.read',
+                resource_ref: 'project:unson-backoffice',
+                project_hint: 'unson-backoffice',
+                desired_effect: 'read'
+            },
+            delivery: {
+                event_id: 'Ev-company-authority-route-1',
+                channel_id: 'C-backoffice'
+            },
+            correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAY'
+        };
+        const companyAuthority = {
+            resolve: vi.fn(async (value) => ({
+                schema_version: '1.0',
+                contract_id: 'mana-brainbase-company-authority/v1',
+                correlation_id: value.correlation_id,
+                context: null,
+                error: {
+                    correlation_id: value.correlation_id,
+                    code: 'PERSON_UNKNOWN',
+                    phase: 'authority',
+                    retryable: false,
+                    business_effect: false
+                }
+            }))
+        };
+
+        const response = await request(createApp({ companyAuthority }))
+            .post('/api/v1/runtime/company-authority:resolve')
+            .set('authorization', 'Bearer service-test')
+            .send(input);
+
+        expect(response.status).toBe(200);
+        expect(companyAuthority.resolve).toHaveBeenCalledWith(input);
+        expect(response.body).toMatchObject({
+            correlation_id: input.correlation_id,
+            context: null,
+            error: { code: 'PERSON_UNKNOWN', business_effect: false }
+        });
+    });
+
     it('D-003/D-005: authoritative revision検証とopaque credential leaseをAPI化する', async () => {
         const headers = { authorization: 'Bearer service-test', 'Brainbase-Protocol-Version': '1.0', 'Brainbase-Deployment-Id': tenantContext.placement.deployment_id };
         const revision = await request(createApp()).post('/api/v1/runtime/workspace-connections:validate-revision').set(headers).send({ tenant_context: tenantContext, tenant_id: tenantContext.tenant.tenant_id, connection_id: tenantContext.workspace_connection.connection_id, expected_connection_revision: '1' });

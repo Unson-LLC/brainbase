@@ -70,8 +70,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-canonical-company-authority-context",
+        "title": "Brainbaseが会社権限を正本解決しMANAへ署名済みcontextを渡す",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-judgment-episode-live-value-receipt"
+    "current_story_id": "story-canonical-company-authority-context"
   }
 }

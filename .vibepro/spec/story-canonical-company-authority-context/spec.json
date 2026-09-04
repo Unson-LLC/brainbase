@@ -1,0 +1,483 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-canonical-company-authority-context",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "draft",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": [
+        "provider_identity",
+        "workspace/app/enterprise/project hint"
+      ],
+      "resolution_point": "Brainbase restricted route resolver before tenant-scoped authority resolution",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "HTTP producer",
+        "TenantContext",
+        "CanonicalExecutionContextV1"
+      ],
+      "verified_surfaces": [
+        "HTTP producer",
+        "TenantContext",
+        "CanonicalExecutionContextV1"
+      ]
+    },
+    "resources": [
+      {
+        "name": "company authority route and execution context",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_id",
+        "partition_key": "tenant_id",
+        "trust_zone": "Brainbase control plane",
+        "residue_policy": "signed context expires by TTL; authority records remain in Graph SSOT",
+        "data_owner": "Brainbase Graph SSOT",
+        "credential_scope": "Brainbase signing key only; never distributed to consumer"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "tenant-scoped Brainbase producer",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Graph SSOT"
+      ],
+      "residency": "pooled PostgreSQL with forced RLS",
+      "migration": "company-authority-schema.v2 after tenant production provisioning schema",
+      "rollback": "transaction rollback for dry-run; production rollback requires recorded schema decision"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "deployment_verification": "not_collected until exact merged SHA, schema hash, and production readback are recorded",
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "cross_person",
+      "stale_revision",
+      "duplicate_delivery"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "tenant",
+        "workspace_connection",
+        "person",
+        "membership",
+        "organization",
+        "project",
+        "authority_context"
+      ],
+      "boundary_edges": [
+        "observed provider identity resolves to one tenant and connection",
+        "tenant-scoped identity and authority resolve before signed context emission"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified for the local producer and restricted route resolver implementation slice",
+      "scope": "producer and restricted route resolver only; Mana cutover, UsageEvent, OperationReceipt, credential broker, and external readback remain not_collected",
+      "evidence": {
+        "propagation_surfaces": [
+          "HTTP producer",
+          "TenantContext",
+          "CanonicalExecutionContextV1"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "company authority producer",
+              "tenant_key_source": "restricted route resolver",
+              "trust_zone": "Brainbase control plane",
+              "data_owner": "Brainbase Graph SSOT"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "company authority producer",
+              "tenant_key_source": "resolved tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "Brainbase signing key only",
+              "connection_mode": "resolved active workspace connection",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "files": [
+            "server/services/multitenant/company-authority-context-producer.js",
+            "server/sql/company-authority-schema.sql"
+          ]
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "Brainbaseは観測済みidentityと任意hintだけを入力として受け、runtimeが自己申告したcanonical actor、organization、project、owner、RACI、approver、decision、credentialをDB参照前に拒否する。",
+      "rationale": "runtimeの自己申告へBrainbaseの署名を付与しないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "信頼境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/company-authority-context-producer.js",
+            "anchor": "validateObservedExecutionRequest"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "case": "rejects runtime authority self-assertion before route lookup"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "must_cover": "before route lookup"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T03:00:18.877Z"
+    },
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "限定route resolverは固定6引数と任意hintからactiveなtenantとconnectionを最大2件まで返し、0件をCOMPANY_IDENTITY_UNRESOLVED、複数件をCOMPANY_IDENTITY_AMBIGUOUS、DB障害をUPSTREAM_UNAVAILABLEとしてfail closedにする。外側producerはそれぞれPERSON_UNKNOWN、PERSON_AMBIGUOUS、AUTHORITY_UNAVAILABLEへ写像する。",
+      "rationale": "tenant誤選択と上流障害のunknown→成功変換を防ぐため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "信頼境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/postgres-company-authority-repository.js",
+            "anchor": "resolveObservedRoute"
+          },
+          {
+            "file": "server/sql/company-authority-schema.sql",
+            "anchor": "resolve_company_authority_route"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/postgres-company-authority-repository.test.js",
+            "case": "resolves exact observed route arguments"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-company-authority-repository.test.js",
+            "must_cover": "COMPANY_IDENTITY_AMBIGUOUS"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T03:00:18.877Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "producerは要求capabilityとcompany_authority_v1 markerを分離した署名済みTenantContextを内包し、actor、scope、authority、resolution receiptを持つCanonicalExecutionContextV1をdetached JWSで署名する。",
+      "rationale": "Manaが署名済み会社権限だけをconsumer境界で検証できるようにするため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-015"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "発行経路"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/company-authority-context-producer.js",
+            "anchor": "async resolve(input)"
+          },
+          {
+            "file": "server/services/multitenant/company-authority-tenant-context-producer.js",
+            "anchor": "resolveContextWithAuthority"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "case": "returns a verifiable nested and outer signature"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "must_cover": "two verifiable, request-bound signatures"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T03:00:18.877Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "同じcorrelation_idは同じ正規op_ ULIDへ決定的に束縛し、再配送でoperation_idを変えない。",
+      "rationale": "duplicate deliveryを同一operationとして追跡し、idempotency境界を維持するため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-013"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-014"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "発行経路"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/company-authority-context-producer.js",
+            "anchor": "function operationId"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "case": "returns a verifiable nested and outer signature"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/multitenant/company-authority-context-producer.js",
+            "must_contain": "generateCanonicalId('op'"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T03:00:18.877Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "Brainbaseはservice-auth付きPOST /api/v1/runtime/company-authority:resolveだけを公開し、Cloudflare bridgeは同じ固定POST pathだけをorigin allowlistへ追加する。",
+      "rationale": "producerを認証済みの狭いHTTP境界として提供し、汎用proxy化を防ぐため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "配置"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/routes/tenant-runtime.js",
+            "anchor": "company-authority:resolve"
+          },
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "company-authority:resolve"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/routes/tenant-runtime-contract.test.js",
+            "case": "company authority"
+          },
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "company-authority"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "company-authority:resolve"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T03:00:18.877Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "company-authority-schema.v2 migrationはtransactionとadvisory lock内でRLS、force RLS、policy、限定route resolver、ledger hashを適用・readbackし、dry-runをrollback、applyを明示actorへ束縛する。",
+      "rationale": "schema適用と検証を分離せず、誤接続や部分適用を成功扱いしないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "Migration"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/migrate-company-authority-schema.js",
+            "anchor": "company-authority-schema.v2"
+          },
+          {
+            "file": "server/sql/company-authority-schema.sql",
+            "anchor": "FORCE ROW LEVEL SECURITY"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
+            "case": "rolls back dry-run and persists the exact schema only after approved apply"
+          },
+          {
+            "file": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
+            "case": "resolves one hinted tenant, exposes ambiguity without a hint, and keeps tables private"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "scripts/migrate-company-authority-schema.js",
+            "must_contain": "pg_advisory_xact_lock"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T03:00:18.877Z"
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "OQ-001",
+      "question": "production schema application and exact merged SHA deployment evidence remain not_collected"
+    },
+    {
+      "id": "OQ-002",
+      "question": "Mana consumer cutover across all execution boundaries remains not_collected"
+    },
+    {
+      "id": "OQ-003",
+      "question": "2 tenant x 2 person negative E2E, credential broker, UsageEvent, OperationReceipt, and external readback remain not_collected"
+    }
+  ],
+  "generated_at": "2026-09-04T03:00:18.876Z",
+  "previous_spec_id": null
+}

@@ -7,8 +7,8 @@ import { Pool } from 'pg';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCHEMA_PATH = path.join(ROOT, 'server/sql/company-authority-schema.sql');
-const MIGRATION_ID = 'company-authority-schema.v1';
-const LOCK_NAME = 'brainbase:company-authority-schema:v1';
+const MIGRATION_ID = 'company-authority-schema.v2';
+const LOCK_NAME = 'brainbase:company-authority-schema:v2';
 const TABLES = ['company_external_identities', 'company_authority_bindings'];
 
 export class CompanyAuthorityMigrationError extends Error {
@@ -103,6 +103,16 @@ async function readback(client, schemaHash) {
         );
     }
 
+    const routeFunction = await client.query(
+        `SELECT to_regprocedure('public.resolve_company_authority_route(text,text,text,text,text,text)')::TEXT AS signature`
+    );
+    if (!routeFunction.rows[0]?.signature) {
+        throw new CompanyAuthorityMigrationError(
+            'SCHEMA_READBACK_FAILED',
+            'Company authority route resolver function is missing'
+        );
+    }
+
     const ledger = await client.query(
         `SELECT schema_sha256
            FROM brainbase_schema_migrations
@@ -115,7 +125,12 @@ async function readback(client, schemaHash) {
             'Company authority schema ledger does not match repository SQL'
         );
     }
-    return { table_count: TABLES.length, rls_table_count: TABLES.length, ledger_matches: true };
+    return {
+        table_count: TABLES.length,
+        rls_table_count: TABLES.length,
+        route_function_count: 1,
+        ledger_matches: true
+    };
 }
 
 export async function runCompanyAuthoritySchemaMigration({

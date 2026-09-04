@@ -8,9 +8,11 @@ source:
 architecture_reason: "tenant分離だけでなく、canonical person、membership、organization、project、RACI、policy、Personal ownerをBrainbaseが正本解決し、runtimeの自己申告へ署名しない境界を固定する。"
 architecture_docs:
   - docs/architecture/ADR-023-brainbase-owned-company-authority.md
+  - docs/architecture/story-canonical-company-authority-context.md
   - docs/architecture/ADR-008-acl-vocabulary.md
   - docs/architecture/ADR-010-memory-promotion-kernel-boundary.md
-spec_docs: []
+spec_docs:
+  - .vibepro/spec/story-canonical-company-authority-context/spec.json
 related_tasks:
   - docs/management/milestones/M0-company-authority-and-personal-boundary.md
 ---

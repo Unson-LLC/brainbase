@@ -266,6 +266,7 @@ export function createTenantRuntimeRouter({
     serviceAuth,
     verificationKeys = () => [],
     tenantAuthority,
+    companyAuthority,
     connectionRegistry,
     credentialBroker,
     usageLedger,
@@ -290,6 +291,14 @@ export function createTenantRuntimeRouter({
     router.post('/tenant-context:resolve', asyncHandler(async (req, res) => {
         if (!tenantAuthority?.resolveContext) throw Object.assign(new Error('Tenant Authority unavailable'), { code: 'UPSTREAM_UNAVAILABLE', status: 503, retryable: true });
         res.json(await tenantAuthority.resolveContext(req.body));
+    }));
+    router.post('/company-authority:resolve', asyncHandler(async (req, res) => {
+        if (!companyAuthority?.resolve) {
+            throw Object.assign(new Error('Company Authority unavailable'), {
+                code: 'UPSTREAM_UNAVAILABLE', status: 503, retryable: true
+            });
+        }
+        res.json(await companyAuthority.resolve(req.body));
     }));
     router.use(asyncHandler(async (req, _res, next) => {
         if (req.get('Brainbase-Protocol-Version') !== '1.0') {

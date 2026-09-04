@@ -43,6 +43,37 @@ export class PostgresCompanyAuthorityRepository {
         this.now = now;
     }
 
+    async resolveObservedRoute({ provider_identity, requested_action }) {
+        try {
+            const result = await this.pool.query(
+                `SELECT * FROM public.resolve_company_authority_route($1, $2, $3, $4, $5, $6)`,
+                [
+                    provider_identity.provider,
+                    provider_identity.authenticated_subject_id,
+                    provider_identity.workspace_id ?? null,
+                    provider_identity.app_id ?? null,
+                    provider_identity.enterprise_id ?? null,
+                    requested_action.project_hint ?? null
+                ]
+            );
+            if (result.rows.length === 0) {
+                throw new ContractError('COMPANY_IDENTITY_UNRESOLVED', {
+                    status: 403,
+                    fault_domain: 'protocol'
+                });
+            }
+            if (result.rows.length !== 1) {
+                throw new ContractError('COMPANY_IDENTITY_AMBIGUOUS', {
+                    status: 409,
+                    fault_domain: 'protocol'
+                });
+            }
+            return result.rows[0];
+        } catch (error) {
+            throw unavailable(error);
+        }
+    }
+
     async withTenant(tenantId, operation) {
         const client = await this.pool.connect();
         try {
