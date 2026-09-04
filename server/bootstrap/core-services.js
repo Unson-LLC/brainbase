@@ -107,7 +107,14 @@ export function createOutcomeCaseService({
                 projectId: projectCode,
                 runId: runReceiptRef
             }, actor);
-            return diagnosis.receipt;
+            return {
+                ...diagnosis.receipt,
+                issue_codes: Array.isArray(diagnosis.diagnosis?.issue_codes)
+                    ? diagnosis.diagnosis.issue_codes
+                    : [],
+                recommended_action: diagnosis.diagnosis?.recommended_action ?? null,
+                diagnostics: diagnosis.diagnosis ?? null
+            };
         } catch (error) {
             if (error?.status === 404 || error?.code === 'not_found') return null;
             throw error;

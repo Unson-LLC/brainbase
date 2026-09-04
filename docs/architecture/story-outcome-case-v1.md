@@ -21,14 +21,14 @@ evaluate → technical evidence (入力)
 
 - API は `POST /api/outcome-cases`、`GET /api/outcome-cases/:caseId`、`POST /api/outcome-cases/:caseId/evaluations` のみ。
 - repository は OutcomeCase 専用 table を使い、create/find/update の全操作を actor 由来の `InfoSSOTService.withAccessContext` scoped client 内で実行する。raw shared pool は使用しない。実行時の PostgreSQL がない場合は API を利用不可として fail loud にし、JSON fallback を正本にしない。
-- RunReceipt の参照確認は既存 `RunReceiptQueryService.diagnose` の read-only 結果だけを使う。receipt が見つからない場合は `no_data` であり、成功へ丸めない。
+- RunReceipt の参照確認は既存 `RunReceiptQueryService.diagnose` の read-only 結果だけを使う。既定 bootstrap は receipt と diagnosis を分離せず OutcomeCase へ渡し、OutcomeCase は `source_status`、`evidence_state`、`action_required`、issue codes、recommended action、diagnostics を評価 snapshot と履歴へ保存する。receipt が見つからない場合や診断契約が欠ける場合は成功へ丸めない。
 - `closure_status` は request から直接指定できず、評価ごとに導出する。`closed` は evidence、参照解決、解決済み authority、認証済み actor を満たす場合だけで導出する。
 - `current_external_state` は評価に含む任意の明示値だけで更新する。欠落時に `unknown` を書き込まない。
 - `evaluation_history` は append-only である。`run_receipt_refs` は create 時の値と全評価で追加された値の和集合であり、評価 payload で既存 ref を削除できない。各評価は閉鎖可否にかかわらずその和集合を診断し、当時の `current_external_state`、`unresolved_failure_boundary`、結果の revision/status も保存する。close 判定では全件 confirmed を要求する。
 
 ## 閉鎖不変条件
 
-`technical_evidence.status = confirmed`、保持済み全 `run_receipt_refs` の `evidence_state = confirmed`、`external_readback.status = confirm`、`constraints_status = satisfied`、`reference_resolution.project/capability = confirmed`、Info SSOT RACI から解決した authority が confirmed、かつ authority が認証済み actor の `person_id` を許可する、の AND 以外では `closed` を返さない。特に HTTP 200、テスト成功、保存、デプロイは API の評価入力や導出規則ではない。
+`technical_evidence.status = confirmed`、保持済み全 `run_receipt_refs` の `evidence_state = confirmed` かつ `source_status = success` かつ action-required diagnosis なし、`external_readback.status = confirm`、`constraints_status = satisfied`、`reference_resolution.project/capability = confirmed`、Info SSOT RACI から解決した authority が confirmed、かつ authority が認証済み actor の `person_id` を許可する、の AND 以外では `closed` を返さない。`waiting_human` source は `waiting_human`、`failed` / `blocked` / `cancelled` source は `incomplete` とする。成功状態や診断が欠落する場合、または成功 source でも action-required diagnosis がある場合も fail-closed とする。特に HTTP 200、テスト成功、保存、デプロイ、confirmed evidence 単独は API の閉鎖根拠ではない。
 
 ## データと権限
 

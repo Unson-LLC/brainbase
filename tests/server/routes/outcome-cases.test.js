@@ -103,7 +103,11 @@ describe('outcome case routes', () => {
     it('wires the authenticated route actor into actual service-layer closure authority', async () => {
         const service = new OutcomeCaseService({
             repository: new MemoryOutcomeCaseRepository(),
-            readRunReceipt: async () => ({ evidence_state: 'confirmed' }),
+            readRunReceipt: async () => ({
+                source_status: 'success', evidence_state: 'confirmed', action_required: 'none',
+                issue_codes: [], recommended_action: null,
+                diagnostics: { state: 'healthy', issue_codes: [], recommended_action: null }
+            }),
             resolveOutcomeReferences: async ({ projectCode, capabilityId }) => ({
                 project: { ref: projectCode, state: 'confirmed' },
                 capability: { ref: capabilityId, state: 'confirmed' }

@@ -44,11 +44,19 @@ function authenticatedActor(overrides = {}) {
     return { person_id: 'per_owner', projectCodes: ['brainbase'], organizationId: 'org_unson', ...overrides };
 }
 
-function createService({ receiptStates = {}, referenceStates = { project: 'confirmed', capability: 'confirmed' }, resolveClosureAuthority } = {}) {
+function createService({ receiptStates = {}, receiptSnapshots = {}, referenceStates = { project: 'confirmed', capability: 'confirmed' }, resolveClosureAuthority } = {}) {
     const repository = new MemoryOutcomeCaseRepository();
     const readRunReceipt = vi.fn(async ({ runReceiptRef }) => {
+        if (receiptSnapshots[runReceiptRef]) return structuredClone(receiptSnapshots[runReceiptRef]);
         const evidenceState = receiptStates[runReceiptRef];
-        return evidenceState ? { evidence_state: evidenceState } : null;
+        return evidenceState ? {
+            source_status: 'success',
+            evidence_state: evidenceState,
+            action_required: 'none',
+            issue_codes: [],
+            recommended_action: null,
+            diagnostics: { state: 'healthy', issue_codes: [], recommended_action: null }
+        } : null;
     });
     return {
         repository,
@@ -131,7 +139,11 @@ describe('OutcomeCaseService', () => {
         expect(evaluated.closure_status).toBe('closed');
         expect(evaluated.revision).toBe(2);
         expect(evaluated.terminal_evaluation.run_receipts).toEqual([
-            { ref: 'run-1', evidence_state: 'confirmed' }
+            {
+                ref: 'run-1', source_status: 'success', evidence_state: 'confirmed',
+                action_required: 'none', issue_codes: [], recommended_action: null,
+                diagnostics: { state: 'healthy', issue_codes: [], recommended_action: null }
+            }
         ]);
     });
 
@@ -183,7 +195,11 @@ describe('OutcomeCaseService', () => {
     ])('derives closure only when technical evidence is confirmed (%s)', (technicalEvidenceStatus, closeEligible) => {
         expect(deriveClosureStatus({
             technicalEvidence: { status: technicalEvidenceStatus, refs: ['test:outcome-case'] },
-            runReceipts: [{ ref: 'run-1', evidence_state: 'confirmed' }],
+            runReceipts: [{
+                ref: 'run-1', source_status: 'success', evidence_state: 'confirmed',
+                action_required: 'none', issue_codes: [], recommended_action: null,
+                diagnostics: { state: 'healthy', issue_codes: [], recommended_action: null }
+            }],
             externalReadback: { status: 'confirm', ref: 'external:receipt-1' },
             constraintsStatus: 'satisfied',
             referenceResolution: {
@@ -197,6 +213,65 @@ describe('OutcomeCaseService', () => {
         })).toEqual(closeEligible
             ? { closure_status: 'closed', close_eligible: true }
             : { closure_status: 'incomplete', close_eligible: false });
+    });
+
+    it.each([
+        ['waiting_human', 'waiting_human'],
+        ['failed', 'incomplete'],
+        ['blocked', 'incomplete'],
+        ['cancelled', 'incomplete']
+    ])('does not close confirmed receipt when source status is %s', (sourceStatus, closureStatus) => {
+        const issueCodes = sourceStatus === 'waiting_human'
+            ? ['human_action_required']
+            : sourceStatus === 'cancelled' ? [] : [`source_${sourceStatus}`];
+        expect(deriveClosureStatus({
+            technicalEvidence: { status: 'confirmed', refs: ['test:outcome-case'] },
+            runReceipts: [{
+                ref: 'run-1', source_status: sourceStatus, evidence_state: 'confirmed',
+                action_required: sourceStatus === 'waiting_human' ? 'approve' : 'none',
+                issue_codes: issueCodes,
+                recommended_action: sourceStatus === 'waiting_human' ? 'approve' : null,
+                diagnostics: {
+                    state: issueCodes.length ? 'action_required' : 'healthy',
+                    issue_codes: issueCodes,
+                    recommended_action: sourceStatus === 'waiting_human' ? 'approve' : null
+                }
+            }],
+            externalReadback: { status: 'confirm', ref: 'external:receipt-1' },
+            constraintsStatus: 'satisfied',
+            referenceResolution: {
+                project: { ref: 'brainbase', state: 'confirmed' },
+                capability: { ref: 'cap_outcome_control', state: 'confirmed' }
+            },
+            authority: { state: 'confirmed', closure_authorized_person_ids: ['per_owner'] }
+        })).toEqual({ closure_status: closureStatus, close_eligible: false });
+    });
+
+    it('persists the complete RunReceipt diagnosis snapshot and fails closed on action-required success', async () => {
+        const diagnostic = {
+            source_status: 'success', evidence_state: 'confirmed', action_required: 'review',
+            issue_codes: ['manual_review_required'], recommended_action: 'review',
+            diagnostics: {
+                state: 'action_required', issue_codes: ['manual_review_required'], recommended_action: 'review'
+            }
+        };
+        const { service } = createService({ receiptSnapshots: { 'run-review': diagnostic } });
+        const outcomeCase = await service.create(createInput(), authenticatedActor());
+
+        const evaluated = await service.evaluate(outcomeCase.case_id, {
+            technical_evidence: { status: 'confirmed', refs: ['test:outcome-case'] },
+            run_receipt_refs: ['run-review'],
+            external_readback: { status: 'confirm', ref: 'external:receipt-1' },
+            constraints_status: 'satisfied', evaluator: 'per_owner',
+            observed_at: '2026-09-04T00:01:00.000Z'
+        }, authenticatedActor());
+
+        expect(evaluated).toMatchObject({
+            closure_status: 'waiting_human',
+            terminal_evaluation: { close_eligible: false, run_receipts: [{ ref: 'run-review', ...diagnostic }] },
+            evaluation_history: [{ run_receipts: [{ ref: 'run-review', ...diagnostic }] }]
+        });
+        expect(await service.read(outcomeCase.case_id, authenticatedActor())).toEqual(evaluated);
     });
 
     it('does not close from technical evidence when receipt readback is unconfirmed', async () => {
@@ -234,7 +309,10 @@ describe('OutcomeCaseService', () => {
 
         expect(evaluated.closure_status).toBe('waiting_human');
         expect(evaluated.terminal_evaluation.run_receipts).toEqual([
-            { ref: 'missing-run', evidence_state: 'no_data' }
+            {
+                ref: 'missing-run', source_status: null, evidence_state: 'no_data',
+                action_required: null, issue_codes: [], recommended_action: null, diagnostics: null
+            }
         ]);
 
         await expect(service.evaluate(outcomeCase.case_id, {

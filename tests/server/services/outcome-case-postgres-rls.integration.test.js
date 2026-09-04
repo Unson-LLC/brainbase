@@ -69,7 +69,11 @@ function serviceFor(actor, auditSink = null) {
     const repository = new OutcomeCasePostgresRepository({ pool: appPool, infoSSOTService });
     const service = new OutcomeCaseService({
         repository,
-        readRunReceipt: async () => ({ evidence_state: 'confirmed' }),
+        readRunReceipt: async () => ({
+            source_status: 'success', evidence_state: 'confirmed', action_required: 'none',
+            issue_codes: [], recommended_action: null,
+            diagnostics: { state: 'healthy', issue_codes: [], recommended_action: null }
+        }),
         resolveOutcomeReferences: async ({ projectCode, capabilityId }) => ({
             project: { ref: projectCode, state: 'confirmed' },
             capability: { ref: capabilityId, state: 'confirmed' }
@@ -87,18 +91,20 @@ function serviceFor(actor, auditSink = null) {
     return app;
 }
 
-function runReceipt({ id, evidenceState }) {
+function runReceipt({ id, evidenceState, sourceStatus = 'success', actionRequired = 'none', sourceAction = null }) {
     return {
         id,
         workflow_id: `workflow-${id}`,
         project_id: 'brainbase',
-        action_required: 'none',
+        action_required: actionRequired,
         created_at: '2026-09-04T00:00:00.000Z',
         finished_at: '2026-09-04T00:00:00.000Z',
         metadata: {
             run_receipt: {
                 source: { type: 'mana', workflow_id: `workflow-${id}` },
-                source_status: 'success',
+                source_status: sourceStatus,
+                source_action: sourceAction,
+                source_action_required: actionRequired !== 'none',
                 source_external_run_id: id,
                 evidence_state: evidenceState,
                 evidence_refs: evidenceState === 'confirmed' ? [{ kind: 'log_ref', ref: `log:${id}` }] : []
@@ -308,7 +314,14 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         const receipts = new Map([
             ['run-confirmed', runReceipt({ id: 'run-confirmed', evidenceState: 'confirmed' })],
             ['run-unconfirmed', runReceipt({ id: 'run-unconfirmed', evidenceState: 'unconfirmed' })],
-            ['run-no-data', runReceipt({ id: 'run-no-data', evidenceState: 'no_data' })]
+            ['run-no-data', runReceipt({ id: 'run-no-data', evidenceState: 'no_data' })],
+            ['run-waiting', runReceipt({
+                id: 'run-waiting', evidenceState: 'confirmed', sourceStatus: 'waiting_human',
+                actionRequired: 'approve', sourceAction: 'approve'
+            })],
+            ['run-failed', runReceipt({ id: 'run-failed', evidenceState: 'confirmed', sourceStatus: 'failed' })],
+            ['run-blocked', runReceipt({ id: 'run-blocked', evidenceState: 'confirmed', sourceStatus: 'blocked' })],
+            ['run-cancelled', runReceipt({ id: 'run-cancelled', evidenceState: 'confirmed', sourceStatus: 'cancelled' })]
         ]);
         const { app, runReceiptQueryService } = defaultCompositionApp(receipts);
 
@@ -344,7 +357,7 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
             }
         });
         expect(closedReadback.body.evaluation_history[0].run_receipts).toEqual(
-            expect.arrayContaining([{ ref: 'run-confirmed', evidence_state: 'confirmed' }])
+            expect.arrayContaining([expect.objectContaining({ ref: 'run-confirmed', evidence_state: 'confirmed' })])
         );
 
         const unconfirmed = await request(app)
@@ -360,28 +373,28 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
                 observed_at: '2026-09-04T00:00:00.000Z'
             }).expect(200);
         expect(incomplete.body).toMatchObject({
-            closure_status: 'incomplete',
+            closure_status: 'waiting_human',
             terminal_evaluation: {
                 close_eligible: false,
                 run_receipts: [{ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' }]
             }
         });
         expect(incomplete.body.evaluation_history[0].run_receipts).toEqual(
-            expect.arrayContaining([{ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' }])
+            expect.arrayContaining([expect.objectContaining({ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' })])
         );
         const incompleteReadback = await request(app)
             .get(`/api/outcome-cases/${unconfirmed.body.case_id}`)
             .set('Authorization', 'Bearer outcome-user')
             .expect(200);
         expect(incompleteReadback.body).toMatchObject({
-            closure_status: 'incomplete',
+            closure_status: 'waiting_human',
             terminal_evaluation: {
                 close_eligible: false,
                 run_receipts: [{ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' }]
             }
         });
         expect(incompleteReadback.body.evaluation_history[0].run_receipts).toEqual(
-            expect.arrayContaining([{ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' }])
+            expect.arrayContaining([expect.objectContaining({ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' })])
         );
 
         const noData = await request(app)
@@ -404,7 +417,7 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
             }
         });
         expect(waiting.body.evaluation_history[0].run_receipts).toEqual(
-            expect.arrayContaining([{ ref: 'run-no-data', evidence_state: 'no_data' }])
+            expect.arrayContaining([expect.objectContaining({ ref: 'run-no-data', evidence_state: 'no_data' })])
         );
         const waitingReadback = await request(app)
             .get(`/api/outcome-cases/${noData.body.case_id}`)
@@ -418,8 +431,50 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
             }
         });
         expect(waitingReadback.body.evaluation_history[0].run_receipts).toEqual(
-            expect.arrayContaining([{ ref: 'run-no-data', evidence_state: 'no_data' }])
+            expect.arrayContaining([expect.objectContaining({ ref: 'run-no-data', evidence_state: 'no_data' })])
         );
+
+        for (const [runId, expectedClosure, expectedIssueCodes, expectedAction] of [
+            ['run-waiting', 'waiting_human', ['human_action_required'], 'approve'],
+            ['run-failed', 'incomplete', ['source_failed'], null],
+            ['run-blocked', 'incomplete', ['source_blocked'], null],
+            ['run-cancelled', 'incomplete', [], null]
+        ]) {
+            const created = await request(app)
+                .post('/api/outcome-cases').set('Authorization', 'Bearer outcome-user')
+                .send({ ...createPayload, run_receipt_refs: [runId] }).expect(201);
+            const evaluated = await request(app)
+                .post(`/api/outcome-cases/${created.body.case_id}/evaluations`)
+                .set('Authorization', 'Bearer outcome-user')
+                .send({
+                    technical_evidence: { status: 'confirmed', refs: ['test:default-composition-source-status'] },
+                    run_receipt_refs: [], external_readback: { status: 'confirm', ref: `external:${runId}` },
+                    constraints_status: 'satisfied', evaluator: 'request-text-is-not-authority',
+                    observed_at: '2026-09-04T00:00:00.000Z'
+                }).expect(200);
+            const expectedSnapshot = {
+                ref: runId,
+                source_status: runId === 'run-waiting' ? 'waiting_human' : runId.replace('run-', ''),
+                evidence_state: 'confirmed',
+                action_required: expectedAction || 'none',
+                issue_codes: expectedIssueCodes,
+                recommended_action: expectedAction,
+                diagnostics: {
+                    state: expectedIssueCodes.length > 0 || expectedAction ? 'action_required' : 'healthy',
+                    issue_codes: expectedIssueCodes,
+                    recommended_action: expectedAction
+                }
+            };
+            expect(evaluated.body).toMatchObject({
+                closure_status: expectedClosure,
+                terminal_evaluation: { close_eligible: false, run_receipts: [expectedSnapshot] },
+                evaluation_history: [{ run_receipts: [expectedSnapshot] }]
+            });
+            const persisted = await request(app)
+                .get(`/api/outcome-cases/${created.body.case_id}`)
+                .set('Authorization', 'Bearer outcome-user').expect(200);
+            expect(persisted.body).toEqual(evaluated.body);
+        }
         expect(runReceiptQueryService.repository.getRun('run-confirmed')).toBeDefined();
         expect(runReceiptQueryService.repository.getRun('run-unconfirmed')).toBeDefined();
         expect(runReceiptQueryService.repository.getRun('run-no-data')).toBeDefined();

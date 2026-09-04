@@ -6,6 +6,7 @@ const EXTERNAL_STATES = new Set([
     'unknown', 'accepted', 'processing', 'delivered', 'verified-complete', 'failed'
 ]);
 const EVIDENCE_STATES = new Set(['confirmed', 'unconfirmed', 'no_data']);
+const FAILED_RUN_RECEIPT_SOURCE_STATUSES = new Set(['failed', 'blocked', 'cancelled']);
 const READBACK_STATES = new Set(['confirm', 'unconfirmed', 'no_data']);
 const CONSTRAINT_STATES = new Set(['satisfied', 'violated', 'unknown']);
 const REFERENCE_STATES = new Set(['confirmed', 'unresolved']);
@@ -159,6 +160,40 @@ function clone(value) {
     return structuredClone(value);
 }
 
+function optionalString(value) {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizeRunReceiptSnapshot(receipt, ref) {
+    const diagnostics = receipt?.diagnostics && typeof receipt.diagnostics === 'object' && !Array.isArray(receipt.diagnostics)
+        ? clone(receipt.diagnostics)
+        : null;
+    const issueCodes = Array.isArray(receipt?.issue_codes)
+        ? receipt.issue_codes.filter((code) => typeof code === 'string' && code.trim()).map((code) => code.trim())
+        : Array.isArray(diagnostics?.issue_codes)
+            ? diagnostics.issue_codes.filter((code) => typeof code === 'string' && code.trim()).map((code) => code.trim())
+            : [];
+    return {
+        ref,
+        source_status: optionalString(receipt?.source_status),
+        evidence_state: EVIDENCE_STATES.has(receipt?.evidence_state)
+            ? receipt.evidence_state
+            : 'no_data',
+        action_required: optionalString(receipt?.action_required),
+        issue_codes: issueCodes,
+        recommended_action: optionalString(receipt?.recommended_action ?? diagnostics?.recommended_action),
+        diagnostics
+    };
+}
+
+function receiptRequiresAction(receipt) {
+    const issueCodes = Array.isArray(receipt?.issue_codes) ? receipt.issue_codes : [];
+    return (optionalString(receipt?.action_required) !== null && receipt.action_required !== 'none')
+        || receipt?.diagnostics?.state === 'action_required'
+        || issueCodes.length > 0
+        || optionalString(receipt?.recommended_action) !== null;
+}
+
 function normalizeCreate(input, { now, generateCaseId }) {
     requirePlainObject(input, 'OutcomeCase');
     rejectUnknownFields(input, CREATE_FIELDS, 'OutcomeCase');
@@ -233,24 +268,35 @@ function normalizeEvaluation(input) {
 }
 
 export function deriveClosureStatus({ technicalEvidence, runReceipts, externalReadback, constraintsStatus, referenceResolution, authority }) {
-    const allReceiptsConfirmed = runReceipts.length > 0
-        && runReceipts.every((receipt) => receipt.evidence_state === 'confirmed');
+    const allReceiptsHealthy = runReceipts.length > 0
+        && runReceipts.every((receipt) => receipt.evidence_state === 'confirmed'
+            && receipt.source_status === 'success'
+            && receipt.diagnostics?.state === 'healthy'
+            && !receiptRequiresAction(receipt));
     const referencesConfirmed = referenceResolution?.project?.state === 'confirmed'
         && referenceResolution?.capability?.state === 'confirmed';
     const authorityConfirmed = authority?.state === 'confirmed'
         && authority.closure_authorized_person_ids.length > 0;
     const closeEligible = technicalEvidence.status === 'confirmed'
-        && allReceiptsConfirmed
+        && allReceiptsHealthy
         && externalReadback.status === 'confirm'
         && constraintsStatus === 'satisfied'
         && referencesConfirmed
         && authorityConfirmed;
     if (closeEligible) return { closure_status: 'closed', close_eligible: true };
+    if (runReceipts.some((receipt) => receipt.source_status === 'waiting_human')) {
+        return { closure_status: 'waiting_human', close_eligible: false };
+    }
+    if (runReceipts.some((receipt) => FAILED_RUN_RECEIPT_SOURCE_STATUSES.has(receipt.source_status))) {
+        return { closure_status: 'incomplete', close_eligible: false };
+    }
     if (externalReadback.status === 'no_data'
         || constraintsStatus === 'unknown'
         || !referencesConfirmed
         || !authorityConfirmed
-        || runReceipts.some((receipt) => receipt.evidence_state === 'no_data')) {
+        || runReceipts.some((receipt) => receipt.evidence_state === 'no_data'
+            || receipt.source_status === null
+            || receiptRequiresAction(receipt))) {
         return { closure_status: 'waiting_human', close_eligible: false };
     }
     return { closure_status: 'incomplete', close_eligible: false };
@@ -336,13 +382,7 @@ export class OutcomeCaseService {
                 runReceiptRef,
                 actor
             });
-            return {
-                ref: runReceiptRef,
-                evidence_state: EVIDENCE_STATES.has(receipt?.evidence_state)
-                    ? receipt.evidence_state
-                    : 'no_data',
-                ...(receipt?.diagnostics === undefined ? {} : { diagnostics: clone(receipt.diagnostics) })
-            };
+            return normalizeRunReceiptSnapshot(receipt, runReceiptRef);
         }));
         const referenceResolution = await resolveReferences(this.resolveOutcomeReferences, outcomeCase, actor);
         const authority = await this.resolveAuthority(outcomeCase, actor);

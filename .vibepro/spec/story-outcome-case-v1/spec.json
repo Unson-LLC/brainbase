@@ -169,7 +169,7 @@
     {
       "id": "C-001",
       "type": "contract",
-      "statement": "OutcomeCase create/read/evaluate API は、成果・制約・Info SSOT RACI で解決した closure authority/provenance・参照・参照解決状態・DB が厳密接頭辞と1件追記を強制する evaluation history・評価時点の外部状態/失敗境界/結果 revision/status・時刻を OutcomeCase 専用 record として扱い、既存 RunReceipt v1 schema を変更しない。request は closure authority を自己申告できない。",
+      "statement": "OutcomeCase create/read/evaluate API は、成果・制約・Info SSOT RACI で解決した closure authority/provenance・参照・参照解決状態・DB が厳密接頭辞と1件追記を強制する evaluation history・評価時点の外部状態/失敗境界/結果 revision/status・参照 RunReceipt の source/evidence/action/diagnosis snapshot・時刻を OutcomeCase 専用 record として扱い、POST 後の GET で同じ snapshot を読戻せる。既存 RunReceipt v1 schema は変更せず、request は closure authority を自己申告できない。",
       "origin": {
         "story_refs": [
           {
@@ -218,7 +218,7 @@
     {
       "id": "C-002",
       "type": "invariant",
-      "statement": "closed は technical confirmed、初回から保持された全参照 RunReceipt confirmed、external readback confirm、constraints satisfied、project/capability confirmed、authoritative RACI authority confirmed、認証済み actor の同時成立でのみ導出する。評価 payload は既存 RunReceipt ref を削除できず、各 retained ref を診断する。",
+      "statement": "closed は technical confirmed、初回から保持された全参照 RunReceipt の evidence confirmed・source_status success・action-required diagnosis なし、external readback confirm、constraints satisfied、project/capability confirmed、authoritative RACI authority confirmed、認証済み actor の同時成立でのみ導出する。評価 payload は既存 RunReceipt ref を削除できず、各 retained ref を診断する。",
       "origin": {
         "story_refs": [
           {
@@ -275,7 +275,7 @@
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
       "last_revised_at": "2026-09-04T03:19:09.570Z",
-      "regression_guard": "technical_evidence が unconfirmed/no_data、retained receipt が no_data、external_readback が no_data、constraints が unknown、または authoritative resolver/RACI が未確認なら closed を導出しない。technical evidence の confirmed-only は予防的不変条件として真偽表で固定し、unconfirmed/no_data を許す変異を落とす。",
+      "regression_guard": "technical_evidence が unconfirmed/no_data、retained receipt が no_data、source_status が success 以外、action-required diagnosis がある、external_readback が no_data、constraints が unknown、または authoritative resolver/RACI が未確認なら closed を導出しない。waiting_human は waiting_human、failed/blocked/cancelled は incomplete として persisted GET まで固定する。",
       "path_surface_coverage": [
         "route/auth",
         "service",
@@ -287,7 +287,7 @@
     {
       "id": "C-003",
       "type": "contract",
-      "statement": "HTTP 200、テスト、保存、デプロイ、欠落 receipt、external no_data、unknown constraints は close の証拠へ自動変換しない。",
+      "statement": "HTTP 200、テスト、保存、デプロイ、confirmed evidence、欠落 receipt/diagnosis、external no_data、unknown constraints は close の証拠へ自動変換しない。RunReceipt の source_status、action_required、issue_codes、recommended_action、diagnostics を評価 snapshot/history/GET に保持する。",
       "origin": {
         "story_refs": [
           {
@@ -324,7 +324,7 @@
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
       "last_revised_at": "2026-09-04T03:19:09.570Z",
-      "regression_guard": "technical_evidence が unconfirmed/no_data、receipt/external が no_data、または constraints が unknown を HTTP・テスト・保存・デプロイ成功と組み合わせても close の証拠に変換しない。technical evidence の confirmed-only は予防的不変条件として真偽表で固定し、unconfirmed/no_data を許す変異を落とす。",
+      "regression_guard": "technical_evidence が unconfirmed/no_data、receipt/external が no_data、RunReceipt source が waiting_human/failed/blocked/cancelled、診断が要対応または欠落、または constraints が unknown を HTTP・テスト・保存・デプロイ成功と組み合わせても close の証拠に変換しない。",
       "path_surface_coverage": [
         "service",
         "unit/route/integration tests"
