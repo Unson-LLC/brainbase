@@ -7,12 +7,12 @@
     {
       "id": "C-001",
       "type": "contract",
-      "statement": "OutcomeCase create/read/evaluate API は、成果・制約・Info SSOT RACI で解決した closure authority/provenance・参照・参照解決状態・追記専用 evaluation history・評価時点の外部状態/失敗境界/結果 revision/status・時刻を OutcomeCase 専用 record として扱い、既存 RunReceipt v1 schema を変更しない。request は closure authority を自己申告できない。",
+      "statement": "OutcomeCase create/read/evaluate API は、成果・制約・Info SSOT RACI で解決した closure authority/provenance・参照・参照解決状態・DB が厳密接頭辞と1件追記を強制する evaluation history・評価時点の外部状態/失敗境界/結果 revision/status・時刻を OutcomeCase 専用 record として扱い、既存 RunReceipt v1 schema を変更しない。request は closure authority を自己申告できない。",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }, { "kind": "acceptance_criteria", "ac_id": "AC-002" }],
         "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "境界" }],
         "code_refs": [{ "file": "server/services/outcome-case/outcome-case-service.js", "anchor": "OutcomeCaseService" }, { "file": "server/services/outcome-case/outcome-case-postgres-repository.js", "anchor": "OutcomeCasePostgresRepository" }],
-        "test_refs": [{ "file": "tests/server/services/outcome-case-service.test.js", "case": "creates the required control-plane record with an explicit external state" }]
+        "test_refs": [{ "file": "tests/server/services/outcome-case-service.test.js", "case": "creates the required control-plane record with an explicit external state" }, { "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js", "case": "permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS" }]
       }
     },
     {
@@ -43,12 +43,12 @@
     {
       "id": "C-004",
       "type": "negative_boundary",
-      "statement": "authoritative project/capability/RACI resolver が未解決、registry 未適用、access-context/query 例外、または利用不能なら理由付き unresolved を保存し、close を禁止する。request の evaluator 文字列と authority は認可根拠にしない。repository read/update と table RLS は actor project scope を越えない。",
+      "statement": "authoritative project/capability/RACI resolver が未解決、registry 未適用、access-context/query 例外、または利用不能なら理由付き unresolved を保存し、close を禁止する。request の evaluator 文字列と authority は認可根拠にしない。repository の create/read/update と table FORCE RLS は actor project scope を越えず、internal/admin/ceo を含む空 project scope は許可しない。",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }, { "kind": "acceptance_criteria", "ac_id": "AC-004" }],
         "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "データと権限" }],
         "code_refs": [{ "file": "server/services/outcome-case/outcome-case-reference-resolver.js", "anchor": "createOutcomeCaseClosureAuthorityResolver" }, { "file": "server/services/outcome-case/outcome-case-postgres-repository.js", "anchor": "OutcomeCasePostgresRepository" }],
-        "test_refs": [{ "file": "tests/server/services/outcome-case-reference-resolver.test.js", "case": "fails closure authority closed when access context failure" }, { "file": "tests/server/services/outcome-case-service.test.js", "case": "persists unavailable authoritative closure authority and forbids close" }, { "file": "tests/server/services/outcome-case-service.test.js", "case": "rejects self-declared closure authority and cross-project reads or evaluations" }]
+        "test_refs": [{ "file": "tests/server/services/outcome-case-reference-resolver.test.js", "case": "fails closure authority closed when access context failure" }, { "file": "tests/server/services/outcome-case-service.test.js", "case": "persists unavailable authoritative closure authority and forbids close" }, { "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js", "case": "permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS" }, { "file": "tests/server/routes/outcome-cases.test.js", "case": "requires an explicit project scope for internal actors" }]
       }
     },
     {
@@ -59,7 +59,7 @@
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }, { "kind": "acceptance_criteria", "ac_id": "AC-005" }],
         "architecture_refs": [{ "file": "docs/architecture/story-outcome-case-v1.md", "section": "データと権限" }],
         "code_refs": [{ "file": "scripts/info-ssot-apply.sh", "anchor": "OUTCOME_CASE_SCHEMA_SQL" }, { "file": "server/sql/info-ssot-readback.sql", "anchor": "outcome_case_readback" }],
-        "test_refs": [{ "file": "tests/server/scripts/info-ssot-apply.test.js", "case": "runs schema, RLS, readback and smoke in fail-closed single-transaction mode" }]
+        "test_refs": [{ "file": "tests/server/scripts/info-ssot-apply.test.js", "case": "runs schema, RLS, readback and smoke in fail-closed single-transaction mode" }, { "file": "scripts/verify-outcome-case-postgres-rls-integration.sh", "case": "ephemeral PostgreSQL RLS API acceptance" }]
       }
     }
   ],

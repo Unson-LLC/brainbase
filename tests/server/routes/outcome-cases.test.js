@@ -163,6 +163,22 @@ describe('outcome case routes', () => {
         expect(authService.verifyToken).toHaveBeenCalledTimes(3);
     });
 
+    it.each([
+        ['internal', { personId: 'internal_api', projectCodes: [], role: 'admin' }],
+        ['admin', { personId: 'per_admin', projectCodes: [], role: 'admin' }],
+        ['ceo', { personId: 'per_ceo', projectCodes: [], role: 'ceo' }]
+    ])('requires an explicit project scope for %s actors', async (_kind, actor) => {
+        const service = {
+            create: vi.fn(),
+            read: vi.fn(),
+            evaluate: vi.fn()
+        };
+        const app = createApp(service, actor);
+
+        await request(app).post('/api/outcome-cases').send(createPayload).expect(403);
+        expect(service.create).not.toHaveBeenCalled();
+    });
+
     it('keeps the live bootstrap path connected to the service, resolver, and registered API', async () => {
         const { readFile } = await import('node:fs/promises');
         const core = await readFile('server/bootstrap/core-services.js', 'utf8');

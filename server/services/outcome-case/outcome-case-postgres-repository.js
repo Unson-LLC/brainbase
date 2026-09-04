@@ -30,15 +30,34 @@ function unavailable(error) {
     return wrapped;
 }
 
+function accessFromActor(actor = {}) {
+    return {
+        role: typeof actor.role === 'string' && actor.role.trim() ? actor.role.trim() : 'member',
+        projectCodes: Array.isArray(actor.projectCodes) ? actor.projectCodes : [],
+        clearance: Array.isArray(actor.clearance) ? actor.clearance : [],
+        organizationId: actor.organizationId || actor.tenantId || ''
+    };
+}
+
 export class OutcomeCasePostgresRepository {
-    constructor({ pool } = {}) {
+    constructor({ pool, infoSSOTService } = {}) {
         if (!pool) throw new Error('OutcomeCase PostgreSQL pool is required');
+        if (typeof infoSSOTService?.withAccessContext !== 'function') {
+            throw new Error('OutcomeCase PostgreSQL repository requires scoped InfoSSOT access context');
+        }
         this.pool = pool;
+        this.infoSSOTService = infoSSOTService;
     }
 
-    async query(text, values = []) {
+    async query(actor, text, values = []) {
         try {
-            return await this.pool.query(text, values);
+            // All OutcomeCase operations must use the transaction-local RLS
+            // context. Do not replace this with pool.query: FORCE RLS only
+            // protects requests which establish app.project_codes first.
+            return await this.infoSSOTService.withAccessContext(
+                accessFromActor(actor),
+                (client) => client.query(text, values)
+            );
         } catch (error) {
             throw unavailable(error);
         }
@@ -46,15 +65,15 @@ export class OutcomeCasePostgresRepository {
 
     async findByCaseId(caseId, actor = {}) {
         const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
-        const result = await this.query(
+        const result = await this.query(actor,
             'SELECT * FROM outcome_cases WHERE case_id = $1 AND project_code = ANY($2::text[])',
             [caseId, projectCodes]
         );
         return normalizeRow(result.rows[0]);
     }
 
-    async create(outcomeCase) {
-        const result = await this.query(`
+    async create(outcomeCase, actor = {}) {
+        const result = await this.query(actor, `
             INSERT INTO outcome_cases (
                 case_id, project_code, capability_id, user_observable_outcome,
                 protected_constraints, non_goals, authority, selected_domain_pack,
@@ -82,7 +101,7 @@ export class OutcomeCasePostgresRepository {
 
     async update(outcomeCase, { expectedRevision, actor = {} } = {}) {
         const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
-        const result = await this.query(`
+        const result = await this.query(actor, `
             UPDATE outcome_cases
                SET run_receipt_refs = $2::jsonb,
                    authority = $3::jsonb,

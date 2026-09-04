@@ -8,8 +8,6 @@ function normalizeProjectCode(value) {
 }
 
 function canAccessProject(req, projectCode) {
-    if (req.authSource === 'internal' || req.auth?.sub === 'internal_api' || req.access?.personId === 'internal_api') return true;
-    if (['admin', 'ceo'].includes(String(req.access?.role || req.auth?.role || '').toLowerCase())) return true;
     const requested = normalizeProjectCode(projectCode);
     return (Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [])
         .some((code) => normalizeProjectCode(code) === requested);

@@ -250,7 +250,7 @@ export function createCoreServices({
         canonicalTaskService
     });
     const outcomeCaseRepository = infoSSOTService.pool
-        ? new OutcomeCasePostgresRepository({ pool: infoSSOTService.pool })
+        ? new OutcomeCasePostgresRepository({ pool: infoSSOTService.pool, infoSSOTService })
         : null;
     const outcomeCaseService = outcomeCaseRepository
         ? new OutcomeCaseService({

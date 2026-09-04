@@ -85,6 +85,28 @@ BEGIN
   IF visible_count <> 1 THEN
     RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: authorized outcome case fixture was not readable';
   END IF;
+  -- A normal evaluation appends exactly one immutable event. Direct history
+  -- truncation or replacement must be rejected even for an authorized role.
+  UPDATE outcome_cases
+     SET evaluation_history = jsonb_build_array(jsonb_build_object('event', 'first-evaluation')),
+         revision = 2
+   WHERE case_id = fixture_outcome_case_id;
+  BEGIN
+    UPDATE outcome_cases
+       SET evaluation_history = '[]'::jsonb
+     WHERE case_id = fixture_outcome_case_id;
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: outcome case history truncation was accepted';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'OUTCOME_CASE_EVALUATION_HISTORY_APPEND_ONLY' THEN RAISE; END IF;
+  END;
+  BEGIN
+    UPDATE outcome_cases
+       SET evaluation_history = jsonb_build_array(jsonb_build_object('event', 'rewritten-first-evaluation'))
+     WHERE case_id = fixture_outcome_case_id;
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: outcome case history rewrite was accepted';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'OUTCOME_CASE_EVALUATION_HISTORY_APPEND_ONLY' THEN RAISE; END IF;
+  END;
   PERFORM set_config('app.project_codes', '__info_ssot_denied_scope__', true);
   SELECT count(*) INTO visible_count FROM outcome_cases WHERE case_id = fixture_outcome_case_id;
   IF visible_count <> 0 THEN

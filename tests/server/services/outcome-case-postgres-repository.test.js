@@ -40,9 +40,13 @@ describe('OutcomeCasePostgresRepository', () => {
                 evaluation_history: [{ close_eligible: false }],
                 terminal_evaluation: { close_eligible: false }
             }] }) };
-        const repository = new OutcomeCasePostgresRepository({ pool });
+        const infoSSOTService = {
+            withAccessContext: vi.fn((_access, handler) => handler(pool))
+        };
+        const repository = new OutcomeCasePostgresRepository({ pool, infoSSOTService });
 
-        const created = await repository.create(record);
+        const actor = { projectCodes: ['brainbase'], clearance: ['internal'], role: 'member', organizationId: 'unson' };
+        const created = await repository.create(record, actor);
         const updated = await repository.update({
             ...record,
             revision: 2,
@@ -50,7 +54,7 @@ describe('OutcomeCasePostgresRepository', () => {
             run_receipt_refs: ['run-1'],
             evaluation_history: [{ close_eligible: false }],
             terminal_evaluation: { close_eligible: false }
-        }, { expectedRevision: 1 });
+        }, { expectedRevision: 1, actor });
 
         expect(created).toMatchObject({ case_id: 'oc_01', revision: 1 });
         expect(updated).toMatchObject({ closure_status: 'incomplete', revision: 2 });
@@ -61,11 +65,17 @@ describe('OutcomeCasePostgresRepository', () => {
         expect(pool.query.mock.calls[1][0]).toContain('evaluation_history = $5::jsonb');
         expect(pool.query.mock.calls[1][0]).toContain('project_code = ANY($13::text[])');
         expect(pool.query.mock.calls[1][0]).not.toContain('user_observable_outcome =');
+        expect(infoSSOTService.withAccessContext).toHaveBeenNthCalledWith(1, {
+            role: 'member', projectCodes: ['brainbase'], clearance: ['internal'], organizationId: 'unson'
+        }, expect.any(Function));
+        expect(infoSSOTService.withAccessContext).toHaveBeenCalledTimes(2);
     });
 
     it('reports a revision conflict instead of silently overwriting a newer evaluation', async () => {
+        const pool = { query: vi.fn().mockResolvedValue({ rows: [] }) };
         const repository = new OutcomeCasePostgresRepository({
-            pool: { query: vi.fn().mockResolvedValue({ rows: [] }) }
+            pool,
+            infoSSOTService: { withAccessContext: (_access, handler) => handler(pool) }
         });
 
         await expect(repository.update({ ...record, revision: 2 }, { expectedRevision: 1 }))
@@ -74,7 +84,8 @@ describe('OutcomeCasePostgresRepository', () => {
 
     it('scopes reads and updates to the authenticated actor project set', async () => {
         const pool = { query: vi.fn().mockResolvedValue({ rows: [record] }) };
-        const repository = new OutcomeCasePostgresRepository({ pool });
+        const infoSSOTService = { withAccessContext: vi.fn((_access, handler) => handler(pool)) };
+        const repository = new OutcomeCasePostgresRepository({ pool, infoSSOTService });
 
         await repository.findByCaseId('oc_01', { projectCodes: ['brainbase'] });
         await repository.update({ ...record, revision: 2 }, {
@@ -87,5 +98,11 @@ describe('OutcomeCasePostgresRepository', () => {
             ['oc_01', ['brainbase']]
         ]);
         expect(pool.query.mock.calls[1][1]).toEqual(expect.arrayContaining([['brainbase']]));
+        expect(infoSSOTService.withAccessContext).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not permit construction without the scoped InfoSSOT context required for FORCE RLS', () => {
+        expect(() => new OutcomeCasePostgresRepository({ pool: { query: vi.fn() } }))
+            .toThrow('requires scoped InfoSSOT access context');
     });
 });

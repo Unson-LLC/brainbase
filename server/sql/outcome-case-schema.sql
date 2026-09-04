@@ -27,4 +27,30 @@ ALTER TABLE outcome_cases
     ADD COLUMN IF NOT EXISTS reference_resolution JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS evaluation_history JSONB NOT NULL DEFAULT '[]'::jsonb;
 
+-- An evaluation is an audit event. Existing events must never be edited or
+-- removed, and each persisted evaluation must add exactly one new event.
+CREATE OR REPLACE FUNCTION outcome_case_evaluation_history_append_only()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+    old_length INTEGER;
+    new_length INTEGER;
+BEGIN
+    old_length := jsonb_array_length(OLD.evaluation_history);
+    new_length := jsonb_array_length(NEW.evaluation_history);
+    IF new_length <> old_length + 1
+       OR (NEW.evaluation_history - (new_length - 1)) IS DISTINCT FROM OLD.evaluation_history THEN
+        RAISE EXCEPTION 'OUTCOME_CASE_EVALUATION_HISTORY_APPEND_ONLY';
+    END IF;
+    RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS outcome_case_evaluation_history_append_only ON outcome_cases;
+CREATE TRIGGER outcome_case_evaluation_history_append_only
+    BEFORE UPDATE OF evaluation_history ON outcome_cases
+    FOR EACH ROW
+    EXECUTE FUNCTION outcome_case_evaluation_history_append_only();
+
 CREATE INDEX IF NOT EXISTS outcome_cases_project_code_idx ON outcome_cases (project_code, updated_at DESC);

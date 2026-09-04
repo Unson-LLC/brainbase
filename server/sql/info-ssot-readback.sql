@@ -235,6 +235,14 @@ BEGIN
       RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing outcome_cases column %', required_column;
     END IF;
   END LOOP;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = to_regclass(format('%I.outcome_cases', current_schema()))
+      AND tgname = 'outcome_case_evaluation_history_append_only'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing outcome case append-only history trigger';
+  END IF;
 END
 $outcome_case_readback$;
 

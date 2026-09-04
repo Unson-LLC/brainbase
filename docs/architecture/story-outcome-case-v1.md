@@ -20,7 +20,7 @@ evaluate → technical evidence (入力)
 ```
 
 - API は `POST /api/outcome-cases`、`GET /api/outcome-cases/:caseId`、`POST /api/outcome-cases/:caseId/evaluations` のみ。
-- repository は OutcomeCase 専用 table を使う。実行時の PostgreSQL がない場合は API を利用不可として fail loud にし、JSON fallback を正本にしない。
+- repository は OutcomeCase 専用 table を使い、create/find/update の全操作を actor 由来の `InfoSSOTService.withAccessContext` scoped client 内で実行する。raw shared pool は使用しない。実行時の PostgreSQL がない場合は API を利用不可として fail loud にし、JSON fallback を正本にしない。
 - RunReceipt の参照確認は既存 `RunReceiptQueryService.diagnose` の read-only 結果だけを使う。receipt が見つからない場合は `no_data` であり、成功へ丸めない。
 - `closure_status` は request から直接指定できず、評価ごとに導出する。`closed` は evidence、参照解決、解決済み authority、認証済み actor を満たす場合だけで導出する。
 - `current_external_state` は評価に含む任意の明示値だけで更新する。欠落時に `unknown` を書き込まない。
@@ -32,11 +32,11 @@ evaluate → technical evidence (入力)
 
 ## データと権限
 
-`authority` は `{ state, closure_authorized_person_ids, provenance, reason }` の小さな明示契約である。create/evaluate request は authority を渡せず、service は actor の access context を用いて既存 Info SSOT `raci_assignments` を read-only 照会する。resolver の未解決・例外は理由付き unresolved として保存され、close を禁止する。閉鎖時は request の `evaluator` 文字列ではなく route が渡す認証済み actor の `person_id` と照合する。`evaluator` は監査上の claim としてだけ保存する。本 v1 は Graph/RACI を書き換えない。
+`authority` は `{ state, closure_authorized_person_ids, provenance, reason }` の小さな明示契約である。create/evaluate request は authority を渡せず、service は actor の access context を用いて既存 Info SSOT `raci_assignments` を read-only 照会する。resolver の未解決・例外は理由付き unresolved として保存され、close を禁止する。閉鎖時は request の `evaluator` 文字列ではなく route が渡す認証済み actor の `person_id` と照合する。`evaluator` は監査上の claim としてだけ保存する。route と service は internal/admin/ceo も同じ明示 `projectCodes` を要求し、空 scope の特権 bypass を持たない。本 v1 は Graph/RACI を書き換えない。
 
-参照は注入された authoritative resolver で、scope を設定した PostgreSQL の `projects` と active `brainbase_capabilities` を read-only で照会する。repository の read/update は actor の `projectCodes` で絞り、table は `app_project_codes()` を使う FORCE RLS policy でも二重に絞る。capability registry が未適用、参照が見つからない、または resolver が利用不能なら、record に `unresolved` と理由を保存し、閉鎖を禁止する。resolver は Graph entity を作成・更新しない。
+参照は注入された authoritative resolver で、scope を設定した PostgreSQL の `projects` と active `brainbase_capabilities` を read-only で照会する。repository の create/read/update は actor の `projectCodes` を transaction-local context に設定し、table は `app_project_codes()` を使う FORCE RLS policy で強制する。capability registry が未適用、参照が見つからない、または resolver が利用不能なら、record に `unresolved` と理由を保存し、閉鎖を禁止する。resolver は Graph entity を作成・更新しない。
 
-`server/sql/outcome-case-schema.sql` は `scripts/info-ssot-apply.sh` の single-transaction bundle に入る。`CREATE/ALTER ... IF NOT EXISTS` と readback により、初回と既存 v1 table の両方を idempotent に扱う。これはローカル適用経路の接続証拠であり、本番への適用を意味しない。
+`server/sql/outcome-case-schema.sql` は `scripts/info-ssot-apply.sh` の single-transaction bundle に入る。`CREATE/ALTER ... IF NOT EXISTS` と readback により、初回と既存 v1 table の両方を idempotent に扱う。`outcome_case_evaluation_history_append_only` trigger は既存 JSONB array を厳密な接頭辞として保ち、更新がちょうど1件の追記でない場合を拒否する。これはローカル適用経路と ephemeral PostgreSQL RLS integration の証拠であり、本番への適用を意味しない。
 
 ## 証拠境界
 
