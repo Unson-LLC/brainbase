@@ -15,6 +15,10 @@ export interface TokenData {
   issued_at?: number;
 }
 
+export interface TokenManagerOptions {
+  allowEnvironmentToken?: boolean;
+}
+
 /**
  * TokenManager
  * Loads, stores, and refreshes JWT tokens
@@ -24,10 +28,12 @@ export class TokenManager {
   private tokenData: TokenData | null = null;
   private apiUrl: string;
   private refreshPromise: Promise<void> | null = null;
+  private allowEnvironmentToken: boolean;
 
-  constructor(apiUrl?: string, tokenFilePath?: string) {
+  constructor(apiUrl?: string, tokenFilePath?: string, options: TokenManagerOptions = {}) {
     this.tokenFilePath = tokenFilePath || join(homedir(), '.brainbase', 'tokens.json');
     this.apiUrl = apiUrl || process.env.BRAINBASE_GRAPH_API_URL || 'http://localhost:31013';
+    this.allowEnvironmentToken = options.allowEnvironmentToken ?? true;
   }
 
   /**
@@ -35,7 +41,9 @@ export class TokenManager {
    * Dedicated service runtimes must not be shadowed by a persisted user token.
    */
   async getToken(): Promise<string> {
-    const envToken = process.env.BRAINBASE_GRAPH_API_TOKEN?.trim();
+    const envToken = this.allowEnvironmentToken
+      ? process.env.BRAINBASE_GRAPH_API_TOKEN?.trim()
+      : undefined;
     if (envToken) {
       return envToken;
     }
