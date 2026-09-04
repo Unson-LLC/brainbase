@@ -207,7 +207,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T03:00:18.877Z"
+      "last_revised_at": "2026-09-04T10:52:24.414Z"
     },
     {
       "id": "C-001",
@@ -261,7 +261,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T03:00:18.877Z"
+      "last_revised_at": "2026-09-04T10:52:24.414Z"
     },
     {
       "id": "C-002",
@@ -315,7 +315,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T03:00:18.877Z"
+      "last_revised_at": "2026-09-04T10:52:24.414Z"
     },
     {
       "id": "INV-002",
@@ -367,7 +367,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T03:00:18.877Z"
+      "last_revised_at": "2026-09-04T10:52:24.414Z"
     },
     {
       "id": "C-003",
@@ -417,7 +417,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T03:00:18.877Z"
+      "last_revised_at": "2026-09-04T10:52:24.414Z"
     },
     {
       "id": "C-004",
@@ -452,7 +452,7 @@
           },
           {
             "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
-            "anchor": "assertOwnerAccess"
+            "anchor": "requireOwner"
           },
           {
             "file": "server/services/sns/personal-kg-identity.js",
@@ -466,82 +466,82 @@
             "file": "server/services/sns/feedback-learning-service.js",
             "anchor": "buildSnsFeedbackCandidateDraft"
           },
-      {
-        "file": "server/services/sns/sns-generation-context-service.js",
-        "anchor": "buildContext"
-      },
-      {
-        "file": "server/services/sns/personal-knowledge-graph-reader.js",
-        "anchor": "listRecentEntities"
-      },
-        {
-          "file": "server/services/sns/sns-readonly-curator.js",
-          "anchor": "saveDraftsToCandidateStore"
-        },
-        {
-          "file": "server/routes/companion.js",
-          "anchor": "createCompanionAccessGuard"
-        },
-      {
-        "file": "scripts/personal-kg-review-projection.js",
-        "anchor": "personalKgIdentity"
-      },
-        {
-          "file": "scripts/generate-personal-kg-sns-weekly-pack.js",
-          "anchor": "viewer"
-        },
-        {
-          "file": "scripts/generate-memory-preamble.mjs",
-          "anchor": "resolvePersonalKgAccess"
-        },
-        {
-          "file": "scripts/link-oyasumi-personal-kg-projects.js",
-          "anchor": "linkOyasumiPersonalKgProjects"
-        },
-        {
-          "file": "scripts/lib/personal-kg-cli-authority.js",
-          "anchor": "resolvePersonalKgCliAuthority"
-        },
-        {
-          "file": "scripts/build-sns-generation-context.js",
-          "anchor": "personalKgIdentity"
-        },
-        {
-          "file": "scripts/process-sns-feedback-to-learning.js",
-          "anchor": "personalKgIdentity"
-        },
-        {
-          "file": "scripts/oyasumi-conversation-personal-kg.js",
-          "anchor": "personalKgIdentity"
-        },
-        {
-          "file": "scripts/oyasumi-conversation-personal-kg-v2.js",
-          "anchor": "resolveConversationPersonalKgIdentity"
-        },
-        {
-          "file": "scripts/oyasumi-conversation-personal-kg-backlog.js",
-          "anchor": "main"
-        },
-        {
-          "file": "scripts/oyasumi-meeting-personal-kg.js",
-          "anchor": "personalKgIdentity"
-        },
-        {
-          "file": "scripts/project-oyasumi-sns-ready.js",
-          "anchor": "personalKgIdentity"
-        },
-        {
-          "file": "scripts/routines/run.mjs",
-          "anchor": "executeRoutineOverHttp"
-        },
-        {
-          "file": "server/middleware/routine-company-authority.js",
-          "anchor": "requireRoutineCompanyAuthority"
-        },
-        {
-          "file": "server/middleware/personal-knowledge-access.js",
-          "anchor": "companyAuthorityAccess"
-        }
+          {
+            "file": "server/services/sns/sns-generation-context-service.js",
+            "anchor": "buildContext"
+          },
+          {
+            "file": "server/services/sns/personal-knowledge-graph-reader.js",
+            "anchor": "listRecentEntities"
+          },
+          {
+            "file": "server/services/sns/sns-readonly-curator.js",
+            "anchor": "saveDraftsToCandidateStore"
+          },
+          {
+            "file": "server/routes/companion.js",
+            "anchor": "createCompanionAccessGuard"
+          },
+          {
+            "file": "scripts/personal-kg-review-projection.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/generate-personal-kg-sns-weekly-pack.js",
+            "anchor": "viewer"
+          },
+          {
+            "file": "scripts/generate-memory-preamble.mjs",
+            "anchor": "resolvePersonalKgAccess"
+          },
+          {
+            "file": "scripts/link-oyasumi-personal-kg-projects.js",
+            "anchor": "linkOyasumiPersonalKgProjects"
+          },
+          {
+            "file": "scripts/lib/personal-kg-cli-authority.js",
+            "anchor": "resolvePersonalKgCliAuthority"
+          },
+          {
+            "file": "scripts/build-sns-generation-context.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/process-sns-feedback-to-learning.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/oyasumi-conversation-personal-kg.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/oyasumi-conversation-personal-kg-v2.js",
+            "anchor": "resolveConversationPersonalKgIdentity"
+          },
+          {
+            "file": "scripts/oyasumi-conversation-personal-kg-backlog.js",
+            "anchor": "main"
+          },
+          {
+            "file": "scripts/oyasumi-meeting-personal-kg.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/project-oyasumi-sns-ready.js",
+            "anchor": "personalKgIdentity"
+          },
+          {
+            "file": "scripts/routines/run.mjs",
+            "anchor": "executeRoutineOverHttp"
+          },
+          {
+            "file": "server/middleware/routine-company-authority.js",
+            "anchor": "requireRoutineCompanyAuthority"
+          },
+          {
+            "file": "server/middleware/personal-knowledge-access.js",
+            "anchor": "companyAuthorityAccess"
+          }
         ],
         "test_refs": [
           {
@@ -566,7 +566,7 @@
           },
           {
             "file": "tests/sns/oyasumi/personal-kg-identity.test.js",
-            "case": "rejects an unverified delegation receipt identifier"
+            "case": "canonicalizes explicit aliases and rejects undelegated actor mismatch"
           },
           {
             "file": "tests/sns/oyasumi/personal-kg-cli-authority.test.js",
@@ -584,22 +584,22 @@
             "file": "tests/sns/feedback-learning/feedback-learning-service.test.js",
             "case": "requires explicit Personal KG identity before candidate handoff"
           },
-      {
-        "file": "tests/sns/ops/sns-generation-context.test.js",
-        "case": "filters cross-person and cross-tenant Personal KG candidates from generation context"
-      },
-      {
-        "file": "tests/sns/personal-kg/personal-knowledge-graph-reader.test.js",
-        "case": "excludes a same-owner candidate from another organization"
-      },
-        {
-          "file": "tests/sns/curator/invariants/inv-2-write-to-candidate-store.test.js",
-          "case": "writes owner, actor, and organization from explicit Personal KG identity"
-        },
-        {
-          "file": "tests/server/routes/companion-reply-draft.test.js",
-          "case": "fails closed when no Personal KG owner is configured"
-        },
+          {
+            "file": "tests/sns/ops/sns-generation-context.test.js",
+            "case": "filters cross-person and cross-tenant Personal KG candidates from generation context"
+          },
+          {
+            "file": "tests/sns/personal-kg/personal-knowledge-graph-reader.test.js",
+            "case": "excludes a same-owner candidate from another organization"
+          },
+          {
+            "file": "tests/sns/curator/invariants/inv-2-write-to-candidate-store.test.js",
+            "case": "writes owner, actor, and organization from explicit Personal KG identity"
+          },
+          {
+            "file": "tests/server/routes/companion-reply-draft.test.js",
+            "case": "fails closed when no Personal KG owner is configured"
+          },
           {
             "file": "tests/sns/weekly-planner/generate-personal-kg-sns-weekly-pack.test.js",
             "case": "preserves the verified snake-case identity returned by company authority resolution"
@@ -607,22 +607,26 @@
           {
             "file": "tests/sns/personal-kg/generate-memory-preamble.test.js",
             "case": "requires signed company authority and rejects legacy self-asserted identity"
-        },
-        {
-          "file": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",
-          "case": "scopes project-link reads and writes to the requested owner and organization"
-      },
-      {
-        "file": "tests/e2e/story-personal-kg-review-projection-cli.spec.ts",
-        "case": "CLI dry-run review and projection contract"
-      },
-      {
-        "file": "tests/unit/routine-runner-cycle-executor.test.js",
-        "case": "routine CLI sends the verified signed company authority response without proxy identity headers"
-      },
-      {
-        "file": "tests/server/routes/routine-execution-routes.test.js",
-        "case": "routine server rejects missing or tampered company authority before executor effects"
+          },
+          {
+            "file": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",
+            "case": "scopes project-link reads and writes to the requested owner and organization"
+          },
+          {
+            "file": "tests/e2e/story-personal-kg-review-projection-cli.spec.ts",
+            "case": "CLI dry-run review and projection contract"
+          },
+          {
+            "file": "tests/unit/routine-runner-cycle-executor.test.js",
+            "case": "標準CLIは正規runtime envを読み、ローカルAPIとReceiptを内部APIキーで認証する"
+          },
+          {
+            "file": "tests/server/routes/routine-execution-routes.test.js",
+            "case": "内部・service認証のroutineは署名済み会社権限を必須にする"
+          },
+          {
+            "file": "tests/server/routes/routine-execution-routes.test.js",
+            "case": "改ざんされた会社権限はroutine effectより前に拒否する"
           }
         ]
       },
@@ -646,52 +650,60 @@
           },
           {
             "file_glob": "tests/sns/oyasumi/personal-kg-identity.test.js",
-            "must_cover": "unverified delegation receipt identifier"
+            "must_cover": "undelegated actor mismatch"
           },
           {
             "file_glob": "tests/sns/oyasumi/personal-kg-cli-authority.test.js",
-            "must_cover": "verified context and rejects legacy self-asserted identity"
+            "must_cover": "derives owner, actor, organization, and project only from a verified context"
+          },
+          {
+            "file_glob": "tests/sns/oyasumi/personal-kg-cli-authority.test.js",
+            "must_cover": "rejects legacy self-asserted identity even when a signed context is present"
           },
           {
             "file_glob": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-service.test.js",
             "must_cover": "cross-person and cross-tenant candidates"
           },
-      {
-        "file_glob": "tests/sns/ops/sns-generation-context.test.js",
-        "must_cover": "filters cross-person and cross-tenant"
-      },
-        {
-          "file_glob": "tests/sns/personal-kg/personal-knowledge-graph-reader.test.js",
-          "must_cover": "same-owner candidate from another organization"
-        },
-        {
-          "file_glob": "tests/server/routes/companion-reply-draft.test.js",
-          "must_cover": "fails closed when no Personal KG owner is configured"
-        },
-        {
-          "file_glob": "tests/sns/weekly-planner/generate-personal-kg-sns-weekly-pack.test.js",
-          "must_cover": "verified snake-case identity"
-        },
-        {
-          "file_glob": "tests/sns/personal-kg/generate-memory-preamble.test.js",
-          "must_cover": "signed company authority and rejects legacy self-asserted identity"
-        },
-        {
-          "file_glob": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",
-          "must_cover": "project-link reads and writes to the requested owner and organization"
-        },
-        {
-          "file_glob": "tests/unit/routine-runner-cycle-executor.test.js",
-          "must_cover": "signed company authority response without proxy identity headers"
-        },
-        {
-          "file_glob": "tests/server/routes/routine-execution-routes.test.js",
-          "must_cover": "rejects missing or tampered company authority before executor effects"
-        }
+          {
+            "file_glob": "tests/sns/ops/sns-generation-context.test.js",
+            "must_cover": "filters cross-person and cross-tenant"
+          },
+          {
+            "file_glob": "tests/sns/personal-kg/personal-knowledge-graph-reader.test.js",
+            "must_cover": "same-owner candidate from another organization"
+          },
+          {
+            "file_glob": "tests/server/routes/companion-reply-draft.test.js",
+            "must_cover": "fails closed when no Personal KG owner is configured"
+          },
+          {
+            "file_glob": "tests/sns/weekly-planner/generate-personal-kg-sns-weekly-pack.test.js",
+            "must_cover": "verified snake-case identity"
+          },
+          {
+            "file_glob": "tests/sns/personal-kg/generate-memory-preamble.test.js",
+            "must_cover": "signed company authority and rejects legacy self-asserted identity"
+          },
+          {
+            "file_glob": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",
+            "must_cover": "project-link reads and writes to the requested owner and organization"
+          },
+          {
+            "file_glob": "tests/unit/routine-runner-cycle-executor.test.js",
+            "must_cover": "標準CLIは正規runtime envを読み、ローカルAPIとReceiptを内部APIキーで認証する"
+          },
+          {
+            "file_glob": "tests/server/routes/routine-execution-routes.test.js",
+            "must_cover": "内部・service認証のroutineは署名済み会社権限を必須にする"
+          },
+          {
+            "file_glob": "tests/server/routes/routine-execution-routes.test.js",
+            "must_cover": "改ざんされた会社権限はroutine effectより前に拒否する"
+          }
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T10:00:00.000Z"
+      "last_revised_at": "2026-09-04T10:52:24.414Z"
     },
     {
       "id": "C-005",
@@ -773,7 +785,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T07:00:00.000Z"
+      "last_revised_at": "2026-09-04T10:52:24.414Z"
     },
     {
       "id": "C-006",
@@ -835,7 +847,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T07:00:00.000Z"
+      "last_revised_at": "2026-09-04T10:52:24.414Z"
     },
     {
       "id": "INV-003",
@@ -865,12 +877,12 @@
             "anchor": "FORCE ROW LEVEL SECURITY"
           }
         ],
-      "test_refs": [
-        {
-          "file": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
-          "case": "rejects a superuser even when it can bypass RLS and assume the runtime role"
-        },
-        {
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
+            "case": "rejects a superuser even when it can bypass RLS and assume the runtime role"
+          },
+          {
             "file": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
             "case": "rolls back dry-run and persists the exact schema only after approved apply"
           },
@@ -895,7 +907,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T03:00:18.877Z"
+      "last_revised_at": "2026-09-04T10:52:24.414Z"
     }
   ],
   "open_questions": [
@@ -913,5 +925,5 @@
     }
   ],
   "generated_at": "2026-09-04T03:00:18.876Z",
-  "previous_spec_id": null
+  "previous_spec_id": "2026-09-04T03:00:18.876Z"
 }
