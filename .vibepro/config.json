@@ -94,8 +94,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-mcp-auth-context-1396",
+        "title": "対話型MCPの判断と参照を同じ認証で実行する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-canonical-company-authority-context"
+    "current_story_id": "story-mcp-auth-context-1396"
   }
 }

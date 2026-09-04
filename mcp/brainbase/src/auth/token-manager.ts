@@ -17,6 +17,25 @@ export interface TokenData {
 
 export interface TokenManagerOptions {
   allowEnvironmentToken?: boolean;
+  requireEnvironmentToken?: boolean;
+}
+
+export function createConnectionTokenManager(apiUrl?: string, tokenFilePath?: string): {
+  mode: 'interactive' | 'service';
+  tokenManager: TokenManager;
+} {
+  const configuredMode = process.env.BRAINBASE_AUTH_MODE?.trim();
+  const mode = configuredMode || (process.env.BRAINBASE_GRAPH_API_TOKEN?.trim() ? 'service' : 'interactive');
+  if (mode !== 'interactive' && mode !== 'service') {
+    throw new Error('BRAINBASE_AUTH_MODE must be interactive or service');
+  }
+  return {
+    mode,
+    tokenManager: new TokenManager(apiUrl, tokenFilePath, {
+      allowEnvironmentToken: mode === 'service',
+      requireEnvironmentToken: mode === 'service',
+    }),
+  };
 }
 
 /**
@@ -29,11 +48,13 @@ export class TokenManager {
   private apiUrl: string;
   private refreshPromise: Promise<void> | null = null;
   private allowEnvironmentToken: boolean;
+  private requireEnvironmentToken: boolean;
 
   constructor(apiUrl?: string, tokenFilePath?: string, options: TokenManagerOptions = {}) {
     this.tokenFilePath = tokenFilePath || join(homedir(), '.brainbase', 'tokens.json');
     this.apiUrl = apiUrl || process.env.BRAINBASE_GRAPH_API_URL || 'http://localhost:31013';
     this.allowEnvironmentToken = options.allowEnvironmentToken ?? true;
+    this.requireEnvironmentToken = options.requireEnvironmentToken ?? false;
   }
 
   /**
@@ -46,6 +67,9 @@ export class TokenManager {
       : undefined;
     if (envToken) {
       return envToken;
+    }
+    if (this.requireEnvironmentToken) {
+      throw new Error('Service authentication requires BRAINBASE_GRAPH_API_TOKEN; persisted user credentials are not used');
     }
 
     // Try loading from file
