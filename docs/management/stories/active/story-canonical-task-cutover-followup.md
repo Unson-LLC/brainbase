@@ -31,6 +31,7 @@ Mac Companionからの作成・更新を安全に開通できない。
 - 同じ候補へ異なる決定を再送して既存結果を上書きする。
 - runtime factoryで依存が欠落し、テスト環境だけ成功して本番経路がmaterializeしない。
 - current-HEAD証跡が不足したままmutationを開き、未検証writerを本番へ到達させる。
+- collectorを独立worktreeで起動すると、通常discovery用のworktree除外が明示した正本evidence testまで除外し、0件実行を返す。
 
 ## Done evidence
 
@@ -55,6 +56,7 @@ Mac Companionからの作成・更新を安全に開通できない。
 - [x] canonicalTaskService未注入の既存Automation Run互換性を維持する。
 - [ ] current-HEADの独立レビューと必須検証を完了する。
 - [ ] 本番preflightとowner-auth create/updateを確認後、mutation開通可否を確定する。
+- [ ] collectorが注入する`VIBEPRO_EVIDENCE_ID`、`VIBEPRO_EVIDENCE_RESULT`、`VIBEPRO_EVIDENCE_NONCE`がそろい、正本registryが明示するCanonical Task evidence specを実行する場合だけ、独立worktreeから1件のevidence testを収集できる。通常discoveryの`.worktrees`/`.codex-worktrees`除外、registry allowlist、reporter/provenance検証は維持する。
 
 ## Architecture decision
 
