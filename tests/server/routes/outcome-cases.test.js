@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
+import { createOutcomeCaseService } from '../../../server/bootstrap/core-services.js';
 import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes.js';
 import { createOutcomeCaseRouter } from '../../../server/routes/outcome-cases.js';
 import { OutcomeCaseService } from '../../../server/services/outcome-case/outcome-case-service.js';
@@ -130,10 +131,13 @@ describe('outcome case routes', () => {
         expect(response.body.error).toBe('closure_authority_denied');
     });
 
-    it('registerApiRoutes protects and wires create, read, and evaluate through workflowAuthGuard', async () => {
-        const service = new OutcomeCaseService({
+    it('mounts the bootstrap service behind workflowAuthGuard and retains no_data diagnostics on readback', async () => {
+        const service = createOutcomeCaseService({
             repository: new MemoryOutcomeCaseRepository(),
-            readRunReceipt: async () => ({ evidence_state: 'confirmed' }),
+            readRunReceipt: async ({ runReceiptRef }) => ({
+                evidence_state: 'no_data',
+                diagnostics: { code: 'receipt_not_observed', run_receipt_ref: runReceiptRef }
+            }),
             resolveOutcomeReferences: async ({ projectCode, capabilityId }) => ({
                 project: { ref: projectCode, state: 'confirmed' },
                 capability: { ref: capabilityId, state: 'confirmed' }
@@ -147,22 +151,65 @@ describe('outcome case routes', () => {
         await request(app).post('/api/outcome-cases').send(createPayload).expect(401);
 
         const created = await request(app)
-            .post('/api/outcome-cases').set('Authorization', 'Bearer outcome-user').send(createPayload).expect(201);
-        await request(app)
-            .get(`/api/outcome-cases/${created.body.case_id}`).set('Authorization', 'Bearer outcome-user').expect(200);
+            .post('/api/outcome-cases').set('Authorization', 'Bearer outcome-user').send({
+                ...createPayload,
+                current_external_state: 'unknown',
+                unresolved_failure_boundary: 'awaiting_external_receipt'
+            }).expect(201);
         const evaluated = await request(app)
             .post(`/api/outcome-cases/${created.body.case_id}/evaluations`)
             .set('Authorization', 'Bearer outcome-user')
             .send({
-                technical_evidence: { status: 'confirmed', refs: ['test:registered-route'] },
+                technical_evidence: { status: 'no_data', refs: [] },
                 run_receipt_refs: ['run-route-1'],
-                external_readback: { status: 'confirm', ref: 'external:route-1' },
-                constraints_status: 'satisfied', evaluator: 'self-declared-ignored',
+                external_readback: { status: 'no_data' },
+                constraints_status: 'unknown',
+                evaluator: 'self-declared-ignored',
+                current_external_state: 'unknown',
+                unresolved_failure_boundary: 'awaiting_external_receipt',
                 observed_at: '2026-09-04T00:00:00.000Z'
             }).expect(200);
 
-        expect(evaluated.body.closure_status).toBe('closed');
+        expect(evaluated.body).toMatchObject({
+            closure_status: 'waiting_human',
+            current_external_state: 'unknown',
+            unresolved_failure_boundary: 'awaiting_external_receipt',
+            run_receipt_refs: ['run-route-1'],
+            terminal_evaluation: {
+                closure_status: 'waiting_human',
+                close_eligible: false,
+                run_receipts: [{
+                    ref: 'run-route-1',
+                    evidence_state: 'no_data',
+                    diagnostics: { code: 'receipt_not_observed', run_receipt_ref: 'run-route-1' }
+                }]
+            }
+        });
+        expect(evaluated.body.evaluation_history).toHaveLength(1);
+        expect(evaluated.body.evaluation_history[0]).toMatchObject({
+            resulting_closure_status: 'waiting_human',
+            current_external_state: 'unknown',
+            unresolved_failure_boundary: 'awaiting_external_receipt',
+            retained_run_receipt_refs: ['run-route-1']
+        });
+
+        const readback = await request(app)
+            .get(`/api/outcome-cases/${created.body.case_id}`).set('Authorization', 'Bearer outcome-user').expect(200);
+        expect(readback.body).toEqual(evaluated.body);
         expect(authService.verifyToken).toHaveBeenCalledTimes(3);
+    });
+
+    it('fails loudly for authenticated OutcomeCase requests when bootstrap has no PostgreSQL service', async () => {
+        const { app } = createRegisteredApp(null);
+
+        for (const requestBuilder of [
+            () => request(app).post('/api/outcome-cases').set('Authorization', 'Bearer outcome-user').send(createPayload),
+            () => request(app).get('/api/outcome-cases/oc_missing').set('Authorization', 'Bearer outcome-user'),
+            () => request(app).post('/api/outcome-cases/oc_missing/evaluations').set('Authorization', 'Bearer outcome-user').send({})
+        ]) {
+            const response = await requestBuilder().expect(503);
+            expect(response.body).toMatchObject({ error: 'outcome_case_unavailable' });
+        }
     });
 
     it('preserves conflicting token claims through workflowAuthGuard and rejects every OutcomeCase action', async () => {
@@ -251,16 +298,4 @@ describe('outcome case routes', () => {
         expect(service.evaluate).not.toHaveBeenCalled();
     });
 
-    it('keeps the live bootstrap path connected to the service, resolver, and registered API', async () => {
-        const { readFile } = await import('node:fs/promises');
-        const core = await readFile('server/bootstrap/core-services.js', 'utf8');
-        const registration = await readFile('server/bootstrap/register-api-routes.js', 'utf8');
-        const server = await readFile('server.js', 'utf8');
-
-        expect(core).toContain('createOutcomeCaseReferenceResolver');
-        expect(core).toContain('resolveOutcomeReferences: createOutcomeCaseReferenceResolver');
-        expect(registration).toContain("app.use('/api/outcome-cases', workflowAuthGuard");
-        expect(registration).toContain('service: outcomeCaseService');
-        expect(server).toContain('outcomeCaseService');
-    });
 });

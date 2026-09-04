@@ -85,6 +85,43 @@ export function createCanonicalTaskRepository({
         : new CanonicalTaskNocoDBRepository({ storeConfig });
 }
 
+export function createOutcomeCaseService({
+    infoSSOTService,
+    runReceiptQueryService,
+    repository = null,
+    readRunReceipt = null,
+    resolveOutcomeReferences = null,
+    resolveClosureAuthority = null
+} = {}) {
+    const outcomeCaseRepository = repository || (infoSSOTService?.pool
+        ? new OutcomeCasePostgresRepository({ pool: infoSSOTService.pool, infoSSOTService })
+        : null);
+    if (!outcomeCaseRepository) return null;
+
+    const receiptReader = readRunReceipt || (async ({ projectCode, runReceiptRef, actor }) => {
+        if (typeof runReceiptQueryService?.diagnose !== 'function') {
+            throw new Error('OutcomeCase requires runReceiptQueryService');
+        }
+        try {
+            const diagnosis = await runReceiptQueryService.diagnose({
+                projectId: projectCode,
+                runId: runReceiptRef
+            }, actor);
+            return diagnosis.receipt;
+        } catch (error) {
+            if (error?.status === 404 || error?.code === 'not_found') return null;
+            throw error;
+        }
+    });
+
+    return new OutcomeCaseService({
+        repository: outcomeCaseRepository,
+        readRunReceipt: receiptReader,
+        resolveOutcomeReferences: resolveOutcomeReferences || createOutcomeCaseReferenceResolver({ infoSSOTService }),
+        resolveClosureAuthority: resolveClosureAuthority || createOutcomeCaseClosureAuthorityResolver({ infoSSOTService })
+    });
+}
+
 export function createCoreServices({
     varDir,
     brainbaseRoot,
@@ -249,28 +286,10 @@ export function createCoreServices({
         projectAccessPolicy,
         canonicalTaskService
     });
-    const outcomeCaseRepository = infoSSOTService.pool
-        ? new OutcomeCasePostgresRepository({ pool: infoSSOTService.pool, infoSSOTService })
-        : null;
-    const outcomeCaseService = outcomeCaseRepository
-        ? new OutcomeCaseService({
-            repository: outcomeCaseRepository,
-            readRunReceipt: async ({ projectCode, runReceiptRef, actor }) => {
-                try {
-                    const diagnosis = await automationRuntime.runReceiptQueryService.diagnose({
-                        projectId: projectCode,
-                        runId: runReceiptRef
-                    }, actor);
-                    return diagnosis.receipt;
-                } catch (error) {
-                    if (error?.status === 404 || error?.code === 'not_found') return null;
-                    throw error;
-                }
-            },
-            resolveOutcomeReferences: createOutcomeCaseReferenceResolver({ infoSSOTService }),
-            resolveClosureAuthority: createOutcomeCaseClosureAuthorityResolver({ infoSSOTService })
-        })
-        : null;
+    const outcomeCaseService = createOutcomeCaseService({
+        infoSSOTService,
+        runReceiptQueryService: automationRuntime.runReceiptQueryService
+    });
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({
         stateFile: path.join(varDir, 'meeting-source-mcp-state.json'),
         meetingAutomationService: automationRuntime.meetingAutomationService,

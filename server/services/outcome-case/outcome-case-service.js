@@ -340,7 +340,8 @@ export class OutcomeCaseService {
                 ref: runReceiptRef,
                 evidence_state: EVIDENCE_STATES.has(receipt?.evidence_state)
                     ? receipt.evidence_state
-                    : 'no_data'
+                    : 'no_data',
+                ...(receipt?.diagnostics === undefined ? {} : { diagnostics: clone(receipt.diagnostics) })
             };
         }));
         const referenceResolution = await resolveReferences(this.resolveOutcomeReferences, outcomeCase, actor);
