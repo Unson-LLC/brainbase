@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createOutcomeCaseService } from '../../../server/bootstrap/core-services.js';
 import { registerApiRoutes, registerJudgmentResolutionApiRoute, registerVibeproHandoffApiRoute } from '../../../server/bootstrap/register-api-routes.js';
+import { createVibeproHandoffBootstrap } from '../../../server/bootstrap/vibepro-handoff-runtime.js';
 import { JudgmentReceiptPostgresRepository } from '../../../server/services/judgment-receipt/judgment-receipt-postgres-repository.js';
 import { JudgmentResolutionService, canonicalJson, computeRequestDigest } from '../../../server/services/judgment-resolution-service.js';
 import { createOutcomeCaseRouter } from '../../../server/routes/outcome-cases.js';
@@ -29,10 +30,17 @@ import { createVibeproHandoffRuntime } from '../../../server/services/outcome-ca
 // scripts/verify-outcome-case-postgres-rls-integration.sh.
 const databaseUrl = process.env.OUTCOME_CASE_DATABASE_URL || '';
 const describeWithPostgres = process.env.RUN_OUTCOME_CASE_DB_TESTS === '1' && databaseUrl ? describe : describe.skip;
+const vibeproRuntimeMode = (process.env.VIBEPRO_OUTCOME_CASE_RUNTIME ?? 'source').trim();
+if (!['source', 'package'].includes(vibeproRuntimeMode)) {
+    throw new Error(`VIBEPRO_OUTCOME_CASE_RUNTIME must be source or package, received: ${vibeproRuntimeMode || '(empty)'}`);
+}
 // This must name the read-only VibePro checkout's actual consumer module.
 // Without it, the cross-repository acceptance suite is explicitly skipped;
 // a supplied but invalid path fails during the test rather than falling back.
 const vibeproBindingModule = (process.env.VIBEPRO_OUTCOME_CASE_BINDING_MODULE || '').trim();
+if (vibeproRuntimeMode === 'package' && !vibeproBindingModule) {
+    throw new Error('VIBEPRO_OUTCOME_CASE_BINDING_MODULE is required when VIBEPRO_OUTCOME_CASE_RUNTIME=package');
+}
 const describeWithVibeproConsumer = vibeproBindingModule ? describeWithPostgres : describeWithPostgres.skip;
 const { Pool } = pg;
 const execFileAsync = promisify(execFile);
@@ -102,6 +110,57 @@ async function loadVibeproConsumer() {
         nativeImport(pathToFileURL(path.join(vibeproRoot, 'src', 'pr-manager.js')).href)
     ]);
     return { ...integration, ...workspace, ...stories, ...prManager };
+}
+
+function vibeproCliPath() {
+    const bindingModulePath = path.resolve(vibeproBindingModule);
+    const vibeproRoot = path.dirname(path.dirname(bindingModulePath));
+    return path.join(vibeproRoot, 'bin', 'vibepro.js');
+}
+
+async function readVibeproRuntimeIdentity() {
+    const cliPath = vibeproCliPath();
+    try {
+        const { stdout } = await execFileAsync(process.execPath, [cliPath, 'runtime', 'identity', '--json'], { encoding: 'utf8' });
+        return JSON.parse(stdout);
+    } catch (error) {
+        // A blocked source runtime intentionally exits nonzero, but its JSON
+        // identity is still the evidence we must inspect before asserting the
+        // corresponding prepare guard. Do not turn that CLI exit into success.
+        if (typeof error?.stdout === 'string' && error.stdout.trim()) return JSON.parse(error.stdout);
+        throw error;
+    }
+}
+
+async function readInstalledVibeproRuntimeIdentity() {
+    const identity = await readVibeproRuntimeIdentity();
+    expect(identity).toMatchObject({
+        mode: 'normal',
+        source_kind: 'npm_package',
+        package: { name: 'vibepro' },
+        release_manifest: { status: 'valid' },
+        source_git: {
+            is_git_repo: false,
+            origin_url: 'https://github.com/Unson-LLC/vibepro.git',
+            dirty: false
+        },
+        integrity: { status: 'trusted', purpose: 'observation' }
+    });
+    return identity;
+}
+
+async function prepareWithInstalledVibeproCli(root) {
+    const cliPath = vibeproCliPath();
+    await execFileAsync(process.execPath, [
+        cliPath, 'pr', 'prepare', root,
+        '--story-id', VIBEPRO_STORY_ID,
+        '--base', 'HEAD',
+        '--json'
+    ], { encoding: 'utf8' });
+    return JSON.parse(await readFile(
+        path.join(root, '.vibepro', 'pr', VIBEPRO_STORY_ID, 'pr-prepare.json'),
+        'utf8'
+    ));
 }
 
 async function createVibeproConsumerFixture(consumer) {
@@ -580,14 +639,20 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
                     resolveOutcomeReferences: async () => ({ project: { state: 'confirmed' }, capability: { state: 'confirmed' } }),
                     resolveClosureAuthority: async () => ({ state: 'unresolved', reason: 'not-used-for-handoff' })
                 });
+                // The installed CLI reads the projection at wall-clock time.
+                // Keep this receipt within its real TTL rather than providing a
+                // synthetic VibePro runtime clock to the package process.
+                const handoffNow = () => new Date();
                 const before = await outcomeCaseService.read(created.body.case_id, projectActor);
-                const runtime = createVibeproHandoffRuntime({
+                const { vibeproHandoffRuntime: runtime } = createVibeproHandoffBootstrap({
                     pool: appPool,
                     infoSSOTService: info,
                     outcomeCaseService,
-                    signingKey: VIBEPRO_SIGNING_KEY,
-                    keyId: VIBEPRO_KEY_ID,
-                    clock: () => new Date('2026-09-04T00:00:00.000Z')
+                    env: {
+                        BRAINBASE_VIBEPRO_HANDOFF_ENABLED: '1',
+                        BRAINBASE_VIBEPRO_HANDOFF_SIGNING_KEY: VIBEPRO_SIGNING_KEY,
+                        BRAINBASE_VIBEPRO_HANDOFF_KEY_ID: VIBEPRO_KEY_ID
+                    }
                 });
                 const handoffApp = express();
                 handoffApp.use(express.json());
@@ -635,7 +700,7 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
                 });
                 await expect(consumer.bindBrainbaseContext(fixture.root, {
                     storyId: VIBEPRO_STORY_ID, input: tamperedInbox, config: fixture.config,
-                    now: () => new Date('2026-09-04T00:00:02.000Z')
+                    now: handoffNow
                 })).rejects.toThrow(/digest|HMAC|signature/i);
                 expect(await readFile(configPath, 'utf8')).toBe(beforeConfig);
                 for (const artifact of [
@@ -649,7 +714,7 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
                 expect(JSON.parse(await readFile(path.join(fixture.root, inbox), 'utf8'))).toEqual(issued.body);
                 const bound = await consumer.bindBrainbaseContext(fixture.root, {
                     storyId: VIBEPRO_STORY_ID, input: inbox, config: fixture.config,
-                    now: () => new Date('2026-09-04T00:00:02.000Z')
+                    now: handoffNow
                 });
                 expect(bound).toMatchObject({ status: 'bound', outcome_case: issued.body.outcome_case });
                 const context = JSON.parse(await readFile(path.join(fixture.root, bound.artifact), 'utf8'));
@@ -666,16 +731,39 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
                 }));
                 const inspection = await consumer.inspectManagedV2OutcomeCaseProjection(
                     fixture.root, VIBEPRO_STORY_ID, projectedStory.outcome_case,
-                    { now: () => new Date('2026-09-04T00:00:02.000Z') }
+                    { now: handoffNow }
                 );
                 expect(inspection.status).toBe('trusted');
                 expect(projectedStory.outcome_case).not.toHaveProperty('technical_complete');
-                // Source-checkout acceptance is not authority to produce a PR
-                // judgment. Exercise the real guard without changing runtime mode.
-                await expect(consumer.preparePullRequest(fixture.root, {
+                const prepareOptions = {
                     storyId: VIBEPRO_STORY_ID, baseRef: 'HEAD', env: {},
-                    now: () => new Date('2026-09-04T00:00:02.000Z')
-                })).rejects.toMatchObject({ code: 'runtime_mismatch' });
+                    now: handoffNow
+                };
+                if (vibeproRuntimeMode === 'package') {
+                    // This invokes the installed package's own CLI. It does not
+                    // synthesize a runtime identity or relax VibePro's guard.
+                    const installedIdentity = await readInstalledVibeproRuntimeIdentity();
+                    const prepared = await prepareWithInstalledVibeproCli(fixture.root);
+                    expect(prepared.runtime_identity).toMatchObject({
+                        source_kind: 'npm_package',
+                        integrity: { status: 'trusted', purpose: 'pr_judgment' }
+                    });
+                    expect(prepared.runtime_identity.identity_digest).toBe(installedIdentity.identity_digest);
+                    expect(prepared.outcome_case).toMatchObject({
+                        ...issued.body.outcome_case,
+                        technical_complete: false
+                    });
+                    expect(prepared.outcome_case.technical_completion_status)
+                        .toBe('unknown_untrusted_or_missing_evidence');
+                } else {
+                    // Source-checkout acceptance is not authority to produce a PR
+                    // judgment. Its currentness failure is a distinct, still
+                    // fail-closed form of the same guard.
+                    const sourceIdentity = await readVibeproRuntimeIdentity();
+                    expect(sourceIdentity.source_kind).toBe('git_checkout');
+                    await expect(consumer.preparePullRequest(fixture.root, prepareOptions))
+                        .rejects.toMatchObject({ code: expect.stringMatching(/^(runtime_mismatch|stale_runtime)$/) });
+                }
                 expect(await outcomeCaseService.read(created.body.case_id, projectActor)).toEqual(before);
                 expect(before.closure_status).not.toBe('closed');
             } finally {

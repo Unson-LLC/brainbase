@@ -250,6 +250,7 @@ export function registerApiRoutes(app, {
     runReceiptQueryService,
     outcomeCaseService,
     outcomeCaseAuditSink,
+    judgmentReceiptWriter,
     vibeproHandoffRuntime,
     companionApprovalInboxService,
     meetingSourceMcpSyncService,
@@ -404,7 +405,7 @@ export function registerApiRoutes(app, {
             cycleQueryService: knowledgeCycleQueryService
         });
     }
-    registerJudgmentResolutionApiRoute(app, { authService });
+    registerJudgmentResolutionApiRoute(app, { authService, receiptWriter: judgmentReceiptWriter });
     if (candidateRepository) {
         // cross-repo source (mana / salestailor / zeims / SNS) からの
         // Raw Ledger envelope 受信。 STR-006 / ADR-010 で確定した

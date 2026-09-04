@@ -89,6 +89,59 @@ BEGIN
   IF visible_count <> 1 THEN
     RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: authorized outcome case fixture was not readable';
   END IF;
+  -- Roll back this subtransaction deliberately: immutable receipts cannot be
+  -- deleted for cleanup, and deployment must not retain personal fixtures.
+  BEGIN
+    PERFORM set_config('app.judgment_receipt_owner_id', fixture_entity_id, true);
+    PERFORM set_config('app.vibepro_handoff_adoption_owner_id', fixture_entity_id, true);
+    INSERT INTO judgment_receipts (organization_id, project_code, owner_person_id, resolution_id, turn_id, receipt)
+    VALUES (fixture_project_organization_id, fixture_project_code, fixture_entity_id, fixture_entity_id, fixture_entity_id,
+      jsonb_build_object('resolution_id', fixture_entity_id, 'turn_id', fixture_entity_id, 'project_code', fixture_project_code));
+    SELECT count(*) INTO visible_count FROM judgment_receipts WHERE resolution_id = fixture_entity_id;
+    IF visible_count <> 1 THEN
+      RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: own judgment receipt not readable';
+    END IF;
+    BEGIN
+      UPDATE judgment_receipts SET receipt = receipt WHERE resolution_id = fixture_entity_id;
+      RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: judgment receipt mutation accepted';
+    EXCEPTION WHEN OTHERS THEN
+      IF SQLERRM <> 'JUDGMENT_RECEIPTS_IMMUTABLE' THEN RAISE; END IF;
+    END;
+    PERFORM set_config('app.judgment_receipt_owner_id', '__other_author__', true);
+    SELECT count(*) INTO visible_count FROM judgment_receipts WHERE resolution_id = fixture_entity_id;
+    IF visible_count <> 0 THEN
+      RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: cross-author judgment receipt visible';
+    END IF;
+    PERFORM set_config('app.judgment_receipt_owner_id', fixture_entity_id, true);
+    BEGIN
+      INSERT INTO vibepro_handoff_adoption_grants (organization_id, project_code, person_id)
+      VALUES (fixture_project_organization_id, fixture_project_code, fixture_entity_id);
+      RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: handoff grant self-assignment accepted';
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+    BEGIN
+      INSERT INTO vibepro_handoff_adoptions (
+        organization_id, project_code, owner_person_id, case_id, resolution_id, outcome_case_revision,
+        decision, target, technical_acceptance, production_probe
+      ) VALUES (
+        fixture_project_organization_id, fixture_project_code, fixture_entity_id, fixture_outcome_case_id, fixture_entity_id, 1,
+        jsonb_build_object('case_id', fixture_outcome_case_id, 'project_code', fixture_project_code,
+          'resolution_id', fixture_entity_id, 'turn_id', fixture_entity_id,
+          'judgment_receipt_ref', 'brainbase://judgment-receipts/' || fixture_entity_id),
+        jsonb_build_object('case_id', fixture_outcome_case_id, 'project_code', fixture_project_code), '[]'::jsonb, '{}'::jsonb
+      );
+      RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: adoption without grant accepted';
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+    RAISE EXCEPTION USING ERRCODE = 'P4001', MESSAGE = 'receipt fixture rollback';
+  EXCEPTION WHEN SQLSTATE 'P4001' THEN NULL;
+  END;
+  PERFORM set_config('app.judgment_receipt_owner_id', fixture_entity_id, true);
+  SELECT count(*) INTO visible_count FROM judgment_receipts WHERE resolution_id = fixture_entity_id;
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: receipt fixture residual';
+  END IF;
+  PERFORM set_config('app.judgment_receipt_owner_id', '', true);
   -- A normal evaluation appends exactly one immutable event. Direct history
   -- truncation or replacement must be rejected even for an authorized role.
   UPDATE outcome_cases

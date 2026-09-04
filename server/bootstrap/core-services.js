@@ -73,6 +73,7 @@ import { createAutomationRuntimeServices } from '../services/automation-runtime/
 import { createTenantRuntimeServicesFromEnv } from '../services/multitenant/tenant-runtime-services.js';
 import { createSlackInstallationControlPlaneFromEnv } from './slack-installation-control-plane.js';
 import { createProjectProvisioningService } from '../services/project-provisioning/project-provisioning-service.js';
+import { createVibeproHandoffBootstrap } from './vibepro-handoff-runtime.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -297,6 +298,12 @@ export function createCoreServices({
         infoSSOTService,
         runReceiptQueryService: automationRuntime.runReceiptQueryService
     });
+    const { judgmentReceiptWriter, vibeproHandoffRuntime } = createVibeproHandoffBootstrap({
+        env: process.env,
+        pool: infoSSOTService.pool,
+        infoSSOTService,
+        outcomeCaseService
+    });
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({
         stateFile: path.join(varDir, 'meeting-source-mcp-state.json'),
         meetingAutomationService: automationRuntime.meetingAutomationService,
@@ -455,6 +462,8 @@ export function createCoreServices({
         tokenUsageService,
         ...automationRuntime,
         outcomeCaseService,
+        judgmentReceiptWriter,
+        vibeproHandoffRuntime,
         outcomeCaseAuditSink: workflowRepository,
         meetingSourceMcpSyncService,
         externalRunnerIngestService,

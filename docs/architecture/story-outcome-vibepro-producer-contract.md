@@ -1,8 +1,17 @@
 # BrainbaseからVibeProへ成果契約を引き渡す
 
+## ブロッカー解消の追加Spec（2026-09-04）
+
+- ソースcheckoutのPR判定ガードは維持する。同じHEADのローカルtarballを隔離先へ導入し、正規の `npm_package` / `trusted` runtimeで実DBからPR準備まで接続する。PR準備が動くことと、技術条件を満たすことを分け、未充足の `technical_complete: false` を確認する。公開は行わない。
+- 通常起動の接続を明示設定 `BRAINBASE_VIBEPRO_HANDOFF_ENABLED=1` でのみ有効にする。未設定・`0` は従来通り無効。不正値、DB・成果サービス・専用署名鍵・鍵IDの欠落は、内部情報を含まない設定エラーで起動を拒否する。
+- 専用鍵は既存の秘密情報注入経路から `BRAINBASE_VIBEPRO_HANDOFF_SIGNING_KEY`、鍵IDは `BRAINBASE_VIBEPRO_HANDOFF_KEY_ID` として受ける。既存の判断binding鍵を流用せず、鍵生成・配備は行わない。有効時のみ本人限定writerと発行runtimeを同じInfo SSOT接続から構成し、通常API登録へ渡す。
+- 構成処理はSQL適用・権限付与を行わない。専用採用grantのない利用者は既存の拒否を維持する。正式migrationへの収載と本番適用は分離し、本番への適用・実権限付与・鍵配備は対象と承認を確定してから行う。
+
+この追加Specの完了も、議事録・Mana返信の実利用上の完了とは区別する。
+
 ## 現在地（2026-09-04）
 
-元の判断記録 → 本人限定の採用契約保存 → 認証付き発行APIまで、ローカルの実PostgreSQLで接続・検証した。VibeProの既存受取との契約互換性も確認した。以下の各節は段階ごとの記録であり、最新の範囲と未完了事項は本節および末尾の検証結果を正とする。
+元の判断記録 → 本人限定の採用契約保存 → 認証付き発行APIまで、ローカルの実PostgreSQLで接続・検証した。VibeProの既存受取との契約互換性も確認した。通常起動への明示opt-in接続と、正式DB適用手順への収載も実装した。以下の各節は段階ごとの履歴であり、最新の範囲と未完了事項は本節および末尾の検証結果を正とする。履歴内の「未接続」「未組込み」は当時の状態を示す。
 
 通常起動での有効化、本番DBへの適用、採用許可の実付与、鍵の配備は未実施。議事録やManaメンションへの実返信・受信側読戻しも、このローカル試験では完了としない。Codexから直接利用する経路にManaは必須ではない。
 
@@ -158,3 +167,30 @@ OUTCOME_CASE_DATABASE_URL='<専用の一時DB接続先>' \
 VIBEPRO_OUTCOME_CASE_BINDING_MODULE='<VibePro checkout>/src/brainbase-integration.js' \
 npm run test:run -- tests/server/services/outcome-case-postgres-rls.integration.test.js
 ```
+
+## 起動・DB適用ブロッカーの解消（2026-09-04）
+
+- `createVibeproHandoffBootstrap` を通常起動へ接続した。有効時は同じInfo SSOT接続から元記録のwriterと採用・発行runtimeを構成する。専用設定なしでは無効、不正設定では内部情報を含まない固定エラーで起動を拒否する。
+- 正式適用スクリプトへ `judgment-receipt-schema.sql` を収載した。3表のRLS・強制RLS、不変trigger、許可表の書込policy不在を読戻す。元記録の本人限定読取、更新拒否、自己許可付与の拒否、許可なし採用の拒否を実DBで検証し、不変fixtureは子トランザクションのrollbackで残さない。
+- 親の独立実行で起動・登録・HTTPルート・適用スクリプトの4ファイル35件成功。正式適用の実PostgreSQL試験では、再適用の成功と、所有者不一致・不正な既存表での失敗／rollback／成功receipt不発行を確認した。独立したTerraレビューで重大な実欠陥の指摘なし。
+- 本番は読取り専用で確認した。接続先 `brainbase_ssot` の `brainbase_app` は非superuser・RLS迂回不可。`outcome_cases`、`judgment_receipts`、`vibepro_handoff_adoption_grants`、`vibepro_handoff_adoptions` は未存在だった。確認対象の本番環境投影には、有効化設定・専用鍵・鍵IDがなかった。秘密値は出力していない。
+
+本番DBへの適用、専用鍵の配備、有効化、専用採用許可の実付与、議事録・Mana返信の受信側読戻しは未実施である。ローカルで適用・起動経路を接続できたことから、本番の稼働や利用者成果を推定しない。
+
+### 正規パッケージでのPR判定
+
+VibeProのHEAD `733764ffda329cb01c71c999691476022e9b2666` を隔離した作業場所でpackし、Git管理外の一時ディレクトリへ導入した。npm公開はしていない。収載物に `.env`、`.npmrc`、`.git`、`node_modules`、`.vibepro`、鍵ファイル・監査成果物の禁止パターンが含まれないことを確認した。
+
+連続試験は `VIBEPRO_OUTCOME_CASE_RUNTIME=package` で実パッケージのCLIを起動する。`npm_package`、release manifestの有効性、`trusted` を確認し、PR準備成果物のidentity digestを照合する。PR判定の成功を技術受入の合格と取り違えず、`technical_complete: false` と `unknown_untrusted_or_missing_evidence` を確認する。
+
+親の独立再実行で、正式DB適用・再適用・失敗時rollbackの検査と、packageモード実DB9件すべて成功（skip 0）。発行runtimeは通常起動と同じ `createVibeproHandoffBootstrap` から構成した。起動・ルート・適用手順35件、既存発行・成果サービス62件も成功した。合計106件はローカル検証であり、本番の認証token・鍵・採用許可の証拠ではない。
+
+```sh
+VIBEPRO_OUTCOME_CASE_RUNTIME=package \
+VIBEPRO_OUTCOME_CASE_BINDING_MODULE='<隔離導入先>/node_modules/vibepro/src/brainbase-integration.js' \
+bash scripts/verify-outcome-case-postgres-rls-integration.sh
+```
+
+既定のsourceモードは、実行元が `git_checkout` であることと、`runtime_mismatch` または `stale_runtime` による拒否を確認する。任意例外を成功としない。今回のcheckoutでは追跡branchとの分岐による `stale_runtime` が観測された。ソース直接実行の検査は解除していない。
+
+接続先未指定の既定モードは連続試験をskipする。packageモードの接続先欠落、不正module、不正モードは失敗する。これらを受入成功とは数えない。
