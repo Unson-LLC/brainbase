@@ -157,7 +157,8 @@ export class AutomationRunService {
         assertProjectAccess = () => {},
         assertHumanStepAccess = () => {},
         canonicalTaskService = null,
-        checkpointRepository = null
+        checkpointRepository = null,
+        companyAuthorityHumanApprovalService = null
     }) {
         this.repository = repository;
         this.runner = runner;
@@ -167,6 +168,7 @@ export class AutomationRunService {
         this.assertProjectAccess = assertProjectAccess;
         this.assertHumanStepAccess = assertHumanStepAccess;
         this.canonicalTaskService = canonicalTaskService;
+        this.companyAuthorityHumanApprovalService = companyAuthorityHumanApprovalService;
         const operationRepository = canonicalTaskService?.operationRepository || null;
         this.checkpointRepository = checkpointRepository
             || (operationRepository?.pool && operationRepository?.writerToken
@@ -379,6 +381,18 @@ export class AutomationRunService {
             ...result,
             materialized_task_ids: materialization.task_ids || [],
             materialization
+        } : result;
+    }
+
+    _withCompanyAuthorityApproval(result, approval) {
+        return approval ? {
+            ...result,
+            company_authority_approval: {
+                receipt: approval.receipt,
+                consumed_at: approval.consumed_at,
+                consumed_by: approval.consumed_by,
+                fresh_context: approval.fresh_context
+            }
         } : result;
     }
 
@@ -620,12 +634,52 @@ export class AutomationRunService {
         this.assertHumanStepAccess(initialStep, actor);
         if (this._isCanonicalTaskHumanStep(initialStep)) input = this._canonicalTaskApprovalInput(initialStep, input);
         const initialResolution = input.resolution || input.status || 'approved';
+        const hasCompanyAuthorityMarker = Object.prototype.hasOwnProperty.call(
+            initialStep.metadata || {},
+            'company_authority_human_approval'
+        );
+        const companyAuthorityBound = hasCompanyAuthorityMarker
+            || Boolean(this.companyAuthorityHumanApprovalService?.isBound?.(initialStep));
+        if (
+            companyAuthorityBound
+            && initialStep.status === 'pending'
+            && isApprovedHumanResolution(initialResolution)
+            && !this.companyAuthorityHumanApprovalService?.resolve
+        ) {
+            throw new AppError(
+                'Company Authority human approval service is unavailable',
+                { code: 'company_authority_human_approval_unavailable', statusCode: 503 }
+            );
+        }
+        let companyAuthorityApproval = null;
+        if (
+            companyAuthorityBound
+            && initialStep.status === 'pending'
+            && isApprovedHumanResolution(initialResolution)
+        ) {
+            companyAuthorityApproval = await this.companyAuthorityHumanApprovalService.resolve({
+                step: initialStep,
+                input,
+                actor
+            });
+            if (!companyAuthorityApproval
+                || !companyAuthorityApproval.receipt?.receipt_id
+                || !companyAuthorityApproval.consumed_at
+                || !companyAuthorityApproval.consumed_by
+                || !companyAuthorityApproval.fresh_context) {
+                throw new AppError(
+                    'Company Authority human approval did not produce a valid consumed receipt',
+                    { code: 'company_authority_human_approval_invalid', statusCode: 503 }
+                );
+            }
+        }
         const shouldPrepareCanonicalTaskCheckpoint = initialStep.status === 'pending'
             && isApprovedHumanResolution(initialResolution)
             && this._isCanonicalTaskHumanStep(initialStep)
             && Boolean(this.canonicalTaskService?.materializeWorkflowApproval)
             && this.checkpointRepository
-            && isApprovalOnlyIngestWorkflow(this.repository.getWorkflow(initialStep.workflow_id));
+            && isApprovalOnlyIngestWorkflow(this.repository.getWorkflow(initialStep.workflow_id))
+            && !companyAuthorityBound;
         if (shouldPrepareCanonicalTaskCheckpoint) {
             return this._resolveWithCheckpoint(initialStep, input, actor);
         }
@@ -670,6 +724,7 @@ export class AutomationRunService {
             && materializationEnabled
             && this.checkpointRepository
             && isApprovalOnlyIngestWorkflow(this.repository.getWorkflow(initialStep.workflow_id))
+            && !companyAuthorityBound
         ) {
             return this._resolveWithCheckpoint(initialStep, input, actor);
         }
@@ -746,7 +801,12 @@ export class AutomationRunService {
                         status: closedRun?.status || 'cancelled'
                     }
                 });
-                return { terminal: this._withMaterialization({ human_step: resolved, resumed_run: closedRun }, materialization) };
+                return {
+                    terminal: this._withCompanyAuthorityApproval(
+                        this._withMaterialization({ human_step: resolved, resumed_run: closedRun }, materialization),
+                        companyAuthorityApproval
+                    )
+                };
             }
             if (isApprovalOnlyIngestWorkflow(workflow) && previousRun) {
                 const approvalLabel = isMeetingReviewPackageWorkflow(workflow) ? 'Meeting Review Package' : 'Agent report';
@@ -798,7 +858,12 @@ export class AutomationRunService {
                         closure_state: updatedRun?.closure_state || previousRun.closure_state
                     }
                 });
-                return { terminal: this._withMaterialization({ human_step: resolved, resumed_run: updatedRun }, materialization) };
+                return {
+                    terminal: this._withCompanyAuthorityApproval(
+                        this._withMaterialization({ human_step: resolved, resumed_run: updatedRun }, materialization),
+                        companyAuthorityApproval
+                    )
+                };
             }
             return { step, resolved, previousRun };
         });
@@ -806,6 +871,7 @@ export class AutomationRunService {
         const { step, resolved, previousRun } = mutation;
         const resume = await this.runWorkflow(step.workflow_id, {
             actorId: actor.person_id || actor.sub || 'system',
+            originalRequesterId: step.requested_by || previousRun?.started_by || null,
             projectCodes: actor.projectCodes || [],
             role: actor.role,
             authSource: actor.authSource,
@@ -817,7 +883,8 @@ export class AutomationRunService {
                 stepId,
                 resolution,
                 responseRef: resolved.response_ref,
-                reason: resolved.reason
+                reason: resolved.reason,
+                companyAuthorityApprovalReceiptId: companyAuthorityApproval?.receipt?.receipt_id || null
             }
         });
         await this._transaction(() => {
@@ -835,7 +902,10 @@ export class AutomationRunService {
                 }
             });
         });
-        return this._withMaterialization({ human_step: resolved, resumed_run: resume.run }, materialization);
+        return this._withCompanyAuthorityApproval(
+            this._withMaterialization({ human_step: resolved, resumed_run: resume.run }, materialization),
+            companyAuthorityApproval
+        );
     }
 
     async _transaction(callback) {

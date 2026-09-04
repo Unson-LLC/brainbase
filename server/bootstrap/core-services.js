@@ -71,6 +71,7 @@ import {
 } from '../services/automation-runtime/automation-runtime-defaults-service.js';
 import { createAutomationRuntimeServices } from '../services/automation-runtime/automation-runtime-services.js';
 import { createTenantRuntimeServicesFromEnv } from '../services/multitenant/tenant-runtime-services.js';
+import { CompanyAuthorityHumanApprovalService } from '../services/multitenant/company-authority-human-approval-service.js';
 import { createSlackInstallationControlPlaneFromEnv } from './slack-installation-control-plane.js';
 import { createProjectProvisioningService } from '../services/project-provisioning/project-provisioning-service.js';
 import { createVibeproHandoffBootstrap } from './vibepro-handoff-runtime.js';
@@ -188,6 +189,12 @@ export function createCoreServices({
         filePath: path.join(varDir, 'workflow-ledger.json'),
         seedWorkflows: [createBrainbaseAliveWorkflow()]
     });
+    const companyAuthorityHumanApprovalService = tenantRuntimeServices?.companyAuthority
+        ? new CompanyAuthorityHumanApprovalService({
+            repository: workflowRepository,
+            companyAuthorityContextProducer: tenantRuntimeServices.companyAuthority
+        })
+        : null;
     const canonicalTaskRepository = createCanonicalTaskRepository({
         backend: canonicalTaskBackend,
         pool: infoSSOTService.pool,
@@ -292,7 +299,8 @@ export function createCoreServices({
         meetingKnowledgeEventBridge,
         meetingTaskOwnerResolver,
         projectAccessPolicy,
-        canonicalTaskService
+        canonicalTaskService,
+        companyAuthorityHumanApprovalService
     });
     const outcomeCaseService = createOutcomeCaseService({
         infoSSOTService,
