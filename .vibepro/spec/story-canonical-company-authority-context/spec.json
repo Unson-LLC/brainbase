@@ -420,6 +420,188 @@
       "last_revised_at": "2026-09-04T03:00:18.877Z"
     },
     {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "Personal KGの登録・検索・候補操作は認証済みaccessからcanonical owner_person_idとorganization_idを決定し、本文やdecisionに含まれる自己申告identityを無視する。別personまたは別tenantのauthorityは、候補、判定、Graphを含むすべての下流effectより前に拒否する。",
+      "rationale": "Personal KGの所有者境界を会社権限producerの信頼境界と同じcanonical identityへ固定し、cross-personまたはcross-tenantの非公開情報を漏らさないため。このPRで変更しない既存Personal KG経路もStory-wide境界の回帰依存として追跡する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-009"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-010"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "Personal KG境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-service.js",
+            "anchor": "owner_person_id: access.personId"
+          },
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "assertOwnerAccess"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/routes/learning.test.js",
+            "case": "POST /memory-candidates ignores identity claims and uses authenticated actor, owner, and organization"
+          },
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects a valid signed authority for a different authenticated actor before every promotion effect"
+          },
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects cross-tenant organization review through the HTTP runtime with every downstream effect at zero"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/routes/learning.test.js",
+            "must_cover": "uses authenticated actor, owner, and organization"
+          },
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "different authenticated actor before every promotion effect"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T07:00:00.000Z"
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "Personal KGから組織Graphへの昇格は、owner consentと同一project・同一tenantの別personによるGM/CEO organization reviewを分離し、ownerとreviewerが同一の場合は全下流effectより前に拒否する。",
+      "rationale": "個人の同意と組織の受入責任を混同せず、自己承認による非公開知識の組織共有を防ぐため。このPRで変更しない既存二段階昇格経路をStory-wide境界の回帰依存として追跡する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "Personal KG境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "reviewOrganizationPromotion"
+          },
+          {
+            "file": "server/services/personal-knowledge/two-stage-promotion-repository.js",
+            "anchor": "reviewOrganizationPromotionRequest"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "requires a distinct organization reviewer with GM/CEO role in the same project"
+          },
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects owner equals reviewer through the HTTP runtime with every downstream effect at zero"
+          },
+          {
+            "file": "tests/server/services/personal-knowledge-schema.test.js",
+            "case": "separates owner consent from organization review and requires a distinct GM reviewer"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "requires a distinct organization reviewer"
+          },
+          {
+            "file_glob": "tests/server/services/personal-knowledge-schema.test.js",
+            "must_cover": "separates owner consent from organization review"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T07:00:00.000Z"
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "組織昇格へ渡せるのはownerが選択したallowlist済みnormalized payloadだけであり、raw transcript、private fields、server-controlled evidenceを拒否する。owner承認はpending_org_reviewまで、組織Graph writeは別personのorganization acceptance後だけに限定し、選択済みpayloadを不変に保つ。",
+      "rationale": "個人の生データを組織境界へ持ち出さず、同意対象と実際のGraph書込み内容を一致させるため。このPRで変更しない既存normalization・二段階昇格経路をStory-wide境界の回帰依存として追跡する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-012"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-company-authority-context.md",
+            "section": "Personal KG境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-normalization.js",
+            "anchor": "normalizePromotionPayload"
+          },
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "reviewOrganizationPromotion"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects forbidden raw transcript, private fields, and server-controlled evidence"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "moves owner approval only to pending_org_review and keeps Graph write at zero"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "keeps the owner-selected normalized payload immutable"
+          },
+          {
+            "file": "tests/server/routes/learning.test.js",
+            "case": "direct memory-candidate Graph promotion remains disabled after authentication"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "rejects forbidden raw transcript"
+          },
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "keeps the owner-selected normalized payload immutable"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-04T03:00:18.877Z",
+      "last_revised_at": "2026-09-04T07:00:00.000Z"
+    },
+    {
       "id": "INV-003",
       "type": "invariant",
       "statement": "company-authority-schema.v2 migrationはtenant production provisioningの前提列を適用前に確認し、実行主体が非superuserの専用RLS-bypass roleでbrainbase_appを引受可能であることを検査する。transactionとadvisory lock内でRLS、force RLS、policy、限定route resolverのSECURITY DEFINER・固定設定・非superuser所有者・RLS bypass・実行権限、ledger hashを適用・readbackする。dry-runはrollbackし、applyを明示actorへ束縛する。",
