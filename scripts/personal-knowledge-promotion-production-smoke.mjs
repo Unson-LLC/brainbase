@@ -83,6 +83,191 @@ function assertAuthority(value, { label, action, resourceRef, requestId, normali
     assert((authority.normalized_payload_hash ?? null) === (normalizedPayloadHash ?? null), `${label}_authority_hash_mismatch`);
 }
 
+const REVIEWER_ROLES = new Set(['gm', 'ceo']);
+const READBACK_SETTINGS = Object.freeze([
+    'app.person_id',
+    'app.actor_person_id',
+    'app.organization_id',
+    'app.project_codes',
+    'app.role',
+    'app.clearance'
+]);
+
+function strictAccessString(value, code) {
+    assert(typeof value === 'string' && value.length > 0 && value.trim() === value, code);
+    assert(!value.includes(',') && !/\s/u.test(value), code);
+    return value;
+}
+
+function strictAccessList(value, code) {
+    assert(Array.isArray(value) && value.length > 0, code);
+    assert(value.every((item) => typeof item === 'string'
+        && item.length > 0
+        && item.trim() === item
+        && !item.includes(',')
+        && !/\s/u.test(item)), code);
+    assert(new Set(value).size === value.length, code);
+    return [...value];
+}
+
+function assertAccessShape(access, label) {
+    assert(access && typeof access === 'object' && !Array.isArray(access), `${label}_access_missing`);
+    const personId = strictAccessString(access.personId, `${label}_person_missing`);
+    const organizationId = strictAccessString(access.organizationId, `${label}_organization_missing`);
+    const projectCodes = strictAccessList(access.projectCodes, `${label}_project_access_missing`);
+    const role = strictAccessString(access.role, `${label}_role_missing`);
+    const clearance = strictAccessList(access.clearance, `${label}_clearance_missing`);
+    return {
+        personId,
+        actorPersonId: personId,
+        organizationId,
+        projectCodes,
+        role,
+        clearance
+    };
+}
+
+/**
+ * Verify the access the production API derives from a real Bearer token.
+ * The returned actor ID is intentionally derived only from access.personId.
+ */
+export async function verifySmokeAccess(fetchImpl, baseUrl, token, {
+    label, projectCode, reviewer = false, sessionId
+} = {}) {
+    assert(typeof label === 'string' && label, 'auth_label_invalid');
+    assert(typeof token === 'string' && token, `${label}_token_missing`);
+    const response = await requestJson(fetchImpl, baseUrl, {
+        path: '/api/auth/verify', token, sessionId
+    });
+    const payload = expectStatus(response, 200, `${label}_auth_verify_failed`);
+    assert(payload.ok === true, `${label}_auth_verify_failed`);
+    assert(payload.authMode === 'bearer', `${label}_auth_mode_invalid`);
+    const access = assertAccessShape(payload.access, label);
+    assert(typeof projectCode === 'string' && projectCode.length > 0, 'fixture_project_code_missing');
+    assert(access.projectCodes.includes(projectCode), `${label}_project_access_missing`);
+    if (reviewer) assert(REVIEWER_ROLES.has(access.role), `${label}_reviewer_role_invalid`);
+    return access;
+}
+
+/**
+ * Bind a producer-issued TenantContext (the direct issuer wire shape) to the
+ * verified API access. authenticated_subject_id remains an external subject;
+ * canonical person identity is always actor.principal_id.
+ */
+export function assertSignedContextAccessBinding(context, access, {
+    label, expectedProjectId
+} = {}) {
+    assert(typeof label === 'string' && label, 'context_label_invalid');
+    const verifiedAccess = assertAccessShape(access, label);
+    assertSignedContext(context, label);
+    const actor = context.actor;
+    const authorization = context.authorization;
+    assert(actor && typeof actor === 'object' && !Array.isArray(actor), `${label}_context_actor_missing`);
+    assert(actor.principal_type === 'person', `${label}_context_actor_invalid`);
+    const principalId = strictAccessString(actor.principal_id, `${label}_context_person_missing`);
+    strictAccessString(actor.authenticated_subject_id, `${label}_context_subject_missing`);
+    assert(principalId === verifiedAccess.personId, `${label}_context_person_mismatch`);
+    assert(authorization && typeof authorization === 'object' && !Array.isArray(authorization),
+        `${label}_context_authorization_missing`);
+    const organizationIds = strictAccessList(authorization.organization_ids, `${label}_context_organization_missing`);
+    const projectIds = strictAccessList(authorization.project_ids, `${label}_context_project_missing`);
+    strictAccessList(authorization.capability_ids, `${label}_context_capability_missing`);
+    assert(organizationIds.includes(verifiedAccess.organizationId), `${label}_context_organization_mismatch`);
+    if (expectedProjectId !== undefined) {
+        const canonicalProjectId = strictAccessString(expectedProjectId, `${label}_context_project_missing`);
+        assert(projectIds.includes(canonicalProjectId), `${label}_context_project_mismatch`);
+    }
+    return projectIds;
+}
+
+function normalizeReadbackAccess(access) {
+    const verifiedAccess = assertAccessShape(access, 'readback');
+    assert(access.actorPersonId === verifiedAccess.personId, 'readback_actor_person_mismatch');
+    return verifiedAccess;
+}
+
+export async function withReadOnlyAccessTransaction(pool, access, text, params = []) {
+    const normalizedAccess = normalizeReadbackAccess(access);
+    assert(pool && typeof pool.connect === 'function', 'readback_pool_invalid');
+    const client = await pool.connect();
+    let destroy = true;
+    let began = false;
+    try {
+        assert(client && typeof client.query === 'function' && typeof client.release === 'function', 'readback_pool_invalid');
+        destroy = false;
+        await client.query('BEGIN READ ONLY');
+        began = true;
+        const values = [
+            normalizedAccess.personId,
+            normalizedAccess.actorPersonId,
+            normalizedAccess.organizationId,
+            normalizedAccess.projectCodes.join(','),
+            normalizedAccess.role,
+            normalizedAccess.clearance.join(',')
+        ];
+        for (const [index, setting] of READBACK_SETTINGS.entries()) {
+            await client.query('SELECT set_config($1, $2, true)', [setting, values[index]]);
+        }
+        const result = await client.query(text, params);
+        await client.query('COMMIT');
+        return result;
+    } catch (error) {
+        if (began) {
+            try {
+                await client.query('ROLLBACK');
+            } catch {
+                destroy = true;
+            }
+        } else {
+            // A failed BEGIN leaves the transaction state unknown.
+            destroy = true;
+        }
+        throw error;
+    } finally {
+        if (client && typeof client.release === 'function') client.release(destroy);
+    }
+}
+
+/**
+ * Reject administrative readback roles so RLS evidence cannot be bypassed.
+ */
+export async function assertReadbackRole(pool) {
+    assert(pool && typeof pool.connect === 'function', 'readback_pool_invalid');
+    const client = await pool.connect();
+    let destroy = true;
+    let began = false;
+    try {
+        assert(client && typeof client.query === 'function' && typeof client.release === 'function', 'readback_pool_invalid');
+        destroy = false;
+        await client.query('BEGIN READ ONLY');
+        began = true;
+        const result = await client.query(`
+          SELECT rolsuper, rolbypassrls
+          FROM pg_roles
+          WHERE rolname = current_user`);
+        assert(Array.isArray(result?.rows) && result.rows.length === 1, 'readback_role_invalid');
+        const [row] = result.rows;
+        assert(row.rolsuper === false && row.rolbypassrls === false, 'readback_role_invalid');
+        await client.query('COMMIT');
+    } catch (error) {
+        if (began) {
+            try {
+                await client.query('ROLLBACK');
+            } catch {
+                destroy = true;
+            }
+        } else {
+            // A failed BEGIN leaves the transaction state unknown.
+            destroy = true;
+        }
+        if (error instanceof SmokeFailure) throw error;
+        fail('readback_role_invalid');
+    } finally {
+        if (client && typeof client.release === 'function') client.release(destroy);
+    }
+    return true;
+}
+
 /**
  * Validate a producer-issued smoke fixture and derive identifiers without
  * making any network or database call.
@@ -233,27 +418,29 @@ function safeOrganizationEventRow(row) {
     };
 }
 
-export async function readDbState(pool, { eventId, requestId, entityId, body }) {
+export async function readDbState(pool, { eventId, requestId, entityId, body, access }) {
+    normalizeReadbackAccess(access);
+    const readQuery = (text, params) => withReadOnlyAccessTransaction(pool, access, text, params);
     const [events, requests, lineage, authorities, organizationEvents, graphEdges] = await Promise.all([
-        pool.query(`
+        readQuery(`
           SELECT event_id, body_hash, body IS NOT NULL AS body_present, length(body) AS body_length
           FROM personal_knowledge_events WHERE event_id = $1`, [eventId]),
-        pool.query(`
+        readQuery(`
           SELECT request_id, personal_event_id, organization_event_id, graph_entity_id, status,
                  normalized_payload_hash, owner_consent_receipt_id, organization_review_receipt_id
           FROM knowledge_promotion_requests WHERE request_id = $1`, [requestId]),
-        pool.query(`
+        readQuery(`
           SELECT lineage_id, personal_event_id, organization_event_id, promotion_request_id,
                  sanitization->>'normalized_payload_hash' AS normalized_payload_hash,
                  sanitization->>'owner_consent_receipt_id' AS owner_consent_receipt_id,
                  sanitization->>'organization_review_receipt_id' AS organization_review_receipt_id,
                  sanitization->>'graph_entity_id' AS graph_entity_id
           FROM knowledge_promotion_lineage WHERE promotion_request_id = $1`, [requestId]),
-        pool.query(`
+        readQuery(`
           SELECT action, count(*)::int AS count
           FROM knowledge_promotion_authority_uses WHERE request_id = $1
           GROUP BY action ORDER BY action`, [requestId]),
-        pool.query(`
+        readQuery(`
           SELECT event.event_id, event.semantic_state,
                  event.current_result->>'graph_entity_id' AS graph_entity_id,
                  position($2 in COALESCE(event.payload::text, '')) > 0 AS personal_body_found_in_payload
@@ -261,11 +448,19 @@ export async function readDbState(pool, { eventId, requestId, entityId, body }) 
           JOIN knowledge_promotion_requests request
             ON request.organization_event_id = event.event_id
           WHERE request.request_id = $1`, [requestId, body]),
-        pool.query(`
+        readQuery(`
           SELECT count(*)::int AS count
           FROM graph_edges
           WHERE from_id = $1 OR to_id = $1`, [entityId])
     ]);
+    assert(Array.isArray(graphEdges?.rows) && graphEdges.rows.length === 1, 'db_graph_edge_count_invalid');
+    const rawGraphEdgeCount = graphEdges.rows[0]?.count;
+    const graphEdgeCount = typeof rawGraphEdgeCount === 'number'
+        ? rawGraphEdgeCount
+        : typeof rawGraphEdgeCount === 'string' && /^(?:0|[1-9][0-9]*)$/u.test(rawGraphEdgeCount)
+            ? Number(rawGraphEdgeCount)
+            : Number.NaN;
+    assert(Number.isSafeInteger(graphEdgeCount) && graphEdgeCount >= 0, 'db_graph_edge_count_invalid');
     return {
         event: safeDbRow(events.rows[0]),
         promotion: safeDbRow(requests.rows[0]),
@@ -281,7 +476,7 @@ export async function readDbState(pool, { eventId, requestId, entityId, body }) 
             graph_entity_id: row.graph_entity_id
         })),
         authority_uses: authorities.rows.map((row) => ({ action: row.action, count: Number(row.count) })),
-        incident_graph_edge_count: Number(graphEdges.rows[0]?.count || 0)
+        incident_graph_edge_count: graphEdgeCount
     };
 }
 
@@ -423,9 +618,29 @@ export async function runSmoke({
     assert(typeof databaseUrl === 'string' && databaseUrl, 'database_url_missing');
     assert(typeof fetchImpl === 'function', 'fetch_unavailable');
 
-    const pool = poolFactory(databaseUrl);
+    const ownerAccess = await verifySmokeAccess(fetchImpl, baseUrl, ownerToken, {
+        label: 'owner', projectCode: parsed.projectCode, sessionId
+    });
+    const reviewerAccess = await verifySmokeAccess(fetchImpl, baseUrl, reviewerToken, {
+        label: 'reviewer', projectCode: parsed.projectCode, reviewer: true, sessionId
+    });
+    assert(ownerAccess.personId !== reviewerAccess.personId, 'distinct_reviewer_required');
+    assert(ownerAccess.organizationId === reviewerAccess.organizationId, 'organization_access_mismatch');
+    const [requestProjectId] = assertSignedContextAccessBinding(parsed.requestContext, ownerAccess, {
+        label: 'request'
+    });
+    assertSignedContextAccessBinding(parsed.ownerContext, ownerAccess, {
+        label: 'owner', expectedProjectId: requestProjectId
+    });
+    assertSignedContextAccessBinding(parsed.organizationContext, reviewerAccess, {
+        label: 'organization', expectedProjectId: requestProjectId
+    });
+
+    let pool = null;
     let csrfToken = suppliedCsrfToken;
     try {
+        pool = poolFactory(databaseUrl);
+        await assertReadbackRole(pool);
         if (!csrfToken) csrfToken = await loadCsrfToken(fetchImpl, baseUrl, sessionId);
         const graphBeforeResponse = await requestJson(fetchImpl, baseUrl, {
             path: `/api/info/graph/entities?id=${encodeURIComponent(parsed.entityId)}&project=${encodeURIComponent(parsed.projectCode)}`,
@@ -434,7 +649,7 @@ export async function runSmoke({
         expectStatus(graphBeforeResponse, 200, 'graph_before_read_failed');
         assertGraphBodyAbsent(graphBeforeResponse.payload, parsed.event.body);
         const before = projectBeforeAfter({
-            db: await readDbState(pool, { ...parsed, body: parsed.event.body }),
+            db: await readDbState(pool, { ...parsed, body: parsed.event.body, access: ownerAccess }),
             graph: safeGraphProjection(graphBeforeResponse.payload),
             receipt: null
         });
@@ -496,7 +711,7 @@ export async function runSmoke({
         });
         expectStatus(graphAfterFirstResponse, 200, 'graph_after_read_failed');
         assertGraphBodyAbsent(graphAfterFirstResponse.payload, parsed.event.body);
-        const afterFirstDb = await readDbState(pool, { ...parsed, body: parsed.event.body });
+        const afterFirstDb = await readDbState(pool, { ...parsed, body: parsed.event.body, access: ownerAccess });
         const afterFirstReceipt = assertReceiptMatchesDb(firstReceipt, afterFirstDb.promotion);
         const afterFirst = projectBeforeAfter({
             db: afterFirstDb,
@@ -519,7 +734,7 @@ export async function runSmoke({
         });
         expectStatus(graphAfterReplayResponse, 200, 'graph_replay_read_failed');
         assertGraphBodyAbsent(graphAfterReplayResponse.payload, parsed.event.body);
-        const replayDb = await readDbState(pool, { ...parsed, body: parsed.event.body });
+        const replayDb = await readDbState(pool, { ...parsed, body: parsed.event.body, access: ownerAccess });
         const replayReceipt = redactReceipt(replayDb.promotion);
         assertReceiptComplete(replayReceipt, 'db_receipt_incomplete');
         const replayState = projectBeforeAfter({
@@ -566,7 +781,7 @@ export async function runSmoke({
         assertSafeEvidence(evidence, { body: parsed.event.body, ownerToken, reviewerToken });
         return evidence;
     } finally {
-        await pool.end();
+        if (pool && typeof pool.end === 'function') await pool.end();
     }
 }
 

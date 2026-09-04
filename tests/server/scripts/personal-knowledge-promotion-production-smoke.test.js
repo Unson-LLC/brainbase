@@ -10,12 +10,13 @@ import {
     parseSmokeFixture,
     redactReceipt,
     readDbState,
-    runSmoke
+    runSmoke,
+    withReadOnlyAccessTransaction
 } from '../../../scripts/personal-knowledge-promotion-production-smoke.mjs';
 import { normalizePromotionPayload } from '../../../server/services/personal-knowledge/personal-knowledge-normalization.js';
 
-function signedContext(action, resourceRef, requestId = null, normalizedPayloadHash = null) {
-    return {
+function signedContext(action, resourceRef, requestId = null, normalizedPayloadHash = null, binding = null) {
+    const context = {
         integrity: { method: 'jws_detached', algorithm: 'EdDSA', value: 'signed-fixture-value-123' },
         operation_id: `op_${action}`,
         idempotency_key: `idem_${action}`,
@@ -26,6 +27,20 @@ function signedContext(action, resourceRef, requestId = null, normalizedPayloadH
             normalized_payload_hash: normalizedPayloadHash
         }
     };
+    if (binding) {
+        context.actor = {
+            principal_id: binding.personId,
+            principal_type: 'person',
+            authenticated_subject_id: binding.externalSubject
+        };
+        context.authorization = {
+            organization_ids: [binding.organizationId],
+            project_ids: [binding.projectId],
+            data_scopes: [],
+            capability_ids: [`personal_knowledge_promotion:${action}`]
+        };
+    }
+    return context;
 }
 
 function fixture() {
@@ -73,63 +88,88 @@ const READBACK = {
     body: 'synthetic production smoke readback'
 };
 
-function fakeReadbackPool(promotionRequestId = READBACK.requestId) {
-    return {
-        async query(sql) {
-            if (sql.includes('FROM personal_knowledge_events')) {
-                return {
-                    rows: [{
-                        event_id: READBACK.eventId,
-                        body_hash: 'sha256:synthetic',
-                        body_present: true,
-                        body_length: READBACK.body.length
-                    }]
-                };
-            }
-            if (sql.includes('FROM knowledge_event_current event')) {
-                return {
-                    rows: [{
-                        event_id: READBACK.organizationEventId,
-                        semantic_state: 'active',
-                        graph_entity_id: READBACK.entityId,
-                        personal_body_found_in_payload: false
-                    }]
-                };
-            }
-            if (sql.includes('FROM knowledge_promotion_lineage')) {
-                return {
-                    rows: [{
-                        lineage_id: 'lineage_smoke_readback',
-                        personal_event_id: READBACK.eventId,
-                        organization_event_id: READBACK.organizationEventId,
-                        promotion_request_id: READBACK.requestId,
-                        normalized_payload_hash: 'sha256:normalized',
-                        owner_consent_receipt_id: 'pkoc_smoke_readback',
-                        organization_review_receipt_id: 'pkor_smoke_readback',
-                        graph_entity_id: READBACK.entityId
-                    }]
-                };
-            }
-            if (sql.includes('FROM knowledge_promotion_authority_uses')) {
-                return { rows: [{ action: 'request', count: '1' }, { action: 'owner_consent', count: '1' }, { action: 'organization_review', count: '1' }] };
-            }
-            if (sql.includes('FROM graph_edges')) return { rows: [{ count: '0' }] };
-            if (sql.includes('FROM knowledge_promotion_requests')) {
-                return {
-                    rows: [{
-                        request_id: promotionRequestId,
-                        personal_event_id: READBACK.eventId,
-                        organization_event_id: READBACK.organizationEventId,
-                        graph_entity_id: READBACK.entityId,
-                        status: 'org_accepted',
-                        normalized_payload_hash: 'sha256:normalized',
-                        owner_consent_receipt_id: 'pkoc_smoke_readback',
-                        organization_review_receipt_id: 'pkor_smoke_readback'
-                    }]
-                };
-            }
-            throw new Error(`unexpected SQL: ${sql}`);
+const READBACK_ACCESS = {
+    personId: 'owner-person',
+    actorPersonId: 'owner-person',
+    organizationId: 'org-smoke',
+    projectCodes: ['brainbase'],
+    role: 'member',
+    clearance: ['internal']
+};
+
+function fakeReadbackPool(promotionRequestId = READBACK.requestId, {
+    graphRows = [{ count: '0' }], readbackRole = { rolsuper: false, rolbypassrls: false }
+} = {}) {
+    const query = async (sql) => {
+        if (sql.includes('FROM pg_roles')) return { rows: [readbackRole] };
+        if (sql.includes('FROM personal_knowledge_events')) {
+            return {
+                rows: [{
+                    event_id: READBACK.eventId,
+                    body_hash: 'sha256:synthetic',
+                    body_present: true,
+                    body_length: READBACK.body.length
+                }]
+            };
         }
+        if (sql.includes('FROM knowledge_event_current event')) {
+            return {
+                rows: [{
+                    event_id: READBACK.organizationEventId,
+                    semantic_state: 'active',
+                    graph_entity_id: READBACK.entityId,
+                    personal_body_found_in_payload: false
+                }]
+            };
+        }
+        if (sql.includes('FROM knowledge_promotion_lineage')) {
+            return {
+                rows: [{
+                    lineage_id: 'lineage_smoke_readback',
+                    personal_event_id: READBACK.eventId,
+                    organization_event_id: READBACK.organizationEventId,
+                    promotion_request_id: READBACK.requestId,
+                    normalized_payload_hash: 'sha256:normalized',
+                    owner_consent_receipt_id: 'pkoc_smoke_readback',
+                    organization_review_receipt_id: 'pkor_smoke_readback',
+                    graph_entity_id: READBACK.entityId
+                }]
+            };
+        }
+        if (sql.includes('FROM knowledge_promotion_authority_uses')) {
+            return { rows: [{ action: 'request', count: '1' }, { action: 'owner_consent', count: '1' }, { action: 'organization_review', count: '1' }] };
+        }
+        if (sql.includes('FROM graph_edges')) return { rows: graphRows };
+        if (sql.includes('FROM knowledge_promotion_requests')) {
+            return {
+                rows: [{
+                    request_id: promotionRequestId,
+                    personal_event_id: READBACK.eventId,
+                    organization_event_id: READBACK.organizationEventId,
+                    graph_entity_id: READBACK.entityId,
+                    status: 'org_accepted',
+                    normalized_payload_hash: 'sha256:normalized',
+                    owner_consent_receipt_id: 'pkoc_smoke_readback',
+                    organization_review_receipt_id: 'pkor_smoke_readback'
+                }]
+            };
+        }
+        throw new Error(`unexpected SQL: ${sql}`);
+    };
+    return {
+        async connect() {
+            return {
+                async query(sql, params) {
+                    if (/^BEGIN READ ONLY$/u.test(sql.trim()) || /^COMMIT$/u.test(sql.trim()) || /^ROLLBACK$/u.test(sql.trim())) {
+                        return { rows: [] };
+                    }
+                    if (sql.includes('set_config')) return { rows: [{ set_config: params?.[1] ?? null }] };
+                    return query(sql);
+                },
+                release() {}
+            };
+        },
+        async end() {}
     };
 }
 
@@ -138,7 +178,8 @@ async function readbackState(promotionRequestId = READBACK.requestId) {
         eventId: READBACK.eventId,
         requestId: READBACK.requestId,
         entityId: READBACK.entityId,
-        body: READBACK.body
+        body: READBACK.body,
+        access: READBACK_ACCESS
     });
     return { db, graph: [{ id: READBACK.entityId }], receipt: {} };
 }
@@ -152,6 +193,12 @@ function runnerFixture() {
     const eventId = 'pke_smoke_runner_001';
     const entityId = 'smoke_runner';
     const projectCode = 'brainbase';
+    const projectId = 'project-brainbase-id';
+    const organizationId = 'org-smoke';
+    const ownerPersonId = 'owner-person';
+    const reviewerPersonId = 'reviewer-person';
+    const ownerExternalSubject = 'oauth-owner-subject';
+    const reviewerExternalSubject = 'oauth-reviewer-subject';
     const body = `synthetic production smoke ${runId}`;
     const normalizedPayload = {
         schema_version: 'personal_knowledge_normalized.v1',
@@ -174,23 +221,30 @@ function runnerFixture() {
         request: {
             project_code: projectCode, summary: 'synthetic production smoke',
             subject: { type: 'decision', id: entityId }, normalized_payload: normalizedPayload,
-            signed_context: signedContext('request', `personal-knowledge://events/${eventId}`)
+            signed_context: signedContext('request', `personal-knowledge://events/${eventId}`, null, null, {
+                personId: ownerPersonId, externalSubject: ownerExternalSubject, organizationId, projectId
+            })
         },
         owner: {
             signed_context: signedContext(
-                'owner_consent', `personal-knowledge://promotions/${requestId}`, requestId, normalizedPayloadHash
+                'owner_consent', `personal-knowledge://promotions/${requestId}`, requestId, normalizedPayloadHash, {
+                    personId: ownerPersonId, externalSubject: ownerExternalSubject, organizationId, projectId
+                }
             )
         },
         organization: {
             signed_context: signedContext(
-                'organization_review', `personal-knowledge://promotions/${requestId}`, requestId, normalizedPayloadHash
+                'organization_review', `personal-knowledge://promotions/${requestId}`, requestId, normalizedPayloadHash, {
+                    personId: reviewerPersonId, externalSubject: reviewerExternalSubject, organizationId, projectId
+                }
             )
         }
     };
 }
 
 function runnerReadbackPool(parsed, {
-    dbReceiptMismatch = false, replayReceiptMutation = false, authorityUsesInvalid = false
+    dbReceiptMismatch = false, replayReceiptMutation = false, authorityUsesInvalid = false,
+    readbackRoleInvalid = false, graphAggregate = '0'
 } = {}) {
     const receipt = {
         request_id: parsed.requestId,
@@ -219,7 +273,7 @@ function runnerReadbackPool(parsed, {
             organizationEvent: null,
             lineage: [],
             authorities: [],
-            graphEdges: 0
+            graphEdges: graphAggregate
         },
         {
             event: {
@@ -249,7 +303,7 @@ function runnerReadbackPool(parsed, {
                 graph_entity_id: parsed.entityId
             }],
             authorities,
-            graphEdges: 0
+            graphEdges: graphAggregate
         },
         {
             event: {
@@ -280,24 +334,39 @@ function runnerReadbackPool(parsed, {
                 graph_entity_id: parsed.entityId
             }],
             authorities,
-            graphEdges: 0
+            graphEdges: graphAggregate
         }
     ];
     let stateIndex = 0;
+    const query = async (sql) => {
+        if (sql.includes('FROM pg_roles')) {
+            return { rows: [{ rolsuper: readbackRoleInvalid, rolbypassrls: false }] };
+        }
+        const state = states[stateIndex];
+        if (sql.includes('FROM personal_knowledge_events')) return { rows: state.event ? [state.event] : [] };
+        if (sql.includes('FROM knowledge_promotion_requests')) return { rows: state.promotion ? [state.promotion] : [] };
+        if (sql.includes('FROM knowledge_promotion_lineage')) return { rows: state.lineage };
+        if (sql.includes('FROM knowledge_promotion_authority_uses')) return { rows: state.authorities };
+        if (sql.includes('FROM knowledge_event_current event')) return { rows: state.organizationEvent ? [state.organizationEvent] : [] };
+        if (sql.includes('FROM graph_edges')) {
+            const result = { rows: [{ count: String(state.graphEdges) }] };
+            stateIndex += 1;
+            return result;
+        }
+        throw new Error(`unexpected SQL: ${sql}`);
+    };
     return {
-        async query(sql) {
-            const state = states[stateIndex];
-            if (sql.includes('FROM personal_knowledge_events')) return { rows: state.event ? [state.event] : [] };
-            if (sql.includes('FROM knowledge_promotion_requests')) return { rows: state.promotion ? [state.promotion] : [] };
-            if (sql.includes('FROM knowledge_promotion_lineage')) return { rows: state.lineage };
-            if (sql.includes('FROM knowledge_promotion_authority_uses')) return { rows: state.authorities };
-            if (sql.includes('FROM knowledge_event_current event')) return { rows: state.organizationEvent ? [state.organizationEvent] : [] };
-            if (sql.includes('FROM graph_edges')) {
-                const result = { rows: [{ count: String(state.graphEdges) }] };
-                stateIndex += 1;
-                return result;
-            }
-            throw new Error(`unexpected SQL: ${sql}`);
+        async connect() {
+            return {
+                async query(sql, params) {
+                    if (/^BEGIN READ ONLY$/u.test(sql.trim()) || /^COMMIT$/u.test(sql.trim()) || /^ROLLBACK$/u.test(sql.trim())) {
+                        return { rows: [] };
+                    }
+                    if (sql.includes('set_config')) return { rows: [{ set_config: params?.[1] ?? null }] };
+                    return query(sql);
+                },
+                release() {}
+            };
         },
         async end() {}
     };
@@ -306,8 +375,26 @@ function runnerReadbackPool(parsed, {
 function runnerFetch(parsed) {
     let graphReadCount = 0;
     let organizationDecisionCount = 0;
-    return async (input) => {
+    return async (input, init = {}) => {
         const url = new URL(input);
+        const authorization = init.headers?.authorization || init.headers?.Authorization || '';
+        const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
+        if (url.pathname === '/api/auth/verify') {
+            const access = token === 'owner-token'
+                ? {
+                    personId: 'owner-person', organizationId: 'org-smoke', projectCodes: ['brainbase'],
+                    role: 'member', clearance: ['internal']
+                }
+                : token === 'reviewer-token'
+                    ? {
+                        personId: 'reviewer-person', organizationId: 'org-smoke', projectCodes: ['brainbase'],
+                        role: 'gm', clearance: ['internal']
+                    }
+                    : null;
+            return access
+                ? { status: 200, async json() { return { ok: true, authMode: 'bearer', access }; } }
+                : { status: 401, async json() { return { ok: false }; } };
+        }
         if (url.pathname === '/api/csrf-token') return { status: 200, async json() { return { token: 'csrf-token' }; } };
         if (url.pathname === '/api/info/graph/entities') {
             graphReadCount += 1;
@@ -351,7 +438,7 @@ function runnerFetch(parsed) {
 }
 
 async function runSyntheticSmoke(options = {}) {
-    const fixture = runnerFixture();
+    const fixture = options.fixture || runnerFixture();
     const parsed = parseSmokeFixture(fixture);
     return runSmoke({
         fixture,
@@ -360,9 +447,35 @@ async function runSyntheticSmoke(options = {}) {
         reviewerToken: 'reviewer-token',
         csrfToken: 'csrf-token',
         databaseUrl: 'postgres://synthetic.invalid/brainbase',
-        fetchImpl: runnerFetch(parsed),
+        fetchImpl: options.fetchImpl || runnerFetch(parsed),
         poolFactory: () => runnerReadbackPool(parsed, options)
     });
+}
+
+function authVariantFetch(parsed, {
+    ownerResponse,
+    reviewerResponse,
+    onRequest
+} = {}) {
+    const baseFetch = runnerFetch(parsed);
+    return async (input, init = {}) => {
+        const url = new URL(input);
+        const authorization = init.headers?.authorization || init.headers?.Authorization || '';
+        const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
+        onRequest?.(url, init);
+        if (url.pathname === '/api/auth/verify') {
+            if (token === 'owner-token' && ownerResponse) return ownerResponse;
+            if (token === 'reviewer-token' && reviewerResponse) return reviewerResponse;
+        }
+        return baseFetch(input, init);
+    };
+}
+
+function authResponse(access, { ok = true, authMode = 'bearer', status = 200 } = {}) {
+    return {
+        status,
+        async json() { return { ok, authMode, ...(access ? { access } : {}) }; }
+    };
 }
 
 describe('Personal KG production smoke evidence helpers', () => {
@@ -477,6 +590,169 @@ describe('Personal KG production smoke evidence helpers', () => {
     it('requires exactly one authority use for each promotion stage', async () => {
         await expect(runSyntheticSmoke({ authorityUsesInvalid: true }))
             .rejects.toThrowError('db_authority_use_count_mismatch');
+    });
+
+    it('verifies both bearer accesses before creating a pool or calling a business endpoint', async () => {
+        const fixture = runnerFixture();
+        const parsed = parseSmokeFixture(fixture);
+        const calls = [];
+        const fetchImpl = authVariantFetch(parsed, {
+            ownerResponse: authResponse(null, { ok: false, status: 401 }),
+            onRequest(url) { calls.push(url.pathname); }
+        });
+        await expect(runSmoke({
+            fixture,
+            baseUrl: 'https://brainbase.test',
+            ownerToken: 'owner-token', reviewerToken: 'reviewer-token', csrfToken: 'csrf-token',
+            databaseUrl: 'postgres://synthetic.invalid/brainbase', fetchImpl,
+            poolFactory() { throw new Error('pool must not be created'); }
+        })).rejects.toThrowError('owner_auth_verify_failed');
+        expect(calls).toEqual(['/api/auth/verify']);
+    });
+
+    it('requires a distinct GM or CEO reviewer identity with complete verified access', async () => {
+        const fixture = runnerFixture();
+        const parsed = parseSmokeFixture(fixture);
+        const ownerAccess = {
+            personId: 'owner-person', organizationId: 'org-smoke', projectCodes: ['brainbase'],
+            role: 'member', clearance: ['internal']
+        };
+        const samePersonReviewer = {
+            personId: 'owner-person', organizationId: 'org-smoke', projectCodes: ['brainbase'],
+            role: 'gm', clearance: ['internal']
+        };
+        const fetchImpl = authVariantFetch(parsed, {
+            ownerResponse: authResponse(ownerAccess),
+            reviewerResponse: authResponse(samePersonReviewer)
+        });
+        await expect(runSmoke({
+            fixture,
+            baseUrl: 'https://brainbase.test',
+            ownerToken: 'owner-token', reviewerToken: 'reviewer-token', csrfToken: 'csrf-token',
+            databaseUrl: 'postgres://synthetic.invalid/brainbase', fetchImpl,
+            poolFactory() { throw new Error('pool must not be created'); }
+        })).rejects.toThrowError('distinct_reviewer_required');
+
+        const nonApproverReviewer = {
+            personId: 'reviewer-person', organizationId: 'org-smoke', projectCodes: ['brainbase'],
+            role: 'member', clearance: ['internal']
+        };
+        await expect(runSmoke({
+            fixture,
+            baseUrl: 'https://brainbase.test',
+            ownerToken: 'owner-token', reviewerToken: 'reviewer-token', csrfToken: 'csrf-token',
+            databaseUrl: 'postgres://synthetic.invalid/brainbase',
+            fetchImpl: authVariantFetch(parsed, {
+                ownerResponse: authResponse(ownerAccess), reviewerResponse: authResponse(nonApproverReviewer)
+            }),
+            poolFactory() { throw new Error('pool must not be created'); }
+        })).rejects.toThrowError('reviewer_role_invalid');
+    });
+
+    it('rejects a signed context whose canonical actor does not match verified access before pool creation', async () => {
+        const fixture = runnerFixture();
+        fixture.owner.signed_context.actor.principal_id = 'reviewer-person';
+        const parsed = parseSmokeFixture(fixture);
+        await expect(runSmoke({
+            fixture,
+            baseUrl: 'https://brainbase.test',
+            ownerToken: 'owner-token', reviewerToken: 'reviewer-token', csrfToken: 'csrf-token',
+            databaseUrl: 'postgres://synthetic.invalid/brainbase', fetchImpl: runnerFetch(parsed),
+            poolFactory() { throw new Error('pool must not be created'); }
+        })).rejects.toThrowError('owner_context_person_mismatch');
+    });
+
+    it('uses a READ ONLY transaction and all six app access settings for every DB query', async () => {
+        const operations = [];
+        const pool = fakeReadbackPool();
+        const originalConnect = pool.connect;
+        pool.connect = async () => {
+            const client = await originalConnect();
+            const originalQuery = client.query.bind(client);
+            client.query = async (sql, params) => {
+                operations.push({ sql: sql.trim(), params });
+                return originalQuery(sql, params);
+            };
+            return client;
+        };
+        await readDbState(pool, {
+            eventId: READBACK.eventId,
+            requestId: READBACK.requestId,
+            entityId: READBACK.entityId,
+            body: READBACK.body,
+            access: READBACK_ACCESS
+        });
+        const begins = operations.filter(({ sql }) => sql === 'BEGIN READ ONLY');
+        const commits = operations.filter(({ sql }) => sql === 'COMMIT');
+        expect(begins).toHaveLength(6);
+        expect(commits).toHaveLength(6);
+        const settingKeys = operations
+            .filter(({ sql }) => sql.includes('set_config'))
+            .map(({ params }) => params?.[0]);
+        expect(settingKeys).toHaveLength(36);
+        for (const setting of [
+            'app.person_id', 'app.actor_person_id', 'app.organization_id', 'app.project_codes',
+            'app.role', 'app.clearance'
+        ]) {
+            expect(settingKeys.filter((key) => key === setting)).toHaveLength(6);
+        }
+    });
+
+    it('destroys a readback connection when BEGIN or ROLLBACK fails', async () => {
+        function transactionPool({ beginError = false, queryError = false, rollbackError = false } = {}) {
+            const releases = [];
+            return {
+                releases,
+                async connect() {
+                    return {
+                        async query(sql) {
+                            const statement = sql.trim();
+                            if (statement === 'BEGIN READ ONLY' && beginError) throw new Error('begin failed');
+                            if (statement === 'ROLLBACK' && rollbackError) throw new Error('rollback failed');
+                            if (queryError && statement === 'SELECT target') throw new Error('query failed');
+                            return { rows: [] };
+                        },
+                        release(destroy) { releases.push(destroy); }
+                    };
+                }
+            };
+        }
+
+        const successPool = transactionPool();
+        await withReadOnlyAccessTransaction(successPool, READBACK_ACCESS, 'SELECT target');
+        expect(successPool.releases).toEqual([false]);
+
+        const rollbackPool = transactionPool({ queryError: true });
+        await expect(withReadOnlyAccessTransaction(rollbackPool, READBACK_ACCESS, 'SELECT target'))
+            .rejects.toThrowError('query failed');
+        expect(rollbackPool.releases).toEqual([false]);
+
+        const rollbackFailurePool = transactionPool({ queryError: true, rollbackError: true });
+        await expect(withReadOnlyAccessTransaction(rollbackFailurePool, READBACK_ACCESS, 'SELECT target'))
+            .rejects.toThrowError('query failed');
+        expect(rollbackFailurePool.releases).toEqual([true]);
+
+        const beginFailurePool = transactionPool({ beginError: true });
+        await expect(withReadOnlyAccessTransaction(beginFailurePool, READBACK_ACCESS, 'SELECT target'))
+            .rejects.toThrowError('begin failed');
+        expect(beginFailurePool.releases).toEqual([true]);
+    });
+
+    it('fails closed when the Graph edge aggregate row or count is invalid', async () => {
+        for (const graphRows of [[], [{ count: 'not-a-number' }], [{ count: '-1' }], [{ count: '0\n' }]]) {
+            await expect(readDbState(fakeReadbackPool(READBACK.requestId, { graphRows }), {
+                eventId: READBACK.eventId,
+                requestId: READBACK.requestId,
+                entityId: READBACK.entityId,
+                body: READBACK.body,
+                access: READBACK_ACCESS
+            })).rejects.toThrowError('db_graph_edge_count_invalid');
+        }
+    });
+
+    it('rejects a superuser or bypassrls readback role before any business mutation', async () => {
+        await expect(runSyntheticSmoke({ readbackRoleInvalid: true }))
+            .rejects.toThrowError('readback_role_invalid');
     });
 
     it('passes the synthetic runner when the fresh receipt is unchanged', async () => {

@@ -11,6 +11,22 @@
 - Tenant Runtimeへ接続できるfixture発行専用service token。署名はTenant Runtime内の`TenantContextProducer`が行い、秘密鍵はfixture発行プロセスへ渡さない。
 - 本番データを検索・削除して再利用しない。synthetic IDが既に存在した場合、スクリプトは開始前に停止する。
 
+### 認証・権限の事前検証
+
+スクリプトはfixtureの構文検証後、業務POSTやDB readbackより先に、ownerとreviewerそれぞれのBearer JWTを`/api/auth/verify`へ送る。両方ともHTTP 200、`ok=true`、`authMode=bearer`で、`access`に次の値が完全に揃っていなければ停止する。
+
+- `personId`（canonical person ID）
+- `organizationId`
+- `projectCodes`（fixtureの`project_code`を含む配列。別名や空白で補完しない）
+- `role`
+- `clearance`
+
+ownerとreviewerの`personId`は異なる必要があり、同じ`organizationId`に属し、reviewerの`role`は`gm`または`ceo`だけを許可する。署名contextの`actor.principal_id`は検証済み`personId`と一致させ、`authenticated_subject_id`（外部OAuth subject）からperson IDを導出しない。`project_code`は`access.projectCodes`に含まれることを検証し、canonical `project_id`はproducerが発行した各署名context間で一致することを検証する。`project_code`とcanonical `project_id`を同一視せず、aliasを推測しない。
+
+DB readbackは、接続後に`current_user`の`pg_roles.rolsuper`と`rolbypassrls`がともに`false`であることを確認する。各readback queryは個別のpool clientで`BEGIN READ ONLY`、次の6つの`set_config(..., true)`、query、`COMMIT`、releaseの順に実行する。
+
+`app.person_id`、`app.actor_person_id`、`app.organization_id`、`app.project_codes`、`app.role`、`app.clearance`を設定し、raw/admin DSN、`SET ROLE`、`row_security`無効化は使用しない。`BEGIN`または`ROLLBACK`が失敗したclientはpoolへ戻さず破棄する。
+
 ## Migration preflightとreadback
 
 このmigrationのDDLは再適用可能だが、署名・正規化証跡のない旧`pending_org_review`をfail closedで`pending_owner_approval`へ戻す。適用前の対象集計は、生SQLで正規化列を直接参照しない。旧スキーマではその列自体がまだ存在しないためである。
