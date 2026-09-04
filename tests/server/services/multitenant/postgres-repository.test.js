@@ -152,6 +152,38 @@ function quotaPool({ now = '2026-08-22T01:00:00.000Z', allowance = 100, legacyCo
 }
 
 describe('MultitenantPostgresRepository', () => {
+    it('authority project bindingをtenant RLS下でproject_idから正規project_codeへ解決する', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const project = {
+            tenant_id: tenantId,
+            project_id: 'project_01ARZ3NDEKTSV4RRFFQ69G5FAY',
+            project_code: 'unson',
+            project_payload: { status: 'active' }
+        };
+        const { pool, client } = poolWithRows({ 'FROM tenant_projects': [project] });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.resolveProjectBindingById({
+            tenant_id: tenantId,
+            project_id: project.project_id
+        })).resolves.toEqual(project);
+        expect(client.query.mock.calls.some(([sql, values]) => (
+            sql.includes('WHERE tenant_id = $1 AND project_id = $2')
+            && values[0] === tenantId
+            && values[1] === project.project_id
+        ))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => sql.includes("set_config('brainbase.tenant_id'"))).toBe(true);
+    });
+
+    it('authority project binding lookupはtenantまたはproject_id欠落を拒否する', async () => {
+        const repository = new MultitenantPostgresRepository({ pool: { connect: vi.fn() } });
+
+        await expectContractErrorAsync(
+            () => repository.resolveProjectBindingById({ tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX', project_id: '' }),
+            { code: 'PROJECT_SCOPE_MISMATCH', status: 403 }
+        );
+    });
+
     it('keeps the original request digest across failed retries and rejects a changed OAuth request', async () => {
         const claimToken = 'claim-token-same-request';
         const requestDigest = digest('oauth-code-one');

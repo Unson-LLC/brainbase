@@ -4,6 +4,13 @@ import { validateCanonicalWire } from './canonical-wire-validator.js';
 import { ContractError } from './errors.js';
 import { generateCanonicalId } from './ids.js';
 import { assertCanonicalRevision, validateTimeWindow } from './tenant-context.js';
+import {
+    AUTHORITY_JUDGMENT_HOOK_OPERATION,
+    AUTHORITY_MCP_OPERATION,
+    AUTHORITY_PROVIDER_OPERATIONS,
+    assertAuthorityProjectBinding,
+    authorityProjectBinding
+} from './authority-project-binding.js';
 
 const MAX_LEASE_TTL_SECONDS = 60;
 const REQUIRED_CREDENTIAL_FIELDS = [
@@ -80,6 +87,49 @@ function containsCredentialMaterial(value, encodings = []) {
         /^(authorization|credential|credential_value|secret|token|api_key)$/i.test(key)
         || containsCredentialMaterial(child, encodings)
     ));
+}
+
+function authorityHookScopeUnavailable() {
+    throw new ContractError('COMPANY_AUTHORITY_HOOK_SCOPE_UNAVAILABLE', {
+        status: 503,
+        retryable: false,
+        fault_domain: 'customer_environment',
+        details: { required_action: 'session_turn_binding_required' }
+    });
+}
+
+function authorityForwardingBinding(input) {
+    if (input.provider_operation === AUTHORITY_JUDGMENT_HOOK_OPERATION) {
+        authorityHookScopeUnavailable();
+    }
+    if (!AUTHORITY_PROVIDER_OPERATIONS.has(input.provider_operation)) return null;
+    if (!Object.hasOwn(input, 'authority_project_binding')) {
+        throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', {
+            status: 403,
+            fault_domain: 'protocol',
+            details: { scope_reason: 'authority_project_binding_missing' }
+        });
+    }
+    try {
+        return assertAuthorityProjectBinding(input.authority_project_binding);
+    } catch (error) {
+        if (error instanceof ContractError) {
+            throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', {
+                status: 403,
+                fault_domain: 'protocol',
+                details: { scope_reason: 'authority_project_binding_invalid' }
+            });
+        }
+        throw error;
+    }
+}
+
+function failAuthorityLeaseScope(reason) {
+    throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', {
+        status: 403,
+        fault_domain: 'protocol',
+        details: { scope_reason: reason }
+    });
 }
 
 export function validateCredentialLease(request, response, { now = new Date() } = {}) {
@@ -208,6 +258,31 @@ export class CredentialBroker {
         if (!input.request || typeof input.request !== 'object' || Array.isArray(input.request)) {
             fail('CREDENTIAL_LEASE_INVALID');
         }
+        let projectBinding = authorityForwardingBinding(input);
+        if (projectBinding) {
+            if (typeof this.repository?.resolveProjectBindingById !== 'function') {
+                failAuthorityLeaseScope('canonical_project_resolver_unavailable');
+            }
+            try {
+                const project = await this.repository.resolveProjectBindingById({
+                    tenant_id: input.tenant_id,
+                    project_id: projectBinding.project_id
+                });
+                const canonicalBinding = authorityProjectBinding(project, {
+                    tenantId: input.tenant_id,
+                    projectId: projectBinding.project_id
+                });
+                if (canonicalBinding.project_code !== projectBinding.project_code) {
+                    failAuthorityLeaseScope('canonical_project_binding_mismatch');
+                }
+                projectBinding = canonicalBinding;
+            } catch (error) {
+                if (error instanceof ContractError && error.code === 'CREDENTIAL_LEASE_SCOPE_MISMATCH') {
+                    throw error;
+                }
+                failAuthorityLeaseScope('canonical_project_binding_unverified');
+            }
+        }
         const expectedBinding = Object.fromEntries(
             REQUIRED_LEASE_BINDING_FIELDS.map((field) => [field, input[field]])
         );
@@ -294,11 +369,13 @@ export class CredentialBroker {
             } else {
                 credential = Buffer.alloc(0);
             }
+            const forwardingBinding = structuredClone(expectedBinding);
+            if (projectBinding) forwardingBinding.authority_project_binding = structuredClone(projectBinding);
             const providerResult = await forwarder.forward({
                 credential,
                 operation: input.provider_operation,
                 request: structuredClone(input.request),
-                binding: deepFreeze(structuredClone(expectedBinding))
+                binding: deepFreeze(forwardingBinding)
             });
             if (!providerResult || !Number.isInteger(providerResult.status)
                 || providerResult.status < 100 || providerResult.status > 599
