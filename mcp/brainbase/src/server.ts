@@ -87,6 +87,13 @@ let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
 let configuredProjectCodes: string[] | undefined;
 
+function resolveWikiApiBaseUrl(
+  graphApiUrl: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return (env.BRAINBASE_WIKI_API_URL?.trim() || graphApiUrl).replace(/\/+$/, '');
+}
+
 type OnboardingDispatchDependencies = Parameters<typeof handleOnboardingToolCall>[2];
 type KnowledgeResolutionDispatchDependencies = Parameters<typeof handleKnowledgeResolutionToolCall>[2];
 type JudgmentResolutionDispatchDependencies = Parameters<typeof resolveJudgmentBeforeModel>[1];
@@ -1080,6 +1087,7 @@ export const __testing = {
   buildToolResponseContent,
   createDefaultJudgmentResolutionDependencies,
   resolveBrainbaseApiUrl,
+  resolveWikiApiBaseUrl,
   setEntityIndex(index: EntityIndex): void {
     entityIndex = index;
   },
@@ -1145,7 +1153,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   );
   globalTokenManager = tokenManager;
   globalOwnerTokenManager = ownerTokenManager;
-  wikiApiBaseUrl = process.env.BRAINBASE_WIKI_API_URL || 'http://localhost:31013';
+  wikiApiBaseUrl = resolveWikiApiBaseUrl(config.graphApiUrl);
   const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
   globalGraphSource = source;
   indexRefreshEnabled = true;

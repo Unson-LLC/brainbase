@@ -118,6 +118,19 @@ function seedResolverIndex(): EntityIndex {
 }
 
 describe('Graph entity resolver', () => {
+  it('uses the authenticated Graph API as the Personal KG base unless explicitly overridden', () => {
+    assert.strictEqual(
+      __testing.resolveWikiApiBaseUrl('https://bb.unson.jp', {}),
+      'https://bb.unson.jp',
+    );
+    assert.strictEqual(
+      __testing.resolveWikiApiBaseUrl('https://bb.unson.jp', {
+        BRAINBASE_WIKI_API_URL: 'http://127.0.0.1:31013/',
+      }),
+      'http://127.0.0.1:31013',
+    );
+  });
+
   it('excludes merged rows and resolves an explicit legacy ID through the active canonical alias', () => {
     const index = seedResolverIndex();
     const byName = resolveEntities(index, { query: '佐藤圭吾', types: ['person'] });
