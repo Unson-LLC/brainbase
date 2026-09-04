@@ -169,12 +169,13 @@ export function registerJudgmentResolutionApiRoute(app, {
     bindingSecret = process.env.BRAINBASE_JUDGMENT_BINDING_SECRET,
     now,
     maxAgeMs,
-    maxFutureSkewMs
+    maxFutureSkewMs,
+    receiptWriter
 }) {
     app.use(
         '/api/judgment',
         requireAuth(authService, { allowInsecureHeaders: false }),
-        createJudgmentResolutionRouter({ service, bindingSecret, now, maxAgeMs, maxFutureSkewMs })
+        createJudgmentResolutionRouter({ service, bindingSecret, now, maxAgeMs, maxFutureSkewMs, receiptWriter })
     );
 }
 

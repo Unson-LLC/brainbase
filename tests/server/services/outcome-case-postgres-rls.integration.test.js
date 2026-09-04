@@ -1,4 +1,5 @@
 import express from 'express';
+import { createHmac } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
@@ -6,7 +7,9 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createOutcomeCaseService } from '../../../server/bootstrap/core-services.js';
-import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes.js';
+import { registerApiRoutes, registerJudgmentResolutionApiRoute } from '../../../server/bootstrap/register-api-routes.js';
+import { JudgmentReceiptPostgresRepository } from '../../../server/services/judgment-receipt/judgment-receipt-postgres-repository.js';
+import { JudgmentResolutionService, canonicalJson, computeRequestDigest } from '../../../server/services/judgment-resolution-service.js';
 import { createOutcomeCaseRouter } from '../../../server/routes/outcome-cases.js';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 import { OutcomeCasePostgresRepository } from '../../../server/services/outcome-case/outcome-case-postgres-repository.js';
@@ -163,6 +166,7 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         await applySql('info-ssot-schema.sql');
         await applySql('outcome-case-schema.sql');
         await applySql('info-ssot-rls.sql');
+        await applySql('judgment-receipt-schema.sql');
         await adminPool.query(`
             CREATE TABLE ${schema}.brainbase_capabilities (
                 capability_id TEXT PRIMARY KEY,
@@ -193,6 +197,106 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         if (appRole) await adminPool?.query(`DROP ROLE IF EXISTS ${appRole}`);
         await adminPool?.end();
     }, 300_000);
+
+    it('commits the actual server receipt before the authenticated resolve response and reads it only for its author', async () => {
+        const repository = new JudgmentReceiptPostgresRepository({ pool: appPool, infoSSOTService: new InfoSSOTService({ pool: appPool }) });
+        const now = new Date('2026-09-04T00:00:00.000Z');
+        const secret = 'local-judgment-test-secret';
+        const text = '文章の意味を説明して';
+        const context = {
+            schema_version: 'brainbase-conversation-context-v1', session_ref: 'a'.repeat(64),
+            messages: [{ sequence: 0, turn_id: 'turn-pg', role: 'user', phase: null, text }],
+            prior_receipts: [], instruction_bindings: [], completeness: 'complete',
+            runtime: { host: 'codex', model: 'gpt-5', permission_mode: 'workspace-write', project_binding: 'brainbase' }
+        };
+        const payload = {
+            request: text, turn_id: 'turn-pg', project_code: 'brainbase',
+            conversation_context: { ...context, source_digest: computeRequestDigest(context) }
+        };
+        const digest = computeRequestDigest(payload);
+        const app = express();
+        app.use(express.json());
+        registerJudgmentResolutionApiRoute(app, {
+            authService: { verifyToken: (token) => {
+                if (token !== 'local-test') throw new Error('invalid token');
+                return { ...projectActor, sub: projectActor.personId };
+            } },
+            service: new JudgmentResolutionService({ now: () => now, id: () => 'jr_pg_route' }),
+            bindingSecret: secret, now: () => now, receiptWriter: repository
+        });
+        const headers = {
+            authorization: 'Bearer local-test',
+            'x-brainbase-judgment-adapter': 'brainbase-mcp', 'x-brainbase-judgment-version': '1',
+            'x-brainbase-judgment-issued-at': now.toISOString(), 'x-brainbase-judgment-request-digest': digest,
+            'x-brainbase-judgment-signature': createHmac('sha256', secret).update(canonicalJson([
+                'brainbase-judgment-binding-v1', 'brainbase-mcp', '1', payload.turn_id, now.toISOString(), digest
+            ])).digest('hex')
+        };
+        await request(app).post('/api/judgment/resolve').set({ ...headers, authorization: 'Bearer bad' }).send(payload).expect(401);
+        expect(await repository.findByResolutionId('jr_pg_route', projectActor)).toBeNull();
+        const response = await request(app).post('/api/judgment/resolve').set(headers).send(payload).expect(200);
+        expect((await repository.findByResolutionId('jr_pg_route', projectActor)).receipt).toEqual(response.body);
+        for (const actor of [
+            { ...projectActor, personId: 'per_other' },
+            { ...projectActor, organizationId: 'org_other' },
+            { ...projectActor, projectCodes: ['vibepro'] }
+        ]) expect(await repository.findByResolutionId('jr_pg_route', actor)).toBeNull();
+        await expect(repository.findByResolutionId('jr_pg_route', { ...projectActor, tenantId: 'org_other' }))
+            .rejects.toMatchObject({ status: 403 });
+    });
+
+    it('protects raw receipt contents and ownership in direct SQL and rejects missing binding fields', async () => {
+        const info = new InfoSSOTService({ pool: appPool });
+        const repository = new JudgmentReceiptPostgresRepository({ pool: appPool, infoSSOTService: info });
+        const receipt = { resolution_id: 'jr_pg_immutable', turn_id: 'turn-immutable', project_code: 'brainbase', status: 'resolved' };
+        await repository.record(receipt, projectActor);
+        const ownerQuery = (sql, values = []) => info.withAccessContext(projectActor, async (client) => {
+            await client.query("SELECT set_config('app.judgment_receipt_owner_id', $1, true)", [projectActor.personId]);
+            return client.query(sql, values);
+        }, { requireCanonicalTenant: true });
+        for (const assignment of ["receipt = '{}'::jsonb", "owner_person_id = 'per_other'", "organization_id = 'org_other'", "project_code = 'vibepro'"]) {
+            await expect(ownerQuery(`UPDATE judgment_receipts SET ${assignment} WHERE resolution_id = $1`, [receipt.resolution_id]))
+                .rejects.toThrow('JUDGMENT_RECEIPTS_IMMUTABLE');
+        }
+        await expect(ownerQuery('DELETE FROM judgment_receipts WHERE resolution_id = $1', [receipt.resolution_id]))
+            .rejects.toThrow('JUDGMENT_RECEIPTS_IMMUTABLE');
+        await expect(repository.record({ ...receipt, status: 'forged' }, projectActor))
+            .rejects.toMatchObject({ status: 409 });
+        expect((await repository.findByResolutionId(receipt.resolution_id, projectActor)).receipt).toEqual(receipt);
+        const insert = `INSERT INTO judgment_receipts (organization_id, project_code, owner_person_id, resolution_id, turn_id, receipt)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb)`;
+        await expect(ownerQuery(insert, ['org_unson', 'brainbase', 'per_other', 'jr_other', 'turn-other', JSON.stringify({
+            resolution_id: 'jr_other', turn_id: 'turn-other', project_code: 'brainbase'
+        })])).rejects.toMatchObject({ code: '42501' });
+        // SQL CHECK must reject NULL/missing JSON fields, not accept UNKNOWN.
+        await expect(ownerQuery(insert, ['org_unson', 'brainbase', 'per_owner', 'jr_missing', 'turn-missing', '{}']))
+            .rejects.toMatchObject({ code: '23514' });
+        const persisted = await adminPool.query(`SELECT receipt FROM ${schema}.judgment_receipts WHERE resolution_id = $1`, [receipt.resolution_id]);
+        expect(persisted.rows).toEqual([{ receipt }]);
+    });
+
+    it('does not retain author or tenant context after commit or rollback on a reused connection', async () => {
+        const pool = new Pool({ connectionString: connectionUrl({ role: appRole, password: APP_PASSWORD, searchPath: schema }), max: 1 });
+        try {
+            const info = new InfoSSOTService({ pool });
+            const repository = new JudgmentReceiptPostgresRepository({ pool, infoSSOTService: info });
+            const receipt = { resolution_id: 'jr_pg_context', turn_id: 'turn-context', project_code: 'brainbase' };
+            await repository.record(receipt, projectActor);
+            const assertNoContext = async () => {
+                const result = await pool.query(`SELECT current_setting('app.organization_id', true) AS org,
+                    current_setting('app.judgment_receipt_owner_id', true) AS owner`);
+                expect(result.rows[0].org || '').toBe('');
+                expect(result.rows[0].owner || '').toBe('');
+                expect((await pool.query('SELECT * FROM judgment_receipts')).rows).toEqual([]);
+            };
+            await assertNoContext();
+            await expect(repository.record(receipt, projectActor)).rejects.toMatchObject({ status: 409 });
+            await assertNoContext();
+            expect(await repository.findByResolutionId(receipt.resolution_id, { ...projectActor, personId: 'per_other' })).toBeNull();
+        } finally {
+            await pool.end();
+        }
+    });
 
     it('permits scoped create/read/evaluate and rejects missing, cross-project, and cross-organization API access under FORCE RLS', async () => {
         const authorized = serviceFor(projectActor);

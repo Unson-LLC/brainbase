@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createJudgmentResolutionRouter } from '../../server/routes/judgment-resolution.js';
 import {
@@ -55,7 +55,7 @@ function bindingHeaders(payload, issuedAt = NOW.toISOString()) {
     };
 }
 
-function app({ access, service } = {}) {
+function app({ access, service, receiptWriter } = {}) {
     const value = express();
     value.use(express.json());
     value.use((req, _res, next) => {
@@ -67,7 +67,8 @@ function app({ access, service } = {}) {
             now: () => NOW, id: () => 'jr_api', personalOwnerPersonId: 'person_owner'
         }),
         bindingSecret: SECRET,
-        now: () => NOW
+        now: () => NOW,
+        receiptWriter
     }));
     return value;
 }
@@ -118,6 +119,46 @@ describe('judgment resolution API', () => {
         expect(response.status).toBe(200);
         expect(response.body).toMatchObject({ status: 'resolved', project_code: 'salestailor' });
         expect(response.body.applicable_policies.some((policy) => policy.scope.type === 'project')).toBe(false);
+    });
+
+    it('confirmedな本人・組織・project scopeだけでraw receiptを保存してから返す', async () => {
+        const receiptWriter = { record: vi.fn().mockResolvedValue(undefined) };
+        const payload = body();
+        const response = await request(app({ receiptWriter })).post('/api/judgment/resolve')
+            .set(bindingHeaders(payload)).send(payload);
+
+        expect(response.status).toBe(200);
+        expect(receiptWriter.record).toHaveBeenCalledWith(expect.objectContaining({
+            resolution_id: 'jr_api', turn_id: 'host-turn-api', project_code: 'brainbase'
+        }), expect.objectContaining({ personId: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] }));
+    });
+
+    it.each([
+        ['scope外project', { personId: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] }, body({ project_code: 'salestailor' })],
+        ['tenant不明', { personId: 'person_owner', projectCodes: ['brainbase'] }, body()],
+        ['tenant矛盾', { personId: 'person_owner', tenantId: 'unson', organizationId: 'other', projectCodes: ['brainbase'] }, body()],
+        ['本人不明', { tenantId: 'unson', projectCodes: ['brainbase'] }, body()]
+    ])('%sでは従来応答を維持しraw receiptを保存しない', async (_label, access, payload) => {
+        const receiptWriter = { record: vi.fn() };
+        const response = await request(app({ access, receiptWriter })).post('/api/judgment/resolve')
+            .set(bindingHeaders(payload)).send(payload);
+
+        expect(response.status).toBe(200);
+        expect(receiptWriter.record).not.toHaveBeenCalled();
+    });
+
+    it('configured writerの故障を生情報なしの503へ写像する', async () => {
+        const receiptWriter = { record: vi.fn().mockRejectedValue(new Error('postgres secret: database unavailable')) };
+        const payload = body();
+        const response = await request(app({ receiptWriter })).post('/api/judgment/resolve')
+            .set(bindingHeaders(payload)).send(payload);
+
+        expect(response.status).toBe(503);
+        expect(response.body.error).toEqual({
+            code: 'judgment_receipt_persistence_unavailable',
+            message: 'Judgment receipt persistence is unavailable'
+        });
+        expect(JSON.stringify(response.body)).not.toContain('postgres secret');
     });
 
     it('invalid public inputを400へ写像する', async () => {
