@@ -5,11 +5,14 @@ import pg from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { createOutcomeCaseService } from '../../../server/bootstrap/core-services.js';
+import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes.js';
 import { createOutcomeCaseRouter } from '../../../server/routes/outcome-cases.js';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 import { OutcomeCasePostgresRepository } from '../../../server/services/outcome-case/outcome-case-postgres-repository.js';
 import { createOutcomeCaseClosureAuthorityResolver } from '../../../server/services/outcome-case/outcome-case-reference-resolver.js';
 import { OutcomeCaseService } from '../../../server/services/outcome-case/outcome-case-service.js';
+import { RunReceiptQueryService } from '../../../server/services/run-receipt/query-service.js';
 
 // VibePro traceability: story-outcome-case-v1:ac:db-rls-api-roundtrip.
 // This is opt-in because it applies an isolated schema to a real PostgreSQL
@@ -84,6 +87,67 @@ function serviceFor(actor, auditSink = null) {
     return app;
 }
 
+function runReceipt({ id, evidenceState }) {
+    return {
+        id,
+        workflow_id: `workflow-${id}`,
+        project_id: 'brainbase',
+        action_required: 'none',
+        created_at: '2026-09-04T00:00:00.000Z',
+        finished_at: '2026-09-04T00:00:00.000Z',
+        metadata: {
+            run_receipt: {
+                source: { type: 'mana', workflow_id: `workflow-${id}` },
+                source_status: 'success',
+                source_external_run_id: id,
+                evidence_state: evidenceState,
+                evidence_refs: evidenceState === 'confirmed' ? [{ kind: 'log_ref', ref: `log:${id}` }] : []
+            }
+        }
+    };
+}
+
+// This uses the same exported default OutcomeCase factory that
+// createCoreServices wires at runtime, plus registerApiRoutes and the real
+// RunReceiptQueryService. The only in-memory boundary is the existing
+// RunReceipt runtime ledger; Info SSOT and OutcomeCase persistence stay on the
+// isolated PostgreSQL/FORCE RLS database below.
+function defaultCompositionApp(receiptsById) {
+    const infoSSOTService = new InfoSSOTService({ pool: appPool });
+    const runReceiptQueryService = new RunReceiptQueryService({
+        repository: {
+            getRun: (runId) => receiptsById.get(runId) || null,
+            listLatestRunReceipts: () => [...receiptsById.values()],
+            listRuns: () => [...receiptsById.values()]
+        },
+        assertProjectAccess: (projectId, actor) => {
+            if (!actor?.projectCodes?.includes(projectId)) throw new Error('project access denied');
+        }
+    });
+    const outcomeCaseService = createOutcomeCaseService({ infoSSOTService, runReceiptQueryService });
+    const app = express();
+    app.use(express.json());
+    const authService = {
+        verifyToken: () => ({
+            sub: 'per_owner', role: 'member', projectCodes: ['brainbase'], clearance: ['internal'],
+            tenantId: 'org_unson', organizationId: 'org_unson'
+        })
+    };
+    registerApiRoutes(app, {
+        configParser: {}, configService: {}, runtimePaths: { varDir: '/tmp' }, scheduleParser: {},
+        googleCalendarService: {}, projectsRoot: '/tmp', authService, infoSSOTService,
+        canonicalTaskStoreConfig: { ownerPersonId: 'per_owner', ownerAliasIds: [] }, canonicalTaskService: {},
+        learningService: {}, learningHealthService: {}, candidateRepository: null, knowledgeEventService: null,
+        knowledgeFeedbackService: null, knowledgeCycleQueryService: null, onboardingRuntimeService: null,
+        wikiService: {}, tokenUsageService: {}, agentControlCatalogService: {}, loopIntentService: {},
+        meetingAutomationService: {}, automationRunService: {}, runReceiptQueryService, outcomeCaseService,
+        companionApprovalInboxService: {}, meetingSourceMcpSyncService: null, externalRunnerIngestService: {},
+        runReceiptIngestService: {}, routineLivenessService: {}, uploadMiddleware: (_req, _res, next) => next(),
+        appVersion: 'test', workspaceRoot: '/tmp', uploadsDir: '/tmp/uploads', runtimeInfo: {}, brainbaseRoot: '/tmp'
+    });
+    return { app, runReceiptQueryService };
+}
+
 describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
     beforeAll(async () => {
         adminPool = new Pool({ connectionString: databaseUrl });
@@ -94,6 +158,10 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         await applySql('outcome-case-schema.sql');
         await applySql('info-ssot-rls.sql');
         await adminPool.query(`
+            CREATE TABLE ${schema}.brainbase_capabilities (
+                capability_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL
+            );
             GRANT USAGE ON SCHEMA ${schema} TO ${appRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${appRole};
             INSERT INTO ${schema}.projects (id, code, name, organization_id)
@@ -101,6 +169,8 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
                    ('project_vibepro', 'vibepro', 'VibePro', 'org_unson');
             INSERT INTO ${schema}.people (id, name)
             VALUES ('per_owner', 'OutcomeCase Owner');
+            INSERT INTO ${schema}.brainbase_capabilities (capability_id, status)
+            VALUES ('cap_outcome_control', 'active');
             INSERT INTO ${schema}.raci_assignments
               (id, project_id, person_id, role_code, authority_scope, sensitivity_min, sensitivity)
             VALUES
@@ -232,5 +302,84 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
             state: 'unresolved',
             reason: 'closure_authority_not_found'
         });
+    });
+
+    it('uses authenticated default composition to retain receipt evidence and close only confirmed evidence', async () => {
+        const receipts = new Map([
+            ['run-confirmed', runReceipt({ id: 'run-confirmed', evidenceState: 'confirmed' })],
+            ['run-unconfirmed', runReceipt({ id: 'run-unconfirmed', evidenceState: 'unconfirmed' })],
+            ['run-no-data', runReceipt({ id: 'run-no-data', evidenceState: 'no_data' })]
+        ]);
+        const { app, runReceiptQueryService } = defaultCompositionApp(receipts);
+
+        await request(app).post('/api/outcome-cases').send(createPayload).expect(401);
+
+        const confirmed = await request(app)
+            .post('/api/outcome-cases').set('Authorization', 'Bearer outcome-user')
+            .send({ ...createPayload, run_receipt_refs: ['run-confirmed'] }).expect(201);
+        const closed = await request(app)
+            .post(`/api/outcome-cases/${confirmed.body.case_id}/evaluations`)
+            .set('Authorization', 'Bearer outcome-user')
+            .send({
+                technical_evidence: { status: 'confirmed', refs: ['test:default-composition'] },
+                run_receipt_refs: [], external_readback: { status: 'confirm', ref: 'external:confirmed' },
+                constraints_status: 'satisfied', evaluator: 'request-text-is-not-authority',
+                observed_at: '2026-09-04T00:00:00.000Z'
+            }).expect(200);
+        expect(closed.body).toMatchObject({
+            closure_status: 'closed',
+            terminal_evaluation: {
+                run_receipts: [{ ref: 'run-confirmed', evidence_state: 'confirmed' }]
+            }
+        });
+
+        const unconfirmed = await request(app)
+            .post('/api/outcome-cases').set('Authorization', 'Bearer outcome-user')
+            .send({ ...createPayload, run_receipt_refs: ['run-unconfirmed'] }).expect(201);
+        const incomplete = await request(app)
+            .post(`/api/outcome-cases/${unconfirmed.body.case_id}/evaluations`)
+            .set('Authorization', 'Bearer outcome-user')
+            .send({
+                technical_evidence: { status: 'confirmed', refs: ['test:default-composition'] },
+                run_receipt_refs: [], external_readback: { status: 'confirm', ref: 'external:unconfirmed' },
+                constraints_status: 'satisfied', evaluator: 'request-text-is-not-authority',
+                observed_at: '2026-09-04T00:00:00.000Z'
+            }).expect(200);
+        expect(incomplete.body).toMatchObject({
+            closure_status: 'incomplete',
+            terminal_evaluation: {
+                close_eligible: false,
+                run_receipts: [{ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' }]
+            }
+        });
+        expect(incomplete.body.evaluation_history[0].run_receipts).toEqual(
+            expect.arrayContaining([{ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' }])
+        );
+
+        const noData = await request(app)
+            .post('/api/outcome-cases').set('Authorization', 'Bearer outcome-user')
+            .send({ ...createPayload, run_receipt_refs: ['run-no-data'] }).expect(201);
+        const waiting = await request(app)
+            .post(`/api/outcome-cases/${noData.body.case_id}/evaluations`)
+            .set('Authorization', 'Bearer outcome-user')
+            .send({
+                technical_evidence: { status: 'confirmed', refs: ['test:default-composition'] },
+                run_receipt_refs: [], external_readback: { status: 'confirm', ref: 'external:no-data' },
+                constraints_status: 'satisfied', evaluator: 'request-text-is-not-authority',
+                observed_at: '2026-09-04T00:00:00.000Z'
+            }).expect(200);
+        expect(waiting.body).toMatchObject({
+            closure_status: 'waiting_human',
+            terminal_evaluation: {
+                close_eligible: false,
+                run_receipts: [{ ref: 'run-no-data', evidence_state: 'no_data' }]
+            }
+        });
+        expect(waiting.body.evaluation_history[0].run_receipts).toEqual(
+            expect.arrayContaining([{ ref: 'run-no-data', evidence_state: 'no_data' }])
+        );
+        expect(runReceiptQueryService.repository.getRun('run-confirmed')).toBeDefined();
+        expect(runReceiptQueryService.repository.getRun('run-unconfirmed')).toBeDefined();
+        expect(runReceiptQueryService.repository.getRun('run-no-data')).toBeDefined();
     });
 });
