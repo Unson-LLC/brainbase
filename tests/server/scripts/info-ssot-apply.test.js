@@ -194,6 +194,8 @@ describe('Info SSOT RLS deployment contract', () => {
     it('keeps the SQL readback and smoke contracts explicit', async () => {
         const readbackSql = await readFile(path.join(repoRoot, 'server/sql/info-ssot-readback.sql'), 'utf8');
         const smokeSql = await readFile(path.join(repoRoot, 'server/sql/info-ssot-negative-smoke.sql'), 'utf8');
+        const outcomeCaseSql = await readFile(path.join(repoRoot, 'server/sql/outcome-case-schema.sql'), 'utf8');
+        const rlsSql = await readFile(path.join(repoRoot, 'server/sql/info-ssot-rls.sql'), 'utf8');
 
         for (const table of ['decisions', 'events', 'raci_assignments', 'graph_entities', 'graph_edges',
             'project_registry', 'project_provisioning_runs', 'project_provisioning_steps', 'outcome_cases']) {
@@ -216,6 +218,17 @@ describe('Info SSOT RLS deployment contract', () => {
         expect(smokeSql).toContain('cross-organization project registry fixture was readable');
         expect(smokeSql).toContain('fixture residual');
         expect(smokeSql).toMatch(/raise exception/iu);
+        expect(outcomeCaseSql).toContain('OUTCOME_CASE_PROJECT_OWNERSHIP_MISMATCH');
+        expect(outcomeCaseSql).toContain('IF force_rls_was_enabled THEN');
+        expect(outcomeCaseSql).toContain('ALTER TABLE outcome_cases NO FORCE ROW LEVEL SECURITY');
+        expect(outcomeCaseSql).toContain('ALTER TABLE outcome_cases FORCE ROW LEVEL SECURITY');
+        expect(outcomeCaseSql).toMatch(/outcome_case\.organization_id IS DISTINCT FROM project\.organization_id/u);
+        const outcomePolicy = rlsSql.slice(
+            rlsSql.indexOf('CREATE POLICY outcome_cases_tenant_project_scope'),
+            rlsSql.indexOf('DROP POLICY IF EXISTS project_registry_organization_isolation'),
+        );
+        expect(outcomePolicy.match(/EXISTS \(/gu)).toHaveLength(2);
+        expect(outcomePolicy.match(/project\.organization_id = outcome_cases\.organization_id/gu)).toHaveLength(2);
     });
 
     it('documents the RLS gate before the API/MCP restart', async () => {

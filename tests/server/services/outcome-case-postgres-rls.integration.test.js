@@ -310,6 +310,52 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         });
     });
 
+    it('hides and protects an OutcomeCase whose stored organization disagrees with the owning project', async () => {
+        const caseId = `oc_project_owner_mismatch_${Date.now()}`;
+        await adminPool.query(`
+            INSERT INTO ${schema}.projects (id, code, name, organization_id)
+            VALUES ('project_foreign', 'foreign-project', 'Foreign project', 'org_other')
+        `);
+        await adminPool.query(`
+            INSERT INTO ${schema}.outcome_cases (
+                case_id, organization_id, project_code, capability_id, user_observable_outcome,
+                protected_constraints, non_goals, authority, selected_domain_pack,
+                closure_status, current_external_state, technical_story_refs, run_receipt_refs,
+                prior_attempt_refs, revision
+            ) VALUES (
+                $1, 'org_unson', 'foreign-project', 'cap_outcome_control', 'must remain invisible',
+                '[]'::jsonb, '[]'::jsonb, '{}'::jsonb, 'delivery-control/v1',
+                'open', 'unknown', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 1
+            )
+        `, [caseId]);
+
+        const scopedInfoSSOT = new InfoSSOTService({ pool: appPool });
+        const mismatchedScope = { ...projectActor, projectCodes: ['foreign-project'] };
+        const selected = await scopedInfoSSOT.withAccessContext(mismatchedScope, (client) => client.query(
+            'SELECT case_id FROM outcome_cases WHERE case_id=$1',
+            [caseId]
+        ));
+        expect(selected.rows).toEqual([]);
+
+        const updated = await scopedInfoSSOT.withAccessContext(mismatchedScope, (client) => client.query(
+            'UPDATE outcome_cases SET updated_at=NOW() WHERE case_id=$1 RETURNING case_id',
+            [caseId]
+        ));
+        expect(updated.rows).toEqual([]);
+
+        const deleted = await scopedInfoSSOT.withAccessContext(mismatchedScope, (client) => client.query(
+            'DELETE FROM outcome_cases WHERE case_id=$1 RETURNING case_id',
+            [caseId]
+        ));
+        expect(deleted.rows).toEqual([]);
+
+        const retained = await adminPool.query(
+            `SELECT case_id FROM ${schema}.outcome_cases WHERE case_id=$1`,
+            [caseId]
+        );
+        expect(retained.rows).toEqual([{ case_id: caseId }]);
+    });
+
     it('uses authenticated default composition to retain receipt evidence and close only confirmed evidence', async () => {
         const receipts = new Map([
             ['run-confirmed', runReceipt({ id: 'run-confirmed', evidenceState: 'confirmed' })],

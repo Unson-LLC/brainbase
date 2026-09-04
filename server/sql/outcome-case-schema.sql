@@ -33,17 +33,48 @@ ALTER TABLE outcome_cases
 -- owning tenant is only accepted when it is provable from its project; an
 -- orphaned row makes provisioning fail closed instead of silently becoming a
 -- cross-organization record.
-UPDATE outcome_cases outcome_case
-   SET organization_id = project.organization_id
-  FROM projects project
- WHERE outcome_case.organization_id IS NULL
-   AND outcome_case.project_code = project.code
-   AND project.organization_id IS NOT NULL;
-
 DO $do$
+DECLARE
+    force_rls_was_enabled BOOLEAN;
 BEGIN
+    -- A repeat deployment encounters this table with FORCE RLS already
+    -- enabled. Temporarily give the migration owner an unfiltered view inside
+    -- this one atomic statement; an exception rolls the ALTER and backfill
+    -- back together, and a successful rerun restores the prior FORCE state.
+    SELECT relforcerowsecurity
+      INTO force_rls_was_enabled
+      FROM pg_class
+     WHERE oid = 'outcome_cases'::regclass;
+    IF force_rls_was_enabled THEN
+        ALTER TABLE outcome_cases NO FORCE ROW LEVEL SECURITY;
+    END IF;
+
+    UPDATE outcome_cases outcome_case
+       SET organization_id = project.organization_id
+      FROM projects project
+     WHERE outcome_case.organization_id IS NULL
+       AND outcome_case.project_code = project.code
+       AND project.organization_id IS NOT NULL;
+
     IF EXISTS (SELECT 1 FROM outcome_cases WHERE organization_id IS NULL OR btrim(organization_id) = '') THEN
         RAISE EXCEPTION 'OUTCOME_CASE_ORGANIZATION_ID_REQUIRED';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM outcome_cases outcome_case
+          LEFT JOIN projects project
+            ON project.code = outcome_case.project_code
+         WHERE project.code IS NULL
+            OR project.organization_id IS NULL
+            OR btrim(project.organization_id) = ''
+            OR outcome_case.organization_id IS DISTINCT FROM project.organization_id
+    ) THEN
+        RAISE EXCEPTION 'OUTCOME_CASE_PROJECT_OWNERSHIP_MISMATCH';
+    END IF;
+
+    IF force_rls_was_enabled THEN
+        ALTER TABLE outcome_cases FORCE ROW LEVEL SECURITY;
     END IF;
 END;
 $do$;

@@ -33,6 +33,8 @@ DATABASE_URL="postgresql://${MIGRATION_ROLE}:${MIGRATION_PASSWORD}@127.0.0.1:${P
 ADMIN_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:${PORT}/${SUCCESS_DATABASE}"
 FAILURE_DATABASE="brainbase_info_ssot_failure"
 FAILURE_DATABASE_URL="postgresql://${MIGRATION_ROLE}:${MIGRATION_PASSWORD}@127.0.0.1:${PORT}/${FAILURE_DATABASE}"
+MISMATCH_DATABASE="brainbase_info_ssot_mismatch"
+MISMATCH_DATABASE_URL="postgresql://${MIGRATION_ROLE}:${MIGRATION_PASSWORD}@127.0.0.1:${PORT}/${MISMATCH_DATABASE}"
 RECEIPT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/brainbase-info-ssot-it.XXXXXX")"
 CURRENT_HEAD="$(git -C "$REPO_ROOT" rev-parse HEAD)"
 trap 'rm -rf "$RECEIPT_DIR"; cleanup' EXIT
@@ -108,6 +110,44 @@ for (const receiptPath of process.argv.slice(2, -1)) {
 NODE
 
 psql_as_migration_owner "$SUCCESS_DATABASE" -Atq -f /workspace/server/sql/info-ssot-readback.sql | grep -Fx 'INFO_SSOT_READBACK_OK' >/dev/null
+
+psql_in_container postgres -c "CREATE DATABASE ${MISMATCH_DATABASE} OWNER ${MIGRATION_ROLE}" >/dev/null
+seed_projects "$MISMATCH_DATABASE"
+run_info_ssot_apply "$MISMATCH_DATABASE_URL" "$RECEIPT_DIR/mismatch-baseline.json"
+psql_in_container "$MISMATCH_DATABASE" <<'SQL'
+INSERT INTO projects (id, code, name, organization_id)
+VALUES ('proj_foreign', 'foreign-project', 'Foreign project', 'org_other');
+INSERT INTO outcome_cases (
+  case_id, organization_id, project_code, capability_id, user_observable_outcome,
+  protected_constraints, non_goals, authority, selected_domain_pack,
+  closure_status, current_external_state, technical_story_refs, run_receipt_refs,
+  prior_attempt_refs, revision
+) VALUES (
+  'oc_project_owner_mismatch', 'org_info_ssot', 'foreign-project', 'cap_outcome_control',
+  'must remain invisible', '[]'::jsonb, '[]'::jsonb, '{}'::jsonb, 'delivery-control/v1',
+  'open', 'unknown', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 1
+);
+SQL
+if run_info_ssot_apply "$MISMATCH_DATABASE_URL" "$RECEIPT_DIR/mismatch-failure.json"; then
+  echo 'project-owner mismatch migration unexpectedly succeeded' >&2
+  exit 1
+fi
+if ! grep -F 'OUTCOME_CASE_PROJECT_OWNERSHIP_MISMATCH' "$RECEIPT_DIR/psql.log" >/dev/null; then
+  echo 'project-owner mismatch migration failed without the ownership guard' >&2
+  exit 1
+fi
+if [[ -e "$RECEIPT_DIR/mismatch-failure.json" ]]; then
+  echo 'project-owner mismatch migration wrote a receipt' >&2
+  exit 1
+fi
+if [[ "$(psql_in_container "$MISMATCH_DATABASE" -Atq -c "SELECT count(*) FROM outcome_cases WHERE case_id='oc_project_owner_mismatch'")" != '1' ]]; then
+  echo 'project-owner mismatch migration did not roll back safely' >&2
+  exit 1
+fi
+if [[ "$(psql_in_container "$MISMATCH_DATABASE" -Atq -c "SELECT relforcerowsecurity FROM pg_class WHERE oid='outcome_cases'::regclass")" != 't' ]]; then
+  echo 'project-owner mismatch migration left FORCE RLS disabled' >&2
+  exit 1
+fi
 
 psql_in_container postgres -c "CREATE DATABASE ${FAILURE_DATABASE} OWNER ${MIGRATION_ROLE}" >/dev/null
 seed_projects "$FAILURE_DATABASE"

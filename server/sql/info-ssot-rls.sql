@@ -130,6 +130,11 @@ CREATE POLICY outcome_cases_tenant_project_scope ON outcome_cases
   USING (
     organization_id = NULLIF(current_setting('app.organization_id', true), '')
     AND project_code = ANY(app_project_codes())
+    AND EXISTS (
+      SELECT 1 FROM projects project
+       WHERE project.code = outcome_cases.project_code
+         AND project.organization_id = outcome_cases.organization_id
+    )
   )
   WITH CHECK (
     organization_id = NULLIF(current_setting('app.organization_id', true), '')
