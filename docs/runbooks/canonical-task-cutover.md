@@ -7,7 +7,7 @@
 - 事前検査: `scripts/preflight-canonical-task-cutover.js`
 - 自動テスト: `tests/server/scripts/preflight-canonical-task-cutover.test.js`
 - 実行: `npm run preflight:canonical-task-cutover -- --phase <phase>`
-- 実環境証跡収集: `npm run capture:canonical-task-cutover -- --base-url <Brainbase URL> --mac-result <Mac read-only result> --out-dir <directory>`
+- 実環境証跡収集: `npm run capture:canonical-task-cutover -- --base-url <Brainbase URL> --mac-result <Mac read-only result> [--mac-source-root <transported snapshot>] --out-dir <directory>`
 - 実Postgres並行検査: `npm run canonical-task:check-postgres-concurrency`
 - 既存行の冪等キーbackfill: `npm run backfill:canonical-task-idempotency-keys -- --dry-run|--apply`
 - Task移行（承認後のみ）: `npm run migrate:canonical-task-postgres-workflow -- --approve-apply`
@@ -55,6 +55,13 @@
 2. guardを含む新BrainbaseとMCPを起動する。process-local mutation gateがclosedで、mutationが503 `canonical_task_mutation_not_ready`になることを確認する。
 3. 下記「必須証跡」の全回帰をcurrent HEADで実行する。Macはこの時点ではTask一覧の実HTTP読み取りと認証拒否だけを確認し、mutationは実行しない。
 4. `npm run capture:canonical-task-cutover -- --base-url http://127.0.0.1:<port> --mac-result <Mac read-only result> --out-dir .vibepro/verification/canonical-task-cutover/checks`を実行し、実Postgres、実NocoDB、実Brainbase process、Mac read-only consumerの4 artifactを生成する。
+   capture実行hostがMac resultのhostと異なる場合だけ、読み取り専用で運搬したsnapshotを
+   `--mac-source-root <transported snapshot>`に指定する。snapshotはresultの`mac_checkout`と同じGit HEADの
+   Git repositoryであり、resultの`raw_log`を元の`mac_checkout`からの同じ相対pathに置く。captureは元resultを
+   一切書き換えず、snapshot HEAD、raw log hash、path containmentを再検証する。元の絶対raw logが元checkout外、
+   相対pathがcheckout外へescape、snapshot root/raw logにsymlink、またはHEAD/hash不一致なら失敗する。
+   snapshotのdirty状態はcleanとして扱わず、この手順はclean性を主張しない。`--mac-source-root`を省略した
+   同一hostの既存手順は変わらない。
 5. `npm run preflight:canonical-task-cutover -- --phase before-enable --backend postgres --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json --postgres-check .vibepro/verification/canonical-task-cutover/checks/postgres.json --nocodb-check .vibepro/verification/canonical-task-cutover/checks/nocodb.json --runtime-check .vibepro/verification/canonical-task-cutover/checks/runtime.json --mac-check .vibepro/verification/canonical-task-cutover/checks/mac.json`を実行する。証跡はbackend名とbackend固有のmanifest hashを固定し、別backend向け証跡の流用を拒否する。
 6. `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。command-scopedのbackend指定により、手順5のPostgres向けartifactを同じbackend identityで再検証する。指定を省略すると安全側の`nocodb`として検証され、backend mismatchで失敗する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。稼働中processは各mutation前に永続rowを再照合するため、enable後の再起動は不要である。
 7. mutationが解禁されることを確認する。再起動時は、新processが単一writerを取得し、保存rowのHEAD・manifest・schema・evidence hashが一致した場合だけwriter tokenをtransaction内で引き継いで開く。不一致ならclosedのままにする。
