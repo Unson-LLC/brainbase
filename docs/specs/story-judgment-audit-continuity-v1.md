@@ -28,7 +28,7 @@ test_files:
 
 ## Contracts
 
-- **C-1**: `recordBrainbaseToolUse` records bound non-Brainbase tools as digest-only execution evidence and Brainbase PostToolUse as owner-visible audit evidence. Brainbase events retain strict identity/tool metadata validation; incomplete generic events are ignored because they cannot satisfy a bound episode contract.
+- **C-1**: `recordBrainbaseToolUse` records bound non-Brainbase tools as digest-only execution evidence and Brainbase PostToolUse as journal-bound audit evidence. Brainbase events retain strict identity/tool metadata validation; incomplete generic events are ignored because they cannot satisfy a bound episode contract. The audit becomes owner-visible evidence only when Stop verifies it in the final assistant answer.
 - **C-2**: `finalizeEpisode` validates identity, derives paths, acquires the transition lock, then reads and finalizes the episode.
 - **C-3**: first orphan Stop writes one diagnostic and returns `decision:block` with an exact warning line and answer-body preservation instruction; it does not create `.final.json`.
 - **C-4**: active orphan Stop writes one degraded receipt and returns a non-blocking output with exit 0; it does not instruct the user to create a new task. A later Start for the same identity creates no episode and returns `blockedOutput.continue: false` with process exit 0; this semantic terminal result is neither audit success nor `audit_degraded`.

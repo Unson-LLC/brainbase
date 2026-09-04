@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -123,7 +123,7 @@ function valueProofInput(overrides = {}) {
 }
 
 describe('Judgment Resolver Host value proof integration', () => {
-  it('Codex Desktopの実行とreadback証拠で最後の状態PostToolUseから確認済みレシートを表示する', async () => {
+  it('Codex Desktopの実行とreadback証拠を記録し最終Stopで確認済みレシートを確定する', async () => {
     const root = temporaryDirectory();
     const artifact = join(root, 'docs', 'existing.md');
     const databasePath = join(root, 'thread-history.sqlite');
@@ -194,7 +194,7 @@ describe('Judgment Resolver Host value proof integration', () => {
       tool_use_id: 'desktop-value-proof', tool_input: proof,
       tool_response: { status: 'ok', data: proof },
     }, { env });
-    const completed = await processHookPayload({
+    const stateRecorded = await processHookPayload({
       ...payload, hook_event_name: 'PostToolUse',
       tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
       tool_use_id: 'desktop-final-state',
@@ -204,14 +204,29 @@ describe('Judgment Resolver Host value proof integration', () => {
         pending_safe_work: false, runtime_reason_code: null,
       } },
     }, { env });
-
-    expect(completed.systemMessage).toContain('Brainbase判断レシート');
-    expect(completed.systemMessage).toContain('結果: 変更後の正本を読み戻した');
-    expect(completed.systemMessage).toContain('状態: 成果確認済み');
     const directory = join(root, 'journal', hash(payload.session_id));
     const turnRef = hash(payload.turn_id);
+    expect(stateRecorded).toEqual({});
+    const episode = JSON.parse(readFileSync(join(directory, `${turnRef}.episode.json`), 'utf8'));
+    const continuation = JSON.parse(readFileSync(join(directory, `${turnRef}.continuation.json`), 'utf8'));
+    const auditLines = [
+      episode.owner_audit.display_line,
+      episode.audit_contract.zero_call_display_line,
+      ...readdirSync(join(directory, `${turnRef}.events`))
+        .map((name) => JSON.parse(readFileSync(join(directory, `${turnRef}.events`, name), 'utf8')))
+        .sort((left, right) => left.event_sequence - right.event_sequence)
+        .flatMap((event) => event.display_line ? [event.display_line] : []),
+      continuation.autonomy_continuation.trigger_code === 'unfinished_safe_work'
+        ? episode.audit_contract.outcome_continuation_complete_line
+        : episode.audit_contract.autonomy_continuation_complete_line,
+      episode.audit_contract.stop_repair_complete_line,
+    ];
+    await processHookPayload({
+      ...payload, hook_event_name: 'Stop', stop_hook_active: true,
+      last_assistant_message: `${auditLines.join('\n')}\n\n既存文書を更新し、変更後の正本を読み戻しました。`,
+    }, { env });
     expect(JSON.parse(readFileSync(join(directory, `${turnRef}.final.json`), 'utf8'))).toMatchObject({
-      completion_status: 'complete', owner_audit_source: 'post_tool_use_system_message',
+      completion_status: 'complete', owner_audit_source: 'assistant_answer',
       value_proof_state: 'outcome_verified',
     });
     expect(JSON.parse(readFileSync(join(directory, `${turnRef}.value-proof.json`), 'utf8')))

@@ -36,6 +36,14 @@ function retrievalAuditEnvelope(operation, outcome = '結果を取得') {
     })} -->`;
 }
 
+function auditBlockFromStopOutput(output) {
+    const reason = typeof output === 'string' ? output : output?.reason;
+    const marker = '最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n';
+    const audit = reason?.split(marker)[1]?.split('\nその後、')[0]?.trim();
+    if (!audit) throw new Error('expected owner audit block in Stop reason');
+    return audit;
+}
+
 function temporaryDirectory() {
     const path = mkdtempSync(join(tmpdir(), 'brainbase-judgment-entrypoint-'));
     temporaryPaths.push(path);
@@ -143,9 +151,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             hookSpecificOutput: { hookEventName: 'UserPromptSubmit' }
         });
         const additionalContext = JSON.parse(first.stdout).hookSpecificOutput.additionalContext;
-        expect(additionalContext).toContain('Stop always renders the complete owner-visible audit block itself as its own systemMessage');
-        expect(additionalContext).not.toContain('must start with exactly this Host-generated line');
-        expect(additionalContext).not.toContain('Intermediate commentary may omit the owner-visible audit block.');
+        expect(additionalContext).toContain('The final user-facing response must start with the complete Host-generated 🧠/📚/⚠️ audit block');
+        expect(additionalContext).toContain('Stop will reject the first answer once and provide the complete exact block');
         expect(additionalContext).toContain('opened one unresolved judgment episode');
         expect(additionalContext).toContain('there is no one-call-per-turn limit');
         expect(additionalContext).toContain(
@@ -795,7 +802,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
             completion_status: 'audit_degraded',
             degradation_reason: 'knowledge.resolve',
-            missing_capabilities: ['knowledge.resolve']
+            missing_capabilities: ['knowledge.resolve', 'owner.audit.display']
         });
 
         // A third Stop just returns the already-persisted final, unchanged.
@@ -859,17 +866,23 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(recorded.code).toBe(0);
         const routeLine = JSON.parse(recorded.stdout).systemMessage;
 
-        // Change B: a failed-but-attempted knowledge.resolve call already
-        // satisfies the required capability, and the model's answer needs no
-        // audit lines at all. The first Stop finalizes as complete and the
-        // Host renders its own audit block (including the route line).
+        // A failed-but-attempted knowledge.resolve call satisfies the required
+        // capability, while the owner audit must still be visible in the
+        // assistant answer itself.
         const firstStop = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: false,
             last_assistant_message: '参照先を確定できなかった回答'
         }) });
         expect(firstStop).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(firstStop.stdout).decision).toBeUndefined();
-        expect(JSON.parse(firstStop.stdout).systemMessage).toContain(routeLine);
+        const firstStopOutput = JSON.parse(firstStop.stdout);
+        expect(firstStopOutput).toMatchObject({ decision: 'block' });
+        const auditBlock = auditBlockFromStopOutput(firstStopOutput);
+        expect(auditBlock).toContain(routeLine);
+        const repairedStop = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+            last_assistant_message: `${auditBlock}\n\n参照先を確定できなかった回答`
+        }) });
+        expect(JSON.parse(repairedStop.stdout).decision).toBeUndefined();
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
             completion_status: 'complete', event_count: 1, qualifying_event_count: 0
@@ -1034,7 +1047,15 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '開始競合を検証して'
             })
         });
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        const transitionDatabase = join(
+            journal,
+            hash(identity.session_id),
+            `${hash(identity.turn_id)}.transition.sqlite`
+        );
+        for (let attempt = 0; attempt < 100 && !existsSync(transitionDatabase); attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(existsSync(transitionDatabase)).toBe(true);
         const toolPromise = run('bash', [wrapper], {
             env,
             input: JSON.stringify({
@@ -1049,8 +1070,6 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(tool).toMatchObject({ code: 0, stderr: '' });
         expect(JSON.parse(tool.stdout).systemMessage).toContain('Brainbase検索');
 
-        // Change B: the model's answer no longer needs to reproduce any Host
-        // audit line; Stop always renders the complete audit block itself.
         const stopped = await run('bash', [wrapper], {
             env,
             input: JSON.stringify({
@@ -1059,8 +1078,18 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             })
         });
         expect(stopped).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(stopped.stdout).systemMessage).toMatch(/^🧠 判断参照:/u);
-        expect(JSON.parse(stopped.stdout).systemMessage).toContain('Brainbase検索');
+        const stoppedOutput = JSON.parse(stopped.stdout);
+        expect(stoppedOutput).toMatchObject({ decision: 'block' });
+        const stoppedAudit = auditBlockFromStopOutput(stoppedOutput);
+        expect(stoppedAudit).toContain('Brainbase検索');
+        const stoppedAgain = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+                last_assistant_message: `${stoppedAudit}\n\n回答`
+            })
+        });
+        expect(JSON.parse(stoppedAgain.stdout).decision).toBeUndefined();
         const eventsDirectory = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.events`);
         expect(readdirSync(eventsDirectory).filter((name) => name.endsWith('.json'))).toHaveLength(1);
 
@@ -1083,9 +1112,17 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const [stopRaceStarted, stopRaceStopped] = await Promise.all([stopRaceStart, stopRaceStop]);
         expect(stopRaceStarted.code).toBe(0);
         expect(stopRaceStopped).toMatchObject({ code: 0, stderr: '' });
-        // Change B: no audit-line gap blocks this Stop; it races with episode
-        // start but still resolves to a normal (non-orphan) completion.
-        expect(JSON.parse(stopRaceStopped.stdout).decision).toBeUndefined();
+        const stopRaceOutput = JSON.parse(stopRaceStopped.stdout);
+        expect(stopRaceOutput).toMatchObject({ decision: 'block' });
+        const stopRaceAudit = auditBlockFromStopOutput(stopRaceOutput);
+        const stopRaceCompleted = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...stopRaceIdentity,
+                stop_hook_active: true, last_assistant_message: `${stopRaceAudit}\n\n回答`
+            })
+        });
+        expect(JSON.parse(stopRaceCompleted.stdout).decision).toBeUndefined();
         expect(existsSync(join(
             journal,
             hash(stopRaceIdentity.session_id),
@@ -1093,7 +1130,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         ))).toBe(true);
     }, 30_000);
 
-    it('監査行を含まない短縮回答も最初のStopでcompleteにする', async () => {
+    it('監査行を含まない回答は一度だけ差し戻し、本文を保ってcompleteにする', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const hostUrl = await listen((request, response) => {
@@ -1135,9 +1172,6 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             })
         });
 
-        // Change B: the model is never required to reproduce a Host audit
-        // line, so a shortened, audit-line-free answer still finalizes as
-        // complete on the very first Stop; there is nothing left to repair.
         const shortenedStop = await run('bash', [wrapper], {
             env,
             input: JSON.stringify({
@@ -1146,7 +1180,17 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             })
         });
         expect(shortenedStop).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(shortenedStop.stdout).decision).toBeUndefined();
+        const shortenedOutput = JSON.parse(shortenedStop.stdout);
+        expect(shortenedOutput).toMatchObject({ decision: 'block' });
+        const auditBlock = auditBlockFromStopOutput(shortenedOutput);
+        const repaired = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+                last_assistant_message: `${auditBlock}\n\n修正済みです。`
+            })
+        });
+        expect(JSON.parse(repaired.stdout).decision).toBeUndefined();
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(true);
     }, 20_000);
@@ -1362,7 +1406,17 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             })
         });
         expect(recovered).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(recovered.stdout).systemMessage).toMatch(/^🧠 判断参照:/u);
+        const recoveredOutput = JSON.parse(recovered.stdout);
+        expect(recoveredOutput).toMatchObject({ decision: 'block' });
+        const recoveredAudit = auditBlockFromStopOutput(recoveredOutput);
+        const completed = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+                last_assistant_message: `${recoveredAudit}\n\n回答`
+            })
+        });
+        expect(JSON.parse(completed.stdout).decision).toBeUndefined();
         expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.final.json`), 'utf8')))
             .toMatchObject({ completion_status: 'complete' });
     }, 20_000);
@@ -1430,10 +1484,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             systemMessage: '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'
         });
         const blockedReason = JSON.parse(blocked.stdout).reason;
-        // Change B: the block reason no longer instructs the model to
-        // reproduce any Host audit line, including the 🛠️ repair line.
-        expect(blockedReason).not.toContain('最終監査ブロック末尾に');
-        expect(blockedReason).not.toContain(repairLine);
+        const auditBlock = auditBlockFromStopOutput(blockedReason);
+        expect(auditBlock).toContain(repairLine);
         const journalDirectory = join(journal, hash(identity.session_id));
         const turnRef = hash(identity.turn_id);
         expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.continuation.json`), 'utf8')))
@@ -1454,12 +1506,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             env,
             input: JSON.stringify({
                 hook_event_name: 'Stop', ...identity, stop_hook_active: true,
-                last_assistant_message: '「確認しますか？」を含むケースも実装と検証を完了しました。\n<!-- brainbase-stop-state:{"schema_version":"brainbase-stop-state-v1","status":"completed","pending_safe_work":false,"runtime_reason_code":null} -->'
+                last_assistant_message: `${auditBlock}\n\n「確認しますか？」を含むケースも実装と検証を完了しました。\n<!-- brainbase-stop-state:{"schema_version":"brainbase-stop-state-v1","status":"completed","pending_safe_work":false,"runtime_reason_code":null} -->`
             })
         });
         expect(completed).toMatchObject({ code: 0, stderr: '' });
-        // Change B: the Host renders its own complete audit block regardless
-        // of what the model's answer contains; nothing here was echoed back.
         expect(JSON.parse(completed.stdout).systemMessage.split('\n')).toEqual([
             expect.stringMatching(/^🧠 判断参照:/u),
             zeroCallLine,
@@ -1478,7 +1528,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
     it.each([
         { intent: 'implement', actionKind: 'write', prompt: '修正して', suffix: 'implement-write' },
         { intent: 'operate', actionKind: 'external', prompt: '承認済みの本番反映を続けて', suffix: 'operate-external' }
-    ])('runtime 2.4の$intent/$actionKindは差し戻し後のcompleted state PostToolUseでStop再送なしに確定する', async ({ intent, actionKind, prompt, suffix }) => {
+    ])('runtime 2.4の$intent/$actionKindは差し戻し後もcompleted state PostToolUseだけでは確定せずStopで確定する', async ({ intent, actionKind, prompt, suffix }) => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const hostUrl = await listen((request, response) => {
@@ -1513,7 +1563,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             last_assistant_message: 'この修正を進めてもよいですか？'
         }) });
         expect(blocked).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(blocked.stdout)).toMatchObject({ decision: 'block' });
+        const blockedOutput = JSON.parse(blocked.stdout);
+        expect(blockedOutput).toMatchObject({ decision: 'block' });
+        const exactAudit = auditBlockFromStopOutput(blockedOutput);
 
         const execution = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
@@ -1530,16 +1582,19 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
         }) });
         expect(completed).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(completed.stdout).systemMessage.split('\n')).toEqual([
-            expect.stringMatching(/^🧠 判断参照:/u),
-            expect.stringMatching(/^📚 Brainbase未参照:/u),
-            expect.stringMatching(/^🔁 自律継続:/u),
-            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
-        ]);
-        const final = JSON.parse(readFileSync(join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`), 'utf8'));
+        expect(JSON.parse(completed.stdout)).toEqual({});
+        const directory = join(journal, hash(identity.session_id));
+        const turnRef = hash(identity.turn_id);
+        const requested = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+            last_assistant_message: `${exactAudit}\n\n修正を完了しました。`
+        }) });
+        const requestedOutput = JSON.parse(requested.stdout);
+        expect(requestedOutput.decision).toBeUndefined();
+        const final = JSON.parse(readFileSync(join(directory, `${turnRef}.final.json`), 'utf8'));
         expect(final).toMatchObject({
             completion_status: 'complete', event_count: 2,
-            owner_audit_source: 'post_tool_use_system_message', answer_digest: null,
+            owner_audit_source: 'assistant_answer', answer_digest: expect.stringMatching(/^[0-9a-f]{64}$/u),
             stop_state: { status: 'completed', evidence_event_count: 1, source: 'journal' },
             autonomy_continuation: {
                 status: 'completed', trigger_code: 'unnecessary_user_question',
@@ -1634,6 +1689,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(prematureOutput).toMatchObject({ decision: 'block' });
         expect(prematureOutput.reason).toContain('waiting_human');
         expect(prematureOutput.systemMessage ?? '').not.toContain('🔁');
+        const escalationAudit = auditBlockFromStopOutput(prematureOutput);
         const continuation = JSON.parse(readFileSync(
             join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.continuation.json`),
             'utf8'
@@ -1670,7 +1726,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(corrected).toMatchObject({ code: 0, stderr: '' });
         expect(JSON.parse(corrected.stdout)).toEqual({});
 
-        const answer = '⚠️ 確認が必要[risk_or_external]: 本番へ反映してよいか承認してください。';
+        const answer = `${escalationAudit}\n\n⚠️ 確認が必要[risk_or_external]: 本番へ反映してよいか承認してください。`;
         const stopped = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: false, last_assistant_message: answer
         }) });
@@ -1796,7 +1852,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
     }, 20_000);
 
-    it('必要なknowledge/stateが揃い監査行だけ欠けた初回Stopを同じStopで確定する', async () => {
+    it('必要なknowledge/stateが揃い監査行だけ欠けた初回Stopを差し戻し修復後のStopで確定する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const hostUrl = await listen((request, response) => {
@@ -1888,22 +1944,35 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             })
         });
         expect(firstStop).toMatchObject({ code: 0, stderr: '' });
-        const firstStopSystemMessage = JSON.parse(firstStop.stdout).systemMessage;
-        expect(firstStopSystemMessage.split('\n')).toEqual([
+        const firstStopOutput = JSON.parse(firstStop.stdout);
+        expect(firstStopOutput).toMatchObject({ decision: 'block' });
+        const auditBlock = auditBlockFromStopOutput(firstStopOutput);
+        expect(auditBlock.split('\n')).toEqual([
             expect.stringMatching(/^🧠 判断参照:/u),
-            routeLine
+            routeLine,
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
         ]);
+
+        const repairedStop = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+                last_assistant_message: `${auditBlock}\n\n正本を確認し、修正と検証を完了しました。`
+            })
+        });
+        expect(JSON.parse(repairedStop.stdout).decision).toBeUndefined();
 
         const journalDirectory = join(journal, hash(identity.session_id));
         const turnRef = hash(identity.turn_id);
-        expect(existsSync(join(journalDirectory, `${turnRef}.continuation.json`))).toBe(false);
+        expect(existsSync(join(journalDirectory, `${turnRef}.continuation.json`))).toBe(true);
         expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.final.json`), 'utf8')))
             .toMatchObject({
                 completion_status: 'complete',
                 event_count: 2,
                 qualifying_event_count: 1,
                 owner_audit_complete: true,
-                owner_audit_line_count: 2,
+                owner_audit_line_count: 3,
+                owner_audit_source: 'assistant_answer',
                 stop_state: { status: 'completed', evidence_event_count: 1, source: 'journal' }
             });
     }, 20_000);

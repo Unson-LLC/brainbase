@@ -212,7 +212,7 @@
     {
       "id": "C-004",
       "type": "contract",
-      "statement": "差し戻し済みruntime 2.4 continuationは、将来のStop有無を予測せず、同一episodeの最後の正常なcompleted state PostToolUseを正規の確定境界としてcomplete finalと判断レシートを確定する。owner_audit_sourceはpost_tool_use_system_message、answer_digestはnullとし、後続Stopはimmutable finalをreplayする。成果物と正本読戻しはthread_itemsをsession_id、turn_id、tool_use_idで照合した完了済みfileChangeと単一readだけから採用する",
+      "statement": "差し戻し済みruntime 2.4 continuationでも、同一episodeの最後の正常なcompleted state PostToolUseは状態証拠をjournalへ記録するだけとし、complete finalと判断レシートを確定しない。後続Stopだけが最終assistant回答先頭の完全な監査ブロックを検証し、owner_audit_source=assistant_answerと正確なanswer_digestを保存して確定する。成果物と正本読戻しはthread_itemsをsession_id、turn_id、tool_use_idで照合した完了済みfileChangeと単一readだけから採用する",
       "origin": {
         "story_refs": [
           {
@@ -251,11 +251,11 @@
           },
           {
             "file": "tests/unit/judgment-resolver-host-value-proof.test.js",
-            "case": "Codex Desktopの実行とreadback証拠で最後の状態PostToolUseから確認済みレシートを表示する"
+            "case": "Codex Desktopの実行とreadback証拠を記録し最終Stopで確認済みレシートを確定する"
           },
           {
             "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
-            "case": "runtime 2.4の$intent/$actionKindは差し戻し後のcompleted state PostToolUseでStop再送なしに確定する"
+            "case": "runtime 2.4の$intent/$actionKindは差し戻し後もcompleted state PostToolUseだけでは確定せずStopで確定する"
           },
           {
             "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
