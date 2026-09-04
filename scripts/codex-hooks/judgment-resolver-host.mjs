@@ -2083,14 +2083,9 @@ function effectiveEpisode(episode, events) {
     return {
         ...episode,
         initial_route_receipt: resolved,
-        owner_audit: buildOwnerAudit(args, resolved, { hostAutonomy: episode.host_autonomy ?? null }),
-        // Keep the episode's frozen display wording across Host upgrades.
-        // Only the zero-call requirement changes with the resolved route.
-        audit_contract: {
-            ...(episode.audit_contract ?? buildAuditContract(resolved)),
-            zero_call_display_line: buildAuditContract(resolved).zero_call_display_line,
-            zero_call_display_line_digest: buildAuditContract(resolved).zero_call_display_line_digest
-        }
+        // Route resolution must not replace the episode's frozen display
+        // contract, including the absence of a contract on legacy episodes.
+        owner_audit: buildOwnerAudit(args, resolved, { hostAutonomy: episode.host_autonomy ?? null })
     };
 }
 

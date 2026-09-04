@@ -3648,6 +3648,17 @@ describe('Codex Judgment Resolver Host', () => {
         const legacyEpisode = { ...episode };
         delete legacyEpisode.audit_contract;
         writeFileSync(episodePath, `${JSON.stringify(legacyEpisode)}\n`);
+        // A resolved route must not retroactively add today's display contract.
+        const eventsPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.events`);
+        mkdirSync(eventsPath, { recursive: true });
+        writeFileSync(join(eventsPath, `${hash('legacy-resolution')}.json`), JSON.stringify({
+            schema_version: 'brainbase-judgment-tool-event-v1',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'legacy-resolution',
+            success: true, event_kind: 'turn_resolution', event_sequence: 0,
+            event_fingerprint: hash('legacy-resolution'),
+            recorded_at: new Date().toISOString(), satisfies: ['judgment.resolve_turn'],
+            safe_metadata: { turn_contract: legacyEpisode.initial_route_receipt }
+        }));
 
         const result = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,

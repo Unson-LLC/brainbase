@@ -38,6 +38,8 @@ created_at: 2026-09-05
 - 実行環境: Node.js 22.22.3 arm64。構文検査と `git diff --check` も成功。
 - 実行証跡は作業toolの成功の観測であり、成果の意味的な正しさは引き続き `content_verification_status=not_evaluated` として区別する。
 - Codexの正規契約に従い、再試行の加算は `stop_hook_active=true` の再Stopが対象。非準拠callerへの追加防御は今回の対象外。
+- 独立レビュー2観点: 条件・権限境界はPASS。永続化レビューの旧監査契約の遡及変更を修正し、route解決eventがある旧episodeも回帰対象に追加。運用手順書も更新。
+- レビューの追加防御提案は別途扱う。`stop_hook_active=false` の同一入力再送は既存の冪等契約を維持する。外部操作でのretryファイル削除・余分なファイル作成へのchain完全性検査は今回未実装（通常writerは同一transaction内で順に追記する）。
 
 ## 反映境界
 
