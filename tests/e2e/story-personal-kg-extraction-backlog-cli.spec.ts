@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { expect, test } from '@playwright/test';
 import { collectLocalInventory } from '../../scripts/local-data-server-ssot-inventory.js';
 import { buildUpsertPlan } from '../../scripts/local-data-server-ssot-upsert.js';
+import { createPersonalKgAuthorityEnv } from '../helpers/personal-kg-authority-fixture';
 
 const execFileAsync = promisify(execFile);
 const storyId = 'story-personal-kg-extraction-backlog';
@@ -58,11 +59,8 @@ async function runBacklog(tempHome: string, args: string[] = ['--json']) {
     '2026-05-23',
     '--to',
     '2026-05-24',
-    '--owner=sato_keigo',
-    '--actor=sato_keigo',
-    '--organization=unson',
     ...args
-  ], { cwd: process.cwd() });
+  ], { cwd: process.cwd(), env: createPersonalKgAuthorityEnv() });
 }
 
 test(`${storyId} ac:1 INV-001 backlog separates raw files, dates, messages, candidate, existing, missing, and needs_review counts`, async () => {

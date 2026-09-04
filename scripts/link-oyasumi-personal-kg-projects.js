@@ -3,6 +3,7 @@
 import process from 'node:process';
 import pg from 'pg';
 import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 const SOURCE_SYSTEM = 'oyasumi-meeting-personal-kg';
@@ -53,19 +54,16 @@ function parseArgs(argv) {
     return args;
 }
 
-function personalKgIdentity(options, env = process.env) {
+function personalKgIdentity(options) {
     return requirePersonalKgIdentity({
-        owner_person_id: options?.owner_person_id || options?.ownerPersonId
-            || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
-        actor_person_id: options?.actor_person_id || options?.actorPersonId
-            || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
-        organization_id: options?.organization_id || options?.organizationId
-            || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
-            || env.BRAINBASE_ORGANIZATION_ID,
+        owner_person_id: options?.owner_person_id || options?.ownerPersonId,
+        actor_person_id: options?.actor_person_id || options?.actorPersonId,
+        organization_id: options?.organization_id || options?.organizationId,
         org_ids: options?.org_ids,
-        delegation_id: options?.delegation_id || options?.delegationId
-            || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID
-    }, env);
+        project_code: options?.project_code || options?.projectCode,
+        authority_resolution_receipt_id: options?.authority_resolution_receipt_id,
+        identity_resolution_receipt_id: options?.identity_resolution_receipt_id
+    });
 }
 
 function databaseConfig() {
@@ -210,7 +208,11 @@ async function linkOyasumiPersonalKgProjects({ write = false, limit = null, proj
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
-    const summary = await linkOyasumiPersonalKgProjects({ ...args, identity: personalKgIdentity(args) });
+    const identity = resolvePersonalKgCliAuthority({
+        assertedIdentity: args,
+        desiredEffect: args.write ? 'write' : 'read'
+    });
+    const summary = await linkOyasumiPersonalKgProjects({ ...args, identity });
     if (args.json) console.log(JSON.stringify(summary, null, 2));
     else {
         console.log(`mode: ${summary.mode}`);

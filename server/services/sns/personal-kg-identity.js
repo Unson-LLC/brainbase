@@ -13,21 +13,6 @@ function firstText(...values) {
     return null;
 }
 
-function hasDelegationContext(input) {
-    const delegation = input?.delegation
-        || input?.delegation_context
-        || input?.delegationContext
-        || null;
-    return Boolean(
-        text(input?.delegation_id)
-        || text(input?.delegation_receipt_id)
-        || text(delegation?.delegation_id)
-        || text(delegation?.delegationId)
-        || text(delegation?.receipt_id)
-        || text(delegation?.receiptId)
-    );
-}
-
 /**
  * Resolve only explicitly supplied Personal KG access. There is intentionally
  * no owner, actor, or organization default in this boundary.
@@ -63,8 +48,11 @@ export function requirePersonalKgIdentity(input, env = {}) {
     const actorPersonId = canonicalPersonalKgOwner(actorRaw, env);
     if (!ownerPersonId) throw new Error('personal_kg_owner_person_id_required');
     if (!actorPersonId) throw new Error('personal_kg_actor_person_id_required');
-    if (ownerPersonId !== actorPersonId && !hasDelegationContext(input)) {
-        throw new Error('personal_kg_delegation_required');
+    if (ownerPersonId !== actorPersonId) {
+        // A receipt id is only an identifier, not proof of delegation. Until a
+        // signed delegation verifier is available at this boundary, delegated
+        // Personal KG access must fail closed before any read or write.
+        throw new Error('personal_kg_verified_delegation_required');
     }
 
     const orgIds = Array.isArray(input.org_ids)
@@ -115,5 +103,3 @@ export function isPersonalKgCandidateInScope(candidate, identity, env = {}) {
         return false;
     }
 }
-
-export { hasDelegationContext };

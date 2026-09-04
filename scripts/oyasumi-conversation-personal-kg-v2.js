@@ -16,6 +16,7 @@ import { PgCandidateRepository } from '../server/services/candidate-store/candid
 import { PromotionGateService } from '../server/services/candidate-store/promotion-gate-service.js';
 import { writeMeetingPersonalKgCandidates } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
 import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 const DEFAULT_TMP_ROOT = '/tmp';
@@ -38,22 +39,18 @@ function requiredIdentityValue(value, code) {
 }
 
 export function resolveConversationPersonalKgIdentity(argv, env = process.env) {
-    const identity = requirePersonalKgIdentity({
-        owner_person_id: flagValue(argv, ['--owner-person-id', '--owner'])
-            || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
-        actor_person_id: flagValue(argv, ['--actor-person-id', '--actor'])
-            || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
-        organization_id: flagValue(argv, ['--organization-id', '--organization'])
-            || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
-            || env.BRAINBASE_ORGANIZATION_ID,
-        delegation_id: flagValue(argv, ['--delegation-id'])
-            || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID
-    }, env);
-    const projectCode = requiredIdentityValue(
-        flagValue(argv, ['--project-code', '--project'])
-            || env.BRAINBASE_PERSONAL_KG_PROJECT_CODE,
-        'personal_kg_project_code_required'
-    );
+    const identity = resolvePersonalKgCliAuthority({
+        assertedIdentity: {
+            ownerPersonId: flagValue(argv, ['--owner-person-id', '--owner']),
+            actorPersonId: flagValue(argv, ['--actor-person-id', '--actor']),
+            organizationId: flagValue(argv, ['--organization-id', '--organization']),
+            projectCode: flagValue(argv, ['--project-code', '--project']),
+            delegationId: flagValue(argv, ['--delegation-id'])
+        },
+        desiredEffect: argv.includes('--write') ? 'write' : 'read',
+        env
+    });
+    const projectCode = requiredIdentityValue(identity.project_code, 'personal_kg_project_code_required');
     return {
         ...identity,
         personId: identity.owner_person_id,

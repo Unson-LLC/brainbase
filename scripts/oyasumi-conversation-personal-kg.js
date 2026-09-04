@@ -14,6 +14,7 @@ import {
     writeMeetingPersonalKgCandidates
 } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
 import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 
@@ -68,14 +69,11 @@ function parseArgs(argv) {
 }
 
 function personalKgIdentity(args, env = process.env) {
-    return requirePersonalKgIdentity({
-        owner_person_id: args.ownerPersonId || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
-        actor_person_id: args.actorPersonId || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
-        organization_id: args.organizationId
-            || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
-            || env.BRAINBASE_ORGANIZATION_ID,
-        delegation_id: args.delegationId || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID
-    }, env);
+    return resolvePersonalKgCliAuthority({
+        assertedIdentity: args,
+        desiredEffect: args.write ? 'write' : 'read',
+        env
+    });
 }
 
 function jstDayRange(date) {

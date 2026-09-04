@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from '@playwright/test';
+import { createPersonalKgAuthorityEnv } from '../helpers/personal-kg-authority-fixture';
 
 const execFileAsync = promisify(execFile);
 const storyId = 'story-personal-kg-review-projection';
@@ -17,9 +18,9 @@ async function writeFixture() {
       {
         id: 'fixture_needs_review',
         cognitive_type: 'insight',
-        owner_person_id: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        organization_id: 'unson',
+        owner_person_id: 'person-sato',
+        actor_person_id: 'person-sato',
+        organization_id: 'organization-tenant-a',
         source_system: 'oyasumi-meeting-personal-kg',
         source_event_ids: ['codex-claude-conversation:2026-05-23#needs_review:fixture'],
         visibility: 'owner',
@@ -50,9 +51,9 @@ async function writeFixture() {
       {
         id: 'fixture_core_eligible',
         cognitive_type: 'claim',
-        owner_person_id: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        organization_id: 'unson',
+        owner_person_id: 'person-sato',
+        actor_person_id: 'person-sato',
+        organization_id: 'organization-tenant-a',
         source_system: 'oyasumi-meeting-personal-kg',
         source_event_ids: ['github:minutes#personal_kg_core:eligible'],
         visibility: 'owner',
@@ -81,9 +82,9 @@ async function writeFixture() {
       {
         id: 'fixture_blocked_agency',
         cognitive_type: 'claim',
-        owner_person_id: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        organization_id: 'unson',
+        owner_person_id: 'person-sato',
+        actor_person_id: 'person-sato',
+        organization_id: 'organization-tenant-a',
         source_system: 'oyasumi-meeting-personal-kg',
         source_event_ids: ['github:minutes#personal_kg_core:blocked'],
         visibility: 'owner',
@@ -109,9 +110,9 @@ async function writeFixture() {
       {
         id: 'fixture_blocked_redacted',
         cognitive_type: 'claim',
-        owner_person_id: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        organization_id: 'unson',
+        owner_person_id: 'person-sato',
+        actor_person_id: 'person-sato',
+        organization_id: 'organization-tenant-a',
         source_system: 'oyasumi-meeting-personal-kg',
         source_event_ids: ['github:minutes#personal_kg_core:redacted'],
         visibility: 'owner',
@@ -137,9 +138,9 @@ async function writeFixture() {
       {
         id: 'fixture_blocked_expired',
         cognitive_type: 'claim',
-        owner_person_id: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        organization_id: 'unson',
+        owner_person_id: 'person-sato',
+        actor_person_id: 'person-sato',
+        organization_id: 'organization-tenant-a',
         source_system: 'oyasumi-meeting-personal-kg',
         source_event_ids: ['github:minutes#personal_kg_core:expired'],
         visibility: 'owner',
@@ -167,7 +168,7 @@ async function writeFixture() {
         cognitive_type: 'claim',
         owner_person_id: 'other_person',
         actor_person_id: 'other_person',
-        organization_id: 'unson',
+        organization_id: 'organization-tenant-a',
         source_system: 'oyasumi-meeting-personal-kg',
         source_event_ids: ['github:minutes#personal_kg_core:non-owner'],
         visibility: 'owner',
@@ -193,9 +194,9 @@ async function writeFixture() {
       {
         id: 'fixture_blocked_projection_false',
         cognitive_type: 'claim',
-        owner_person_id: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        organization_id: 'unson',
+        owner_person_id: 'person-sato',
+        actor_person_id: 'person-sato',
+        organization_id: 'organization-tenant-a',
         source_system: 'oyasumi-meeting-personal-kg',
         source_event_ids: ['github:minutes#personal_kg_core:projection-false'],
         visibility: 'owner',
@@ -221,9 +222,9 @@ async function writeFixture() {
       {
         id: 'fixture_pending_reject',
         cognitive_type: 'claim',
-        owner_person_id: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        organization_id: 'unson',
+        owner_person_id: 'person-sato',
+        actor_person_id: 'person-sato',
+        organization_id: 'organization-tenant-a',
         source_system: 'oyasumi-meeting-personal-kg',
         source_event_ids: ['github:minutes#personal_kg_core:reject'],
         visibility: 'owner',
@@ -249,9 +250,9 @@ async function writeFixture() {
       {
         id: 'fixture_pending_expire',
         cognitive_type: 'claim',
-        owner_person_id: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        organization_id: 'unson',
+        owner_person_id: 'person-sato',
+        actor_person_id: 'person-sato',
+        organization_id: 'organization-tenant-a',
         source_system: 'oyasumi-meeting-personal-kg',
         source_event_ids: ['github:minutes#personal_kg_core:expire'],
         visibility: 'owner',
@@ -277,9 +278,9 @@ async function writeFixture() {
       {
         id: 'fixture_sns_ready',
         cognitive_type: 'claim',
-        owner_person_id: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        organization_id: 'unson',
+        owner_person_id: 'person-sato',
+        actor_person_id: 'person-sato',
+        organization_id: 'organization-tenant-a',
         source_system: 'oyasumi-meeting-personal-kg',
         source_event_ids: ['github:minutes#sns_ready:ready'],
         visibility: 'owner',
@@ -324,11 +325,8 @@ test(`${storyId} ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 CLI dry-run review and projection
     '--decision-file',
     decisionPath,
     '--projection-plan',
-    '--owner=sato_keigo',
-    '--actor=sato_keigo',
-    '--organization=unson',
     '--json'
-  ], { cwd: process.cwd() });
+  ], { cwd: process.cwd(), env: createPersonalKgAuthorityEnv() });
   const result = JSON.parse(stdout);
 
   // story-personal-kg-review-projection ac:1
@@ -344,7 +342,7 @@ test(`${storyId} ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 CLI dry-run review and projection
   // The review queue is owner-visible and candidate-store scoped: it filters by `owner_person_id`, `source_system`, and `permission_snapshot.oyasumi_meeting_personal_kg`, not Graph promotion state.
   expect('ac:2 The review queue is owner-visible and candidate-store scoped: it filters by `owner_person_id`, `source_system`, and `permission_snapshot.oyasumi_meeting_personal_kg`, not Graph promotion state.').toContain('not Graph promotion state');
   expect('The review queue is owner-visible and candidate-store scoped: it filters by `owner_person_id`, `source_system`, and `permission_snapshot.oyasumi_meeting_personal_kg`, not Graph promotion state.').toContain('candidate-store scoped');
-  expect(result.owner_person_id).toBe('sato_keigo');
+  expect(result.owner_person_id).toBe('person-sato');
   expect(result.source_system).toBe('oyasumi-meeting-personal-kg');
 
   // story-personal-kg-review-projection ac:3

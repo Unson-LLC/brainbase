@@ -13,6 +13,10 @@ import {
     parseArgs
 } from '../../../scripts/oyasumi-conversation-personal-kg.js';
 import { writeMeetingPersonalKgCandidates } from '../../../server/services/sns/oyasumi-meeting-personal-kg-service.js';
+import {
+    createDetachedJws,
+    TENANT_CONTEXT_PROTECTED_TYP
+} from '../../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
 
 const IDENTITY = {
     owner_person_id: 'sato_keigo',
@@ -30,6 +34,38 @@ function writeJsonl(filePath, rows) {
 
 function unixSeconds(iso) {
     return Math.floor(Date.parse(iso) / 1000);
+}
+
+function personalAuthorityEnv() {
+    const cases = JSON.parse(fs.readFileSync('contracts/mana-brainbase-company-authority/v1/fixtures/cases.json', 'utf8'));
+    const key = JSON.parse(fs.readFileSync('contracts/mana-brainbase-company-authority/v1/fixtures/test-key.json', 'utf8'));
+    const fixture = cases.positive.find((entry) => entry.id === 'POS-PERSONAL-AUTO-OWNER');
+    const context = structuredClone(fixture.context);
+    const issuedAt = new Date(Date.now() - 60_000).toISOString();
+    const expiresAt = new Date(Date.now() + 3 * 60_000).toISOString();
+    context.issued_at = issuedAt;
+    context.expires_at = expiresAt;
+    context.tenant_context.issued_at = issuedAt;
+    context.tenant_context.expires_at = expiresAt;
+    context.tenant_context.integrity.value = createDetachedJws(
+        context.tenant_context,
+        key.private_jwk,
+        context.tenant_context.integrity.key_id,
+        { typ: TENANT_CONTEXT_PROTECTED_TYP }
+    );
+    context.integrity.value = createDetachedJws(context, key.private_jwk, context.integrity.key_id);
+    return {
+        BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON: JSON.stringify({
+            schema_version: cases.schema_version,
+            contract_id: cases.contract_id,
+            correlation_id: fixture.request.correlation_id,
+            context,
+            error: null
+        }),
+        BRAINBASE_COMPANY_AUTHORITY_PUBLIC_JWK_JSON: JSON.stringify(key.public_jwk),
+        BRAINBASE_TENANT_CONTEXT_PUBLIC_JWK_JSON: JSON.stringify(key.public_jwk),
+        BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID: context.scope.placement_id
+    };
 }
 
 describe('oyasumi conversation personal KG script', () => {
@@ -169,14 +205,12 @@ describe('oyasumi conversation personal KG script', () => {
                 inputPath,
                 '--output-dir',
                 outputDir,
-                '--owner=sato_keigo',
-                '--actor=sato_keigo',
-                '--organization=unson',
                 '--json'
             ], {
                 cwd: process.cwd(),
                 encoding: 'utf8',
-                stdio: ['ignore', 'pipe', 'pipe']
+                stdio: ['ignore', 'pipe', 'pipe'],
+                env: { ...process.env, ...personalAuthorityEnv() }
             });
         } catch (error) {
             failure = error;

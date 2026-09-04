@@ -497,7 +497,39 @@
         {
           "file": "scripts/link-oyasumi-personal-kg-projects.js",
           "anchor": "linkOyasumiPersonalKgProjects"
-      }
+        },
+        {
+          "file": "scripts/lib/personal-kg-cli-authority.js",
+          "anchor": "resolvePersonalKgCliAuthority"
+        },
+        {
+          "file": "scripts/build-sns-generation-context.js",
+          "anchor": "personalKgIdentity"
+        },
+        {
+          "file": "scripts/process-sns-feedback-to-learning.js",
+          "anchor": "personalKgIdentity"
+        },
+        {
+          "file": "scripts/oyasumi-conversation-personal-kg.js",
+          "anchor": "personalKgIdentity"
+        },
+        {
+          "file": "scripts/oyasumi-conversation-personal-kg-v2.js",
+          "anchor": "resolveConversationPersonalKgIdentity"
+        },
+        {
+          "file": "scripts/oyasumi-conversation-personal-kg-backlog.js",
+          "anchor": "main"
+        },
+        {
+          "file": "scripts/oyasumi-meeting-personal-kg.js",
+          "anchor": "personalKgIdentity"
+        },
+        {
+          "file": "scripts/project-oyasumi-sns-ready.js",
+          "anchor": "personalKgIdentity"
+        }
         ],
         "test_refs": [
           {
@@ -522,7 +554,15 @@
           },
           {
             "file": "tests/sns/oyasumi/personal-kg-identity.test.js",
-            "case": "requires explicit owner, actor, and organization"
+            "case": "rejects an unverified delegation receipt identifier"
+          },
+          {
+            "file": "tests/sns/oyasumi/personal-kg-cli-authority.test.js",
+            "case": "derives owner, actor, organization, and project only from a verified context"
+          },
+          {
+            "file": "tests/sns/oyasumi/personal-kg-cli-authority.test.js",
+            "case": "rejects legacy self-asserted identity even when a signed context is present"
           },
           {
             "file": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-service.test.js",
@@ -548,13 +588,13 @@
           "file": "tests/server/routes/companion-reply-draft.test.js",
           "case": "fails closed when no Personal KG owner is configured"
         },
-        {
-          "file": "tests/sns/weekly-planner/generate-personal-kg-sns-weekly-pack.test.js",
-          "case": "fails closed when owner, actor, or organization is omitted"
-        },
-        {
-          "file": "tests/sns/personal-kg/generate-memory-preamble.test.js",
-          "case": "uses owner and organization RLS access and excludes cross-tenant rows"
+          {
+            "file": "tests/sns/weekly-planner/generate-personal-kg-sns-weekly-pack.test.js",
+            "case": "preserves the verified snake-case identity returned by company authority resolution"
+          },
+          {
+            "file": "tests/sns/personal-kg/generate-memory-preamble.test.js",
+            "case": "requires signed company authority and rejects legacy self-asserted identity"
         },
         {
           "file": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",
@@ -586,7 +626,11 @@
           },
           {
             "file_glob": "tests/sns/oyasumi/personal-kg-identity.test.js",
-            "must_cover": "requires explicit owner, actor, and organization"
+            "must_cover": "unverified delegation receipt identifier"
+          },
+          {
+            "file_glob": "tests/sns/oyasumi/personal-kg-cli-authority.test.js",
+            "must_cover": "verified context and rejects legacy self-asserted identity"
           },
           {
             "file_glob": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-service.test.js",
@@ -606,11 +650,11 @@
         },
         {
           "file_glob": "tests/sns/weekly-planner/generate-personal-kg-sns-weekly-pack.test.js",
-          "must_cover": "fails closed when owner, actor, or organization is omitted"
+          "must_cover": "verified snake-case identity"
         },
         {
           "file_glob": "tests/sns/personal-kg/generate-memory-preamble.test.js",
-          "must_cover": "owner and organization RLS access and excludes cross-tenant rows"
+          "must_cover": "signed company authority and rejects legacy self-asserted identity"
         },
         {
           "file_glob": "tests/sns/oyasumi/oyasumi-meeting-personal-kg-script.test.js",

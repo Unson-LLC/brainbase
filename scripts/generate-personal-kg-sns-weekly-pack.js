@@ -9,6 +9,7 @@ import { PromotionGateService } from '../server/services/candidate-store/promoti
 import { PersonalKnowledgeGraphReader } from '../server/services/sns/personal-knowledge-graph-reader.js';
 import { PersonalKgSnsWeeklyPlanner } from '../server/services/sns/personal-kg-sns-weekly-planner.js';
 import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 
@@ -81,15 +82,16 @@ function loadSignals(filePath) {
     };
 }
 
-function viewer(args, env = process.env) {
+function viewer(args) {
     const identity = requirePersonalKgIdentity({
-        owner_person_id: args.ownerPersonId || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
-        actor_person_id: args.actorPersonId || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
-        organization_id: args.organizationId
-            || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
-            || env.BRAINBASE_ORGANIZATION_ID,
-        delegation_id: args.delegationId || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID
-    }, env);
+        owner_person_id: args.owner_person_id || args.ownerPersonId,
+        actor_person_id: args.actor_person_id || args.actorPersonId,
+        organization_id: args.organization_id || args.organizationId,
+        org_ids: args.org_ids,
+        project_code: args.project_code || args.projectCode,
+        authority_resolution_receipt_id: args.authority_resolution_receipt_id,
+        identity_resolution_receipt_id: args.identity_resolution_receipt_id
+    });
     return {
         ...identity,
         sub: identity.owner_person_id,
@@ -103,6 +105,10 @@ function viewer(args, env = process.env) {
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
+    const identity = resolvePersonalKgCliAuthority({
+        assertedIdentity: args,
+        desiredEffect: 'read'
+    });
     const config = databaseConfig();
     validateConfig(config);
     const pool = new Pool(config);
@@ -112,7 +118,7 @@ async function main() {
         const reader = new PersonalKnowledgeGraphReader({ candidateService: service });
         const planner = new PersonalKgSnsWeeklyPlanner({ graphReader: reader });
         const signals = loadSignals(args.signalsFile);
-        const pack = await planner.buildWeeklyDraftPack(viewer(args), {
+        const pack = await planner.buildWeeklyDraftPack(viewer(identity), {
             startDate: args.startDate || nextMonday(),
             lookbackDays: args.lookbackDays,
             ...signals

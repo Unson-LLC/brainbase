@@ -11,6 +11,7 @@ import {
     writeMeetingPersonalKgCandidates
 } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
 import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 
@@ -50,18 +51,11 @@ function parseArgs(argv) {
 }
 
 function personalKgIdentity(options, env = process.env) {
-    return requirePersonalKgIdentity({
-        owner_person_id: options?.owner_person_id || options?.ownerPersonId
-            || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
-        actor_person_id: options?.actor_person_id || options?.actorPersonId
-            || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
-        organization_id: options?.organization_id || options?.organizationId
-            || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
-            || env.BRAINBASE_ORGANIZATION_ID,
-        org_ids: options?.org_ids,
-        delegation_id: options?.delegation_id || options?.delegationId
-            || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID
-    }, env);
+    return resolvePersonalKgCliAuthority({
+        assertedIdentity: options,
+        desiredEffect: options?.write ? 'write' : 'read',
+        env
+    });
 }
 
 function databaseConfig() {

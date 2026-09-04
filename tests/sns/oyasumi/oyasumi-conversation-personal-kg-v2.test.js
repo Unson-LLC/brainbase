@@ -6,31 +6,20 @@ import {
 } from '../../../scripts/oyasumi-conversation-personal-kg-v2.js';
 
 describe('oyasumi conversation Personal KG v2 identity boundary', () => {
-    it('requires explicit owner, actor, organization, and project identity', () => {
+    it('requires a signed company authority response instead of CLI identity', () => {
         expect(() => resolveConversationPersonalKgIdentity([], {}))
-            .toThrow('personal_kg_owner_person_id_required');
+            .toThrow('BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON_required');
         expect(() => resolveConversationPersonalKgIdentity(['--owner=person_a'], {}))
-            .toThrow('personal_kg_actor_person_id_required');
+            .toThrow('personal_kg_cli_self_asserted_identity_forbidden');
     });
 
-    it('canonicalizes a per-person alias without falling back to Sato', () => {
-        const access = resolveConversationPersonalKgIdentity([], {
-            BRAINBASE_PERSONAL_KG_OWNER_ALIASES_JSON: JSON.stringify({
-                per_graph_sato: 'sato_keigo',
-                per_graph_umeda: 'umeda_ryo'
-            }),
+    it('rejects legacy environment identity instead of treating it as authenticated', () => {
+        expect(() => resolveConversationPersonalKgIdentity([], {
             BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'umeda_ryo',
             BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID: 'per_graph_umeda',
             BRAINBASE_PERSONAL_KG_ORGANIZATION_ID: 'unson',
             BRAINBASE_PERSONAL_KG_PROJECT_CODE: 'back-office'
-        });
-
-        expect(access).toMatchObject({
-            personId: 'umeda_ryo',
-            actorPersonId: 'umeda_ryo',
-            organizationId: 'unson',
-            projectCode: 'back-office'
-        });
+        })).toThrow('personal_kg_cli_self_asserted_identity_forbidden');
     });
 
     it('rewrites every extracted candidate to the authenticated scope and partitions IDs by owner', () => {

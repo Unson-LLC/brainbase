@@ -24,8 +24,8 @@ import pg from 'pg';
 import { PgCandidateRepository } from '../server/services/candidate-store/candidate-repository.js';
 import {
   isPersonalKgCandidateInScope,
-  requirePersonalKgIdentity,
 } from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 
@@ -85,17 +85,16 @@ function personalKgDatabaseConfig(env = process.env) {
 }
 
 function resolvePersonalKgAccess(env = process.env) {
-  return requirePersonalKgIdentity({
-    owner_person_id: env.MEMORY_PREAMBLE_OWNER_PERSON_ID
-      || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
-    actor_person_id: env.MEMORY_PREAMBLE_ACTOR_PERSON_ID
-      || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
-    organization_id: env.MEMORY_PREAMBLE_ORGANIZATION_ID
-      || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
-      || env.BRAINBASE_ORGANIZATION_ID,
-    delegation_id: env.MEMORY_PREAMBLE_DELEGATION_ID
-      || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID,
-  }, env);
+  return resolvePersonalKgCliAuthority({
+    assertedIdentity: {
+      owner_person_id: env.MEMORY_PREAMBLE_OWNER_PERSON_ID,
+      actor_person_id: env.MEMORY_PREAMBLE_ACTOR_PERSON_ID,
+      organization_id: env.MEMORY_PREAMBLE_ORGANIZATION_ID,
+      delegation_id: env.MEMORY_PREAMBLE_DELEGATION_ID,
+    },
+    desiredEffect: 'read',
+    env,
+  });
 }
 
 async function fetchPersonalKg({

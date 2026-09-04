@@ -39,7 +39,13 @@ describe('Personal KG identity boundary', () => {
             owner_person_id: 'person_a',
             actor_person_id: 'person_b',
             organization_id: 'org_a'
-        })).toThrow('personal_kg_delegation_required');
+        })).toThrow('personal_kg_verified_delegation_required');
+        expect(() => requirePersonalKgIdentity({
+            owner_person_id: 'person_a',
+            actor_person_id: 'person_b',
+            organization_id: 'org_a',
+            delegation_receipt_id: 'forged'
+        })).toThrow('personal_kg_verified_delegation_required');
     });
 
     it('scopes reads by owner and tenant while allowing a delegated creation actor', () => {

@@ -1,21 +1,61 @@
 // @ts-check
+import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  createDetachedJws,
+  TENANT_CONTEXT_PROTECTED_TYP,
+} from '../../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
 import {
   fetchPersonalKg,
   resolvePersonalKgAccess,
 } from '../../../scripts/generate-memory-preamble.mjs';
 
+function personalAuthorityEnv() {
+  const cases = JSON.parse(fs.readFileSync(
+    'contracts/mana-brainbase-company-authority/v1/fixtures/cases.json',
+    'utf8',
+  ));
+  const key = JSON.parse(fs.readFileSync(
+    'contracts/mana-brainbase-company-authority/v1/fixtures/test-key.json',
+    'utf8',
+  ));
+  const fixture = cases.positive.find((entry) => entry.id === 'POS-PERSONAL-AUTO-OWNER');
+  const context = structuredClone(fixture.context);
+  const issuedAt = new Date(Date.now() - 60_000).toISOString();
+  const expiresAt = new Date(Date.now() + 3 * 60_000).toISOString();
+  context.issued_at = issuedAt;
+  context.expires_at = expiresAt;
+  context.tenant_context.issued_at = issuedAt;
+  context.tenant_context.expires_at = expiresAt;
+  context.tenant_context.integrity.value = createDetachedJws(
+    context.tenant_context,
+    key.private_jwk,
+    context.tenant_context.integrity.key_id,
+    { typ: TENANT_CONTEXT_PROTECTED_TYP },
+  );
+  context.integrity.value = createDetachedJws(context, key.private_jwk, context.integrity.key_id);
+  return {
+    BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON: JSON.stringify({
+      schema_version: cases.schema_version,
+      contract_id: cases.contract_id,
+      correlation_id: fixture.request.correlation_id,
+      context,
+      error: null,
+    }),
+    BRAINBASE_COMPANY_AUTHORITY_PUBLIC_JWK_JSON: JSON.stringify(key.public_jwk),
+    BRAINBASE_TENANT_CONTEXT_PUBLIC_JWK_JSON: JSON.stringify(key.public_jwk),
+    BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID: context.scope.placement_id,
+  };
+}
+
 describe('generate memory preamble Personal KG boundary', () => {
-  it('requires explicit owner, actor, and organization identity', () => {
-    expect(() => resolvePersonalKgAccess({})).toThrow('personal_kg_owner_person_id_required');
+  it('requires signed company authority and rejects legacy self-asserted identity', () => {
+    expect(() => resolvePersonalKgAccess({})).toThrow('BRAINBASE_COMPANY_AUTHORITY_RESPONSE_JSON_required');
     expect(() => resolvePersonalKgAccess({
       MEMORY_PREAMBLE_OWNER_PERSON_ID: 'person_a',
-    })).toThrow('personal_kg_actor_person_id_required');
-    expect(() => resolvePersonalKgAccess({
-      MEMORY_PREAMBLE_OWNER_PERSON_ID: 'person_a',
-      MEMORY_PREAMBLE_ACTOR_PERSON_ID: 'person_a',
-    })).toThrow('personal_kg_organization_id_required');
+      ...personalAuthorityEnv(),
+    })).toThrow('personal_kg_cli_self_asserted_identity_forbidden');
   });
 
   it('uses owner and organization RLS access and excludes cross-tenant rows', async () => {
@@ -37,8 +77,8 @@ describe('generate memory preamble Personal KG boundary', () => {
 
       async transaction(work, options) {
         expect(options.access).toMatchObject({
-          personId: 'person_a',
-          organizationId: 'org_a',
+          personId: 'person-sato',
+          organizationId: 'organization-tenant-a',
           projectCodes: ['brainbase'],
           role: 'member',
           clearance: ['internal'],
@@ -47,8 +87,8 @@ describe('generate memory preamble Personal KG boundary', () => {
           listPersonalKg: async ({ owner_person_id, cognitive_type, owner_read }) => [{
             id: `${cognitive_type}_allowed`,
             owner_person_id,
-            actor_person_id: 'person_a',
-            organization_id: 'org_a',
+            actor_person_id: 'person-sato',
+            organization_id: 'organization-tenant-a',
             visibility: 'owner',
             cognitive_type,
             body: `${cognitive_type} allowed`,
@@ -56,7 +96,7 @@ describe('generate memory preamble Personal KG boundary', () => {
           }, {
             id: `${cognitive_type}_cross_tenant`,
             owner_person_id,
-            actor_person_id: 'person_a',
+            actor_person_id: 'person-sato',
             organization_id: 'org_b',
             visibility: 'owner',
             cognitive_type,
@@ -72,10 +112,8 @@ describe('generate memory preamble Personal KG boundary', () => {
 
     const result = await fetchPersonalKg({
       env: {
+        ...personalAuthorityEnv(),
         INFO_SSOT_DATABASE_URL: 'postgres://example',
-        MEMORY_PREAMBLE_OWNER_PERSON_ID: 'person_a',
-        MEMORY_PREAMBLE_ACTOR_PERSON_ID: 'person_a',
-        MEMORY_PREAMBLE_ORGANIZATION_ID: 'org_a',
         BRAINBASE_PROJECTS: 'brainbase',
       },
       PoolClass: FakePool,

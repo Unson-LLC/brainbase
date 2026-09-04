@@ -37,11 +37,29 @@ describe('generate personal KG SNS weekly pack CLI', () => {
         });
     });
 
+    it('preserves the verified snake-case identity returned by company authority resolution', () => {
+        expect(viewer({
+            owner_person_id: 'person-sato',
+            actor_person_id: 'person-sato',
+            organization_id: 'organization-tenant-a',
+            project_code: 'project-a',
+            org_ids: ['organization-tenant-a'],
+            authority_resolution_receipt_id: 'authority-receipt',
+            identity_resolution_receipt_id: 'identity-receipt'
+        })).toMatchObject({
+            sub: 'person-sato',
+            owner_person_id: 'person-sato',
+            actor_person_id: 'person-sato',
+            organization_id: 'organization-tenant-a',
+            project_code: 'project-a'
+        });
+    });
+
     it('fails closed when owner, actor, or organization is omitted', () => {
-        expect(() => viewer({}, {})).toThrow('personal_kg_owner_person_id_required');
-        expect(() => viewer({ ownerPersonId: 'sato_keigo' }, {}))
+        expect(() => viewer({})).toThrow('personal_kg_owner_person_id_required');
+        expect(() => viewer({ ownerPersonId: 'sato_keigo' }))
             .toThrow('personal_kg_actor_person_id_required');
-        expect(() => viewer({ ownerPersonId: 'sato_keigo', actorPersonId: 'sato_keigo' }, {}))
+        expect(() => viewer({ ownerPersonId: 'sato_keigo', actorPersonId: 'sato_keigo' }))
             .toThrow('personal_kg_organization_id_required');
     });
 });

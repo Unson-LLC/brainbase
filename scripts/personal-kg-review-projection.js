@@ -10,6 +10,7 @@ import {
     isPersonalKgCandidateInScope,
     requirePersonalKgIdentity
 } from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const POLICY_KEY = 'oyasumi_meeting_personal_kg';
 const ACTIVE_STATUSES = new Set(['candidate', 'pending_approval', 'approved']);
@@ -75,19 +76,16 @@ function parseArgs(argv) {
     return args;
 }
 
-function personalKgIdentity(options, env = process.env) {
+function personalKgIdentity(options) {
     return requirePersonalKgIdentity({
-        owner_person_id: options?.owner_person_id || options?.ownerPersonId
-            || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
-        actor_person_id: options?.actor_person_id || options?.actorPersonId
-            || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
-        organization_id: options?.organization_id || options?.organizationId
-            || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
-            || env.BRAINBASE_ORGANIZATION_ID,
+        owner_person_id: options?.owner_person_id || options?.ownerPersonId,
+        actor_person_id: options?.actor_person_id || options?.actorPersonId,
+        organization_id: options?.organization_id || options?.organizationId,
         org_ids: options?.org_ids,
-        delegation_id: options?.delegation_id || options?.delegationId
-            || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID
-    }, env);
+        project_code: options?.project_code || options?.projectCode,
+        authority_resolution_receipt_id: options?.authority_resolution_receipt_id,
+        identity_resolution_receipt_id: options?.identity_resolution_receipt_id
+    });
 }
 
 function databaseConfig() {
@@ -504,12 +502,9 @@ function outputText(output) {
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
-    const identity = personalKgIdentity({
-        ...args,
-        owner_person_id: args.ownerPersonId,
-        actor_person_id: args.actorPersonId,
-        organization_id: args.organizationId,
-        delegation_id: args.delegationId
+    const identity = resolvePersonalKgCliAuthority({
+        assertedIdentity: args,
+        desiredEffect: args.write ? 'write' : 'read'
     });
     const scopedArgs = {
         ...args,

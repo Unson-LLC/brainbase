@@ -564,8 +564,8 @@ function signingInput(context, protected64) {
     ]);
 }
 
-export function createDetachedJws(context, privateJwk, keyId) {
-    const protected64 = base64Url(canonicalJson(protectedHeader(keyId)));
+export function createDetachedJws(context, privateJwk, keyId, { typ = PROTECTED_TYP } = {}) {
+    const protected64 = base64Url(canonicalJson(protectedHeader(keyId, typ)));
     const signature = ed25519Sign(null, signingInput(context, protected64), createPrivateKey({ key: privateJwk, format: 'jwk' }));
     return `${protected64}..${base64Url(signature)}`;
 }

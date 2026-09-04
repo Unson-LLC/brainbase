@@ -17,7 +17,8 @@ SNS生成Contextは personal KG core を直接公開利用せず、別の `sns_r
 
 ## Invariants
 
-- INV-1: candidateは `owner_person_id=sato_keigo` かつ `visibility=owner` で作る。
+- INV-1: candidateは署名検証済み会社権限contextの `scope.owner_person_id` かつ `visibility=owner` で作る。CLI引数、環境変数、議事録本文の人物IDをownerとして採用しない。
+- INV-1a: ownerとactorが異なる操作は、署名検証済みの委任証明を検証できるまでfail-closedで拒否する。委任ID文字列だけでは許可しない。
 - INV-2: candidateの `source_system` は `oyasumi-meeting-personal-kg` とする。
 - INV-3: `source_event_ids` はGitHub repo/path/date/slug/categoryを含み、同一議事録・同一抽出単位の重複投入を防げる。
 - INV-4: `personal_kg_core` は判断再現に必要な confidential/private/counterparty details を保持してよい。ただし `visibility=owner`, `sensitivity`, `redaction_status`, provenance, retrieval purpose を必ず持つ。
@@ -86,7 +87,7 @@ SNS生成Contextは personal KG core を直接公開利用せず、別の `sns_r
       "source_event_ids": [
         "github:Unson-LLC/salestailor-project:meetings/minutes/2026-05-15_social-gathering-business-networking-talk.md#sales_philosophy:ai-sales-agency"
       ],
-      "owner_person_id": "sato_keigo",
+      "owner_person_id": "<verified context.scope.owner_person_id>",
       "project_code": "salestailor",
       "visibility": "owner",
       "sensitivity": "internal",

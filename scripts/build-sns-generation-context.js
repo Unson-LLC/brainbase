@@ -8,10 +8,10 @@ import pg from 'pg';
 
 import { InMemoryCandidateRepository, PgCandidateRepository } from '../server/services/candidate-store/candidate-repository.js';
 import { SnsGenerationContextService } from '../server/services/sns/sns-generation-context-service.js';
-import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
 import { PgSnsPostingLedgerRepository } from '../server/services/sns/posting-ledger-repository.js';
 import { databaseConfig } from './migrate-m5a-production-schema.js';
 import { resolveSnsRoot } from './workspace-paths.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 
@@ -70,14 +70,7 @@ export function parseArgs(argv) {
 }
 
 function personalKgIdentity(args, env = process.env) {
-    return requirePersonalKgIdentity({
-        owner_person_id: args.ownerPersonId || env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID,
-        actor_person_id: args.actorPersonId || env.BRAINBASE_PERSONAL_KG_ACTOR_PERSON_ID,
-        organization_id: args.organizationId
-            || env.BRAINBASE_PERSONAL_KG_ORGANIZATION_ID
-            || env.BRAINBASE_ORGANIZATION_ID,
-        delegation_id: args.delegationId || env.BRAINBASE_PERSONAL_KG_DELEGATION_ID
-    }, env);
+    return resolvePersonalKgCliAuthority({ assertedIdentity: args, desiredEffect: 'read', env });
 }
 
 function readOptionalText(filePath) {
