@@ -33,7 +33,8 @@ export function createAutomationRuntimeServices({
     canonicalTaskService = null,
     meetingKnowledgeEventBridge = null,
     meetingTaskOwnerResolver = null,
-    projectAccessPolicy = null
+    projectAccessPolicy = null,
+    companyAuthorityHumanApprovalService = null
 }) {
     const accessPolicy = projectAccessPolicy || new ProjectAccessPolicy({ configParser });
     const controlRuntime = new AutomationControlRuntime({
@@ -70,7 +71,8 @@ export function createAutomationRuntimeServices({
         assertProjectSelectable: (projectId, actor) => accessPolicy.assertProjectSelectable(projectId, actor),
         assertProjectAccess: (projectId, actor) => accessPolicy.assertProjectAccess(projectId, actor),
         assertHumanStepAccess: assertActorCanResolveHumanStep,
-        canonicalTaskService
+        canonicalTaskService,
+        companyAuthorityHumanApprovalService
     });
     const companionApprovalInboxService = new CompanionApprovalInboxService({
         repository,
@@ -86,6 +88,7 @@ export function createAutomationRuntimeServices({
         companionApprovalInboxService,
         automationRuntimeDefaultsService,
         projectAccessPolicy: accessPolicy,
-        meetingTaskOwnerResolver: ownerResolver
+        meetingTaskOwnerResolver: ownerResolver,
+        companyAuthorityHumanApprovalService
     };
 }

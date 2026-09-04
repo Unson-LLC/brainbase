@@ -47,6 +47,18 @@ describe('createAutomationRuntimeServices', () => {
         expect(runtime.automationRunService.canonicalTaskService).toBe(canonicalTaskService);
     });
 
+    it('生成時_Company Authority human approval serviceをAutomationRunへ同一instanceで注入する', () => {
+        const companyAuthorityHumanApprovalService = {
+            isBound: () => false,
+            resolve: async () => null
+        };
+        const runtime = makeRuntime({ companyAuthorityHumanApprovalService });
+
+        expect(runtime.companyAuthorityHumanApprovalService).toBe(companyAuthorityHumanApprovalService);
+        expect(runtime.automationRunService.companyAuthorityHumanApprovalService)
+            .toBe(companyAuthorityHumanApprovalService);
+    });
+
     it('生成時_RunReceipt queryをAgentLoopから分離して返す', () => {
         const runtime = makeRuntime();
 

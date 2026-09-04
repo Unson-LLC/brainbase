@@ -106,7 +106,7 @@ export class WorkflowRunner {
                     trigger_type: options.triggerType || 'manual',
                     env: options.env || workflow.execution_env || 'local',
                     dry_run: Boolean(options.dryRun),
-                    started_by: options.actorId || 'system',
+                    started_by: options.originalRequesterId || options.actorId || 'system',
                     owner_id: workflow.owner_id,
                     assignee_id: workflow.default_assignee_id || workflow.owner_id,
                     approver_id: workflow.default_approver_id || workflow.owner_id,
@@ -152,7 +152,7 @@ export class WorkflowRunner {
                     trigger_type: options.triggerType || 'manual',
                     env: options.env || workflow.execution_env || 'local',
                     dry_run: Boolean(options.dryRun),
-                    started_by: options.actorId || 'system',
+                    started_by: options.originalRequesterId || options.actorId || 'system',
                     owner_id: workflow.owner_id,
                     assignee_id: workflow.default_assignee_id || workflow.owner_id,
                     approver_id: workflow.default_approver_id || workflow.owner_id,
@@ -297,7 +297,7 @@ export class WorkflowRunner {
                 triggerType: run.trigger_type,
                 env: run.env,
                 dryRun: run.dry_run,
-                actorId: run.started_by,
+                actorId: options.actorId || run.started_by,
                 humanStepResolution: options.humanStepResolution || null,
                 resolvedContext: contextResolution.snapshots
             }, workflow);
