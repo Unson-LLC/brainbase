@@ -18,6 +18,7 @@ bridgeが受理するのは、次の`POST` routeとqueryなし要求だけであ
 
 - `GET /api/v1/runtime/verification-keys`
 - `/api/v1/runtime/tenant-context:resolve`
+- `/api/v1/runtime/company-authority:resolve`
 - `/api/v1/runtime/credential-leases`
 - `/api/v1/runtime/provider-requests:forward`
 - `/api/v1/runtime/quota:decide`
@@ -100,7 +101,7 @@ mana-runtime側のWrangler設定はService Bindingを次の名前で参照する
 3. mana-runtimeの配備readbackで`BRAINBASE_TENANT_RUNTIME_SERVICE -> brainbase-tenant-runtime`を確認する。
 4. 新規Slack eventからprovider requestを1件実行し、mana event ID、tenant、connection revision、operation IDを固定する。
 5. Access audit logでbridge専用Service Tokenの許可が1件であることを確認する。
-6. Node側でcanonical service auth、署名済みTenantContext、authoritative connection revision、single-use lease、provider forwardが同じoperation IDで成功したことを確認する。
+6. Node側でcanonical service auth、署名済みTenantContextとCompany Authority Context、authoritative connection revision、single-use lease、provider forwardが同じoperation IDで成功したことを確認する。
 7. provider credential、service token、Access secretがWorker log、Node log、Receipt、Slack返信へ出ていないことを確認する。
 8. Slack返信1件、Brainbase Receipt 1件、idempotency replay時の追加provider call 0件を確認する。
 
@@ -121,3 +122,9 @@ Access Service Tokenは新tokenを作成し、Worker secretを更新して疎通
 `BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN`と`BRAINBASE_SERVICE_JWT`は同じJWTを指す。前者はBrainbase Node runtimeのdeployment-local secret managerだけに、後者はCloudflare Worker Secretだけに置く。JWT値をmana-runtimeのWorker vars／secrets、Service Binding設定、リポジトリ、CI、ログ、Receiptへ置かない。mana-runtimeはservice tokenを保持せず、Service Bindingを呼ぶだけである。将来Node verifierが旧新tokenのoverlapを受理できる実装になった場合だけ、Nodeへ新tokenを追加 → Worker Secretを新tokenへ更新 → bridge smoke → overlap期間後にNodeから旧tokenを削除、の順で行う。現行は単一値比較のため、このoverlap手順を適用しない。
 
 障害時はmana-runtimeのprovider利用機能を停止し、既知のWorker versionへ戻す。Access protectionやNode tenant boundaryを外して復旧しない。Tunnel、Access、Node runtimeのいずれが未確認でも`upstream_unavailable`として残し、成功へ丸めない。
+
+### company authority schema適用後の復旧
+
+本migrationは追加tableとresolver functionを導入するため、適用後に自動`down`でtableを削除しない。削除はauthority recordを失う不可逆操作になる。production適用前に、承認者、候補SHA、schema hash、現在のresolver定義、復旧判断をrollout receiptへ記録する。
+
+適用後のreadbackで失敗した場合は、新規company authority経路とMana側consumerを停止し、既知のWorker versionへ戻す。既存tenant runtime経路は維持し、追加tableは証拠保全のため残す。resolver定義に互換性問題がある場合は、記録済みの直前定義を新しいforward migrationとしてtransaction内で復元し、`brainbase_app`実呼出しとledger hashを再確認する。tableまたはrecordの削除が必要な場合は、対象件数、backup、復元確認、承認者を別のschema decisionへ記録するまで実行しない。

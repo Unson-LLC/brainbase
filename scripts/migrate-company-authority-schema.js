@@ -66,6 +66,25 @@ async function assertPrerequisites(client) {
     }
 }
 
+async function assertMigrationOwner(client) {
+    const result = await client.query(
+        `SELECT role.rolname AS owner_name,
+                (role.rolsuper OR role.rolbypassrls) AS owner_bypasses_rls
+           FROM pg_roles AS role
+          WHERE role.rolname = current_user`
+    );
+    const owner = result.rows[0];
+    if (!owner?.owner_name
+        || owner.owner_name === 'brainbase_app'
+        || owner.owner_bypasses_rls !== true) {
+        throw new CompanyAuthorityMigrationError(
+            'MIGRATION_OWNER_UNSAFE',
+            'Migration owner must be a dedicated role that can bypass RLS'
+        );
+    }
+    return owner.owner_name;
+}
+
 async function readback(client, schemaHash) {
     await assertPrerequisites(client);
     const tableResult = await client.query(
@@ -166,6 +185,26 @@ async function readback(client, schemaHash) {
         );
     }
 
+    let runtimeRoleSet = false;
+    try {
+        await client.query('SET ROLE brainbase_app');
+        runtimeRoleSet = true;
+        await client.query(
+            `SELECT tenant_id
+               FROM public.resolve_company_authority_route(
+                    'slack', '__migration_readback_missing_subject__',
+                    NULL, NULL, NULL, NULL
+               )`
+        );
+    } catch {
+        throw new CompanyAuthorityMigrationError(
+            'SCHEMA_READBACK_FAILED',
+            'brainbase_app cannot execute the company authority route resolver'
+        );
+    } finally {
+        if (runtimeRoleSet) await client.query('RESET ROLE');
+    }
+
     const ledger = await client.query(
         `SELECT schema_sha256
            FROM brainbase_schema_migrations
@@ -183,6 +222,7 @@ async function readback(client, schemaHash) {
         rls_table_count: TABLES.length,
         route_function_count: 1,
         route_function_security_verified: true,
+        runtime_role_smoke_verified: true,
         ledger_matches: true
     };
 }
@@ -208,6 +248,7 @@ export async function runCompanyAuthoritySchemaMigration({
     let transactionStarted = false;
     try {
         client = await activePool.connect();
+        const migrationOwner = await assertMigrationOwner(client);
         await assertPrerequisites(client);
         if (mode === 'check') {
             return {
@@ -215,6 +256,7 @@ export async function runCompanyAuthoritySchemaMigration({
                 mode,
                 migration_id: MIGRATION_ID,
                 schema_sha256: schemaHash,
+                migration_owner: migrationOwner,
                 persisted: true,
                 readback: await readback(client, schemaHash)
             };
@@ -249,6 +291,7 @@ export async function runCompanyAuthoritySchemaMigration({
                 mode,
                 migration_id: MIGRATION_ID,
                 schema_sha256: schemaHash,
+                migration_owner: migrationOwner,
                 persisted: false,
                 readback: result
             };
@@ -260,6 +303,7 @@ export async function runCompanyAuthoritySchemaMigration({
             mode,
             migration_id: MIGRATION_ID,
             schema_sha256: schemaHash,
+            migration_owner: migrationOwner,
             persisted: true,
             readback: result
         };

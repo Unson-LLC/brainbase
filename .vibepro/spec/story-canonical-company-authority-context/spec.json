@@ -56,7 +56,7 @@
       ],
       "residency": "pooled PostgreSQL with forced RLS",
       "migration": "company-authority-schema.v2 after tenant production provisioning schema",
-      "rollback": "transaction rollback for dry-run; production rollback requires recorded schema decision"
+      "rollback": "dry-run and failed apply roll back transactionally; post-commit recovery disables the new route, preserves additive tables, restores the recorded resolver definition through a forward migration, and requires a recorded schema decision before destructive removal"
     },
     "failure_semantics": {
       "unknown_tenant": "deny",

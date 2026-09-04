@@ -100,6 +100,7 @@ describe.sequential('company authority schema migration and restricted route res
                 rls_table_count: 2,
                 route_function_count: 1,
                 route_function_security_verified: true,
+                runtime_role_smoke_verified: true,
                 ledger_matches: true
             }
         });
@@ -132,6 +133,26 @@ describe.sequential('company authority schema migration and restricted route res
             pool
         });
     }, 120_000);
+
+    it('rejects a migration owner that cannot bypass RLS before applying DDL', async () => {
+        await pool.query('CREATE ROLE unsafe_migration_actor NOLOGIN');
+        const unsafeClient = await pool.connect();
+        try {
+            await unsafeClient.query('SET ROLE unsafe_migration_actor');
+            await expect(runCompanyAuthoritySchemaMigration({
+                argv: ['--dry-run'],
+                pool: {
+                    connect: async () => ({
+                        query: (...args) => unsafeClient.query(...args),
+                        release: () => {}
+                    })
+                }
+            })).rejects.toMatchObject({ code: 'MIGRATION_OWNER_UNSAFE' });
+        } finally {
+            await unsafeClient.query('RESET ROLE');
+            unsafeClient.release();
+        }
+    });
 
     it('resolves one hinted tenant, exposes ambiguity without a hint, and keeps tables private', async () => {
         await pool.query(

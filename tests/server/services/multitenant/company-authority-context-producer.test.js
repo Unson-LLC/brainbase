@@ -195,6 +195,47 @@ describe('CompanyAuthorityContextProducer', () => {
         });
     });
 
+    it('allows a missing delivery only for a fail-closed diagnostic response', async () => {
+        const routeRepository = {
+            resolveObservedRoute: vi.fn(async () => {
+                throw new ContractError('UPSTREAM_UNAVAILABLE', {
+                    status: 503,
+                    retryable: true
+                });
+            })
+        };
+        const { producer } = createProducer({ routeRepository });
+
+        const response = await producer.resolve(observed({ delivery: undefined }));
+
+        expect(response).toMatchObject({
+            context: null,
+            error: {
+                code: 'AUTHORITY_UNAVAILABLE',
+                retryable: true,
+                business_effect: false
+            }
+        });
+    });
+
+    it('fails closed without signing when a resolved route lacks delivery binding', async () => {
+        const repository = authorityRepository();
+        const { producer } = createProducer({ repository });
+
+        const response = await producer.resolve(observed({ delivery: undefined }));
+
+        expect(response).toMatchObject({
+            context: null,
+            error: {
+                code: 'AUTHORITY_SCOPE_MISMATCH',
+                retryable: false,
+                business_effect: false
+            }
+        });
+        expect(repository.resolveCanonicalIdentity).not.toHaveBeenCalled();
+        expect(repository.resolveCanonicalAuthority).not.toHaveBeenCalled();
+    });
+
     it('preserves the personal owner mismatch as a canonical non-retryable denial', async () => {
         const { producer } = createProducer();
         const response = await producer.resolve(observed({

@@ -133,6 +133,7 @@ describe('CompanyAuthorityResolver', () => {
         }));
         expect(repository.resolveCanonicalAuthority).toHaveBeenCalledWith(expect.objectContaining({
             canonical_person_id: 'person-umeda',
+            membership_revision: '3',
             organization_id: 'organization-unson',
             project_id: 'project-unson-backoffice',
             capability_id: 'task.read'

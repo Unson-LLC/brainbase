@@ -171,6 +171,7 @@ export class PostgresCompanyAuthorityRepository {
         tenant_id,
         canonical_person_id,
         membership_id,
+        membership_revision,
         organization_id,
         project_id,
         resource_ref,
@@ -192,7 +193,8 @@ export class PostgresCompanyAuthorityRepository {
                         binding.raci_revision,
                         binding.resource_revision,
                         binding.stop_conditions,
-                        membership.principal_id AS canonical_person_id
+                        membership.principal_id AS canonical_person_id,
+                        membership.membership_payload
                    FROM company_authority_bindings binding
                    JOIN tenant_memberships membership
                      ON membership.tenant_id = binding.tenant_id
@@ -227,6 +229,13 @@ export class PostgresCompanyAuthorityRepository {
             });
             if (row.canonical_person_id !== canonical_person_id) {
                 throw new ContractError('ACTOR_SCOPE_MISMATCH', {
+                    status: 403,
+                    fault_domain: 'protocol'
+                });
+            }
+            if (membershipStatus(row.membership_payload) !== 'active'
+                || membershipRevision(row.membership_payload) !== String(membership_revision)) {
+                throw new ContractError('COMPANY_MEMBERSHIP_INACTIVE', {
                     status: 403,
                     fault_domain: 'protocol'
                 });

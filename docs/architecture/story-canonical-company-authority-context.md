@@ -8,7 +8,7 @@
 
 ## 信頼境界
 
-入力として許可するのは`provider_identity`、`requested_action`、任意の`delivery`、`correlation_id`だけである。canonical person、organization、project、owner、RACI、approver、decision、credentialを含む入力は、DB参照より前に拒否する。
+入力として許可するのは`provider_identity`、`requested_action`、任意の`delivery`、`correlation_id`だけである。canonical person、organization、project、owner、RACI、approver、decision、credentialを含む入力は、DB参照より前に拒否する。`delivery`省略はauthority未解決診断をfail closedで返す場合だけ許容し、署名contextを発行する経路ではSlackの`event_id`と`channel_id`を必須にする。
 
 tenantとworkspace connectionは、`SECURITY DEFINER`の限定関数`resolve_company_authority_route`で一意に解決する。この関数は固定6引数、固定6列、active record、任意のworkspace/app/enterprise/project hintだけを扱い、最大2件を返す。0件と複数件を区別してfail closedにする。一般的なSQL実行やtable RLSの解除には使わない。
 
@@ -18,7 +18,7 @@ tenantとworkspace connectionは、`SECURITY DEFINER`の限定関数`resolve_com
 
 1. 外側wire validatorが入力のexact shapeと自己申告authority不在を検証する。
 2. global route resolverがtenantとconnectionを一意に決める。
-3. 既存`TenantContextProducer`がtenant revision、connection revision、canonical identity、company authorityを解決する。
+3. 既存`TenantContextProducer`がtenant revision、connection revision、canonical identity、company authorityを解決する。authority取得トランザクションではmembership rowを再度lockし、active状態とidentity解決時のmembership revisionが一致する場合だけauthorityを返す。
 4. nested TenantContextへ要求capabilityと`company_authority_v1` markerを分離して格納し、署名する。
 5. actor、scope、authority、receiptを外側contextへ構成し、同じ鍵でdetached JWS署名する。
 6. producer自身がaudience、deployment、TTL、request bindingを再検証してから応答する。
@@ -37,7 +37,7 @@ Brainbase Node runtimeに`POST /api/v1/runtime/company-authority:resolve`を追�
 
 ## Migration
 
-`company-authority-schema.v2`は既存のtenant production provisioning schemaを前提とし、`workspace_connections.enterprise_id`を適用前に確認する。migrationはtransaction、advisory lock、RLS/force RLS、policy、route resolver functionの`SECURITY DEFINER`・固定設定・所有者RLS bypass・PUBLIC拒否・`brainbase_app`実行権限、ledger hashをreadbackする。`--dry-run`はrollbackし、`--apply`は明示actorを要求する。
+`company-authority-schema.v2`は既存のtenant production provisioning schemaを前提とし、`workspace_connections.enterprise_id`とmigration実行roleのRLS bypassを適用前に確認する。migrationはtransaction、advisory lock、RLS/force RLS、policy、route resolver functionの`SECURITY DEFINER`・固定設定・所有者RLS bypass・PUBLIC拒否・`brainbase_app`による実呼出し、ledger hashをreadbackする。`--dry-run`はrollbackし、`--apply`は明示actorを要求する。
 
 ## 検証境界
 

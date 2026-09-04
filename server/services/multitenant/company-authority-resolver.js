@@ -189,6 +189,7 @@ export class CompanyAuthorityResolver {
             tenant_id: request.tenant_id,
             canonical_person_id: identity.canonical_person_id,
             membership_id: identity.membership_id,
+            membership_revision: identity.membership_revision,
             organization_id: identity.organization_id,
             project_id: identity.project_id,
             resource_ref: request.requested_action.resource_ref,
