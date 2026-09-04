@@ -10,6 +10,7 @@ const SCHEMA_PATH = path.join(ROOT, 'server/sql/company-authority-schema.sql');
 const MIGRATION_ID = 'company-authority-schema.v2';
 const LOCK_NAME = 'brainbase:company-authority-schema:v2';
 const TABLES = ['company_external_identities', 'company_authority_bindings'];
+const ROUTE_FUNCTION_SIGNATURE = 'public.resolve_company_authority_route(text,text,text,text,text,text)';
 
 export class CompanyAuthorityMigrationError extends Error {
     constructor(code, message) {
@@ -47,7 +48,26 @@ export function parseCompanyAuthorityMigrationArgs(argv = [], env = process.env)
     return { mode: modes[0] };
 }
 
+async function assertPrerequisites(client) {
+    const result = await client.query(
+        `SELECT EXISTS (
+                    SELECT 1
+                      FROM information_schema.columns
+                     WHERE table_schema = 'public'
+                       AND table_name = 'workspace_connections'
+                       AND column_name = 'enterprise_id'
+                ) AS workspace_enterprise_id`
+    );
+    if (result.rows[0]?.workspace_enterprise_id !== true) {
+        throw new CompanyAuthorityMigrationError(
+            'SCHEMA_PREREQUISITE_MISSING',
+            'tenant-production-provisioning schema with workspace_connections.enterprise_id is required'
+        );
+    }
+}
+
 async function readback(client, schemaHash) {
+    await assertPrerequisites(client);
     const tableResult = await client.query(
         `SELECT table_name
            FROM information_schema.tables
@@ -104,12 +124,45 @@ async function readback(client, schemaHash) {
     }
 
     const routeFunction = await client.query(
-        `SELECT to_regprocedure('public.resolve_company_authority_route(text,text,text,text,text,text)')::TEXT AS signature`
+        `SELECT procedure.oid::regprocedure::TEXT AS signature,
+                procedure.prosecdef,
+                procedure.proconfig,
+                owner.rolname AS owner_name,
+                (owner.rolsuper OR owner.rolbypassrls) AS owner_bypasses_rls,
+                app_role.oid IS NOT NULL AS app_role_exists,
+                CASE WHEN app_role.oid IS NULL THEN false
+                     ELSE has_function_privilege(app_role.oid, procedure.oid, 'EXECUTE')
+                 END AS app_can_execute,
+                NOT EXISTS (
+                    SELECT 1
+                      FROM aclexplode(COALESCE(
+                          procedure.proacl,
+                          acldefault('f', procedure.proowner)
+                      )) AS acl
+                     WHERE acl.grantee = 0
+                       AND acl.privilege_type = 'EXECUTE'
+                ) AS public_execute_revoked
+           FROM pg_proc AS procedure
+           JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+           JOIN pg_roles AS owner ON owner.oid = procedure.proowner
+      LEFT JOIN pg_roles AS app_role ON app_role.rolname = 'brainbase_app'
+          WHERE procedure.oid = to_regprocedure($1)`,
+        [ROUTE_FUNCTION_SIGNATURE]
     );
-    if (!routeFunction.rows[0]?.signature) {
+    const route = routeFunction.rows[0];
+    const settings = new Set(route?.proconfig ?? []);
+    if (!route?.signature
+        || route.prosecdef !== true
+        || !settings.has('search_path=pg_catalog')
+        || !settings.has('row_security=off')
+        || route.owner_bypasses_rls !== true
+        || route.owner_name === 'brainbase_app'
+        || route.app_role_exists !== true
+        || route.app_can_execute !== true
+        || route.public_execute_revoked !== true) {
         throw new CompanyAuthorityMigrationError(
             'SCHEMA_READBACK_FAILED',
-            'Company authority route resolver function is missing'
+            'Company authority route resolver security contract is incomplete'
         );
     }
 
@@ -129,6 +182,7 @@ async function readback(client, schemaHash) {
         table_count: TABLES.length,
         rls_table_count: TABLES.length,
         route_function_count: 1,
+        route_function_security_verified: true,
         ledger_matches: true
     };
 }
@@ -154,6 +208,7 @@ export async function runCompanyAuthoritySchemaMigration({
     let transactionStarted = false;
     try {
         client = await activePool.connect();
+        await assertPrerequisites(client);
         if (mode === 'check') {
             return {
                 ok: true,

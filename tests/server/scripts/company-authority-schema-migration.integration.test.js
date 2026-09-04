@@ -69,7 +69,6 @@ describe.sequential('company authority schema migration and restricted route res
                 installation_id TEXT NOT NULL,
                 workspace_id TEXT NOT NULL,
                 app_id TEXT NOT NULL,
-                enterprise_id TEXT,
                 granted_scopes TEXT[] NOT NULL DEFAULT '{}',
                 status TEXT NOT NULL,
                 credential_ref TEXT NOT NULL,
@@ -84,6 +83,12 @@ describe.sequential('company authority schema migration and restricted route res
         await container?.stop();
     });
 
+    it('fails before applying when the tenant production provisioning prerequisite is missing', async () => {
+        await expect(runCompanyAuthoritySchemaMigration({ argv: ['--dry-run'], pool }))
+            .rejects.toMatchObject({ code: 'SCHEMA_PREREQUISITE_MISSING' });
+        await pool.query('ALTER TABLE workspace_connections ADD COLUMN enterprise_id TEXT');
+    });
+
     it('rolls back dry-run and persists the exact schema only after approved apply', async () => {
         const dryRun = await runCompanyAuthoritySchemaMigration({ argv: ['--dry-run'], pool });
         expect(dryRun).toMatchObject({
@@ -94,6 +99,7 @@ describe.sequential('company authority schema migration and restricted route res
                 table_count: 2,
                 rls_table_count: 2,
                 route_function_count: 1,
+                route_function_security_verified: true,
                 ledger_matches: true
             }
         });
@@ -110,6 +116,21 @@ describe.sequential('company authority schema migration and restricted route res
         expect(applied).toMatchObject({ ok: true, mode: 'apply', persisted: true });
         await expect(runCompanyAuthoritySchemaMigration({ argv: ['--check'], pool }))
             .resolves.toMatchObject({ ok: true, mode: 'check', persisted: true });
+    }, 120_000);
+
+    it('rejects a route resolver whose SECURITY DEFINER contract was weakened', async () => {
+        await pool.query(
+            `ALTER FUNCTION public.resolve_company_authority_route(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT)
+             SECURITY INVOKER`
+        );
+        await expect(runCompanyAuthoritySchemaMigration({ argv: ['--check'], pool }))
+            .rejects.toMatchObject({ code: 'SCHEMA_READBACK_FAILED' });
+
+        await runCompanyAuthoritySchemaMigration({
+            argv: ['--apply', '--approve-apply'],
+            env: { BRAINBASE_MIGRATION_ACTOR: 'integration-test-security-restore' },
+            pool
+        });
     }, 120_000);
 
     it('resolves one hinted tenant, exposes ambiguity without a hint, and keeps tables private', async () => {

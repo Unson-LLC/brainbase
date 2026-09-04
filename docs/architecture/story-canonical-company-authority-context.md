@@ -37,7 +37,7 @@ Brainbase Node runtimeに`POST /api/v1/runtime/company-authority:resolve`を追�
 
 ## Migration
 
-`company-authority-schema.v2`は既存のtenant production provisioning schemaを前提とする。migrationはtransaction、advisory lock、RLS/force RLS、policy、route resolver function、ledger hashをreadbackする。`--dry-run`はrollbackし、`--apply`は明示actorを要求する。
+`company-authority-schema.v2`は既存のtenant production provisioning schemaを前提とし、`workspace_connections.enterprise_id`を適用前に確認する。migrationはtransaction、advisory lock、RLS/force RLS、policy、route resolver functionの`SECURITY DEFINER`・固定設定・所有者RLS bypass・PUBLIC拒否・`brainbase_app`実行権限、ledger hashをreadbackする。`--dry-run`はrollbackし、`--apply`は明示actorを要求する。
 
 ## 検証境界
 
