@@ -212,17 +212,21 @@
     {
       "id": "C-004",
       "type": "contract",
-      "statement": "差し戻し済みruntime 2.4 continuationでも、同一episodeの最後の正常なcompleted state PostToolUseは状態証拠をjournalへ記録するだけとし、complete finalと判断レシートを確定しない。後続Stopだけが最終assistant回答先頭の完全な監査ブロックを検証し、owner_audit_source=assistant_answerと正確なanswer_digestを保存して確定する。成果物と正本読戻しはthread_itemsをsession_id、turn_id、tool_use_idで照合した完了済みfileChangeと単一readだけから採用する",
+      "statement": "差し戻し済みruntime 2.4 continuationでも、同一episodeの最後の正常なcompleted state PostToolUseは状態証拠をjournalへ記録するだけとし、complete finalと判断レシートを確定しない。必須value proofが欠けたcompleted state PostToolUseはdecision:blockをそのまま返してfinalを作らない。value proofと新しい最後のstateが揃った後も、後続Stopだけが最終assistant回答先頭の完全な監査ブロックを検証し、owner_audit_source=assistant_answerと正確なanswer_digestを保存して確定する。成果物と正本読戻しはthread_itemsをsession_id、turn_id、tool_use_idで照合した完了済みfileChangeと単一readだけから採用する",
       "origin": {
         "story_refs": [
           {
             "kind": "acceptance_criteria",
             "ac_id": "AC-007"
           },
-          {
-            "kind": "acceptance_criteria",
-            "ac_id": "AC-008"
-          }
+      {
+        "kind": "acceptance_criteria",
+        "ac_id": "AC-008"
+      },
+      {
+        "kind": "acceptance_criteria",
+        "ac_id": "AC-009"
+      }
         ],
         "architecture_refs": [
           {
@@ -254,6 +258,10 @@
             "case": "Codex Desktopの実行とreadback証拠を記録し最終Stopで確認済みレシートを確定する"
           },
           {
+            "file": "tests/unit/judgment-resolver-host-value-proof.test.js",
+            "case": "価値証拠がない最後の状態PostToolUseをblockし、最終回答へ進ませない"
+          },
+          {
             "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
             "case": "runtime 2.4の$intent/$actionKindは差し戻し後もcompleted state PostToolUseだけでは確定せずStopで確定する"
           },
@@ -272,7 +280,7 @@
         ]
       },
       "first_seen_at": "2026-09-03T20:35:42.267Z",
-      "last_revised_at": "2026-09-03T20:35:42.267Z"
+  "last_revised_at": "2026-09-04T08:15:00.000+09:00"
     }
   ],
   "planned_test_suites": [

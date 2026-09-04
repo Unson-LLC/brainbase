@@ -89,6 +89,8 @@ Never show `検索` or `取得` for `brainbase_knowledge_resolve`; it only selec
 
 The additional context and Hook `systemMessage` may show short in-progress status or an exact repair instruction. Final owner-visible evidence comes only from the exact assistant answer inspected at `Stop`. The answer begins with the complete audit namespace and then preserves the business body. Stop records `owner_audit_source=assistant_answer` and binds the exact raw `last_assistant_message` in `answer_digest`. `PostToolUse` records tool and state events but never finalizes the episode. Transcript comparison may exclude only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block added later by the Codex application; malformed or multiple citation blocks fail closed. A short acknowledgement cannot replace the detailed implementation report.
 
+差し戻し済みruntime 2.4 continuationで必須value proofが欠けたcompleted state PostToolUseは`decision:block`をそのまま返し、finalを作らない。value proofと新しい最後のstateが揃った後もPostToolUseは状態を記録するだけで、後続Stopが実際の最終assistant回答を検証して確定する。
+
 ## Completion invariant
 
 The invariant is exactly one episode per managed turn and at most one complete final receipt, not one Resolver network attempt and not one Brainbase tool call. Before episode creation, recognized transient failures may be retried within the Host limit. After creation, the same turn reuses the initial route. Tool calls may occur 0..N times. Replayed `PostToolUse` and complete `Stop` events reuse their immutable records.

@@ -123,6 +123,52 @@ function valueProofInput(overrides = {}) {
 }
 
 describe('Judgment Resolver Host value proof integration', () => {
+  it('価値証拠がない最後の状態PostToolUseをblockし、最終回答へ進ませない', async () => {
+    const root = temporaryDirectory();
+    const env = {
+      BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+      BRAINBASE_JUDGMENT_VALUE_PROOF_MODE: 'enabled',
+    };
+    const payload = {
+      session_id: 'session-missing-value-proof', turn_id: 'turn-missing-value-proof',
+      prompt: '既存の正本を更新して読み戻して', cwd: root,
+    };
+    const args = buildJudgmentRequest(payload, { env });
+    const receipt = receiptFor(args);
+    await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }),
+    }) });
+
+    const question = '既存文書を更新するか、新規文書を作るか？';
+    expect(finalizeEpisode({
+      hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+      stop_hook_active: false, last_assistant_message: question,
+    }, { env }).output.decision).toBe('block');
+
+    recordBrainbaseToolUse({
+      ...payload, hook_event_name: 'PostToolUse', tool_name: 'apply_patch',
+      tool_use_id: 'execution-before-proof',
+      tool_input: { patch: '*** Begin Patch\n*** Update File: docs/existing.md\n@@\n-old\n+new\n*** End Patch' },
+      tool_response: { success: true },
+    }, { env });
+
+    const stateResult = await processHookPayload({
+      ...payload, hook_event_name: 'PostToolUse',
+      tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
+      tool_use_id: 'state-before-required-proof',
+      tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+      tool_response: { status: 'ok', data: {
+        schema_version: 'brainbase-stop-state-v1', status: 'completed',
+        pending_safe_work: false, runtime_reason_code: null,
+      } },
+    }, { env });
+
+    expect(stateResult).toMatchObject({ decision: 'block' });
+    expect(stateResult.reason).toContain('brainbase_judgment_value_proof_record');
+    const directory = join(root, 'journal', hash(payload.session_id));
+    expect(existsSync(join(directory, `${hash(payload.turn_id)}.final.json`))).toBe(false);
+  });
+
   it('Codex Desktopの実行とreadback証拠を記録し最終Stopで確認済みレシートを確定する', async () => {
     const root = temporaryDirectory();
     const artifact = join(root, 'docs', 'existing.md');

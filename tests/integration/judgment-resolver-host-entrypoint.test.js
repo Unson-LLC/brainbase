@@ -1818,13 +1818,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         );
         expect(proofToolResponse).toEqual({ status: 'ok', data: proofInput });
         let readbackLine = null;
+        let completedStateOutput = null;
         for (const event of [
             { tool_name: 'apply_patch', tool_use_id: 'entrypoint-execution', tool_input: { patch: '*** Begin Patch\n*** Update File: docs/example.md\n@@\n-old\n+new\n*** End Patch' }, tool_response: { success: true } },
-            { tool_name: 'mcp__brainbase__get_context', tool_use_id: 'entrypoint-evidence', tool_input: { topic: 'docs/example.md' }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('取得') }], structuredContent: { items: [{ id: 'updated-ssot' }] } } },
-            { tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record', tool_use_id: 'entrypoint-proof', tool_input: proofToolArgs, tool_response: proofToolResponse },
-            { tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'entrypoint-state',
-                tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
-                tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } } }
+            { tool_name: 'mcp__brainbase__get_context', tool_use_id: 'entrypoint-evidence', tool_input: { topic: 'docs/example.md' }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('取得') }], structuredContent: { items: [{ id: 'updated-ssot' }] } } }
         ]) {
             const recorded = await run('bash', [wrapper], { env, input: JSON.stringify({ hook_event_name: 'PostToolUse', ...identity, ...event }) });
             expect(recorded).toMatchObject({ code: 0, stderr: '' });
@@ -1832,21 +1829,46 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 readbackLine = JSON.parse(recorded.stdout).systemMessage;
             }
         }
+        const stateBeforeProof = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'PostToolUse', ...identity,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'entrypoint-state-before-proof',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }) });
+        expect(stateBeforeProof).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(stateBeforeProof.stdout)).toMatchObject({ decision: 'block' });
+        expect(JSON.parse(stateBeforeProof.stdout).reason).toContain('brainbase_judgment_value_proof_record');
+
+        for (const event of [
+            { tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record', tool_use_id: 'entrypoint-proof', tool_input: proofToolArgs, tool_response: proofToolResponse },
+            { tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'entrypoint-state',
+                tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+                tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } } }
+        ]) {
+            const recorded = await run('bash', [wrapper], { env, input: JSON.stringify({ hook_event_name: 'PostToolUse', ...identity, ...event }) });
+            expect(recorded).toMatchObject({ code: 0, stderr: '' });
+            if (event.tool_use_id === 'entrypoint-state') {
+                completedStateOutput = JSON.parse(recorded.stdout);
+            }
+        }
+        expect(completedStateOutput).toEqual({});
+        const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
+        expect(existsSync(finalPath)).toBe(false);
+        const lastAssistantMessage = [ownerLine, readbackLine,
+            '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓', '', '更新と検証を完了しました。'].join('\n');
         const completed = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: true,
-            last_assistant_message: [ownerLine, readbackLine,
-                '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
-                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓', '', '更新と検証を完了しました。'].join('\n')
+            last_assistant_message: lastAssistantMessage
         }) });
         expect(completed).toMatchObject({ code: 0, stderr: '' });
-        const output = JSON.parse(completed.stdout).systemMessage;
-        expect(output.match(/Brainbase判断レシート/gu)).toHaveLength(1);
-        expect(output).toContain('結果: 更新内容を読み戻して確認した');
-        expect(output).toContain('判断: 既存SSOTを最小更新する');
+        expect(JSON.parse(completed.stdout).decision).toBeUndefined();
         expect(readFileSync(join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.value-proof.json`), 'utf8')).toContain(hash(question));
-        expect(JSON.parse(readFileSync(
-            join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`), 'utf8'
-        ))).toMatchObject({
+        const finalAfterStop = JSON.parse(readFileSync(finalPath, 'utf8'));
+        expect(finalAfterStop).toMatchObject({
+            completion_status: 'complete',
+            owner_audit_source: 'assistant_answer',
+            answer_digest: hash(lastAssistantMessage),
             episode_origin: 'stop_delegation_recovery',
             route_application: 'post_generation_recovery'
         });

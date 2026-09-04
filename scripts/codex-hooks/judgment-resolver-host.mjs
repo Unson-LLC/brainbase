@@ -3650,6 +3650,37 @@ export async function processHookPayload(payload, dependencies = {}) {
         if (event?.schema_version === 'brainbase-judgment-orphan-tool-event-v1') {
             return { systemMessage: ORPHAN_TOOL_EVENT_WARNING };
         }
+        if (event?.event_kind === 'state' && event.success) {
+            const identity = payloadIdentity(payload);
+            const env = dependencies.env ?? process.env;
+            const paths = identity ? journalPaths(identity.sessionRef, identity.turnId, env) : null;
+            let continuation = null;
+            let episode = null;
+            if (paths) {
+                try {
+                    episode = verifyEpisode(readJson(paths.episode));
+                    continuation = readJson(paths.continuation);
+                } catch (error) {
+                    if (error?.code !== 'ENOENT') throw error;
+                }
+            }
+            const completedState = event.safe_metadata?.stop_state?.status === 'completed';
+            const effectiveReceipt = episode && paths
+                ? effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt
+                : null;
+            const events = episode && paths ? episodeEvents(paths) : [];
+            const missingRequiredValueProof = completedState
+                && journalStopStateRequired(effectiveReceipt)
+                && valueProofRolloutEnabled(episode, env)
+                && continuation?.autonomy_continuation?.interruption_candidate?.resolution === 'continued_without_human'
+                && latestJudgmentValueProofEvent(events) === null;
+            if (missingRequiredValueProof) {
+                return {
+                    decision: 'block',
+                    reason: 'Brainbase judgment episodeを完了する前にmcp__brainbase__brainbase_judgment_value_proof_recordを1回実行し、実際の判断・成果物・canonical readback証拠を記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして再実行する'
+                };
+            }
+        }
         return typeof event?.system_message === 'string'
             ? { systemMessage: event.system_message }
             : typeof event?.display_line === 'string'
