@@ -7,8 +7,6 @@ import { expect, test } from '@playwright/test';
 import { createPersonalKgAuthorityEnv } from '../helpers/personal-kg-authority-fixture';
 
 const execFileAsync = promisify(execFile);
-const storyId = 'story-personal-kg-review-projection';
-
 async function writeFixture() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'story-personal-kg-review-projection-'));
   const inputPath = path.join(dir, 'candidates.json');
@@ -316,7 +314,7 @@ async function writeFixture() {
   return { inputPath, decisionPath };
 }
 
-test(`${storyId} ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 CLI dry-run review and projection contract`, async () => {
+test('story-personal-kg-review-projection ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 CLI dry-run review and projection contract', async () => {
   const { inputPath, decisionPath } = await writeFixture();
   const { stdout } = await execFileAsync('node', [
     'scripts/personal-kg-review-projection.js',
