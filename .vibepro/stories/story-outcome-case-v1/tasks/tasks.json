@@ -7,7 +7,7 @@
   },
   "provenance": {
     "input_path": "docs/management/tasks/story-outcome-case-v1.authority.json",
-    "input_sha256": "430777bab4059af2d080ccfc435017b09f18cd9ee531eead41cac089af77b227"
+    "input_sha256": "e0386e90cade063bfb6a2521b45d44e8800315b0e63db0d75f396f8b430df3b6"
   },
   "tasks": [
     {
@@ -15,6 +15,7 @@
       "story_id": "story-outcome-case-v1",
       "title": "OutcomeCase v1 の閉鎖判断・RLS・追記履歴を実装して検証する",
       "allowed_paths": [
+        ".vibepro/config.json",
         ".vibepro/spec/story-outcome-case-v1/spec.json",
         ".vibepro/stories/story-outcome-case-v1/tasks/tasks.json",
         ".vibepro/stories/story-outcome-case-v1/tasks/tasks.md",
@@ -25,7 +26,10 @@
         "package.json",
         "scripts/info-ssot-apply.sh",
         "scripts/verify-outcome-case-postgres-rls-integration.sh",
+        "scripts/verify-project-provisioning-postgres-integration.sh",
+        "server.js",
         "server/bootstrap/core-services.js",
+        "server/bootstrap/register-api-routes.js",
         "server/routes/outcome-cases.js",
         "server/services/outcome-case/outcome-case-postgres-repository.js",
         "server/services/outcome-case/outcome-case-reference-resolver.js",
@@ -42,10 +46,10 @@
         "tests/server/services/outcome-case-service.test.js"
       ],
       "acceptance_criteria": [
-        "AC-001: OutcomeCase record と評価履歴を保持し、DB が旧履歴不変の1件追記を強制する",
-        "AC-002: workflowAuthGuard 配下の create/read/evaluate と scoped Info SSOT RLS を既存適用経路へ接続する",
+        "AC-001: organization_id を含む OutcomeCase record と評価履歴を保持し、DB が旧履歴不変の1件追記を強制する",
+        "AC-002: workflowAuthGuard 配下の create/read/evaluate と organization/project scoped Info SSOT RLS を既存適用経路へ接続する",
         "AC-003: 解決済み RACI authority と認証済み actor だけで閉鎖し、自己申告または空 clearance の格上げを認可根拠にしない",
-        "AC-004: 参照・resolver・scope の不明または権限外では閉鎖しない",
+        "AC-004: 参照・resolver・organization/project scope の不明または権限外では閉鎖しない",
         "AC-005: read-only resolver を使い、Graph write・production migration・deploy を行わない"
       ],
       "depends_on": [],

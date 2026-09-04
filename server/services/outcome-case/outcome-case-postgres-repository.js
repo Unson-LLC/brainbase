@@ -30,6 +30,15 @@ function unavailable(error) {
     return wrapped;
 }
 
+function tenantDenied(error) {
+    const wrapped = new Error('The authenticated organization cannot access this OutcomeCase');
+    wrapped.code = 'outcome_case_tenant_access_denied';
+    wrapped.status = 403;
+    wrapped.details = { audit_event: 'outcome_case_cross_tenant_denied' };
+    wrapped.cause = error;
+    return wrapped;
+}
+
 function accessFromActor(actor = {}) {
     return {
         role: typeof actor.role === 'string' && actor.role.trim() ? actor.role.trim() : 'member',
@@ -59,6 +68,7 @@ export class OutcomeCasePostgresRepository {
                 (client) => client.query(text, values)
             );
         } catch (error) {
+            if (error?.code === '42501') throw tenantDenied(error);
             throw unavailable(error);
         }
     }
@@ -66,8 +76,11 @@ export class OutcomeCasePostgresRepository {
     async findByCaseId(caseId, actor = {}) {
         const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
         const result = await this.query(actor,
-            'SELECT * FROM outcome_cases WHERE case_id = $1 AND project_code = ANY($2::text[])',
-            [caseId, projectCodes]
+            `SELECT * FROM outcome_cases
+              WHERE case_id = $1
+                AND project_code = ANY($2::text[])
+                AND organization_id = NULLIF($3, '')`,
+            [caseId, projectCodes, actor.organizationId || actor.tenantId || '']
         );
         return normalizeRow(result.rows[0]);
     }
@@ -75,18 +88,18 @@ export class OutcomeCasePostgresRepository {
     async create(outcomeCase, actor = {}) {
         const result = await this.query(actor, `
             INSERT INTO outcome_cases (
-                case_id, project_code, capability_id, user_observable_outcome,
+                case_id, organization_id, project_code, capability_id, user_observable_outcome,
                 protected_constraints, non_goals, authority, selected_domain_pack,
                 reference_resolution, evaluation_history, terminal_evaluation, closure_status, current_external_state,
                 technical_story_refs, run_receipt_refs, prior_attempt_refs,
                 unresolved_failure_boundary, revision, created_at, updated_at
             ) VALUES (
-                $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8,
-                $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14::jsonb, $15::jsonb, $16::jsonb,
-                $17, $18, $19::timestamptz, $20::timestamptz
+                $1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9,
+                $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, $15::jsonb, $16::jsonb, $17::jsonb,
+                $18, $19, $20::timestamptz, $21::timestamptz
             ) RETURNING *
         `, [
-            outcomeCase.case_id, outcomeCase.project_code, outcomeCase.capability_id,
+            outcomeCase.case_id, outcomeCase.organization_id, outcomeCase.project_code, outcomeCase.capability_id,
             outcomeCase.user_observable_outcome, JSON.stringify(outcomeCase.protected_constraints),
             JSON.stringify(outcomeCase.non_goals), JSON.stringify(outcomeCase.authority),
             outcomeCase.selected_domain_pack, JSON.stringify(outcomeCase.reference_resolution),
@@ -114,13 +127,15 @@ export class OutcomeCasePostgresRepository {
                    revision = $10,
                    updated_at = $11::timestamptz
              WHERE case_id = $1 AND revision = $12 AND project_code = ANY($13::text[])
+               AND organization_id = NULLIF($14, '')
          RETURNING *
         `, [
             outcomeCase.case_id, JSON.stringify(outcomeCase.run_receipt_refs), JSON.stringify(outcomeCase.authority),
             JSON.stringify(outcomeCase.reference_resolution), JSON.stringify(outcomeCase.evaluation_history),
             JSON.stringify(outcomeCase.terminal_evaluation), outcomeCase.closure_status,
             outcomeCase.current_external_state, outcomeCase.unresolved_failure_boundary,
-            outcomeCase.revision, outcomeCase.updated_at, expectedRevision, projectCodes
+            outcomeCase.revision, outcomeCase.updated_at, expectedRevision, projectCodes,
+            actor.organizationId || actor.tenantId || ''
         ]);
         if (!result.rows[0]) {
             const error = new Error('OutcomeCase was changed by another evaluation');

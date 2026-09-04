@@ -118,7 +118,7 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         await adminPool?.end();
     }, 300_000);
 
-    it('permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS', async () => {
+    it('permits scoped create/read/evaluate and rejects missing, cross-project, and cross-organization API access under FORCE RLS', async () => {
         const authorized = serviceFor(projectActor);
         const created = await request(authorized).post('/api/outcome-cases').send(createPayload).expect(201);
         await request(authorized).get(`/api/outcome-cases/${created.body.case_id}`).expect(200);
@@ -151,6 +151,27 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         await request(crossProject)
             .post(`/api/outcome-cases/${created.body.case_id}/evaluations`)
             .send({ evaluator: 'per_owner' }).expect(404);
+
+        // The globally unique project code is not a tenant boundary. The same
+        // project claim in a different authenticated organization must not
+        // reveal, evaluate, or insert an OutcomeCase.
+        const crossOrganization = serviceFor({ ...projectActor, organizationId: 'org_other' });
+        await request(crossOrganization).get(`/api/outcome-cases/${created.body.case_id}`).expect(404);
+        await request(crossOrganization)
+            .post(`/api/outcome-cases/${created.body.case_id}/evaluations`)
+            .send({ evaluator: 'per_owner' }).expect(404);
+        await request(crossOrganization).post('/api/outcome-cases').send({
+            ...createPayload,
+            run_receipt_refs: ['run-cross-organization']
+        }).expect(403);
+
+        const missingOrganization = serviceFor({ ...projectActor, organizationId: '' });
+        const missingOrganizationResponse = await request(missingOrganization)
+            .post('/api/outcome-cases').send(createPayload).expect(403);
+        expect(missingOrganizationResponse.body).toMatchObject({
+            error: 'outcome_case_organization_access_denied',
+            details: { audit_event: 'outcome_case_unknown_tenant_denied' }
+        });
     });
 
     it('does not derive closure authority from an internal RACI assignment when authenticated clearance is empty', async () => {

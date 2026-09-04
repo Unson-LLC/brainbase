@@ -271,9 +271,10 @@ export class OutcomeCaseService {
 
     async create(input, actor = {}) {
         const baseCase = normalizeCreate(input, { now: this.now(), generateCaseId: this.generateCaseId });
-        this.assertProjectAccess(baseCase.project_code, actor);
+        const organizationId = this.assertProjectAccess(baseCase.project_code, actor);
         const outcomeCase = {
             ...baseCase,
+            organization_id: organizationId,
             reference_resolution: await resolveReferences(this.resolveOutcomeReferences, baseCase, actor),
             authority: await this.resolveAuthority(baseCase, actor)
         };
@@ -283,6 +284,7 @@ export class OutcomeCaseService {
     }
 
     async read(caseId, actor = {}) {
+        this.assertOrganizationAccess(actor);
         const outcomeCase = await this.repository.findByCaseId(requireString(caseId, 'case_id'), actor);
         if (!outcomeCase) throw new OutcomeCaseError('outcome_case_not_found', 'OutcomeCase not found', { status: 404 });
         this.assertProjectAccess(outcomeCase.project_code, actor);
@@ -290,9 +292,24 @@ export class OutcomeCaseService {
     }
 
     assertProjectAccess(projectCode, actor) {
+        const organizationId = this.assertOrganizationAccess(actor);
         if (!Array.isArray(actor?.projectCodes) || !actor.projectCodes.includes(projectCode)) {
             throw new OutcomeCaseError('outcome_case_project_access_denied', 'The authenticated actor cannot access this OutcomeCase project', { status: 403 });
         }
+        return organizationId;
+    }
+
+    assertOrganizationAccess(actor) {
+        const organizationId = typeof (actor?.organizationId || actor?.tenantId) === 'string'
+            ? (actor.organizationId || actor.tenantId).trim()
+            : '';
+        if (!organizationId) {
+            throw new OutcomeCaseError('outcome_case_organization_access_denied', 'An authenticated organization is required to access OutcomeCase', {
+                status: 403,
+                details: { audit_event: 'outcome_case_unknown_tenant_denied' }
+            });
+        }
+        return organizationId;
     }
 
     async resolveAuthority(outcomeCase, actor) {

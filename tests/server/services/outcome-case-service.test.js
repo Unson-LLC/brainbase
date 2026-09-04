@@ -40,6 +40,10 @@ function createInput(overrides = {}) {
     };
 }
 
+function authenticatedActor(overrides = {}) {
+    return { person_id: 'per_owner', projectCodes: ['brainbase'], organizationId: 'org_unson', ...overrides };
+}
+
 function createService({ receiptStates = {}, referenceStates = { project: 'confirmed', capability: 'confirmed' }, resolveClosureAuthority } = {}) {
     const repository = new MemoryOutcomeCaseRepository();
     const readRunReceipt = vi.fn(async ({ runReceiptRef }) => {
@@ -81,7 +85,7 @@ describe('OutcomeCaseService', () => {
     it('creates the required control-plane record with an explicit external state', async () => {
         const { service } = createService();
 
-        const outcomeCase = await service.create(createInput(), { person_id: 'per_owner', projectCodes: ['brainbase'] });
+        const outcomeCase = await service.create(createInput(), authenticatedActor());
 
         expect(outcomeCase).toMatchObject({
             project_code: 'brainbase',
@@ -108,7 +112,7 @@ describe('OutcomeCaseService', () => {
 
     it('closes only with four-way confirmed evidence', async () => {
         const { service, readRunReceipt } = createService({ receiptStates: { 'run-1': 'confirmed' } });
-        const outcomeCase = await service.create(createInput(), { projectCodes: ['brainbase'] });
+        const outcomeCase = await service.create(createInput(), authenticatedActor());
 
         const evaluated = await service.evaluate(outcomeCase.case_id, {
             technical_evidence: { status: 'confirmed', refs: ['test:outcome-case'] },
@@ -118,7 +122,7 @@ describe('OutcomeCaseService', () => {
             evaluator: 'per_owner',
             observed_at: '2026-09-04T00:01:00.000Z',
             current_external_state: 'verified-complete'
-        }, { person_id: 'per_owner', projectCodes: ['brainbase'] });
+        }, authenticatedActor());
 
         expect(readRunReceipt).toHaveBeenCalledWith(expect.objectContaining({
             projectCode: 'brainbase',
@@ -133,7 +137,7 @@ describe('OutcomeCaseService', () => {
 
     it('does not close from technical evidence when receipt readback is unconfirmed', async () => {
         const { service } = createService({ receiptStates: { 'run-1': 'unconfirmed' } });
-        const outcomeCase = await service.create(createInput(), { projectCodes: ['brainbase'] });
+        const outcomeCase = await service.create(createInput(), authenticatedActor());
 
         const evaluated = await service.evaluate(outcomeCase.case_id, {
             technical_evidence: {
@@ -145,7 +149,7 @@ describe('OutcomeCaseService', () => {
             constraints_status: 'satisfied',
             evaluator: 'per_owner',
             observed_at: '2026-09-04T00:01:00.000Z'
-        }, { person_id: 'per_owner', projectCodes: ['brainbase'] });
+        }, authenticatedActor());
 
         expect(evaluated.closure_status).toBe('incomplete');
         expect(evaluated.terminal_evaluation.close_eligible).toBe(false);
@@ -153,7 +157,7 @@ describe('OutcomeCaseService', () => {
 
     it('keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm', async () => {
         const { service } = createService();
-        const outcomeCase = await service.create(createInput({ current_external_state: 'unknown' }), { projectCodes: ['brainbase'] });
+        const outcomeCase = await service.create(createInput({ current_external_state: 'unknown' }), authenticatedActor());
 
         const evaluated = await service.evaluate(outcomeCase.case_id, {
             technical_evidence: { status: 'confirmed', refs: ['test:outcome-case'] },
@@ -162,7 +166,7 @@ describe('OutcomeCaseService', () => {
             constraints_status: 'unknown',
             evaluator: 'per_owner',
             observed_at: '2026-09-04T00:01:00.000Z'
-        }, { person_id: 'per_owner', projectCodes: ['brainbase'] });
+        }, authenticatedActor());
 
         expect(evaluated.closure_status).toBe('waiting_human');
         expect(evaluated.terminal_evaluation.run_receipts).toEqual([
@@ -176,7 +180,7 @@ describe('OutcomeCaseService', () => {
             constraints_status: 'satisfied',
             evaluator: 'per_owner',
             observed_at: '2026-09-04T00:02:00.000Z'
-        }, { person_id: 'per_owner', projectCodes: ['brainbase'] })).rejects.toMatchObject({
+        }, authenticatedActor())).rejects.toMatchObject({
             code: 'validation_failed'
         });
     });
@@ -184,14 +188,26 @@ describe('OutcomeCaseService', () => {
     it('rejects direct closure status injection', async () => {
         const { service } = createService();
 
-        await expect(service.create(createInput({ closure_status: 'closed' }), { projectCodes: ['brainbase'] })).rejects.toBeInstanceOf(OutcomeCaseError);
+        await expect(service.create(createInput({ closure_status: 'closed' }), authenticatedActor())).rejects.toBeInstanceOf(OutcomeCaseError);
+    });
+
+    it('denies an actor without an authenticated organization before any repository read or write', async () => {
+        const { service, repository } = createService();
+
+        await expect(service.create(createInput(), { person_id: 'per_owner', projectCodes: ['brainbase'] }))
+            .rejects.toMatchObject({
+                code: 'outcome_case_organization_access_denied',
+                status: 403,
+                details: { audit_event: 'outcome_case_unknown_tenant_denied' }
+            });
+        expect(repository.items).toHaveLength(0);
     });
 
     it('retains every previously stored receipt ref, appends the evaluation history, and diagnoses all retained refs before close', async () => {
         const { service, readRunReceipt } = createService({
             receiptStates: { 'run-1': 'confirmed', 'run-2': 'confirmed' }
         });
-        const outcomeCase = await service.create(createInput(), { person_id: 'per_owner', projectCodes: ['brainbase'] });
+        const outcomeCase = await service.create(createInput(), authenticatedActor());
 
         await service.evaluate(outcomeCase.case_id, {
             technical_evidence: { status: 'confirmed', refs: ['test:first-evaluation'] },
@@ -200,7 +216,7 @@ describe('OutcomeCaseService', () => {
             constraints_status: 'unknown',
             evaluator: 'first-claim',
             observed_at: '2026-09-04T00:01:00.000Z'
-        }, { person_id: 'per_owner', projectCodes: ['brainbase'] });
+        }, authenticatedActor());
 
         const evaluated = await service.evaluate(outcomeCase.case_id, {
             technical_evidence: { status: 'confirmed', refs: ['test:outcome-case'] },
@@ -209,7 +225,7 @@ describe('OutcomeCaseService', () => {
             constraints_status: 'satisfied',
             evaluator: 'untrusted-request-text',
             observed_at: '2026-09-04T00:02:00.000Z'
-        }, { person_id: 'per_owner', projectCodes: ['brainbase'] });
+        }, authenticatedActor());
 
         expect(evaluated.run_receipt_refs).toEqual(['run-1', 'run-2']);
         expect(evaluated.evaluation_history).toHaveLength(2);
@@ -239,7 +255,7 @@ describe('OutcomeCaseService', () => {
 
     it('uses the authenticated actor, not evaluator text, for closure authority', async () => {
         const { service } = createService({ receiptStates: { 'run-1': 'confirmed' } });
-        const outcomeCase = await service.create(createInput(), { person_id: 'per_owner', projectCodes: ['brainbase'] });
+        const outcomeCase = await service.create(createInput(), authenticatedActor());
         const evaluation = {
             technical_evidence: { status: 'confirmed', refs: ['test:outcome-case'] },
             run_receipt_refs: ['run-1'],
@@ -249,9 +265,9 @@ describe('OutcomeCaseService', () => {
             observed_at: '2026-09-04T00:01:00.000Z'
         };
 
-        await expect(service.evaluate(outcomeCase.case_id, evaluation, { person_id: 'someone_else', projectCodes: ['brainbase'] }))
+        await expect(service.evaluate(outcomeCase.case_id, evaluation, authenticatedActor({ person_id: 'someone_else' })))
             .rejects.toMatchObject({ code: 'closure_authority_denied', status: 403 });
-        await expect(service.evaluate(outcomeCase.case_id, evaluation, { projectCodes: ['brainbase'] }))
+        await expect(service.evaluate(outcomeCase.case_id, evaluation, authenticatedActor({ person_id: null })))
             .rejects.toMatchObject({ code: 'closure_actor_unauthenticated', status: 403 });
     });
 
@@ -260,7 +276,7 @@ describe('OutcomeCaseService', () => {
             receiptStates: { 'run-1': 'confirmed' },
             referenceStates: { project: 'confirmed', capability: 'unresolved' }
         });
-        const outcomeCase = await service.create(createInput(), { person_id: 'per_owner', projectCodes: ['brainbase'] });
+        const outcomeCase = await service.create(createInput(), authenticatedActor());
 
         const evaluated = await service.evaluate(outcomeCase.case_id, {
             technical_evidence: { status: 'confirmed', refs: ['test:outcome-case'] },
@@ -269,7 +285,7 @@ describe('OutcomeCaseService', () => {
             constraints_status: 'satisfied',
             evaluator: 'per_owner',
             observed_at: '2026-09-04T00:01:00.000Z'
-        }, { person_id: 'per_owner', projectCodes: ['brainbase'] });
+        }, authenticatedActor());
 
         expect(evaluated.closure_status).toBe('waiting_human');
         expect(evaluated.reference_resolution.capability).toMatchObject({
@@ -279,12 +295,12 @@ describe('OutcomeCaseService', () => {
 
     it('rejects self-declared closure authority and cross-project reads or evaluations', async () => {
         const { service } = createService({ receiptStates: { 'run-1': 'confirmed' } });
-        const owner = { person_id: 'per_owner', projectCodes: ['brainbase'] };
+        const owner = authenticatedActor();
         await expect(service.create(createInput({ authority: { closure_authorized_person_ids: ['per_owner'] } }), owner))
             .rejects.toMatchObject({ code: 'validation_failed' });
 
         const outcomeCase = await service.create(createInput(), owner);
-        const foreignActor = { person_id: 'per_other', projectCodes: ['other'] };
+        const foreignActor = authenticatedActor({ person_id: 'per_other', projectCodes: ['other'] });
         await expect(service.read(outcomeCase.case_id, foreignActor))
             .rejects.toMatchObject({ code: 'outcome_case_project_access_denied', status: 403 });
         await expect(service.evaluate(outcomeCase.case_id, {
@@ -305,7 +321,7 @@ describe('OutcomeCaseService', () => {
                 reason: 'authoritative_resolver_unavailable'
             })
         });
-        const actor = { person_id: 'per_owner', projectCodes: ['brainbase'] };
+        const actor = authenticatedActor();
         const outcomeCase = await service.create(createInput(), actor);
         expect(outcomeCase.authority).toMatchObject({
             state: 'unresolved', reason: 'authoritative_resolver_unavailable'

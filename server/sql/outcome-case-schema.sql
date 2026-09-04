@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS outcome_cases (
     case_id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
     project_code TEXT NOT NULL,
     capability_id TEXT NOT NULL,
     user_observable_outcome TEXT NOT NULL,
@@ -24,8 +25,31 @@ CREATE TABLE IF NOT EXISTS outcome_cases (
 -- Existing v1 installations may have been provisioned before reference and history
 -- fields were introduced. These additions are intentionally idempotent.
 ALTER TABLE outcome_cases
+    ADD COLUMN IF NOT EXISTS organization_id TEXT,
     ADD COLUMN IF NOT EXISTS reference_resolution JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS evaluation_history JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- OutcomeCase rows are tenant-owned.  For an existing v1 installation the
+-- owning tenant is only accepted when it is provable from its project; an
+-- orphaned row makes provisioning fail closed instead of silently becoming a
+-- cross-organization record.
+UPDATE outcome_cases outcome_case
+   SET organization_id = project.organization_id
+  FROM projects project
+ WHERE outcome_case.organization_id IS NULL
+   AND outcome_case.project_code = project.code
+   AND project.organization_id IS NOT NULL;
+
+DO $do$
+BEGIN
+    IF EXISTS (SELECT 1 FROM outcome_cases WHERE organization_id IS NULL OR btrim(organization_id) = '') THEN
+        RAISE EXCEPTION 'OUTCOME_CASE_ORGANIZATION_ID_REQUIRED';
+    END IF;
+END;
+$do$;
+
+ALTER TABLE outcome_cases
+    ALTER COLUMN organization_id SET NOT NULL;
 
 -- An evaluation is an audit event. Existing events must never be edited or
 -- removed, and each persisted evaluation must add exactly one new event.
@@ -53,4 +77,4 @@ CREATE TRIGGER outcome_case_evaluation_history_append_only
     FOR EACH ROW
     EXECUTE FUNCTION outcome_case_evaluation_history_append_only();
 
-CREATE INDEX IF NOT EXISTS outcome_cases_project_code_idx ON outcome_cases (project_code, updated_at DESC);
+CREATE INDEX IF NOT EXISTS outcome_cases_organization_project_idx ON outcome_cases (organization_id, project_code, updated_at DESC);

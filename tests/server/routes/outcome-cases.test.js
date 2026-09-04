@@ -6,7 +6,7 @@ import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes
 import { createOutcomeCaseRouter } from '../../../server/routes/outcome-cases.js';
 import { OutcomeCaseService } from '../../../server/services/outcome-case/outcome-case-service.js';
 
-function createApp(service, actor = { personId: 'internal_api', projectCodes: ['brainbase'], role: 'admin' }) {
+function createApp(service, actor = { personId: 'internal_api', projectCodes: ['brainbase'], role: 'admin', organizationId: 'org_unson' }) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
@@ -110,7 +110,7 @@ describe('outcome case routes', () => {
                 provenance: { source: 'test_raci', project_code: projectCode }
             })
         });
-        const app = createApp(service, { personId: 'not_authorized', projectCodes: ['brainbase'], role: 'admin' });
+        const app = createApp(service, { personId: 'not_authorized', projectCodes: ['brainbase'], role: 'admin', organizationId: 'org_unson' });
         const created = await request(app).post('/api/outcome-cases').send(createPayload).expect(201);
 
         const response = await request(app)
@@ -177,6 +177,26 @@ describe('outcome case routes', () => {
 
         await request(app).post('/api/outcome-cases').send(createPayload).expect(403);
         expect(service.create).not.toHaveBeenCalled();
+    });
+
+    it('denies an empty organization scope for create, read, and evaluate before invoking the service', async () => {
+        const service = { create: vi.fn(), read: vi.fn(), evaluate: vi.fn() };
+        const app = createApp(service, { personId: 'per_owner', projectCodes: ['brainbase'], role: 'member' });
+
+        for (const requestBuilder of [
+            () => request(app).post('/api/outcome-cases').send(createPayload),
+            () => request(app).get('/api/outcome-cases/oc_missing'),
+            () => request(app).post('/api/outcome-cases/oc_missing/evaluations').send({})
+        ]) {
+            const response = await requestBuilder().expect(403);
+            expect(response.body).toMatchObject({
+                error: 'outcome_case_organization_access_denied',
+                details: { audit_event: 'outcome_case_unknown_tenant_denied' }
+            });
+        }
+        expect(service.create).not.toHaveBeenCalled();
+        expect(service.read).not.toHaveBeenCalled();
+        expect(service.evaluate).not.toHaveBeenCalled();
     });
 
     it('keeps the live bootstrap path connected to the service, resolver, and registered API', async () => {

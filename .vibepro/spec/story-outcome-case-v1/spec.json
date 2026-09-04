@@ -80,11 +80,11 @@
     "graph_metadata": {
       "tenant_entities": [
         "projects.organization_id",
-        "outcome_cases.project_code",
+        "outcome_cases.organization_id",
         "raci_assignments.project_id"
       ],
       "boundary_edges": [
-        "authenticated actor to explicit projectCodes",
+        "authenticated organization to explicit projectCodes",
         "OutcomeCase project to read-only RACI authority"
       ]
     },
@@ -123,8 +123,8 @@
           ],
           "boundary_edges": [
             {
-              "tenant_scope": "explicit projectCodes only",
-              "tenant_key_source": "authenticated access context",
+              "tenant_scope": "authenticated organization and explicit projectCodes",
+              "tenant_key_source": "authenticated access context and projects.organization_id",
               "sharing_mode": "tenant_partitioned",
               "credential_scope": "authenticated organization and explicit project codes",
               "connection_mode": "pooled PostgreSQL with transaction-local RLS",
@@ -208,7 +208,7 @@
           },
           {
             "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js",
-            "case": "permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS"
+            "case": "permits scoped create/read/evaluate and rejects missing, cross-project, and cross-organization API access under FORCE RLS"
           }
         ]
       },
@@ -300,7 +300,7 @@
     {
       "id": "C-004",
       "type": "contract",
-      "statement": "authoritative project/capability/RACI resolver が未解決、registry 未適用、access-context/query 例外、または利用不能なら理由付き unresolved を保存し、close を禁止する。認証済み actor の clearance は resolver/RLS へそのまま伝播し、空または欠落を internal へ既定化しない。request の evaluator 文字列と authority は認可根拠にしない。repository の create/read/update と table FORCE RLS は actor project scope を越えず、internal/admin/ceo を含む空 project scope は許可しない。",
+      "statement": "authoritative project/capability/RACI resolver が未解決、registry 未適用、access-context/query 例外、または利用不能なら理由付き unresolved を保存し、close を禁止する。認証済み actor の clearance は resolver/RLS へそのまま伝播し、空または欠落を internal へ既定化しない。request の evaluator 文字列と authority は認可根拠にしない。repository の create/read/update と table FORCE RLS は actor の organization_id と project scope を越えず、internal/admin/ceo を含む空 organization/project scope は許可しない。cross-organization candidate は audit identifier を伴い deny する。",
       "origin": {
         "story_refs": [
           {
@@ -347,7 +347,7 @@
           },
           {
             "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js",
-            "case": "permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS"
+            "case": "permits scoped create/read/evaluate and rejects missing, cross-project, and cross-organization API access under FORCE RLS"
           },
           {
             "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js",
@@ -400,7 +400,7 @@
           },
           {
             "file": "tests/server/services/outcome-case-postgres-rls.integration.test.js",
-            "case": "permits scoped create/read/evaluate and rejects cross-project API visibility under FORCE RLS"
+            "case": "permits scoped create/read/evaluate and rejects missing, cross-project, and cross-organization API access under FORCE RLS"
           }
         ]
       },

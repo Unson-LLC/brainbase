@@ -5,6 +5,8 @@ import {
     createOutcomeCaseReferenceResolver
 } from '../../../server/services/outcome-case/outcome-case-reference-resolver.js';
 
+const scopedActor = { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'], organizationId: 'org_unson' };
+
 function createResolver({ projectConfirmed = true, capabilityRegistry = 'brainbase_capabilities', capabilityConfirmed = true } = {}) {
     const client = {
         query: vi.fn()
@@ -25,7 +27,7 @@ describe('OutcomeCase authoritative reference resolver', () => {
         await expect(resolve({
             projectCode: 'brainbase',
             capabilityId: 'cap_outcome_control',
-            actor: { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] }
+            actor: scopedActor
         })).resolves.toEqual({
             project: { ref: 'brainbase', state: 'confirmed' },
             capability: { ref: 'cap_outcome_control', state: 'confirmed' }
@@ -47,7 +49,7 @@ describe('OutcomeCase authoritative reference resolver', () => {
     it('represents an absent capability registry as unresolved instead of inferring authority', async () => {
         const { client, resolve } = createResolver({ capabilityRegistry: null });
 
-        await expect(resolve({ projectCode: 'brainbase', capabilityId: 'cap_outcome_control' })).resolves.toEqual({
+        await expect(resolve({ projectCode: 'brainbase', capabilityId: 'cap_outcome_control', actor: scopedActor })).resolves.toEqual({
             project: { ref: 'brainbase', state: 'confirmed' },
             capability: { ref: 'cap_outcome_control', state: 'unresolved', reason: 'capability_registry_unavailable' }
         });
@@ -65,7 +67,7 @@ describe('OutcomeCase authoritative reference resolver', () => {
 
         await expect(resolve({
             projectCode: 'brainbase',
-            actor: { projectCodes: ['brainbase'], clearance: ['internal'] }
+            actor: scopedActor
         })).resolves.toEqual({
             state: 'confirmed',
             closure_authorized_person_ids: ['per_owner'],
@@ -86,7 +88,7 @@ describe('OutcomeCase authoritative reference resolver', () => {
 
         await expect(resolve({
             projectCode: 'brainbase',
-            actor: { projectCodes: ['brainbase'], clearance: [] }
+            actor: { ...scopedActor, clearance: [] }
         })).resolves.toMatchObject({
             state: 'unresolved',
             reason: 'closure_authority_not_found'
@@ -107,7 +109,7 @@ describe('OutcomeCase authoritative reference resolver', () => {
         };
         const resolve = createOutcomeCaseClosureAuthorityResolver({ infoSSOTService });
 
-        await expect(resolve({ projectCode: 'brainbase', actor: { projectCodes: ['brainbase'] } }))
+        await expect(resolve({ projectCode: 'brainbase', actor: scopedActor }))
             .resolves.toEqual({
                 state: 'unresolved',
                 closure_authorized_person_ids: [],

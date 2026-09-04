@@ -4,6 +4,7 @@ import { OutcomeCasePostgresRepository } from '../../../server/services/outcome-
 
 const record = {
     case_id: 'oc_01',
+    organization_id: 'org_unson',
     project_code: 'brainbase',
     capability_id: 'cap_outcome_control',
     user_observable_outcome: '利用者が外部完了を読戻せる',
@@ -87,15 +88,15 @@ describe('OutcomeCasePostgresRepository', () => {
         const infoSSOTService = { withAccessContext: vi.fn((_access, handler) => handler(pool)) };
         const repository = new OutcomeCasePostgresRepository({ pool, infoSSOTService });
 
-        await repository.findByCaseId('oc_01', { projectCodes: ['brainbase'] });
+        await repository.findByCaseId('oc_01', { projectCodes: ['brainbase'], organizationId: 'org_unson' });
         await repository.update({ ...record, revision: 2 }, {
             expectedRevision: 1,
-            actor: { projectCodes: ['brainbase'] }
+            actor: { projectCodes: ['brainbase'], organizationId: 'org_unson' }
         });
 
         expect(pool.query.mock.calls[0]).toEqual([
             expect.stringContaining('project_code = ANY($2::text[])'),
-            ['oc_01', ['brainbase']]
+            ['oc_01', ['brainbase'], 'org_unson']
         ]);
         expect(pool.query.mock.calls[1][1]).toEqual(expect.arrayContaining([['brainbase']]));
         expect(infoSSOTService.withAccessContext).toHaveBeenCalledTimes(2);

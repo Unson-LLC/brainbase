@@ -17,6 +17,11 @@ function accessForActor(actor = {}) {
     };
 }
 
+function organizationIdForActor(actor = {}) {
+    const value = actor.organizationId || actor.tenantId || '';
+    return typeof value === 'string' ? value.trim() : '';
+}
+
 /**
  * Resolve OutcomeCase references through read-only, authoritative PostgreSQL
  * tables. A missing capability registry is deliberately unresolved: callers
@@ -28,11 +33,18 @@ export function createOutcomeCaseReferenceResolver({ infoSSOTService } = {}) {
     }
 
     return async function resolveOutcomeReferences({ projectCode, capabilityId, actor = {} } = {}) {
+        const organizationId = organizationIdForActor(actor);
+        if (!organizationId) {
+            return {
+                project: unresolved(projectCode, 'organization_context_required'),
+                capability: unresolved(capabilityId, 'organization_context_required')
+            };
+        }
         try {
             return await infoSSOTService.withAccessContext(accessForActor(actor), async (client) => {
                 const projectResult = await client.query(
-                    'SELECT EXISTS (SELECT 1 FROM projects WHERE code = $1) AS confirmed',
-                    [projectCode]
+                    'SELECT EXISTS (SELECT 1 FROM projects WHERE code = $1 AND organization_id = $2) AS confirmed',
+                    [projectCode, organizationId]
                 );
                 const capabilityRegistryResult = await client.query(
                     "SELECT to_regclass('brainbase_capabilities') AS relation_name"
@@ -72,6 +84,10 @@ export function createOutcomeCaseClosureAuthorityResolver({ infoSSOTService } = 
         throw new Error('OutcomeCase closure authority resolver requires InfoSSOT access context');
     }
     return async function resolveClosureAuthority({ projectCode, actor = {} } = {}) {
+        const organizationId = organizationIdForActor(actor);
+        if (!organizationId) {
+            return { state: 'unresolved', closure_authorized_person_ids: [], provenance: null, reason: 'organization_context_required' };
+        }
         try {
             return await infoSSOTService.withAccessContext(accessForActor(actor), async (client) => {
                 const result = await client.query(
@@ -79,9 +95,10 @@ export function createOutcomeCaseClosureAuthorityResolver({ infoSSOTService } = 
                      FROM raci_assignments r
                      JOIN projects p ON p.id = r.project_id
                      WHERE p.code = $1
+                       AND p.organization_id = $3
                        AND r.role_code = ANY($2::text[])
                      ORDER BY r.person_id`,
-                    [projectCode, ['outcome_case:close', 'decision:outcome_case', 'decision:最終決裁']]
+                    [projectCode, ['outcome_case:close', 'decision:outcome_case', 'decision:最終決裁'], organizationId]
                 );
                 const ids = [...new Set(result.rows.map((row) => row.person_id).filter(Boolean))];
                 return ids.length

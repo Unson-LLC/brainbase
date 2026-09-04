@@ -13,6 +13,18 @@ function canAccessProject(req, projectCode) {
         .some((code) => normalizeProjectCode(code) === requested);
 }
 
+function hasOrganizationContext(req) {
+    return Boolean(String(req.access?.organizationId || req.access?.tenantId || '').trim());
+}
+
+function denyMissingOrganization(res) {
+    res.status(403).json({
+        error: 'outcome_case_organization_access_denied',
+        message: 'authenticated organization is required',
+        details: { audit_event: 'outcome_case_unknown_tenant_denied' }
+    });
+}
+
 function actorFromRequest(req) {
     return {
         ...(req.auth || {}),
@@ -44,6 +56,10 @@ export function createOutcomeCaseRouter({ service } = {}) {
     });
 
     router.post('/', asyncHandler(async (req, res) => {
+        if (!hasOrganizationContext(req)) {
+            denyMissingOrganization(res);
+            return;
+        }
         if (!canAccessProject(req, req.body?.project_code)) {
             res.status(403).json({ error: 'project_not_accessible', message: 'project is not accessible' });
             return;
@@ -56,6 +72,10 @@ export function createOutcomeCaseRouter({ service } = {}) {
     }));
 
     router.get('/:caseId', asyncHandler(async (req, res) => {
+        if (!hasOrganizationContext(req)) {
+            denyMissingOrganization(res);
+            return;
+        }
         try {
             const outcomeCase = await service.read(req.params.caseId, actorFromRequest(req));
             if (!canAccessProject(req, outcomeCase.project_code)) {
@@ -69,6 +89,10 @@ export function createOutcomeCaseRouter({ service } = {}) {
     }));
 
     router.post('/:caseId/evaluations', asyncHandler(async (req, res) => {
+        if (!hasOrganizationContext(req)) {
+            denyMissingOrganization(res);
+            return;
+        }
         try {
             const current = await service.read(req.params.caseId, actorFromRequest(req));
             if (!canAccessProject(req, current.project_code)) {
