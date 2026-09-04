@@ -135,6 +135,47 @@ describe('OutcomeCaseService', () => {
         ]);
     });
 
+    it.each(['unconfirmed', 'no_data'])('does not close when only technical evidence is %s', async (technicalEvidenceStatus) => {
+        const { service, readRunReceipt } = createService({ receiptStates: { 'run-1': 'confirmed' } });
+        const outcomeCase = await service.create(createInput(), authenticatedActor());
+
+        const evaluated = await service.evaluate(outcomeCase.case_id, {
+            technical_evidence: { status: technicalEvidenceStatus, refs: [] },
+            run_receipt_refs: ['run-1'],
+            external_readback: { status: 'confirm', ref: 'external:receipt-1' },
+            constraints_status: 'satisfied',
+            evaluator: 'untrusted-request-text',
+            observed_at: '2026-09-04T00:01:00.000Z',
+            current_external_state: 'verified-complete'
+        }, authenticatedActor());
+
+        expect(readRunReceipt).toHaveBeenCalledWith(expect.objectContaining({
+            projectCode: 'brainbase',
+            runReceiptRef: 'run-1'
+        }));
+        expect(evaluated).toMatchObject({
+            closure_status: 'incomplete',
+            current_external_state: 'verified-complete',
+            reference_resolution: {
+                project: { ref: 'brainbase', state: 'confirmed', reason: null },
+                capability: { ref: 'cap_outcome_control', state: 'confirmed', reason: null }
+            },
+            authority: {
+                state: 'confirmed',
+                closure_authorized_person_ids: ['per_owner'],
+                provenance: { source: 'test_raci', project_code: 'brainbase' }
+            },
+            terminal_evaluation: {
+                technical_evidence: { status: technicalEvidenceStatus, refs: [] },
+                run_receipts: [{ ref: 'run-1', evidence_state: 'confirmed' }],
+                external_readback: { status: 'confirm', ref: 'external:receipt-1' },
+                constraints_status: 'satisfied',
+                evaluated_by: 'per_owner',
+                close_eligible: false
+            }
+        });
+    });
+
     it('does not close from technical evidence when receipt readback is unconfirmed', async () => {
         const { service } = createService({ receiptStates: { 'run-1': 'unconfirmed' } });
         const outcomeCase = await service.create(createInput(), authenticatedActor());
