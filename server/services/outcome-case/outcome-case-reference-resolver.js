@@ -62,3 +62,31 @@ export function createOutcomeCaseReferenceResolver({ infoSSOTService } = {}) {
         }
     };
 }
+
+/** Read-only RACI authority lookup. Request payloads never nominate closers. */
+export function createOutcomeCaseClosureAuthorityResolver({ infoSSOTService } = {}) {
+    if (!infoSSOTService || typeof infoSSOTService.withAccessContext !== 'function') {
+        throw new Error('OutcomeCase closure authority resolver requires InfoSSOT access context');
+    }
+    return async function resolveClosureAuthority({ projectCode, actor = {} } = {}) {
+        try {
+            return await infoSSOTService.withAccessContext(accessForActor(actor), async (client) => {
+                const result = await client.query(
+                    `SELECT r.person_id, r.role_code
+                     FROM raci_assignments r
+                     JOIN projects p ON p.id = r.project_id
+                     WHERE p.code = $1
+                       AND r.role_code = ANY($2::text[])
+                     ORDER BY r.person_id`,
+                    [projectCode, ['outcome_case:close', 'decision:outcome_case', 'decision:最終決裁']]
+                );
+                const ids = [...new Set(result.rows.map((row) => row.person_id).filter(Boolean))];
+                return ids.length
+                    ? { state: 'confirmed', closure_authorized_person_ids: ids, provenance: { source: 'info_ssot_raci', project_code: projectCode, role_codes: [...new Set(result.rows.map((row) => row.role_code))] } }
+                    : { state: 'unresolved', closure_authorized_person_ids: [], provenance: null, reason: 'closure_authority_not_found' };
+            });
+        } catch {
+            return { state: 'unresolved', closure_authorized_person_ids: [], provenance: null, reason: UNRESOLVED_RESOLVER_REASON };
+        }
+    };
+}

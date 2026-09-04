@@ -15,6 +15,7 @@ DECLARE
   fixture_product_id text := format('info_ssot_negative_smoke_product_%s', txid_current());
   fixture_edge_id text := format('info_ssot_negative_smoke_wrong_owner_edge_%s', txid_current());
   fixture_registry_code text := format('info-ssot-rls-%s', txid_current());
+  fixture_outcome_case_id text := format('outcome_case_rls_%s', txid_current());
   fixture_organization_id text := format('org_info_ssot_%s', txid_current());
   visible_count integer;
   deleted_count integer;
@@ -67,6 +68,30 @@ BEGIN
   PERFORM set_config('app.role', 'member', true);
   PERFORM set_config('app.project_codes', fixture_project_code, true);
   PERFORM set_config('app.clearance', 'internal', true);
+
+  INSERT INTO outcome_cases (
+    case_id, project_code, capability_id, user_observable_outcome,
+    protected_constraints, non_goals, authority, selected_domain_pack,
+    reference_resolution, evaluation_history, terminal_evaluation, closure_status,
+    current_external_state, technical_story_refs, run_receipt_refs, prior_attempt_refs,
+    unresolved_failure_boundary, revision
+  ) VALUES (
+    fixture_outcome_case_id, fixture_project_code, 'info_ssot_negative_smoke', 'RLS fixture',
+    '[]'::jsonb, '[]'::jsonb, '{"state":"unresolved","reason":"fixture"}'::jsonb, 'fixture/v1',
+    '{}'::jsonb, '[]'::jsonb, NULL, 'open', 'processing', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb,
+    NULL, 1
+  );
+  SELECT count(*) INTO visible_count FROM outcome_cases WHERE case_id = fixture_outcome_case_id;
+  IF visible_count <> 1 THEN
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: authorized outcome case fixture was not readable';
+  END IF;
+  PERFORM set_config('app.project_codes', '__info_ssot_denied_scope__', true);
+  SELECT count(*) INTO visible_count FROM outcome_cases WHERE case_id = fixture_outcome_case_id;
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: cross-project outcome case fixture was readable';
+  END IF;
+  PERFORM set_config('app.project_codes', fixture_project_code, true);
+  DELETE FROM outcome_cases WHERE case_id = fixture_outcome_case_id;
 
   INSERT INTO graph_entities (
     id,

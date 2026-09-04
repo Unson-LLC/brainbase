@@ -10,6 +10,9 @@
     "server/services/outcome-case/outcome-case-postgres-repository.js",
     "server/services/outcome-case/outcome-case-reference-resolver.js",
     "server/sql/outcome-case-schema.sql",
+    "server/sql/info-ssot-rls.sql",
+    "server/sql/info-ssot-readback.sql",
+    "server/sql/info-ssot-negative-smoke.sql",
     "scripts/info-ssot-apply.sh",
     "server/routes/outcome-cases.js",
     "tests/server/services/outcome-case-service.test.js",
@@ -19,11 +22,11 @@
   ],
   "acceptance_boundary": "local contract and route tests only; no production Graph write, external send, deploy, or production migration",
   "acceptance_traceability": {
-    "AC-001": ["evaluation_history append-only", "reference_resolution", "outcome-case-service.test.js"],
-    "AC-002": ["scripts/info-ssot-apply.sh", "info-ssot-apply.test.js"],
-    "AC-003": ["retained RunReceipt diagnosis", "authenticated closure authority", "authoritative resolver"],
-    "AC-004": ["unresolved/no_data close prohibition", "outcome-case-service.test.js"],
-    "AC-005": ["read-only resolver", "outcome-case-reference-resolver.test.js"]
+    "AC-001": ["evaluation_history append-only", "evaluation state/revision snapshot", "RACI authority provenance", "outcome-case-service.test.js"],
+    "AC-002": ["scripts/info-ssot-apply.sh", "Info SSOT RLS/readback/negative smoke", "info-ssot-apply.test.js", "registerApiRoutes HTTP integration"],
+    "AC-003": ["retained RunReceipt diagnosis", "authenticated actor", "read-only RACI authority resolver", "self-delegation rejection"],
+    "AC-004": ["unresolved/no_data close prohibition", "resolver exception regression", "cross-project denial", "outcome-case-service.test.js"],
+    "AC-005": ["read-only resolver", "no Graph writes", "outcome-case-reference-resolver.test.js"]
   },
   "forbidden": [
     "RunReceipt v1 schema change",

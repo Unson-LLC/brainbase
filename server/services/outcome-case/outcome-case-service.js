@@ -10,7 +10,7 @@ const CONSTRAINT_STATES = new Set(['satisfied', 'violated', 'unknown']);
 const REFERENCE_STATES = new Set(['confirmed', 'unresolved']);
 const CREATE_FIELDS = new Set([
     'case_id', 'project_code', 'capability_id', 'user_observable_outcome',
-    'protected_constraints', 'non_goals', 'authority', 'selected_domain_pack',
+    'protected_constraints', 'non_goals', 'selected_domain_pack',
     'current_external_state', 'technical_story_refs', 'run_receipt_refs',
     'prior_attempt_refs', 'unresolved_failure_boundary'
 ]);
@@ -71,18 +71,16 @@ function uniqueRefs(value, field) {
     return [...new Set(requireArray(value, field))];
 }
 
-function normalizeAuthority(value) {
-    const authority = requirePlainObject(value, 'authority');
-    const fields = new Set(['closure_authorized_person_ids']);
-    rejectUnknownFields(authority, fields, 'authority');
-    const closureAuthorizedPersonIds = uniqueRefs(
-        authority.closure_authorized_person_ids,
-        'authority.closure_authorized_person_ids'
-    );
-    if (closureAuthorizedPersonIds.length === 0) {
-        throw validation('authority.closure_authorized_person_ids must not be empty');
-    }
-    return { closure_authorized_person_ids: closureAuthorizedPersonIds };
+function normalizeResolvedAuthority(value) {
+    const authority = requirePlainObject(value, 'resolved_authority');
+    rejectUnknownFields(authority, new Set(['state', 'closure_authorized_person_ids', 'provenance', 'reason']), 'resolved_authority');
+    const state = requireEnum(authority.state, 'resolved_authority.state', REFERENCE_STATES);
+    const ids = state === 'confirmed' ? uniqueRefs(authority.closure_authorized_person_ids, 'resolved_authority.closure_authorized_person_ids') : [];
+    const provenance = authority.provenance === undefined ? null : requirePlainObject(authority.provenance, 'resolved_authority.provenance');
+    const reason = authority.reason === undefined ? null : requireString(authority.reason, 'resolved_authority.reason');
+    if (state === 'confirmed' && (!ids.length || !provenance)) throw validation('confirmed resolved authority requires ids and provenance');
+    if (state === 'unresolved' && !reason) throw validation('unresolved resolved authority requires reason');
+    return { state, closure_authorized_person_ids: ids, provenance, reason };
 }
 
 function unresolvedReference(ref, reason) {
@@ -145,7 +143,7 @@ function assertClosureAuthority(authority, actor) {
             status: 403
         });
     }
-    if (!authority.closure_authorized_person_ids.includes(personId)) {
+    if (authority?.state !== 'confirmed' || !authority.closure_authorized_person_ids.includes(personId)) {
         throw new OutcomeCaseError('closure_authority_denied', 'The authenticated actor is not authorized to close this OutcomeCase', {
             status: 403,
             details: { person_id: personId }
@@ -169,7 +167,7 @@ function normalizeCreate(input, { now, generateCaseId }) {
         user_observable_outcome: requireString(input.user_observable_outcome, 'user_observable_outcome'),
         protected_constraints: requireArray(input.protected_constraints, 'protected_constraints'),
         non_goals: requireArray(input.non_goals, 'non_goals'),
-        authority: normalizeAuthority(input.authority),
+        authority: null,
         selected_domain_pack: requireString(input.selected_domain_pack, 'selected_domain_pack'),
         reference_resolution: null,
         evaluation_history: [],
@@ -231,20 +229,24 @@ function normalizeEvaluation(input) {
     };
 }
 
-export function deriveClosureStatus({ technicalEvidence, runReceipts, externalReadback, constraintsStatus, referenceResolution }) {
+export function deriveClosureStatus({ technicalEvidence, runReceipts, externalReadback, constraintsStatus, referenceResolution, authority }) {
     const allReceiptsConfirmed = runReceipts.length > 0
         && runReceipts.every((receipt) => receipt.evidence_state === 'confirmed');
     const referencesConfirmed = referenceResolution?.project?.state === 'confirmed'
         && referenceResolution?.capability?.state === 'confirmed';
+    const authorityConfirmed = authority?.state === 'confirmed'
+        && authority.closure_authorized_person_ids.length > 0;
     const closeEligible = technicalEvidence.status === 'confirmed'
         && allReceiptsConfirmed
         && externalReadback.status === 'confirm'
         && constraintsStatus === 'satisfied'
-        && referencesConfirmed;
+        && referencesConfirmed
+        && authorityConfirmed;
     if (closeEligible) return { closure_status: 'closed', close_eligible: true };
     if (externalReadback.status === 'no_data'
         || constraintsStatus === 'unknown'
         || !referencesConfirmed
+        || !authorityConfirmed
         || runReceipts.some((receipt) => receipt.evidence_state === 'no_data')) {
         return { closure_status: 'waiting_human', close_eligible: false };
     }
@@ -252,24 +254,28 @@ export function deriveClosureStatus({ technicalEvidence, runReceipts, externalRe
 }
 
 export class OutcomeCaseService {
-    constructor({ repository, readRunReceipt, resolveOutcomeReferences, now = () => new Date(), generateCaseId = () => `oc_${crypto.randomUUID()}` } = {}) {
+    constructor({ repository, readRunReceipt, resolveOutcomeReferences, resolveClosureAuthority, now = () => new Date(), generateCaseId = () => `oc_${crypto.randomUUID()}` } = {}) {
         if (!repository) throw new Error('OutcomeCaseService requires repository');
         if (typeof readRunReceipt !== 'function') throw new Error('OutcomeCaseService requires readRunReceipt');
         if (typeof resolveOutcomeReferences !== 'function') throw new Error('OutcomeCaseService requires resolveOutcomeReferences');
+        if (typeof resolveClosureAuthority !== 'function') throw new Error('OutcomeCaseService requires resolveClosureAuthority');
         this.repository = repository;
         this.readRunReceipt = readRunReceipt;
         this.resolveOutcomeReferences = resolveOutcomeReferences;
+        this.resolveClosureAuthority = resolveClosureAuthority;
         this.now = now;
         this.generateCaseId = generateCaseId;
     }
 
     async create(input, actor = {}) {
         const baseCase = normalizeCreate(input, { now: this.now(), generateCaseId: this.generateCaseId });
+        this.assertProjectAccess(baseCase.project_code, actor);
         const outcomeCase = {
             ...baseCase,
-            reference_resolution: await resolveReferences(this.resolveOutcomeReferences, baseCase, actor)
+            reference_resolution: await resolveReferences(this.resolveOutcomeReferences, baseCase, actor),
+            authority: await this.resolveAuthority(baseCase, actor)
         };
-        const existing = await this.repository.findByCaseId(outcomeCase.case_id);
+        const existing = await this.repository.findByCaseId(outcomeCase.case_id, actor);
         if (existing) throw new OutcomeCaseError('outcome_case_already_exists', 'OutcomeCase already exists', { status: 409 });
         return this.repository.create(outcomeCase, actor);
     }
@@ -277,7 +283,22 @@ export class OutcomeCaseService {
     async read(caseId, actor = {}) {
         const outcomeCase = await this.repository.findByCaseId(requireString(caseId, 'case_id'), actor);
         if (!outcomeCase) throw new OutcomeCaseError('outcome_case_not_found', 'OutcomeCase not found', { status: 404 });
+        this.assertProjectAccess(outcomeCase.project_code, actor);
         return outcomeCase;
+    }
+
+    assertProjectAccess(projectCode, actor) {
+        if (!Array.isArray(actor?.projectCodes) || !actor.projectCodes.includes(projectCode)) {
+            throw new OutcomeCaseError('outcome_case_project_access_denied', 'The authenticated actor cannot access this OutcomeCase project', { status: 403 });
+        }
+    }
+
+    async resolveAuthority(outcomeCase, actor) {
+        try {
+            return normalizeResolvedAuthority(await this.resolveClosureAuthority({ projectCode: outcomeCase.project_code, actor: clone(actor) }));
+        } catch {
+            return { state: 'unresolved', closure_authorized_person_ids: [], provenance: null, reason: 'authoritative_closure_authority_unavailable' };
+        }
     }
 
     async evaluate(caseId, input, actor = {}) {
@@ -301,15 +322,17 @@ export class OutcomeCaseService {
             };
         }));
         const referenceResolution = await resolveReferences(this.resolveOutcomeReferences, outcomeCase, actor);
+        const authority = await this.resolveAuthority(outcomeCase, actor);
         const closure = deriveClosureStatus({
             technicalEvidence: evaluation.technical_evidence,
             runReceipts,
             externalReadback: evaluation.external_readback,
             constraintsStatus: evaluation.constraints_status,
-            referenceResolution
+            referenceResolution,
+            authority
         });
         const evaluatedBy = closure.close_eligible
-            ? assertClosureAuthority(outcomeCase.authority, actor)
+            ? assertClosureAuthority(authority, actor)
             : closureActorPersonId(actor);
         const evaluationRecord = {
             technical_evidence: evaluation.technical_evidence,
@@ -322,6 +345,7 @@ export class OutcomeCaseService {
             evaluated_by: evaluatedBy,
             observed_at: evaluation.observed_at,
             reference_resolution: referenceResolution,
+            authority,
             closure_status: closure.closure_status,
             close_eligible: closure.close_eligible
         };
@@ -329,7 +353,14 @@ export class OutcomeCaseService {
             ...clone(outcomeCase),
             run_receipt_refs: retainedRunReceiptRefs,
             reference_resolution: referenceResolution,
-            evaluation_history: [...(outcomeCase.evaluation_history || []), evaluationRecord],
+            authority,
+            evaluation_history: [...(outcomeCase.evaluation_history || []), {
+                ...evaluationRecord,
+                current_external_state: evaluation.current_external_state ?? outcomeCase.current_external_state,
+                unresolved_failure_boundary: evaluation.unresolved_failure_boundary === undefined ? outcomeCase.unresolved_failure_boundary : evaluation.unresolved_failure_boundary,
+                resulting_revision: Number(outcomeCase.revision) + 1,
+                resulting_closure_status: closure.closure_status
+            }],
             terminal_evaluation: evaluationRecord,
             closure_status: closure.closure_status,
             current_external_state: evaluation.current_external_state ?? outcomeCase.current_external_state,

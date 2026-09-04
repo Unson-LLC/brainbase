@@ -45,7 +45,7 @@ import { ExternalRunnerIngestService } from '../services/external-runner/ingest-
 import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
 import { OutcomeCasePostgresRepository } from '../services/outcome-case/outcome-case-postgres-repository.js';
 import { OutcomeCaseService } from '../services/outcome-case/outcome-case-service.js';
-import { createOutcomeCaseReferenceResolver } from '../services/outcome-case/outcome-case-reference-resolver.js';
+import { createOutcomeCaseClosureAuthorityResolver, createOutcomeCaseReferenceResolver } from '../services/outcome-case/outcome-case-reference-resolver.js';
 import { resolveRoutineReceiptPaths } from '../../scripts/routines/runtime-paths.mjs';
 import { countRoutineOutbox, listRoutineDeadLetters } from '../services/routine-runtime/dead-letter-reader.js';
 import { loadRoutineExpectations } from '../services/routine-runtime/expectation-parser.js';
@@ -267,7 +267,8 @@ export function createCoreServices({
                     throw error;
                 }
             },
-            resolveOutcomeReferences: createOutcomeCaseReferenceResolver({ infoSSOTService })
+            resolveOutcomeReferences: createOutcomeCaseReferenceResolver({ infoSSOTService }),
+            resolveClosureAuthority: createOutcomeCaseClosureAuthorityResolver({ infoSSOTService })
         })
         : null;
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({

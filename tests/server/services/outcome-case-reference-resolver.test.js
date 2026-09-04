@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createOutcomeCaseReferenceResolver } from '../../../server/services/outcome-case/outcome-case-reference-resolver.js';
+import {
+    createOutcomeCaseClosureAuthorityResolver,
+    createOutcomeCaseReferenceResolver
+} from '../../../server/services/outcome-case/outcome-case-reference-resolver.js';
 
 function createResolver({ projectConfirmed = true, capabilityRegistry = 'brainbase_capabilities', capabilityConfirmed = true } = {}) {
     const client = {
@@ -49,5 +52,55 @@ describe('OutcomeCase authoritative reference resolver', () => {
             capability: { ref: 'cap_outcome_control', state: 'unresolved', reason: 'capability_registry_unavailable' }
         });
         expect(client.query).toHaveBeenCalledTimes(2);
+    });
+
+    it('resolves closers only through scoped read-only RACI assignments', async () => {
+        const client = {
+            query: vi.fn().mockResolvedValue({ rows: [
+                { person_id: 'per_owner', role_code: 'outcome_case:close' }
+            ] })
+        };
+        const infoSSOTService = { withAccessContext: vi.fn(async (_access, callback) => callback(client)) };
+        const resolve = createOutcomeCaseClosureAuthorityResolver({ infoSSOTService });
+
+        await expect(resolve({
+            projectCode: 'brainbase',
+            actor: { projectCodes: ['brainbase'], clearance: ['internal'] }
+        })).resolves.toEqual({
+            state: 'confirmed',
+            closure_authorized_person_ids: ['per_owner'],
+            provenance: {
+                source: 'info_ssot_raci', project_code: 'brainbase', role_codes: ['outcome_case:close']
+            }
+        });
+        expect(client.query.mock.calls[0][0]).toMatch(/SELECT r\.person_id[\s\S]*FROM raci_assignments/u);
+        expect(client.query.mock.calls[0][0]).not.toMatch(/\b(?:INSERT|UPDATE|DELETE)\b/iu);
+    });
+
+    async function expectUnavailableAuthority(failure) {
+        const client = { query: vi.fn(async () => { throw new Error('query failed'); }) };
+        const infoSSOTService = {
+            withAccessContext: vi.fn(async (_access, callback) => {
+                if (failure === 'access context failure') throw new Error('context failed');
+                return callback(client);
+            })
+        };
+        const resolve = createOutcomeCaseClosureAuthorityResolver({ infoSSOTService });
+
+        await expect(resolve({ projectCode: 'brainbase', actor: { projectCodes: ['brainbase'] } }))
+            .resolves.toEqual({
+                state: 'unresolved',
+                closure_authorized_person_ids: [],
+                provenance: null,
+                reason: 'authoritative_resolver_unavailable'
+            });
+    }
+
+    it('fails closure authority closed when access context failure', async () => {
+        await expectUnavailableAuthority('access context failure');
+    });
+
+    it('fails closure authority closed when query failure', async () => {
+        await expectUnavailableAuthority('query failure');
     });
 });

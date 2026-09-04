@@ -16,7 +16,8 @@ DECLARE
     'graph_edges',
     'project_registry',
     'project_provisioning_runs',
-    'project_provisioning_steps'
+    'project_provisioning_steps',
+    'outcome_cases'
   ];
   required_function text;
   required_functions text[] := ARRAY[

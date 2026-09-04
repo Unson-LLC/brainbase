@@ -30,6 +30,7 @@ PSQL=(docker exec -i "$CONTAINER_NAME" psql -X -Atq -v ON_ERROR_STOP=1 -U postgr
 "${PSQL[@]}" -c "INSERT INTO projects(id,code,name,organization_id) VALUES ('it_a','it-a','IT A','org_a'),('it_b','it-b','IT B','org_b') ON CONFLICT DO NOTHING; INSERT INTO graph_entities(id,entity_type,project_id,payload,role_min,sensitivity,lifecycle_status,version) VALUES ('integration-graph-same','project','it_a','{\"name\":\"Same Project\",\"catalog_project_id\":\"integration-graph-same\",\"catalog_version\":1,\"source_ref\":\"project-catalog:integration-graph-same@1\"}','member','internal','active',2), ('integration-graph-other','project','it_b','{\"name\":\"Other Secret\",\"catalog_project_id\":\"integration-graph-other\",\"catalog_version\":1,\"source_ref\":\"project-catalog:integration-graph-other@1\"}','member','internal','active',3)" >/dev/null
 "${PSQL[@]}" --single-transaction \
   -f /workspace/server/sql/project-provisioning-schema.sql \
+  -f /workspace/server/sql/outcome-case-schema.sql \
   -f /workspace/server/sql/info-ssot-rls.sql \
   -f /workspace/server/sql/info-ssot-readback.sql >/tmp/project-provisioning-postgres-integration.log
 

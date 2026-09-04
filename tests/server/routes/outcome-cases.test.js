@@ -1,7 +1,8 @@
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes.js';
 import { createOutcomeCaseRouter } from '../../../server/routes/outcome-cases.js';
 import { OutcomeCaseService } from '../../../server/services/outcome-case/outcome-case-service.js';
 
@@ -24,7 +25,6 @@ const createPayload = {
     user_observable_outcome: '依頼者が外部の完了読戻しを確認できる',
     protected_constraints: ['外部読戻しなしで閉鎖しない'],
     non_goals: ['汎用 workflow engine'],
-    authority: { closure_authorized_person_ids: ['per_owner'] },
     selected_domain_pack: 'delivery-control/v1',
     current_external_state: 'processing',
     technical_story_refs: ['story-outcome-case-v1'],
@@ -54,6 +54,30 @@ class MemoryOutcomeCaseRepository {
     }
 }
 
+function createRegisteredApp(service, { projectCodes = ['brainbase'] } = {}) {
+    const app = express();
+    app.use(express.json());
+    const authService = {
+        verifyToken: vi.fn(() => ({
+            sub: 'per_owner', role: 'member', projectCodes, clearance: ['internal'], tenantId: 'unson'
+        }))
+    };
+    registerApiRoutes(app, {
+        configParser: {}, configService: {}, runtimePaths: { varDir: '/tmp' }, scheduleParser: {},
+        googleCalendarService: {}, projectsRoot: '/tmp', authService,
+        infoSSOTService: { getContext: vi.fn(), listGraphEntities: vi.fn() },
+        canonicalTaskStoreConfig: { ownerPersonId: 'per_owner', ownerAliasIds: [] }, canonicalTaskService: {},
+        learningService: {}, learningHealthService: {}, candidateRepository: null, knowledgeEventService: null,
+        knowledgeFeedbackService: null, knowledgeCycleQueryService: null, onboardingRuntimeService: null,
+        wikiService: {}, tokenUsageService: {}, agentControlCatalogService: {}, loopIntentService: {},
+        meetingAutomationService: {}, automationRunService: {}, runReceiptQueryService: {}, outcomeCaseService: service,
+        companionApprovalInboxService: {}, meetingSourceMcpSyncService: null, externalRunnerIngestService: {},
+        runReceiptIngestService: {}, routineLivenessService: {}, uploadMiddleware: (_req, _res, next) => next(),
+        appVersion: 'test', workspaceRoot: '/tmp', uploadsDir: '/tmp/uploads', runtimeInfo: {}, brainbaseRoot: '/tmp'
+    });
+    return { app, authService };
+}
+
 describe('outcome case routes', () => {
     it('offers only create, read, and evaluate through the injected service', async () => {
         const stored = { case_id: 'oc_01', ...createPayload, closure_status: 'open' };
@@ -80,6 +104,10 @@ describe('outcome case routes', () => {
             resolveOutcomeReferences: async ({ projectCode, capabilityId }) => ({
                 project: { ref: projectCode, state: 'confirmed' },
                 capability: { ref: capabilityId, state: 'confirmed' }
+            }),
+            resolveClosureAuthority: async ({ projectCode }) => ({
+                state: 'confirmed', closure_authorized_person_ids: ['per_owner'],
+                provenance: { source: 'test_raci', project_code: projectCode }
             })
         });
         const app = createApp(service, { personId: 'not_authorized', projectCodes: ['brainbase'], role: 'admin' });
@@ -98,6 +126,41 @@ describe('outcome case routes', () => {
             .expect(403);
 
         expect(response.body.error).toBe('closure_authority_denied');
+    });
+
+    it('registerApiRoutes protects and wires create, read, and evaluate through workflowAuthGuard', async () => {
+        const service = new OutcomeCaseService({
+            repository: new MemoryOutcomeCaseRepository(),
+            readRunReceipt: async () => ({ evidence_state: 'confirmed' }),
+            resolveOutcomeReferences: async ({ projectCode, capabilityId }) => ({
+                project: { ref: projectCode, state: 'confirmed' },
+                capability: { ref: capabilityId, state: 'confirmed' }
+            }),
+            resolveClosureAuthority: async ({ projectCode }) => ({
+                state: 'confirmed', closure_authorized_person_ids: ['per_owner'],
+                provenance: { source: 'test_raci', project_code: projectCode }
+            })
+        });
+        const { app, authService } = createRegisteredApp(service);
+        await request(app).post('/api/outcome-cases').send(createPayload).expect(401);
+
+        const created = await request(app)
+            .post('/api/outcome-cases').set('Authorization', 'Bearer outcome-user').send(createPayload).expect(201);
+        await request(app)
+            .get(`/api/outcome-cases/${created.body.case_id}`).set('Authorization', 'Bearer outcome-user').expect(200);
+        const evaluated = await request(app)
+            .post(`/api/outcome-cases/${created.body.case_id}/evaluations`)
+            .set('Authorization', 'Bearer outcome-user')
+            .send({
+                technical_evidence: { status: 'confirmed', refs: ['test:registered-route'] },
+                run_receipt_refs: ['run-route-1'],
+                external_readback: { status: 'confirm', ref: 'external:route-1' },
+                constraints_status: 'satisfied', evaluator: 'self-declared-ignored',
+                observed_at: '2026-09-04T00:00:00.000Z'
+            }).expect(200);
+
+        expect(evaluated.body.closure_status).toBe('closed');
+        expect(authService.verifyToken).toHaveBeenCalledTimes(3);
     });
 
     it('keeps the live bootstrap path connected to the service, resolver, and registered API', async () => {

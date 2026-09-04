@@ -57,8 +57,9 @@ describe('OutcomeCasePostgresRepository', () => {
         expect(pool.query.mock.calls[0][0]).toContain('INSERT INTO outcome_cases');
         expect(pool.query.mock.calls[0][0]).toContain('evaluation_history');
         expect(pool.query.mock.calls[0][0]).toContain('reference_resolution');
-        expect(pool.query.mock.calls[1][0]).toContain('evaluation_history = $4::jsonb');
-        expect(pool.query.mock.calls[1][0]).toContain('WHERE case_id = $1 AND revision = $11');
+        expect(pool.query.mock.calls[1][0]).toContain('authority = $3::jsonb');
+        expect(pool.query.mock.calls[1][0]).toContain('evaluation_history = $5::jsonb');
+        expect(pool.query.mock.calls[1][0]).toContain('project_code = ANY($13::text[])');
         expect(pool.query.mock.calls[1][0]).not.toContain('user_observable_outcome =');
     });
 
@@ -69,5 +70,22 @@ describe('OutcomeCasePostgresRepository', () => {
 
         await expect(repository.update({ ...record, revision: 2 }, { expectedRevision: 1 }))
             .rejects.toMatchObject({ code: 'outcome_case_revision_conflict', status: 409 });
+    });
+
+    it('scopes reads and updates to the authenticated actor project set', async () => {
+        const pool = { query: vi.fn().mockResolvedValue({ rows: [record] }) };
+        const repository = new OutcomeCasePostgresRepository({ pool });
+
+        await repository.findByCaseId('oc_01', { projectCodes: ['brainbase'] });
+        await repository.update({ ...record, revision: 2 }, {
+            expectedRevision: 1,
+            actor: { projectCodes: ['brainbase'] }
+        });
+
+        expect(pool.query.mock.calls[0]).toEqual([
+            expect.stringContaining('project_code = ANY($2::text[])'),
+            ['oc_01', ['brainbase']]
+        ]);
+        expect(pool.query.mock.calls[1][1]).toEqual(expect.arrayContaining([['brainbase']]));
     });
 });

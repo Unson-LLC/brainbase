@@ -44,8 +44,12 @@ export class OutcomeCasePostgresRepository {
         }
     }
 
-    async findByCaseId(caseId) {
-        const result = await this.query('SELECT * FROM outcome_cases WHERE case_id = $1', [caseId]);
+    async findByCaseId(caseId, actor = {}) {
+        const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
+        const result = await this.query(
+            'SELECT * FROM outcome_cases WHERE case_id = $1 AND project_code = ANY($2::text[])',
+            [caseId, projectCodes]
+        );
         return normalizeRow(result.rows[0]);
     }
 
@@ -76,26 +80,28 @@ export class OutcomeCasePostgresRepository {
         return normalizeRow(result.rows[0]);
     }
 
-    async update(outcomeCase, { expectedRevision } = {}) {
+    async update(outcomeCase, { expectedRevision, actor = {} } = {}) {
+        const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
         const result = await this.query(`
             UPDATE outcome_cases
                SET run_receipt_refs = $2::jsonb,
-                   reference_resolution = $3::jsonb,
-                   evaluation_history = $4::jsonb,
-                   terminal_evaluation = $5::jsonb,
-                   closure_status = $6,
-                   current_external_state = $7,
-                   unresolved_failure_boundary = $8,
-                   revision = $9,
-                   updated_at = $10::timestamptz
-             WHERE case_id = $1 AND revision = $11
+                   authority = $3::jsonb,
+                   reference_resolution = $4::jsonb,
+                   evaluation_history = $5::jsonb,
+                   terminal_evaluation = $6::jsonb,
+                   closure_status = $7,
+                   current_external_state = $8,
+                   unresolved_failure_boundary = $9,
+                   revision = $10,
+                   updated_at = $11::timestamptz
+             WHERE case_id = $1 AND revision = $12 AND project_code = ANY($13::text[])
          RETURNING *
         `, [
-            outcomeCase.case_id, JSON.stringify(outcomeCase.run_receipt_refs),
+            outcomeCase.case_id, JSON.stringify(outcomeCase.run_receipt_refs), JSON.stringify(outcomeCase.authority),
             JSON.stringify(outcomeCase.reference_resolution), JSON.stringify(outcomeCase.evaluation_history),
             JSON.stringify(outcomeCase.terminal_evaluation), outcomeCase.closure_status,
             outcomeCase.current_external_state, outcomeCase.unresolved_failure_boundary,
-            outcomeCase.revision, outcomeCase.updated_at, expectedRevision
+            outcomeCase.revision, outcomeCase.updated_at, expectedRevision, projectCodes
         ]);
         if (!result.rows[0]) {
             const error = new Error('OutcomeCase was changed by another evaluation');
