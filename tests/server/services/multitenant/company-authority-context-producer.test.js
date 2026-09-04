@@ -158,6 +158,65 @@ describe('CompanyAuthorityContextProducer', () => {
         })).not.toThrow();
     });
 
+    it('rejects malformed payload resource before route lookup', async () => {
+        const { producer, routeRepository } = createProducer();
+        const resourceRef = `project:unson-backoffice#payload_sha256=sha256:${'a'.repeat(63)}`;
+
+        await expect(producer.resolve(observed({
+            requested_action: {
+                ...observed().requested_action,
+                resource_ref: resourceRef
+            }
+        }))).rejects.toMatchObject({
+            code: 'COMPANY_AUTHORITY_REQUEST_INVALID'
+        });
+        expect(routeRepository.resolveObservedRoute).not.toHaveBeenCalled();
+    });
+
+    it('keeps the original hash-bound resource in both signatures and rejects a changed hash', async () => {
+        const payloadHash = 'b'.repeat(64);
+        const input = observed({
+            requested_action: {
+                ...observed().requested_action,
+                resource_ref: `project:project-unson-backoffice#payload_sha256=sha256:${payloadHash}`,
+                project_hint: 'unson-backoffice'
+            }
+        });
+        const { producer, publicJwk } = createProducer();
+
+        const response = await producer.resolve(input);
+
+        expect(response.error).toBeNull();
+        expect(response.context.scope.resource_ref).toBe(input.requested_action.resource_ref);
+        expect(response.context.tenant_context.authorization.data_scopes).toContain(
+            `company_authority:resource:${input.requested_action.resource_ref}@12`
+        );
+        expect(() => acceptCompanyAuthorityResponse(response, {
+            expectedAudience: 'mana-runtime',
+            expectedDeploymentId: deploymentId,
+            now,
+            publicJwk,
+            request: input
+        })).not.toThrow();
+
+        const changedRequest = {
+            ...input,
+            requested_action: {
+                ...input.requested_action,
+                resource_ref: `project:project-unson-backoffice#payload_sha256=sha256:${'c'.repeat(64)}`
+            }
+        };
+        expect(() => acceptCompanyAuthorityResponse(response, {
+            expectedAudience: 'mana-runtime',
+            expectedDeploymentId: deploymentId,
+            now,
+            publicJwk,
+            request: changedRequest
+        })).toThrowError(expect.objectContaining({
+            code: 'AUTHORITY_SCOPE_MISMATCH'
+        }));
+    });
+
     it('rejects runtime-supplied authority before route lookup or any business effect', async () => {
         const { producer, routeRepository } = createProducer();
 

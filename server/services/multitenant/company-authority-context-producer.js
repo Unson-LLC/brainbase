@@ -6,6 +6,7 @@ import {
     validateCanonicalExecutionContext,
     validateObservedExecutionRequest
 } from '../../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
+import { parseCompanyAuthorityResourceRef } from './company-authority-resolver.js';
 import { generateCanonicalId } from './ids.js';
 
 const ERROR_MAP = Object.freeze({
@@ -86,6 +87,7 @@ export class CompanyAuthorityContextProducer {
 
     async resolve(input) {
         validateObservedExecutionRequest(input);
+        parseCompanyAuthorityResourceRef(input.requested_action.resource_ref);
         const correlationId = input.correlation_id;
         try {
             const route = await this.routeRepository.resolveObservedRoute(input);
