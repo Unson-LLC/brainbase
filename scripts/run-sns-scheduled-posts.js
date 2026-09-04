@@ -16,6 +16,7 @@ import {
 } from '../server/services/sns/sns-ledger-publish-service.js';
 import { SnsScheduledPublisher } from '../server/services/sns/sns-scheduled-publisher.js';
 import { createTenantRuntimeServicesFromEnv } from '../server/services/multitenant/tenant-runtime-services.js';
+import { throwRetiredSnsCli } from './lib/retired-sns-cli.js';
 
 const { Pool } = pg;
 
@@ -186,6 +187,7 @@ export async function runScheduledPosts({
 }
 
 export async function main() {
+    throwRetiredSnsCli('run-sns-scheduled-posts.js');
     const result = await runScheduledPosts();
     if (result.failed > 0) process.exitCode = 1;
     return result;

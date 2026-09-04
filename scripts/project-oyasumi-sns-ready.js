@@ -12,6 +12,7 @@ import {
 } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
 import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
 import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
+import { throwRetiredSnsCli } from './lib/retired-sns-cli.js';
 
 const { Pool } = pg;
 
@@ -117,6 +118,7 @@ function outputText({ date, coreCandidates, projected, writeSummary, write }) {
 }
 
 async function main() {
+    throwRetiredSnsCli('project-oyasumi-sns-ready.js');
     const args = parseArgs(process.argv.slice(2));
     const identity = personalKgIdentity(args);
     const config = databaseConfig();
