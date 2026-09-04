@@ -181,10 +181,35 @@ export function redactReceipt(response) {
     };
 }
 
+const RECEIPT_FIELDS = Object.freeze([
+    'request_id',
+    'organization_event_id',
+    'graph_entity_id',
+    'owner_consent_receipt_id',
+    'organization_review_receipt_id'
+]);
+
+function assertReceiptComplete(receipt, code) {
+    assert(
+        RECEIPT_FIELDS.every((field) => typeof receipt?.[field] === 'string' && receipt[field]),
+        code
+    );
+    return true;
+}
+
+export function assertReceiptMatchesDb(receipt, promotion) {
+    assertReceiptComplete(receipt, 'organization_receipt_incomplete');
+    const dbReceipt = redactReceipt(promotion);
+    assertReceiptComplete(dbReceipt, 'db_receipt_incomplete');
+    assert(equalStable(receipt, dbReceipt), 'organization_receipt_db_mismatch');
+    return dbReceipt;
+}
+
 function safeDbRow(row) {
     if (!row) return null;
     return {
         event_id: row.event_id ?? null,
+        request_id: row.request_id ?? null,
         body_hash: row.body_hash ?? null,
         body_present: Boolean(row.body_present),
         body_length: row.body_length === null || row.body_length === undefined ? null : Number(row.body_length),
@@ -208,7 +233,7 @@ function safeOrganizationEventRow(row) {
     };
 }
 
-async function readDbState(pool, { eventId, requestId, entityId, body }) {
+export async function readDbState(pool, { eventId, requestId, entityId, body }) {
     const [events, requests, lineage, authorities, organizationEvents, graphEdges] = await Promise.all([
         pool.query(`
           SELECT event_id, body_hash, body IS NOT NULL AS body_present, length(body) AS body_length
@@ -232,7 +257,7 @@ async function readDbState(pool, { eventId, requestId, entityId, body }) {
           SELECT event.event_id, event.semantic_state,
                  event.current_result->>'graph_entity_id' AS graph_entity_id,
                  position($2 in COALESCE(event.payload::text, '')) > 0 AS personal_body_found_in_payload
-          FROM knowledge_events event
+          FROM knowledge_event_current event
           JOIN knowledge_promotion_requests request
             ON request.organization_event_id = event.event_id
           WHERE request.request_id = $1`, [requestId, body]),
@@ -348,12 +373,29 @@ export function assertAcceptedState(state, parsed) {
     assert(state.db.event.body_present === true, 'db_event_missing_body');
     assert(state.db.promotion?.request_id === parsed.requestId, 'db_promotion_readback_mismatch');
     assert(state.db.promotion.status === 'org_accepted', 'db_promotion_not_accepted');
+    assert(state.db.promotion.personal_event_id === parsed.eventId, 'db_promotion_personal_event_mismatch');
     assert(state.db.promotion.graph_entity_id === parsed.entityId, 'db_graph_id_readback_mismatch');
+    assert(state.db.promotion.normalized_payload_hash === parsed.normalizedPayloadHash, 'db_normalized_payload_hash_mismatch');
+    assertReceiptComplete(redactReceipt(state.db.promotion), 'db_receipt_incomplete');
     assert(state.db.organization_event?.event_id === state.db.promotion.organization_event_id, 'db_organization_event_readback_mismatch');
     assert(state.db.organization_event.graph_entity_id === parsed.entityId, 'db_organization_event_graph_id_mismatch');
     assert(state.db.organization_event.personal_body_found_in_payload === false, 'personal_body_copied_to_organization_event');
     assert(state.db.lineage.length === 1, 'db_lineage_readback_mismatch');
-    assert(state.db.authority_uses.reduce((sum, row) => sum + row.count, 0) === 3, 'db_authority_use_count_mismatch');
+    const expectedAuthorityActions = ['request', 'owner_consent', 'organization_review'];
+    assert(
+        state.db.authority_uses.length === expectedAuthorityActions.length
+        && state.db.authority_uses.every((row) => expectedAuthorityActions.includes(row.action) && row.count === 1)
+        && new Set(state.db.authority_uses.map((row) => row.action)).size === expectedAuthorityActions.length,
+        'db_authority_use_count_mismatch'
+    );
+    const [lineage] = state.db.lineage;
+    assert(lineage.personal_event_id === parsed.eventId, 'db_lineage_personal_event_mismatch');
+    assert(lineage.organization_event_id === state.db.promotion.organization_event_id, 'db_lineage_organization_event_mismatch');
+    assert(lineage.promotion_request_id === parsed.requestId, 'db_lineage_promotion_request_mismatch');
+    assert(lineage.normalized_payload_hash === parsed.normalizedPayloadHash, 'db_lineage_normalized_hash_mismatch');
+    assert(lineage.owner_consent_receipt_id === state.db.promotion.owner_consent_receipt_id, 'db_lineage_owner_receipt_mismatch');
+    assert(lineage.organization_review_receipt_id === state.db.promotion.organization_review_receipt_id, 'db_lineage_organization_receipt_mismatch');
+    assert(lineage.graph_entity_id === parsed.entityId, 'db_lineage_graph_id_mismatch');
     assert(state.db.incident_graph_edge_count === parsed.normalizedPayload.edges.length, 'db_graph_edge_count_mismatch');
     assert(state.graph.length === 1 && state.graph[0].id === parsed.entityId, 'graph_readback_mismatch');
 }
@@ -445,6 +487,8 @@ export async function runSmoke({
         const firstReceipt = redactReceipt(organizationPayload);
         assert(firstReceipt.graph_entity_id === parsed.entityId, 'organization_receipt_graph_id_missing');
         assert(firstReceipt.organization_review_receipt_id, 'organization_receipt_missing');
+        assertReceiptComplete(firstReceipt, 'organization_receipt_incomplete');
+        assert(ownerPayload.owner_consent_receipt_id === firstReceipt.owner_consent_receipt_id, 'owner_consent_receipt_mismatch');
 
         const graphAfterFirstResponse = await requestJson(fetchImpl, baseUrl, {
             path: `/api/info/graph/entities?id=${encodeURIComponent(parsed.entityId)}&project=${encodeURIComponent(parsed.projectCode)}`,
@@ -452,10 +496,12 @@ export async function runSmoke({
         });
         expectStatus(graphAfterFirstResponse, 200, 'graph_after_read_failed');
         assertGraphBodyAbsent(graphAfterFirstResponse.payload, parsed.event.body);
+        const afterFirstDb = await readDbState(pool, { ...parsed, body: parsed.event.body });
+        const afterFirstReceipt = assertReceiptMatchesDb(firstReceipt, afterFirstDb.promotion);
         const afterFirst = projectBeforeAfter({
-            db: await readDbState(pool, { ...parsed, body: parsed.event.body }),
+            db: afterFirstDb,
             graph: safeGraphProjection(graphAfterFirstResponse.payload),
-            receipt: firstReceipt
+            receipt: afterFirstReceipt
         });
         assertAcceptedState(afterFirst, parsed);
 
@@ -473,10 +519,13 @@ export async function runSmoke({
         });
         expectStatus(graphAfterReplayResponse, 200, 'graph_replay_read_failed');
         assertGraphBodyAbsent(graphAfterReplayResponse.payload, parsed.event.body);
+        const replayDb = await readDbState(pool, { ...parsed, body: parsed.event.body });
+        const replayReceipt = redactReceipt(replayDb.promotion);
+        assertReceiptComplete(replayReceipt, 'db_receipt_incomplete');
         const replayState = projectBeforeAfter({
-            db: await readDbState(pool, { ...parsed, body: parsed.event.body }),
+            db: replayDb,
             graph: safeGraphProjection(graphAfterReplayResponse.payload),
-            receipt: firstReceipt
+            receipt: replayReceipt
         });
         assertAcceptedState(replayState, parsed);
         const dbMutationDiffZero = equalStable(afterFirst.db, replayState.db);
