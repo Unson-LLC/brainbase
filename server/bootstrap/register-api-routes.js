@@ -1,5 +1,4 @@
 import path from 'path';
-import { Pool } from 'pg';
 import { createConfigRouter, requireProjectProfileWriteRole } from '../routes/config.js';
 import { createScheduleRouter } from '../routes/schedule.js';
 import { createBrainbaseRouter } from '../routes/brainbase.js';
@@ -28,7 +27,6 @@ import { createSetupRouter } from '../routes/setup.js';
 import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
-import { createSnsGrowthRouter } from '../routes/sns-growth.js';
 import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
 import { createSlackInstallationControlPlaneRouter } from '../routes/slack-installation-control-plane.js';
 import { createProjectProvisioningRouter } from '../routes/project-provisioning.js';
@@ -50,24 +48,6 @@ import {
     createUnavailablePersonalKnowledgePromotionAuthorityGuard
 } from '../middleware/personal-knowledge-promotion-authority.js';
 import { AdminVisualizationService } from '../services/admin-visualization-service.js';
-import { AccountService } from '../services/account/account-service.js';
-import { PgAccountRepository } from '../services/account/account-repository.js';
-import {
-    JsonFileSnsPostingLedgerRepository,
-    PgSnsPostingLedgerRepository,
-    SnsPostingLedgerUnavailableRepository,
-    isSnsPostingLedgerJsonTestMode
-} from '../services/sns/posting-ledger-repository.js';
-import {
-    createSnsPostScriptExecutor,
-    SnsLedgerPublishService
-} from '../services/sns/sns-ledger-publish-service.js';
-import {
-    createPostingBridgeHealthCheck,
-    createSnsAccountHealthProvider
-} from '../services/sns/sns-posting-auth-health.js';
-import { XApiClient } from '../services/sns/providers/x-client.js';
-import { buildXProvider } from '../services/sns/providers/x-provider.js';
 import { ReplyDraftService } from '../services/companion/reply-draft-service.js';
 import { DecisionEventService } from '../services/companion/decision-event-service.js';
 import { KnowledgeResolutionService } from '../services/knowledge-resolution-service.js';
@@ -77,55 +57,9 @@ import {
     MeetingMinutesContextReceiptService
 } from '../services/meeting-minutes/context-receipt-service.js';
 
-export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
-    if (env.SNS_POSTING_LEDGER_DATABASE_URL) return env.SNS_POSTING_LEDGER_DATABASE_URL;
-    if (env.BRAINBASE_TEST_MODE === 'true') return '';
-    return env.INFO_SSOT_DATABASE_URL || env.INFO_SSOT_DB_URL || '';
-}
-
-export function createSnsPostingLedgerRepository(runtimePaths, { env = process.env } = {}) {
-    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl(env);
-    if (databaseUrl) {
-        return new PgSnsPostingLedgerRepository({
-            pool: new Pool({ connectionString: databaseUrl })
-        });
-    }
-    if (isSnsPostingLedgerJsonTestMode(env)) {
-        return new JsonFileSnsPostingLedgerRepository({
-            filePath: path.join(runtimePaths.varDir, 'sns-posting-ledger.json')
-        });
-    }
-    return new SnsPostingLedgerUnavailableRepository();
-}
-
 function createDecisionEventService(runtimePaths) {
     return new DecisionEventService({
         dataDir: path.join(runtimePaths.varDir, 'companion-decision-events')
-    });
-}
-
-function createSnsAccountService() {
-    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl();
-    if (databaseUrl) {
-        return new AccountService({
-            repository: new PgAccountRepository({
-                pool: new Pool({ connectionString: databaseUrl })
-            })
-        });
-    }
-    return new AccountService();
-}
-
-function createSnsAccountProvider() {
-    const xProvider = buildXProvider({
-        xClient: new XApiClient(),
-        oauthSecret: process.env.INTEGRATION_OAUTH_STATE_SECRET
-            || process.env.AUTH_SESSION_SECRET
-            || 'local-dev-oauth-state-secret'
-    });
-    return createSnsAccountHealthProvider({
-        xProvider,
-        postingBridgeHealthCheck: createPostingBridgeHealthCheck()
     });
 }
 
@@ -269,7 +203,6 @@ export function registerApiRoutes(app, {
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
     resolvePreProvisionedSlackConnection,
-    snsPostExecutor = null,
     env = process.env
 }) {
     const adminTenantGuard = tenantRuntimeServices
@@ -418,21 +351,11 @@ export function registerApiRoutes(app, {
                 : null
         }));
     }
-    const snsPostingLedgerRepository = createSnsPostingLedgerRepository(runtimePaths);
-    app.use(
-        '/api/sns-growth',
-        requireAuth(authService, { allowInsecureHeaders: false }),
-        adminTenantGuard,
-        createSnsGrowthRouter({
-            repository: snsPostingLedgerRepository,
-            publishService: new SnsLedgerPublishService({
-                ledgerRepository: snsPostingLedgerRepository,
-                postExecutor: snsPostExecutor || createSnsPostScriptExecutor()
-            }),
-            accountService: createSnsAccountService(),
-            accountProvider: createSnsAccountProvider()
-        })
-    );
+    app.use('/api/sns-growth', createRetiredCapabilityRouter({
+        capability: 'brainbase.sns-growth',
+        owner: 'Brainbase',
+        replacement: 'SNS運用は廃止済みです。既存台帳は保全しています。'
+    }));
     app.use('/api/wiki', createWikiRouter(wikiService));
     app.use('/api/usage', createUsageRouter(tokenUsageService));
     const workflowAuthGuard = requireAuth(authService);

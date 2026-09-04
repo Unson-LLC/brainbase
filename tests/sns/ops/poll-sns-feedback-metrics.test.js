@@ -87,7 +87,7 @@ describe('poll-sns-feedback-metrics', () => {
         });
     });
 
-    it('exits nonzero when metrics polling is disabled so oyasumi cannot treat it as success', async () => {
+    it('exits nonzero with the retirement code before reading configuration', async () => {
         await expect(execFileAsync('node', [
             'scripts/poll-sns-feedback-metrics.js',
             '--date', '2026-05-24',
@@ -102,11 +102,12 @@ describe('poll-sns-feedback-metrics', () => {
             }
         })).rejects.toMatchObject({
             code: 1,
-            stdout: expect.stringContaining('"reason": "metrics_polling_disabled"')
+            stdout: '',
+            stderr: expect.stringContaining('SNS_CLI_RETIRED')
         });
     });
 
-    it('fails closed for dry-run when the canonical actor is missing', async () => {
+    it('stays retired even when dry-run configuration is incomplete', async () => {
         await expect(execFileAsync('node', [
             'scripts/poll-sns-feedback-metrics.js',
             '--dry-run',
@@ -121,7 +122,8 @@ describe('poll-sns-feedback-metrics', () => {
             }
         })).rejects.toMatchObject({
             code: 1,
-            stderr: expect.stringContaining('SNS_ACTOR_PERSON_ID is required')
+            stdout: '',
+            stderr: expect.stringContaining('SNS_CLI_RETIRED')
         });
     });
 

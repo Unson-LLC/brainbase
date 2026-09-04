@@ -132,7 +132,6 @@ test('story-oyasumi-sns-feedback-metrics-gate ac:1 ac:2 ac:3 ac:4 CLI and Ledger
   expect(oyasumi).not.toContain('SNS_METRICS_POLLING_ENABLED');
   expect(oyasumi).toContain('外部サービスを直接巡回しない');
 
-  const launchdPlist = await fs.readFile('config/com.brainbase.sns-feedback-metrics-poller.plist', 'utf8');
-  expect(launchdPlist).toContain('--date "$(date +%F)"');
-  expect(launchdPlist).not.toContain('sns:poll-metrics -- --json');
+  await expect(fs.stat('config/com.brainbase.sns-feedback-metrics-poller.plist'))
+    .rejects.toMatchObject({ code: 'ENOENT' });
 });

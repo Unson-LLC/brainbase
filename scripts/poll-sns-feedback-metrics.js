@@ -14,6 +14,7 @@ import {
 import { requireSnsAuthority } from '../server/services/sns/sns-authority.js';
 import { SnsMetricsPoller } from '../server/services/sns/sns-metrics-poller.js';
 import { databaseConfig } from './migrate-m5a-production-schema.js';
+import { throwRetiredSnsCli } from './lib/retired-sns-cli.js';
 
 const { Pool } = pg;
 
@@ -125,6 +126,7 @@ function consoleAnomalyNotifier(info) {
 }
 
 async function main() {
+    throwRetiredSnsCli('poll-sns-feedback-metrics.js');
     const args = parseArgs(process.argv.slice(2));
     validateArgs(args);
     // Resolve authority even for dry-runs and disabled polling. A dry-run

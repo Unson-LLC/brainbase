@@ -1,11 +1,15 @@
 ---
 title: SNS Scheduled Publisher Runbook
-status: active
+status: retired
 date: 2026-05-14
 story_id: str.brainbase.sns-scheduled-publisher
 ---
 
 # SNS Scheduled Publisher Runbook
+
+## 廃止済み（2026-09-04）
+
+以下は履歴として残した旧運用手順です。コマンドの実行、台帳の補正、自動投稿の再有効化は行わないでください。現在の手順は [SNS廃止の配備・読戻し](retire-sns.md) を参照してください。既存台帳とログは保全します。
 
 ## 目的
 

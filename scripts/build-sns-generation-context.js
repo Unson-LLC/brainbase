@@ -12,6 +12,7 @@ import { PgSnsPostingLedgerRepository } from '../server/services/sns/posting-led
 import { databaseConfig } from './migrate-m5a-production-schema.js';
 import { resolveSnsRoot } from './workspace-paths.js';
 import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
+import { throwRetiredSnsCli } from './lib/retired-sns-cli.js';
 
 const { Pool } = pg;
 
@@ -116,6 +117,7 @@ async function buildEmptyDryRun(args) {
 }
 
 async function main() {
+    throwRetiredSnsCli('build-sns-generation-context.js');
     const args = parseArgs(process.argv.slice(2));
     const out = args.out || defaultOutForDate(args.date);
     const context = args.dryRun ? await buildEmptyDryRun(args) : await buildWithPg(args);

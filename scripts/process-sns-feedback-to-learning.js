@@ -14,6 +14,7 @@ import {
 import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
 import { databaseConfig } from './migrate-m5a-production-schema.js';
 import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
+import { throwRetiredSnsCli } from './lib/retired-sns-cli.js';
 
 const { Pool } = pg;
 
@@ -137,6 +138,7 @@ async function dryRunCandidates(repository, args, access) {
 }
 
 async function main() {
+    throwRetiredSnsCli('process-sns-feedback-to-learning.js');
     const args = parseArgs(process.argv.slice(2));
     validateArgs(args);
     const access = personalKgIdentity(args);

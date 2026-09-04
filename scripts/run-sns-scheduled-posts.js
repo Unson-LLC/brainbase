@@ -4,7 +4,6 @@ import process from 'node:process';
 import path from 'node:path';
 import pg from 'pg';
 
-import { databaseConfig } from './migrate-m5a-production-schema.js';
 import {
     JsonFileSnsPostingLedgerRepository,
     PgSnsPostingLedgerRepository,
@@ -16,6 +15,7 @@ import {
 } from '../server/services/sns/sns-ledger-publish-service.js';
 import { SnsScheduledPublisher } from '../server/services/sns/sns-scheduled-publisher.js';
 import { createTenantRuntimeServicesFromEnv } from '../server/services/multitenant/tenant-runtime-services.js';
+import { throwRetiredSnsCli } from './lib/retired-sns-cli.js';
 
 const { Pool } = pg;
 
@@ -135,10 +135,7 @@ export async function runScheduledPosts({
     validateArgs(args);
     const publisherActor = resolveSnsScheduledPublisherActor(env);
     const databaseUrl = resolveSnsPostingLedgerDatabaseUrl(env);
-    const pool = databaseUrl ? new PoolClass(databaseConfig({
-        ...env,
-        SNS_POSTING_LEDGER_DATABASE_URL: databaseUrl
-    })) : null;
+    const pool = databaseUrl ? new PoolClass({ connectionString: databaseUrl }) : null;
     try {
         if (!pool && !shouldUseJsonLedgerForTest(env)) {
             throw new Error('SNS Posting Ledger PostgreSQL URL is required outside explicit JSON test mode');
@@ -186,6 +183,7 @@ export async function runScheduledPosts({
 }
 
 export async function main() {
+    throwRetiredSnsCli('run-sns-scheduled-posts.js');
     const result = await runScheduledPosts();
     if (result.failed > 0) process.exitCode = 1;
     return result;
