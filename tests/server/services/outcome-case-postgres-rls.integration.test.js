@@ -1,9 +1,14 @@
 import express from 'express';
+import { execFile } from 'node:child_process';
 import { createHmac } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import pg from 'pg';
 import request from 'supertest';
+import { promisify } from 'node:util';
+import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createOutcomeCaseService } from '../../../server/bootstrap/core-services.js';
@@ -24,8 +29,17 @@ import { createVibeproHandoffRuntime } from '../../../server/services/outcome-ca
 // scripts/verify-outcome-case-postgres-rls-integration.sh.
 const databaseUrl = process.env.OUTCOME_CASE_DATABASE_URL || '';
 const describeWithPostgres = process.env.RUN_OUTCOME_CASE_DB_TESTS === '1' && databaseUrl ? describe : describe.skip;
+// This must name the read-only VibePro checkout's actual consumer module.
+// Without it, the cross-repository acceptance suite is explicitly skipped;
+// a supplied but invalid path fails during the test rather than falling back.
+const vibeproBindingModule = (process.env.VIBEPRO_OUTCOME_CASE_BINDING_MODULE || '').trim();
+const describeWithVibeproConsumer = vibeproBindingModule ? describeWithPostgres : describeWithPostgres.skip;
 const { Pool } = pg;
+const execFileAsync = promisify(execFile);
 const APP_PASSWORD = 'outcome-case-it';
+const VIBEPRO_STORY_ID = 'story-outcome-vibepro-producer-contract';
+const VIBEPRO_SIGNING_KEY = 'outcome-case-vibepro-e2e-signing-key-0123456789';
+const VIBEPRO_KEY_ID = 'outcome-case-vibepro-e2e-key';
 const projectActor = {
     personId: 'per_owner',
     projectCodes: ['brainbase'],
@@ -65,6 +79,62 @@ async function applySql(name) {
         await schemaPool.query(await readFile(path.resolve('server/sql', name), 'utf8'));
     } finally {
         await schemaPool.end();
+    }
+}
+
+async function writeJson(filePath, value) {
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+async function git(repoRoot, args) {
+    return execFileAsync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+}
+
+async function loadVibeproConsumer() {
+    const bindingModulePath = path.resolve(vibeproBindingModule);
+    const vibeproRoot = path.dirname(path.dirname(bindingModulePath));
+    const nativeImport = createRequire(import.meta.url)('./helpers/native-import.cjs');
+    const [integration, workspace, stories, prManager] = await Promise.all([
+        nativeImport(pathToFileURL(bindingModulePath).href),
+        nativeImport(pathToFileURL(path.join(vibeproRoot, 'src', 'workspace.js')).href),
+        nativeImport(pathToFileURL(path.join(vibeproRoot, 'src', 'story-manager.js')).href),
+        nativeImport(pathToFileURL(path.join(vibeproRoot, 'src', 'pr-manager.js')).href)
+    ]);
+    return { ...integration, ...workspace, ...stories, ...prManager };
+}
+
+async function createVibeproConsumerFixture(consumer) {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'brainbase-vibepro-e2e-'));
+    try {
+        await writeFile(path.join(root, 'index.js'), 'export const value = 1;\n');
+        await git(root, ['init']);
+        await git(root, ['config', 'user.name', 'Brainbase E2E Test']);
+        await git(root, ['config', 'user.email', 'brainbase-e2e@example.invalid']);
+        await git(root, ['remote', 'add', 'origin', 'https://github.com/Unson-LLC/example.git']);
+        await git(root, ['add', 'index.js']);
+        await git(root, ['commit', '-m', 'consumer fixture']);
+        const baseSha = (await git(root, ['rev-parse', 'HEAD'])).stdout.trim();
+        await consumer.initWorkspace(root);
+        await consumer.addStory(root, { story_id: VIBEPRO_STORY_ID, title: 'Brainbase adoption acceptance' });
+        const configPath = path.join(root, '.vibepro', 'config.json');
+        const config = JSON.parse(await readFile(configPath, 'utf8'));
+        config.brainbase = {
+            ...(config.brainbase ?? {}),
+            managed: true,
+            project_code: 'brainbase',
+            repository: 'github://Unson-LLC/example',
+            handoff_hmac_key_id: VIBEPRO_KEY_ID,
+            handoff_hmac_key_file: '.vibepro/integrations/brainbase/handoff-hmac.key'
+        };
+        await writeJson(configPath, config);
+        const keyPath = path.join(root, '.vibepro', 'integrations', 'brainbase', 'handoff-hmac.key');
+        await mkdir(path.dirname(keyPath), { recursive: true });
+        await writeFile(keyPath, VIBEPRO_SIGNING_KEY, { mode: 0o600 });
+        return { root, baseSha, config };
+    } catch (error) {
+        await rm(root, { recursive: true, force: true });
+        throw error;
     }
 }
 
@@ -479,6 +549,139 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         } finally {
             await pool.end();
         }
+    });
+
+    describeWithVibeproConsumer('authenticated adoption to VibePro consumer acceptance', () => {
+        it('persists an unmodified issued payload, binds its seven-field projection, and rejects a tampered fresh inbox', async () => {
+            const consumer = await loadVibeproConsumer();
+            const fixture = await createVibeproConsumerFixture(consumer);
+            try {
+                const info = new InfoSSOTService({ pool: appPool });
+                const rawRepository = new JudgmentReceiptPostgresRepository({ pool: appPool, infoSSOTService: info });
+                const created = await request(serviceFor(projectActor)).post('/api/outcome-cases').send({
+                    ...createPayload,
+                    run_receipt_refs: ['run-vibepro-e2e']
+                }).expect(201);
+                const resolutionId = `jr_vibepro_e2e_${Date.now()}`;
+                await rawRepository.record({
+                    resolution_id: resolutionId,
+                    turn_id: 'turn-vibepro-e2e',
+                    project_code: 'brainbase',
+                    status: 'resolved',
+                    personal_judgment: 'must not cross the adopted snapshot boundary'
+                }, projectActor);
+                await adminPool.query(`
+                    INSERT INTO ${schema}.vibepro_handoff_adoption_grants (organization_id, project_code, person_id)
+                    VALUES ('org_unson', 'brainbase', 'per_owner') ON CONFLICT DO NOTHING;
+                `);
+                const outcomeCaseService = new OutcomeCaseService({
+                    repository: new OutcomeCasePostgresRepository({ pool: appPool, infoSSOTService: info }),
+                    readRunReceipt: async () => null,
+                    resolveOutcomeReferences: async () => ({ project: { state: 'confirmed' }, capability: { state: 'confirmed' } }),
+                    resolveClosureAuthority: async () => ({ state: 'unresolved', reason: 'not-used-for-handoff' })
+                });
+                const before = await outcomeCaseService.read(created.body.case_id, projectActor);
+                const runtime = createVibeproHandoffRuntime({
+                    pool: appPool,
+                    infoSSOTService: info,
+                    outcomeCaseService,
+                    signingKey: VIBEPRO_SIGNING_KEY,
+                    keyId: VIBEPRO_KEY_ID,
+                    clock: () => new Date('2026-09-04T00:00:00.000Z')
+                });
+                const handoffApp = express();
+                handoffApp.use(express.json());
+                registerVibeproHandoffApiRoute(handoffApp, {
+                    authService: { verifyToken: () => ({ ...projectActor, sub: projectActor.personId }) },
+                    runtime
+                });
+                const adoptionInput = {
+                    caseId: created.body.case_id,
+                    resolutionId,
+                    expectedRevision: created.body.revision,
+                    target: {
+                        repository: 'https://github.com/Unson-LLC/example.git', repository_root: '.',
+                        base_sha: fixture.baseSha, story_id: VIBEPRO_STORY_ID
+                    },
+                    technicalAcceptance: [{ id: 'TA-vibepro-e2e', criterion: '保存済み採用snapshotをVibeProが読戻す' }],
+                    productionProbe: { id: 'probe-vibepro-e2e', procedure: 'VibePro保存投影を読戻す' }
+                };
+                await request(handoffApp)
+                    .post('/api/vibepro-handoffs/adoptions').set('Authorization', 'Bearer handoff-owner')
+                    .send(adoptionInput).expect(201);
+                const issued = await request(handoffApp)
+                    .post('/api/vibepro-handoffs/issue').set('Authorization', 'Bearer handoff-owner')
+                    .send({ caseId: created.body.case_id, resolutionId }).expect(200);
+                expect(issued.body).toMatchObject({
+                    schema_version: 'brainbase-vibepro-managed-handoff.v2',
+                    authorized: false,
+                    graph_promotion_allowed: false,
+                    resolution_id: resolutionId,
+                    turn_id: 'turn-vibepro-e2e',
+                    outcome_case: { case_id: created.body.case_id, judgment_receipt_ref: `brainbase://judgment-receipts/${resolutionId}` }
+                });
+                expect(Object.keys(issued.body.outcome_case).sort()).toEqual([
+                    'case_id', 'decision_digest', 'judgment_receipt_ref', 'outcome_case_ref',
+                    'production_probe', 'technical_acceptance', 'user_observable_outcome'
+                ]);
+
+                const inbox = '.vibepro/integrations/brainbase/inbox/handoff.json';
+                const tamperedInbox = '.vibepro/integrations/brainbase/inbox/tampered.json';
+                const configPath = path.join(fixture.root, '.vibepro', 'config.json');
+                const beforeConfig = await readFile(configPath, 'utf8');
+                await writeJson(path.join(fixture.root, tamperedInbox), {
+                    ...issued.body,
+                    outcome_case: { ...issued.body.outcome_case, user_observable_outcome: '署名後の改ざん' }
+                });
+                await expect(consumer.bindBrainbaseContext(fixture.root, {
+                    storyId: VIBEPRO_STORY_ID, input: tamperedInbox, config: fixture.config,
+                    now: () => new Date('2026-09-04T00:00:02.000Z')
+                })).rejects.toThrow(/digest|HMAC|signature/i);
+                expect(await readFile(configPath, 'utf8')).toBe(beforeConfig);
+                for (const artifact of [
+                    `.vibepro/integrations/brainbase/${VIBEPRO_STORY_ID}/context.json`,
+                    `.vibepro/integrations/brainbase/${VIBEPRO_STORY_ID}/bind-receipt.json`,
+                    '.vibepro/integrations/brainbase/handoff-consumption-ledger.json'
+                ]) await expect(readFile(path.join(fixture.root, artifact), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+
+                // Preserve the actual HTTP response bytes, without reconstructing fields.
+                await writeFile(path.join(fixture.root, inbox), issued.text);
+                expect(JSON.parse(await readFile(path.join(fixture.root, inbox), 'utf8'))).toEqual(issued.body);
+                const bound = await consumer.bindBrainbaseContext(fixture.root, {
+                    storyId: VIBEPRO_STORY_ID, input: inbox, config: fixture.config,
+                    now: () => new Date('2026-09-04T00:00:02.000Z')
+                });
+                expect(bound).toMatchObject({ status: 'bound', outcome_case: issued.body.outcome_case });
+                const context = JSON.parse(await readFile(path.join(fixture.root, bound.artifact), 'utf8'));
+                const bindReceipt = JSON.parse(await readFile(path.join(fixture.root, bound.bind_receipt_artifact), 'utf8'));
+                const ledger = JSON.parse(await readFile(path.join(fixture.root, bound.consumption_ledger_artifact), 'utf8'));
+                const storedConfig = JSON.parse(await readFile(configPath, 'utf8'));
+                const projectedStory = storedConfig.brainbase.stories.find((story) => story.story_id === VIBEPRO_STORY_ID);
+                expect(context.outcome_case).toEqual(issued.body.outcome_case);
+                expect(projectedStory.outcome_case).toEqual(issued.body.outcome_case);
+                expect(bindReceipt.managed_handoff).toEqual(issued.body);
+                expect(bindReceipt.receipt_digest).toBe(issued.body.receipt_digest);
+                expect(ledger.entries).toContainEqual(expect.objectContaining({
+                    story_id: VIBEPRO_STORY_ID, resolution_id: resolutionId, receipt_digest: issued.body.receipt_digest
+                }));
+                const inspection = await consumer.inspectManagedV2OutcomeCaseProjection(
+                    fixture.root, VIBEPRO_STORY_ID, projectedStory.outcome_case,
+                    { now: () => new Date('2026-09-04T00:00:02.000Z') }
+                );
+                expect(inspection.status).toBe('trusted');
+                expect(projectedStory.outcome_case).not.toHaveProperty('technical_complete');
+                // Source-checkout acceptance is not authority to produce a PR
+                // judgment. Exercise the real guard without changing runtime mode.
+                await expect(consumer.preparePullRequest(fixture.root, {
+                    storyId: VIBEPRO_STORY_ID, baseRef: 'HEAD', env: {},
+                    now: () => new Date('2026-09-04T00:00:02.000Z')
+                })).rejects.toMatchObject({ code: 'runtime_mismatch' });
+                expect(await outcomeCaseService.read(created.body.case_id, projectActor)).toEqual(before);
+                expect(before.closure_status).not.toBe('closed');
+            } finally {
+                await rm(fixture.root, { recursive: true, force: true });
+            }
+        });
     });
 
     it('permits scoped create/read/evaluate and rejects missing, cross-project, and cross-organization API access under FORCE RLS', async () => {
