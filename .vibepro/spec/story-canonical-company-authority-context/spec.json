@@ -194,7 +194,7 @@
         "test_refs": [
           {
             "file": "tests/server/services/multitenant/company-authority-context-producer.test.js",
-            "case": "rejects runtime authority self-assertion before route lookup"
+            "case": "rejects runtime-supplied authority before route lookup or any business effect"
           }
         ]
       },
@@ -202,7 +202,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/server/services/multitenant/company-authority-context-producer.test.js",
-            "must_cover": "before route lookup"
+            "must_cover": "before route lookup or any business effect"
           }
         ]
       },
@@ -248,7 +248,7 @@
         "test_refs": [
           {
             "file": "tests/server/services/multitenant/postgres-company-authority-repository.test.js",
-            "case": "resolves exact observed route arguments"
+            "case": "uses only observed identity and project hint to resolve one canonical route"
           }
         ]
       },
@@ -256,7 +256,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/server/services/multitenant/postgres-company-authority-repository.test.js",
-            "must_cover": "COMPANY_IDENTITY_AMBIGUOUS"
+            "must_cover": "uses only observed identity and project hint"
           }
         ]
       },
@@ -302,7 +302,7 @@
         "test_refs": [
           {
             "file": "tests/server/services/multitenant/company-authority-context-producer.test.js",
-            "case": "returns a verifiable nested and outer signature"
+            "case": "resolves the tenant internally and emits two verifiable, request-bound signatures"
           }
         ]
       },
@@ -348,11 +348,17 @@
         "test_refs": [
           {
             "file": "tests/server/services/multitenant/company-authority-context-producer.test.js",
-            "case": "returns a verifiable nested and outer signature"
+            "case": "resolves the tenant internally and emits two verifiable, request-bound signatures"
           }
         ]
       },
       "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/company-authority-context-producer.test.js",
+            "must_cover": "two verifiable, request-bound signatures"
+          }
+        ],
         "code_pattern": [
           {
             "file_glob": "server/services/multitenant/company-authority-context-producer.js",
@@ -394,11 +400,11 @@
         "test_refs": [
           {
             "file": "tests/server/routes/tenant-runtime-contract.test.js",
-            "case": "company authority"
+            "case": "A0: service auth後にcompany authority producerへ観測入力をそのまま渡す"
           },
           {
             "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
-            "case": "company-authority"
+            "case": "forwards the exact provider route to the configured Tunnel origin with Access service auth"
           }
         ]
       },
@@ -406,7 +412,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
-            "must_cover": "company-authority:resolve"
+            "must_cover": "company authority producer"
           }
         ]
       },
@@ -416,7 +422,7 @@
     {
       "id": "INV-003",
       "type": "invariant",
-      "statement": "company-authority-schema.v2 migrationはtenant production provisioningの前提列を適用前に確認し、実行主体が専用RLS-bypass roleでbrainbase_appを引受可能であることを検査する。transactionとadvisory lock内でRLS、force RLS、policy、限定route resolverのSECURITY DEFINER・固定設定・所有者RLS bypass・実行権限、ledger hashを適用・readbackする。dry-runはrollbackし、applyを明示actorへ束縛する。",
+      "statement": "company-authority-schema.v2 migrationはtenant production provisioningの前提列を適用前に確認し、実行主体が非superuserの専用RLS-bypass roleでbrainbase_appを引受可能であることを検査する。transactionとadvisory lock内でRLS、force RLS、policy、限定route resolverのSECURITY DEFINER・固定設定・非superuser所有者・RLS bypass・実行権限、ledger hashを適用・readbackする。dry-runはrollbackし、applyを明示actorへ束縛する。",
       "rationale": "schema適用と検証を分離せず、誤接続や部分適用を成功扱いしないため。",
       "origin": {
         "story_refs": [
@@ -441,8 +447,12 @@
             "anchor": "FORCE ROW LEVEL SECURITY"
           }
         ],
-        "test_refs": [
-          {
+      "test_refs": [
+        {
+          "file": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
+          "case": "rejects a superuser even when it can bypass RLS and assume the runtime role"
+        },
+        {
             "file": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
             "case": "rolls back dry-run and persists the exact schema only after approved apply"
           },
@@ -453,6 +463,12 @@
         ]
       },
       "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/company-authority-schema-migration.integration.test.js",
+            "must_cover": "rolls back dry-run and persists the exact schema"
+          }
+        ],
         "code_pattern": [
           {
             "file_glob": "scripts/migrate-company-authority-schema.js",

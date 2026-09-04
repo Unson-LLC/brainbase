@@ -14,6 +14,7 @@ const connectionB = 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAY';
 describe.sequential('company authority schema migration and restricted route resolver', () => {
     let container;
     let pool;
+    let migrationPool;
 
     beforeAll(async () => {
         container = await new PostgreSqlContainer('postgres:16-alpine').start();
@@ -76,21 +77,35 @@ describe.sequential('company authority schema migration and restricted route res
                 UNIQUE (tenant_id, connection_id)
             );
         `);
+        await pool.query(`
+            CREATE ROLE company_authority_migrator
+                LOGIN PASSWORD 'company-authority-migrator-test'
+                NOSUPERUSER BYPASSRLS;
+            GRANT brainbase_app TO company_authority_migrator;
+            GRANT USAGE, CREATE ON SCHEMA public TO company_authority_migrator;
+            GRANT SELECT, REFERENCES ON ALL TABLES IN SCHEMA public TO company_authority_migrator;
+            GRANT INSERT, UPDATE ON brainbase_schema_migrations TO company_authority_migrator;
+        `);
+        const migrationUrl = new URL(container.getConnectionUri());
+        migrationUrl.username = 'company_authority_migrator';
+        migrationUrl.password = 'company-authority-migrator-test';
+        migrationPool = new Pool({ connectionString: migrationUrl.toString() });
     }, 120_000);
 
     afterAll(async () => {
+        await migrationPool?.end();
         await pool?.end();
         await container?.stop();
     });
 
     it('fails before applying when the tenant production provisioning prerequisite is missing', async () => {
-        await expect(runCompanyAuthoritySchemaMigration({ argv: ['--dry-run'], pool }))
+        await expect(runCompanyAuthoritySchemaMigration({ argv: ['--dry-run'], pool: migrationPool }))
             .rejects.toMatchObject({ code: 'SCHEMA_PREREQUISITE_MISSING' });
         await pool.query('ALTER TABLE workspace_connections ADD COLUMN enterprise_id TEXT');
     });
 
     it('rolls back dry-run and persists the exact schema only after approved apply', async () => {
-        const dryRun = await runCompanyAuthoritySchemaMigration({ argv: ['--dry-run'], pool });
+        const dryRun = await runCompanyAuthoritySchemaMigration({ argv: ['--dry-run'], pool: migrationPool });
         expect(dryRun).toMatchObject({
             ok: true,
             mode: 'dry-run',
@@ -112,10 +127,10 @@ describe.sequential('company authority schema migration and restricted route res
         const applied = await runCompanyAuthoritySchemaMigration({
             argv: ['--apply', '--approve-apply'],
             env: { BRAINBASE_MIGRATION_ACTOR: 'integration-test' },
-            pool
+            pool: migrationPool
         });
         expect(applied).toMatchObject({ ok: true, mode: 'apply', persisted: true });
-        await expect(runCompanyAuthoritySchemaMigration({ argv: ['--check'], pool }))
+        await expect(runCompanyAuthoritySchemaMigration({ argv: ['--check'], pool: migrationPool }))
             .resolves.toMatchObject({ ok: true, mode: 'check', persisted: true });
     }, 120_000);
 
@@ -124,15 +139,20 @@ describe.sequential('company authority schema migration and restricted route res
             `ALTER FUNCTION public.resolve_company_authority_route(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT)
              SECURITY INVOKER`
         );
-        await expect(runCompanyAuthoritySchemaMigration({ argv: ['--check'], pool }))
+        await expect(runCompanyAuthoritySchemaMigration({ argv: ['--check'], pool: migrationPool }))
             .rejects.toMatchObject({ code: 'SCHEMA_READBACK_FAILED' });
 
         await runCompanyAuthoritySchemaMigration({
             argv: ['--apply', '--approve-apply'],
             env: { BRAINBASE_MIGRATION_ACTOR: 'integration-test-security-restore' },
-            pool
+            pool: migrationPool
         });
     }, 120_000);
+
+    it('rejects a superuser even when it can bypass RLS and assume the runtime role', async () => {
+        await expect(runCompanyAuthoritySchemaMigration({ argv: ['--check'], pool }))
+            .rejects.toMatchObject({ code: 'MIGRATION_OWNER_UNSAFE' });
+    });
 
     it('rejects a migration owner that cannot bypass RLS before applying DDL', async () => {
         await pool.query('CREATE ROLE unsafe_migration_actor NOLOGIN');
@@ -173,31 +193,15 @@ describe.sequential('company authority schema migration and restricted route res
             isolatedClient.release();
         }
 
-        await pool.query('CREATE ROLE company_authority_migrator NOLOGIN BYPASSRLS');
-        await pool.query('GRANT brainbase_app TO company_authority_migrator');
-        await pool.query('GRANT USAGE ON SCHEMA public TO company_authority_migrator');
-        await pool.query('GRANT SELECT ON ALL TABLES IN SCHEMA public TO company_authority_migrator');
-        const migratorClient = await pool.connect();
-        try {
-            await migratorClient.query('SET ROLE company_authority_migrator');
-            await expect(runCompanyAuthoritySchemaMigration({
-                argv: ['--check'],
-                pool: {
-                    connect: async () => ({
-                        query: (...args) => migratorClient.query(...args),
-                        release: () => {}
-                    })
-                }
-            })).resolves.toMatchObject({
-                ok: true,
-                mode: 'check',
-                migration_owner: 'company_authority_migrator',
-                readback: { runtime_role_smoke_verified: true }
-            });
-        } finally {
-            await migratorClient.query('RESET ROLE');
-            migratorClient.release();
-        }
+        await expect(runCompanyAuthoritySchemaMigration({
+            argv: ['--check'],
+            pool: migrationPool
+        })).resolves.toMatchObject({
+            ok: true,
+            mode: 'check',
+            migration_owner: 'company_authority_migrator',
+            readback: { runtime_role_smoke_verified: true }
+        });
     });
 
     it('resolves one hinted tenant, exposes ambiguity without a hint, and keeps tables private', async () => {

@@ -69,10 +69,10 @@ async function assertPrerequisites(client) {
 async function assertMigrationOwner(client) {
     const result = await client.query(
         `SELECT role.rolname AS owner_name,
-                (role.rolsuper OR role.rolbypassrls) AS owner_bypasses_rls,
+                role.rolsuper AS owner_is_superuser,
+                role.rolbypassrls AS owner_bypasses_rls,
                 app_role.oid IS NOT NULL AS app_role_exists,
-                CASE WHEN role.rolsuper THEN true
-                     WHEN app_role.oid IS NULL THEN false
+                CASE WHEN app_role.oid IS NULL THEN false
                      ELSE pg_has_role(role.oid, app_role.oid, 'MEMBER')
                  END AS owner_can_assume_app_role
            FROM pg_roles AS role
@@ -82,6 +82,7 @@ async function assertMigrationOwner(client) {
     const owner = result.rows[0];
     if (!owner?.owner_name
         || owner.owner_name === 'brainbase_app'
+        || owner.owner_is_superuser === true
         || owner.owner_bypasses_rls !== true
         || owner.app_role_exists !== true
         || owner.owner_can_assume_app_role !== true) {
@@ -155,7 +156,8 @@ async function readback(client, schemaHash) {
                 procedure.prosecdef,
                 procedure.proconfig,
                 owner.rolname AS owner_name,
-                (owner.rolsuper OR owner.rolbypassrls) AS owner_bypasses_rls,
+                owner.rolsuper AS owner_is_superuser,
+                owner.rolbypassrls AS owner_bypasses_rls,
                 app_role.oid IS NOT NULL AS app_role_exists,
                 CASE WHEN app_role.oid IS NULL THEN false
                      ELSE has_function_privilege(app_role.oid, procedure.oid, 'EXECUTE')
@@ -182,6 +184,7 @@ async function readback(client, schemaHash) {
         || route.prosecdef !== true
         || !settings.has('search_path=pg_catalog')
         || !settings.has('row_security=off')
+        || route.owner_is_superuser === true
         || route.owner_bypasses_rls !== true
         || route.owner_name === 'brainbase_app'
         || route.app_role_exists !== true

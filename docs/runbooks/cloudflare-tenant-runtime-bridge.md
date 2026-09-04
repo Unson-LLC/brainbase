@@ -142,7 +142,7 @@ GRANT SELECT, INSERT, UPDATE ON TABLE brainbase_schema_migrations
 TO company_authority_migrator;
 ```
 
-実際のrole名や権限管理方式は本番DBの既存migration契約へ合わせる。実行前に専用roleへ切り替え、`--dry-run`を成功させる。スクリプトは実行主体がsuperuserまたは`BYPASSRLS`であり、かつ`brainbase_app`へ`SET ROLE`できることをDDL前に検査する。`--apply`後は同じ接続主体で`--check`を行い、出力の`migration_owner`、`schema_sha256`、`route_function_security_verified`、`runtime_role_smoke_verified`、`ledger_matches`をrollout receiptへ保存する。いずれかがfalse／欠落なら本番経路を有効化しない。
+実際のrole名や権限管理方式は本番DBの既存migration契約へ合わせる。実行前に非superuserの専用roleへ切り替え、`--dry-run`を成功させる。スクリプトは実行主体が`NOSUPERUSER BYPASSRLS`であり、かつ`brainbase_app`へ`SET ROLE`できることをDDL前に検査する。superuser、`brainbase_app`自身、RLSを迂回できないrole、`brainbase_app`を引き受けられないroleは拒否する。`--apply`後は同じ接続主体で`--check`を行い、出力の`migration_owner`、`schema_sha256`、`route_function_security_verified`、`runtime_role_smoke_verified`、`ledger_matches`をrollout receiptへ保存する。いずれかがfalse／欠落なら本番経路を有効化しない。
 
 ### company authority schema適用後の復旧
 
