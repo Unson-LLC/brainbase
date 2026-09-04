@@ -213,7 +213,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
-      "last_revised_at": "2026-09-04T01:09:36.020Z"
+      "last_revised_at": "2026-09-04T02:54:26.071Z"
     },
     {
       "id": "C-002",
@@ -250,6 +250,18 @@
           {
             "file": "tests/server/routes/outcome-cases.test.js",
             "case": "wires the authenticated route actor into actual service-layer closure authority"
+          },
+          {
+            "file": "tests/server/services/outcome-case-service.test.js",
+            "case": "does not close when only technical evidence is unconfirmed/no_data"
+          },
+          {
+            "file": "tests/server/services/outcome-case-service.test.js",
+            "case": "does not close from technical evidence when receipt readback is unconfirmed"
+          },
+          {
+            "file": "tests/server/services/outcome-case-service.test.js",
+            "case": "keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
           }
         ]
       },
@@ -262,7 +274,15 @@
         ]
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
-      "last_revised_at": "2026-09-04T01:09:36.020Z"
+      "last_revised_at": "2026-09-04T02:54:26.071Z",
+      "regression_guard": "technical_evidence が unconfirmed/no_data、retained receipt が no_data、external_readback が no_data、constraints が unknown、または authoritative resolver/RACI が未確認なら closed を導出しない。C-002/C-003 の technical-evidence negative tests で固定する。",
+      "path_surface_coverage": [
+        "route/auth",
+        "service",
+        "resolver",
+        "InfoSSOT access context",
+        "unit/route/integration tests"
+      ]
     },
     {
       "id": "C-003",
@@ -291,11 +311,24 @@
           {
             "file": "tests/server/services/outcome-case-service.test.js",
             "case": "does not close from technical evidence when receipt readback is unconfirmed"
+          },
+          {
+            "file": "tests/server/services/outcome-case-service.test.js",
+            "case": "does not close when only technical evidence is unconfirmed/no_data"
+          },
+          {
+            "file": "tests/server/services/outcome-case-service.test.js",
+            "case": "keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
           }
         ]
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
-      "last_revised_at": "2026-09-04T01:09:36.020Z"
+      "last_revised_at": "2026-09-04T02:54:26.071Z",
+      "regression_guard": "technical_evidence が unconfirmed/no_data、receipt/external が no_data、または constraints が unknown を HTTP・テスト・保存・デプロイ成功と組み合わせても close の証拠に変換しない。C-002/C-003 の technical-evidence negative tests で固定する。",
+      "path_surface_coverage": [
+        "service",
+        "unit/route/integration tests"
+      ]
     },
     {
       "id": "C-004",
@@ -356,7 +389,18 @@
         ]
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
-      "last_revised_at": "2026-09-04T01:09:36.020Z"
+      "last_revised_at": "2026-09-04T02:54:26.071Z",
+      "regression_guard": "unknown/ambiguous tenant、cross-organization candidate、empty organization/project scope、または empty clearance は tenant access・authority escalation・closed を許可しない。",
+      "path_surface_coverage": [
+        "route/auth",
+        "canonical identity",
+        "repository",
+        "resolver",
+        "InfoSSOT access context",
+        "schema",
+        "RLS",
+        "unit/route/integration tests"
+      ]
     },
     {
       "id": "C-005",
@@ -405,7 +449,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T01:09:36.020Z",
-      "last_revised_at": "2026-09-04T01:09:36.020Z"
+      "last_revised_at": "2026-09-04T02:54:26.071Z"
     }
   ],
   "open_questions": [
@@ -414,6 +458,157 @@
       "question": "production migration and Graph entity lifecycle remain explicitly outside v1 local implementation evidence"
     }
   ],
-  "generated_at": "2026-09-04T01:09:36.017Z",
-  "previous_spec_id": ""
+  "regression_guard": {
+    "closure_prohibition_conditions": [
+      "technical_evidence.status が unconfirmed または no_data",
+      "保持済み RunReceipt readback が no_data",
+      "external_readback.status が no_data",
+      "constraints_status が unknown",
+      "canonical tenant が unknown または ambiguous",
+      "cross-organization candidate",
+      "organization/project scope が空",
+      "authenticated clearance が空"
+    ],
+    "enforcement": "上記のいずれかでは closed、tenant access、authority escalation を許可せず、incomplete/waiting_human または deny を維持する。",
+    "technical_evidence_negative_tests": {
+      "clauses": [
+        "C-002",
+        "C-003"
+      ],
+      "tests": [
+        "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is unconfirmed/no_data",
+        "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
+        "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
+      ]
+    }
+  },
+  "path_surface_coverage": [
+    {
+      "surface": "route/auth",
+      "implementation": [
+        "server/bootstrap/register-api-routes.js",
+        "server/middleware/auth.js",
+        "server/routes/outcome-cases.js"
+      ],
+      "tests": [
+        "tests/server/routes/outcome-cases.test.js"
+      ],
+      "clauses": [
+        "C-002",
+        "C-004"
+      ]
+    },
+    {
+      "surface": "canonical identity",
+      "implementation": [
+        "server/lib/canonical-tenant-identity.js"
+      ],
+      "tests": [
+        "tests/server/services/outcome-case-service.test.js"
+      ],
+      "clauses": [
+        "C-004"
+      ]
+    },
+    {
+      "surface": "service",
+      "implementation": [
+        "server/services/outcome-case/outcome-case-service.js"
+      ],
+      "tests": [
+        "tests/server/services/outcome-case-service.test.js"
+      ],
+      "clauses": [
+        "C-002",
+        "C-003",
+        "C-004"
+      ]
+    },
+    {
+      "surface": "repository",
+      "implementation": [
+        "server/services/outcome-case/outcome-case-postgres-repository.js"
+      ],
+      "tests": [
+        "tests/server/services/outcome-case-postgres-repository.test.js"
+      ],
+      "clauses": [
+        "C-001",
+        "C-004"
+      ]
+    },
+    {
+      "surface": "resolver",
+      "implementation": [
+        "server/services/outcome-case/outcome-case-reference-resolver.js"
+      ],
+      "tests": [
+        "tests/server/services/outcome-case-reference-resolver.test.js"
+      ],
+      "clauses": [
+        "C-002",
+        "C-004",
+        "C-005"
+      ]
+    },
+    {
+      "surface": "InfoSSOT access context",
+      "implementation": [
+        "server/services/info-ssot-service.js"
+      ],
+      "tests": [
+        "tests/server/services/info-ssot-service.test.js"
+      ],
+      "clauses": [
+        "C-004",
+        "C-005"
+      ]
+    },
+    {
+      "surface": "schema",
+      "implementation": [
+        "server/sql/outcome-case-schema.sql",
+        "server/sql/info-ssot-readback.sql"
+      ],
+      "tests": [
+        "tests/server/scripts/info-ssot-apply.test.js"
+      ],
+      "clauses": [
+        "C-001",
+        "C-005"
+      ]
+    },
+    {
+      "surface": "RLS",
+      "implementation": [
+        "server/sql/info-ssot-rls.sql",
+        "server/sql/info-ssot-negative-smoke.sql"
+      ],
+      "tests": [
+        "tests/server/services/outcome-case-postgres-rls.integration.test.js"
+      ],
+      "clauses": [
+        "C-004",
+        "C-005"
+      ]
+    },
+    {
+      "surface": "unit/route/integration tests",
+      "implementation": [
+        "tests/server/services/outcome-case-service.test.js",
+        "tests/server/routes/outcome-cases.test.js",
+        "tests/server/services/outcome-case-postgres-rls.integration.test.js"
+      ],
+      "tests": [
+        "technical-evidence negative tests explicitly cover C-002/C-003"
+      ],
+      "clauses": [
+        "C-002",
+        "C-003",
+        "C-004"
+      ]
+    }
+  ],
+  "generated_at": "2026-09-04T02:54:26.068Z",
+  "previous_spec_id": "2026-09-04T01:09:36.017Z"
 }

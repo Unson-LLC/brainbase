@@ -36,6 +36,57 @@
     "AC-004": ["unresolved/no_data close prohibition", "resolver exception regression", "cross-project RLS denial", "empty privileged scope rejection", "outcome-case-service.test.js", "outcome-case-postgres-rls.integration.test.js"],
     "AC-005": ["read-only resolver", "no Graph writes", "outcome-case-reference-resolver.test.js"]
   },
+  "regression_guard": {
+    "closure_must_remain_incomplete_or_waiting_human": [
+      "technical_evidence.status = unconfirmed または no_data",
+      "retained RunReceipt readback = no_data",
+      "external_readback.status = no_data",
+      "constraints_status = unknown",
+      "authoritative tenant = unknown または ambiguous",
+      "cross-organization candidate",
+      "organization/project scope = empty",
+      "authenticated clearance = empty"
+    ],
+    "C-002/C-003_technical_evidence_negative_tests": [
+      "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is unconfirmed/no_data",
+      "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
+      "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
+    ]
+  },
+  "path_surface_coverage": {
+    "route_auth": [
+      "server/bootstrap/register-api-routes.js",
+      "server/middleware/auth.js",
+      "server/routes/outcome-cases.js",
+      "tests/server/routes/outcome-cases.test.js"
+    ],
+    "canonical_identity": [
+      "server/lib/canonical-tenant-identity.js",
+      "tests/server/services/outcome-case-service.test.js"
+    ],
+    "outcome_case_control_plane": [
+      "server/services/outcome-case/outcome-case-service.js",
+      "server/services/outcome-case/outcome-case-postgres-repository.js",
+      "server/services/outcome-case/outcome-case-reference-resolver.js",
+      "tests/server/services/outcome-case-service.test.js",
+      "tests/server/services/outcome-case-postgres-repository.test.js",
+      "tests/server/services/outcome-case-reference-resolver.test.js"
+    ],
+    "info_ssot_access_context": [
+      "server/services/info-ssot-service.js",
+      "tests/server/services/info-ssot-service.test.js"
+    ],
+    "schema_rls": [
+      "server/sql/outcome-case-schema.sql",
+      "server/sql/info-ssot-rls.sql",
+      "tests/server/services/outcome-case-postgres-rls.integration.test.js"
+    ],
+    "C-002/C-003_technical_evidence_negative_tests": [
+      "tests/server/services/outcome-case-service.test.js: does not close when only technical evidence is unconfirmed/no_data",
+      "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
+      "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
+    ]
+  },
   "forbidden": [
     "RunReceipt v1 schema change",
     "KnowledgeEvent automatic promotion",

@@ -13,6 +13,7 @@
         "docs/management/tasks/story-outcome-case-v1.json",
         "docs/management/tasks/story-outcome-case-v1.authority.json",
         ".vibepro/spec/story-outcome-case-v1/spec.json",
+        ".vibepro/spec/story-outcome-case-v1/spec.history",
         ".vibepro/stories/story-outcome-case-v1/tasks/tasks.json",
         ".vibepro/stories/story-outcome-case-v1/tasks/tasks.md",
         "package.json",
@@ -47,7 +48,9 @@
         "AC-002: workflowAuthGuard 配下の create/read/evaluate と organization/project scoped Info SSOT RLS を既存適用経路へ接続する",
         "AC-003: 解決済み RACI authority と認証済み actor だけで閉鎖し、自己申告または空 clearance の格上げを認可根拠にしない",
         "AC-004: 参照・resolver・organization/project scope の不明または権限外では閉鎖しない",
-        "AC-005: read-only resolver を使い、Graph write・production migration・deploy を行わない"
+        "AC-005: read-only resolver を使い、Graph write・production migration・deploy を行わない",
+        "AC-006 regression_guard: technical_evidence が unconfirmed/no_data、保持 receipt が no_data、external_readback が no_data、constraints_status が unknown、tenant が unknown/ambiguous、organization をまたぐ candidate、organization/project scope が空、または clearance が空なら、closed・tenant access・authority escalation を許可しない。C-002/C-003 は technical-evidence negative tests で閉鎖禁止を回帰検証する",
+        "AC-007 path_surface_coverage: route/workflowAuthGuard、canonical tenant identity、OutcomeCase service/repository/reference resolver、InfoSSOTService.withAccessContext、schema/FORCE RLS、unit/route/integration tests を対応付け、C-002/C-003 の technical-evidence negative tests を明記する"
       ],
       "depends_on": [],
       "status": "completed"
