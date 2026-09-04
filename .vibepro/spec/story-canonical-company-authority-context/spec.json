@@ -207,7 +207,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T10:52:24.414Z"
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
     },
     {
       "id": "C-001",
@@ -261,7 +261,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T10:52:24.414Z"
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
     },
     {
       "id": "C-002",
@@ -315,7 +315,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T10:52:24.414Z"
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
     },
     {
       "id": "INV-002",
@@ -367,7 +367,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T10:52:24.414Z"
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
     },
     {
       "id": "C-003",
@@ -417,7 +417,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T10:52:24.414Z"
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
     },
     {
       "id": "C-004",
@@ -590,11 +590,11 @@
           },
           {
             "file": "tests/sns/personal-kg/personal-knowledge-graph-reader.test.js",
-            "case": "excludes a same-owner candidate from another organization"
+            "case": "S-2b: excludes a same-owner candidate from another organization"
           },
           {
             "file": "tests/sns/curator/invariants/inv-2-write-to-candidate-store.test.js",
-            "case": "writes owner, actor, and organization from explicit Personal KG identity"
+            "case": "INV-2: writes owner, actor, and organization from explicit Personal KG identity"
           },
           {
             "file": "tests/server/routes/companion-reply-draft.test.js",
@@ -614,7 +614,7 @@
           },
           {
             "file": "tests/e2e/story-personal-kg-review-projection-cli.spec.ts",
-            "case": "CLI dry-run review and projection contract"
+            "case": "story-personal-kg-review-projection ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 CLI dry-run review and projection contract"
           },
           {
             "file": "tests/unit/routine-runner-cycle-executor.test.js",
@@ -703,7 +703,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T10:52:24.414Z"
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
     },
     {
       "id": "C-005",
@@ -785,7 +785,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T10:52:24.414Z"
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
     },
     {
       "id": "C-006",
@@ -847,7 +847,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T10:52:24.414Z"
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
     },
     {
       "id": "INV-003",
@@ -907,7 +907,7 @@
         ]
       },
       "first_seen_at": "2026-09-04T03:00:18.877Z",
-      "last_revised_at": "2026-09-04T10:52:24.414Z"
+      "last_revised_at": "2026-09-04T11:07:11.208Z"
     }
   ],
   "open_questions": [
