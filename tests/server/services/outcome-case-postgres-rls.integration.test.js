@@ -332,6 +332,20 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
                 run_receipts: [{ ref: 'run-confirmed', evidence_state: 'confirmed' }]
             }
         });
+        const closedReadback = await request(app)
+            .get(`/api/outcome-cases/${confirmed.body.case_id}`)
+            .set('Authorization', 'Bearer outcome-user')
+            .expect(200);
+        expect(closedReadback.body).toMatchObject({
+            closure_status: 'closed',
+            terminal_evaluation: {
+                close_eligible: true,
+                run_receipts: [{ ref: 'run-confirmed', evidence_state: 'confirmed' }]
+            }
+        });
+        expect(closedReadback.body.evaluation_history[0].run_receipts).toEqual(
+            expect.arrayContaining([{ ref: 'run-confirmed', evidence_state: 'confirmed' }])
+        );
 
         const unconfirmed = await request(app)
             .post('/api/outcome-cases').set('Authorization', 'Bearer outcome-user')
@@ -355,6 +369,20 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         expect(incomplete.body.evaluation_history[0].run_receipts).toEqual(
             expect.arrayContaining([{ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' }])
         );
+        const incompleteReadback = await request(app)
+            .get(`/api/outcome-cases/${unconfirmed.body.case_id}`)
+            .set('Authorization', 'Bearer outcome-user')
+            .expect(200);
+        expect(incompleteReadback.body).toMatchObject({
+            closure_status: 'incomplete',
+            terminal_evaluation: {
+                close_eligible: false,
+                run_receipts: [{ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' }]
+            }
+        });
+        expect(incompleteReadback.body.evaluation_history[0].run_receipts).toEqual(
+            expect.arrayContaining([{ ref: 'run-unconfirmed', evidence_state: 'unconfirmed' }])
+        );
 
         const noData = await request(app)
             .post('/api/outcome-cases').set('Authorization', 'Bearer outcome-user')
@@ -376,6 +404,20 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
             }
         });
         expect(waiting.body.evaluation_history[0].run_receipts).toEqual(
+            expect.arrayContaining([{ ref: 'run-no-data', evidence_state: 'no_data' }])
+        );
+        const waitingReadback = await request(app)
+            .get(`/api/outcome-cases/${noData.body.case_id}`)
+            .set('Authorization', 'Bearer outcome-user')
+            .expect(200);
+        expect(waitingReadback.body).toMatchObject({
+            closure_status: 'waiting_human',
+            terminal_evaluation: {
+                close_eligible: false,
+                run_receipts: [{ ref: 'run-no-data', evidence_state: 'no_data' }]
+            }
+        });
+        expect(waitingReadback.body.evaluation_history[0].run_receipts).toEqual(
             expect.arrayContaining([{ ref: 'run-no-data', evidence_state: 'no_data' }])
         );
         expect(runReceiptQueryService.repository.getRun('run-confirmed')).toBeDefined();
