@@ -338,7 +338,8 @@ export function createCoreServices({
         : null;
     const externalRunnerIngestService = new ExternalRunnerIngestService({
         workflowRepository,
-        candidateRepository
+        candidateRepository,
+        companyAuthorityHumanApprovalService
     });
     const runReceiptIngestService = new RunReceiptIngestService({ workflowRepository });
     const routineReceiptPaths = resolveRoutineReceiptPaths({ repoDir: serverDir });
