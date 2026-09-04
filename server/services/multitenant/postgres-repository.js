@@ -357,6 +357,23 @@ export class MultitenantPostgresRepository {
         });
     }
 
+    async resolveProjectBindingById({ tenant_id: tenantId, project_id: projectId }) {
+        if (![tenantId, projectId].every((value) => typeof value === 'string' && value.length > 0)) {
+            throw new ContractError('PROJECT_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        return this.withTenant(tenantId, async (client) => {
+            const result = await client.query(
+                `SELECT tenant_id, project_id, project_code, project_payload
+                   FROM tenant_projects
+                  WHERE tenant_id = $1 AND project_id = $2
+                  LIMIT 1
+                  FOR SHARE`,
+                [tenantId, projectId]
+            );
+            return result.rows[0] ?? null;
+        });
+    }
+
     async resolveProjectBinding({ tenant_id: tenantId, project_ids: projectIds, project_code: projectCode }) {
         if (![tenantId, projectCode].every((value) => typeof value === 'string' && value.length > 0)
             || !Array.isArray(projectIds) || projectIds.length === 0

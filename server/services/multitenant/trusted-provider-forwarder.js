@@ -1,4 +1,9 @@
 import { ContractError } from './errors.js';
+import {
+    AUTHORITY_JUDGMENT_HOOK_OPERATION,
+    AUTHORITY_MCP_OPERATION,
+    injectAuthorityProject
+} from './authority-project-binding.js';
 
 const ENV_NAME = /^[A-Z][A-Z0-9_]*$/;
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
@@ -434,13 +439,24 @@ export function createTrustedHttpProviderForwarder({
         allowsBindingProviderMismatch(operation) {
             return operationAllowlist[operation]?.allow_binding_provider_mismatch === true;
         },
-        async forward({ credential, operation, request }) {
+        async forward({ credential, operation, request, binding }) {
             const definition = operationAllowlist[operation];
             if (!definition) failScope('provider_operation_not_allowed', {
                 provider,
                 provider_operation: operation
             });
             assertTrustedProviderForwardRequest(request);
+            if (operation === AUTHORITY_JUDGMENT_HOOK_OPERATION) {
+                throw new ContractError('COMPANY_AUTHORITY_HOOK_SCOPE_UNAVAILABLE', {
+                    status: 503,
+                    retryable: false,
+                    fault_domain: 'customer_environment',
+                    details: { required_action: 'session_turn_binding_required' }
+                });
+            }
+            const forwardedRequest = operation === AUTHORITY_MCP_OPERATION
+                ? injectAuthorityProject(request, binding?.authority_project_binding)
+                : request;
             if ((!Buffer.isBuffer(credential) || credential.length === 0)
                 && definition.credential_placement !== 'none') {
                 failScope('credential_material_empty', {
@@ -448,11 +464,11 @@ export function createTrustedHttpProviderForwarder({
                     provider_operation: operation
                 });
             }
-            const body = encodeRequestBody(request.body, definition);
+            const body = encodeRequestBody(forwardedRequest.body, definition);
             const targetUrl = buildTargetUrl({
                 baseUrl: trustedBaseUrl,
                 operation: definition,
-                request,
+                request: forwardedRequest,
                 credential,
                 allowInsecureLocalhost
             });
@@ -460,8 +476,8 @@ export function createTrustedHttpProviderForwarder({
                 ...definition.fixed_headers,
                 'brainbase-provider-operation': operation
             };
-            if (request.idempotency_key !== undefined) {
-                headers['Idempotency-Key'] = request.idempotency_key;
+            if (forwardedRequest.idempotency_key !== undefined) {
+                headers['Idempotency-Key'] = forwardedRequest.idempotency_key;
             }
             const additionalCredentialEncodings = [];
             if (definition.service_bearer) {

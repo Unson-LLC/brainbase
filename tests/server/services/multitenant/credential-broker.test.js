@@ -183,6 +183,132 @@ describe('CredentialBroker PostgreSQL ownership', () => {
         expect(JSON.stringify(result)).not.toContain(credentialMaterial.toString('base64'));
     });
 
+    it('authority MCPはcanonical project bindingをtrusted forwarderへimmutableに渡す', async () => {
+        const operationId = 'op_01ARZ3NDEKTSV4RRFFQ69G5FB3';
+        const projectBinding = Object.freeze({ project_id: 'project_unson', project_code: 'unson' });
+        const repository = {
+            issueCredentialLease: vi.fn(async () => undefined),
+            resolveProjectBindingById: vi.fn(async ({ tenant_id, project_id }) => ({
+                tenant_id,
+                project_id,
+                project_code: 'unson',
+                project_payload: { status: 'active' }
+            })),
+            consumeCredentialLease: vi.fn(async () => ({
+                ...binding,
+                operation_id: operationId,
+                audience: 'bb.unson.jp',
+                provider: 'slack'
+            }))
+        };
+        const forward = vi.fn(async ({ binding: forwardedBinding }) => {
+            expect(Object.isFrozen(forwardedBinding)).toBe(true);
+            expect(Object.isFrozen(forwardedBinding.authority_project_binding)).toBe(true);
+            expect(forwardedBinding.authority_project_binding).toEqual(projectBinding);
+            return {
+                status: 200,
+                response_encoding: 'json',
+                content_type: 'application/json',
+                body: { ok: true }
+            };
+        });
+        const broker = new CredentialBroker({
+            repository,
+            providerForwarders: {
+                'bb.unson.jp': {
+                    provider: 'brainbase',
+                    requiresCredential: () => false,
+                    allowsBindingProviderMismatch: () => true,
+                    forward
+                }
+            }
+        });
+        broker.register({ ...binding, provider: 'slack' });
+        const lease = await broker.issueLease(leaseRequest({
+            binding: { operation_id: operationId, audience: 'bb.unson.jp' }
+        }));
+
+        await expect(broker.forwardProviderRequest({
+            ...lease.binding,
+            lease_id: lease.lease_id,
+            lease_token: lease.lease_token,
+            provider_operation: 'brainbase.authority_mcp.post',
+            authority_project_binding: projectBinding,
+            request: { body: { project_id: 'caller-project', project_code: 'caller-code' } }
+        })).resolves.toMatchObject({ provider: 'brainbase', status: 200 });
+        expect(forward).toHaveBeenCalledOnce();
+        expect(repository.resolveProjectBindingById).toHaveBeenCalledWith({
+            tenant_id: binding.tenant_id,
+            project_id: projectBinding.project_id
+        });
+    });
+
+    it.each([
+        ['resolver unavailable', null, 'unson'],
+        ['cross-tenant project', {
+            tenant_id: 'ten_other', project_id: 'project_unson', project_code: 'unson',
+            project_payload: { status: 'active' }
+        }, 'unson'],
+        ['project code mismatch', {
+            tenant_id: binding.tenant_id, project_id: 'project_unson', project_code: 'other',
+            project_payload: { status: 'active' }
+        }, 'unson'],
+        ['project without active status', {
+            tenant_id: binding.tenant_id, project_id: 'project_unson', project_code: 'unson',
+            project_payload: {}
+        }, 'unson']
+    ])('authority MCPは%sをlease消費前に拒否する', async (_name, canonicalProject, claimedCode) => {
+        const consumeCredentialLease = vi.fn();
+        const forward = vi.fn();
+        const repository = canonicalProject === null
+            ? { consumeCredentialLease }
+            : {
+                consumeCredentialLease,
+                resolveProjectBindingById: vi.fn(async () => canonicalProject)
+            };
+        const broker = new CredentialBroker({
+            repository,
+            providerForwarders: { 'bb.unson.jp': { provider: 'brainbase', forward } }
+        });
+
+        await expectContractErrorAsync(() => broker.forwardProviderRequest({
+            ...binding,
+            operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FD0',
+            audience: 'bb.unson.jp',
+            lease_id: 'lease_01ARZ3NDEKTSV4RRFFQ69G5FD1',
+            lease_token: 'opaque-test-capability',
+            provider_operation: 'brainbase.authority_mcp.post',
+            authority_project_binding: { project_id: 'project_unson', project_code: claimedCode },
+            request: { body: {} }
+        }), { code: 'CREDENTIAL_LEASE_SCOPE_MISMATCH', status: 403 });
+        expect(consumeCredentialLease).not.toHaveBeenCalled();
+        expect(forward).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['brainbase.authority_mcp.post', 'CREDENTIAL_LEASE_SCOPE_MISMATCH', 403],
+        ['brainbase.authority_judgment_hook.post', 'COMPANY_AUTHORITY_HOOK_SCOPE_UNAVAILABLE', 503]
+    ])('authority operation %sはcanonical project bindingなしでlease消費前にfail-closedする', async (providerOperation, code, status) => {
+        const repository = { consumeCredentialLease: vi.fn() };
+        const forward = vi.fn();
+        const broker = new CredentialBroker({
+            repository,
+            providerForwarders: { 'bb.unson.jp': { provider: 'brainbase', forward } }
+        });
+
+        await expectContractErrorAsync(() => broker.forwardProviderRequest({
+            ...binding,
+            operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FB4',
+            audience: 'bb.unson.jp',
+            lease_id: 'lease_01ARZ3NDEKTSV4RRFFQ69G5FB5',
+            lease_token: 'opaque-test-capability',
+            provider_operation: providerOperation,
+            request: { body: {} }
+        }), { code, status });
+        expect(repository.consumeCredentialLease).not.toHaveBeenCalled();
+        expect(forward).not.toHaveBeenCalled();
+    });
+
     it('明示許可されたcredentialless operationだけproviderが異なるleaseでもempty credentialでforwardする', async () => {
         const materialize = vi.fn(async () => Buffer.from('should-not-materialize'));
         const forward = vi.fn(async ({ credential }) => {
