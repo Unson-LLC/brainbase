@@ -20,12 +20,13 @@ Brainbase利用者として、新しく開始したCodexタスクでもBrainbase
 - [ ] AC-006: PR前受入はunitとHost entrypoint integrationの同一HEAD証拠で判定する。Story全体と本番releaseは、merge後のtarget SHAを4面へ反映したfresh Codex taskの同一run証拠が揃うまで完了としない。
 - [ ] AC-007: 差し戻し済みruntime 2.4 continuationは、将来のStop有無を予測せず、最後の正常な`completed` state PostToolUseを正規の確定境界としてcomplete finalとowner向け判断レシートを確定する。人間確認の`waiting_human`と差し戻しのない通常turnはこの経路で確定しない。
 - [ ] AC-008: Desktopの`thread_items`を同一session_id、turn_id、tool_use_idで照合し、完了済み`fileChange`の成果物と単一`read`の正本読戻しだけをvalue proof証拠へ結合する。
+- [ ] AC-009: 必須value proofより先に`completed` state PostToolUseが来た場合は、そのPostToolUse自身が`decision:block`を返してfinalを作らず、value proofと新しい最後のstate PostToolUseが揃った後だけ判断レシートを確定する。block理由を単なる`systemMessage`へ弱めない。
 
 ## 制約
 
 Codex App本体はこのリポジトリの変更対象外であり、委任turnのmodel生成前に`UserPromptSubmit`を追加できない。そのため本StoryではStop hookを最初の強制境界として使い、初回の不要確認をユーザーへ確定表示する前に差し戻す。復元routeは差し戻し以降だけを支配し、すでに生成された初回回答を事前に導いたとは主張しない。通常のuser turnや復元不能な孤児Stopを成功へ丸めない。
 
-差し戻し済みruntime 2.4 continuationでは、最後の正常な`completed` state PostToolUseだけを確定境界として使用する。Hostは未来のStop欠落を判定しない。後続Stopが届いてもimmutable finalのreplayとして扱う。
+差し戻し済みruntime 2.4 continuationでは、必須value proofを含む契約が揃った後の最後の正常な`completed` state PostToolUseだけを確定境界として使用する。証拠不足のstate PostToolUseは`decision:block`を保ったまま返す。Hostは未来のStop欠落を判定しない。後続Stopが届いてもimmutable finalのreplayとして扱う。
 
 ## 対象外
 

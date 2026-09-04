@@ -25,6 +25,8 @@ description: Brainbase管理対象turnを1つのjudgment episodeとして扱い�
 10. Initial/final receiptは判断経路と完了状態の証拠であり、write/external actionのauthorizationではない。Stopのautonomy検査は不要な質問停止を防ぐ会話継続境界に限り、通常のplatform permission・approval・executor authorizationを置き換えない。
 11. Hostが作ったowner向け`🧠 判断参照:`行と各Brainbase callの`📚`/`⚠️`行は、契約で定めた完了lifecycle eventが自分の`systemMessage`として完全な監査ブロックを一度だけ出す（モデルの回答本文には依存しない）。通常経路は`Stop`、差し戻し済みruntime 2.4 continuationは最後の正常な`completed` state `PostToolUse`を使い、後続Stopはimmutable finalを再生するだけとする。参照必須でなく実際のBrainbase callが0件なら、`📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`を含める。不要質問を実際に差し戻したturnだけ、途中に短い`🔁`進捗を表示し、成功後の最終監査へjournal由来の`🔁`完了行を追加する。実行していない参照・検索・取得・差し戻し・修復の行は含めない。
 
+差し戻し済みruntime 2.4 continuationで必須value proofより先に`completed` state PostToolUseが来た場合、そのPostToolUseは`decision:block`を弱めずに返してfinalを作らない。value proofと新しい最後のstateが揃った後だけ判断レシートを確定する。
+
 ## Activation readiness
 
 - Hookファイル、`hooks.json`、`config.toml`のtrust sectionが存在するだけではactiveの証明にならない。`npm run check:judgment-hook-readiness -- --cwd <canonical-checkout>`でCodex Hostの`hooks/list`を照会し、3つのHookが`ready_for_fresh_task`であることを確認する。
