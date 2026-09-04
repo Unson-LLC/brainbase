@@ -185,6 +185,7 @@ function safeDbRow(row) {
     if (!row) return null;
     return {
         event_id: row.event_id ?? null,
+        request_id: row.request_id ?? null,
         body_hash: row.body_hash ?? null,
         body_present: Boolean(row.body_present),
         body_length: row.body_length === null || row.body_length === undefined ? null : Number(row.body_length),
@@ -208,7 +209,7 @@ function safeOrganizationEventRow(row) {
     };
 }
 
-async function readDbState(pool, { eventId, requestId, entityId, body }) {
+export async function readDbState(pool, { eventId, requestId, entityId, body }) {
     const [events, requests, lineage, authorities, organizationEvents, graphEdges] = await Promise.all([
         pool.query(`
           SELECT event_id, body_hash, body IS NOT NULL AS body_present, length(body) AS body_length
@@ -232,7 +233,7 @@ async function readDbState(pool, { eventId, requestId, entityId, body }) {
           SELECT event.event_id, event.semantic_state,
                  event.current_result->>'graph_entity_id' AS graph_entity_id,
                  position($2 in COALESCE(event.payload::text, '')) > 0 AS personal_body_found_in_payload
-          FROM knowledge_events event
+          FROM knowledge_event_current event
           JOIN knowledge_promotion_requests request
             ON request.organization_event_id = event.event_id
           WHERE request.request_id = $1`, [requestId, body]),

@@ -6,7 +6,8 @@ import {
     assertSafeOrganizationResponse,
     assertGraphBodyAbsent,
     parseSmokeFixture,
-    redactReceipt
+    redactReceipt,
+    readDbState
 } from '../../../scripts/personal-knowledge-promotion-production-smoke.mjs';
 
 function signedContext(action, resourceRef, requestId = null, normalizedPayloadHash = null) {
@@ -58,6 +59,84 @@ function fixture() {
         owner: { signed_context: signedContext('owner_consent', `personal-knowledge://promotions/${requestId}`, requestId, normalizedPayloadHash) },
         organization: { signed_context: signedContext('organization_review', `personal-knowledge://promotions/${requestId}`, requestId, normalizedPayloadHash) }
     };
+}
+
+const READBACK = {
+    eventId: 'pke_smoke_readback',
+    requestId: 'kpr_smoke_readback',
+    entityId: 'smoke_readback',
+    organizationEventId: 'kev_smoke_readback',
+    body: 'synthetic production smoke readback'
+};
+
+function fakeReadbackPool(promotionRequestId = READBACK.requestId) {
+    return {
+        async query(sql) {
+            if (sql.includes('FROM personal_knowledge_events')) {
+                return {
+                    rows: [{
+                        event_id: READBACK.eventId,
+                        body_hash: 'sha256:synthetic',
+                        body_present: true,
+                        body_length: READBACK.body.length
+                    }]
+                };
+            }
+            if (sql.includes('FROM knowledge_event_current event')) {
+                return {
+                    rows: [{
+                        event_id: READBACK.organizationEventId,
+                        semantic_state: 'active',
+                        graph_entity_id: READBACK.entityId,
+                        personal_body_found_in_payload: false
+                    }]
+                };
+            }
+            if (sql.includes('FROM knowledge_promotion_lineage')) {
+                return {
+                    rows: [{
+                        lineage_id: 'lineage_smoke_readback',
+                        personal_event_id: READBACK.eventId,
+                        organization_event_id: READBACK.organizationEventId,
+                        promotion_request_id: READBACK.requestId,
+                        normalized_payload_hash: 'sha256:normalized',
+                        owner_consent_receipt_id: 'pkoc_smoke_readback',
+                        organization_review_receipt_id: 'pkor_smoke_readback',
+                        graph_entity_id: READBACK.entityId
+                    }]
+                };
+            }
+            if (sql.includes('FROM knowledge_promotion_authority_uses')) {
+                return { rows: [{ action: 'request', count: '1' }, { action: 'owner_consent', count: '1' }, { action: 'organization_review', count: '1' }] };
+            }
+            if (sql.includes('FROM graph_edges')) return { rows: [{ count: '0' }] };
+            if (sql.includes('FROM knowledge_promotion_requests')) {
+                return {
+                    rows: [{
+                        request_id: promotionRequestId,
+                        personal_event_id: READBACK.eventId,
+                        organization_event_id: READBACK.organizationEventId,
+                        graph_entity_id: READBACK.entityId,
+                        status: 'org_accepted',
+                        normalized_payload_hash: 'sha256:normalized',
+                        owner_consent_receipt_id: 'pkoc_smoke_readback',
+                        organization_review_receipt_id: 'pkor_smoke_readback'
+                    }]
+                };
+            }
+            throw new Error(`unexpected SQL: ${sql}`);
+        }
+    };
+}
+
+async function readbackState(promotionRequestId = READBACK.requestId) {
+    const db = await readDbState(fakeReadbackPool(promotionRequestId), {
+        eventId: READBACK.eventId,
+        requestId: READBACK.requestId,
+        entityId: READBACK.entityId,
+        body: READBACK.body
+    });
+    return { db, graph: [{ id: READBACK.entityId }], receipt: {} };
 }
 
 describe('Personal KG production smoke evidence helpers', () => {
@@ -122,5 +201,26 @@ describe('Personal KG production smoke evidence helpers', () => {
         expect(() => assertAcceptedState(state, parsed)).toThrowError('db_graph_edge_count_mismatch');
         state.db.incident_graph_edge_count = 0;
         expect(() => assertAcceptedState(state, parsed)).not.toThrow();
+    });
+
+    it('maps the production promotion request id through DB readback and rejects missing or mismatched ids', async () => {
+        const parsed = {
+            eventId: READBACK.eventId,
+            requestId: READBACK.requestId,
+            entityId: READBACK.entityId,
+            normalizedPayload: { edges: [] }
+        };
+        const state = await readbackState();
+
+        expect(state.db.promotion).toMatchObject({ request_id: READBACK.requestId });
+        expect(state.db.event).not.toHaveProperty('body');
+        expect(state.db.organization_event.personal_body_found_in_payload).toBe(false);
+        expect(() => assertAcceptedState(state, parsed)).not.toThrow();
+
+        for (const promotionRequestId of [null, 'kpr_other_readback']) {
+            const invalidState = await readbackState(promotionRequestId);
+            expect(() => assertAcceptedState(invalidState, parsed))
+                .toThrowError('db_promotion_readback_mismatch');
+        }
     });
 });
