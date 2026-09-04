@@ -82,6 +82,7 @@ const taskApiToken = process.env.BRAINBASE_TASK_API_TOKEN;
 // Global refs for wiki API calls
 let wikiApiBaseUrl: string;
 let globalTokenManager: TokenManager;
+let globalOwnerTokenManager: TokenManager;
 let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
 let configuredProjectCodes: string[] | undefined;
@@ -94,7 +95,7 @@ function createDefaultJudgmentResolutionDependencies(): JudgmentResolutionDispat
   return {
     apiUrl: resolveBrainbaseApiUrl(),
     configuredProjectCodes,
-    tokenManager: globalTokenManager,
+    tokenManager: globalOwnerTokenManager,
     bindingSecret: process.env.BRAINBASE_JUDGMENT_BINDING_SECRET || '',
     adapterId: process.env.BRAINBASE_JUDGMENT_ADAPTER_ID || 'brainbase-mcp',
     adapterVersion: process.env.BRAINBASE_JUDGMENT_ADAPTER_VERSION || '1',
@@ -512,7 +513,7 @@ async function fetchPersonalKgSearch(
   query: string,
   options: { cognitiveType?: string; limit?: number } = {}
 ): Promise<PersonalKgHit[]> {
-  const token = await globalTokenManager.getToken();
+  const token = await globalOwnerTokenManager.getToken();
   const url = new URL('/api/learning/memory-candidates/search', wikiApiBaseUrl);
   url.searchParams.set('q', query);
   if (options.cognitiveType) url.searchParams.set('cognitive_type', options.cognitiveType);
@@ -969,7 +970,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         : undefined;
       const needsAuthenticatedOwner = containsFirstPersonReference(query);
       const token = needsAuthenticatedOwner
-        ? await globalTokenManager?.getToken()
+        ? await globalOwnerTokenManager?.getToken()
         : undefined;
       const result = resolveEntities(entityIndex, {
         query,
@@ -1023,7 +1024,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         : '';
       let ownerName = '認証済みの本人';
       if (requestedPersonId) {
-        const token = await globalTokenManager.getToken();
+        const token = await globalOwnerTokenManager.getToken();
         const authenticatedId = authenticatedPersonId(token);
         const requestedPerson = resolveCanonicalActivePerson(entityIndex, requestedPersonId);
         const authenticatedPerson = authenticatedId
@@ -1090,6 +1091,10 @@ export const __testing = {
   },
   setTokenManager(manager: { getToken(): Promise<string> }): void {
     globalTokenManager = manager as TokenManager;
+    globalOwnerTokenManager = manager as TokenManager;
+  },
+  setOwnerTokenManager(manager: { getToken(): Promise<string> }): void {
+    globalOwnerTokenManager = manager as TokenManager;
   },
   setWikiApiBaseUrl(url: string): void {
     wikiApiBaseUrl = url;
@@ -1132,7 +1137,14 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   }
 
   const tokenManager = new TokenManager(config.graphApiUrl);
+  // Personal KG routes must run as the signed-in owner, never as the service identity.
+  const ownerTokenManager = new TokenManager(
+    config.graphApiUrl,
+    undefined,
+    { allowEnvironmentToken: false },
+  );
   globalTokenManager = tokenManager;
+  globalOwnerTokenManager = ownerTokenManager;
   wikiApiBaseUrl = process.env.BRAINBASE_WIKI_API_URL || 'http://localhost:31013';
   const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
   globalGraphSource = source;
