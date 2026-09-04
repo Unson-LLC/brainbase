@@ -429,6 +429,7 @@ export function createCoreServices({
         tokenUsageService,
         ...automationRuntime,
         outcomeCaseService,
+        outcomeCaseAuditSink: workflowRepository,
         meetingSourceMcpSyncService,
         externalRunnerIngestService,
         runReceiptIngestService,

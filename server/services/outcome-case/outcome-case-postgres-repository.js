@@ -1,3 +1,5 @@
+import { requireCanonicalTenantIdentity } from '../../lib/canonical-tenant-identity.js';
+
 function normalizeTimestamp(value) {
     const timestamp = new Date(value);
     return Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString();
@@ -44,7 +46,7 @@ function accessFromActor(actor = {}) {
         role: typeof actor.role === 'string' && actor.role.trim() ? actor.role.trim() : 'member',
         projectCodes: Array.isArray(actor.projectCodes) ? actor.projectCodes : [],
         clearance: Array.isArray(actor.clearance) ? actor.clearance : [],
-        organizationId: actor.organizationId || actor.tenantId || ''
+        organizationId: requireCanonicalTenantIdentity(actor)
     };
 }
 
@@ -75,12 +77,13 @@ export class OutcomeCasePostgresRepository {
 
     async findByCaseId(caseId, actor = {}) {
         const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
+        const organizationId = requireCanonicalTenantIdentity(actor);
         const result = await this.query(actor,
             `SELECT * FROM outcome_cases
               WHERE case_id = $1
                 AND project_code = ANY($2::text[])
                 AND organization_id = NULLIF($3, '')`,
-            [caseId, projectCodes, actor.organizationId || actor.tenantId || '']
+            [caseId, projectCodes, organizationId]
         );
         return normalizeRow(result.rows[0]);
     }
@@ -114,6 +117,7 @@ export class OutcomeCasePostgresRepository {
 
     async update(outcomeCase, { expectedRevision, actor = {} } = {}) {
         const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
+        const organizationId = requireCanonicalTenantIdentity(actor);
         const result = await this.query(actor, `
             UPDATE outcome_cases
                SET run_receipt_refs = $2::jsonb,
@@ -135,7 +139,7 @@ export class OutcomeCasePostgresRepository {
             JSON.stringify(outcomeCase.terminal_evaluation), outcomeCase.closure_status,
             outcomeCase.current_external_state, outcomeCase.unresolved_failure_boundary,
             outcomeCase.revision, outcomeCase.updated_at, expectedRevision, projectCodes,
-            actor.organizationId || actor.tenantId || ''
+            organizationId
         ]);
         if (!result.rows[0]) {
             const error = new Error('OutcomeCase was changed by another evaluation');

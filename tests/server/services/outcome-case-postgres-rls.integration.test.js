@@ -61,7 +61,7 @@ async function applySql(name) {
     }
 }
 
-function serviceFor(actor) {
+function serviceFor(actor, auditSink = null) {
     const infoSSOTService = new InfoSSOTService({ pool: appPool });
     const repository = new OutcomeCasePostgresRepository({ pool: appPool, infoSSOTService });
     const service = new OutcomeCaseService({
@@ -80,7 +80,7 @@ function serviceFor(actor) {
         req.access = actor;
         next();
     });
-    app.use('/api/outcome-cases', createOutcomeCaseRouter({ service }));
+    app.use('/api/outcome-cases', createOutcomeCaseRouter({ service, auditSink }));
     return app;
 }
 
@@ -155,15 +155,47 @@ describeWithPostgres('OutcomeCase PostgreSQL FORCE RLS API acceptance', () => {
         // The globally unique project code is not a tenant boundary. The same
         // project claim in a different authenticated organization must not
         // reveal, evaluate, or insert an OutcomeCase.
-        const crossOrganization = serviceFor({ ...projectActor, organizationId: 'org_other' });
-        await request(crossOrganization).get(`/api/outcome-cases/${created.body.case_id}`).expect(404);
-        await request(crossOrganization)
+        const auditEntries = [];
+        const auditSink = { writeAuditLog: (entry) => auditEntries.push(entry) };
+        const crossOrganization = serviceFor({ ...projectActor, organizationId: 'org_other' }, auditSink);
+        const crossRead = await request(crossOrganization).get(`/api/outcome-cases/${created.body.case_id}`).expect(404);
+        expect(crossRead.body.details).toEqual({ audit_id: expect.stringMatching(/^oca_/) });
+        const crossEvaluate = await request(crossOrganization)
             .post(`/api/outcome-cases/${created.body.case_id}/evaluations`)
             .send({ evaluator: 'per_owner' }).expect(404);
-        await request(crossOrganization).post('/api/outcome-cases').send({
+        expect(crossEvaluate.body.details).toEqual({ audit_id: expect.stringMatching(/^oca_/) });
+        const crossCreate = await request(crossOrganization).post('/api/outcome-cases').send({
             ...createPayload,
             run_receipt_refs: ['run-cross-organization']
         }).expect(403);
+        expect(crossCreate.body.details?.audit_id).toMatch(/^oca_/);
+        expect(auditEntries.map((entry) => entry.action)).toEqual(['read', 'evaluate', 'create']);
+        expect(JSON.stringify(auditEntries)).not.toContain('org_unson');
+        expect(JSON.stringify(auditEntries)).not.toContain('org_other');
+
+        const countBeforeConflictingClaims = await adminPool.query(
+            `SELECT count(*)::int AS count FROM ${schema}.outcome_cases`
+        );
+        const conflictingClaims = serviceFor({ ...projectActor, tenantId: 'org_other' }, auditSink);
+        for (const requestBuilder of [
+            () => request(conflictingClaims).post('/api/outcome-cases').send(createPayload),
+            () => request(conflictingClaims).get(`/api/outcome-cases/${created.body.case_id}`),
+            () => request(conflictingClaims).post(`/api/outcome-cases/${created.body.case_id}/evaluations`).send({ evaluator: 'per_owner' })
+        ]) {
+            const response = await requestBuilder().expect(403);
+            expect(response.body).toMatchObject({
+                error: 'outcome_case_organization_access_denied',
+                details: {
+                    audit_event: 'outcome_case_ambiguous_tenant_denied',
+                    audit_id: expect.stringMatching(/^oca_/)
+                }
+            });
+        }
+        const countAfterConflictingClaims = await adminPool.query(
+            `SELECT count(*)::int AS count FROM ${schema}.outcome_cases`
+        );
+        expect(countAfterConflictingClaims.rows[0].count).toBe(countBeforeConflictingClaims.rows[0].count);
+        expect(auditEntries.slice(-3).map((entry) => entry.action)).toEqual(['create', 'read', 'evaluate']);
 
         const missingOrganization = serviceFor({ ...projectActor, organizationId: '' });
         const missingOrganizationResponse = await request(missingOrganization)

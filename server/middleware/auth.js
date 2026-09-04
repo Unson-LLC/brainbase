@@ -98,8 +98,8 @@ export function resolveAuthContext(req, authService, options = {}) {
                 personId: decoded.sub || decoded.personId || null,
                 slackUserId: null,
                 slackWorkspaceId: null,
-                tenantId: decoded.tenantId || decoded.organizationId || null,
-                organizationId: decoded.organizationId || decoded.tenantId || null
+                tenantId: decoded.tenantId || null,
+                organizationId: decoded.organizationId || null
             };
             return {
                 ok: true,
@@ -119,8 +119,8 @@ export function resolveAuthContext(req, authService, options = {}) {
             personId: decoded.sub || decoded.personId || null,
             slackUserId: decoded.slackUserId || null,
             slackWorkspaceId: decoded.slackWorkspaceId || null,
-            tenantId: decoded.tenantId || decoded.organizationId || null,
-            organizationId: decoded.organizationId || decoded.tenantId || null
+            tenantId: decoded.tenantId || null,
+            organizationId: decoded.organizationId || null
         };
         return {
             ok: true,
@@ -158,7 +158,7 @@ export function requireAuth(authService, options = {}) {
         }
 
         const access = result.access || null;
-        if (access && !access.organizationId && authService.resolveOrganizationIdForAccess) {
+        if (access && !access.organizationId && !access.tenantId && authService.resolveOrganizationIdForAccess) {
             try {
                 const organizationId = await authService.resolveOrganizationIdForAccess(access);
                 if (organizationId) {

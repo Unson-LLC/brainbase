@@ -203,6 +203,24 @@ describe('OutcomeCaseService', () => {
         expect(repository.items).toHaveLength(0);
     });
 
+    it('rejects conflicting organization claims before create, read, or evaluate can reach the repository', async () => {
+        const { service, repository } = createService();
+        const conflictingActor = authenticatedActor({ tenantId: 'org_other' });
+
+        for (const attempt of [
+            () => service.create(createInput(), conflictingActor),
+            () => service.read('oc_not_visible', conflictingActor),
+            () => service.evaluate('oc_not_visible', { evaluator: 'per_owner' }, conflictingActor)
+        ]) {
+            await expect(attempt()).rejects.toMatchObject({
+                code: 'outcome_case_organization_access_denied',
+                status: 403,
+                details: { audit_event: 'outcome_case_ambiguous_tenant_denied' }
+            });
+        }
+        expect(repository.items).toHaveLength(0);
+    });
+
     it('retains every previously stored receipt ref, appends the evaluation history, and diagnoses all retained refs before close', async () => {
         const { service, readRunReceipt } = createService({
             receiptStates: { 'run-1': 'confirmed', 'run-2': 'confirmed' }

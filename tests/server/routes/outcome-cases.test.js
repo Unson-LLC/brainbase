@@ -6,7 +6,7 @@ import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes
 import { createOutcomeCaseRouter } from '../../../server/routes/outcome-cases.js';
 import { OutcomeCaseService } from '../../../server/services/outcome-case/outcome-case-service.js';
 
-function createApp(service, actor = { personId: 'internal_api', projectCodes: ['brainbase'], role: 'admin', organizationId: 'org_unson' }) {
+function createApp(service, actor = { personId: 'internal_api', projectCodes: ['brainbase'], role: 'admin', organizationId: 'org_unson' }, { auditSink = null } = {}) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
@@ -15,7 +15,7 @@ function createApp(service, actor = { personId: 'internal_api', projectCodes: ['
         req.access = actor;
         next();
     });
-    app.use('/api/outcome-cases', createOutcomeCaseRouter({ service }));
+    app.use('/api/outcome-cases', createOutcomeCaseRouter({ service, auditSink }));
     return app;
 }
 
@@ -54,12 +54,14 @@ class MemoryOutcomeCaseRepository {
     }
 }
 
-function createRegisteredApp(service, { projectCodes = ['brainbase'] } = {}) {
+function createRegisteredApp(service, { projectCodes = ['brainbase'], organizationId, tenantId } = {}) {
     const app = express();
     app.use(express.json());
     const authService = {
         verifyToken: vi.fn(() => ({
-            sub: 'per_owner', role: 'member', projectCodes, clearance: ['internal'], tenantId: 'unson'
+            sub: 'per_owner', role: 'member', projectCodes, clearance: ['internal'],
+            tenantId: tenantId === undefined ? 'unson' : tenantId,
+            ...(organizationId === undefined ? {} : { organizationId })
         }))
     };
     registerApiRoutes(app, {
@@ -163,6 +165,26 @@ describe('outcome case routes', () => {
         expect(authService.verifyToken).toHaveBeenCalledTimes(3);
     });
 
+    it('preserves conflicting token claims through workflowAuthGuard and rejects every OutcomeCase action', async () => {
+        const service = { create: vi.fn(), read: vi.fn(), evaluate: vi.fn() };
+        const { app } = createRegisteredApp(service, { organizationId: 'org_unson', tenantId: 'org_other' });
+
+        for (const requestBuilder of [
+            () => request(app).post('/api/outcome-cases').set('Authorization', 'Bearer conflicting').send(createPayload),
+            () => request(app).get('/api/outcome-cases/oc_hidden').set('Authorization', 'Bearer conflicting'),
+            () => request(app).post('/api/outcome-cases/oc_hidden/evaluations').set('Authorization', 'Bearer conflicting').send({})
+        ]) {
+            const response = await requestBuilder().expect(403);
+            expect(response.body).toMatchObject({
+                error: 'outcome_case_organization_access_denied',
+                details: { audit_event: 'outcome_case_ambiguous_tenant_denied' }
+            });
+        }
+        expect(service.create).not.toHaveBeenCalled();
+        expect(service.read).not.toHaveBeenCalled();
+        expect(service.evaluate).not.toHaveBeenCalled();
+    });
+
     it.each([
         ['internal', { personId: 'internal_api', projectCodes: [], role: 'admin' }],
         ['admin', { personId: 'per_admin', projectCodes: [], role: 'admin' }],
@@ -194,6 +216,36 @@ describe('outcome case routes', () => {
                 details: { audit_event: 'outcome_case_unknown_tenant_denied' }
             });
         }
+        expect(service.create).not.toHaveBeenCalled();
+        expect(service.read).not.toHaveBeenCalled();
+        expect(service.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('rejects conflicting organization claims before service access and records opaque denial identifiers', async () => {
+        const service = { create: vi.fn(), read: vi.fn(), evaluate: vi.fn() };
+        const auditEntries = [];
+        const app = createApp(service, {
+            personId: 'per_owner', projectCodes: ['brainbase'], role: 'member',
+            organizationId: 'org_unson', tenantId: 'org_other'
+        }, { auditSink: { writeAuditLog: (entry) => auditEntries.push(entry) } });
+
+        for (const requestBuilder of [
+            () => request(app).post('/api/outcome-cases').send(createPayload),
+            () => request(app).get('/api/outcome-cases/oc_hidden'),
+            () => request(app).post('/api/outcome-cases/oc_hidden/evaluations').send({})
+        ]) {
+            const response = await requestBuilder().expect(403);
+            expect(response.body).toMatchObject({
+                error: 'outcome_case_organization_access_denied',
+                details: {
+                    audit_event: 'outcome_case_ambiguous_tenant_denied',
+                    audit_id: expect.stringMatching(/^oca_/)
+                }
+            });
+        }
+        expect(auditEntries.map((entry) => entry.action)).toEqual(['create', 'read', 'evaluate']);
+        expect(JSON.stringify(auditEntries)).not.toContain('org_unson');
+        expect(JSON.stringify(auditEntries)).not.toContain('org_other');
         expect(service.create).not.toHaveBeenCalled();
         expect(service.read).not.toHaveBeenCalled();
         expect(service.evaluate).not.toHaveBeenCalled();

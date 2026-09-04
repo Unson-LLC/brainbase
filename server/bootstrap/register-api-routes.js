@@ -239,6 +239,7 @@ export function registerApiRoutes(app, {
     automationRunService,
     runReceiptQueryService,
     outcomeCaseService,
+    outcomeCaseAuditSink,
     companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
@@ -437,7 +438,8 @@ export function registerApiRoutes(app, {
         routineLivenessService
     }));
     app.use('/api/outcome-cases', workflowAuthGuard, createOutcomeCaseRouter({
-        service: outcomeCaseService
+        service: outcomeCaseService,
+        auditSink: outcomeCaseAuditSink
     }));
     app.use(
         '/api/meeting-minutes/context-receipts',

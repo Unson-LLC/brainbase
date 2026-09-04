@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { resolveCanonicalTenantIdentity } from '../../lib/canonical-tenant-identity.js';
 
 const CLOSURE_STATUSES = new Set(['open', 'incomplete', 'waiting_human', 'closed']);
 const EXTERNAL_STATES = new Set([
@@ -300,16 +301,18 @@ export class OutcomeCaseService {
     }
 
     assertOrganizationAccess(actor) {
-        const organizationId = typeof (actor?.organizationId || actor?.tenantId) === 'string'
-            ? (actor.organizationId || actor.tenantId).trim()
-            : '';
-        if (!organizationId) {
+        const identity = resolveCanonicalTenantIdentity(actor);
+        if (identity.state !== 'confirmed') {
             throw new OutcomeCaseError('outcome_case_organization_access_denied', 'An authenticated organization is required to access OutcomeCase', {
                 status: 403,
-                details: { audit_event: 'outcome_case_unknown_tenant_denied' }
+                details: {
+                    audit_event: identity.state === 'ambiguous'
+                        ? 'outcome_case_ambiguous_tenant_denied'
+                        : 'outcome_case_unknown_tenant_denied'
+                }
             });
         }
-        return organizationId;
+        return identity.organizationId;
     }
 
     async resolveAuthority(outcomeCase, actor) {

@@ -79,7 +79,10 @@ describe('OutcomeCasePostgresRepository', () => {
             infoSSOTService: { withAccessContext: (_access, handler) => handler(pool) }
         });
 
-        await expect(repository.update({ ...record, revision: 2 }, { expectedRevision: 1 }))
+        await expect(repository.update({ ...record, revision: 2 }, {
+            expectedRevision: 1,
+            actor: { projectCodes: ['brainbase'], organizationId: 'org_unson' }
+        }))
             .rejects.toMatchObject({ code: 'outcome_case_revision_conflict', status: 409 });
     });
 
@@ -100,6 +103,16 @@ describe('OutcomeCasePostgresRepository', () => {
         ]);
         expect(pool.query.mock.calls[1][1]).toEqual(expect.arrayContaining([['brainbase']]));
         expect(infoSSOTService.withAccessContext).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not establish an RLS context for conflicting organization claims', async () => {
+        const infoSSOTService = { withAccessContext: vi.fn() };
+        const repository = new OutcomeCasePostgresRepository({ pool: { query: vi.fn() }, infoSSOTService });
+
+        await expect(repository.findByCaseId('oc_01', {
+            projectCodes: ['brainbase'], organizationId: 'org_unson', tenantId: 'org_other'
+        })).rejects.toMatchObject({ code: 'canonical_tenant_identity_invalid', status: 403 });
+        expect(infoSSOTService.withAccessContext).not.toHaveBeenCalled();
     });
 
     it('does not permit construction without the scoped InfoSSOT context required for FORCE RLS', () => {

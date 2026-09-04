@@ -1,10 +1,13 @@
 const UNRESOLVED_RESOLVER_REASON = 'authoritative_resolver_unavailable';
 
+import { resolveCanonicalTenantIdentity } from '../../lib/canonical-tenant-identity.js';
+
 function unresolved(ref, reason) {
     return { ref, state: 'unresolved', reason };
 }
 
 function accessForActor(actor = {}) {
+    const identity = resolveCanonicalTenantIdentity(actor);
     return {
         role: typeof actor.role === 'string' && actor.role ? actor.role : 'member',
         projectCodes: Array.isArray(actor.projectCodes) ? actor.projectCodes : [],
@@ -12,14 +15,19 @@ function accessForActor(actor = {}) {
         // In particular, an empty claim must not make an internal RACI row
         // visible and thereby nominate a closer.
         clearance: Array.isArray(actor.clearance) ? actor.clearance : [],
-        organizationId: actor.organizationId || null,
-        tenantId: actor.tenantId || null
+        organizationId: identity.state === 'confirmed' ? identity.organizationId : null
     };
 }
 
 function organizationIdForActor(actor = {}) {
-    const value = actor.organizationId || actor.tenantId || '';
-    return typeof value === 'string' ? value.trim() : '';
+    const identity = resolveCanonicalTenantIdentity(actor);
+    return identity.state === 'confirmed' ? identity.organizationId : '';
+}
+
+function organizationContextReason(actor = {}) {
+    return resolveCanonicalTenantIdentity(actor).state === 'ambiguous'
+        ? 'organization_context_ambiguous'
+        : 'organization_context_required';
 }
 
 /**
@@ -35,9 +43,10 @@ export function createOutcomeCaseReferenceResolver({ infoSSOTService } = {}) {
     return async function resolveOutcomeReferences({ projectCode, capabilityId, actor = {} } = {}) {
         const organizationId = organizationIdForActor(actor);
         if (!organizationId) {
+            const reason = organizationContextReason(actor);
             return {
-                project: unresolved(projectCode, 'organization_context_required'),
-                capability: unresolved(capabilityId, 'organization_context_required')
+                project: unresolved(projectCode, reason),
+                capability: unresolved(capabilityId, reason)
             };
         }
         try {
@@ -86,7 +95,7 @@ export function createOutcomeCaseClosureAuthorityResolver({ infoSSOTService } = 
     return async function resolveClosureAuthority({ projectCode, actor = {} } = {}) {
         const organizationId = organizationIdForActor(actor);
         if (!organizationId) {
-            return { state: 'unresolved', closure_authorized_person_ids: [], provenance: null, reason: 'organization_context_required' };
+            return { state: 'unresolved', closure_authorized_person_ids: [], provenance: null, reason: organizationContextReason(actor) };
         }
         try {
             return await infoSSOTService.withAccessContext(accessForActor(actor), async (client) => {

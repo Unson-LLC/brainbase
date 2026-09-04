@@ -99,6 +99,21 @@ describe('OutcomeCase authoritative reference resolver', () => {
         );
     });
 
+    it('does not query authoritative references or RACI for conflicting organization claims', async () => {
+        const { infoSSOTService, resolve } = createResolver();
+        const resolveAuthority = createOutcomeCaseClosureAuthorityResolver({ infoSSOTService });
+        const actor = { ...scopedActor, tenantId: 'org_other' };
+
+        await expect(resolve({ projectCode: 'brainbase', capabilityId: 'cap_outcome_control', actor })).resolves.toEqual({
+            project: { ref: 'brainbase', state: 'unresolved', reason: 'organization_context_ambiguous' },
+            capability: { ref: 'cap_outcome_control', state: 'unresolved', reason: 'organization_context_ambiguous' }
+        });
+        await expect(resolveAuthority({ projectCode: 'brainbase', actor })).resolves.toMatchObject({
+            state: 'unresolved', reason: 'organization_context_ambiguous'
+        });
+        expect(infoSSOTService.withAccessContext).not.toHaveBeenCalled();
+    });
+
     async function expectUnavailableAuthority(failure) {
         const client = { query: vi.fn(async () => { throw new Error('query failed'); }) };
         const infoSSOTService = {
