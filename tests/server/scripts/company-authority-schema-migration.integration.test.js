@@ -154,6 +154,52 @@ describe.sequential('company authority schema migration and restricted route res
         }
     });
 
+    it('requires a dedicated migration owner to be able to assume the runtime role', async () => {
+        await pool.query('CREATE ROLE isolated_migration_actor NOLOGIN BYPASSRLS');
+        const isolatedClient = await pool.connect();
+        try {
+            await isolatedClient.query('SET ROLE isolated_migration_actor');
+            await expect(runCompanyAuthoritySchemaMigration({
+                argv: ['--check'],
+                pool: {
+                    connect: async () => ({
+                        query: (...args) => isolatedClient.query(...args),
+                        release: () => {}
+                    })
+                }
+            })).rejects.toMatchObject({ code: 'MIGRATION_OWNER_UNSAFE' });
+        } finally {
+            await isolatedClient.query('RESET ROLE');
+            isolatedClient.release();
+        }
+
+        await pool.query('CREATE ROLE company_authority_migrator NOLOGIN BYPASSRLS');
+        await pool.query('GRANT brainbase_app TO company_authority_migrator');
+        await pool.query('GRANT USAGE ON SCHEMA public TO company_authority_migrator');
+        await pool.query('GRANT SELECT ON ALL TABLES IN SCHEMA public TO company_authority_migrator');
+        const migratorClient = await pool.connect();
+        try {
+            await migratorClient.query('SET ROLE company_authority_migrator');
+            await expect(runCompanyAuthoritySchemaMigration({
+                argv: ['--check'],
+                pool: {
+                    connect: async () => ({
+                        query: (...args) => migratorClient.query(...args),
+                        release: () => {}
+                    })
+                }
+            })).resolves.toMatchObject({
+                ok: true,
+                mode: 'check',
+                migration_owner: 'company_authority_migrator',
+                readback: { runtime_role_smoke_verified: true }
+            });
+        } finally {
+            await migratorClient.query('RESET ROLE');
+            migratorClient.release();
+        }
+    });
+
     it('resolves one hinted tenant, exposes ambiguity without a hint, and keeps tables private', async () => {
         await pool.query(
             `INSERT INTO brainbase_tenants

@@ -123,8 +123,29 @@ Access Service Tokenは新tokenを作成し、Worker secretを更新して疎通
 
 障害時はmana-runtimeのprovider利用機能を停止し、既知のWorker versionへ戻す。Access protectionやNode tenant boundaryを外して復旧しない。Tunnel、Access、Node runtimeのいずれが未確認でも`upstream_unavailable`として残し、成功へ丸めない。
 
+### company authority migration role
+
+本番migrationは`brainbase_app`や通常のapplication接続主体では実行しない。DB管理者は専用migration roleを作成し、RLS bypass、対象schema／基礎table／migration ledgerへの必要最小権限、`brainbase_app`へのmembershipを明示的に付与する。role名と付与結果はsecret値を含めずrollout receiptへ記録する。
+
+```sql
+CREATE ROLE company_authority_migrator NOLOGIN BYPASSRLS;
+GRANT brainbase_app TO company_authority_migrator;
+GRANT USAGE, CREATE ON SCHEMA public TO company_authority_migrator;
+GRANT SELECT, REFERENCES ON TABLE
+    brainbase_tenants,
+    tenant_organizations,
+    tenant_memberships,
+    tenant_projects,
+    workspace_connections
+TO company_authority_migrator;
+GRANT SELECT, INSERT, UPDATE ON TABLE brainbase_schema_migrations
+TO company_authority_migrator;
+```
+
+実際のrole名や権限管理方式は本番DBの既存migration契約へ合わせる。実行前に専用roleへ切り替え、`--dry-run`を成功させる。スクリプトは実行主体がsuperuserまたは`BYPASSRLS`であり、かつ`brainbase_app`へ`SET ROLE`できることをDDL前に検査する。`--apply`後は同じ接続主体で`--check`を行い、出力の`migration_owner`、`schema_sha256`、`route_function_security_verified`、`runtime_role_smoke_verified`、`ledger_matches`をrollout receiptへ保存する。いずれかがfalse／欠落なら本番経路を有効化しない。
+
 ### company authority schema適用後の復旧
 
 本migrationは追加tableとresolver functionを導入するため、適用後に自動`down`でtableを削除しない。削除はauthority recordを失う不可逆操作になる。production適用前に、承認者、候補SHA、schema hash、現在のresolver定義、復旧判断をrollout receiptへ記録する。
 
-適用後のreadbackで失敗した場合は、新規company authority経路とMana側consumerを停止し、既知のWorker versionへ戻す。既存tenant runtime経路は維持し、追加tableは証拠保全のため残す。resolver定義に互換性問題がある場合は、記録済みの直前定義を新しいforward migrationとしてtransaction内で復元し、`brainbase_app`実呼出しとledger hashを再確認する。tableまたはrecordの削除が必要な場合は、対象件数、backup、復元確認、承認者を別のschema decisionへ記録するまで実行しない。
+適用後のreadbackで失敗した場合は、新規company authority経路とMana側consumerを停止し、既知のWorker versionへ戻す。既存tenant runtime経路は維持し、追加tableは証拠保全のため残す。resolver定義に互換性問題がある場合は、記録済みの直前定義を新しいforward migrationとしてtransaction内で復元し、`brainbase_app`実呼出しとledger hashを再確認する。integration testではresolverを`SECURITY INVOKER`へ劣化させて`--check`失敗を確認し、同一schemaのforward再適用後にsecurity contractとruntime role readbackが回復することをlocal drillとして検証する。本番では同じ操作の実行receiptを別途保存し、local drillを本番証跡の代用にしない。tableまたはrecordの削除が必要な場合は、対象件数、backup、復元確認、承認者を別のschema decisionへ記録するまで実行しない。

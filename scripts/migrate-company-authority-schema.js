@@ -69,17 +69,25 @@ async function assertPrerequisites(client) {
 async function assertMigrationOwner(client) {
     const result = await client.query(
         `SELECT role.rolname AS owner_name,
-                (role.rolsuper OR role.rolbypassrls) AS owner_bypasses_rls
+                (role.rolsuper OR role.rolbypassrls) AS owner_bypasses_rls,
+                app_role.oid IS NOT NULL AS app_role_exists,
+                CASE WHEN role.rolsuper THEN true
+                     WHEN app_role.oid IS NULL THEN false
+                     ELSE pg_has_role(role.oid, app_role.oid, 'MEMBER')
+                 END AS owner_can_assume_app_role
            FROM pg_roles AS role
+      LEFT JOIN pg_roles AS app_role ON app_role.rolname = 'brainbase_app'
           WHERE role.rolname = current_user`
     );
     const owner = result.rows[0];
     if (!owner?.owner_name
         || owner.owner_name === 'brainbase_app'
-        || owner.owner_bypasses_rls !== true) {
+        || owner.owner_bypasses_rls !== true
+        || owner.app_role_exists !== true
+        || owner.owner_can_assume_app_role !== true) {
         throw new CompanyAuthorityMigrationError(
             'MIGRATION_OWNER_UNSAFE',
-            'Migration owner must be a dedicated role that can bypass RLS'
+            'Migration owner must be a dedicated RLS-bypass role that can assume brainbase_app'
         );
     }
     return owner.owner_name;

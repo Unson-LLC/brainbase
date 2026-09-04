@@ -416,7 +416,7 @@
     {
       "id": "INV-003",
       "type": "invariant",
-      "statement": "company-authority-schema.v2 migrationはtenant production provisioningの前提列を適用前に確認し、transactionとadvisory lock内でRLS、force RLS、policy、限定route resolverのSECURITY DEFINER・固定設定・所有者RLS bypass・実行権限、ledger hashを適用・readbackする。dry-runはrollbackし、applyを明示actorへ束縛する。",
+      "statement": "company-authority-schema.v2 migrationはtenant production provisioningの前提列を適用前に確認し、実行主体が専用RLS-bypass roleでbrainbase_appを引受可能であることを検査する。transactionとadvisory lock内でRLS、force RLS、policy、限定route resolverのSECURITY DEFINER・固定設定・所有者RLS bypass・実行権限、ledger hashを適用・readbackする。dry-runはrollbackし、applyを明示actorへ束縛する。",
       "rationale": "schema適用と検証を分離せず、誤接続や部分適用を成功扱いしないため。",
       "origin": {
         "story_refs": [
