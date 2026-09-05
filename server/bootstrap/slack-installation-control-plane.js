@@ -43,7 +43,7 @@ function createSlackOAuthClient({ authService, env = process.env, fetchImpl = gl
     const dedicatedClientId = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_ID');
     const dedicatedClientSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET');
     const dedicatedAppId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID');
-    const dedicatedMode = Boolean(dedicatedClientId || dedicatedClientSecret);
+    const dedicatedMode = Boolean(dedicatedAppId || dedicatedClientId || dedicatedClientSecret);
     if (Boolean(dedicatedClientId) !== Boolean(dedicatedClientSecret)
         || (dedicatedMode && !dedicatedAppId)) {
         throw new Error('slack_installation_oauth_configuration_incomplete');
@@ -172,7 +172,7 @@ export function createSlackInstallationControlPlaneFromEnv({
     const dedicatedBotScopes = required(env, 'BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES');
     const dedicatedAppId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID');
     const dedicatedRequested = Boolean(
-        dedicatedClientId || dedicatedClientSecret || dedicatedRedirectUri
+        dedicatedAppId || dedicatedClientId || dedicatedClientSecret || dedicatedRedirectUri
         || dedicatedStateSecret || dedicatedBotScopes
     );
     const dedicatedComplete = Boolean(

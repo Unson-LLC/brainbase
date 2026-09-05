@@ -205,7 +205,6 @@ describe('Slack installation control-plane production adapters', () => {
             pool: { connect: vi.fn() },
             authService: authService(),
             env: {
-                BRAINBASE_SLACK_INSTALLATION_APP_ID: appId,
                 BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN: serviceToken,
                 BRAINBASE_SERVICE_TOKEN_SECRET: 'service-signing-secret',
                 BRAINBASE_SLACK_INSTALLATION_SERVICE_DEPLOYMENT_ID: 'dep_01ARZ3NDEKTSV4RRFFQ69FAZ',
@@ -220,6 +219,7 @@ describe('Slack installation control-plane production adapters', () => {
     });
 
     it.each([
+        ['app ID only', { BRAINBASE_SLACK_INSTALLATION_APP_ID: 'A0TECHKNIGHT' }],
         ['client ID only', { BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-client-id' }],
         ['client secret only', { BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-client-secret' }],
         ['client pair without dedicated app ID', {

@@ -241,7 +241,6 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             capabilities: [SLACK_INSTALLATION_SERVICE_CAPABILITY]
         }, serviceSecret)}`;
         const env = {
-            BRAINBASE_SLACK_INSTALLATION_APP_ID: composedAppId,
             BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN: serviceToken,
             BRAINBASE_SERVICE_TOKEN_SECRET: serviceSecret,
             BRAINBASE_SLACK_INSTALLATION_SERVICE_DEPLOYMENT_ID: serviceDeploymentId,
@@ -467,12 +466,43 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
                 .send({ app_id: dedicatedAppId, expected_workspace_id: dedicatedWorkspaceId });
             expect(authorizeResponse.status).toBe(200);
             const authorizationUrl = new URL(authorizeResponse.body.result.authorization_url);
+            const signedState = authorizationUrl.searchParams.get('state');
+            const tamperedState = `${signedState.slice(0, -1)}${signedState.endsWith('a') ? 'b' : 'a'}`;
+
+            const tamperedCallbackResponse = await request(app)
+                .get('/api/v1/slack-installations:callback')
+                .query({ code: 'must-not-be-exchanged', state: tamperedState });
+            expect(tamperedCallbackResponse.status).toBe(400);
+            expect(tamperedCallbackResponse.body).toEqual({
+                error: { code: 'INSTALLATION_STATE_INVALID', retryable: false, fault_domain: 'protocol' }
+            });
+            expect(fetchImpl).not.toHaveBeenCalled();
+
+            const beforeExchange = await pool.query(
+                `SELECT (SELECT count(*)::int FROM workspace_connections
+                          WHERE tenant_id = $1 AND workspace_id = $2) AS connection_count,
+                        consumed_at
+                   FROM slack_installation_intents
+                  WHERE tenant_id = $1 AND installation_intent_id = $3`,
+                [tenantId, dedicatedWorkspaceId, authorizeResponse.body.result.installation_intent_id]
+            );
+            expect(beforeExchange.rows).toEqual([{
+                connection_count: 0,
+                consumed_at: null
+            }]);
 
             const callbackResponse = await request(app)
                 .get('/api/v1/slack-installations:callback')
-                .query({ code: 'dedicated-one-time-code', state: authorizationUrl.searchParams.get('state') });
+                .query({ code: 'dedicated-one-time-code', state: signedState });
             expect(callbackResponse.status).toBe(200);
             expect(callbackResponse.text).not.toContain('dedicated-one-time-code');
+            expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+            const duplicateCallbackResponse = await request(app)
+                .get('/api/v1/slack-installations:callback')
+                .query({ code: 'dedicated-one-time-code', state: signedState });
+            expect(duplicateCallbackResponse.status).toBe(200);
+            expect(duplicateCallbackResponse.text).not.toContain('dedicated-one-time-code');
             expect(fetchImpl).toHaveBeenCalledTimes(2);
 
             const stored = await pool.query(
