@@ -33,6 +33,7 @@ function manifest(overrides = {}) {
             identity_id: 'human_identity_keigo',
             identity_revision: '1',
             placement_id: 'techknight-slack-admin',
+            membership_placement_id: 'techknight-slack-admin',
             expected_project_codes: ['techknight'],
             bindings: [{
                 resource_ref: 'project:techknight',
@@ -178,6 +179,7 @@ describe('human action authority provisioning', () => {
             identity_id: 'human_identity_1e27b72ca1ed8efa5a5d855dccbe8a18',
             identity_revision: '1',
             placement_id: 'unson-sato',
+            membership_placement_id: null,
             expected_project_codes: ['brainbase', 'mana']
         });
         expect(normalized.humans[0].bindings).toEqual([expect.objectContaining({
@@ -230,6 +232,14 @@ describe('human action authority provisioning', () => {
             { length: 33 }, (_, index) => `project-${index}`
         );
         expect(() => normalizeHumanActionAuthorityManifest(unboundedProjectCodes))
+            .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
+        const missingMembershipPlacement = manifest();
+        delete missingMembershipPlacement.humans[0].membership_placement_id;
+        expect(() => normalizeHumanActionAuthorityManifest(missingMembershipPlacement))
+            .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
+        const undefinedMembershipPlacement = manifest();
+        undefinedMembershipPlacement.humans[0].membership_placement_id = undefined;
+        expect(() => normalizeHumanActionAuthorityManifest(undefinedMembershipPlacement))
             .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
     });
 
@@ -322,6 +332,36 @@ describe('human action authority provisioning', () => {
             client: duplicate, manifest: manifest(), actorId: 'operator-keigo', commit: true
         })).rejects.toMatchObject({ code: 'MEMBERSHIP_CONFLICT' });
         expect(duplicate.state.bindings).toHaveLength(0);
+    });
+
+    it('requires an explicit membership placement contract while preserving identity placement checks', async () => {
+        const absentManifest = manifest();
+        absentManifest.humans[0].membership_placement_id = null;
+        const absentMembership = fakeClient();
+        delete absentMembership.state.memberships[0].membership_payload.placement_id;
+        const absentResult = await provisionHumanActionAuthority({
+            client: absentMembership, manifest: absentManifest, actorId: 'operator-keigo', commit: false
+        });
+        expect(absentResult).toMatchObject({ persisted: false });
+        expect(absentResult.snapshot_after.humans[0].membership.membership_payload.placement_id).toBeNull();
+        expect(absentResult.snapshot_after.humans[0].identity.placement_id).toBe('techknight-slack-admin');
+
+        const unexpectedMembershipPlacement = fakeClient();
+        unexpectedMembershipPlacement.state.memberships[0].membership_payload.placement_id =
+            'unexpected-membership-placement';
+        await expect(provisionHumanActionAuthority({
+            client: unexpectedMembershipPlacement,
+            manifest: absentManifest,
+            actorId: 'operator-keigo',
+            commit: true
+        })).rejects.toMatchObject({ code: 'MEMBERSHIP_CONFLICT' });
+
+        const identityConflict = fakeClient();
+        delete identityConflict.state.memberships[0].membership_payload.placement_id;
+        identityConflict.state.identities[0].placement_id = 'unexpected-identity-placement';
+        await expect(provisionHumanActionAuthority({
+            client: identityConflict, manifest: absentManifest, actorId: 'operator-keigo', commit: true
+        })).rejects.toMatchObject({ code: 'EXTERNAL_IDENTITY_CONFLICT' });
     });
 
     it('fails closed when more than one active binding matches the natural key', async () => {
