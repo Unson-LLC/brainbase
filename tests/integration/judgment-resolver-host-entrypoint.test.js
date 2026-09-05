@@ -496,6 +496,88 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(JSON.parse(readFileSync(turnInputPath, 'utf8'))).toEqual(episode.turn_input);
     }, 20_000);
 
+    it('Codex App委任前の複数Brainbase呼出を監査ギャップへ束縛して同一taskを継続する', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const transcript = join(root, 'agent-created-with-orphans.jsonl');
+        const identity = { session_id: 'session-agent-created-orphans-entrypoint', turn_id: 'turn-agent-created-orphans-entrypoint' };
+        const prompt = '第一段階の後も止まらず、第二段階まで完了してください。';
+        writeFileSync(transcript, [
+            JSON.stringify({ type: 'session_meta', payload: { id: identity.session_id } }),
+            JSON.stringify({
+                type: 'response_item',
+                payload: {
+                    type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
+                    output: `<codex_delegation><source_thread_id>source-thread</source_thread_id><input>${prompt}</input></codex_delegation>`,
+                    internal_chat_message_metadata_passthrough: { turn_id: identity.turn_id }
+                }
+            })
+        ].join('\n'));
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({ management_status: 'managed', receipt: {
+                    resolution_id: 'jr_agent_created_orphans_entrypoint', runtime_version: 'judgment-runtime-2.4.0',
+                    turn_id: args.turn_id, request_digest: hash(canonicalJson(args)),
+                    context_digest: hash(canonicalJson(args.conversation_context)), status: 'resolved',
+                    host_binding: { status: 'managed' },
+                    classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                    classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+                    selected_dag_ids: ['engineering.v1', 'authority.v1'], required_capabilities: [],
+                    active_node_definitions: [{ id: 'implement', kind: 'common', instruction: 'Complete both stages.' }],
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
+                    allowed_runtime_escalation_reasons: [
+                        'irreversible_action', 'missing_authority', 'owner_value_choice',
+                        'required_input_unavailable', 'evidenced_terminal_blocker'
+                    ]
+                } }));
+            });
+        });
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal,
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root
+        };
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        for (const [toolName, toolUseId] of [
+            ['mcp__brainbase__search', 'orphan-search'],
+            ['mcp__brainbase__brainbase_judgment_state_record', 'orphan-state']
+        ]) {
+            const recorded = await run('bash', [wrapper], { env, input: JSON.stringify({
+                hook_event_name: 'PostToolUse', ...identity,
+                tool_name: toolName, tool_use_id: toolUseId,
+                tool_input: { query: '判断' }, tool_response: { status: 'ok' }
+            }) });
+            expect(recorded).toMatchObject({ code: 0, stderr: '' });
+            expect(JSON.parse(recorded.stdout).systemMessage).toContain('開始episodeへ結合できませんでした');
+        }
+
+        const stopped = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, transcript_path: transcript,
+            cwd: REPO_ROOT, stop_hook_active: false,
+            last_assistant_message: '第一段階のみ完了。第二段階は未実行。'
+        }) });
+
+        expect(stopped).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(stopped.stdout)).toMatchObject({
+            decision: 'block',
+            systemMessage: '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'
+        });
+        const directory = join(journal, hash(identity.session_id));
+        const episode = JSON.parse(readFileSync(join(directory, `${hash(identity.turn_id)}.episode.json`), 'utf8'));
+        expect(episode).toMatchObject({
+            episode_origin: 'stop_delegation_recovery',
+            route_application: 'post_generation_recovery',
+            pre_episode_audit_gap: { audit_status: 'degraded', event_count: 2 }
+        });
+        expect(readdirSync(join(directory, `${hash(identity.turn_id)}.audit-orphan-events`))
+            .filter((name) => name.endsWith('.json'))).toHaveLength(2);
+    }, 20_000);
+
     // Traceability: story-judgment-audit-continuity-v1:ac:3
     // Traceability: story-judgment-audit-continuity-v1:ac:4
     it('orphan Stopは1回だけ本文保持を要求し、active再Stopをaudit_degradedとして人手待ちにしない', async () => {
