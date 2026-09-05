@@ -93,6 +93,81 @@ async function startAndIngest(fixture, candidates = [{
 }
 
 describe('OnboardingRuntimeService', () => {
+    it('candidate access is scoped to the authenticated organization transaction', async () => {
+        const fixture = createFixture();
+        const candidateRepository = fixture.candidateRepository;
+        const access = { personId: 'per_owner', organizationId: 'org_unson', role: 'ceo', projectCodes: ['brainbase'], clearance: ['internal'] };
+        const scopedActor = { ...actor(), access: { ...actor().access, organizationId: access.organizationId } };
+        const transactions = [];
+        let transactionDepth = 0;
+
+        for (const method of ['list', 'findById', 'create', 'transition', 'setPromotedGraphEntity', 'recordScanBlock']) {
+            const original = candidateRepository[method].bind(candidateRepository);
+            candidateRepository[method] = (...args) => {
+                if (transactionDepth === 0) throw new Error(`${method} used outside candidate transaction`);
+                return original(...args);
+            };
+        }
+        candidateRepository.transaction = async (work, options = {}) => {
+            transactions.push(options.access);
+            transactionDepth += 1;
+            try {
+                return await work(candidateRepository);
+            } finally {
+                transactionDepth -= 1;
+            }
+        };
+
+        const run = await fixture.service.startRun(scopedActor, {
+            project_code: 'brainbase', value_target: '組織を理解する', source_mode: 'drive'
+        });
+        const ingested = await fixture.service.ingestSource(scopedActor, run.id, {
+            source: {
+                mode: 'drive', source_id: 'drive:rls', evidence_ref: 'drive:rls#p1',
+                content_hash: HASH_A, permission_snapshot: { visibility: 'owner' }, collection_status: 'collected'
+            },
+            candidates: [{
+                subject_type: 'org', fact: 'Unson LLC は Brainbase を運営している',
+                observation_class: 'observed', evidence_id: 'drive:rls#p1'
+            }]
+        });
+        await expect(fixture.service.getRun(scopedActor, run.id)).resolves.toMatchObject({ candidates: [{ id: ingested.candidates[0].id }] });
+        await expect(fixture.service.reviewCandidate(scopedActor, run.id, ingested.candidates[0].id, { decision: 'approve' }))
+            .resolves.toMatchObject({ candidate: { promotion_status: 'promoted_to_graph' } });
+
+        expect(transactions.length).toBeGreaterThanOrEqual(4);
+        expect(transactions).toEqual(expect.arrayContaining([
+            expect.objectContaining({ personId: 'per_owner', organizationId: 'org_unson', projectCodes: ['brainbase'] })
+        ]));
+        expect(candidateRepository.candidates.get(ingested.candidates[0].id)).toMatchObject({
+            organization_id: 'org_unson',
+            org_ids: ['org_unson']
+        });
+    });
+
+    it('organization context is required before a transactional candidate write', async () => {
+        const fixture = createFixture();
+        const candidateRepository = fixture.candidateRepository;
+        candidateRepository.transaction = async (_work, options = {}) => {
+            if (!options.access?.organizationId) {
+                throw new Error('organization context must be present');
+            }
+            return _work(candidateRepository);
+        };
+        const run = await fixture.service.startRun(actor(), {
+            project_code: 'brainbase', value_target: '組織を理解する', source_mode: 'drive'
+        });
+
+        await expect(fixture.service.ingestSource(actor(), run.id, {
+            source: {
+                mode: 'drive', source_id: 'drive:missing-org', evidence_ref: 'drive:missing-org#p1',
+                content_hash: HASH_A, permission_snapshot: { visibility: 'owner' }, collection_status: 'collected'
+            },
+            candidates: []
+        })).rejects.toMatchObject({ code: 'onboarding_organization_context_required', statusCode: 403 });
+        expect(candidateRepository.candidates.size).toBe(0);
+    });
+
     it('初回価値の表示契約を開始時に示し、契約準拠の3節だけをreceiptへ記録する', async () => {
         const fixture = createFixture();
         const started = await fixture.service.startRun(actor(), {
