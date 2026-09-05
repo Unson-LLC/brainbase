@@ -285,7 +285,7 @@ export async function executeRoutineOverHttp({ routine, input = {}, env = proces
     if (!auth.serviceToken && !auth.internalApiKey) {
         throw new Error('routine authentication is required');
     }
-    const useRetroServiceAuthority = routine === 'retro' && Boolean(auth.serviceToken);
+    const useRetroServiceAuthority = ['oyasumi', 'retro'].includes(routine) && Boolean(auth.serviceToken);
     let companyAuthorityResponse;
     if (!useRetroServiceAuthority) {
         resolvePersonalKgCliAuthority({ desiredEffect: 'read', env });
