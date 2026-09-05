@@ -76,9 +76,10 @@ const DEFAULT_LOCK_WAIT_ATTEMPTS = 5000;
 const DEFAULT_LOCK_WAIT_MS = 10;
 const NO_BRAINBASE_REFERENCE_LINE = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
 const AUTONOMY_CONTINUATION_PROGRESS_LINE = '🔁 確認不要と判定しました。回答を差し戻して処理を続けています';
-const AUTONOMY_CONTINUATION_COMPLETE_LINE = '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓';
+const AUTONOMY_CONTINUATION_COMPLETE_LINE = '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録';
 const OUTCOME_CONTINUATION_PROGRESS_LINE = '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています';
-const OUTCOME_CONTINUATION_COMPLETE_LINE = '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓';
+const OUTCOME_CONTINUATION_COMPLETE_LINE = '🔁 実行継続: 安全な残作業の再開要求を記録';
+const MAX_CONTINUATION_ATTEMPTS = 3;
 const STOP_REPAIR_COMPLETE_LINE = '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓';
 const ORPHAN_AUDIT_WARNING = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。';
 const ORPHAN_TOOL_EVENT_WARNING = '⚠️ Brainbase監査未完了: Brainbase tool eventを開始episodeへ結合できませんでした。';
@@ -2082,8 +2083,9 @@ function effectiveEpisode(episode, events) {
     return {
         ...episode,
         initial_route_receipt: resolved,
-        owner_audit: buildOwnerAudit(args, resolved, { hostAutonomy: episode.host_autonomy ?? null }),
-        audit_contract: buildAuditContract(resolved)
+        // Route resolution must not replace the episode's frozen display
+        // contract, including the absence of a contract on legacy episodes.
+        owner_audit: buildOwnerAudit(args, resolved, { hostAutonomy: episode.host_autonomy ?? null })
     };
 }
 
@@ -2445,7 +2447,9 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
             return {
                 status: null,
                 violation: `最終回答を作る前の最後のtool callとして${exactTool}を正確に1回実行し、回答本文には状態を表示しない`,
-                triggerCode: asks ? 'unnecessary_user_question' : 'unfinished_safe_work',
+                // Missing bookkeeping does not establish unfinished work.
+                triggerCode: state?.pending_safe_work ? 'unfinished_safe_work'
+                    : asks ? 'unnecessary_user_question' : undefined,
                 question: proposedHumanQuestion
             };
         }
@@ -2453,7 +2457,7 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
             return {
                 status: null,
                 violation: `${exactTool}をすべての作業・検証後の最後にもう一度実行し、最新の実行状態をjournalへ記録する`,
-                triggerCode: 'unfinished_safe_work', stopState: state
+                triggerCode: state.pending_safe_work ? 'unfinished_safe_work' : undefined, stopState: state
             };
         }
         if (contract.decision === 'escalate' && state.status === 'completed') {
@@ -3023,6 +3027,45 @@ export async function evaluateAutonomyStop(payload, {
     };
 }
 
+function continuationRetryPath(paths, attempt) {
+    return join(paths.directory, `${paths.turnRef}.continuation-retry-${attempt}.json`);
+}
+
+function latestContinuation(paths) {
+    let marker;
+    try { marker = readJson(paths.continuation); } catch (error) {
+        if (error?.code === 'ENOENT') return null;
+        throw error;
+    }
+    if (marker.stop_attempt !== undefined && marker.stop_attempt !== 1) {
+        throw new Error('judgment_continuation_attempt_invalid');
+    }
+    for (let attempt = 2; attempt <= MAX_CONTINUATION_ATTEMPTS; attempt += 1) {
+        try { marker = readJson(continuationRetryPath(paths, attempt)); } catch (error) {
+            if (error?.code === 'ENOENT') break;
+            throw error;
+        }
+        if (marker.stop_attempt !== attempt) throw new Error('judgment_continuation_attempt_invalid');
+    }
+    return marker;
+}
+
+function continuationExecutionEvents(events, marker) {
+    if (!marker?.autonomy_continuation) return [];
+    return events.filter((event) => event.success
+        && !['state', 'value_proof', 'turn_resolution', 'route'].includes(event.event_kind)
+        && !/(?:^|__)(?:get_goal|update_goal|create_goal|search_tools|list_tools|list_mcp_resources|list_mcp_resource_templates|curr_time|sleep)$/u.test(event.tool_name)
+        && (Number.isSafeInteger(marker.event_sequence_boundary)
+            ? Number.isSafeInteger(event.event_sequence) && event.event_sequence > marker.event_sequence_boundary
+            : Date.parse(event.recorded_at) > Date.parse(marker.requested_at)));
+}
+
+function continuationFailureLine(finalized) {
+    return finalized.autonomy_continuation?.status === 'unresolved'
+        ? `\n⚠️ 継続未解決: ${finalized.autonomy_continuation.attempt_count}回の再開要求後も継続条件を満たしていません。作業完了として扱わないでください。`
+        : '';
+}
+
 function finalizeEpisodeLocked(payload, episode, paths, env) {
     const events = episodeEvents(paths);
     const hasTurnResolution = events.some((event) => event.success && event.satisfies.includes('judgment.resolve_turn'));
@@ -3035,10 +3078,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             && transcriptTurnResolutionSurface(payload, env) !== null);
     const requiresTurnResolution = turnResolutionRequired(bootstrapEpisode) && !surfaceUnavailable;
     episode = effectiveEpisode(episode, events);
-    let existingContinuation = null;
-    try { existingContinuation = readJson(paths.continuation); } catch (error) {
-        if (error?.code !== 'ENOENT') throw error;
-    }
+    let existingContinuation = latestContinuation(paths);
     existingContinuation = effectiveContinuationMarker(existingContinuation, episode);
     const completedAuditOutput = (valueProof = null, valueProofAttention = null) => {
         const auditBlock = requiredAuditLines(episode, events, existingContinuation).join('\n');
@@ -3067,7 +3107,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         const persistedOutput = finalized.completion_status === 'audit_degraded'
             && typeof finalized.degradation_reason === 'string'
             && finalized.degradation_reason !== 'turn_resolution_unavailable'
-            ? { ...persistedBaseOutput, systemMessage: `${persistedBaseOutput.systemMessage}\n⚠️ 監査縮退: ${finalized.degradation_reason}` }
+            ? { ...persistedBaseOutput, systemMessage: `${persistedBaseOutput.systemMessage}\n⚠️ 監査縮退: ${finalized.degradation_reason}${continuationFailureLine(finalized)}` }
             : persistedBaseOutput;
         return {
             output: persistedOutput,
@@ -3087,7 +3127,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines)
         || unauthorizedContinuationAudit
         || unauthorizedStopRepairAudit;
-    const autonomyCompliance = surfaceUnavailable
+    let autonomyCompliance = surfaceUnavailable
         ? { status: 'turn_resolution_unavailable', violation: null }
         : autonomyAnswerCompliance(
             answer,
@@ -3096,6 +3136,17 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             events,
             episode
         );
+    const continuationExecution = continuationExecutionEvents(events, existingContinuation);
+    const executionRequired = existingContinuation?.autonomy_continuation
+        && ['implement', 'operate'].includes(episode.initial_route_receipt.classification?.intent);
+    if (executionRequired && autonomyCompliance.status === 'continued' && continuationExecution.length === 0) {
+        autonomyCompliance = {
+            ...autonomyCompliance,
+            status: null,
+            triggerCode: 'unfinished_safe_work',
+            violation: '差し戻し後の実行証跡がありません。状態登録や完了宣言だけで終わらず、承認済み範囲の次の作業・検証を実行する'
+        };
+    }
     const missingAutonomyCompliance = autonomyCompliance.violation !== null;
     const auditContract = episodeAuditContract(episode);
     const valueProofEvent = valueProofRolloutEnabled(episode, env)
@@ -3121,15 +3172,16 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         ...(missingOwnerAudit ? ['owner.audit.display'] : []),
         ...(missingAnswerBody ? ['answer.body.preservation'] : [])
     ];
-    // Stop blocks at most once per episode. If a continuation marker already
-    // exists, one block already happened for this episode; a second block
-    // would risk an infinite confirm loop (Codex Desktop stop_hook_active
-    // re-Stops indefinitely), so any further gap finalizes as audit_degraded
-    // instead of blocking again.
+    // Audit-only repair remains one-shot. Real continuation gets a persisted,
+    // bounded retry budget; an active re-Stop is not itself evidence of success.
     const stopAlreadyBlockedOnce = missingCapabilities.length > 0 && existingContinuation !== null && payload.stop_hook_active === true;
-    if (missingCapabilities.length > 0 && !stopAlreadyBlockedOnce) {
+    const attempt = existingContinuation?.stop_attempt ?? (existingContinuation ? 1 : 0);
+    const retryContinuation = stopAlreadyBlockedOnce && missingAutonomyCompliance
+        && (autonomyContinuationRequested || existingContinuation?.autonomy_continuation)
+        && attempt < MAX_CONTINUATION_ATTEMPTS;
+    if (missingCapabilities.length > 0 && (!stopAlreadyBlockedOnce || retryContinuation)) {
         let marker = existingContinuation;
-        if (!marker) {
+        if (!marker || retryContinuation) {
             const shouldBindAnswerBody = !missingTurnResolution
                 && !missingKnowledge
                 && missingOwnerAudit
@@ -3143,8 +3195,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 ? displayedQuestion(observedQuestionBody)
                 : null;
             const markerEntry = {
+                ...(marker ?? {}),
                 schema_version: 'brainbase-judgment-continuation-v2',
-                requested_at: new Date().toISOString(),
+                requested_at: marker?.requested_at ?? new Date().toISOString(),
+                stop_attempt: attempt + 1,
                 missing_capabilities: missingCapabilities,
                 ...(typeof auditContract?.stop_repair_complete_line === 'string' ? {
                     stop_repair: {
@@ -3162,9 +3216,13 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                     }
                 } : {}),
                 ...(autonomyContinuationRequested ? {
+                    event_sequence_boundary: marker?.event_sequence_boundary
+                        ?? events.reduce((max, event) => Number.isSafeInteger(event.event_sequence)
+                            ? Math.max(max, event.event_sequence) : max, -1),
                     autonomy_continuation: {
+                        ...(marker?.autonomy_continuation ?? {}),
                         count: 1,
-                        trigger_code: autonomyCompliance.triggerCode,
+                        trigger_code: marker?.autonomy_continuation?.trigger_code ?? autonomyCompliance.triggerCode,
                         reason_code: autonomyContract.reasonCode,
                         status: 'requested',
                         ...(autonomyCompliance.question ? {
@@ -3179,6 +3237,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                     }
                 } : {})
             };
+            if (missingAutonomyCompliance) delete markerEntry.answer_body_binding;
             if (shouldBindAnswerBody) {
                 markerEntry.answer_body_binding = buildAnswerBodyBinding(
                     answer,
@@ -3186,13 +3245,16 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 );
             }
             marker = createImmutableJson(
-                paths.continuation,
+                retryContinuation ? continuationRetryPath(paths, attempt + 1) : paths.continuation,
                 markerEntry,
                 'judgment_episode_continuation_conflict'
             );
         }
         const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
         const reasons = [
+            ...(autonomyContinuationRequested ? [
+                'まず承認済み範囲の安全な次の作業・検証を実際に実行する。状態登録、監査行の追加、将来の作業予定だけで終了しない。権限・外部影響の境界は広げず、許可された確認理由が生じた場合だけwaiting_humanで止める'
+            ] : []),
             ...(missingTurnResolution ? [
                 `mcp__brainbase__brainbase_resolve_turnをturn_ref="${basename(paths.directory)}/${paths.turnRef}"で実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputはHostのjournalに保存済みでturn_refからserverが読み込む。turn_inputやpathを渡さない。確定後はPostToolUseが判断契約を確定した旨をsystemMessageで通知する）`
             ] : []),
@@ -3219,7 +3281,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         ];
         const reasonSequence = reasons.join('\nその後、');
         const completionInstruction = missingAutonomyCompliance
-            ? '不要な確認質問を回答本文に残さず、安全な範囲の作業結果を続けてください。'
+            ? '作業・検証を先に行い、その結果に基づく状態を最後のtool callで記録してください。安全な残作業があればpendingのまま実行を続け、完了した範囲と未完了を区別して報告してください。'
             : '監査行の後に、元の回答本文をそのまま続けてください。';
         const progressLine = autonomyContinuationRequested
             ? autonomyCompliance.triggerCode === 'unfinished_safe_work'
@@ -3284,7 +3346,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             degradation_reason: missingCapabilities[0],
             missing_capabilities: missingCapabilities
         } : { completion_status: 'complete' }),
-        protocol_status: 'audit_protocol_complete',
+        protocol_status: stopAlreadyBlockedOnce ? 'audit_protocol_incomplete' : 'audit_protocol_complete',
         content_verification_status: 'not_evaluated',
         ...(finalAutonomyContract?.approvalRef ? { approval_ref: finalAutonomyContract.approvalRef } : {}),
         ...(episode.episode_origin !== undefined ? {
@@ -3302,6 +3364,8 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         ...(autonomyCompliance.stopState ? {
             stop_state: {
                 status: autonomyCompliance.stopState.status,
+                pending_safe_work: autonomyCompliance.stopState.pending_safe_work,
+                runtime_reason_code: autonomyCompliance.stopState.runtime_reason_code,
                 evidence_event_count: autonomyCompliance.evidenceEventCount ?? 0,
                 ...(autonomyCompliance.stateSource ? { source: autonomyCompliance.stateSource } : {})
             }
@@ -3309,7 +3373,11 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         ...(verifiedAutonomyContinuation(existingContinuation, episodeAuditContract(episode)) ? {
             autonomy_continuation: {
                 ...existingContinuation.autonomy_continuation,
-                status: 'completed'
+                status: missingAutonomyCompliance ? 'unresolved'
+                    : ['runtime_escalated', 'escalated'].includes(autonomyCompliance.status) ? 'waiting_human' : 'completed',
+                attempt_count: attempt,
+                execution_event_count: continuationExecution.length,
+                ...(missingAutonomyCompliance ? { reason: 'continuation_repair_exhausted' } : {})
             }
         } : {}),
         ...(!missingOwnerAudit && verifiedStopRepair(existingContinuation, episodeAuditContract(episode)) ? {
@@ -3336,7 +3404,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     enqueueFinalKnowledgeEvent(payload, final, env);
     const baseOutput = completedAuditOutput(valueProof, valueProofAttention);
     const output = stopAlreadyBlockedOnce
-        ? { ...baseOutput, systemMessage: `${baseOutput.systemMessage}\n⚠️ 監査縮退: ${missingCapabilities[0]}` }
+        ? { ...baseOutput, systemMessage: `${baseOutput.systemMessage}\n⚠️ 監査縮退: ${missingCapabilities[0]}${continuationFailureLine(final)}` }
         : baseOutput;
     return {
         output,
@@ -3699,11 +3767,7 @@ export async function processHookPayload(payload, dependencies = {}) {
             if (error?.message !== 'judgment_episode_not_found') throw error;
             return handleOrphanStop(payload, dependencies);
         }
-        // Stop blocks at most once per episode (see finalizeEpisodeLocked):
-        // a re-Stop after an already-active repair never blocks again, so
-        // there is no longer a finite-but-exhausted repair state to reject
-        // here. Only identity/integrity contradictions and transaction
-        // timeouts still fail loud, from other paths.
+        // finalizeEpisodeLocked persists the finite continuation retry budget.
         return result.output;
     }
     return {};

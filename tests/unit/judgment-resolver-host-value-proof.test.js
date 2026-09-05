@@ -359,7 +359,7 @@ describe('Judgment Resolver Host value proof integration', () => {
     const proofMissing = finalizeEpisode({
       hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false,
-      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
+      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を差し戻し、再開要求を記録\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
     }, { env });
     expect(proofMissing.output.decision).toBe('block');
     expect(proofMissing.output.reason).toContain('brainbase_judgment_value_proof_record');
@@ -402,7 +402,7 @@ describe('Judgment Resolver Host value proof integration', () => {
       session_id: payload.session_id,
       turn_id: payload.turn_id,
       stop_hook_active: true,
-      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
+      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を差し戻し、再開要求を記録\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
     }, { env });
 
     expect(result.output.systemMessage).toContain(`${ownerLine}\n${execution.display_line}`);
@@ -476,7 +476,7 @@ describe('Judgment Resolver Host value proof integration', () => {
       stop_hook_active: true,
       last_assistant_message: [
         ownerLine, zeroCallLine,
-        '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
+        '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
         '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
         '既存文書を更新しました。',
       ].join('\n'),

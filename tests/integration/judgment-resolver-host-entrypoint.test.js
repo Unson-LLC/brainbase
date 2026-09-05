@@ -1468,7 +1468,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         expect(started).toMatchObject({ code: 0, stderr: '' });
         const zeroCallLine = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
-        const completionLine = '🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓';
+        const completionLine = '🔁 実行継続: 安全な残作業の再開要求を記録';
         const repairLine = '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓';
 
         const blocked = await run('bash', [wrapper], {
@@ -1567,6 +1567,23 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(blockedOutput).toMatchObject({ decision: 'block' });
         const exactAudit = auditBlockFromStopOutput(blockedOutput);
 
+        // A new process must retain the retry budget and reject state-only
+        // completion, even when the answer contains the requested audit lines.
+        const stateOnly = { status: 'completed', pending_safe_work: false, runtime_reason_code: null };
+        await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'PostToolUse', ...identity,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'state-only-before-work',
+            tool_input: stateOnly,
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', ...stateOnly } }
+        }) });
+        const retried = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+            last_assistant_message: `${exactAudit}\n修正を完了しました。`
+        }) });
+        expect(retried).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(retried.stdout).decision).toBe('block');
+        expect(existsSync(join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.continuation-retry-2.json`))).toBe(true);
+
         const execution = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
             tool_name: 'apply_patch', tool_use_id: 'tool-journal-entrypoint-apply',
@@ -1593,7 +1610,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(requestedOutput.decision).toBeUndefined();
         const final = JSON.parse(readFileSync(join(directory, `${turnRef}.final.json`), 'utf8'));
         expect(final).toMatchObject({
-            completion_status: 'complete', event_count: 2,
+            completion_status: 'complete', event_count: 3,
             owner_audit_source: 'assistant_answer', answer_digest: expect.stringMatching(/^[0-9a-f]{64}$/u),
             stop_state: { status: 'completed', evidence_event_count: 1, source: 'journal' },
             autonomy_continuation: {
@@ -1855,7 +1872,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(false);
         const lastAssistantMessage = [ownerLine, readbackLine,
-            '🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓',
+            '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
             '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓', '', '更新と検証を完了しました。'].join('\n');
         const completed = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: true,
