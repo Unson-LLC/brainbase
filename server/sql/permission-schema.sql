@@ -21,7 +21,7 @@ BEGIN
   IF to_regclass('auth_grants') IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'auth_grants_organization_id_fkey'
-      AND conrelid = 'auth_grants'::regclass
+      AND conrelid = to_regclass('auth_grants')
   ) THEN
     ALTER TABLE auth_grants
       ADD CONSTRAINT auth_grants_organization_id_fkey
