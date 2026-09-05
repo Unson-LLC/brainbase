@@ -103,11 +103,28 @@ export class PgProjectProvisioningRepository {
         return rows;
     }
 
-    async findProjectSubjectIdentity(entityId, organizationId, { client = null } = {}) {
-        const { rows } = await this.withOrganization(organizationId, (client) => client.query(
+    async findProjectSubjectIdentity(entityId, organizationId, { access = null, client = null } = {}) {
+        if (!this.infoSSOTService?.withAccessContext) {
+            const error = new Error('Graph project identity probe requires scoped InfoSSOT access context');
+            error.code = 'PROJECT_PROVISIONING_GRAPH_CONTEXT_REQUIRED';
+            error.statusCode = 409;
+            throw error;
+        }
+        if (!access || typeof access !== 'object' || Array.isArray(access)) {
+            const error = new Error('Graph project identity probe requires explicit Graph access');
+            error.code = 'PROJECT_PROVISIONING_GRAPH_CONTEXT_REQUIRED';
+            error.statusCode = 409;
+            throw error;
+        }
+        const graphAccess = graphAccessFrom(access, organizationId);
+        const execute = (scopedClient) => scopedClient.query(
             'SELECT * FROM project_graph_identity_probe($1)',
             [entityId]
-        ), { client });
+        );
+        const result = client
+            ? await this.infoSSOTService.withAccessContext(graphAccess, execute, { client })
+            : await this.infoSSOTService.withAccessContext(graphAccess, execute);
+        const { rows } = result;
         return rows[0] || null;
     }
 

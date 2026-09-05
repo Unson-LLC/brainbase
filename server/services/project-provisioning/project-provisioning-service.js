@@ -93,6 +93,17 @@ function assertOperator(actor) {
     }
 }
 
+function graphVisibilityAccess(actor, manifest, organizationId) {
+    const actorProjectCodes = Array.isArray(actor?.projectCodes) ? actor.projectCodes : [];
+    return {
+        ...actor,
+        role: actor?.role || 'member',
+        organizationId,
+        projectCodes: [...new Set([...actorProjectCodes, manifest.project_code])],
+        clearance: Array.isArray(actor?.clearance) ? actor.clearance : []
+    };
+}
+
 function approvalBindingError(message, details = {}) {
     const error = new Error(message);
     error.code = 'PROJECT_PROVISIONING_HUMAN_GATE_BINDING_MISMATCH';
@@ -321,7 +332,9 @@ export class ProjectProvisioningService {
             field: 'display_name', value: manifest.display_name, source: 'graph_entity', entity_id: row.id
         })));
         const projectSubjectIdentity = assertProjectSubjectIdentityReadback(
-            await this.repository.findProjectSubjectIdentity(manifest.project_code, organizationId)
+            await this.repository.findProjectSubjectIdentity(manifest.project_code, organizationId, {
+                access: graphVisibilityAccess(actor, manifest, organizationId)
+            })
         );
         let graphProjectSubject = { status: 'absent' };
         if (projectSubjectIdentity) {
@@ -387,9 +400,12 @@ export class ProjectProvisioningService {
             );
         }
         const organizationId = actor.organizationId || actor.tenantId;
+        const graphAccess = graphVisibilityAccess(actor, run.manifest, organizationId);
         const identity = assertProjectSubjectIdentityReadback(
             await this.repository.findProjectSubjectIdentity(
-                run.manifest.project_code, organizationId, client ? { client } : undefined
+                run.manifest.project_code,
+                organizationId,
+                { access: graphAccess, ...(client ? { client } : {}) }
             )
         );
         if (!identity) {
@@ -887,17 +903,16 @@ export class ProjectProvisioningService {
         } else {
             failures.push({ layer: 'runtime_catalog', code: 'catalog_readback_unavailable' });
         }
-        const graphAccess = {
-            ...actor,
-            projectCodes: [...new Set([...(actor.projectCodes || []), run.manifest.project_code])]
-        };
+        const graphAccess = graphVisibilityAccess(actor, run.manifest, organizationId);
         const graphStep = run.steps.find((step) => step.step_name === 'graph');
         const reusedSubject = graphStep?.receipt?.status === 'already_materialized'
             ? graphStep.receipt
             : null;
         if (reusedSubject) {
             const identity = assertProjectSubjectIdentityReadback(
-                await this.repository.findProjectSubjectIdentity(run.manifest.project_code, organizationId)
+                await this.repository.findProjectSubjectIdentity(run.manifest.project_code, organizationId, {
+                    access: graphAccess
+                })
             );
             const subject = projectSubjectFromIdentity(identity);
             if (!subject
