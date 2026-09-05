@@ -94,6 +94,18 @@ const main = async () => {
       const slackUserId = member.slack_id;
       if (!slackUserId) continue;
 
+      const organizationRows = await client.query(
+        `SELECT id FROM organizations
+          WHERE id = $1 OR workspace_id = $2
+          ORDER BY CASE WHEN id = $1 THEN 0 ELSE 1 END
+          LIMIT 2`,
+        [member.workspace, slackWorkspaceId]
+      );
+      if (organizationRows.rows.length !== 1) {
+        throw new Error(`organization must resolve exactly once: ${member.workspace}`);
+      }
+      const organizationId = organizationRows.rows[0].id;
+
       const role = roleFromText(member.role);
       const clearance = clearanceForRole(role);
 
@@ -160,14 +172,15 @@ const main = async () => {
               person_name,
               slack_user_id,
               slack_workspace_id,
+              organization_id,
               role,
               project_codes,
               clearance,
               active,
               created_at,
               updated_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true,NOW(),NOW())
-            ON CONFLICT (slack_user_id, slack_workspace_id)
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,NOW(),NOW())
+            ON CONFLICT (slack_user_id, slack_workspace_id, organization_id)
             DO UPDATE SET
               person_id = EXCLUDED.person_id,
               person_name = EXCLUDED.person_name,
@@ -182,6 +195,7 @@ const main = async () => {
             personName,
             slackUserId,
             slackWorkspaceId,
+            organizationId,
             role,
             projectCodes,
             clearance

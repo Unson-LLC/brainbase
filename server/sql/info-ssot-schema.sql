@@ -76,14 +76,108 @@ CREATE TABLE IF NOT EXISTS auth_grants (
   person_name text NOT NULL,
   slack_user_id text NOT NULL,
   slack_workspace_id text NOT NULL,
+  organization_id text,
   role text NOT NULL,
   project_codes text[] NOT NULL DEFAULT ARRAY[]::text[],
   clearance text[] NOT NULL DEFAULT ARRAY[]::text[],
   active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT NOW(),
-  updated_at timestamptz NOT NULL DEFAULT NOW(),
-  UNIQUE (slack_user_id, slack_workspace_id)
+  updated_at timestamptz NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE auth_grants ADD COLUMN IF NOT EXISTS organization_id text;
+
+-- Legacy grants inferred their organization from the Slack workspace. Persist
+-- that resolved organization before allowing one Slack identity to hold more
+-- than one organization-scoped grant.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_attribute
+    WHERE attrelid = to_regclass('organizations')
+      AND attname = 'workspace_id'
+      AND NOT attisdropped
+  ) THEN
+    UPDATE auth_grants ag
+    SET organization_id = matched.organization_id
+    FROM (
+      SELECT workspace_id, MIN(id) AS organization_id
+      FROM organizations
+      WHERE workspace_id IS NOT NULL
+      GROUP BY workspace_id
+      HAVING COUNT(*) = 1
+    ) matched
+    WHERE ag.organization_id IS NULL
+      AND ag.slack_workspace_id = matched.workspace_id;
+  END IF;
+END $$;
+
+-- Some login identities use a Slack installation that is not the
+-- organization's operational workspace. Resolve those legacy grants only
+-- when every project code with a catalog owner points to one organization.
+DO $$
+BEGIN
+  IF to_regclass('project_registry') IS NOT NULL THEN
+    UPDATE auth_grants ag
+    SET organization_id = matched.organization_id
+    FROM (
+      SELECT ag2.id, MIN(pr.organization_id) AS organization_id
+      FROM auth_grants ag2
+      JOIN LATERAL unnest(ag2.project_codes) code(project_code) ON true
+      JOIN project_registry pr ON pr.project_code = code.project_code
+      WHERE ag2.organization_id IS NULL
+      GROUP BY ag2.id
+      HAVING COUNT(DISTINCT pr.organization_id) = 1
+    ) matched
+    WHERE ag.id = matched.id;
+  END IF;
+END $$;
+
+-- A legacy project can predate Project Registry while already carrying an
+-- explicit owner in the canonical projects table. Use that owner only when
+-- every resolvable project in the grant agrees on one organization.
+UPDATE auth_grants ag
+SET organization_id = matched.organization_id
+FROM (
+  SELECT ag2.id, MIN(p.organization_id) AS organization_id
+  FROM auth_grants ag2
+  JOIN LATERAL unnest(ag2.project_codes) code(project_code) ON true
+  JOIN projects p ON p.code = code.project_code AND p.organization_id IS NOT NULL
+  WHERE ag2.organization_id IS NULL
+  GROUP BY ag2.id
+  HAVING COUNT(DISTINCT p.organization_id) = 1
+) matched
+WHERE ag.id = matched.id;
+
+ALTER TABLE auth_grants
+  DROP CONSTRAINT IF EXISTS auth_grants_slack_user_id_slack_workspace_id_key;
+
+DROP INDEX IF EXISTS auth_grants_slack_workspace_organization_unique;
+CREATE UNIQUE INDEX IF NOT EXISTS auth_grants_slack_workspace_organization_unique
+  ON auth_grants (slack_user_id, slack_workspace_id, organization_id);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM auth_grants WHERE organization_id IS NULL) THEN
+    RAISE EXCEPTION 'auth_grants organization backfill is incomplete';
+  END IF;
+END $$;
+
+ALTER TABLE auth_grants ALTER COLUMN organization_id SET NOT NULL;
+
+DO $$
+BEGIN
+  IF to_regclass('organizations') IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'auth_grants_organization_id_fkey'
+      AND conrelid = to_regclass('auth_grants')
+  ) THEN
+    ALTER TABLE auth_grants
+      ADD CONSTRAINT auth_grants_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES organizations(id);
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS auth_audit_logs (
   id text PRIMARY KEY,

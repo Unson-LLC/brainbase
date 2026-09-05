@@ -17,7 +17,7 @@ describe('Project Provisioning AuthGrantService', () => {
             personId: 'person_1', role: 'gm', projectCode: 'growin-ai', organizationId: 'org_1'
         });
 
-        expect(client.query.mock.calls[1][0]).toContain('o.id=$2');
+        expect(client.query.mock.calls[1][0]).toContain('ag.organization_id=$2');
         expect(client.query.mock.calls[1][1]).toEqual(['person_1', 'org_1']);
         expect(receipt).toMatchObject({ jwt_refresh_required: true, selector_project_code: 'growin-ai' });
     });

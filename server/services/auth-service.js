@@ -344,7 +344,7 @@ export class AuthService {
         };
     }
 
-    async findGrant({ slackUserId, slackWorkspaceId }) {
+    async findGrant({ slackUserId, slackWorkspaceId, organizationId = null }) {
         const client = await this.pool.connect();
         try {
             const { rows } = await client.query(
@@ -352,11 +352,51 @@ export class AuthService {
                  FROM auth_grants
                  WHERE slack_user_id = $1
                    AND slack_workspace_id = $2
+                   ${organizationId ? 'AND organization_id = $3' : ''}
                    AND active = true
+                 ORDER BY CASE
+                            WHEN organization_id = (
+                              SELECT u.workspace_id
+                              FROM users u
+                              WHERE u.slack_user_id = $1 AND u.status = 'active'
+                              LIMIT 1
+                            ) THEN 0
+                            WHEN organization_id IS NULL THEN 1
+                            ELSE 2
+                          END,
+                          organization_id ASC NULLS LAST
                  LIMIT 1`,
-                [slackUserId, slackWorkspaceId]
+                organizationId
+                    ? [slackUserId, slackWorkspaceId, organizationId]
+                    : [slackUserId, slackWorkspaceId]
             );
             return rows[0] || null;
+        } finally {
+            client.release();
+        }
+    }
+
+    async listOrganizationAccess({ slackUserId, slackWorkspaceId }) {
+        if (!this.pool || !slackUserId || !slackWorkspaceId) return [];
+        const client = await this.pool.connect();
+        try {
+            const { rows } = await client.query(
+                `SELECT ag.organization_id, o.name AS organization_name,
+                        ag.role, ag.project_codes
+                 FROM auth_grants ag
+                 JOIN organizations o ON o.id = ag.organization_id
+                 WHERE ag.slack_user_id = $1
+                   AND ag.slack_workspace_id = $2
+                   AND ag.active = true
+                 ORDER BY o.name ASC, o.id ASC`,
+                [slackUserId, slackWorkspaceId]
+            );
+            return rows.map((row) => ({
+                organizationId: row.organization_id,
+                name: row.organization_name,
+                role: this.normalizeRole(row.role),
+                projectCodes: Array.isArray(row.project_codes) ? row.project_codes : []
+            }));
         } finally {
             client.release();
         }
@@ -368,7 +408,7 @@ export class AuthService {
      * @param {string|null} slackWorkspaceId - Exact Slack workspace required during authentication
      * @returns {Promise<Object|null>} - User object or null if not found
      */
-    async findUserBySlackId(slackUserId, slackWorkspaceId = null) {
+    async findUserBySlackId(slackUserId, slackWorkspaceId = null, organizationId = null) {
         logger.info(`[AUTH] findUserBySlackId called with: "${slackUserId}"`);
         if (!this.pool) {
             logger.error('[AUTH] findUserBySlackId: no pool!');
@@ -392,15 +432,33 @@ export class AuthService {
             const requireExactWorkspace = typeof slackWorkspaceId === 'string' && slackWorkspaceId.length > 0;
             const { rows: grantRows } = await client.query(
                 `SELECT ag.person_id, ag.person_name as name, ag.slack_user_id,
-                        ag.slack_workspace_id, o.id as organization_id,
+                        ag.slack_workspace_id, COALESCE(ag.organization_id, o.id) as organization_id,
                         ag.role, ag.project_codes, ag.clearance, ag.active as status
                  FROM auth_grants ag
-                 LEFT JOIN organizations o ON o.workspace_id = ag.slack_workspace_id
+                 LEFT JOIN organizations o
+                   ON (ag.organization_id IS NOT NULL AND o.id = ag.organization_id)
+                   OR (ag.organization_id IS NULL AND o.workspace_id = ag.slack_workspace_id)
                  WHERE ag.slack_user_id = $1
                    ${requireExactWorkspace ? 'AND ag.slack_workspace_id = $2' : ''}
+                   ${organizationId ? `AND COALESCE(ag.organization_id, o.id) = $${requireExactWorkspace ? 3 : 2}` : ''}
                    AND ag.active = true
+                 ORDER BY CASE
+                            WHEN COALESCE(ag.organization_id, o.id) = (
+                              SELECT preferred.workspace_id
+                              FROM users preferred
+                              WHERE preferred.slack_user_id = $1 AND preferred.status = 'active'
+                              LIMIT 1
+                            ) THEN 0
+                            WHEN ag.organization_id IS NULL THEN 1
+                            ELSE 2
+                          END,
+                          COALESCE(ag.organization_id, o.id) ASC NULLS LAST
                  LIMIT 1`,
-                requireExactWorkspace ? [slackUserId, slackWorkspaceId] : [slackUserId]
+                organizationId
+                    ? (requireExactWorkspace
+                        ? [slackUserId, slackWorkspaceId, organizationId]
+                        : [slackUserId, organizationId])
+                    : (requireExactWorkspace ? [slackUserId, slackWorkspaceId] : [slackUserId])
             );
             logger.info(`[AUTH] findUserBySlackId: auth_grants rows=${grantRows.length}`);
 
@@ -419,6 +477,7 @@ export class AuthService {
                     if (Array.isArray(grant.clearance)) user.clearance = grant.clearance;
                     if (Array.isArray(grant.project_codes)) user.project_codes = grant.project_codes;
                     if (grant.role) user.role = grant.role;
+                    user.workspace_id = grant.organization_id || user.workspace_id || null;
                 }
                 return user;
             }
@@ -538,7 +597,8 @@ export class AuthService {
             clearance,
             personId: grant.person_id || null,
             slackUserId: grant.slack_user_id,
-            slackWorkspaceId: grant.slack_workspace_id
+            slackWorkspaceId: grant.slack_workspace_id,
+            organizationId: grant.organization_id || grant.workspace_id || null
         };
     }
 
@@ -670,13 +730,13 @@ export class AuthService {
             throw new Error('canonical routine authority is unresolved');
         }
         const { rows } = await this.pool.query(
-            `SELECT DISTINCT ag.person_id, o.id AS organization_id
+            `SELECT DISTINCT ag.person_id, ag.organization_id
                FROM auth_grants ag
-               JOIN organizations o ON $2 = ANY(o.projects)
               WHERE ag.slack_user_id = ANY($1::text[])
+                AND ag.organization_id IS NOT NULL
                 AND ag.active = true
                 AND $2 = ANY(ag.project_codes)
-              ORDER BY ag.person_id, o.id
+              ORDER BY ag.person_id, ag.organization_id
               LIMIT 2`,
             [subjects, project]
         );
@@ -746,8 +806,9 @@ export class AuthService {
         if (!slackUserId || !slackWorkspaceId) {
             throw new Error('Refresh token missing Slack identity');
         }
-        logger.info(`[AUTH] refresh: findGrant uid=${slackUserId} wid=${slackWorkspaceId}`);
-        const grant = await this.findGrant({ slackUserId, slackWorkspaceId });
+        const organizationId = payload.organizationId || payload.organization_id || null;
+        logger.info(`[AUTH] refresh: findGrant uid=${slackUserId} wid=${slackWorkspaceId} org=${organizationId || 'default'}`);
+        const grant = await this.findGrant({ slackUserId, slackWorkspaceId, organizationId });
         logger.info(`[AUTH] refresh: grant found=${!!grant}`);
         if (!grant) {
             await this.createAuditLog({
@@ -762,13 +823,18 @@ export class AuthService {
         // Login prefers the users row that is linked to the canonical Graph person.
         // Keep refresh on the same identity even when a legacy grant still points to
         // an older people row; grants remain the authorization SSOT.
-        const user = await this.findUserBySlackId(slackUserId, slackWorkspaceId);
+        const user = organizationId
+            ? await this.findUserBySlackId(slackUserId, slackWorkspaceId, organizationId)
+            : await this.findUserBySlackId(slackUserId, slackWorkspaceId);
         const personId = await this.ensurePerson({
             personId: user?.person_id || grant.person_id,
             personName: user?.name || grant.person_name
         });
         const access = this.buildAccessFromGrant({ ...grant, person_id: personId });
-        const organizationId = user?.workspace_id || null;
+        const resolvedOrganizationId = grant.organization_id || user?.workspace_id || null;
+        if (!resolvedOrganizationId) {
+            throw new Error('Organization access is not granted');
+        }
         const token = this.issueToken({
             role: access.role,
             projectCodes: access.projectCodes,
@@ -776,18 +842,19 @@ export class AuthService {
             personId,
             slackUserId,
             slackWorkspaceId,
-            organizationId
+            organizationId: resolvedOrganizationId
         });
         const nextRefreshToken = this.issueRefreshToken({
             slackUserId,
-            slackWorkspaceId
+            slackWorkspaceId,
+            organizationId: resolvedOrganizationId
         });
         await this.createAuditLog({
             personId,
             slackUserId,
             slackWorkspaceId,
             eventType: 'AUTH_REFRESH',
-            metadata: { role: access.role, project_codes: access.projectCodes }
+            metadata: { role: access.role, project_codes: access.projectCodes, organization_id: resolvedOrganizationId }
         });
         return {
             token,
@@ -797,7 +864,65 @@ export class AuthService {
                 projectCodes: access.projectCodes,
                 clearance: access.clearance,
                 personId,
-                organizationId
+                organizationId: resolvedOrganizationId
+            }
+        };
+    }
+
+    async switchOrganization({ slackUserId, slackWorkspaceId, organizationId }) {
+        const requestedOrganizationId = typeof organizationId === 'string' ? organizationId.trim() : '';
+        if (!slackUserId || !slackWorkspaceId || !requestedOrganizationId) {
+            throw new Error('Slack identity and organizationId are required');
+        }
+        const grant = await this.findGrant({
+            slackUserId,
+            slackWorkspaceId,
+            organizationId: requestedOrganizationId
+        });
+        if (!grant) {
+            await this.createAuditLog({
+                slackUserId,
+                slackWorkspaceId,
+                eventType: 'AUTH_DENY',
+                metadata: { reason: 'organization_grant_not_found', organization_id: requestedOrganizationId }
+            });
+            throw new Error('Organization access is not granted');
+        }
+        const personId = await this.ensurePerson({
+            personId: grant.person_id,
+            personName: grant.person_name
+        });
+        const access = this.buildAccessFromGrant({ ...grant, person_id: personId });
+        const token = this.issueToken({
+            role: access.role,
+            projectCodes: access.projectCodes,
+            clearance: access.clearance,
+            personId,
+            slackUserId,
+            slackWorkspaceId,
+            organizationId: requestedOrganizationId
+        });
+        const refreshToken = this.issueRefreshToken({
+            slackUserId,
+            slackWorkspaceId,
+            organizationId: requestedOrganizationId
+        });
+        await this.createAuditLog({
+            personId,
+            slackUserId,
+            slackWorkspaceId,
+            eventType: 'AUTH_ORGANIZATION_SWITCH',
+            metadata: { organization_id: requestedOrganizationId }
+        });
+        return {
+            token,
+            refresh_token: refreshToken,
+            access: {
+                role: access.role,
+                projectCodes: access.projectCodes,
+                clearance: access.clearance,
+                personId,
+                organizationId: requestedOrganizationId
             }
         };
     }
@@ -1083,7 +1208,8 @@ export class AuthService {
             });
             const refreshToken = this.issueRefreshToken({
                 slackUserId,
-                slackWorkspaceId
+                slackWorkspaceId,
+                organizationId: user.workspace_id
             });
 
             await this.createAuditLog({

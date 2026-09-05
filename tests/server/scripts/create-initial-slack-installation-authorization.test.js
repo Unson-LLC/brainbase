@@ -60,7 +60,7 @@ function verifiedAdminClient() {
             if (compact.includes('FROM people')) return { rows: [{ id: personId, name: '佐藤 圭吾', status: 'active' }] };
             if (compact.includes('FROM auth_grants')) return { rows: [{
                 id: 'grant_existing', person_id: personId, person_name: '佐藤 圭吾',
-                slack_user_id: 'U_KEIGO', slack_workspace_id: 'T_TECHKNIGHT', role: 'ceo',
+                slack_user_id: 'U_KEIGO', slack_workspace_id: 'T_TECHKNIGHT', organization_id: 'techknight', role: 'ceo',
                 project_codes: ['techknight'], clearance: ['internal'], active: true
             }] };
             if (compact.includes('FROM tenant_memberships')) return { rows: [{

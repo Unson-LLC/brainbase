@@ -3,6 +3,103 @@ import { describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../../server/services/auth-service.js';
 
 describe('AuthService auth grant precedence', () => {
+    it('selects the exact organization grant for the same Slack identity', async () => {
+        const observed = [];
+        const client = {
+            query: async (sql, params) => {
+                observed.push({ sql, params });
+                return { rows: [{
+                    id: 'grant_personal',
+                    person_id: 'per_sato',
+                    person_name: '佐藤 圭吾',
+                    slack_user_id: 'U_SATO',
+                    slack_workspace_id: 'T_UNSON',
+                    organization_id: 'sato-personal',
+                    role: 'ceo',
+                    project_codes: ['fx', 'keiba'],
+                    clearance: ['internal'],
+                    active: true
+                }] };
+            },
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const grant = await authService.findGrant({
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T_UNSON',
+            organizationId: 'sato-personal'
+        });
+
+        expect(grant.organization_id).toBe('sato-personal');
+        expect(observed[0].sql).toContain('organization_id = $3');
+        expect(observed[0].params).toEqual(['U_SATO', 'T_UNSON', 'sato-personal']);
+    });
+
+    it('lists only active organization grants for the exact Slack identity', async () => {
+        const client = {
+            query: async () => ({ rows: [
+                { organization_id: 'sato-personal', organization_name: '佐藤個人', role: 'ceo', project_codes: ['fx', 'keiba'] },
+                { organization_id: 'unson', organization_name: 'UNSON', role: 'ceo', project_codes: ['brainbase'] }
+            ] }),
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const organizations = await authService.listOrganizationAccess({
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T_UNSON'
+        });
+
+        expect(organizations).toEqual([
+            { organizationId: 'sato-personal', name: '佐藤個人', role: 'ceo', projectCodes: ['fx', 'keiba'] },
+            { organizationId: 'unson', name: 'UNSON', role: 'ceo', projectCodes: ['brainbase'] }
+        ]);
+    });
+
+    it('keeps refresh bound to the organization embedded in the refresh token', async () => {
+        const authService = new AuthService();
+        authService.verifyRefreshToken = vi.fn().mockReturnValue({
+            typ: 'refresh',
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T_UNSON',
+            organizationId: 'sato-personal'
+        });
+        authService.findGrant = vi.fn().mockResolvedValue({
+            person_id: 'per_sato',
+            person_name: '佐藤 圭吾',
+            slack_user_id: 'U_SATO',
+            slack_workspace_id: 'T_UNSON',
+            organization_id: 'sato-personal',
+            role: 'ceo',
+            project_codes: ['fx', 'keiba'],
+            clearance: ['internal']
+        });
+        authService.ensurePerson = vi.fn(async ({ personId }) => personId);
+        authService.issueToken = vi.fn().mockReturnValue('personal-access-token');
+        authService.issueRefreshToken = vi.fn().mockReturnValue('personal-refresh-token');
+        authService.createAuditLog = vi.fn();
+
+        authService.findUserBySlackId = vi.fn().mockResolvedValue(null);
+        const result = await authService.refreshSession('old-refresh-token');
+
+        expect(authService.findGrant).toHaveBeenCalledWith({
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T_UNSON',
+            organizationId: 'sato-personal'
+        });
+        expect(authService.issueToken).toHaveBeenCalledWith(expect.objectContaining({
+            organizationId: 'sato-personal',
+            projectCodes: ['fx', 'keiba']
+        }));
+        expect(authService.issueRefreshToken).toHaveBeenCalledWith(expect.objectContaining({
+            organizationId: 'sato-personal'
+        }));
+        expect(result.access.organizationId).toBe('sato-personal');
+    });
+
     it('refresh時もgrant権限を使いながらログイン時と同じGraph人物IDを維持する', async () => {
         const authService = new AuthService();
         authService.verifyRefreshToken = vi.fn().mockReturnValue({
@@ -171,6 +268,38 @@ describe('AuthService auth grant precedence', () => {
         expect(user.workspace_id).toBe('unson');
         expect(observedQueries[1].params).toEqual(['U_MEMBER', 'T_EXACT']);
         expect(observedQueries[1].sql).toContain('ag.slack_workspace_id = $2');
-        expect(observedQueries[1].sql).toContain('o.id as organization_id');
+        expect(observedQueries[1].sql).toContain('COALESCE(ag.organization_id, o.id) as organization_id');
+    });
+
+    it('keeps the users workspace as the default organization when multiple grants share one Slack identity', async () => {
+        const observedQueries = [];
+        const queries = [
+            { rows: [{ slack_user_id: 'U_SATO', person_id: 'per_sato', workspace_id: 'unson', status: 'active' }] },
+            { rows: [{
+                person_id: 'per_sato',
+                slack_user_id: 'U_SATO',
+                slack_workspace_id: 'T_UNSON',
+                organization_id: 'unson',
+                role: 'ceo',
+                project_codes: ['brainbase'],
+                clearance: ['internal'],
+                status: true
+            }] }
+        ];
+        const client = {
+            query: async (sql, params) => {
+                observedQueries.push({ sql, params });
+                return queries.shift();
+            },
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const user = await authService.findUserBySlackId('U_SATO', 'T_UNSON');
+
+        expect(user.workspace_id).toBe('unson');
+        expect(observedQueries[1].sql).toContain('SELECT preferred.workspace_id');
+        expect(observedQueries[1].sql).toContain('ag.organization_id IS NULL');
     });
 });

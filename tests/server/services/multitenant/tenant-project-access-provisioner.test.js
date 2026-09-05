@@ -30,10 +30,10 @@ function fakeClient({ grants = [], memberships = [], identities = [], missingCon
         if (compact.includes('FROM workspace_connections')) return { rows: state.connection ? [state.connection] : [] };
         if (compact.includes('FROM credential_broker_refs')) return { rows: missingBroker ? [] : [{ credential_ref: state.connection.credential_ref }] };
         if (compact.includes('FROM people')) return { rows: missingUmeda && values[0] === target.umeda.person_id ? [] : [{ id: values[0], name: values[0] === target.sato.person_id ? '佐藤 圭吾' : '梅田 遼', status: 'active' }] };
-        if (compact.includes('FROM auth_grants')) return { rows: state.grants.filter((grant) => grant.slack_user_id === values[0] && grant.slack_workspace_id === values[1]) };
+        if (compact.includes('FROM auth_grants')) return { rows: state.grants.filter((grant) => grant.slack_user_id === values[0] && grant.slack_workspace_id === values[1] && (!values[2] || (grant.organization_id ?? target.auth_organization_id) === values[2])) };
         if (compact.startsWith('INSERT INTO auth_grants')) {
             if (failUmedaGrantInsert && values[1] === target.umeda.person_id) throw new Error('forced Umeda grant failure');
-            state.grants.push({ id: values[0], person_id: values[1], person_name: values[2], slack_user_id: values[3], slack_workspace_id: values[4], role: 'member', project_codes: values[5], clearance: values[6], active: true }); return { rows: [] };
+            state.grants.push({ id: values[0], person_id: values[1], person_name: values[2], slack_user_id: values[3], slack_workspace_id: values[4], organization_id: values[5], role: 'member', project_codes: values[6], clearance: values[7], active: true }); return { rows: [] };
         }
         if (compact.includes('FROM tenant_memberships')) return { rows: state.memberships.filter((membership) => membership.principal_id === values[2]) };
         if (compact.startsWith('UPDATE tenant_memberships SET membership_payload')) {

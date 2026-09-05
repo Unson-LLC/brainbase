@@ -345,9 +345,9 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
             `INSERT INTO people (id, name, status) VALUES ('per_conflict', 'Conflict', 'active');
              INSERT INTO auth_grants (
                 id, person_id, person_name, slack_user_id, slack_workspace_id,
-                role, project_codes, clearance, active
+                organization_id, role, project_codes, clearance, active
              ) VALUES ('grant_conflict', 'per_conflict', 'Conflict', 'U_UMEDA',
-                       'T_TECHKNIGHT', 'member', ARRAY['other'], ARRAY['public'], true)`
+                       'T_TECHKNIGHT', 'techknight', 'member', ARRAY['other'], ARRAY['public'], true)`
         );
         const client = await connectAsProvisioner();
         try {

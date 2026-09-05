@@ -217,6 +217,7 @@ function publicGrant(row) {
         person_name: row.person_name,
         slack_user_id: row.slack_user_id,
         slack_workspace_id: row.slack_workspace_id,
+        organization_id: row.organization_id,
         role: row.role,
         project_codes: [...row.project_codes].sort((a, b) => a.localeCompare(b)),
         clearance: [...row.clearance].sort((a, b) => a.localeCompare(b)),
@@ -351,12 +352,12 @@ async function preparePerson(client, human, plan) {
 
 async function readGrant(client, manifest, human) {
     return rows(client,
-        `SELECT id, person_id, person_name, slack_user_id, slack_workspace_id,
+        `SELECT id, person_id, person_name, slack_user_id, slack_workspace_id, organization_id,
                 role, project_codes, clearance, active
            FROM auth_grants
-          WHERE slack_user_id = $1 AND slack_workspace_id = $2
+          WHERE slack_user_id = $1 AND slack_workspace_id = $2 AND organization_id = $3
           ORDER BY id LIMIT 2 FOR UPDATE`,
-        [human.slack_user_id, manifest.transport.workspace_id]);
+        [human.slack_user_id, manifest.transport.workspace_id, manifest.organization.graph_organization_id]);
 }
 
 function desiredGrant(manifest, human, id) {
@@ -366,6 +367,7 @@ function desiredGrant(manifest, human, id) {
         person_name: human.person_name,
         slack_user_id: human.slack_user_id,
         slack_workspace_id: manifest.transport.workspace_id,
+        organization_id: manifest.organization.graph_organization_id,
         role: human.login_role,
         project_codes: human.project_codes,
         clearance: human.clearance,
@@ -382,14 +384,15 @@ async function prepareGrant(client, manifest, human, plan) {
         plan.push({ operation: 'noop', entity: 'auth_grant', id: found[0].id });
         return found[0].id;
     }
-    const id = stableId('grant', [manifest.transport.workspace_id, human.slack_user_id]);
+    const id = stableId('grant', [manifest.organization.graph_organization_id, manifest.transport.workspace_id, human.slack_user_id]);
     await client.query(
         `INSERT INTO auth_grants (
             id, person_id, person_name, slack_user_id, slack_workspace_id,
-            role, project_codes, clearance, active
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8::text[], true)`,
+            organization_id, role, project_codes, clearance, active
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text[], $9::text[], true)`,
         [id, human.person_id, human.person_name, human.slack_user_id,
-            manifest.transport.workspace_id, human.login_role, human.project_codes, human.clearance]
+            manifest.transport.workspace_id, manifest.organization.graph_organization_id,
+            human.login_role, human.project_codes, human.clearance]
     );
     plan.push({ operation: 'create', entity: 'auth_grant', id });
     return id;

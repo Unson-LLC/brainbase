@@ -112,13 +112,14 @@ function fakeClient(sharedState = null) {
         }
         if (compact.startsWith('SELECT id, person_id') && compact.includes('FROM auth_grants')) {
             return { rows: state.grants.filter((row) =>
-                row.slack_user_id === parameters[0] && row.slack_workspace_id === parameters[1]).slice(0, 2) };
+                row.slack_user_id === parameters[0] && row.slack_workspace_id === parameters[1]
+                && row.organization_id === parameters[2]).slice(0, 2) };
         }
         if (compact.startsWith('INSERT INTO auth_grants')) {
             state.grants.push({
                 id: parameters[0], person_id: parameters[1], person_name: parameters[2],
-                slack_user_id: parameters[3], slack_workspace_id: parameters[4], role: parameters[5],
-                project_codes: clone(parameters[6]), clearance: clone(parameters[7]), active: true
+                slack_user_id: parameters[3], slack_workspace_id: parameters[4], organization_id: parameters[5],
+                role: parameters[6], project_codes: clone(parameters[7]), clearance: clone(parameters[8]), active: true
             });
             return { rows: [] };
         }
@@ -336,7 +337,7 @@ describe('human company authority provisioning', () => {
         const client = fakeClient();
         client.state.grants.push({
             id: 'grant_existing', person_id: 'per_someone_else', person_name: '別人',
-            slack_user_id: 'U_KEIGO', slack_workspace_id: 'T_TECHKNIGHT', role: 'member',
+            slack_user_id: 'U_KEIGO', slack_workspace_id: 'T_TECHKNIGHT', organization_id: 'techknight', role: 'member',
             project_codes: ['other'], clearance: ['public'], active: true
         });
         await expect(provisionHumanCompanyAuthority({
