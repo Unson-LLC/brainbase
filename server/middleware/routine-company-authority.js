@@ -16,6 +16,10 @@ function reject(res, code = 'routine_company_authority_rejected') {
 }
 
 const ROUTINE_SERVICE_AUTHORITY = Object.freeze({
+    ohayo: Object.freeze({
+        actorId: 'brainbase_ohayo',
+        capability: 'routine.ohayo.execute'
+    }),
     retro: Object.freeze({
         actorId: 'brainbase_retro',
         capability: 'routine.retro.execute'
@@ -32,13 +36,16 @@ function nonEmpty(value) {
 
 function acceptRoutineServiceAuthority(req) {
     const claims = req.auth;
-    const routine = String(req.path || '').match(/^\/(oyasumi|retro)\/execute\/?$/u)?.[1];
+    const routine = String(req.path || '').match(/^\/(ohayo|oyasumi|retro)\/execute\/?$/u)?.[1];
+    return acceptSignedRoutineAuthority({ req, routine, claims });
+}
+
+function acceptSignedRoutineAuthority({ req, routine, claims }) {
     const routineConfig = routine ? ROUTINE_SERVICE_AUTHORITY[routine] : null;
     const authority = claims?.routineAuthority;
     const capabilities = Array.isArray(claims?.capabilities) ? claims.capabilities : [];
     const projectCodes = Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [];
-    if (req.authSource !== 'service-token'
-        || !routineConfig
+    if (!routineConfig
         || claims?.sub !== routineConfig.actorId
         || !capabilities.includes(routineConfig.capability)
         || !authority || typeof authority !== 'object' || Array.isArray(authority)
@@ -70,13 +77,35 @@ function acceptRoutineServiceAuthority(req) {
  * Generic service tokens authenticate transport only. Fixed routine actors may
  * additionally carry Brainbase-issued, signed, read-only routine authority.
  */
-export function requireRoutineCompanyAuthority({ env = process.env, now = () => new Date() } = {}) {
-    return (req, res, next) => {
+export function requireRoutineCompanyAuthority({
+    env = process.env,
+    now = () => new Date(),
+    resolveCanonicalRoutineAuthority = null,
+    ownerPersonId = null,
+    projectId = 'brainbase'
+} = {}) {
+    return async (req, res, next) => {
         const response = req.body?.company_authority_response;
         if (!response) {
-            const serviceAccess = acceptRoutineServiceAuthority(req);
+            let serviceAccess = req.authSource === 'service-token'
+                ? acceptRoutineServiceAuthority(req)
+                : null;
+            if (!serviceAccess && req.authSource === 'internal' && resolveCanonicalRoutineAuthority) {
+                const routine = String(req.path || '').match(/^\/(ohayo|oyasumi|retro)\/execute\/?$/u)?.[1];
+                try {
+                    const claims = await resolveCanonicalRoutineAuthority({
+                        routine,
+                        ownerPersonId,
+                        projectId
+                    });
+                    serviceAccess = acceptSignedRoutineAuthority({ req, routine, claims });
+                    if (serviceAccess) req.routineCompanyAuthority = claims.routineAuthority;
+                } catch {
+                    return reject(res, 'routine_company_authority_unresolved');
+                }
+            }
             if (!serviceAccess) return reject(res, 'routine_company_authority_required');
-            req.routineCompanyAuthority = req.auth.routineAuthority;
+            if (!req.routineCompanyAuthority) req.routineCompanyAuthority = req.auth.routineAuthority;
             req.companyAuthorityAccess = serviceAccess;
             return next();
         }
