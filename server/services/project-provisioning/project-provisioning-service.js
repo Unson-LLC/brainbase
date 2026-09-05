@@ -55,6 +55,18 @@ function completedGraphMaterializationReceipt(run, subject) {
         && receipt?.validation?.valid === true)) return null;
     return receipt;
 }
+
+function completedGraphReuseReceipt(run, subject) {
+    const graphStep = run?.steps?.find((step) => step.step_name === 'graph');
+    const receipt = graphStep?.receipt;
+    if (!(graphStep?.state === 'completed'
+        && receipt?.status === 'already_materialized'
+        && receipt?.project_code === subject?.project_code
+        && receipt?.entity_version === subject?.version
+        && typeof receipt?.snapshot_hash === 'string'
+        && receipt.snapshot_hash.length > 0)) return null;
+    return receipt;
+}
 const AUTHORITY_FIELDS = [
     'organization_exists',
     'owner_person_exists',
@@ -435,6 +447,13 @@ export class ProjectProvisioningService {
                 'PROJECT_PROVISIONING_GRAPH_SCOPE_UNAVAILABLE',
                 'Apply actor cannot access the reusable Graph project scope'
             );
+        }
+        if (expected?.status === 'absent' && completedGraphReuseReceipt(run, subject)) {
+            return {
+                status: 'reused_by_run',
+                project_code: subject.project_code,
+                entity_version: subject.version
+            };
         }
         if (isLegacyPlan) {
             return {

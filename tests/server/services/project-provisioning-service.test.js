@@ -533,6 +533,65 @@ describe('ProjectProvisioningService', () => {
         });
     });
 
+    it('承認時absentでもGraph再利用Receiptと参照権限が一致すればreadback失敗からresumeする', async () => {
+        const graphEntity = {
+            id: manifest.project_code,
+            entity_type: 'project', project_code: 'brainbase', lifecycle_status: 'active', version: 1,
+            payload: {
+                name: manifest.display_name, catalog_project_id: manifest.project_code,
+                catalog_version: manifest.catalog_version,
+                source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+            }
+        };
+        const { service, repository, graphService } = createHarness({ graphEntities: [graphEntity] });
+        const scopedActor = { ...actor, projectCodes: ['brainbase'] };
+        const plan = await service.plan(scopedActor, manifest, {
+            idempotencyKey: 'growin-absent-reused-subject-resume'
+        });
+        await service.approve(scopedActor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-absent-reused-subject-resume'
+        });
+        await expect(service.apply(scopedActor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_READBACK_FAILED'
+        });
+        repository.projectSubjectIdentity = materializedProjectIdentity('brainbase');
+
+        const resumed = await service.resume(scopedActor, plan.run_id);
+
+        expect(resumed.state).toBe('active');
+        expect(graphService.applyPlan).not.toHaveBeenCalled();
+        expect(resumed.receipt.verified).toBe(true);
+    });
+
+    it('承認時absentのGraph再利用Receiptがfresh subjectと一致しなければresumeを拒否する', async () => {
+        const graphEntity = {
+            id: manifest.project_code,
+            entity_type: 'project', project_code: 'brainbase', lifecycle_status: 'active', version: 1,
+            payload: {
+                name: manifest.display_name, catalog_project_id: manifest.project_code,
+                catalog_version: manifest.catalog_version,
+                source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+            }
+        };
+        const { service, repository } = createHarness({ graphEntities: [graphEntity] });
+        const scopedActor = { ...actor, projectCodes: ['brainbase'] };
+        const plan = await service.plan(scopedActor, manifest, {
+            idempotencyKey: 'growin-absent-tampered-reuse-resume'
+        });
+        await service.approve(scopedActor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-absent-tampered-reuse-resume'
+        });
+        await expect(service.apply(scopedActor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_READBACK_FAILED'
+        });
+        repository.projectSubjectIdentity = materializedProjectIdentity('brainbase');
+        repository.runs.get(plan.run_id).steps.find((step) => step.step_name === 'graph').receipt.entity_version = 2;
+
+        await expect(service.resume(scopedActor, plan.run_id)).rejects.toMatchObject({
+            code: 'PROJECT_PROVISIONING_GRAPH_PREFLIGHT_STALE'
+        });
+    });
+
     it('旧planのGraph preflight欠落はfresh readbackで補いresumeできる', async () => {
         const { service, repository } = createHarness();
         const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-legacy-plan-resume' });
