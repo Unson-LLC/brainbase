@@ -806,6 +806,38 @@ describe('Judgment Host knowledge event outbox', () => {
             .toMatchObject({ status: 'confirmed', candidate_id: 'candidate_resume' });
     });
 
+    it('cyclesの409はPOST競合と混同せず、readback上限までOutboxに保持する', async () => {
+        const root = temporaryDirectory();
+        const outboxDir = join(root, 'outbox');
+        const deadLetterDir = join(root, 'dead-letter');
+        const event = queuedKnowledgeEvent('kev_readback_409');
+        enqueueJudgmentKnowledgeEvent(event, { directory: outboxDir });
+        const fetchImpl = vi.fn(async (_url, options) => options.method === 'POST'
+            ? { ok: true, status: 202, json: async () => postAck(event, 'candidate_409') }
+            : { ok: false, status: 409, json: async () => ({}) });
+
+        const first = await deliverJudgmentKnowledgeEventOutbox({
+            outboxDir,
+            deadLetterDir,
+            endpoint: 'https://brainbase.example/api/knowledge/events',
+            serviceToken: 'service-token',
+            organizationId: 'org_unson',
+            fetchImpl,
+            maxAttempts: 2
+        });
+
+        expect(first).toMatchObject({ delivered: 0, failed: 1, retryable: 1, dead_lettered: 0, pending: 1 });
+        expect(existsSync(join(outboxDir, 'kev_readback_409.json'))).toBe(true);
+        expect(existsSync(join(deadLetterDir, 'kev_readback_409.json'))).toBe(false);
+        const queued = JSON.parse(readFileSync(join(outboxDir, 'kev_readback_409.json'), 'utf8'));
+        expect(queued.delivery).toMatchObject({
+            post_ack: { event_id: event.event_id, candidate_id: 'candidate_409' },
+            readback_attempt: 2,
+            last_status: 409,
+            last_error_code: 'knowledge_event_readback_http_error'
+        });
+    });
+
     it('activeでない、またはretrievableでないcyclesは保留しGET再試行対象にする', async () => {
         const root = temporaryDirectory();
         const outboxDir = join(root, 'outbox');
