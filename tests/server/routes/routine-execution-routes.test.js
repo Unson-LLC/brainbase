@@ -394,6 +394,8 @@ describe('Routine execution API production wiring', () => {
         expect(registrationSource).toContain('routineCycleExecutor');
         expect(serviceBinding).toContain('routineCycleExecutor');
         expect(serverRegistration).toContain('routineCycleExecutor');
+        expect(serverSource).toContain('const CODEX_PATH = process.env.CODEX_PATH || BRAINBASE_ROOT');
+        expect(serverSource).not.toContain("const CODEX_PATH = path.join(__dirname, 'examples', 'codex')");
     });
 
     it('createCoreServicesは固定値adapterではなくproduction RoutinePortsへ実repositoryとserviceをDIする', () => {
