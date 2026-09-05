@@ -162,7 +162,7 @@ ALTER TABLE auth_grants ALTER COLUMN organization_id SET NOT NULL;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF to_regclass('organizations') IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'auth_grants_organization_id_fkey'
       AND conrelid = 'auth_grants'::regclass

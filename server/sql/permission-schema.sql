@@ -13,6 +13,22 @@ CREATE TABLE IF NOT EXISTS organizations (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- auth_grants is created by the Info SSOT schema before this permission
+-- catalog on a fresh database. Add the organization boundary once both
+-- tables exist; production reapplication remains idempotent.
+DO $$
+BEGIN
+  IF to_regclass('auth_grants') IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'auth_grants_organization_id_fkey'
+      AND conrelid = 'auth_grants'::regclass
+  ) THEN
+    ALTER TABLE auth_grants
+      ADD CONSTRAINT auth_grants_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+
 -- 初期データ投入
 INSERT INTO organizations (id, name, workspace_id, projects) VALUES
   ('unson', 'UNSON', 'T089CNQ4D1A', ARRAY['zeims', 'dialogai', 'baao', 'brainbase', 'senrigan', 'backoffice', 'mywa']),
