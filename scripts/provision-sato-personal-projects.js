@@ -69,6 +69,14 @@ function sameSet(left, right) {
     return [...left].sort().join('\n') === [...right].sort().join('\n');
 }
 
+async function setProvisioningContext(client) {
+    const target = PERSONAL_PROJECTS_TARGET;
+    await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [target.tenant_id]);
+    await client.query("SELECT set_config('app.role', 'ceo', true)");
+    await client.query("SELECT set_config('app.project_codes', $1, true)", [target.project_codes.join(',')]);
+    await client.query("SELECT set_config('app.clearance', 'internal,restricted', true)");
+}
+
 async function preflight(client) {
     const target = PERSONAL_PROJECTS_TARGET;
     const person = exactlyOne(await rows(client,
@@ -345,8 +353,7 @@ export async function runProvisionSatoPersonal({
     const client = await activePool.connect();
     try {
         await client.query('BEGIN');
-        await client.query("SELECT set_config('brainbase.tenant_id', $1, true)",
-            [PERSONAL_PROJECTS_TARGET.tenant_id]);
+        await setProvisioningContext(client);
         const context = await preflight(client);
         if (args.mode !== 'check') await applyTarget(client, context, args.actorId);
         const result = args.mode === 'check'
@@ -358,8 +365,7 @@ export async function runProvisionSatoPersonal({
         const postCommitClient = await activePool.connect();
         try {
             await postCommitClient.query('BEGIN');
-            await postCommitClient.query("SELECT set_config('brainbase.tenant_id', $1, true)",
-                [PERSONAL_PROJECTS_TARGET.tenant_id]);
+            await setProvisioningContext(postCommitClient);
             const postCommitReadback = await readback(postCommitClient);
             await postCommitClient.query('COMMIT');
             return { ok: true, mode: 'apply', persisted: true, post_commit_readback: postCommitReadback };
