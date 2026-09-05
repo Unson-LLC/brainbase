@@ -17,6 +17,6 @@ describe('fixed two-user tenant project access script', () => {
 
     it('checks the compiled target without a database connection', async () => {
         await expect(runProvisionTenantProjectAccess({ argv: ['--check'] }))
-            .resolves.toMatchObject({ ok: true, mode: 'check', persisted: false, target: { project_code: 'brainbase', workspace_id: 'T0882T8N9UH', app_id: 'A0BPM2J33SN' } });
+            .resolves.toMatchObject({ ok: true, mode: 'check', persisted: false, target: { tenant_key: 'unson-business', organization_id: 'ten_01M0HMA228ES64N4TFX846V8T8', project_code: 'brainbase', workspace_id: 'T0882T8N9UH', app_id: 'A0BPM2J33SN' } });
     });
 });
