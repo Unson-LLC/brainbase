@@ -23,6 +23,7 @@ function materializedProjectIdentity(projectCode = manifest.project_code) {
 class MemoryRepository {
     constructor({ authority = {}, identityCollisions = [], projectSubjectIdentity = null } = {}) {
         this.projects = new Map(); this.runs = new Map(); this.keys = new Map();
+        this.subjectIdentityCalls = [];
         this.authority = {
             organization_exists: true,
             owner_person_exists: true,
@@ -36,7 +37,10 @@ class MemoryRepository {
     async getProject(code) { return this.projects.get(code) || null; }
     async verifyManifestAuthority() { return structuredClone(this.authority); }
     async findIdentityCollisions() { return structuredClone(this.identityCollisions); }
-    async findProjectSubjectIdentity() { return structuredClone(this.projectSubjectIdentity); }
+    async findProjectSubjectIdentity(entityId, organizationId, options) {
+        this.subjectIdentityCalls.push({ entityId, organizationId, options });
+        return structuredClone(this.projectSubjectIdentity);
+    }
     async savePlan(input) {
         const key = `${input.actor.organizationId}:${input.idempotencyKey}`;
         const existingId = this.keys.get(key);
@@ -226,6 +230,56 @@ describe('ProjectProvisioningService', () => {
             graph_project_subject: { status: 'reusable', project_code: 'brainbase', entity_version: 3 },
             writes_performed: 0
         });
+    });
+
+    it('check・fresh preflight・verifyのGraph probeへ元scopeとmanifest codeを伝播する', async () => {
+        const projectSubjectIdentity = {
+            scope_relation: 'same_organization', entity_id: manifest.project_code,
+            entity_type: 'project', lifecycle_status: 'active', project_code: 'brainbase',
+            entity_version: 3, display_name: manifest.display_name,
+            catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
+            source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+        };
+        const { service, repository } = createHarness({
+            projectSubjectIdentity,
+            graphEntities: [{
+                id: manifest.project_code,
+                entity_type: 'project', project_code: 'brainbase', lifecycle_status: 'active', version: 3,
+                payload: {
+                    name: manifest.display_name, catalog_project_id: manifest.project_code,
+                    catalog_version: manifest.catalog_version,
+                    source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+                }
+            }]
+        });
+        const scopedActor = {
+            ...actor, projectCodes: ['brainbase'], clearance: ['internal']
+        };
+        const plan = await service.plan(scopedActor, manifest, {
+            idempotencyKey: 'growin-graph-probe-context'
+        });
+        await service.approve(scopedActor, plan.run_id, {
+            approvedGates: ['manifest_plan_approval'], reviewRef: 'review-graph-probe-context'
+        });
+
+        await expect(service.apply(scopedActor, plan.run_id)).resolves.toMatchObject({ state: 'active' });
+
+        expect(repository.subjectIdentityCalls).toHaveLength(3);
+        expect(repository.subjectIdentityCalls.map(({ entityId, organizationId }) => ({
+            entityId, organizationId
+        }))).toEqual([
+            { entityId: manifest.project_code, organizationId: 'unson' },
+            { entityId: manifest.project_code, organizationId: 'unson' },
+            { entityId: manifest.project_code, organizationId: 'unson' }
+        ]);
+        for (const { options } of repository.subjectIdentityCalls) {
+            expect(options).toEqual(expect.objectContaining({
+                access: expect.objectContaining({
+                    role: 'gm', organizationId: 'unson', clearance: ['internal'],
+                    projectCodes: ['brainbase', manifest.project_code]
+                })
+            }));
+        }
     });
 
     it('同一IDのGraph subjectがCatalog identityと一致しない場合は書込前に拒否する', async () => {

@@ -629,20 +629,26 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
             ON CONFLICT (id) DO NOTHING
         `);
 
-        await expect(currentService.repository.findProjectSubjectIdentity('probe-same', ORGANIZATION_ID))
+        await expect(currentService.repository.findProjectSubjectIdentity('probe-same', ORGANIZATION_ID, {
+            access: actorAccess
+        }))
             .resolves.toMatchObject({
                 scope_relation: 'same_organization', entity_id: 'probe-same',
                 entity_type: 'project', project_code: 'brainbase', entity_version: 2,
                 display_name: 'Probe Same', catalog_project_id: 'probe-same', catalog_version: 1
             });
-        await expect(currentService.repository.findProjectSubjectIdentity('probe-other', ORGANIZATION_ID))
+        await expect(currentService.repository.findProjectSubjectIdentity('probe-other', ORGANIZATION_ID, {
+            access: actorAccess
+        }))
             .resolves.toEqual({
                 scope_relation: 'other_organization', entity_id: 'probe-other',
                 entity_type: null, lifecycle_status: null, project_code: null,
                 entity_version: null, display_name: null, catalog_project_id: null,
                 catalog_version: null, source_ref: null
             });
-        await expect(currentService.repository.findProjectSubjectIdentity('probe-absent', ORGANIZATION_ID))
+        await expect(currentService.repository.findProjectSubjectIdentity('probe-absent', ORGANIZATION_ID, {
+            access: actorAccess
+        }))
             .resolves.toBeNull();
 
         const probeManifest = (projectCode, displayName) => ({

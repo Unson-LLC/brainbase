@@ -35,18 +35,56 @@ describe('PgProjectProvisioningRepository', () => {
         expect(query.mock.calls[0][1]).toEqual(['growin-ai', 'org_a']);
     });
 
-    it('Graph同一IDは限定projectionのsecurity definer関数で書込前に照会する', async () => {
+    it('Graph同一ID probeはstandaloneでも明示Graph accessでInfoSSOT contextを設定する', async () => {
         const row = {
             scope_relation: 'same_organization', entity_id: 'growin-ai',
             entity_type: 'project', project_code: 'brainbase'
         };
-        const query = vi.fn(async () => ({ rows: [row] }));
-        const repository = new PgProjectProvisioningRepository({ pool: { query } });
+        const poolQuery = vi.fn(async () => ({ rows: [] }));
+        const scopedQuery = vi.fn(async () => ({ rows: [row] }));
+        const withAccessContext = vi.fn(async (_access, handler) => handler({ query: scopedQuery }));
+        const repository = new PgProjectProvisioningRepository({
+            pool: { query: poolQuery }, infoSSOTService: { withAccessContext }
+        });
+        const access = {
+            role: 'gm', projectCodes: ['brainbase', 'growin-ai'],
+            clearance: ['internal'], organizationId: 'org_a'
+        };
 
-        await expect(repository.findProjectSubjectIdentity('growin-ai', 'org_a')).resolves.toEqual(row);
+        await expect(repository.findProjectSubjectIdentity('growin-ai', 'org_a', { access }))
+            .resolves.toEqual(row);
 
-        expect(query.mock.calls[0][0]).toBe('SELECT * FROM project_graph_identity_probe($1)');
-        expect(query.mock.calls[0][1]).toEqual(['growin-ai']);
+        expect(withAccessContext).toHaveBeenCalledWith(access, expect.any(Function));
+        expect(scopedQuery.mock.calls[0][0]).toBe('SELECT * FROM project_graph_identity_probe($1)');
+        expect(scopedQuery.mock.calls[0][1]).toEqual(['growin-ai']);
+        expect(poolQuery).not.toHaveBeenCalled();
+    });
+
+    it('Graph同一ID probeはshared clientでも同じclientへ明示Graph contextを設定する', async () => {
+        const row = {
+            scope_relation: 'same_organization', entity_id: 'growin-ai',
+            entity_type: 'project', project_code: 'brainbase'
+        };
+        const poolQuery = vi.fn(async () => ({ rows: [] }));
+        const sharedQuery = vi.fn(async () => ({ rows: [row] }));
+        const sharedClient = { query: sharedQuery };
+        const withAccessContext = vi.fn(async (_access, handler, { client } = {}) => handler(client));
+        const repository = new PgProjectProvisioningRepository({
+            pool: { query: poolQuery }, infoSSOTService: { withAccessContext }
+        });
+        const access = {
+            role: 'gm', projectCodes: ['brainbase', 'growin-ai'],
+            clearance: ['internal'], organizationId: 'org_a'
+        };
+
+        await expect(repository.findProjectSubjectIdentity('growin-ai', 'org_a', {
+            access, client: sharedClient
+        })).resolves.toEqual(row);
+
+        expect(withAccessContext).toHaveBeenCalledWith(access, expect.any(Function), { client: sharedClient });
+        expect(sharedQuery.mock.calls[0][0]).toBe('SELECT * FROM project_graph_identity_probe($1)');
+        expect(sharedQuery.mock.calls[0][1]).toEqual(['growin-ai']);
+        expect(poolQuery).not.toHaveBeenCalled();
     });
 
     it('organization entity authority readback is joined to the authenticated organization', async () => {
