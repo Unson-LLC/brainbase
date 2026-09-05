@@ -146,7 +146,8 @@ export function registerSlackInstallationControlPlaneApiRoute(app, {
     const guard = authMiddleware ?? createSlackInstallationControlPlaneAuthMiddleware({
         authService,
         env: authEnv,
-        now: authNow
+        now: authNow,
+        trustedAppId: appId
     });
     app.use(
         '/api/v1',

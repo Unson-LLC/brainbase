@@ -100,7 +100,8 @@ export class PostgresCompanyAuthorityRepository {
         authenticated_subject_id,
         workspace_id,
         app_id,
-        project_hint
+        project_hint,
+        include_membership_access = false
     }) {
         return this.withTenant(tenant_id, async (client) => {
             const result = await client.query(
@@ -162,6 +163,15 @@ export class PostgresCompanyAuthorityRepository {
             };
             return {
                 ...identity,
+                ...(include_membership_access ? {
+                    membership_access: {
+                        role: row.membership_payload?.role ?? row.membership_payload?.role_code ?? 'member',
+                        project_codes: Array.isArray(row.membership_payload?.project_codes)
+                            ? row.membership_payload.project_codes : [],
+                        clearance: Array.isArray(row.membership_payload?.clearance)
+                            ? row.membership_payload.clearance : []
+                    }
+                } : {}),
                 identity_resolution_receipt_id: receipt('idres', identity)
             };
         });

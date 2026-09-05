@@ -163,11 +163,6 @@ export function createSlackInstallationControlPlaneFromEnv({
     now,
     fetchImpl = globalThis.fetch
 } = {}) {
-    const authMiddleware = createSlackInstallationControlPlaneAuthMiddleware({
-        authService,
-        env,
-        now
-    });
     const dedicatedClientId = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_ID');
     const dedicatedClientSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET');
     const dedicatedRedirectUri = required(env, 'BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI');
@@ -186,6 +181,12 @@ export function createSlackInstallationControlPlaneFromEnv({
     const appId = dedicatedAppId
         ?? authService?.slackClientId
         ?? '';
+    const authMiddleware = createSlackInstallationControlPlaneAuthMiddleware({
+        authService,
+        env,
+        now,
+        trustedAppId: appId
+    });
     const unavailable = (reason) => ({
         controlPlane: unavailableControlPlane(),
         authMiddleware,
