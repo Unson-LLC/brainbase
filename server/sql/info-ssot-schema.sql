@@ -14,13 +14,7 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS organization_id text;
 -- project remains fail-closed instead of inheriting a default tenant.
 DO $$
 BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM pg_attribute
-    WHERE attrelid = to_regclass('organizations')
-      AND attname = 'workspace_id'
-      AND NOT attisdropped
-  ) THEN
+  IF to_regclass('organizations') IS NOT NULL THEN
     UPDATE organizations
     SET projects = CASE
       WHEN id = 'unson' AND NOT ('unson' = ANY(COALESCE(projects, ARRAY[]::text[])))
@@ -98,7 +92,13 @@ ALTER TABLE auth_grants ADD COLUMN IF NOT EXISTS organization_id text;
 -- than one organization-scoped grant.
 DO $$
 BEGIN
-  IF to_regclass('organizations') IS NOT NULL THEN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_attribute
+    WHERE attrelid = to_regclass('organizations')
+      AND attname = 'workspace_id'
+      AND NOT attisdropped
+  ) THEN
     UPDATE auth_grants ag
     SET organization_id = matched.organization_id
     FROM (
