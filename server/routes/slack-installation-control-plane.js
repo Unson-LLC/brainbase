@@ -128,7 +128,7 @@ export function createSlackInstallationControlPlaneRouter({
         }
     });
     if (oauthFlow) {
-        router.get('/slack-installations\:callback', async (req, res) => {
+        router.get('/slack-installations\\:callback', async (req, res) => {
             try {
                 if (typeof req.query?.code !== 'string' || typeof req.query?.state !== 'string'
                     || Object.keys(req.query).some((field) => !['code', 'state'].includes(field))) {

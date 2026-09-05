@@ -112,6 +112,25 @@ describe('Slack installation control-plane HTTP contract', () => {
         });
     });
 
+    it('treats the callback colon as a literal route delimiter', async () => {
+        const oauthFlow = {
+            open: vi.fn(() => ({ intent: binding, redirect_uri: 'https://bb.unson.jp/callback' }))
+        };
+        const controlPlane = {
+            authorize: vi.fn(),
+            authorizeBinding: vi.fn(),
+            exchange_and_register: vi.fn()
+        };
+
+        const response = await request(createApp({ controlPlane, oauthFlow }))
+            .get('/api/v1/slack-installations:unexpected')
+            .query({ code: 'short-lived-code', state: 'signed' });
+
+        expect(response.status).toBe(404);
+        expect(oauthFlow.open).not.toHaveBeenCalled();
+        expect(controlPlane.exchange_and_register).not.toHaveBeenCalled();
+    });
+
     it('POST /api/v1/slack-installations:exchange-and-register forwards only the canonical request', async () => {
         const exchange = vi.fn(async () => ({
             connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ',
