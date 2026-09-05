@@ -1569,6 +1569,66 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             humanReadable: true
         })).rejects.toThrow('Access denied for project: brainbase');
     });
+
+    it('governs edgeを持つDecisionを保守plan内で別projectへ移動できる', async () => {
+        await infoSSOTService.withAccessContext(access, async (client) => {
+            await client.query(`
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('decision_rehome_governed', 'decision', 'project_phase0',
+                     '{"title":"Governed rehome","status":"draft"}', 'member', 'internal', 'active', 1)
+            `);
+            await client.query(`
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('membership_rehome_governed', 'decision_rehome_governed', 'project_entity_a',
+                     'belongs_to_project', 'project_phase0', '{}', 'member', 'internal', 'active', 1),
+                    ('governs_rehome_governed', 'decision_rehome_governed', 'project_entity_a',
+                     'governs', 'project_phase0', '{}', 'member', 'internal', 'active', 1)
+            `);
+        });
+        const baseline = await service.exportSnapshot(access, {
+            projectCode: 'brainbase', includeProjectCodes: ['vibepro']
+        });
+        const plan = await service.planMutations(access, {
+            projectCode: 'brainbase',
+            snapshotId: baseline.snapshot_id,
+            idempotencyKey: 'governed-rehome-db-roundtrip-1',
+            reason: 'Regression: keep strict final RLS while allowing a validated maintenance transition',
+            operations: [{
+                operation: 'move_scope', entity_id: 'decision_rehome_governed',
+                expected_version: 1, target_project_code: 'vibepro'
+            }, {
+                operation: 'rehome_entity', entity_id: 'decision_rehome_governed', expected_version: 2,
+                target_project_code: 'vibepro', target_project_entity_id: 'project_vibepro_entity',
+                target_project_expected_version: 1, membership_edge_id: 'membership_rehome_governed',
+                membership_expected_version: 2, new_membership_expected_version: 0
+            }]
+        });
+        expect(plan.after.edges.find((edge) => edge.id === 'governs_rehome_governed')).toMatchObject({
+            project_code: 'vibepro', version: 2
+        });
+        const gate = await service.recordHumanGateReceipt(access, {
+            projectCode: 'brainbase', decisionId: 'decision_rehome_governed',
+            receiptId: 'gate_governed_rehome_apply_1',
+            evidence: { operation_scope: plan.apply_human_gate_scope }
+        });
+        await expect(service.applyPlan(access, {
+            projectCode: 'brainbase', planId: plan.plan_id, snapshotHash: plan.snapshot_hash,
+            humanGateReceipt: gate.receipt_id
+        })).resolves.toMatchObject({ status: 'completed', after_hash: plan.after_snapshot_hash });
+        const applied = await service.exportSnapshot(access, {
+            projectCode: 'brainbase', includeProjectCodes: ['vibepro']
+        });
+        expect(applied.entities.find((entity) => entity.id === 'decision_rehome_governed')).toMatchObject({
+            project_code: 'vibepro', version: 3
+        });
+        expect(applied.edges.find((edge) => edge.id === 'governs_rehome_governed')).toMatchObject({
+            project_code: 'vibepro', version: 2
+        });
+    });
 });
 
 describeWithPostgres('Info SSOT schema migration compatibility', () => {

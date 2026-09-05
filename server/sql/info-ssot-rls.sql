@@ -646,7 +646,14 @@ CREATE POLICY info_graph_edges_update ON graph_edges
       -- snapshot. WITH CHECK below still rejects an invalid post-update row.
       OR current_setting('app.graph_maintenance_mode', true) = 'true'
     )
-    AND app_graph_edge_source_project_matches(from_id, rel_type, project_id, payload)
+    AND (
+      app_graph_edge_source_project_matches(from_id, rel_type, project_id, payload)
+      -- replaceSnapshot updates entities before their incident edges. During a
+      -- validated maintenance move, the stored edge can therefore temporarily
+      -- retain its old project while its source already has the new project.
+      -- WITH CHECK remains strict and rejects any invalid final edge scope.
+      OR current_setting('app.graph_maintenance_mode', true) = 'true'
+    )
   )
   WITH CHECK (
     app_current_role_rank() >= app_role_rank(role_min)
