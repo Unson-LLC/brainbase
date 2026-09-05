@@ -48,6 +48,11 @@ const manifest = {
 const bootstrapManifest = {
     ...manifest,
     tenant_id: tenantBootstrap,
+    organization: {
+        organization_id: 'org_bootstrap_business',
+        graph_organization_id: 'bootstrap',
+        display_name: 'Bootstrap'
+    },
     project: { project_id: 'prj_bootstrap', project_code: 'bootstrap' },
     transport: { provider: 'slack', workspace_id: 'T_BOOTSTRAP', app_id: 'A_BOOTSTRAP' },
     humans: [{
@@ -109,6 +114,10 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
         container = await new PostgreSqlContainer('postgres:16-alpine').start();
         pool = new Pool({ connectionString: container.getConnectionUri() });
         await pool.query(await readFile(resolve(process.cwd(), 'server/sql/permission-schema.sql'), 'utf8'));
+        await pool.query(
+            `INSERT INTO organizations (id, name, workspace_id, projects)
+             VALUES ('bootstrap', 'Bootstrap', 'T_BOOTSTRAP', ARRAY['bootstrap'])`
+        );
         await pool.query(await readFile(resolve(process.cwd(), 'server/sql/info-ssot-schema.sql'), 'utf8'));
         await pool.query("ALTER TABLE people ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'");
         await pool.query(await readFile(resolve(process.cwd(), 'server/sql/multitenant-platform-schema.sql'), 'utf8'));
