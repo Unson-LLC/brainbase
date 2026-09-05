@@ -10,7 +10,7 @@ import { InMemoryCandidateRepository, ACLFieldMissingError } from './candidate-r
 
 const CATALOG_SUBJECT_TYPES = new Set([
     'person', 'org', 'customer', 'partner', 'contact',
-    'project', 'app', 'brand', 'frame',
+    'project', 'push_case', 'app', 'brand', 'frame',
     'decision', 'philosophy', 'glossary_term',
     'story', 'raci_assignment'
 ]);

@@ -38,7 +38,7 @@ function createApp(projectCodes = ['brainbase']) {
     app.use(express.json());
     app.use((req, _res, next) => {
         req.auth = { sub: 'per_owner', role: 'ceo' };
-        req.access = { personId: 'per_owner', role: 'ceo', projectCodes };
+        req.access = { personId: 'per_owner', organizationId: 'org_unson', role: 'ceo', projectCodes };
         req.authSource = 'bearer';
         next();
     });
@@ -88,7 +88,7 @@ describe('onboarding routes', () => {
         app.use(express.json());
         app.use((req, _res, next) => {
             req.auth = { sub: 'per_owner', role: 'ceo' };
-            req.access = { personId: 'per_owner', role: 'ceo', projectCodes: ['brainbase'] };
+            req.access = { personId: 'per_owner', organizationId: 'org_unson', role: 'ceo', projectCodes: ['brainbase'] };
             next();
         });
         app.use('/api/onboarding', createOnboardingRouter({ service }));
@@ -155,7 +155,7 @@ describe('onboarding routes', () => {
         app.use(express.json());
         app.use((req, _res, next) => {
             req.auth = { sub: 'per_owner', role: 'ceo' };
-            req.access = { personId: 'per_owner', role: 'ceo', projectCodes: ['brainbase'] };
+            req.access = { personId: 'per_owner', organizationId: 'org_unson', role: 'ceo', projectCodes: ['brainbase'] };
             next();
         });
         app.use('/api/onboarding', createOnboardingRouter({ service }));
@@ -232,7 +232,7 @@ describe('onboarding routes', () => {
         app.use(express.json());
         app.use((req, _res, next) => {
             req.auth = { sub: 'per_owner', role: 'ceo' };
-            req.access = { personId: 'per_owner', role: 'ceo', projectCodes: ['brainbase'] };
+            req.access = { personId: 'per_owner', organizationId: 'org_unson', role: 'ceo', projectCodes: ['brainbase'] };
             next();
         });
         app.use('/api/onboarding', createOnboardingRouter({ service }));
@@ -280,7 +280,7 @@ describe('onboarding routes', () => {
             app.use(express.json());
             app.use((req, _res, next) => {
                 req.auth = { sub: 'per_owner', role: 'ceo' };
-                req.access = { personId: 'per_owner', role: 'ceo', projectCodes: ['brainbase'] };
+                req.access = { personId: 'per_owner', organizationId: 'org_unson', role: 'ceo', projectCodes: ['brainbase'] };
                 next();
             });
             app.use('/api/onboarding', createOnboardingRouter({ service }));
@@ -319,7 +319,7 @@ describe('onboarding routes', () => {
             await fs.writeFile(filePath, JSON.stringify({
                 schema_version: 'onboarding_runs.v1',
                 runs: [{
-                    id: 'onb_api_cold_load', owner_person_id: 'per_owner', project_code: 'brainbase',
+                    id: 'onb_api_cold_load', owner_person_id: 'per_owner', organization_id: 'org_unson', project_code: 'brainbase',
                     value_target: '再起動直後の競合確認', source_mode: 'drive', status: 'collecting',
                     sources: [], candidate_items: [], promoted_graph_entity_ids: [], source_ready_at: null,
                     first_value_receipt: null, first_value_review: null,
@@ -347,7 +347,7 @@ describe('onboarding routes', () => {
             app.use(express.json());
             app.use((req, _res, next) => {
                 req.auth = { sub: 'per_owner', role: 'ceo' };
-                req.access = { personId: 'per_owner', role: 'ceo', projectCodes: ['brainbase'] };
+                req.access = { personId: 'per_owner', organizationId: 'org_unson', role: 'ceo', projectCodes: ['brainbase'] };
                 next();
             });
             app.use('/api/onboarding', createOnboardingRouter({ service }));

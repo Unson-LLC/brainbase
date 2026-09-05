@@ -33,7 +33,7 @@ function actor(projectCodes = ['brainbase'], personId = 'per_owner') {
         personId,
         role: 'ceo',
         projectCodes,
-        access: { personId, role: 'ceo', projectCodes, clearance: ['internal'] }
+        access: { personId, organizationId: 'org_unson', role: 'ceo', projectCodes, clearance: ['internal'] }
     };
 }
 
@@ -154,18 +154,76 @@ describe('OnboardingRuntimeService', () => {
             }
             return _work(candidateRepository);
         };
-        const run = await fixture.service.startRun(actor(), {
+        const actorWithoutOrganization = { ...actor(), access: { ...actor().access, organizationId: undefined } };
+        await expect(fixture.service.startRun(actorWithoutOrganization, {
             project_code: 'brainbase', value_target: '組織を理解する', source_mode: 'drive'
-        });
-
-        await expect(fixture.service.ingestSource(actor(), run.id, {
-            source: {
-                mode: 'drive', source_id: 'drive:missing-org', evidence_ref: 'drive:missing-org#p1',
-                content_hash: HASH_A, permission_snapshot: { visibility: 'owner' }, collection_status: 'collected'
-            },
-            candidates: []
         })).rejects.toMatchObject({ code: 'onboarding_organization_context_required', statusCode: 403 });
         expect(candidateRepository.candidates.size).toBe(0);
+    });
+
+    it('push_case candidateを正しいGraph entity typeで昇格する', async () => {
+        const fixture = createFixture();
+        const ingested = await startAndIngest(fixture, [{
+            subject_type: 'push_case',
+            fact: 'Honda AIリーダー実践プログラムは営業中・高確度・未契約である',
+            observation_class: 'observed',
+            evidence_id: 'drive:honda#status'
+        }]);
+
+        await expect(fixture.service.reviewCandidate(actor(), ingested.id, ingested.candidates[0].id, {
+            decision: 'approve', reason: 'source evidence confirmed'
+        })).resolves.toMatchObject({ candidate: { subject_type: 'push_case', promotion_status: 'promoted_to_graph' } });
+        expect(fixture.graphWrites).toHaveLength(1);
+        expect(fixture.graphWrites[0].input).toMatchObject({ entityType: 'push_case' });
+    });
+
+    it('競合する組織claimと別組織からのrun accessを403で拒否する', async () => {
+        const fixture = createFixture();
+        const run = await fixture.service.startRun(actor(), {
+            project_code: 'brainbase', value_target: '組織境界を確認する', source_mode: 'drive'
+        });
+        const ambiguous = {
+            ...actor(),
+            access: { ...actor().access, organizationId: 'org_unson', tenantId: 'org_other' }
+        };
+        const otherOrganization = {
+            ...actor(),
+            access: { ...actor().access, organizationId: 'org_other' }
+        };
+
+        await expect(fixture.service.getRun(ambiguous, run.id))
+            .rejects.toMatchObject({ code: 'onboarding_tenant_identity_ambiguous', statusCode: 403 });
+        await expect(fixture.service.getRun(otherOrganization, run.id))
+            .rejects.toMatchObject({ code: 'onboarding_organization_denied', statusCode: 403 });
+    });
+
+    it('組織に紐付かない旧runを403で拒否する', async () => {
+        const fixture = createFixture();
+        await fixture.service.repository.create({
+            id: 'onb_legacy_unbound',
+            project_code: 'brainbase',
+            owner_person_id: 'per_owner',
+            value_target: '旧runの組織境界を確認する',
+            source_mode: 'drive',
+            status: 'collecting',
+            sources: [],
+            candidate_items: [],
+            promoted_graph_entity_ids: []
+        });
+
+        await expect(fixture.service.getRun(actor(), 'onb_legacy_unbound'))
+            .rejects.toMatchObject({ code: 'onboarding_run_organization_unbound', statusCode: 403 });
+    });
+
+    it('candidate repositoryのtransaction境界がなければfail closedにする', async () => {
+        const fixture = createFixture();
+        const run = await fixture.service.startRun(actor(), {
+            project_code: 'brainbase', value_target: 'transaction境界を確認する', source_mode: 'drive'
+        });
+        fixture.candidateRepository.transaction = undefined;
+
+        await expect(fixture.service.getRun(actor(), run.id))
+            .rejects.toMatchObject({ code: 'onboarding_candidate_transaction_required', statusCode: 503 });
     });
 
     it('初回価値の表示契約を開始時に示し、契約準拠の3節だけをreceiptへ記録する', async () => {

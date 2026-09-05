@@ -90,6 +90,7 @@ describe.sequential('onboarding HTTP flow with PostgreSQL candidate RLS', () => 
             req.access = {
                 personId: 'per_owner',
                 organizationId: req.get('x-organization-id') || undefined,
+                tenantId: req.get('x-tenant-id') || undefined,
                 role: 'ceo',
                 projectCodes: ['brainbase'],
                 clearance: ['internal']
@@ -156,6 +157,20 @@ describe.sequential('onboarding HTTP flow with PostgreSQL candidate RLS', () => 
             promotion_status: 'pending_approval'
         }]);
 
+        await expect(appPool.query('SELECT id FROM memory_candidates WHERE id = $1', [candidateId]))
+            .rejects.toMatchObject({ code: '42501' });
+        const crossOrganizationClient = await appPool.connect();
+        try {
+            await crossOrganizationClient.query('BEGIN');
+            await crossOrganizationClient.query("SELECT set_config('app.person_id', 'per_owner', true)");
+            await crossOrganizationClient.query("SELECT set_config('app.organization_id', 'org_other', true)");
+            const invisible = await crossOrganizationClient.query('SELECT id FROM memory_candidates WHERE id = $1', [candidateId]);
+            expect(invisible.rows).toEqual([]);
+            await crossOrganizationClient.query('ROLLBACK');
+        } finally {
+            crossOrganizationClient.release();
+        }
+
         await request(app)
             .get(`/api/onboarding/runs/${started.body.id}`)
             .set(headers)
@@ -188,29 +203,9 @@ describe.sequential('onboarding HTTP flow with PostgreSQL candidate RLS', () => 
     }, 120_000);
 
     it('organization context missing fails closed before candidate persistence', async () => {
-        const started = await request(app)
+        const response = await request(app)
             .post('/api/onboarding/runs')
             .send({ project_code: 'brainbase', value_target: '組織境界を確認する', source_mode: 'drive' })
-            .expect(201);
-
-        const response = await request(app)
-            .post(`/api/onboarding/runs/${started.body.id}/sources`)
-            .send({
-                source: {
-                    mode: 'drive',
-                    source_id: 'drive:missing-org',
-                    evidence_ref: 'drive:missing-org#p1',
-                    content_hash: HASH,
-                    permission_snapshot: { visibility: 'owner' },
-                    collection_status: 'collected'
-                },
-                candidates: [{
-                    subject_type: 'org',
-                    fact: '組織IDのない候補は保存しない',
-                    observation_class: 'observed',
-                    evidence_id: 'drive:missing-org#p1'
-                }]
-            })
             .expect(403);
 
         expect(response.body.error.code).toBe('onboarding_organization_context_required');
@@ -218,5 +213,26 @@ describe.sequential('onboarding HTTP flow with PostgreSQL candidate RLS', () => 
             "SELECT id FROM memory_candidates WHERE source_system = 'onboarding:drive' AND body LIKE '%missing-org%'"
         );
         expect(persisted.rows).toEqual([]);
+    }, 120_000);
+
+    it('run is organization-bound and conflicting tenant claims fail closed', async () => {
+        const started = await request(app)
+            .post('/api/onboarding/runs')
+            .set('x-organization-id', 'org_unson')
+            .send({ project_code: 'brainbase', value_target: '組織境界を確認する', source_mode: 'drive' })
+            .expect(201);
+
+        await request(app)
+            .get(`/api/onboarding/runs/${started.body.id}`)
+            .set('x-organization-id', 'org_other')
+            .expect(403)
+            .expect(({ body }) => expect(body.error.code).toBe('onboarding_organization_denied'));
+
+        await request(app)
+            .get(`/api/onboarding/runs/${started.body.id}`)
+            .set('x-organization-id', 'org_unson')
+            .set('x-tenant-id', 'org_other')
+            .expect(403)
+            .expect(({ body }) => expect(body.error.code).toBe('onboarding_tenant_identity_ambiguous'));
     }, 120_000);
 });
