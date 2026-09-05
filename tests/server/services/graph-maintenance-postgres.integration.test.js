@@ -674,6 +674,82 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
+    it('複数organization所属のprojectless Personでも同一organizationのowned_by先として更新できる', async () => {
+        const isolated = await createScopedDatabase('gm_multi_org_owner');
+        try {
+            await assertRlsEnforcedConnection(isolated.pool);
+            await applyInfoSSOTSchema(isolated.pool);
+            await isolated.pool.query(`
+                INSERT INTO projects (id, code, name, organization_id)
+                VALUES
+                    ('project_owner_brainbase', 'brainbase', 'Brainbase', 'org_phase0'),
+                    ('project_owner_vibepro', 'vibepro', 'VibePro', 'org_phase0'),
+                    ('project_owner_aitle', 'aitle', 'Aitle', 'org_aitle');
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('decision_owner_brainbase', 'decision', 'project_owner_brainbase', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('decision_owner_aitle', 'decision', 'project_owner_aitle', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('project_owner_brainbase_entity', 'project', 'project_owner_brainbase', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('project_owner_aitle_entity', 'project', 'project_owner_aitle', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('person_multi_org_owner', 'person', NULL, '{"name":"Multi-org owner"}',
+                     'member', 'internal', 'active', 1);
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity,
+                     lifecycle_status, version)
+                VALUES
+                    ('membership_owner_brainbase', 'person_multi_org_owner',
+                     'project_owner_brainbase_entity', 'member_of', 'project_owner_brainbase', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('membership_owner_aitle', 'person_multi_org_owner',
+                     'project_owner_aitle_entity', 'member_of', 'project_owner_aitle', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('owned_by_owner_brainbase', 'decision_owner_brainbase', 'person_multi_org_owner',
+                     'owned_by', 'project_owner_vibepro', '{}', 'member', 'internal', 'active', 1),
+                    ('owned_by_owner_aitle', 'decision_owner_aitle', 'person_multi_org_owner',
+                     'owned_by', 'project_owner_aitle', '{}', 'member', 'internal', 'active', 1)
+            `);
+            await applyInfoSSOTRls(isolated.pool);
+            const isolatedInfoSSOT = new InfoSSOTService({
+                pool: isolated.pool,
+                ontologyRegistry: new OntologyRegistry({ rootDir: sourceRoot, publicKeyPem: '' })
+            });
+            const ownerAccess = { ...access, projectCodes: ['brainbase', 'vibepro'] };
+
+            const { rows: updatedRows } = await isolatedInfoSSOT.withAccessContext(
+                { ...ownerAccess, graphMaintenanceMode: true },
+                (client) => client.query(`
+                    UPDATE graph_edges
+                    SET project_id = 'project_owner_brainbase', version = version + 1
+                    WHERE id = 'owned_by_owner_brainbase'
+                    RETURNING id, project_id, version
+                `)
+            );
+            expect(updatedRows).toEqual([{
+                id: 'owned_by_owner_brainbase',
+                project_id: 'project_owner_brainbase',
+                version: 2
+            }]);
+
+            const { rows: visibleRows } = await isolatedInfoSSOT.withAccessContext(
+                ownerAccess,
+                (client) => client.query(`
+                    SELECT id
+                    FROM graph_edges
+                    WHERE id IN ('owned_by_owner_brainbase', 'owned_by_owner_aitle')
+                    ORDER BY id
+                `)
+            );
+            expect(visibleRows).toEqual([{ id: 'owned_by_owner_brainbase' }]);
+        } finally {
+            await dropScopedDatabase(isolated);
+        }
+    });
+
     it('RLSで不可視な別organization member_ofが混在するprojectless Personを保守Snapshotでも抑止する', async () => {
         const isolated = await createScopedDatabase('gm_mixed_visibility');
         try {
