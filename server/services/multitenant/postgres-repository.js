@@ -677,6 +677,27 @@ export class MultitenantPostgresRepository {
         });
     }
 
+    async resolveOrganizationBindingById({ tenant_id: tenantId, organization_id: organizationId }) {
+        if (![tenantId, organizationId].every((value) => typeof value === 'string' && value.length > 0)) {
+            throw new ContractError('ORGANIZATION_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        return this.withTenant(tenantId, async (client) => {
+            const result = await client.query(
+                `SELECT organization.tenant_id, organization.organization_id,
+                        organization.organization_payload, tenant.status AS tenant_status
+                   FROM tenant_organizations AS organization
+                   JOIN brainbase_tenants AS tenant
+                     ON tenant.tenant_id = organization.tenant_id
+                  WHERE organization.tenant_id = $1 AND organization.organization_id = $2
+                    AND tenant.status = 'active'
+                  LIMIT 1
+                  FOR SHARE`,
+                [tenantId, organizationId]
+            );
+            return result.rows[0] ?? null;
+        });
+    }
+
     async resolveProjectBinding({ tenant_id: tenantId, project_ids: projectIds, project_code: projectCode }) {
         if (![tenantId, projectCode].every((value) => typeof value === 'string' && value.length > 0)
             || !Array.isArray(projectIds) || projectIds.length === 0

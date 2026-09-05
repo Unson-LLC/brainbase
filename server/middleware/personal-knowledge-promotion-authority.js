@@ -47,6 +47,24 @@ function assertRequestBodyHash(req, authority) {
     }
 }
 
+function graphOrganizationId(binding, { tenantId, organizationId }) {
+    const payload = binding?.organization_payload;
+    const graphId = payload?.graph_organization_id;
+    if (binding?.tenant_id !== tenantId
+        || binding?.organization_id !== organizationId
+        || binding?.tenant_status !== 'active'
+        || payload?.status !== 'active'
+        || typeof graphId !== 'string'
+        || !graphId.trim()) {
+        throw new ContractError('ORGANIZATION_SCOPE_MISMATCH', {
+            status: 403,
+            fault_domain: 'protocol',
+            details: { scope_reason: 'organization_not_active_or_owned' }
+        });
+    }
+    return graphId;
+}
+
 export function createPersonalKnowledgePromotionAuthorityGuard(services, capabilityId) {
     if (typeof services?.tenantContextVerifier !== 'function') {
         throw new Error('Personal knowledge promotion authority guard requires tenant context verification');
@@ -75,6 +93,25 @@ export function createPersonalKnowledgePromotionAuthorityGuard(services, capabil
                     fault_domain: 'authorization'
                 });
             }
+            const organizationIds = context.authorization.organization_ids;
+            if (!Array.isArray(organizationIds)
+                || organizationIds.length !== 1
+                || typeof services?.connectionRegistry?.resolveOrganizationBindingById !== 'function') {
+                throw new ContractError('ORGANIZATION_SCOPE_MISMATCH', {
+                    status: 403,
+                    fault_domain: 'protocol',
+                    details: { scope_reason: 'canonical_organization_resolver_unavailable' }
+                });
+            }
+            const tenantOrganizationId = organizationIds[0];
+            const resolvedOrganization = await services.connectionRegistry.resolveOrganizationBindingById({
+                tenant_id: context.tenant.tenant_id,
+                organization_id: tenantOrganizationId
+            });
+            const canonicalOrganizationId = graphOrganizationId(resolvedOrganization, {
+                tenantId: context.tenant.tenant_id,
+                organizationId: tenantOrganizationId
+            });
             const projectId = deriveSingleAuthorityProjectId(context);
             if (typeof services?.connectionRegistry?.resolveProjectBindingById !== 'function') {
                 throw new ContractError('PROJECT_SCOPE_MISMATCH', {
@@ -94,7 +131,9 @@ export function createPersonalKnowledgePromotionAuthorityGuard(services, capabil
             req.personalKnowledgePromotionAuthority = {
                 capabilityId,
                 actorPersonId: context.actor.principal_id,
-                organizationIds: context.authorization.organization_ids,
+                organizationIds: [canonicalOrganizationId],
+                tenantOrganizationIds: organizationIds,
+                graphOrganizationId: canonicalOrganizationId,
                 projectIds: [project.project_id],
                 projectCode: project.project_code,
                 operationId: context.operation_id,

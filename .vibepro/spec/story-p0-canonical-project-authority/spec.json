@@ -10,8 +10,10 @@
     "applicability": "applicable",
     "tenancy_model": "pooled",
     "tenant_identity": {
-      "canonical_key": "organization_id",
+      "canonical_key": "tenant_organization_id -> graph_organization_id",
       "resolved_from": [
+        "producer-signed tenant organization_id",
+        "tenant_organizations.organization_payload.graph_organization_id",
         "verified bearer access",
         "producer-signed canonical project_id",
         "canonical tenant project registry"
@@ -82,7 +84,9 @@
       "multiple_canonical_project_ids",
       "bearer_lacks_project_code",
       "canonical_project_resolver_unavailable",
-      "canonical_project_code_mismatch"
+      "canonical_project_code_mismatch",
+      "missing_canonical_organization_binding",
+      "inactive_canonical_organization_binding"
     ],
     "graph_metadata": {
       "tenant_entities": [
@@ -115,7 +119,9 @@
           "multiple_canonical_project_ids",
           "bearer_lacks_project_code",
           "canonical_project_resolver_unavailable",
-          "canonical_project_code_mismatch"
+          "canonical_project_code_mismatch",
+          "missing_canonical_organization_binding",
+          "inactive_canonical_organization_binding"
         ],
         "graph": {
           "tenant_key": "organization_id",
@@ -320,9 +326,64 @@
       },
       "first_seen_at": "2026-09-05T18:53:30.300Z",
       "last_revised_at": "2026-09-05T18:53:30.300Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "署名済みtenant organization_idは、同じtenantの有効なtenant_organizations対応表でGraph正本organization_idへ解決してから、Bearer access・promotion request・Graph書き込みの組織境界へ渡す。",
+      "rationale": "実行時テナントの組織IDとGraph正本の組織IDは別の名前空間にあり、未変換のIDでは正規projectが見えず、誤った組織へ流用してはならない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0正規プロジェクト権限で個人知識を組織Graphへ昇格できる"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-t0-human-tenant-access-provisioning.md",
+            "anchor": "runtime tenant organization and Graph organization"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/middleware/personal-knowledge-promotion-authority.js",
+            "anchor": "graphOrganizationId"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js",
+            "anchor": "resolveOrganizationBindingById"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "maps a tenant organization to the canonical Graph organization before promotion"
+          },
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects when the canonical Graph organization binding cannot be resolved"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "maps a tenant organization to the canonical Graph organization before promotion"
+          },
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "rejects when the canonical Graph organization binding cannot be resolved"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T19:20:00.000Z",
+      "last_revised_at": "2026-09-05T19:20:00.000Z"
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-09-05T17:00:16.948Z",
+  "generated_at": "2026-09-05T19:20:00.000Z",
   "previous_spec_id": "2026-09-05T17:00:16.948Z"
 }

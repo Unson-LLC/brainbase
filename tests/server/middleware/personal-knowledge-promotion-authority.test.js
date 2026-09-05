@@ -77,6 +77,12 @@ function header(value) {
 
 function projectRegistry(projectCode = 'brainbase') {
     return {
+        resolveOrganizationBindingById: vi.fn(async ({ tenant_id, organization_id }) => ({
+            tenant_id,
+            organization_id,
+            organization_payload: { status: 'active', graph_organization_id: organization_id },
+            tenant_status: 'active'
+        })),
         resolveProjectBindingById: vi.fn(async ({ tenant_id, project_id }) => ({
             tenant_id,
             project_id,
@@ -84,6 +90,17 @@ function projectRegistry(projectCode = 'brainbase') {
             project_payload: { status: 'active' }
         }))
     };
+}
+
+function splitOrganizationRegistry() {
+    const registry = projectRegistry();
+    registry.resolveOrganizationBindingById = vi.fn(async ({ tenant_id, organization_id }) => ({
+        tenant_id,
+        organization_id,
+        organization_payload: { status: 'active', graph_organization_id: 'techknight' },
+        tenant_status: 'active'
+    }));
+    return registry;
 }
 
 function organizationReviewRuntime({
@@ -177,6 +194,33 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
         const { app, supplied, effect } = harness();
         await request(app).post('/promotions/kpr_test/owner-decision').set('Brainbase-Tenant-Context', header(supplied)).expect(204);
         expect(effect).toHaveBeenCalledOnce();
+    });
+
+    it('maps a tenant organization to the canonical Graph organization before promotion', async () => {
+        const connectionRegistry = splitOrganizationRegistry();
+        const { app, supplied, effect } = harness({ connectionRegistry });
+        await request(app).post('/promotions/kpr_test/owner-decision').set('Brainbase-Tenant-Context', header(supplied)).expect(204);
+        expect(effect).toHaveBeenCalledOnce();
+        expect(connectionRegistry.resolveOrganizationBindingById).toHaveBeenCalledWith({
+            tenant_id: supplied.tenant.tenant_id,
+            organization_id: 'org_a'
+        });
+        expect(effect.mock.calls[0][0].personalKnowledgePromotionAuthority).toMatchObject({
+            organizationIds: ['techknight'],
+            tenantOrganizationIds: ['org_a'],
+            graphOrganizationId: 'techknight'
+        });
+    });
+
+    it('rejects when the canonical Graph organization binding cannot be resolved', async () => {
+        const connectionRegistry = projectRegistry();
+        connectionRegistry.resolveOrganizationBindingById = vi.fn(async () => null);
+        const { app, supplied, effect } = harness({ connectionRegistry });
+        await request(app)
+            .post('/promotions/kpr_test/owner-decision')
+            .set('Brainbase-Tenant-Context', header(supplied))
+            .expect(403);
+        expect(effect).not.toHaveBeenCalled();
     });
 
     it('rejects when the canonical project binding cannot be resolved', async () => {
