@@ -94,6 +94,7 @@ describe('issue-personal-knowledge-promotion-smoke-fixture', () => {
         expect(parseSmokeFixture(fixture)).toMatchObject({
             runId: 'p0_smoke_20260826_issuer_001',
             projectCode: 'brainbase',
+            subject: { type: 'glossary_term' },
             normalizedPayload: {
                 kind: 'entity',
                 entity: { type: 'glossary_term' }

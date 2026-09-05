@@ -214,7 +214,7 @@ export function buildSmokeFixtureInput({ runId, binding, now = new Date() }) {
         request: {
             project_code: binding.project_code,
             summary: 'synthetic production smoke',
-            subject: { type: 'decision', id: entityId },
+            subject: { type: 'glossary_term', id: entityId },
             normalized_payload: normalized.normalized,
             producer_request: contextRequest({
                 binding,
