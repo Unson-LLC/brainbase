@@ -32,7 +32,7 @@ Codex自身の`hooks/list`で確認すると、4つのResolver Hookは登録・�
 
 ## 受け入れ基準
 
-- [ ] readiness checkはCodex公式`hooks/list`を使い、global `UserPromptSubmit`、`PostToolUse`、`PostToolUseFailure`、`Stop`が同じcanonical entrypointを指すこと、各Hookがenabledであること、両方のtool Hook matcherが正しいこと、現在のidentityが`trusted`または`managed`であることを検証する。
+- [ ] readiness checkはCodex公式`hooks/list`を使い、global `UserPromptSubmit`、`PostToolUse`、`Stop`が同じcanonical entrypointを指すこと、各Hookがenabledであること、tool Hook matcherが正しいこと、現在のidentityが`trusted`または`managed`であることを検証する。`PostToolUseFailure`はHostが列挙する場合だけ同じ検証を必須とし、未列挙なら互換性差分として報告する。
 - [ ] `modified`、`untrusted`、missing、Codex status取得失敗は`trust_required`または診断エラーとして非zeroで終了する。Brainbaseはtrust hashを計算・書換しない。
 - [ ] readiness check成功は`ready_for_fresh_task`までとし`active`とは呼ばない。Hookのtrust承認後に作成した新規taskのepisode、final receipt、実transcriptのowner監査prefixがそろった場合だけ`proven_active`とする。
 - [ ] episode identityまたは対応episodeがないStopは無音の`{}`を返さず、activation failureとして明示的にfail-closedする。

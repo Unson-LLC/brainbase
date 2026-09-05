@@ -2216,6 +2216,14 @@ function effectiveContinuationMarker(marker, episode) {
         || observed.question_digest !== `sha256:${sha256(observed.question_display_text)}`) {
         return marker;
     }
+    // The first Stop can observe a legitimate runtime boundary before the
+    // model-supplied TurnContract is available. Preserve that boundary when
+    // the resolved continue contract explicitly allows it; it is not an
+    // unnecessary interruption and must not be promoted to a continuation.
+    if (typeof observed.reason_code === 'string'
+        && waitingHumanReasonAllowed(contract, observed.reason_code)) {
+        return marker;
+    }
     return {
         ...marker,
         autonomy_continuation: {
@@ -3311,6 +3319,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             const observedQuestion = missingTurnResolution && requestsUserInput(observedQuestionBody)
                 ? displayedQuestion(observedQuestionBody)
                 : null;
+            const observedReason = observedQuestionBody.split('\n')
+                .map((line) => line.trim())
+                .filter(Boolean)[0]?.match(AUTONOMY_MARKER_PATTERN)?.[1] ?? null;
             const markerEntry = {
                 ...(marker ?? {}),
                 schema_version: 'brainbase-judgment-continuation-v2',
@@ -3328,7 +3339,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                         resolution: 'continued_without_human',
                         question_display_text: observedQuestion,
                         question_digest: `sha256:${sha256(observedQuestion)}`,
-                        reason_code: null,
+                        reason_code: observedReason,
                         source: 'pre_resolution_stop'
                     }
                 } : {}),

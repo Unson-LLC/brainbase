@@ -7,14 +7,13 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REQUIRED_HOOKS = [
-    { eventName: 'userPromptSubmit', matcher: null },
-    { eventName: 'postToolUse', matcher: '.*' },
-    { eventName: 'postToolUseFailure', matcher: '.*' },
-    { eventName: 'stop', matcher: null }
+    { eventName: 'userPromptSubmit', matcher: null, required: true },
+    { eventName: 'postToolUse', matcher: '.*', required: true },
+    { eventName: 'postToolUseFailure', matcher: '.*', required: false },
+    { eventName: 'stop', matcher: null, required: true }
 ];
 const CANONICAL_ENTRYPOINT = 'scripts/codex-hooks/judgment-resolver-entry.sh';
 const READY_TRUST_STATUSES = new Set(['trusted', 'managed']);
-const TRUST_ACTION = 'Open /hooks and approve the four current Resolver hooks.';
 const CODEX_DESKTOP_BIN = '/Applications/ChatGPT.app/Contents/Resources/codex';
 
 export function resolveDefaultCodexBin({
@@ -35,9 +34,20 @@ function canonicalResolverHook(hook) {
 
 function eventResult(required, candidates) {
     if (candidates.length === 0) {
+        if (!required.required) {
+            return {
+                event_name: required.eventName,
+                status: 'not_enumerated',
+                required: false,
+                enabled: false,
+                trust_status: 'not_applicable',
+                matcher_valid: true
+            };
+        }
         return {
             event_name: required.eventName,
             status: 'missing',
+            required: true,
             enabled: false,
             trust_status: 'missing',
             matcher_valid: false
@@ -47,6 +57,7 @@ function eventResult(required, candidates) {
         return {
             event_name: required.eventName,
             status: 'duplicate',
+            required: true,
             enabled: candidates.every((hook) => hook.enabled === true),
             trust_status: 'ambiguous',
             matcher_valid: false
@@ -64,6 +75,7 @@ function eventResult(required, candidates) {
     return {
         event_name: required.eventName,
         status,
+        required: true,
         enabled,
         trust_status: trustStatus,
         matcher_valid: matcherValid,
@@ -105,6 +117,9 @@ export function evaluateHookReadiness(hooksListResult, { cwd = process.cwd() } =
         required,
         hooks.filter((hook) => hook?.eventName === required.eventName && canonicalResolverHook(hook))
     ));
+    const compatibilityGaps = events.some((event) => (
+        event.event_name === 'postToolUseFailure' && event.status === 'not_enumerated'
+    )) ? ['postToolUseFailure_not_enumerated_by_host'] : [];
     const commands = new Set(events.map((event) => event.command).filter(Boolean));
     const configurationError = events.some((event) => [
         'duplicate', 'disabled', 'matcher_mismatch'
@@ -119,6 +134,7 @@ export function evaluateHookReadiness(hooksListResult, { cwd = process.cwd() } =
             ready: false,
             cwd,
             events,
+            compatibility_gaps: compatibilityGaps,
             errors: commands.size > 1 ? ['resolver_entrypoint_mismatch'] : [],
             next_action: 'Repair the canonical Resolver hook definitions before approving them.'
         };
@@ -129,8 +145,9 @@ export function evaluateHookReadiness(hooksListResult, { cwd = process.cwd() } =
             ready: false,
             cwd,
             events,
+            compatibility_gaps: compatibilityGaps,
             errors: [],
-            next_action: TRUST_ACTION
+            next_action: `Open /hooks and approve the ${events.filter((event) => event.required).length === 4 ? 'four' : 'three'} current Resolver hooks.`
         };
     }
     return {
@@ -138,6 +155,7 @@ export function evaluateHookReadiness(hooksListResult, { cwd = process.cwd() } =
         ready: true,
         cwd,
         events,
+        compatibility_gaps: compatibilityGaps,
         errors: [],
         next_action: 'Create a new Codex Desktop task and prove one live judgment episode.'
     };
