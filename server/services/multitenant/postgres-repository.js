@@ -440,7 +440,7 @@ export class MultitenantPostgresRepository {
                     AND wc.workspace_id = $2 AND wc.app_id = $3
                     AND wc.status IN ('pending', 'active', 'reauth_required')
                   LIMIT 2
-                  FOR SHARE OF wc, revision, cbr`,
+                  FOR SHARE OF wc`,
                 [fixed.tenant_id, fixed.workspace_id, fixed.app_id]
             );
             if ((currentResult.rows ?? []).length === 0) return { state: 'absent' };
