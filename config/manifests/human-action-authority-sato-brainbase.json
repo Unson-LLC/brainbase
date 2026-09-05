@@ -20,6 +20,7 @@
       "identity_id": "human_identity_1e27b72ca1ed8efa5a5d855dccbe8a18",
       "identity_revision": "1",
       "placement_id": "unson-sato",
+      "membership_placement_id": null,
       "expected_project_codes": [
         "brainbase",
         "mana"

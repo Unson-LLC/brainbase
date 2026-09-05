@@ -16,7 +16,8 @@ const PROJECT_KEYS = new Set(['project_id', 'project_code']);
 const TRANSPORT_KEYS = new Set(['provider', 'workspace_id', 'app_id']);
 const HUMAN_KEYS = new Set([
     'person_id', 'slack_user_id', 'membership_id', 'membership_revision',
-    'identity_id', 'identity_revision', 'placement_id', 'expected_project_codes', 'bindings'
+    'identity_id', 'identity_revision', 'placement_id', 'membership_placement_id',
+    'expected_project_codes', 'bindings'
 ]);
 const BINDING_KEYS = new Set([
     'resource_ref', 'capability_id', 'decision', 'allowed_effects',
@@ -171,6 +172,9 @@ function normalizeHuman(value, index) {
     const field = `humans[${index}]`;
     record(value, field);
     knownKeys(value, HUMAN_KEYS, field);
+    if (!Object.hasOwn(value, 'membership_placement_id')) {
+        fail('MANIFEST_INVALID', `${field}.membership_placement_id is required`);
+    }
     const personId = text(value.person_id, `${field}.person_id`);
     if (!isCanonicalId(personId, 'per')) fail('MANIFEST_INVALID', `${field}.person_id is invalid`);
     if (!Array.isArray(value.bindings) || value.bindings.length === 0 || value.bindings.length > 32) {
@@ -189,6 +193,8 @@ function normalizeHuman(value, index) {
         identity_id: text(value.identity_id, `${field}.identity_id`),
         identity_revision: revision(value.identity_revision, `${field}.identity_revision`, { positive: true }),
         placement_id: text(value.placement_id, `${field}.placement_id`),
+        membership_placement_id: value.membership_placement_id === null
+            ? null : text(value.membership_placement_id, `${field}.membership_placement_id`),
         expected_project_codes: stringArray(
             value.expected_project_codes, `${field}.expected_project_codes`
         ),
@@ -254,6 +260,10 @@ function membershipRevision(payload) {
     return payload?.revision == null ? null : String(payload.revision);
 }
 
+function membershipPlacement(payload) {
+    return payload?.placement_id ?? null;
+}
+
 function canonicalProjectCodes(value) {
     if (!Array.isArray(value) || value.length === 0 || value.length > 32
         || value.some((item) => typeof item !== 'string'
@@ -283,7 +293,7 @@ function publicMembership(row) {
             slack_user_id: payload?.slack_user_id ?? null,
             slack_workspace_id: payload?.slack_workspace_id ?? null,
             project_codes: Array.isArray(payload?.project_codes) ? [...payload.project_codes] : null,
-            placement_id: payload?.placement_id ?? null
+            placement_id: membershipPlacement(payload)
         }
     } : null;
 }
@@ -375,7 +385,7 @@ async function readHumanFoundation(client, manifest, human) {
         || membershipRevision(payload) !== human.membership_revision
         || payload?.slack_user_id !== human.slack_user_id
         || payload?.slack_workspace_id !== manifest.transport.workspace_id
-        || payload?.placement_id !== human.placement_id
+        || membershipPlacement(payload) !== human.membership_placement_id
         || !sameProjectCodes(payload?.project_codes, human.expected_project_codes)) {
         fail('MEMBERSHIP_CONFLICT', 'Declared active human membership differs from current state');
     }
