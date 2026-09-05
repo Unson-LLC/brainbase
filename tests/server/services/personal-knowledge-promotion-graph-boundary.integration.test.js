@@ -213,6 +213,7 @@ describe('personal knowledge promotion Graph write boundary', () => {
         expect(infoSSOTService.commitOntologyGraph).toHaveBeenCalledOnce();
         expect(getGraphVersion()).toBe(1);
         expect(candidateRepository.candidates.get('candidate_graph_boundary_1')).toMatchObject({
+            visibility: 'org',
             promotion_status: 'promoted_to_graph',
             promoted_graph_entity_id: normalization.normalized.entity.id,
             requires_approval: false

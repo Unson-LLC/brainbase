@@ -304,7 +304,7 @@ export function buildOrganizationKnowledgeEvent(request, normalized, summary, ev
             project_code: request.project_code
         },
         permission_snapshot: {
-            visibility: 'organization',
+            visibility: 'org',
             contains_pii: false,
             sensitivity: normalized.sensitivity,
             role_min: normalized.role_min,
