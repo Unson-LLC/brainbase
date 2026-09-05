@@ -98,6 +98,10 @@ function createCandidateRepository() {
             candidates.set(candidate.id, candidate);
             return structuredClone(candidate);
         }),
+        findById: vi.fn(async (id) => {
+            const candidate = candidates.get(id);
+            return candidate ? structuredClone(candidate) : null;
+        }),
         transitionProcessingStage: vi.fn(async () => undefined),
         transitionWithAudit: vi.fn(async (id, nextStatus, _audit, options = {}) => {
             const candidate = candidates.get(id);

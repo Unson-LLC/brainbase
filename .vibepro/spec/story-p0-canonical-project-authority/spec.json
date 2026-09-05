@@ -432,9 +432,47 @@
       },
       "first_seen_at": "2026-09-05T19:24:00.000Z",
       "last_revised_at": "2026-09-05T19:24:00.000Z"
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "組織審査で承認された非DecisionのCandidateは、同じtransaction内でpending_approval、approved、promoted_to_graphの正規順序を通り、最後にGraph entity IDを保持する。",
+      "rationale": "Graph書き込み後のCandidate同期でも状態機械を飛び越えず、組織審査とGraph反映の監査履歴を一貫させるため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0を同一runでGraph readbackまで完了する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/knowledge-event-service.js",
+            "anchor": "reconcileGraphProjection"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/knowledge-event-service.test.js",
+            "case": "承認済み組織eventを正規のCandidate状態遷移でGraph反映済みにする"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/knowledge-event-service.test.js",
+            "must_cover": "承認済み組織eventを正規のCandidate状態遷移でGraph反映済みにする"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-06T00:00:00.000Z",
+      "last_revised_at": "2026-09-06T00:00:00.000Z"
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-09-05T19:24:00.000Z",
+  "generated_at": "2026-09-06T00:00:00.000Z",
   "previous_spec_id": "2026-09-05T17:00:16.948Z"
 }
