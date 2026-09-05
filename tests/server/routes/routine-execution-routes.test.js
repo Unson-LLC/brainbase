@@ -13,6 +13,13 @@ function createBootstrapApp({
     routineCycleExecutor,
     projectCodes = ['brainbase'],
     serviceClaims = {},
+    canonicalRoutineClaims = null,
+    members = [{
+        slack_id: 'U-SATO',
+        person_id: 'sato_keigo',
+        status: 'active',
+        projects: [{ name: 'brainbase' }]
+    }],
     env = createPersonalKgAuthorityEnv({ projectId: 'brainbase' })
 } = {}) {
     const authService = {
@@ -23,12 +30,27 @@ function createBootstrapApp({
             clearance: ['internal'],
             ...serviceClaims
         })),
+        resolveCanonicalRoutineAuthority: vi.fn(async ({ routine }) => canonicalRoutineClaims || ({
+            sub: `brainbase_${routine}`,
+            projectCodes: ['brainbase'],
+            capabilities: [`routine.${routine}.execute`],
+            routineAuthority: {
+                routine,
+                capability_id: 'personal_read',
+                allowed_effects: ['read'],
+                owner_person_id: 'sato_keigo',
+                organization_id: 'organization-unson',
+                project_id: 'brainbase',
+                authority_resolution_receipt_id: `authres-${routine}`,
+                identity_resolution_receipt_id: `idres-${routine}`
+            }
+        })),
         verifyToken: vi.fn()
     };
     const app = express();
     app.use(express.json());
     registerApiRoutes(app, {
-        configParser: {},
+        configParser: { getMembers: vi.fn(async () => members) },
         configService: {},
         runtimePaths: { varDir: '/tmp' },
         scheduleParser: {},
@@ -70,6 +92,46 @@ function createBootstrapApp({
 }
 
 describe('Routine execution API production wiring', () => {
+    it.each(['ohayo', 'retro', 'oyasumi'])('%sはローカル内部認証から署名済み会社権限を自動解決する', async (routine) => {
+        const previousSecret = process.env.INTERNAL_API_SECRET;
+        process.env.INTERNAL_API_SECRET = 'test-internal-secret';
+        try {
+            const routineCycleExecutor = { execute: vi.fn(async () => ({
+                status: 'completed',
+                routine_summary: { routine, status: 'completed', anomaly_count: 0 }
+            })) };
+            const { app, authService } = createBootstrapApp({ routineCycleExecutor });
+
+            await request(app)
+                .post(`/api/routines/${routine}/execute`)
+                .set('x-internal-api-key', 'test-internal-secret')
+                .send({ input: { project_id: 'brainbase' } })
+                .expect(200);
+
+            expect(authService.resolveCanonicalRoutineAuthority).toHaveBeenCalledWith({
+                routine,
+                ownerPersonId: 'sato_keigo',
+                projectId: 'brainbase',
+                providerSubjectIds: ['U-SATO']
+            });
+            expect(routineCycleExecutor.execute).toHaveBeenCalledWith(
+                { routine, input: { project_id: 'brainbase' } },
+                expect.objectContaining({
+                    access: expect.objectContaining({
+                        personId: 'sato_keigo',
+                        actorPersonId: `brainbase_${routine}`,
+                        organizationId: 'organization-unson',
+                        projectCodes: ['brainbase'],
+                        proxied: true
+                    })
+                })
+            );
+        } finally {
+            if (previousSecret === undefined) delete process.env.INTERNAL_API_SECRET;
+            else process.env.INTERNAL_API_SECRET = previousSecret;
+        }
+    });
+
     it('標準CLIと同じPOST /api/routines/:routine/executeを認証actor・project scope付きでexecutorへ渡す', async () => {
         const routineCycleExecutor = {
             execute: vi.fn(async () => ({

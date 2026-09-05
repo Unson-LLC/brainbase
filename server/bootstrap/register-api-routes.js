@@ -63,6 +63,18 @@ function createDecisionEventService(runtimePaths) {
     });
 }
 
+async function resolveLocalRoutineProviderSubjectIds({ configParser, ownerPersonId, projectId }) {
+    if (!configParser?.getMembers || !ownerPersonId || !projectId) return [];
+    const members = await configParser.getMembers();
+    return [...new Set((Array.isArray(members) ? members : [])
+        .filter((member) => member?.person_id === ownerPersonId)
+        .filter((member) => String(member?.status || 'active').toLowerCase() !== 'inactive')
+        .filter((member) => Array.isArray(member?.projects)
+            && member.projects.some((project) => project?.name === projectId || project?.id === projectId))
+        .map((member) => String(member?.slack_id || '').trim())
+        .filter(Boolean))];
+}
+
 export function registerOnboardingApiRoute(app, { authService, onboardingRuntimeService }) {
     app.use(
         '/api/onboarding',
@@ -275,7 +287,21 @@ export function registerApiRoutes(app, {
         ? (entry) => personalKnowledgeService.auditAccess(entry)
         : null;
     const personalKnowledgeAccessGuard = requirePersonalKnowledgeAccess({ audit: auditPersonalAccess });
-    const routineCompanyAuthorityGuard = requireRoutineCompanyAuthority({ env });
+    const routineCompanyAuthorityGuard = requireRoutineCompanyAuthority({
+        env,
+        ownerPersonId: canonicalTaskStoreConfig?.ownerPersonId,
+        projectId: canonicalTaskStoreConfig?.project || 'brainbase',
+        resolveCanonicalRoutineAuthority: authService?.resolveCanonicalRoutineAuthority
+            ? async (input) => authService.resolveCanonicalRoutineAuthority({
+                ...input,
+                providerSubjectIds: await resolveLocalRoutineProviderSubjectIds({
+                    configParser,
+                    ownerPersonId: input.ownerPersonId,
+                    projectId: input.projectId
+                })
+            })
+            : null
+    });
     const unavailablePromotionAuthority = createUnavailablePersonalKnowledgePromotionAuthorityGuard();
     const promotionAuthorityGuards = tenantRuntimeServices ? {
         request: createPersonalKnowledgePromotionAuthorityGuard(

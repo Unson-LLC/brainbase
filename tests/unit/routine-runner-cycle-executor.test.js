@@ -42,9 +42,9 @@ describe('Routine Runner cycle execution', () => {
             routine: 'ohayo',
             repoDir,
             env: {
-                ...createPersonalKgAuthorityEnv({ projectId: 'brainbase' }),
                 CODEX_THREAD_ID: 'thread-local-auth',
                 BRAINBASE_API_URL: 'https://bb.unson.jp',
+                BRAINBASE_ROUTINE_SERVICE_TOKEN: 'routine-must-not-be-used-locally',
                 BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'receipt-must-not-be-used-locally',
                 INTERNAL_API_SECRET: 'local-internal-key',
                 BRAINBASE_VAR_DIR: path.join(repoDir, 'canonical-var')
@@ -66,16 +66,34 @@ describe('Routine Runner cycle execution', () => {
         }
         expect(calls[0].options.headers).not.toHaveProperty('x-brainbase-proxy-person-id');
         expect(calls[0].options.headers).not.toHaveProperty('x-brainbase-organization-id');
-        expect(calls[0].body.company_authority_response.context.scope).toMatchObject({
-            owner_person_id: 'person-sato',
-            organization_id: 'organization-tenant-a',
-            project_id: 'brainbase'
-        });
+        expect(calls[0].body).not.toHaveProperty('company_authority_response');
         expect(result).toMatchObject({ status: 'completed', delivery: { delivered: 1 } });
 
         const runnerSource = fs.readFileSync(path.join(process.cwd(), 'scripts/routines/run.mjs'), 'utf8');
         expect(runnerSource).toContain('loadRuntimeEnv');
         expect(runnerSource).toMatch(/loadRuntimeEnv\(\{[\s\S]*cwd:\s*DEFAULT_REPO_DIR/);
+    });
+
+    it.each(['ohayo', 'retro', 'oyasumi'])('%sのローカル実行は追加tokenやCompany Authority設定を要求しない', async (routine) => {
+        const fetchImpl = vi.fn(async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ status: 'completed' })
+        }));
+
+        await routineRunner.executeRoutineOverHttp({
+            routine,
+            env: {
+                BRAINBASE_ROUTINE_API_URL: 'http://127.0.0.1:31013',
+                INTERNAL_API_SECRET: 'local-internal-key'
+            },
+            fetchImpl
+        });
+
+        const request = fetchImpl.mock.calls[0][1];
+        expect(request.headers).toMatchObject({ 'x-internal-api-key': 'local-internal-key' });
+        expect(request.headers).not.toHaveProperty('Authorization');
+        expect(JSON.parse(request.body)).toEqual({ input: {} });
     });
 
     it('CLI終了コードはcompletedだけ0、partialは2、failedとblockedは非zeroにする', () => {

@@ -624,6 +624,7 @@ export class AuthService {
     issueRoutineServiceToken({ routine, ownerPersonId, organizationId, createdBy = null, ttlSeconds } = {}) {
         const routineName = typeof routine === 'string' ? routine.trim() : '';
         const routineConfig = {
+            ohayo: { name: 'Brainbase morning ohayo', serviceId: 'brainbase_ohayo' },
             retro: { name: 'Brainbase weekly retro', serviceId: 'brainbase_retro' },
             oyasumi: { name: 'Brainbase nightly oyasumi', serviceId: 'brainbase_oyasumi' }
         }[routineName];
@@ -654,6 +655,42 @@ export class AuthService {
             }
         });
         return issued;
+    }
+
+    async resolveCanonicalRoutineAuthority({
+        routine,
+        ownerPersonId,
+        projectId = 'brainbase',
+        providerSubjectIds = []
+    } = {}) {
+        const owner = typeof ownerPersonId === 'string' ? ownerPersonId.trim() : '';
+        const project = typeof projectId === 'string' ? projectId.trim() : '';
+        const subjects = normalizeList(providerSubjectIds);
+        if (!this.pool || !owner || !project || subjects.length === 0) {
+            throw new Error('canonical routine authority is unresolved');
+        }
+        const { rows } = await this.pool.query(
+            `SELECT DISTINCT ag.person_id, o.id AS organization_id
+               FROM auth_grants ag
+               JOIN organizations o ON $2 = ANY(o.projects)
+              WHERE ag.slack_user_id = ANY($1::text[])
+                AND ag.active = true
+                AND $2 = ANY(ag.project_codes)
+              ORDER BY ag.person_id, o.id
+              LIMIT 2`,
+            [subjects, project]
+        );
+        if (rows.length !== 1 || !rows[0]?.organization_id) {
+            throw new Error('canonical routine authority is unresolved');
+        }
+        const issued = this.issueRoutineServiceToken({
+            routine,
+            ownerPersonId: owner,
+            organizationId: rows[0].organization_id,
+            createdBy: 'brainbase_internal_runtime',
+            ttlSeconds: 60
+        });
+        return this.verifyServiceToken(issued.token);
     }
 
     issueRetroServiceToken(input = {}) {

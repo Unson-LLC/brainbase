@@ -45,11 +45,11 @@ function resolveRoutineApiUrl(env) {
 }
 
 function resolveRoutineExecutionAuth({ env, endpoint }) {
-    if (env.BRAINBASE_ROUTINE_SERVICE_TOKEN) {
-        return { serviceToken: env.BRAINBASE_ROUTINE_SERVICE_TOKEN, internalApiKey: null };
-    }
     if (env.INTERNAL_API_SECRET && isLoopbackUrl(endpoint)) {
         return { serviceToken: null, internalApiKey: env.INTERNAL_API_SECRET };
+    }
+    if (env.BRAINBASE_ROUTINE_SERVICE_TOKEN) {
+        return { serviceToken: env.BRAINBASE_ROUTINE_SERVICE_TOKEN, internalApiKey: null };
     }
     return { serviceToken: null, internalApiKey: null };
 }
@@ -285,9 +285,10 @@ export async function executeRoutineOverHttp({ routine, input = {}, env = proces
     if (!auth.serviceToken && !auth.internalApiKey) {
         throw new Error('routine authentication is required');
     }
+    const useServerResolvedAuthority = Boolean(auth.internalApiKey);
     const useRoutineServiceAuthority = ['oyasumi', 'retro'].includes(routine) && Boolean(auth.serviceToken);
     let companyAuthorityResponse;
-    if (!useRoutineServiceAuthority) {
+    if (!useServerResolvedAuthority && !useRoutineServiceAuthority) {
         resolvePersonalKgCliAuthority({ desiredEffect: 'read', env });
         companyAuthorityResponse = loadCompanyAuthorityResponse(env);
     }
