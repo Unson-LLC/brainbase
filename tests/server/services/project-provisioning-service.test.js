@@ -1034,7 +1034,9 @@ describe('ProjectProvisioningService', () => {
         expect(repository.runs.get(plan.run_id).steps.find((step) => step.step_name === 'graph').receipt).toMatchObject({
             status: 'already_materialized', project_code: 'brainbase', entity_version: 3
         });
-        expect(graphService.validate).toHaveBeenLastCalledWith(expect.anything(), { projectCode: 'brainbase' });
+        expect(graphService.validate).toHaveBeenLastCalledWith(expect.anything(), {
+            projectCode: manifest.project_code
+        });
     });
 
     it('apply actorが承認済み再利用scopeを持たない場合はRegistry書込前に拒否する', async () => {

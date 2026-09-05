@@ -977,7 +977,10 @@ export class ProjectProvisioningService {
                 failures.push({ layer: 'graph', code: 'reused_subject_readback_mismatch' });
             }
         }
-        const graphValidationProjectCode = reusedSubject?.project_code || run.manifest.project_code;
+        // A compatible Project subject may be stored in a legacy parent scope.
+        // Provisioning verifies the project being registered; validating the
+        // storage scope would make unrelated legacy issues block this run.
+        const graphValidationProjectCode = run.manifest.project_code;
         const graphValidation = await (this.catalogAdapter
             ? this.catalogAdapter.runForOrganization(actor.organizationId || actor.tenantId, () => (
                 this.graphService.validate(graphAccess, { projectCode: graphValidationProjectCode })
