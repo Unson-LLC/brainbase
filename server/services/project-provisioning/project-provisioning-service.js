@@ -20,6 +20,18 @@ function matchesProjectSubject(entity, manifest) {
         && entity.payload?.name === manifest.display_name;
 }
 
+function matchesRegistryProject(project, manifest, organizationId) {
+    return project?.project_code === manifest.project_code
+        && project.organization_id === organizationId
+        && project.display_name === manifest.display_name
+        && project.kind === manifest.kind
+        && project.catalog_version === manifest.catalog_version
+        && project.lifecycle_status === 'active'
+        && project.session_select === manifest.session_select
+        && project.organization_entity_id === manifest.organization_entity_id
+        && project.owner_person_id === manifest.owner_person_id;
+}
+
 function assertCompatibleProjectSubject(entities, manifest) {
     const existing = entities.find((entity) => entity.id === manifest.project_code);
     if (!existing) return null;
@@ -103,6 +115,17 @@ function assertOperator(actor) {
         error.statusCode = 409;
         throw error;
     }
+}
+
+function slackIdentityForGrant(actor, grant) {
+    if (grant.person_id !== actor.personId) return {};
+    if (!actor.slackUserId || !actor.slackWorkspaceId) {
+        const error = new Error('Provisioning a grant for the acting person requires an exact Slack identity');
+        error.code = 'PROJECT_PROVISIONING_SLACK_IDENTITY_REQUIRED';
+        error.statusCode = 409;
+        throw error;
+    }
+    return { slackUserId: actor.slackUserId, slackWorkspaceId: actor.slackWorkspaceId };
 }
 
 function graphVisibilityAccess(actor, manifest, organizationId) {
@@ -301,6 +324,10 @@ export class ProjectProvisioningService {
     async check(actor, input) {
         assertOperator(actor);
         const manifest = normalizeProjectProvisioningManifest(input);
+        if (manifest.owner_person_id === actor.personId) {
+            slackIdentityForGrant(actor, { person_id: manifest.owner_person_id });
+        }
+        for (const grant of manifest.initial_grants) slackIdentityForGrant(actor, grant);
         const organizationId = actor.organizationId || actor.tenantId;
         if (typeof this.repository.verifyManifestAuthority !== 'function') {
             const error = new Error('Manifest authority verification is unavailable');
@@ -326,8 +353,13 @@ export class ProjectProvisioningService {
                 manifest.project_code, organizationId
             )
             : [];
+        const registryProject = existing
+            ? { status: matchesRegistryProject(existing, manifest, organizationId) ? 'reusable' : 'conflict' }
+            : { status: 'absent' };
         const collisions = [
-            ...(existing ? [{ field: 'project_code', value: manifest.project_code, source: 'project_registry' }] : []),
+            ...(registryProject.status === 'conflict'
+                ? [{ field: 'project_code', value: manifest.project_code, source: 'project_registry' }]
+                : []),
             ...legacyCollisions.map((row) => ({ field: 'project_code', value: manifest.project_code, source: row.source }))
         ];
         const authority = assertAuthorityReadback(
@@ -396,6 +428,7 @@ export class ProjectProvisioningService {
             manifest,
             collisions,
             repository_state: repositoryState,
+            registry_project: registryProject,
             graph_project_subject: graphProjectSubject,
             authority,
             writes_performed: 0
@@ -552,6 +585,7 @@ export class ProjectProvisioningService {
             preflight: {
                 authority: checked.authority,
                 repository_state: checked.repository_state,
+                registry_project: checked.registry_project,
                 graph_project_subject: checked.graph_project_subject,
                 collisions: checked.collisions
             },
@@ -771,8 +805,10 @@ export class ProjectProvisioningService {
         if (stepName === 'auth_grants') {
             const grants = [];
             for (const grant of manifest.initial_grants) {
+                const actorSlackIdentity = slackIdentityForGrant(actor, grant);
                 grants.push(await this.authGrantService.addProjectGrant({
-                    personId: grant.person_id, role: grant.role, projectCode: manifest.project_code, organizationId
+                    personId: grant.person_id, role: grant.role, projectCode: manifest.project_code,
+                    organizationId, ...actorSlackIdentity
                 }));
             }
             return { grants };
@@ -949,9 +985,10 @@ export class ProjectProvisioningService {
             : this.graphService.validate(graphAccess, { projectCode: graphValidationProjectCode }));
         if (graphValidation?.valid !== true) failures.push({ layer: 'graph', code: 'graph_validation_failed' });
         for (const grant of run.manifest.initial_grants) {
+            const actorSlackIdentity = slackIdentityForGrant(actor, grant);
             const readback = await this.authGrantService.readProjectGrant?.({
                 personId: grant.person_id, role: grant.role, projectCode: run.manifest.project_code,
-                organizationId
+                organizationId, ...actorSlackIdentity
             });
             if (!readback) failures.push({ layer: 'auth_grants', code: 'grant_readback_missing', person_id: grant.person_id, role: grant.role });
         }

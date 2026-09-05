@@ -9,7 +9,10 @@ function app(service) {
     const instance = express();
     instance.use(express.json());
     instance.use((req, _res, next) => {
-        req.access = { role: 'gm', personId: 'person_1', organizationId: 'unson', projectCodes: [] };
+        req.access = {
+            role: 'gm', personId: 'person_1', organizationId: 'unson', projectCodes: [],
+            slackUserId: 'U_LOGIN', slackWorkspaceId: 'T_LOGIN'
+        };
         next();
     });
     instance.use('/api/project-provisioning', createProjectProvisioningRouter({ service }));
@@ -17,6 +20,18 @@ function app(service) {
 }
 
 describe('Project Provisioning routes', () => {
+
+    it('Slack login identityをserviceへ渡す', async () => {
+        const service = { check: vi.fn(async () => ({ ok: true })) };
+        const response = await request(app(service))
+            .post('/api/project-provisioning/check')
+            .send({});
+
+        expect(response.status).toBe(200);
+        expect(service.check).toHaveBeenCalledWith(expect.objectContaining({
+            slackUserId: 'U_LOGIN', slackWorkspaceId: 'T_LOGIN'
+        }), {});
+    });
     it('production server wiring passes ProjectProvisioningService into registerApiRoutes', () => {
         const source = fs.readFileSync(path.resolve('server.js'), 'utf8');
         const binding = source.match(/const\s*\{([^{}]*)\}\s*=\s*createCoreServices\(/u)?.[1] || '';
