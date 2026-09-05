@@ -662,9 +662,13 @@ export class MultitenantPostgresRepository {
         }
         return this.withTenant(tenantId, async (client) => {
             const result = await client.query(
-                `SELECT tenant_id, project_id, project_code, project_payload
-                   FROM tenant_projects
-                  WHERE tenant_id = $1 AND project_id = $2
+                `SELECT project.tenant_id, project.project_id, project.project_code,
+                        project.project_payload, tenant.status AS project_status
+                   FROM tenant_projects AS project
+                   JOIN brainbase_tenants AS tenant
+                     ON tenant.tenant_id = project.tenant_id
+                  WHERE project.tenant_id = $1 AND project.project_id = $2
+                    AND tenant.status = 'active'
                   LIMIT 1
                   FOR SHARE`,
                 [tenantId, projectId]
@@ -1439,9 +1443,13 @@ export class MultitenantPostgresRepository {
                     throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
                 }
                 const projectResult = await client.query(
-                    `SELECT tenant_id, project_id, project_code, project_payload
-                       FROM tenant_projects
-                      WHERE tenant_id = $1 AND project_id = $2
+                    `SELECT project.tenant_id, project.project_id, project.project_code,
+                            project.project_payload, tenant.status AS project_status
+                       FROM tenant_projects AS project
+                       JOIN brainbase_tenants AS tenant
+                         ON tenant.tenant_id = project.tenant_id
+                      WHERE project.tenant_id = $1 AND project.project_id = $2
+                        AND tenant.status = 'active'
                       LIMIT 1
                       FOR SHARE`,
                     [input.tenant_id, input.project_id]
