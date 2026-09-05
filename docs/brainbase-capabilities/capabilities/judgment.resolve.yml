@@ -80,7 +80,7 @@ verification:
     - The Stop audit contract is bound at episode start, and an audit-only continuation cannot complete after shortening the original non-audit answer body.
     - Raw tool input/output and secret-like values are absent from journals and owner-visible lines.
     - Zero Brainbase calls is complete when no Brainbase capability is required.
-    - A continue receipt rejects an unnecessary user decision request, accepts completion with an optional follow-up offer, and accepts only exact allowed runtime-escalation reasons. An escalate receipt requires the Resolver reason marker at the start of the answer body.
+    - A continue receipt rejects an unnecessary user decision request even when the latest journal state is completed, accepts completion with an optional follow-up offer, and accepts only exact allowed runtime-escalation reasons. After resolve_turn succeeds, its confirmed owner line supersedes any bootstrap classification_missing line and question. An escalate receipt requires the Resolver reason marker at the start of the answer body.
     - An unnecessary-question rejection emits exactly one short in-progress `systemMessage`; any final `🔁` audit line and count are rendered only from the immutable continuation journal. Normal turns emit neither line.
     - A completed Stop repair emits one final `🛠️` audit line only from the immutable `stop_repair` marker. A normal turn emits no repair line.
     - Required `knowledge.resolve` is complete only after a successful exact route call.
