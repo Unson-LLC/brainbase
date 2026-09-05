@@ -175,6 +175,50 @@ describe('Routine execution API production wiring', () => {
         );
     });
 
+    it('oyasumi専用の署名済みservice authorityはrequest bodyの人物自己申告なしでread-only実行できる', async () => {
+        const routineCycleExecutor = { execute: vi.fn(async () => ({
+            status: 'completed',
+            routine_summary: { routine: 'oyasumi', status: 'completed', anomaly_count: 0 }
+        })) };
+        const { app } = createBootstrapApp({
+            routineCycleExecutor,
+            serviceClaims: {
+                sub: 'brainbase_oyasumi',
+                capabilities: ['routine.oyasumi.execute'],
+                routineAuthority: {
+                    routine: 'oyasumi',
+                    capability_id: 'personal_read',
+                    allowed_effects: ['read'],
+                    owner_person_id: 'person-sato',
+                    organization_id: 'organization-tenant-a',
+                    project_id: 'brainbase',
+                    authority_resolution_receipt_id: 'authres-oyasumi-1',
+                    identity_resolution_receipt_id: 'idres-oyasumi-1'
+                }
+            }
+        });
+
+        await request(app)
+            .post('/api/routines/oyasumi/execute')
+            .set('Authorization', 'Bearer bbsvc_oyasumi-test')
+            .send({ input: { project_id: 'brainbase' } })
+            .expect(200);
+
+        expect(routineCycleExecutor.execute).toHaveBeenCalledWith(
+            { routine: 'oyasumi', input: { project_id: 'brainbase' } },
+            expect.objectContaining({
+                access: expect.objectContaining({
+                    personId: 'person-sato',
+                    actorPersonId: 'brainbase_oyasumi',
+                    organizationId: 'organization-tenant-a',
+                    projectCodes: ['brainbase'],
+                    clearance: ['personal'],
+                    proxied: true
+                })
+            })
+        );
+    });
+
     it('retro service authorityは別routine・write scope・bodyでのowner上書きを拒否する', async () => {
         const routineCycleExecutor = { execute: vi.fn(async () => ({ status: 'completed' })) };
         const claims = {
