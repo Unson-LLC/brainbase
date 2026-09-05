@@ -9,6 +9,8 @@ import {
     provisionHumanCompanyAuthority,
     readbackHumanCompanyAuthority
 } from '../../../../server/services/multitenant/human-company-authority-provisioner.js';
+import { PostgresCompanyAuthorityRepository } from '../../../../server/services/multitenant/postgres-company-authority-repository.js';
+import { createSlackInstallationAccessResolver } from '../../../../server/services/multitenant/slack-installation-access.js';
 
 const { Pool } = pg;
 const tenantTechKnight = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
@@ -39,6 +41,7 @@ const manifest = {
 describe.sequential('human company authority PostgreSQL boundary', () => {
     let container;
     let pool;
+    let restrictedPool;
 
     beforeAll(async () => {
         container = await new PostgreSqlContainer('postgres:16-alpine').start();
@@ -73,15 +76,23 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
                        ARRAY['chat:write'], 'active', 'credref://techknight/slack', now())`,
             [tenantTechKnight]
         );
-        await pool.query('CREATE ROLE brainbase_human_provisioner_test_app NOLOGIN');
+        await pool.query("CREATE ROLE brainbase_human_provisioner_test_app LOGIN PASSWORD 'test-only-password'");
         await pool.query('GRANT USAGE ON SCHEMA public TO brainbase_human_provisioner_test_app');
         await pool.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON
             organizations, people, auth_grants, brainbase_tenants, tenant_projects,
             workspace_connections, tenant_organizations, tenant_memberships,
             company_external_identities TO brainbase_human_provisioner_test_app`);
+        await pool.query(`GRANT EXECUTE ON FUNCTION
+            resolve_company_authority_route(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT)
+            TO brainbase_human_provisioner_test_app`);
+        const restrictedUrl = new URL(container.getConnectionUri());
+        restrictedUrl.username = 'brainbase_human_provisioner_test_app';
+        restrictedUrl.password = 'test-only-password';
+        restrictedPool = new Pool({ connectionString: restrictedUrl.toString() });
     }, 120_000);
 
     afterAll(async () => {
+        await restrictedPool?.end();
         await pool?.end();
         await container?.stop();
     });
@@ -116,6 +127,24 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
                     }
                 },
                 external_identity: { status: 'active', authenticated_subject_id: 'U_UMEDA' }
+            });
+
+            const resolveSlackAccess = createSlackInstallationAccessResolver({
+                companyAuthorityRepository: new PostgresCompanyAuthorityRepository({
+                    pool: restrictedPool
+                }),
+                trustedAppId: 'A_TECHKNIGHT'
+            });
+            await expect(resolveSlackAccess({
+                access: {
+                    slackUserId: 'U_UMEDA',
+                    slackWorkspaceId: 'T_TECHKNIGHT'
+                }
+            })).resolves.toMatchObject({
+                tenantId: tenantTechKnight,
+                personId: umedaPersonId,
+                role: 'member',
+                projectCodes: ['techknight']
             });
 
             await readbackClient.query('BEGIN');
