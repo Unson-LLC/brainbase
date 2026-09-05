@@ -147,6 +147,26 @@ describe('tenant credential store worker', () => {
         });
     });
 
+    it('uses refresh revision zero when Slack issues no refresh token', async () => {
+        const fixture = envFixture();
+        const storeResponse = await handleTenantCredentialStoreRequest(
+            request('/api/v1/credentials/store', {
+                ...installationBinding,
+                idempotency_key: 'slack-installation-no-refresh',
+                credential_material: 'xoxb-secret-without-refresh',
+                credential_mode: 'customer_oauth'
+            }),
+            fixture.env
+        );
+
+        expect(storeResponse.status).toBe(200);
+        const stored = await json(storeResponse);
+        expect(stored.result).toMatchObject({
+            credential_mode: 'customer_oauth',
+            refresh_revision: 0
+        });
+    });
+
     it('rejects mismatched installation identity during verification', async () => {
         const fixture = envFixture();
         const stored = await handleTenantCredentialStoreRequest(

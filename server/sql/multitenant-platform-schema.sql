@@ -105,11 +105,34 @@ CREATE TABLE IF NOT EXISTS credential_broker_refs (
     connection_id TEXT NOT NULL,
     connection_revision BIGINT NOT NULL,
     credential_mode TEXT NOT NULL CHECK (credential_mode IN ('cloud_standard', 'customer_oauth', 'customer_api')),
-    refresh_revision BIGINT NOT NULL CHECK (refresh_revision > 0),
+    refresh_revision BIGINT NOT NULL
+        CONSTRAINT credential_broker_refs_refresh_revision_check
+        CHECK (refresh_revision >= 0),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)
 );
+
+-- Slack can issue a bot token without refresh material.  The credential store
+-- represents that valid state as revision 0, while positive revisions remain
+-- reserved for refresh material.  Upgrade the legacy > 0 constraint in place.
+DO $brainbase_credential_refresh_revision_upgrade$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'credential_broker_refs'::regclass
+           AND conname = 'credential_broker_refs_refresh_revision_check'
+           AND pg_get_constraintdef(oid) ~ 'refresh_revision >= 0'
+    ) THEN
+        ALTER TABLE credential_broker_refs
+            DROP CONSTRAINT IF EXISTS credential_broker_refs_refresh_revision_check;
+        ALTER TABLE credential_broker_refs
+            ADD CONSTRAINT credential_broker_refs_refresh_revision_check
+            CHECK (refresh_revision >= 0);
+    END IF;
+END
+$brainbase_credential_refresh_revision_upgrade$;
 
 CREATE TABLE IF NOT EXISTS tenant_credential_leases (
     lease_id TEXT PRIMARY KEY,

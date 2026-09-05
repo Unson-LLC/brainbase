@@ -96,15 +96,14 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
                 installer_id: installerId,
                 installation_id: `slack:${appId}:${workspaceId}`,
                 granted_scopes: ['chat:write', 'commands'],
-                credential_material: 'xoxb-integration-secret',
-                credential_refresh_material: 'xoxr-integration-secret'
+                credential_material: 'xoxb-integration-secret'
             }))
         };
         credentialStore = {
             store: vi.fn(async () => ({
                 credential_ref: 'vault://slack/unson-business/A0123456789/T0123456789',
                 credential_mode: 'customer_oauth',
-                refresh_revision: 1
+                refresh_revision: 0
             })),
             revoke: vi.fn()
         };
@@ -137,7 +136,26 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             });
     }, 120_000);
 
-    it('writes and reads back the intent, connection revision, opaque credential and exchange ledger atomically', async () => {
+    it('upgrades the legacy refresh revision constraint to allow zero', async () => {
+        await pool.query(`ALTER TABLE credential_broker_refs
+            DROP CONSTRAINT credential_broker_refs_refresh_revision_check`);
+        await pool.query(`ALTER TABLE credential_broker_refs
+            ADD CONSTRAINT credential_broker_refs_refresh_revision_check
+            CHECK (refresh_revision > 0)`);
+
+        const schema = await readFile(resolve(process.cwd(), 'server/sql/multitenant-platform-schema.sql'), 'utf8');
+        await pool.query(schema);
+
+        const constraint = await pool.query(
+            `SELECT pg_get_constraintdef(oid) AS definition
+               FROM pg_constraint
+              WHERE conrelid = 'credential_broker_refs'::regclass
+                AND conname = 'credential_broker_refs_refresh_revision_check'`
+        );
+        expect(constraint.rows).toEqual([{ definition: 'CHECK ((refresh_revision >= 0))' }]);
+    }, 120_000);
+
+    it('registers and reads back a Slack connection with refresh revision zero when no refresh token is issued', async () => {
         const intent = {
             installation_intent_id: intentId,
             tenant_id: tenantId,
@@ -202,14 +220,12 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             profile: 'shared_cloud',
             contract_revision: '1',
             credential_mode: 'customer_oauth',
-            refresh_revision: '1',
+            refresh_revision: '0',
             status: 'completed'
         });
         expect(stored.consumed_at).not.toBeNull();
         expect(stored.connection_snapshot).not.toContain('xoxb-integration-secret');
-        expect(stored.connection_snapshot).not.toContain('xoxr-integration-secret');
         expect(stored.response_payload).not.toContain('xoxb-integration-secret');
-        expect(stored.response_payload).not.toContain('xoxr-integration-secret');
 
         // Exchange retries read the completed ledger before calling Slack or
         // the secret store, so one OAuth event has one registration effect.

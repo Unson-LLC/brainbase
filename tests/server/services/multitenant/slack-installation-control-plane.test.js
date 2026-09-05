@@ -142,6 +142,42 @@ describe('Slack installation control plane', () => {
         expect(registerInput.request_digest).toMatch(/^sha256:[a-f0-9]{64}$/u);
     });
 
+    it('preserves refresh revision zero when Slack issues no refresh token', async () => {
+        const { controlPlane, repository, credentialStore } = createControlPlane({
+            oauthClient: {
+                exchangeCode: vi.fn(async () => ({
+                    app_id: binding.app_id,
+                    team_id: binding.expected_workspace_id,
+                    authed_user_id: 'U0123456789',
+                    installation_id: 'I0123456789',
+                    scope: 'chat:write,commands',
+                    credential_material: 'raw-token-without-refresh'
+                }))
+            },
+            credentialStore: {
+                store: vi.fn(async () => ({
+                    credential_ref: 'opaque-ref:tenant-a:no-refresh',
+                    credential_mode: 'customer_oauth',
+                    refresh_revision: 0
+                }))
+            }
+        });
+
+        await controlPlane.exchange_and_register({
+            authorization_code: 'oauth-code-without-refresh',
+            redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+            intent: binding
+        });
+
+        expect(credentialStore.store).toHaveBeenCalledWith(expect.objectContaining({
+            credential_refresh_material: null
+        }));
+        expect(repository.registerSlackInstallation.mock.calls[0][0].credential).toMatchObject({
+            credential_ref: 'opaque-ref:tenant-a:no-refresh',
+            refresh_revision: 0
+        });
+    });
+
     it('returns the completed ledger result before exchanging a replayed OAuth code', async () => {
         const previous = { connection_id: 'wsc_previous', status: 'active', tenant_id: IDS.tenant };
         const { controlPlane, repository, oauthClient, credentialStore } = createControlPlane({
