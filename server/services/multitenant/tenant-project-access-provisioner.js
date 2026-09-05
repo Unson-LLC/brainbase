@@ -5,7 +5,7 @@ import { isCanonicalId } from './ids.js';
 
 const VERSION = 'brainbase-two-user-access.v1';
 const TARGET = deepFreeze({
-    tenant_id: 'ten_01M0HMA228ES64N4TFX846V8T8', tenant_key: 'unson', organization_id: 'unson-business',
+    tenant_id: 'ten_01M0HMA228ES64N4TFX846V8T8', tenant_key: 'unson-business', organization_id: 'ten_01M0HMA228ES64N4TFX846V8T8',
     project_code: 'brainbase', project_id: 'prj_01KGCS8CAJKKDWACPNK1E5WX8H',
     workspace_id: 'T0882T8N9UH', app_id: 'A0BPM2J33SN', connection_id: 'wsc_01M0HRK94FG2Y8DMBFYJHYT14K',
     installation_id: 'slack_T0882T8N9UH_A0BPM2J33SN',
@@ -71,13 +71,21 @@ async function requirePerson(client, { person_id: personId }) {
 }
 function membershipPayload(person) { return { status: 'active', revision: '1', principal_type: 'person', role: 'member', tenant_role: 'member', slack_user_id: person.slack_user_id, slack_workspace_id: TARGET.workspace_id, project_codes: [TARGET.project_code], clearance: ['internal'], placement_id: person.placement_id }; }
 function appendProject(codes) { if (!Array.isArray(codes)) fail('AUTH_GRANT_CONFLICT', 'Existing project codes are invalid'); return codes.includes(TARGET.project_code) ? codes : [...codes, TARGET.project_code]; }
-async function ensureMembership(client, tenant, person, { exact }) {
+function requireSatoMembershipPayload(payload, person, { requireBrainbase = false } = {}) {
+    const approvedCodes = ['mana', TARGET.project_code];
+    if (!payload || payload.status !== 'active' || payload.role !== 'tenant_admin' || !same(payload.clearance, ['internal']) || payload.slack_user_id !== person.slack_user_id || payload.slack_workspace_id !== TARGET.workspace_id || (requireBrainbase ? !same(payload.project_codes, approvedCodes) : (!same(payload.project_codes, ['mana']) && !same(payload.project_codes, approvedCodes)))) fail('SATO_MEMBERSHIP_SCOPE_CONFLICT', 'Sato membership is not the approved preserved scope');
+}
+function requireUmedaMembershipPayload(payload, person) {
+    if (!payload || payload.principal_type !== 'person' || payload.role !== 'member' || payload.tenant_role !== 'member' || payload.slack_user_id !== person.slack_user_id || payload.slack_workspace_id !== TARGET.workspace_id || !same(payload.project_codes, [TARGET.project_code]) || !same(payload.clearance, ['internal']) || payload.placement_id !== person.placement_id) fail('UMEDA_MEMBERSHIP_NOT_LEAST_PRIVILEGE', 'Umeda membership is not the approved minimal scope');
+}
+async function ensureMembership(client, tenant, person, { profile }) {
     const memberships = await rows(client, 'SELECT membership_id, membership_payload FROM tenant_memberships WHERE tenant_id = $1 AND organization_id = $2 AND principal_id = $3 FOR UPDATE', [tenant.tenant_id, TARGET.organization_id, person.person_id]);
     if (memberships.length > 1) fail('MEMBERSHIP_AMBIGUOUS', 'Multiple memberships exist');
+    if (profile === 'sato' && memberships.length === 0) fail('SATO_MEMBERSHIP_REQUIRED', 'Sato preserved membership was not found');
     if (memberships.length === 1) {
         const membership = memberships[0]; const payload = membership.membership_payload ?? {};
-        if (payload.principal_type !== 'person' || payload.slack_user_id !== person.slack_user_id || payload.slack_workspace_id !== TARGET.workspace_id) fail('MEMBERSHIP_CONFLICT', 'Existing membership crossed the approved principal boundary');
-        if (exact && (payload.role !== 'member' || payload.tenant_role !== 'member' || !same(payload.clearance, ['internal']) || !same(payload.project_codes, [TARGET.project_code]) || payload.placement_id !== person.placement_id)) fail('UMEDA_MEMBERSHIP_NOT_LEAST_PRIVILEGE', 'Umeda membership is not the approved minimal scope');
+        if (profile === 'sato') requireSatoMembershipPayload(payload, person);
+        else requireUmedaMembershipPayload(payload, person);
         const codes = appendProject(payload.project_codes ?? []);
         if (!same(codes, payload.project_codes ?? [])) await client.query('UPDATE tenant_memberships SET membership_payload = $2::jsonb WHERE membership_id = $1', [membership.membership_id, JSON.stringify({ ...payload, project_codes: codes })]);
         return { id: membership.membership_id, operation: codes.length === (payload.project_codes ?? []).length ? 'noop' : 'additive_update' };
@@ -99,7 +107,7 @@ async function ensureSato(client, tenant, plan) {
     const person = { person_id: TARGET.sato.person_id, ...TARGET.sato };
     person.person_name = (await requirePerson(client, person)).name;
     await ensureMinimalGrant(client, person, 'Sato', plan, { personAlreadyVerified: true });
-    const membership = await ensureMembership(client, tenant, person, { exact: true });
+    const membership = await ensureMembership(client, tenant, person, { profile: 'sato' });
     plan.push({ operation: membership.operation, entity: 'tenant_membership', id: membership.id });
     await ensureIdentity(client, tenant, person, membership.id, plan);
 }
@@ -107,7 +115,7 @@ async function ensureUmeda(client, tenant, plan) {
     const person = { person_id: TARGET.umeda.person_id, ...TARGET.umeda };
     person.person_name = (await requirePerson(client, person)).name;
     await ensureMinimalGrant(client, person, 'Umeda', plan, { personAlreadyVerified: true });
-    const membership = await ensureMembership(client, tenant, person, { exact: true }); plan.push({ operation: membership.operation, entity: 'tenant_membership', id: membership.id }); await ensureIdentity(client, tenant, person, membership.id, plan);
+    const membership = await ensureMembership(client, tenant, person, { profile: 'umeda' }); plan.push({ operation: membership.operation, entity: 'tenant_membership', id: membership.id }); await ensureIdentity(client, tenant, person, membership.id, plan);
 }
 async function ensureMinimalGrant(client, person, label, plan, { personAlreadyVerified = false } = {}) {
     if (!personAlreadyVerified) person.person_name = (await requirePerson(client, person)).name;
@@ -116,7 +124,7 @@ async function ensureMinimalGrant(client, person, label, plan, { personAlreadyVe
     if (grants.length === 1) { const grant = grants[0]; if (TARGET.denied_person_ids.includes(grant.person_id)) fail('LEGACY_PERSON_FORBIDDEN', 'Legacy person records are never writable by this provisioner'); if (!grant.active || grant.person_id !== person.person_id || grant.person_name !== person.person_name || grant.role !== 'member' || !same(grant.project_codes, [TARGET.project_code]) || !same(grant.clearance, ['internal'])) fail('AUTH_GRANT_NOT_LEAST_PRIVILEGE', `${label} grant is not the approved minimal scope`); plan.push({ operation: 'noop', entity: 'auth_grant', id: grant.id }); }
     else { const id = stableId('grant', [TARGET.workspace_id, person.slack_user_id]); await client.query(`INSERT INTO auth_grants (id, person_id, person_name, slack_user_id, slack_workspace_id, role, project_codes, clearance, active) VALUES ($1, $2, $3, $4, $5, 'member', $6::text[], $7::text[], true)`, [id, person.person_id, person.person_name, person.slack_user_id, TARGET.workspace_id, [TARGET.project_code], ['internal']]); plan.push({ operation: 'create', entity: 'auth_grant', id }); }
 }
-async function preflightPrincipal(client, tenant, principal) {
+async function preflightPrincipal(client, tenant, principal, profile) {
     const person = { ...principal, person_name: (await requirePerson(client, principal)).name };
     const grants = await rows(client, 'SELECT id, person_id, person_name, role, project_codes, clearance, active FROM auth_grants WHERE slack_user_id = $1 AND slack_workspace_id = $2 FOR UPDATE', [person.slack_user_id, TARGET.workspace_id]);
     if (grants.length > 1) fail('AUTH_GRANT_AMBIGUOUS', 'Approved principal has multiple Slack grants');
@@ -127,9 +135,11 @@ async function preflightPrincipal(client, tenant, principal) {
     }
     const memberships = await rows(client, 'SELECT membership_id, membership_payload FROM tenant_memberships WHERE tenant_id = $1 AND organization_id = $2 AND principal_id = $3 FOR UPDATE', [tenant.tenant_id, TARGET.organization_id, person.person_id]);
     if (memberships.length > 1) fail('MEMBERSHIP_AMBIGUOUS', 'Approved principal has multiple memberships');
+    if (profile === 'sato' && memberships.length === 0) fail('SATO_MEMBERSHIP_REQUIRED', 'Sato preserved membership was not found');
     if (memberships.length === 1) {
         const payload = memberships[0].membership_payload ?? {};
-        if (payload.principal_type !== 'person' || payload.role !== 'member' || payload.tenant_role !== 'member' || payload.slack_user_id !== person.slack_user_id || payload.slack_workspace_id !== TARGET.workspace_id || !same(payload.project_codes, [TARGET.project_code]) || !same(payload.clearance, ['internal']) || payload.placement_id !== person.placement_id) fail('MEMBERSHIP_NOT_LEAST_PRIVILEGE', 'Existing membership is not the approved minimal scope');
+        if (profile === 'sato') requireSatoMembershipPayload(payload, person);
+        else requireUmedaMembershipPayload(payload, person);
     }
     const identities = await rows(client, `SELECT identity_id, membership_id, placement_id, principal_type FROM company_external_identities WHERE tenant_id = $1 AND provider = 'slack' AND authenticated_subject_id = $2 AND workspace_id = $3 AND app_id = $4 AND project_id = $5 AND status = 'active' FOR UPDATE`, [tenant.tenant_id, person.slack_user_id, TARGET.workspace_id, TARGET.app_id, TARGET.project_id]);
     if (identities.length > 1) fail('EXTERNAL_IDENTITY_AMBIGUOUS', 'Approved principal has multiple active external identities');
@@ -145,8 +155,8 @@ export async function provisionTenantProjectAccess({ client, manifest, actorId, 
         const tenant = await readTenant(client); const plan = [];
         exactlyOne(await rows(client, 'SELECT organization_id FROM tenant_organizations WHERE tenant_id = $1 AND organization_id = $2 FOR SHARE', [tenant.tenant_id, TARGET.organization_id]), 'ORGANIZATION_NOT_FOUND', 'Approved tenant organization was not found');
         const connection = await requireConnection(client, tenant, plan);
-        await preflightPrincipal(client, tenant, { person_id: TARGET.sato.person_id, ...TARGET.sato });
-        await preflightPrincipal(client, tenant, { person_id: TARGET.umeda.person_id, ...TARGET.umeda });
+        await preflightPrincipal(client, tenant, { person_id: TARGET.sato.person_id, ...TARGET.sato }, 'sato');
+        await preflightPrincipal(client, tenant, { person_id: TARGET.umeda.person_id, ...TARGET.umeda }, 'umeda');
         await ensureProject(client, tenant, plan); await ensureSato(client, tenant, plan); await ensureUmeda(client, tenant, plan);
         await client.query(commit ? 'COMMIT' : 'ROLLBACK'); began = false;
         return { persisted: Boolean(commit), actor_id: actorId, plan, readback: { tenant_id: tenant.tenant_id, project_id: TARGET.project_id, connection_id: connection.connection_id, humans: [{ slack_user_id: TARGET.sato.slack_user_id }, { person_id: TARGET.umeda.person_id, slack_user_id: TARGET.umeda.slack_user_id }] } };
@@ -161,13 +171,13 @@ export async function readbackTenantProjectAccess({ client, manifest = undefined
         await client.query('BEGIN'); began = true; await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [TARGET.tenant_id]); const tenant = await readTenant(client, 'FOR SHARE');
         exactlyOne(await rows(client, 'SELECT project_id FROM tenant_projects WHERE tenant_id = $1 AND project_id = $2 AND project_code = $3 FOR SHARE', [tenant.tenant_id, TARGET.project_id, TARGET.project_code]), 'READBACK_FAILED', 'Brainbase project binding was not found');
         await requireConnection(client, tenant, []);
-        for (const person of [{ person_id: TARGET.sato.person_id, ...TARGET.sato }, { person_id: TARGET.umeda.person_id, ...TARGET.umeda }]) {
+        for (const [profile, person] of [['sato', { person_id: TARGET.sato.person_id, ...TARGET.sato }], ['umeda', { person_id: TARGET.umeda.person_id, ...TARGET.umeda }]]) {
             person.person_name = (await requirePerson(client, person)).name;
             const grant = exactlyOne(await rows(client, 'SELECT id, person_id, person_name, role, project_codes, clearance FROM auth_grants WHERE slack_user_id = $1 AND slack_workspace_id = $2 AND active = true FOR SHARE', [person.slack_user_id, TARGET.workspace_id]), 'READBACK_FAILED', 'Approved active grant was not found');
             if (grant.person_id !== person.person_id || grant.person_name !== person.person_name || grant.role !== 'member' || !same(grant.project_codes, [TARGET.project_code]) || !same(grant.clearance, ['internal'])) fail('READBACK_FAILED', 'Grant crossed the approved minimum boundary');
             const membership = exactlyOne(await rows(client, 'SELECT membership_id, membership_payload FROM tenant_memberships WHERE tenant_id = $1 AND organization_id = $2 AND principal_id = $3 FOR SHARE', [tenant.tenant_id, TARGET.organization_id, person.person_id]), 'READBACK_FAILED', 'Approved membership was not found');
             const payload = membership.membership_payload ?? {};
-            if (payload.principal_type !== 'person' || payload.role !== 'member' || payload.tenant_role !== 'member' || payload.slack_user_id !== person.slack_user_id || payload.slack_workspace_id !== TARGET.workspace_id || !same(payload.project_codes, [TARGET.project_code]) || !same(payload.clearance, ['internal']) || payload.placement_id !== person.placement_id) fail('READBACK_FAILED', 'Membership crossed the approved minimum boundary');
+            try { if (profile === 'sato') requireSatoMembershipPayload(payload, person, { requireBrainbase: true }); else requireUmedaMembershipPayload(payload, person); } catch { fail('READBACK_FAILED', 'Membership crossed the approved boundary'); }
             const identity = exactlyOne(await rows(client, `SELECT identity_id, membership_id, placement_id, principal_type FROM company_external_identities WHERE tenant_id = $1 AND provider = 'slack' AND authenticated_subject_id = $2 AND workspace_id = $3 AND app_id = $4 AND project_id = $5 AND status = 'active' FOR SHARE`, [tenant.tenant_id, person.slack_user_id, TARGET.workspace_id, TARGET.app_id, TARGET.project_id]), 'READBACK_FAILED', 'Approved external identity was not found');
             if (identity.membership_id !== membership.membership_id || identity.placement_id !== person.placement_id || identity.principal_type !== 'person') fail('READBACK_FAILED', 'External identity crossed the approved target tuple');
         }
