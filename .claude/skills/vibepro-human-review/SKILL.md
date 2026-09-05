@@ -1,34 +1,38 @@
 ---
 name: vibepro-human-review
-description: Use for one bounded review wave on a VibePro-assisted change. Review the accepted Story, Spec, changed surface, and verification evidence; do not treat legacy Gate or cockpit artifacts as approval authority.
+description: Use when reviewing a change in a repository that explicitly uses VibePro's current lightweight Story and Spec artifacts.
 ---
 
 # VibePro Human Review
 
-## Review Inputs
+## Purpose
 
-Review the focused Story and acceptance criteria, the smallest governing Spec, changed files, affected-test evidence, and any material Architecture/ADR or rollback change. A `vibepro pr prepare` summary may help navigation, but it is not the source of merge authority.
+レビューを、証跡集めではなく「合意済みの価値と安全性を満たしているか」の一度の判断に戻す。
 
-## One-Wave Review
+## When to Use
 
-- Run at most one review wave after implementation is stable.
-- Use no more than three independent roles in parallel and no more than five total dispatches.
-- Treat timeout, empty output, wrong request, or agent failure as a review-system failure rather than a product defect.
-- When a blocking finding is fixed, reverify only the affected delta within the same wave.
-- Move useful non-blocking findings to a follow-up Story or Issue instead of expanding the current change.
+対象リポジトリが現在の軽量なVibePro Story／Spec運用を明示し、その変更をレビューする場合だけ使う。
 
-## Blocking Standard
+## Process
 
-A finding blocks only when evidence shows one of the following:
+1. Story、Spec、差分、影響範囲のテストがつながっているか確認する。
+2. 受け入れ条件の未達、セキュリティまたはテナント境界、データ損失、変更した配備／ロールバック、CI検証不能だけを阻害理由にする。
+3. 修正後は該当差分だけを再確認し、同じレビューの続きとして扱う。
+4. 有用だが非阻害の指摘は後続StoryまたはIssueへ移す。
+5. 対象リポジトリの通常のGitHub PRと権限境界へ判断を返す。
 
-- an acceptance criterion is unmet;
-- a security or tenant boundary is violated;
-- data may be corrupted or lost;
-- the changed release or rollback path is unsafe;
-- CI cannot validate the changed behavior.
+## Red Flags
 
-Everything else is advice or follow-up work. Legacy `gate_status`, readiness, lifecycle, stale-review, `review-cockpit.html`, or `human-review.json` projections do not create approval requirements.
+- `gate:agent_review` を満たすためだけのレビュー派遣
+- 並列エージェント数や終了記録を合格条件にすること
+- Gate、waiver、review lifecycle、provenanceを埋めるためだけの証跡収集
+- `vibepro pr create` または `vibepro execute merge` の強制
+- 旧readiness出力を新しい作業やPR停止条件へ変換すること
 
-## Decision Boundary
+## Common Rationalizations
 
-The reviewer may recommend proceed, fix, split, or follow-up. Actual PR approval, merge, deploy, production writes, external actions, and secret access remain governed by the repository and organization permission boundary. VibePro does not replace human or policy authority.
+「旧Gateが未解決だから追加レビューが必要」は理由にならない。レビュー失敗、タイムアウト、空出力を製品不具合へ変換せず、無限再試行しない。
+
+## Verification
+
+受け入れ条件に対する `approve` または具体的な阻害理由を示す。未確認は未確認のまま残し、証跡量をレビュー品質の代理指標にしない。
