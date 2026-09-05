@@ -566,6 +566,8 @@ export function assertInitialState(state) {
 export function assertAcceptedState(state, parsed) {
     assert(state.db.event?.event_id === parsed.eventId, 'db_event_readback_mismatch');
     assert(state.db.event.body_present === true, 'db_event_missing_body');
+    assert(state.db.event.body_hash === parsed.event.body_hash, 'db_event_body_hash_mismatch');
+    assert(state.db.event.body_length === Array.from(parsed.event.body).length, 'db_event_body_length_mismatch');
     assert(state.db.promotion?.request_id === parsed.requestId, 'db_promotion_readback_mismatch');
     assert(state.db.promotion.status === 'org_accepted', 'db_promotion_not_accepted');
     assert(state.db.promotion.personal_event_id === parsed.eventId, 'db_promotion_personal_event_mismatch');
