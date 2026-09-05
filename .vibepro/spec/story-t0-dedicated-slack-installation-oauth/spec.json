@@ -1,0 +1,399 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-t0-dedicated-slack-installation-oauth",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": [
+        "authenticated Slack installation intent"
+      ],
+      "resolution_point": "before OAuth exchange and workspace connection registration",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "installation intent",
+        "OAuth exchange",
+        "credential store",
+        "workspace connection"
+      ],
+      "verified_surfaces": [
+        "installation intent",
+        "OAuth exchange",
+        "credential store",
+        "workspace connection"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Slack workspace connection",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_id",
+        "partition_key": "tenant_id/workspace_id/app_id",
+        "trust_zone": "Brainbase installation control plane and credential store",
+        "residue_policy": "retain opaque tenant-bound credential reference only",
+        "data_owner": "Brainbase Tenant Authority",
+        "credential_scope": "tenant-bound Slack OAuth credential"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "tenant-bound Slack installation",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Tenant Authority"
+      ],
+      "residency": "Brainbase PostgreSQL and tenant credential store",
+      "migration": "no data migration; configuration boundary only",
+      "rollback": "remove dedicated variables to restore prior AuthService fallback"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "tenant",
+        "installation_intent",
+        "workspace_connection"
+      ],
+      "boundary_edges": [
+        "installation intent to OAuth exchange",
+        "credential reference to tenant workspace connection"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "scope": "local bootstrap and composed PostgreSQL integration; production OAuth consent remains outside code verification",
+      "evidence": {
+        "propagation_surfaces": [
+          "installation intent",
+          "OAuth exchange",
+          "credential store",
+          "workspace connection"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "Slack installation intent and workspace connection",
+              "tenant_key_source": "authenticated installation intent tenant_id",
+              "trust_zone": "Brainbase control plane and credential store",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "single tenant and installation intent",
+              "tenant_key_source": "tenant_id plus installation_intent_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound opaque credential reference",
+              "connection_mode": "managed shared control plane",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "evidence_refs": [
+          "tests/server/bootstrap/slack-installation-control-plane.test.js:uses dedicated installation OAuth credentials without changing AuthService login credentials",
+          "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js"
+        ]
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Slack installation専用client IDとsecretが両方設定された場合、OAuth交換はAuthServiceのログイン資格情報ではなく専用資格情報を使う。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-001"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/bootstrap/slack-installation-control-plane.js",
+            "anchor": "createSlackOAuthClient"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/bootstrap/slack-installation-control-plane.test.js",
+            "case": "uses dedicated installation OAuth credentials without changing AuthService login credentials"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/bootstrap/slack-installation-control-plane.test.js",
+            "must_cover": "uses dedicated installation OAuth credentials"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T00:21:47.757Z",
+      "last_revised_at": "2026-09-05T00:21:47.757Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "installation OAuth専用のAPP_ID、client ID、secret、redirect URIが一つも設定されていない場合だけ、既存AuthServiceのSlack OAuth資格情報へ後方互換で戻る。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-002"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/bootstrap/slack-installation-control-plane.js",
+            "anchor": "createSlackOAuthClient"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/bootstrap/slack-installation-control-plane.test.js",
+            "case": "normalizes Slack OAuth response without exposing token material in errors"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/bootstrap/slack-installation-control-plane.test.js",
+            "must_cover": "normalizes Slack OAuth response"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T00:21:47.757Z",
+      "last_revised_at": "2026-09-05T00:21:47.757Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "installation OAuth専用のAPP_ID、client ID、secret、redirect URIのいずれかだけ、または必須組合せが欠けた構成は利用可能にせず、slack_installation_oauth_configuration_incompleteでfail-closeする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/bootstrap/slack-installation-control-plane.js",
+            "anchor": "createSlackOAuthClient"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/bootstrap/slack-installation-control-plane.test.js",
+            "case": "fails closed when dedicated installation OAuth has client ID only"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/bootstrap/slack-installation-control-plane.test.js",
+            "must_cover": "fails closed when dedicated installation OAuth"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T00:21:47.757Z",
+      "last_revised_at": "2026-09-05T01:28:00.000Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "installation App IDとOAuth client IDは別の識別子として解決し、provider App IDの検証をclient IDで代替しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/bootstrap/slack-installation-control-plane.js",
+            "anchor": "createSlackOAuthClient"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/bootstrap/slack-installation-control-plane.test.js",
+            "case": "uses dedicated installation OAuth credentials without changing AuthService login credentials"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/bootstrap/slack-installation-control-plane.test.js",
+            "must_cover": "app_id"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T00:21:47.757Z",
+      "last_revised_at": "2026-09-05T00:21:47.757Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "authorization code、client secret、access tokenをログ、Story、検証証跡、workspace connectionへ平文で保存しない。workspace connectionは不透明なcredential referenceだけを保持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-005"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/slack-installation-control-plane.js",
+            "anchor": "exchange_and_register"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/bootstrap/slack-installation-control-plane.test.js",
+            "case": "normalizes Slack OAuth response without exposing token material in errors"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "composes dedicated bootstrap -> human authorize -> signed HTTPS callback -> OAuth/store -> PostgreSQL readback"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/bootstrap/slack-installation-control-plane.test.js",
+            "must_cover": "without exposing token material"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "must_cover": "credential_ref"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T01:28:00.000Z",
+      "last_revised_at": "2026-09-05T01:28:00.000Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "専用OAuthのbootstrapから署名HTTPS callback、OAuth交換、credential store、PostgreSQL読戻しまでを統合試験し、改変stateは外部交換前に拒否し、同一callback再送は外部効果とDB行を増やさない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "ac_id": "AC-006"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/routes/slack-installation-control-plane.js",
+            "anchor": "callback"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "composes dedicated bootstrap -> human authorize -> signed HTTPS callback -> OAuth/store -> PostgreSQL readback"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "must_cover": "dedicated bootstrap"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T01:28:00.000Z",
+      "last_revised_at": "2026-09-05T01:28:00.000Z"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-09-05T00:18:00.000Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "previous_spec_id": null
+}
