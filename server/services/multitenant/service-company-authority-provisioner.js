@@ -300,9 +300,9 @@ async function readFoundation(client, manifest) {
           FOR SHARE`,
         [manifest.service_actor.actor_id, tenant.tenant_key]), 'SERVICE_ACTOR_NOT_FOUND');
     if (actor.status !== 'active') fail('SERVICE_ACTOR_INACTIVE', 'Service actor must be active');
-    if (actor.canonical_project_id !== project.project_id) {
-        fail('SERVICE_ACTOR_PROJECT_MISMATCH', 'Service actor canonical project does not match the authority project');
-    }
+    // The registry project is the service actor's home, not its complete authority
+    // scope. Cross-project access is granted only by the explicit project identity
+    // and company authority bindings written below.
 
     for (const binding of manifest.service_actor.bindings) {
         const capability = await rows(client,
