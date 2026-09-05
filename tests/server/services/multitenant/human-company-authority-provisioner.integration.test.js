@@ -62,6 +62,44 @@ const bootstrapManifest = {
     }]
 };
 
+async function insertActiveWorkspaceConnection(pool, {
+    tenantId, connectionId, installationId, workspaceId, appId, credentialRef
+}) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(
+            `INSERT INTO workspace_connection_revisions (
+                tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
+             ) VALUES ($1, $2, 1, $3::jsonb, now())`,
+            [tenantId, connectionId, JSON.stringify({
+                provider: 'slack',
+                installation_id: installationId,
+                workspace_id: workspaceId,
+                app_id: appId,
+                granted_scopes: ['chat:write'],
+                status: 'active',
+                credential_ref: credentialRef
+            })]
+        );
+        await client.query(
+            `INSERT INTO workspace_connections (
+                connection_id, connection_revision, tenant_id, tenant_revision_at_write,
+                provider, installation_id, workspace_id, app_id, granted_scopes,
+                status, credential_ref, installed_at
+             ) VALUES ($1, 1, $2, 1, 'slack', $3, $4, $5,
+                       ARRAY['chat:write'], 'active', $6, now())`,
+            [connectionId, tenantId, installationId, workspaceId, appId, credentialRef]
+        );
+        await client.query('COMMIT');
+    } catch (error) {
+        try { await client.query('ROLLBACK'); } catch { /* preserve setup failure */ }
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 describe.sequential('human company authority PostgreSQL boundary', () => {
     let container;
     let pool;
@@ -102,16 +140,14 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
              ) VALUES ('prj_bootstrap', $1, 1, 'bootstrap', '{}'::jsonb)`,
             [tenantBootstrap]
         );
-        await pool.query(
-            `INSERT INTO workspace_connections (
-                connection_id, connection_revision, tenant_id, tenant_revision_at_write,
-                provider, installation_id, workspace_id, app_id, granted_scopes,
-                status, credential_ref, installed_at
-             ) VALUES ('wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV', 1, $1, 1, 'slack',
-                       'install-techknight', 'T_TECHKNIGHT', 'A_TECHKNIGHT',
-                       ARRAY['chat:write'], 'active', 'credref://techknight/slack', now())`,
-            [tenantTechKnight]
-        );
+        await insertActiveWorkspaceConnection(pool, {
+            tenantId: tenantTechKnight,
+            connectionId: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            installationId: 'install-techknight',
+            workspaceId: 'T_TECHKNIGHT',
+            appId: 'A_TECHKNIGHT',
+            credentialRef: 'credref://techknight/slack'
+        });
         await pool.query("CREATE ROLE brainbase_human_provisioner_test_app LOGIN PASSWORD 'test-only-password'");
         await pool.query('GRANT USAGE ON SCHEMA public TO brainbase_human_provisioner_test_app');
         await pool.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON
@@ -202,16 +238,14 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
             [tenantBootstrap]
         )).rows).toEqual([{ identities: 0 }]);
 
-        await pool.query(
-            `INSERT INTO workspace_connections (
-                connection_id, connection_revision, tenant_id, tenant_revision_at_write,
-                provider, installation_id, workspace_id, app_id, granted_scopes,
-                status, credential_ref, installed_at
-             ) VALUES ('wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX', 1, $1, 1, 'slack',
-                       'install-bootstrap', 'T_BOOTSTRAP', 'A_BOOTSTRAP',
-                       ARRAY['chat:write'], 'active', 'credref://bootstrap/slack', now())`,
-            [tenantBootstrap]
-        );
+        await insertActiveWorkspaceConnection(pool, {
+            tenantId: tenantBootstrap,
+            connectionId: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+            installationId: 'install-bootstrap',
+            workspaceId: 'T_BOOTSTRAP',
+            appId: 'A_BOOTSTRAP',
+            credentialRef: 'credref://bootstrap/slack'
+        });
         const completeClient = await connectAsProvisioner();
         try {
             const completed = await provisionHumanCompanyAuthority({
