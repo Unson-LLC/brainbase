@@ -543,7 +543,12 @@ async function requestJson(fetchImpl, baseUrl, {
 }
 
 function expectStatus(result, status, code) {
-    assert(result?.status === status, code);
+    if (result?.status !== status) {
+        const upstreamCode = result?.payload?.error;
+        fail(typeof upstreamCode === 'string' && SAFE_FAILURE_CODE.test(upstreamCode)
+            ? upstreamCode
+            : code);
+    }
     return result.payload || {};
 }
 

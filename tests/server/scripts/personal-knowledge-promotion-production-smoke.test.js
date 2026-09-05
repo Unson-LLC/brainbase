@@ -630,6 +630,27 @@ describe('Personal KG production smoke evidence helpers', () => {
         expect(decisions[2].body.expected_organization_review_revision).toBe('1');
     });
 
+    it('preserves a safe API error code instead of collapsing the failed boundary', async () => {
+        const fixture = runnerFixture();
+        const parsed = parseSmokeFixture(fixture);
+        const baseFetch = runnerFetch(parsed);
+        const fetchImpl = async (input, init = {}) => {
+            const url = new URL(input);
+            if (url.pathname.endsWith(`/promotions/${parsed.requestId}/organization-decision`)) {
+                return {
+                    status: 409,
+                    async json() {
+                        return { error: 'personal_knowledge_graph_promotion_quarantined' };
+                    }
+                };
+            }
+            return baseFetch(input, init);
+        };
+
+        await expect(runSyntheticSmoke({ fetchImpl }))
+            .rejects.toThrowError('personal_knowledge_graph_promotion_quarantined');
+    });
+
     it('compares a fresh replay DB receipt instead of reusing the first API receipt', async () => {
         await expect(runSyntheticSmoke({ replayReceiptMutation: true }))
             .rejects.toThrowError('replay_mutation_diff_nonzero');
