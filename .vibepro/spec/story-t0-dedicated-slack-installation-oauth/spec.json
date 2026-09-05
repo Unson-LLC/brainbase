@@ -257,7 +257,7 @@
         "test_refs": [
           {
             "file": "tests/server/bootstrap/slack-installation-control-plane.test.js",
-            "case": "fails closed when dedicated installation OAuth has client ID only"
+            "case": "fails closed when dedicated installation OAuth has %s"
           }
         ]
       },
