@@ -63,6 +63,26 @@ function requireString(value, field) {
     return value;
 }
 
+function assertHumanApprovalAuthority(authority, {
+    code = 'company_authority_human_approval_invalid',
+    statusCode = 422,
+    phase = 'Company Authority context'
+} = {}) {
+    if (authority?.decision !== 'approval') {
+        throw approvalError(code, `${phase} must require human approval`, {
+            decision: authority?.decision || null
+        }, statusCode);
+    }
+    for (const [field, value] of [
+        ['accountable_person_id', authority.accountable_person_id],
+        ['approver_person_id', authority.approver_person_id]
+    ]) {
+        if (typeof value !== 'string' || value.trim() === '') {
+            throw approvalError(code, `${phase} requires ${field}`, { field }, statusCode);
+        }
+    }
+}
+
 function sameValue(actual, expected, field) {
     if (actual !== expected) {
         throw approvalError('company_authority_human_approval_binding_mismatch', `${field} does not match the signed binding`, {
@@ -110,6 +130,7 @@ function contextBinding(context, observedRequest, step, {
 } = {}) {
     const tenantContext = context.tenant_context;
     const authority = context.authority;
+    assertHumanApprovalAuthority(authority);
     const target = targetApproverId || step.requested_to || authority.approver_person_id || null;
     requireString(step.id, 'human step id');
     requireString(step.requested_by, 'human step requested_by');
@@ -593,6 +614,11 @@ export class CompanyAuthorityHumanApprovalService {
                 });
         }
         const context = response.context;
+        assertHumanApprovalAuthority(context.authority, {
+            code: 'company_authority_human_approval_fresh_resolve_failed',
+            statusCode: 409,
+            phase: 'fresh Company Authority context'
+        });
         const tenantContext = context.tenant_context;
         const fresh = {
             tenant_id: tenantContext.tenant.tenant_id,
