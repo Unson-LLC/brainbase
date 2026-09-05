@@ -127,6 +127,9 @@ describe('MultitenantPostgresRepository fixed Mana Slack adoption', () => {
         const inspection = await repository.inspectFixedManaSlackConnection({ definition: FIXED_MANA_SLACK_CONNECTION });
         expect(inspection.state).toBe('conflict');
         expect(JSON.stringify(inspection)).not.toContain(OPAQUE_REF);
+        const inspectionQuery = fixture.calls.find(({ sql }) => sql.includes('SELECT wc.tenant_id, wc.connection_id'))?.sql;
+        expect(inspectionQuery).toContain('FOR SHARE OF wc');
+        expect(inspectionQuery).not.toContain('FOR SHARE OF wc, revision, cbr');
     });
 
     it('reads the post-commit records through the repository without returning credential material', async () => {
