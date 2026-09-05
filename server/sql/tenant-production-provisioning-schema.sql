@@ -316,6 +316,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS workspace_connections_tenant_provider_workspac
     ON workspace_connections (tenant_id, provider, workspace_id, app_id)
     WHERE status IN ('pending', 'active');
 
+-- This is a deliberately narrow safety ledger for the one approved Mana
+-- connection. It is written only after credential compensation fails, so an
+-- automatic replay cannot create a second credential while an opaque broker
+-- reference still needs explicit operator recovery.
+CREATE TABLE IF NOT EXISTS fixed_mana_slack_connection_adoption_orphans (
+    tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+    connection_id TEXT NOT NULL CHECK (connection_id = 'wsc_01M0HRK94FG2Y8DMBFYJHYT14K'),
+    connection_revision BIGINT NOT NULL CHECK (connection_revision = 1),
+    credential_ref TEXT NOT NULL CHECK (length(credential_ref) BETWEEN 1 AND 512),
+    credential_mode TEXT NOT NULL CHECK (credential_mode = 'customer_oauth'),
+    failure_code TEXT NOT NULL CHECK (failure_code = 'FIXED_MANA_SLACK_DB_REGISTRATION_FAILED'),
+    created_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (tenant_id, connection_id, connection_revision)
+);
+
+ALTER TABLE fixed_mana_slack_connection_adoption_orphans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fixed_mana_slack_connection_adoption_orphans FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON fixed_mana_slack_connection_adoption_orphans;
+CREATE POLICY tenant_isolation ON fixed_mana_slack_connection_adoption_orphans
+    USING (tenant_id = current_setting('brainbase.tenant_id', true))
+    WITH CHECK (tenant_id = current_setting('brainbase.tenant_id', true));
+
 -- Slack OAuth registration is a control-plane operation.  Only hashes of the
 -- state/nonce digests and opaque credential references are stored here; OAuth
 -- bearer material never crosses this schema boundary.
