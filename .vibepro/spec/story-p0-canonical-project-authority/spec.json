@@ -381,9 +381,60 @@
       },
       "first_seen_at": "2026-09-05T19:20:00.000Z",
       "last_revised_at": "2026-09-05T19:20:00.000Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "本番スモークは、署名済みテナント組織IDとBearerのGraph組織IDを直接比較せず、非管理者・RLS有効の読み取りでtenant_organizations対応表を確認してから書き込みを始める。",
+      "rationale": "実行時テナントとGraphは別の組織ID名前空間を使うため、正規の対応を検証しながら誤組織への本番書き込みを事前に拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0を同一runでGraph readbackまで完了する"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-t0-human-tenant-access-provisioning.md",
+            "anchor": "runtime tenant organization and Graph organization"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/personal-knowledge-promotion-production-smoke.mjs",
+            "anchor": "resolveCanonicalGraphOrganization"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "case": "resolves a signed tenant organization to the canonical Graph organization before mutation"
+          },
+          {
+            "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "case": "rejects a tenant organization binding for another Graph organization before mutation"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "must_cover": "resolves a signed tenant organization to the canonical Graph organization before mutation"
+          },
+          {
+            "file_glob": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "must_cover": "rejects a tenant organization binding for another Graph organization before mutation"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T19:24:00.000Z",
+      "last_revised_at": "2026-09-05T19:24:00.000Z"
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-09-05T19:20:00.000Z",
+  "generated_at": "2026-09-05T19:24:00.000Z",
   "previous_spec_id": "2026-09-05T17:00:16.948Z"
 }
