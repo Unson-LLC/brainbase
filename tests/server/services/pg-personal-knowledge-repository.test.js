@@ -84,4 +84,42 @@ describe('PgPersonalKnowledgeRepository', () => {
         expect(insertSql).toContain("'personal'");
         expect(result).toEqual({ confirmed: true, episode_ids: ['ep_1'], missing_ids: [] });
     });
+
+    it('creates promotion lineage with reviewer insert permission without requiring row readback', async () => {
+        const client = { query: vi.fn(async () => ({ rowCount: 1 })) };
+        const repository = new PgPersonalKnowledgeRepository({ pool: { query: vi.fn() } });
+
+        const result = await repository.createLineage({
+            lineage_id: 'lineage_1',
+            personal_event_id: 'pke_1',
+            organization_event_id: 'oke_1',
+            promotion_request_id: 'kpr_1',
+            owner_person_id: 'person_a',
+            organization_id: 'org_a',
+            sanitization: { personal_body_removed: true },
+            created_at: '2026-09-06T00:00:00.000Z'
+        }, { access, client });
+
+        const [sql] = client.query.mock.calls[0];
+        expect(sql).toContain('INSERT INTO knowledge_promotion_lineage');
+        expect(sql).not.toContain('RETURNING');
+        expect(sql).not.toContain('ON CONFLICT');
+        expect(result).toEqual({ lineage_id: 'lineage_1', persisted: true });
+    });
+
+    it('fails when promotion lineage insert does not affect exactly one row', async () => {
+        const client = { query: vi.fn(async () => ({ rowCount: 0 })) };
+        const repository = new PgPersonalKnowledgeRepository({ pool: { query: vi.fn() } });
+
+        await expect(repository.createLineage({
+            lineage_id: 'lineage_1',
+            personal_event_id: 'pke_1',
+            organization_event_id: 'oke_1',
+            promotion_request_id: 'kpr_1',
+            owner_person_id: 'person_a',
+            organization_id: 'org_a',
+            sanitization: {},
+            created_at: '2026-09-06T00:00:00.000Z'
+        }, { access, client })).rejects.toThrow('personal_knowledge_promotion_lineage_insert_failed');
+    });
 });

@@ -470,6 +470,44 @@
       },
       "first_seen_at": "2026-09-06T00:00:00.000Z",
       "last_revised_at": "2026-09-06T00:00:00.000Z"
+    },
+    {
+      "id": "S-005",
+      "type": "scenario",
+      "statement": "組織審査者は、個人情報を含む系譜行を読み返さず、追加件数だけを確認して系譜を保存する。",
+      "rationale": "組織審査者には系譜の追加だけを許可し、個人情報を含む行の参照権限を与えないRLS境界を保つため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0を同一runでGraph readbackまで完了する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/pg-personal-knowledge-repository.js",
+            "anchor": "async createLineage"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/pg-personal-knowledge-repository.test.js",
+            "case": "creates promotion lineage with reviewer insert permission without requiring row readback"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/pg-personal-knowledge-repository.test.js",
+            "must_cover": "creates promotion lineage with reviewer insert permission without requiring row readback"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-06T01:00:00.000Z",
+      "last_revised_at": "2026-09-06T01:00:00.000Z"
     }
   ],
   "open_questions": [],
