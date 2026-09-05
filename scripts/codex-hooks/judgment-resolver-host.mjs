@@ -1044,6 +1044,12 @@ function verifyEpisode(entry) {
     const validLifecycle = (origin === 'user_prompt_submit' && application === 'pre_generation')
         || (origin === 'stop_delegation_recovery' && application === 'post_generation_recovery');
     if (!legacyLifecycle && !validLifecycle) throw new Error('judgment_episode_lifecycle_invalid');
+    if (entry.pre_episode_audit_gap !== undefined) {
+        if (origin !== 'stop_delegation_recovery' || application !== 'post_generation_recovery') {
+            throw new Error('judgment_pre_episode_audit_gap_lifecycle_invalid');
+        }
+        verifyPreEpisodeAuditGap(entry.pre_episode_audit_gap);
+    }
     verifyOwnerAudit(entry.owner_audit, entry.initial_route_receipt);
     if (entry.turn_input !== undefined && sha256(canonicalJson(entry.turn_input)) !== entry.initial_route_receipt.request_digest) {
         throw new Error('judgment_episode_turn_input_mismatch');
@@ -1145,7 +1151,10 @@ export async function startEpisode(payload, {
     if (!identity) throw new TypeError('UserPromptSubmit requires session_id and turn_id');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     return withJudgmentStage('judgment_episode_transition_failed', () => withEpisodeTransitionLock(paths, async () => {
-        assertNoOrphanAuditBarrier(identity, paths, env);
+        const preEpisodeAuditGap = assertNoOrphanAuditBarrier(identity, paths, env, {
+            allowVerifiedOrphanEvents: episodeOrigin === 'stop_delegation_recovery'
+                && routeApplication === 'post_generation_recovery'
+        });
         const afterLock = withJudgmentStage(
             'judgment_episode_existing_read_failed',
             () => existingEpisode(payload, env)
@@ -1179,6 +1188,7 @@ export async function startEpisode(payload, {
             initial_route_receipt: initialRouteReceipt,
             owner_audit: buildOwnerAudit(args, initialRouteReceipt, { hostSurface, hostAutonomy }),
             audit_contract: buildAuditContract(initialRouteReceipt),
+            ...(preEpisodeAuditGap ? { pre_episode_audit_gap: preEpisodeAuditGap } : {}),
             ...(hostSurface ? { host_surface: hostSurface } : {}),
             ...(hostAutonomy ? { host_autonomy: hostAutonomy } : {})
         }));
@@ -2447,8 +2457,10 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
             return {
                 status: null,
                 violation: `最終回答を作る前の最後のtool callとして${exactTool}を正確に1回実行し、回答本文には状態を表示しない`,
-                // Missing bookkeeping does not establish unfinished work.
-                triggerCode: state?.pending_safe_work ? 'unfinished_safe_work'
+                // Missing bookkeeping alone does not establish unfinished work. A recovered
+                // post-generation gap does: its pre-episode calls cannot count as execution
+                // or state evidence and must be repeated inside the opened episode.
+                triggerCode: episode?.pre_episode_audit_gap || state?.pending_safe_work ? 'unfinished_safe_work'
                     : asks ? 'unnecessary_user_question' : undefined,
                 question: proposedHumanQuestion
             };
@@ -2835,19 +2847,81 @@ function validateAuditDegraded(entry, diagnostic) {
     return entry;
 }
 
-function assertNoOrphanAuditBarrier(identity, paths, env) {
+function verifyOrphanToolEventMarker(entry, identity, paths, markerName) {
+    const expectedKeys = [
+        'event_fingerprint', 'input_digest', 'reason', 'recorded_at', 'response_digest',
+        'schema_version', 'session_ref', 'tool_name_digest', 'tool_use_ref', 'turn_ref'
+    ];
+    if (!record(entry)
+        || Object.keys(entry).sort().join(',') !== expectedKeys.sort().join(',')
+        || entry.schema_version !== 'brainbase-judgment-orphan-tool-event-v1'
+        || entry.reason !== 'judgment_episode_not_found'
+        || entry.session_ref !== identity.sessionRef
+        || entry.turn_ref !== paths.turnRef
+        || markerName !== `${entry.tool_use_ref}.json`
+        || !validIsoTimestamp(entry.recorded_at)
+        || !validSha256(entry.tool_name_digest)
+        || !validSha256(entry.tool_use_ref)
+        || !validSha256(entry.input_digest)
+        || !validSha256(entry.response_digest)
+        || !validSha256(entry.event_fingerprint)) {
+        throw new Error('judgment_orphan_tool_event_integrity_invalid');
+    }
+    return entry;
+}
+
+function verifyPreEpisodeAuditGap(value) {
+    const expectedKeys = [
+        'audit_status', 'event_count', 'event_set_digest', 'reason_code', 'schema_version'
+    ];
+    if (!record(value)
+        || Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')
+        || value.schema_version !== 'brainbase-judgment-pre-episode-audit-gap-v1'
+        || value.reason_code !== 'tool_events_before_recovered_episode'
+        || value.audit_status !== 'degraded'
+        || !Number.isSafeInteger(value.event_count)
+        || value.event_count < 1
+        || !validSha256(value.event_set_digest)) {
+        throw new Error('judgment_pre_episode_audit_gap_invalid');
+    }
+    return value;
+}
+
+function verifiedOrphanAuditGap(identity, paths) {
+    let names;
     try {
-        if (readdirSync(paths.auditOrphanEvents).some((name) => name.endsWith('.json'))) {
-            throw new Error('judgment_orphan_tool_event_start_conflict');
-        }
+        names = readdirSync(paths.auditOrphanEvents)
+            .filter((name) => name.endsWith('.json'))
+            .sort(compareCodePoints);
     } catch (error) {
-        if (error?.code !== 'ENOENT') throw error;
+        if (error?.code === 'ENOENT') return null;
+        throw error;
+    }
+    if (names.length === 0) return null;
+    const markers = names.map((name) => verifyOrphanToolEventMarker(
+        readJson(join(paths.auditOrphanEvents, name)), identity, paths, name
+    ));
+    return verifyPreEpisodeAuditGap({
+        schema_version: 'brainbase-judgment-pre-episode-audit-gap-v1',
+        reason_code: 'tool_events_before_recovered_episode',
+        audit_status: 'degraded',
+        event_count: markers.length,
+        event_set_digest: sha256(canonicalJson(
+            markers.map((marker) => sha256(canonicalJson(marker))).sort(compareCodePoints)
+        ))
+    });
+}
+
+function assertNoOrphanAuditBarrier(identity, paths, env, { allowVerifiedOrphanEvents = false } = {}) {
+    const orphanAuditGap = verifiedOrphanAuditGap(identity, paths);
+    if (orphanAuditGap && !allowVerifiedOrphanEvents) {
+        throw new Error('judgment_orphan_tool_event_start_conflict');
     }
     let diagnostic;
     try {
         diagnostic = validateAuditFailure(readJson(paths.auditFailure), identity, paths, env);
     } catch (error) {
-        if (error?.code === 'ENOENT') return;
+        if (error?.code === 'ENOENT') return orphanAuditGap;
         throw error;
     }
     let degraded;
@@ -3334,6 +3408,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         );
     }
     const finalAutonomyContract = episodeAutonomyContract(episode);
+    const preEpisodeAuditGap = episode.pre_episode_audit_gap
+        ? verifyPreEpisodeAuditGap(episode.pre_episode_audit_gap)
+        : null;
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
         finalized_at: finalizedAt,
@@ -3345,8 +3422,14 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             completion_status: 'audit_degraded',
             degradation_reason: missingCapabilities[0],
             missing_capabilities: missingCapabilities
+        } : preEpisodeAuditGap ? {
+            completion_status: 'audit_degraded',
+            degradation_reason: 'pre_episode_tool_events',
+            pre_episode_audit_gap: preEpisodeAuditGap
         } : { completion_status: 'complete' }),
-        protocol_status: stopAlreadyBlockedOnce ? 'audit_protocol_incomplete' : 'audit_protocol_complete',
+        protocol_status: stopAlreadyBlockedOnce || preEpisodeAuditGap
+            ? 'audit_protocol_incomplete'
+            : 'audit_protocol_complete',
         content_verification_status: 'not_evaluated',
         ...(finalAutonomyContract?.approvalRef ? { approval_ref: finalAutonomyContract.approvalRef } : {}),
         ...(episode.episode_origin !== undefined ? {
@@ -3403,8 +3486,11 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
     enqueueFinalKnowledgeEvent(payload, final, env);
     const baseOutput = completedAuditOutput(valueProof, valueProofAttention);
-    const output = stopAlreadyBlockedOnce
-        ? { ...baseOutput, systemMessage: `${baseOutput.systemMessage}\n⚠️ 監査縮退: ${missingCapabilities[0]}${continuationFailureLine(final)}` }
+    const immediateDegradationReason = stopAlreadyBlockedOnce
+        ? missingCapabilities[0]
+        : preEpisodeAuditGap ? 'pre_episode_tool_events' : null;
+    const output = immediateDegradationReason
+        ? { ...baseOutput, systemMessage: `${baseOutput.systemMessage}\n⚠️ 監査縮退: ${immediateDegradationReason}${continuationFailureLine(final)}` }
         : baseOutput;
     return {
         output,

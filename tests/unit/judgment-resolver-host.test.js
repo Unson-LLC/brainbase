@@ -632,6 +632,153 @@ describe('Codex Judgment Resolver Host', () => {
         expect(existsSync(join(root, 'journal', hash(sessionId), `${hash(turnId)}.value-proof.json`))).toBe(false);
     });
 
+    it('委任episode開始前のBrainbase呼出を監査ギャップへ束縛し、同一taskの継続を要求する', async () => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = 'session-delegation-with-orphan-events';
+        const turnId = 'turn-delegation-with-orphan-events';
+        const prompt = '第一段階の後も止まらず、第二段階まで完了してください。';
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            event('response_item', {
+                type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
+                output: `<codex_delegation><source_thread_id>source-thread</source_thread_id><input>${prompt}</input></codex_delegation>`,
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const orphan = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: sessionId, turn_id: turnId,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'orphan-state',
+            tool_input: { status: 'pending', pending_safe_work: true, runtime_reason_code: null },
+            tool_response: { status: 'ok' }
+        }, { env });
+        expect(orphan).toMatchObject({ schema_version: 'brainbase-judgment-orphan-tool-event-v1' });
+        const fetchImpl = vi.fn(async (_url, options) => {
+            const args = JSON.parse(options.body);
+            return {
+                ok: true, status: 200, json: async () => ({
+                    management_status: 'managed',
+                    receipt: {
+                        ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+                        classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+                        selected_dag_ids: ['engineering.v1', 'authority.v1'],
+                        autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                        autonomy_policy_ids: [],
+                        allowed_runtime_escalation_reasons: [
+                            'irreversible_action', 'missing_authority', 'owner_value_choice',
+                            'required_input_unavailable', 'evidenced_terminal_blocker'
+                        ]
+                    }
+                })
+            };
+        });
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, cwd: process.cwd(), stop_hook_active: false,
+            last_assistant_message: '第一段階のみ完了。第二段階は未実行。'
+        }, { env, fetchImpl });
+
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(result).toMatchObject({
+            decision: 'block',
+            systemMessage: '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'
+        });
+        expect(result.reason).toContain('安全な残作業があればpendingのまま実行を続け');
+        const episodePath = join(root, 'journal', hash(sessionId), `${hash(turnId)}.episode.json`);
+        const episode = JSON.parse(readFileSync(episodePath, 'utf8'));
+        expect(episode).toMatchObject({
+            episode_origin: 'stop_delegation_recovery',
+            route_application: 'post_generation_recovery',
+            pre_episode_audit_gap: {
+                schema_version: 'brainbase-judgment-pre-episode-audit-gap-v1',
+                reason_code: 'tool_events_before_recovered_episode',
+                audit_status: 'degraded',
+                event_count: 1
+            }
+        });
+
+        recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: sessionId, turn_id: turnId,
+            tool_name: 'apply_patch', tool_use_id: 'continued-execution',
+            tool_input: '*** Begin Patch\n*** Update File: fixture.txt\n@@\n-old\n+new\n*** End Patch',
+            tool_response: { success: true }
+        }, { env });
+        recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: sessionId, turn_id: turnId,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'continued-state',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: {
+                status: 'ok',
+                data: {
+                    schema_version: 'brainbase-stop-state-v1', status: 'completed',
+                    pending_safe_work: false, runtime_reason_code: null
+                }
+            }
+        }, { env });
+        const completed = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, cwd: process.cwd(), stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '🔁 実行継続: 安全な残作業の再開要求を記録',
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
+                '第一段階と第二段階を完了しました。'
+            ].join('\n')
+        }, { env, fetchImpl });
+
+        expect(completed.systemMessage).toContain('⚠️ 監査縮退: pre_episode_tool_events');
+        const finalPath = join(root, 'journal', hash(sessionId), `${hash(turnId)}.final.json`);
+        expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
+            completion_status: 'audit_degraded',
+            degradation_reason: 'pre_episode_tool_events',
+            protocol_status: 'audit_protocol_incomplete',
+            autonomy_compliance_status: 'continued',
+            autonomy_continuation: { status: 'completed', execution_event_count: 1 },
+            pre_episode_audit_gap: { event_count: 1 }
+        });
+    });
+
+    it('改ざんされた委任前orphan markerは復旧episodeへ採用しない', async () => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = 'session-delegation-tampered-orphan';
+        const turnId = 'turn-delegation-tampered-orphan';
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            event('response_item', {
+                type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
+                output: '<codex_delegation><source_thread_id>source-thread</source_thread_id><input>修正して</input></codex_delegation>',
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: sessionId, turn_id: turnId,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tampered-orphan',
+            tool_input: { query: '判断' }, tool_response: { status: 'ok' }
+        }, { env });
+        const markerPath = join(
+            root, 'journal', hash(sessionId), `${hash(turnId)}.audit-orphan-events`, `${hash('tampered-orphan')}.json`
+        );
+        const marker = JSON.parse(readFileSync(markerPath, 'utf8'));
+        writeFileSync(markerPath, `${JSON.stringify({ ...marker, event_fingerprint: 'tampered' }, null, 2)}\n`);
+
+        await expect(processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, cwd: process.cwd(), stop_hook_active: false,
+            last_assistant_message: '修正は未実施です。'
+        }, { env, fetchImpl: vi.fn() })).rejects.toThrow('judgment_orphan_tool_event_integrity_invalid');
+    });
+
     it.each([
         ['別toolの出力', { name: 'exec_command', namespace: 'codex_app', output: '<codex_delegation><source_thread_id>x</source_thread_id><input>修正して</input></codex_delegation>' }],
         ['別namespaceの出力', { name: 'create_thread', namespace: 'other_app', output: '<codex_delegation><source_thread_id>x</source_thread_id><input>修正して</input></codex_delegation>' }],
