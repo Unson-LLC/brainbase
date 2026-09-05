@@ -621,23 +621,29 @@ export class AuthService {
         };
     }
 
-    issueRetroServiceToken({ ownerPersonId, organizationId, createdBy = null, ttlSeconds } = {}) {
+    issueRoutineServiceToken({ routine, ownerPersonId, organizationId, createdBy = null, ttlSeconds } = {}) {
+        const routineName = typeof routine === 'string' ? routine.trim() : '';
+        const routineConfig = {
+            retro: { name: 'Brainbase weekly retro', serviceId: 'brainbase_retro' },
+            oyasumi: { name: 'Brainbase nightly oyasumi', serviceId: 'brainbase_oyasumi' }
+        }[routineName];
+        if (!routineConfig) throw new Error('unsupported routine service token');
         const owner = typeof ownerPersonId === 'string' ? ownerPersonId.trim() : '';
         const organization = typeof organizationId === 'string' ? organizationId.trim() : '';
-        if (!owner) throw new Error('retro service token ownerPersonId is required');
-        if (!organization) throw new Error('retro service token organizationId is required');
+        if (!owner) throw new Error('routine service token ownerPersonId is required');
+        if (!organization) throw new Error('routine service token organizationId is required');
         const issued = this.issueServiceToken({
-            name: 'Brainbase weekly retro',
-            serviceId: 'brainbase_retro',
+            name: routineConfig.name,
+            serviceId: routineConfig.serviceId,
             role: 'member',
             projectCodes: ['brainbase'],
             clearance: ['personal'],
-            capabilities: ['routine.retro.execute'],
+            capabilities: [`routine.${routineName}.execute`],
             organizationId: organization,
             createdBy,
             ttlSeconds,
             routineAuthority: {
-                routine: 'retro',
+                routine: routineName,
                 capability_id: 'personal_read',
                 allowed_effects: ['read'],
                 owner_person_id: owner,
@@ -648,6 +654,14 @@ export class AuthService {
             }
         });
         return issued;
+    }
+
+    issueRetroServiceToken(input = {}) {
+        return this.issueRoutineServiceToken({ ...input, routine: 'retro' });
+    }
+
+    issueOyasumiServiceToken(input = {}) {
+        return this.issueRoutineServiceToken({ ...input, routine: 'oyasumi' });
     }
 
     issueRefreshToken(payload) {

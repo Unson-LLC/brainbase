@@ -15,23 +15,34 @@ function reject(res, code = 'routine_company_authority_rejected') {
     return res.status(403).json({ error: code });
 }
 
-const RETRO_SERVICE_ACTOR_ID = 'brainbase_retro';
+const ROUTINE_SERVICE_AUTHORITY = Object.freeze({
+    retro: Object.freeze({
+        actorId: 'brainbase_retro',
+        capability: 'routine.retro.execute'
+    }),
+    oyasumi: Object.freeze({
+        actorId: 'brainbase_oyasumi',
+        capability: 'routine.oyasumi.execute'
+    })
+});
 
 function nonEmpty(value) {
     return typeof value === 'string' && value.trim().length > 0;
 }
 
-function acceptRetroServiceAuthority(req) {
+function acceptRoutineServiceAuthority(req) {
     const claims = req.auth;
+    const routine = String(req.path || '').match(/^\/(oyasumi|retro)\/execute\/?$/u)?.[1];
+    const routineConfig = routine ? ROUTINE_SERVICE_AUTHORITY[routine] : null;
     const authority = claims?.routineAuthority;
     const capabilities = Array.isArray(claims?.capabilities) ? claims.capabilities : [];
     const projectCodes = Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [];
     if (req.authSource !== 'service-token'
-        || claims?.sub !== RETRO_SERVICE_ACTOR_ID
-        || !/^\/retro\/execute\/?$/u.test(req.path || '')
-        || !capabilities.includes('routine.retro.execute')
+        || !routineConfig
+        || claims?.sub !== routineConfig.actorId
+        || !capabilities.includes(routineConfig.capability)
         || !authority || typeof authority !== 'object' || Array.isArray(authority)
-        || authority.routine !== 'retro'
+        || authority.routine !== routine
         || authority.capability_id !== 'personal_read'
         || !Array.isArray(authority.allowed_effects)
         || authority.allowed_effects.length !== 1
@@ -56,14 +67,14 @@ function acceptRetroServiceAuthority(req) {
 }
 
 /**
- * Generic service tokens authenticate transport only. The fixed retro actor may
+ * Generic service tokens authenticate transport only. Fixed routine actors may
  * additionally carry Brainbase-issued, signed, read-only routine authority.
  */
 export function requireRoutineCompanyAuthority({ env = process.env, now = () => new Date() } = {}) {
     return (req, res, next) => {
         const response = req.body?.company_authority_response;
         if (!response) {
-            const serviceAccess = acceptRetroServiceAuthority(req);
+            const serviceAccess = acceptRoutineServiceAuthority(req);
             if (!serviceAccess) return reject(res, 'routine_company_authority_required');
             req.routineCompanyAuthority = req.auth.routineAuthority;
             req.companyAuthorityAccess = serviceAccess;

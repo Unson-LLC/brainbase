@@ -467,6 +467,45 @@ export class AuthController {
         }
     };
 
+    /** @param {Request & { access?: any }} req @param {Response} res */
+    createRoutineServiceToken = async (req, res) => {
+        try {
+            const issuer = req.access || {};
+            const issuerRole = String(issuer.role || 'member').toLowerCase();
+            if (roleRank(issuerRole) < ROLE_RANK.gm) {
+                return res.status(403).json({ error: 'GM or CEO role is required' });
+            }
+            const routine = typeof req.body?.routine === 'string' ? req.body.routine.trim() : '';
+            const ownerPersonId = typeof req.body?.ownerPersonId === 'string'
+                ? req.body.ownerPersonId.trim()
+                : '';
+            if (!['oyasumi', 'retro'].includes(routine) || !ownerPersonId) {
+                return res.status(400).json({ error: 'routine and ownerPersonId are required' });
+            }
+            if (!issuer.organizationId) {
+                return res.status(403).json({ error: 'Organization context is required' });
+            }
+            const result = this.authService.issueRoutineServiceToken({
+                routine,
+                ownerPersonId,
+                organizationId: issuer.organizationId,
+                createdBy: issuer.personId || null,
+                ttlSeconds: req.body?.ttlSeconds
+            });
+            await this.authService.createAuditLog({
+                personId: issuer.personId || null,
+                slackUserId: issuer.slackUserId || null,
+                slackWorkspaceId: issuer.slackWorkspaceId || null,
+                eventType: 'ROUTINE_SERVICE_TOKEN_ISSUE',
+                metadata: { routine, owner_person_id: ownerPersonId, expires_at: result.expires_at }
+            });
+            return res.status(201).json(result);
+        } catch (error) {
+            logger.error('Routine service token issue failed', { error });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Routine service token issue failed' });
+        }
+    };
+
     /** @param {Request} req @param {Response} res */
     tokenExchange = async (req, res) => {
         try {
