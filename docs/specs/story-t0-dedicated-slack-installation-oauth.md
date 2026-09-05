@@ -7,10 +7,10 @@ spec_status: accepted
 
 ## 設定解決
 
-1. `APP_ID`、`CLIENT_ID`、`CLIENT_SECRET`、`REDIRECT_URI`、`STATE_SECRET`、`BOT_SCOPES`がすべてある場合、専用のinstallation OAuthを有効にする。
+1. `APP_ID`、`CLIENT_ID`、`CLIENT_SECRET`、`REDIRECT_URI`、`STATE_SECRET`、`BOT_SCOPES`、`TOKEN_URL`がすべてある場合、専用のinstallation OAuthを有効にする。
 2. 専用設定がすべてない場合だけ、既存の`authService.slackClientId`と`authService.slackClientSecret`を使う。
 3. 専用設定が一つでも存在し、必須設定が欠ける場合は`slack_installation_oauth_configuration_incomplete`でcontrol planeを利用不可にする。
-4. token URLは専用値、AuthService値の順で解決し、どちらもなければ利用不可にする。
+4. 専用経路のtoken URLは専用値だけを使う。`TOKEN_URL`だけを含む部分設定も利用不可にし、AuthService資格情報と混在させない。
 
 ## 交換契約
 

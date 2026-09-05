@@ -384,6 +384,7 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI: redirectUri,
             BRAINBASE_SLACK_INSTALLATION_STATE_SECRET: 'dedicated-state-secret-long-enough-for-tests',
             BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES: 'chat:write,commands',
+            BRAINBASE_SLACK_INSTALLATION_TOKEN_URL: 'https://dedicated-slack.example.test/api/oauth.v2.access',
             BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN: 'bbsvc_not-used-by-browser-callback',
             BRAINBASE_SERVICE_TOKEN_SECRET: serviceSecret,
             BRAINBASE_SLACK_INSTALLATION_SERVICE_DEPLOYMENT_ID: 'dep_01ARZ3NDEKTSV4RRFFQ69FB8',
@@ -398,7 +399,7 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             verifyToken: (token) => jwt.verify(token, humanSecret)
         };
         const fetchImpl = vi.fn(async (url, init) => {
-            if (url === authService.tokenUrl) {
+            if (url === env.BRAINBASE_SLACK_INSTALLATION_TOKEN_URL) {
                 const body = new URLSearchParams(init.body);
                 expect(body.get('client_id')).toBe('dedicated-client-id');
                 expect(body.get('client_secret')).toBe('dedicated-client-secret');

@@ -13,7 +13,7 @@ installation control planeのOAuth交換資格情報をAuthServiceのログイ�
 - `BRAINBASE_SLACK_INSTALLATION_STATE_SECRET`: intentとcallbackを束縛する短命stateの署名secret
 - `BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES`: 導入時に要求するbot scope
 - `BRAINBASE_SLACK_INSTALLATION_AUTHORIZE_URL`: 任意。既定はSlack公式authorize endpoint
-- `BRAINBASE_SLACK_INSTALLATION_TOKEN_URL`: 任意。未指定時はAuthServiceのtoken URLを使う
+- `BRAINBASE_SLACK_INSTALLATION_TOKEN_URL`: 専用OAuth交換先。専用経路では必須とし、AuthServiceの資格情報と混在させない
 
 管理者認証済みauthorize routeが、永続化したinstallation intentを署名・期限付きstateへ束縛してSlack authorization URLを返す。公開callbackはstateを検証してから同じcontrol planeを直接呼び、service tokenをブラウザへ渡さない。テナント、workspace、appの一致検証とcredential storeへの保存契約は変更しない。秘密値、code、tokenはレスポンス、DB、ログへ残さない。
 

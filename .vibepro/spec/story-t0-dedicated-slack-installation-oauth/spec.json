@@ -167,7 +167,7 @@
     {
       "id": "C-001",
       "type": "contract",
-      "statement": "Slack installation専用client IDとsecretが両方設定された場合、OAuth交換はAuthServiceのログイン資格情報ではなく専用資格情報を使う。",
+      "statement": "Slack installation専用のAPP_ID、client ID、secret、redirect URI、state secret、bot scopes、token URLがすべて設定された場合、OAuth交換はAuthServiceのログイン資格情報ではなく専用資格情報と専用token URLを使う。",
       "origin": {
         "story_refs": [
           {
@@ -203,7 +203,7 @@
     {
       "id": "C-002",
       "type": "contract",
-      "statement": "installation OAuth専用のAPP_ID、client ID、secret、redirect URIが一つも設定されていない場合だけ、既存AuthServiceのSlack OAuth資格情報へ後方互換で戻る。",
+      "statement": "installation OAuth専用のAPP_ID、client ID、secret、redirect URI、state secret、bot scopes、token URLが一つも設定されていない場合だけ、既存AuthServiceのSlack OAuth資格情報へ後方互換で戻る。",
       "origin": {
         "story_refs": [
           {
@@ -239,7 +239,7 @@
     {
       "id": "INV-001",
       "type": "invariant",
-      "statement": "installation OAuth専用のAPP_ID、client ID、secret、redirect URIのいずれかだけ、または必須組合せが欠けた構成は利用可能にせず、slack_installation_oauth_configuration_incompleteでfail-closeする。",
+      "statement": "installation OAuth専用のAPP_ID、client ID、secret、redirect URI、state secret、bot scopes、token URLのいずれかだけ、または必須組合せが欠けた構成は利用可能にせず、slack_installation_oauth_configuration_incompleteでfail-closeする。",
       "origin": {
         "story_refs": [
           {

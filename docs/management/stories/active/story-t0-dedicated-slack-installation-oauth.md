@@ -21,7 +21,7 @@ TechKnightの本番運用担当者として、Brainbaseログイン用Slackア�
 
 - [x] AC-001: installation control planeは専用client ID/secret/token URLが設定された場合にそれをOAuth交換へ使う。
 - [x] AC-002: 専用設定がない既存環境はAuthServiceのSlack設定へ後方互換で戻る。
-- [x] AC-003: 専用設定が片方だけの場合はfail-closeし、利用可能と報告しない。
+- [x] AC-003: 専用設定7項目の一つでも存在し、必須組合せが欠ける場合はfail-closeし、利用可能と報告しない。
 - [x] AC-004: `BRAINBASE_SLACK_INSTALLATION_APP_ID`とOAuth client IDを同一値と仮定しない。
 - [x] AC-005: authorization code、client secret、tokenをログ・Story・検証証跡へ保存しない。
 - [x] AC-006: focused unit testと既存installation統合テストが通る。

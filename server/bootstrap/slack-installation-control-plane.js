@@ -43,15 +43,18 @@ function createSlackOAuthClient({ authService, env = process.env, fetchImpl = gl
     const dedicatedClientId = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_ID');
     const dedicatedClientSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET');
     const dedicatedAppId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID');
-    const dedicatedMode = Boolean(dedicatedAppId || dedicatedClientId || dedicatedClientSecret);
+    const dedicatedTokenUrl = required(env, 'BRAINBASE_SLACK_INSTALLATION_TOKEN_URL');
+    const dedicatedMode = Boolean(
+        dedicatedAppId || dedicatedClientId || dedicatedClientSecret || dedicatedTokenUrl
+    );
     if (Boolean(dedicatedClientId) !== Boolean(dedicatedClientSecret)
-        || (dedicatedMode && !dedicatedAppId)) {
+        || (dedicatedMode && (!dedicatedAppId || !dedicatedClientId || !dedicatedClientSecret
+            || !dedicatedTokenUrl))) {
         throw new Error('slack_installation_oauth_configuration_incomplete');
     }
     const clientId = dedicatedClientId ?? authService?.slackClientId;
     const clientSecret = dedicatedClientSecret ?? authService?.slackClientSecret;
-    const tokenUrl = required(env, 'BRAINBASE_SLACK_INSTALLATION_TOKEN_URL')
-        ?? authService?.tokenUrl;
+    const tokenUrl = dedicatedTokenUrl ?? authService?.tokenUrl;
     const appId = dedicatedAppId ?? authService?.slackClientId;
     if (typeof fetchImpl !== 'function' || !clientId || !clientSecret || !tokenUrl) {
         throw new Error('slack_oauth_configuration_required');
@@ -171,13 +174,14 @@ export function createSlackInstallationControlPlaneFromEnv({
     const dedicatedStateSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_STATE_SECRET');
     const dedicatedBotScopes = required(env, 'BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES');
     const dedicatedAppId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID');
+    const dedicatedTokenUrl = required(env, 'BRAINBASE_SLACK_INSTALLATION_TOKEN_URL');
     const dedicatedRequested = Boolean(
         dedicatedAppId || dedicatedClientId || dedicatedClientSecret || dedicatedRedirectUri
-        || dedicatedStateSecret || dedicatedBotScopes
+        || dedicatedStateSecret || dedicatedBotScopes || dedicatedTokenUrl
     );
     const dedicatedComplete = Boolean(
         dedicatedAppId && dedicatedClientId && dedicatedClientSecret && dedicatedRedirectUri
-        && dedicatedStateSecret && dedicatedBotScopes
+        && dedicatedStateSecret && dedicatedBotScopes && dedicatedTokenUrl
     );
     const appId = dedicatedAppId
         ?? authService?.slackClientId

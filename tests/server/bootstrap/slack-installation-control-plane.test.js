@@ -71,7 +71,7 @@ describe('Slack installation control-plane production adapters', () => {
     it('uses dedicated installation OAuth credentials without changing AuthService login credentials', async () => {
         const installationAppId = 'A0TECHKNIGHT';
         const fetchImpl = vi.fn(async (url, init) => {
-            expect(url).toBe('https://slack.example.test/api/oauth.v2.access');
+            expect(url).toBe('https://dedicated-slack.example.test/api/oauth.v2.access');
             const body = new URLSearchParams(init.body);
             expect(body.get('client_id')).toBe('dedicated-installation-client-id');
             expect(body.get('client_secret')).toBe('dedicated-installation-client-secret');
@@ -87,7 +87,8 @@ describe('Slack installation control-plane production adapters', () => {
             env: {
                 BRAINBASE_SLACK_INSTALLATION_APP_ID: installationAppId,
                 BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-installation-client-id',
-                BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-installation-client-secret'
+                BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-installation-client-secret',
+                BRAINBASE_SLACK_INSTALLATION_TOKEN_URL: 'https://dedicated-slack.example.test/api/oauth.v2.access'
             },
             fetchImpl
         });
@@ -104,7 +105,8 @@ describe('Slack installation control-plane production adapters', () => {
             env: {
                 BRAINBASE_SLACK_INSTALLATION_APP_ID: 'A0TECHKNIGHT',
                 BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-installation-client-id',
-                BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-installation-client-secret'
+                BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-installation-client-secret',
+                BRAINBASE_SLACK_INSTALLATION_TOKEN_URL: 'https://slack.example.test/api/oauth.v2.access'
             },
             fetchImpl: vi.fn(async () => Response.json({
                 ok: true,
@@ -222,6 +224,7 @@ describe('Slack installation control-plane production adapters', () => {
         ['app ID only', { BRAINBASE_SLACK_INSTALLATION_APP_ID: 'A0TECHKNIGHT' }],
         ['client ID only', { BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-client-id' }],
         ['client secret only', { BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-client-secret' }],
+        ['token URL only', { BRAINBASE_SLACK_INSTALLATION_TOKEN_URL: 'https://slack.example.test/api/oauth.v2.access' }],
         ['client pair without dedicated app ID', {
             BRAINBASE_SLACK_INSTALLATION_APP_ID: undefined,
             BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-client-id',
@@ -259,6 +262,7 @@ describe('Slack installation control-plane production adapters', () => {
                 BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI: 'https://bb.unson.jp/api/v1/slack-installations:callback',
                 BRAINBASE_SLACK_INSTALLATION_STATE_SECRET: 'state-secret-long-enough-for-production-tests',
                 BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES: 'chat:write,commands',
+                BRAINBASE_SLACK_INSTALLATION_TOKEN_URL: 'https://slack.example.test/api/oauth.v2.access',
                 BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN: serviceToken,
                 BRAINBASE_SERVICE_TOKEN_SECRET: 'service-signing-secret',
                 BRAINBASE_SLACK_INSTALLATION_SERVICE_DEPLOYMENT_ID: 'dep_01ARZ3NDEKTSV4RRFFQ69FAZ',
