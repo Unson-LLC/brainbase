@@ -282,6 +282,44 @@
       },
       "first_seen_at": "2026-09-05T17:00:16.949Z",
       "last_revised_at": "2026-09-05T17:05:49.964Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "本番スモークはAPIが返した安全な固定エラーコードを保持し、境界ごとの汎用失敗コードへ潰さない。",
+      "rationale": "失敗した境界の原因を特定し、原因が説明できるまで次の本番介入を止めるため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0を同一runでGraph readbackまで完了する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "scripts/personal-knowledge-promotion-production-smoke.mjs",
+            "anchor": "function expectStatus"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "case": "preserves a safe API error code instead of collapsing the failed boundary"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "must_cover": "preserves a safe API error code instead of collapsing the failed boundary"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T18:53:30.300Z",
+      "last_revised_at": "2026-09-05T18:53:30.300Z"
     }
   ],
   "open_questions": [],
