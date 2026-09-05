@@ -77,6 +77,7 @@
     "migrate:canonical-task-search-indexes": "node scripts/run-canonical-task-search-index-workflow.js",
     "migrate:multitenant-platform-schema": "node scripts/migrate-multitenant-platform-schema.js",
     "migrate:tenant-production-provisioning": "node scripts/migrate-tenant-production-provisioning.js",
+    "migrate:legacy-project-registry": "node scripts/migrate-legacy-project-registry.js",
     "provision:tenant": "node scripts/provision-tenant.js",
     "provision:tenant-project-access": "node scripts/provision-tenant-project-access.js",
     "canonical-task:readiness": "node scripts/set-canonical-task-readiness.js",
