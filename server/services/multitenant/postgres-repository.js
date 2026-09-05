@@ -403,8 +403,8 @@ export class MultitenantPostgresRepository {
         expected_connection_revision = null,
         issued_at,
         expires_at
-    }) {
-        return this.withTenant(tenant_id, async (client) => {
+    }, { client: transactionClient = null } = {}) {
+        const createIntent = async (client) => {
             const tenantResult = await client.query(
                 `SELECT tenant_id, tenant_revision, status
                    FROM brainbase_tenants
@@ -433,7 +433,9 @@ export class MultitenantPostgresRepository {
             );
             if (!result.rows[0]) throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
             return result.rows[0];
-        });
+        };
+        if (transactionClient) return createIntent(transactionClient);
+        return this.withTenant(tenant_id, createIntent);
     }
 
     async claimSlackInstallationExchange({

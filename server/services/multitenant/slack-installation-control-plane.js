@@ -159,16 +159,18 @@ export class SlackInstallationControlPlane {
         return this.authorizeBinding(await this.authorizeInstallation(request));
     }
 
-    async authorizeBinding(input) {
+    async authorizeBinding(input, { client = null } = {}) {
         const binding = validateSlackInstallationBinding(input);
         const issuedAt = this.now();
         const issued = timestamp(issuedAt);
         const expires = new Date(issuedAt.getTime() + this.ttlSeconds * 1000).toISOString();
-        await this.repository.createSlackInstallationIntent({
+        const intent = {
             ...binding,
             issued_at: issued,
             expires_at: expires
-        });
+        };
+        if (client) await this.repository.createSlackInstallationIntent(intent, { client });
+        else await this.repository.createSlackInstallationIntent(intent);
         return binding;
     }
 

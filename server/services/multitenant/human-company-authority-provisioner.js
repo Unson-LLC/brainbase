@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { canonicalJson, deepFreeze } from './canonical-json.js';
-import { isCanonicalId } from './ids.js';
+import { generateCanonicalId, isCanonicalId } from './ids.js';
 
 const VERSION = 'human-company-authority.v1';
 const TENANT_ID = /^ten_[0-9A-HJKMNP-TV-Z]{26}$/u;
@@ -149,6 +149,15 @@ export function normalizeHumanCompanyAuthorityManifest(value) {
     });
 }
 
+export function normalizeInitialTenantAdminManifest(value) {
+    const manifest = normalizeHumanCompanyAuthorityManifest(value);
+    if (manifest.humans.length !== 1 || manifest.humans[0].tenant_role !== 'tenant_admin'
+        || !['ceo', 'gm'].includes(manifest.humans[0].login_role)) {
+        fail('INITIAL_TENANT_ADMIN_REQUIRED', 'Initial bootstrap requires exactly one tenant admin');
+    }
+    return manifest;
+}
+
 function stableId(prefix, parts) {
     return `${prefix}_${createHash('sha256').update(canonicalJson(parts)).digest('hex').slice(0, 32)}`;
 }
@@ -240,10 +249,14 @@ function publicIdentity(row) {
     } : null;
 }
 
-async function readFoundation(client, manifest) {
+async function readFoundation(client, manifest, {
+    requireWorkspaceConnection = true,
+    tenantLock = 'update'
+} = {}) {
+    const tenantLockClause = tenantLock === 'share' ? 'FOR SHARE' : 'FOR UPDATE';
     const tenant = exactlyOne(await rows(client,
         `SELECT tenant_id, tenant_key, tenant_revision, status
-           FROM brainbase_tenants WHERE tenant_id = $1 FOR UPDATE`,
+           FROM brainbase_tenants WHERE tenant_id = $1 ${tenantLockClause}`,
         [manifest.tenant_id]), 'TENANT_NOT_FOUND', 'Tenant was not found');
     if (tenant.status !== 'active') fail('TENANT_INACTIVE', 'Tenant must be active');
     const project = exactlyOne(await rows(client,
@@ -256,6 +269,9 @@ async function readFoundation(client, manifest) {
           WHERE id = $1 FOR SHARE`,
         [manifest.organization.graph_organization_id]),
     'GRAPH_ORGANIZATION_NOT_FOUND', 'Graph organization was not found');
+    if (!requireWorkspaceConnection) {
+        return { tenant, project, graphOrganization, workspaceConnection: null };
+    }
     const connections = await rows(client,
         `SELECT connection_id, connection_revision, provider, workspace_id, app_id, status
            FROM workspace_connections
@@ -270,6 +286,12 @@ async function readFoundation(client, manifest) {
             ? 'Active workspace connection was not found in the tenant'
             : 'Multiple active workspace connections were found in the tenant');
     return { tenant, project, graphOrganization, workspaceConnection };
+}
+
+function requireActor(actorId) {
+    if (typeof actorId !== 'string' || actorId.trim().length === 0 || actorId.length > 128) {
+        fail('ACTOR_REQUIRED', 'A bounded provisioning actor is required');
+    }
 }
 
 async function readOrganization(client, manifest) {
@@ -496,11 +518,192 @@ async function readSnapshot(client, manifest, human) {
     };
 }
 
+async function readInitialAdminSnapshot(client, manifest, human) {
+    const people = await readPerson(client, human);
+    const grants = await readGrant(client, manifest, human);
+    const memberships = await readMembership(client, manifest, human);
+    if (people.length !== 1 || grants.length !== 1 || memberships.length !== 1) {
+        fail('READBACK_FAILED', 'Initial tenant admin readback is incomplete or ambiguous');
+    }
+    const desiredPerson = { person_id: human.person_id, person_name: human.person_name, status: 'active' };
+    const desiredGrantValue = desiredGrant(manifest, human, grants[0].id);
+    const desiredMembership = {
+        membership_id: memberships[0].membership_id,
+        organization_id: manifest.organization.organization_id,
+        principal_id: human.person_id,
+        membership_payload: membershipPayload(manifest, human)
+    };
+    if (!same(publicPerson(people[0]), desiredPerson)
+        || !same(publicGrant(grants[0]), desiredGrantValue)
+        || !same(publicMembership(memberships[0]), desiredMembership)) {
+        fail('INITIAL_TENANT_ADMIN_CONFLICT', 'Initial tenant admin differs from the declared state');
+    }
+    return {
+        person_id: human.person_id,
+        person: publicPerson(people[0]),
+        login_grant: publicGrant(grants[0]),
+        membership: publicMembership(memberships[0])
+    };
+}
+
+export async function provisionInitialTenantAdmin({ client, manifest: rawManifest, actorId, commit = false } = {}) {
+    if (!client?.query) fail('DATABASE_CONFIG_REQUIRED', 'A PostgreSQL client is required');
+    requireActor(actorId);
+    const manifest = normalizeInitialTenantAdminManifest(rawManifest);
+    const human = manifest.humans[0];
+    let began = false;
+    try {
+        await client.query('BEGIN');
+        began = true;
+        await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [manifest.tenant_id]);
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+            `initial-tenant-admin:${manifest.tenant_id}:${manifest.organization.organization_id}`
+        ]);
+        const foundation = await readFoundation(client, manifest, { requireWorkspaceConnection: false });
+        const beforeOrganizations = await readOrganization(client, manifest);
+        const [beforePeople, beforeGrants, beforeMemberships] = await Promise.all([
+            readPerson(client, human), readGrant(client, manifest, human), readMembership(client, manifest, human)
+        ]);
+        const before = {
+            organization: beforeOrganizations.length === 1 ? publicOrganization(beforeOrganizations[0]) : null,
+            human: {
+                person_id: human.person_id,
+                person: beforePeople.length === 1 ? publicPerson(beforePeople[0]) : null,
+                login_grant: beforeGrants.length === 1 ? publicGrant(beforeGrants[0]) : null,
+                membership: beforeMemberships.length === 1 ? publicMembership(beforeMemberships[0]) : null
+            }
+        };
+        const plan = [];
+        await prepareOrganization(client, manifest, foundation.tenant.tenant_revision, plan);
+        await preparePerson(client, human, plan);
+        await prepareGrant(client, manifest, human, plan);
+        await prepareMembership(client, manifest, human, foundation.tenant.tenant_revision, plan);
+        const after = {
+            organization: publicOrganization(exactlyOne(await readOrganization(client, manifest),
+                'READBACK_FAILED', 'Organization readback is incomplete or ambiguous')),
+            human: await readInitialAdminSnapshot(client, manifest, human)
+        };
+        if (commit) await client.query('COMMIT');
+        else await client.query('ROLLBACK');
+        began = false;
+        return {
+            persisted: commit,
+            manifest_version: manifest.version,
+            tenant_id: manifest.tenant_id,
+            tenant_key: foundation.tenant.tenant_key,
+            organization_id: manifest.organization.organization_id,
+            project_id: manifest.project.project_id,
+            project_code: manifest.project.project_code,
+            applied_by: actorId,
+            snapshot_before: before,
+            plan,
+            snapshot_after: after
+        };
+    } catch (error) {
+        if (began) {
+            try { await client.query('ROLLBACK'); } catch { /* preserve the first error */ }
+        }
+        if (error instanceof HumanCompanyAuthorityProvisioningError) throw error;
+        throw new HumanCompanyAuthorityProvisioningError(
+            'UPSTREAM_UNAVAILABLE', 'Initial tenant admin provisioning failed; inspect control-plane logs'
+        );
+    }
+}
+
+export async function readbackInitialTenantAdmin({ client, manifest: rawManifest } = {}) {
+    if (!client?.query) fail('DATABASE_CONFIG_REQUIRED', 'A PostgreSQL client is required');
+    const manifest = normalizeInitialTenantAdminManifest(rawManifest);
+    const human = manifest.humans[0];
+    let began = false;
+    try {
+        await client.query('BEGIN');
+        began = true;
+        await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [manifest.tenant_id]);
+        await readFoundation(client, manifest, {
+            requireWorkspaceConnection: false,
+            tenantLock: 'share'
+        });
+        const organization = publicOrganization(exactlyOne(await readOrganization(client, manifest),
+            'READBACK_FAILED', 'Organization readback is incomplete or ambiguous'));
+        const snapshot = { organization, human: await readInitialAdminSnapshot(client, manifest, human) };
+        await client.query('ROLLBACK');
+        began = false;
+        return snapshot;
+    } catch (error) {
+        if (began) {
+            try { await client.query('ROLLBACK'); } catch { /* preserve the first error */ }
+        }
+        if (error instanceof HumanCompanyAuthorityProvisioningError) throw error;
+        throw new HumanCompanyAuthorityProvisioningError(
+            'UPSTREAM_UNAVAILABLE', 'Initial tenant admin readback failed; inspect control-plane logs'
+        );
+    }
+}
+
+export async function createInitialSlackInstallationAuthorization({
+    client, manifest: rawManifest, actorId, controlPlane, oauthFlow
+} = {}) {
+    if (!client?.query) fail('DATABASE_CONFIG_REQUIRED', 'A PostgreSQL client is required');
+    requireActor(actorId);
+    if (typeof controlPlane?.authorizeBinding !== 'function' || typeof oauthFlow?.createAuthorization !== 'function') {
+        fail('SLACK_INSTALLATION_CONTROL_PLANE_REQUIRED', 'Slack installation control plane is required');
+    }
+    const manifest = normalizeInitialTenantAdminManifest(rawManifest);
+    const human = manifest.humans[0];
+    let began = false;
+    try {
+        await client.query('BEGIN');
+        began = true;
+        await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [manifest.tenant_id]);
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+            `initial-slack-authorization:${manifest.tenant_id}:${manifest.transport.workspace_id}:${manifest.transport.app_id}`
+        ]);
+        await readFoundation(client, manifest, {
+            requireWorkspaceConnection: false,
+            tenantLock: 'share'
+        });
+        const organization = exactlyOne(await readOrganization(client, manifest),
+            'READBACK_FAILED', 'Organization readback is incomplete or ambiguous');
+        if (!same(publicOrganization(organization), {
+            organization_id: manifest.organization.organization_id,
+            organization_payload: organizationPayload(manifest)
+        })) {
+            fail('INITIAL_TENANT_ADMIN_CONFLICT', 'Tenant organization differs from the declared state');
+        }
+        await readInitialAdminSnapshot(client, manifest, human);
+        const binding = {
+            installation_intent_id: generateCanonicalId('insi'),
+            tenant_id: manifest.tenant_id,
+            app_id: manifest.transport.app_id,
+            expected_workspace_id: manifest.transport.workspace_id,
+            initiated_by_person_id: human.person_id
+        };
+        const authorized = await controlPlane.authorizeBinding(binding, { client });
+        const authorization = oauthFlow.createAuthorization(authorized);
+        await client.query('COMMIT');
+        began = false;
+        return {
+            tenant_id: manifest.tenant_id,
+            initiated_by_person_id: human.person_id,
+            installation_intent_id: authorized.installation_intent_id,
+            authorization_url: authorization.authorization_url,
+            redirect_uri: authorization.redirect_uri,
+            authorized_by: actorId
+        };
+    } catch (error) {
+        if (began) {
+            try { await client.query('ROLLBACK'); } catch { /* preserve the first error */ }
+        }
+        if (error instanceof HumanCompanyAuthorityProvisioningError) throw error;
+        throw new HumanCompanyAuthorityProvisioningError(
+            'UPSTREAM_UNAVAILABLE', 'Initial Slack authorization failed; inspect control-plane logs'
+        );
+    }
+}
+
 export async function provisionHumanCompanyAuthority({ client, manifest: rawManifest, actorId, commit = false } = {}) {
     if (!client?.query) fail('DATABASE_CONFIG_REQUIRED', 'A PostgreSQL client is required');
-    if (typeof actorId !== 'string' || actorId.trim().length === 0 || actorId.length > 128) {
-        fail('ACTOR_REQUIRED', 'A bounded provisioning actor is required');
-    }
+    requireActor(actorId);
     const manifest = normalizeHumanCompanyAuthorityManifest(rawManifest);
     let began = false;
     try {

@@ -6,45 +6,61 @@ import { Pool } from 'pg';
 import {
     HumanCompanyAuthorityProvisioningError,
     normalizeHumanCompanyAuthorityManifest,
+    normalizeInitialTenantAdminManifest,
     provisionHumanCompanyAuthority,
+    provisionInitialTenantAdmin,
+    readbackInitialTenantAdmin,
     readbackHumanCompanyAuthority
 } from '../server/services/multitenant/human-company-authority-provisioner.js';
 
 export function parseProvisionHumanAuthorityArgs(argv = [], env = process.env) {
-    const modes = ['check', 'dry-run', 'apply'].filter((mode) => argv.includes(`--${mode}`));
-    if (modes.length !== 1) {
+    const modeOccurrences = ['check', 'dry-run', 'apply']
+        .flatMap((mode) => argv.filter((argument) => argument === `--${mode}`).map(() => mode));
+    if (modeOccurrences.length !== 1) {
         throw new HumanCompanyAuthorityProvisioningError(
             'ARGUMENT_INVALID', 'Specify exactly one of --check, --dry-run, or --apply'
         );
     }
     const manifestIndex = argv.indexOf('--manifest');
     const manifestPath = manifestIndex >= 0 ? argv[manifestIndex + 1] : null;
-    if (!manifestPath || manifestPath.startsWith('--')) {
+    if (argv.filter((argument) => argument === '--manifest').length !== 1
+        || !manifestPath || manifestPath.startsWith('--')) {
         throw new HumanCompanyAuthorityProvisioningError('MANIFEST_REQUIRED', '--manifest is required');
     }
-    const allowed = new Set([`--${modes[0]}`, '--manifest', manifestPath]);
-    if (modes[0] === 'apply') allowed.add('--approve-apply');
+    const phaseIndex = argv.indexOf('--phase');
+    const phase = phaseIndex >= 0 ? argv[phaseIndex + 1] : 'complete';
+    if (argv.filter((argument) => argument === '--phase').length > 1
+        || !['bootstrap-admin', 'complete'].includes(phase)) {
+        throw new HumanCompanyAuthorityProvisioningError(
+            'ARGUMENT_INVALID', '--phase must be bootstrap-admin or complete'
+        );
+    }
+    const mode = modeOccurrences[0];
+    const allowed = new Set([`--${mode}`, '--manifest', manifestPath, '--phase', phase]);
+    if (mode === 'apply') allowed.add('--approve-apply');
     if (argv.some((argument, index) => {
         if (argument === '--manifest') return false;
         if (index > 0 && argv[index - 1] === '--manifest') return false;
+        if (argument === '--phase') return false;
+        if (index > 0 && argv[index - 1] === '--phase') return false;
         return !allowed.has(argument);
     })) {
         throw new HumanCompanyAuthorityProvisioningError(
             'ARGUMENT_INVALID', 'Unsupported human authority provisioning argument'
         );
     }
-    if (modes[0] === 'apply' && !argv.includes('--approve-apply')) {
+    if (mode === 'apply' && argv.filter((argument) => argument === '--approve-apply').length !== 1) {
         throw new HumanCompanyAuthorityProvisioningError(
             'APPLY_APPROVAL_REQUIRED', 'Apply requires --approve-apply'
         );
     }
     const actorId = String(env.BRAINBASE_PROVISIONING_ACTOR ?? '').trim();
-    if (modes[0] === 'apply' && !actorId) {
+    if (mode === 'apply' && !actorId) {
         throw new HumanCompanyAuthorityProvisioningError(
             'ACTOR_REQUIRED', 'BRAINBASE_PROVISIONING_ACTOR is required for apply'
         );
     }
-    return { mode: modes[0], manifestPath, actorId: actorId || 'dry-run' };
+    return { mode, phase, manifestPath, actorId: actorId || 'dry-run' };
 }
 
 export async function runProvisionHumanCompanyAuthority({
@@ -62,7 +78,9 @@ export async function runProvisionHumanCompanyAuthority({
             'MANIFEST_READ_FAILED', 'Human authority manifest could not be read'
         );
     }
-    const manifest = normalizeHumanCompanyAuthorityManifest(raw);
+    const manifest = args.phase === 'bootstrap-admin'
+        ? normalizeInitialTenantAdminManifest(raw)
+        : normalizeHumanCompanyAuthorityManifest(raw);
     if (args.mode === 'check') {
         return {
             ok: true,
@@ -70,6 +88,7 @@ export async function runProvisionHumanCompanyAuthority({
             persisted: false,
             manifest: {
                 version: manifest.version,
+                phase: args.phase,
                 tenant_id: manifest.tenant_id,
                 organization_id: manifest.organization.organization_id,
                 graph_organization_id: manifest.organization.graph_organization_id,
@@ -105,7 +124,10 @@ export async function runProvisionHumanCompanyAuthority({
         client = await activePool.connect();
         let result;
         try {
-            result = await provisionHumanCompanyAuthority({
+            const provision = args.phase === 'bootstrap-admin'
+                ? provisionInitialTenantAdmin
+                : provisionHumanCompanyAuthority;
+            result = await provision({
                 client,
                 manifest,
                 actorId: args.actorId,
@@ -123,7 +145,10 @@ export async function runProvisionHumanCompanyAuthority({
         const readbackClient = await activePool.connect();
         let readbackError = null;
         try {
-            const postCommitReadback = await readbackHumanCompanyAuthority({
+            const readback = args.phase === 'bootstrap-admin'
+                ? readbackInitialTenantAdmin
+                : readbackHumanCompanyAuthority;
+            const postCommitReadback = await readback({
                 client: readbackClient,
                 manifest
             });
