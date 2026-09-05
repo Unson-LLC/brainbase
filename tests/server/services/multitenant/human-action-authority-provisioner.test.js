@@ -33,6 +33,7 @@ function manifest(overrides = {}) {
             identity_id: 'human_identity_keigo',
             identity_revision: '1',
             placement_id: 'techknight-slack-admin',
+            expected_project_codes: ['techknight'],
             bindings: [{
                 resource_ref: 'project:techknight',
                 capability_id: 'task.read',
@@ -176,7 +177,8 @@ describe('human action authority provisioning', () => {
             membership_revision: '1',
             identity_id: 'human_identity_1e27b72ca1ed8efa5a5d855dccbe8a18',
             identity_revision: '1',
-            placement_id: 'unson-sato'
+            placement_id: 'unson-sato',
+            expected_project_codes: ['brainbase', 'mana']
         });
         expect(normalized.humans[0].bindings).toEqual([expect.objectContaining({
             resource_ref: 'project:prj_01KGCS8CAJKKDWACPNK1E5WX8H',
@@ -210,6 +212,24 @@ describe('human action authority provisioning', () => {
         const duplicated = manifest();
         duplicated.humans[0].bindings.push(structuredClone(duplicated.humans[0].bindings[0]));
         expect(() => normalizeHumanActionAuthorityManifest(duplicated))
+            .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
+        const reordered = manifest();
+        reordered.humans[0].expected_project_codes = ['zeta', 'alpha'];
+        expect(normalizeHumanActionAuthorityManifest(reordered).humans[0].expected_project_codes)
+            .toEqual(['alpha', 'zeta']);
+        const duplicateProjectCode = manifest();
+        duplicateProjectCode.humans[0].expected_project_codes = ['techknight', 'techknight'];
+        expect(() => normalizeHumanActionAuthorityManifest(duplicateProjectCode))
+            .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
+        const missingProjectCodes = manifest();
+        delete missingProjectCodes.humans[0].expected_project_codes;
+        expect(() => normalizeHumanActionAuthorityManifest(missingProjectCodes))
+            .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
+        const unboundedProjectCodes = manifest();
+        unboundedProjectCodes.humans[0].expected_project_codes = Array.from(
+            { length: 33 }, (_, index) => `project-${index}`
+        );
+        expect(() => normalizeHumanActionAuthorityManifest(unboundedProjectCodes))
             .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
     });
 
@@ -276,6 +296,32 @@ describe('human action authority provisioning', () => {
             client: bindingConflict, manifest: manifest(), actorId: 'operator-keigo', commit: true
         })).rejects.toMatchObject({ code: 'HUMAN_AUTHORITY_CONFLICT' });
         expect(bindingConflict.state.bindings).toHaveLength(1);
+    });
+
+    it('canonicalizes membership project codes while requiring an exact set', async () => {
+        const reordered = manifest();
+        reordered.humans[0].expected_project_codes = ['techknight', 'mana'];
+        const matching = fakeClient();
+        matching.state.memberships[0].membership_payload.project_codes = ['mana', 'techknight'];
+        await expect(provisionHumanActionAuthority({
+            client: matching, manifest: reordered, actorId: 'operator-keigo', commit: false
+        })).resolves.toMatchObject({ persisted: false });
+
+        const mismatch = manifest();
+        mismatch.humans[0].expected_project_codes = ['techknight', 'mana'];
+        const conflicting = fakeClient();
+        conflicting.state.memberships[0].membership_payload.project_codes = ['brainbase', 'techknight'];
+        await expect(provisionHumanActionAuthority({
+            client: conflicting, manifest: mismatch, actorId: 'operator-keigo', commit: true
+        })).rejects.toMatchObject({ code: 'MEMBERSHIP_CONFLICT' });
+        expect(conflicting.state.bindings).toHaveLength(0);
+
+        const duplicate = fakeClient();
+        duplicate.state.memberships[0].membership_payload.project_codes = ['techknight', 'techknight'];
+        await expect(provisionHumanActionAuthority({
+            client: duplicate, manifest: manifest(), actorId: 'operator-keigo', commit: true
+        })).rejects.toMatchObject({ code: 'MEMBERSHIP_CONFLICT' });
+        expect(duplicate.state.bindings).toHaveLength(0);
     });
 
     it('fails closed when more than one active binding matches the natural key', async () => {

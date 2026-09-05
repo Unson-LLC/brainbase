@@ -22,8 +22,8 @@ Brainbaseの運用担当として、Slack OAuthと人物アクセス登録を終
 
 ## Acceptance Criteria
 
-- [ ] AC-001: manifestはtenant、organization、project、Slack transport、人物、既存membership/identity、bindingの全権限値を固定し、未知項目・秘密値・重複を拒否する。
-- [ ] AC-002: active tenant/project/organization/workspace connectionと、active human membership/Slack identityが完全一致しない場合は書込みなしでfail closedにする。
+- [ ] AC-001: manifestはtenant、organization、project、Slack transport、人物、既存membership/identity、membershipの`expected_project_codes`、bindingの全権限値を固定し、未知項目・秘密値・重複を拒否する。
+- [ ] AC-002: active tenant/project/organization/workspace connectionと、active human membership/Slack identityおよび`expected_project_codes`とのcanonical完全一致が満たされない場合は書込みなしでfail closedにする。
 - [ ] AC-003: active bindingが0件なら次revisionを作成し、完全一致する1件ならnoop、差分または複数件ならconflict/ambiguousで停止する。
 - [ ] AC-004: dry-runはapplyと同じtransaction処理とreadbackを行ってrollbackし、applyは明示承認とactorを必須にする。
 - [ ] AC-005: apply後は別DB接続で宣言した全bindingをexact readbackし、欠落・partial・unknownを成功にしない。

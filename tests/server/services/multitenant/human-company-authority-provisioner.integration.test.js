@@ -360,6 +360,7 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
                 identity_id: human.external_identity.identity_id,
                 identity_revision: String(human.external_identity.identity_revision),
                 placement_id: 'techknight-slack-member',
+                expected_project_codes: ['techknight'],
                 bindings: [{
                     resource_ref: 'project:techknight',
                     capability_id: 'task.read',

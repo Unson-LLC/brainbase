@@ -8,10 +8,10 @@ CLIは`human-company-action-authority.v1` manifestを受け取る。
 - organization: `organization_id`
 - project: `project_id`, `project_code`
 - transport: `provider=slack`, `workspace_id`, `app_id`
-- humans: `person_id`, `slack_user_id`, `membership_id`, `identity_id`, `placement_id`, `bindings`
+- humans: `person_id`, `slack_user_id`, `membership_id`, `identity_id`, `placement_id`, `expected_project_codes`, `bindings`
 - binding: `resource_ref`, `capability_id`, `decision`, `allowed_effects`, RACI person IDs、resource/policy/RACI revision、stop conditions、validity
 
-未知field、秘密らしいfield/value、重複human、同一human内の重複resource/capabilityを拒否する。`approval`はapprover、`human_action`はresponsible personを必須とする。
+未知field、秘密らしいfield/value、重複human、同一human内の重複resource/capabilityを拒否する。`expected_project_codes`は有界・重複なしで正規化し、既存membershipの`project_codes`とcanonicalな完全一致を要求する。`approval`はapprover、`human_action`はresponsible personを必須とする。
 
 ## CLI
 

@@ -16,7 +16,7 @@ const PROJECT_KEYS = new Set(['project_id', 'project_code']);
 const TRANSPORT_KEYS = new Set(['provider', 'workspace_id', 'app_id']);
 const HUMAN_KEYS = new Set([
     'person_id', 'slack_user_id', 'membership_id', 'membership_revision',
-    'identity_id', 'identity_revision', 'placement_id', 'bindings'
+    'identity_id', 'identity_revision', 'placement_id', 'expected_project_codes', 'bindings'
 ]);
 const BINDING_KEYS = new Set([
     'resource_ref', 'capability_id', 'decision', 'allowed_effects',
@@ -189,6 +189,9 @@ function normalizeHuman(value, index) {
         identity_id: text(value.identity_id, `${field}.identity_id`),
         identity_revision: revision(value.identity_revision, `${field}.identity_revision`, { positive: true }),
         placement_id: text(value.placement_id, `${field}.placement_id`),
+        expected_project_codes: stringArray(
+            value.expected_project_codes, `${field}.expected_project_codes`
+        ),
         bindings
     };
 }
@@ -249,6 +252,22 @@ function exactlyOne(values, code, message) {
 
 function membershipRevision(payload) {
     return payload?.revision == null ? null : String(payload.revision);
+}
+
+function canonicalProjectCodes(value) {
+    if (!Array.isArray(value) || value.length === 0 || value.length > 32
+        || value.some((item) => typeof item !== 'string'
+            || item.length === 0 || item.length > 500
+            || /[\u0000-\u001f\u007f]/u.test(item) || !IDENTIFIER.test(item))) {
+        return null;
+    }
+    if (new Set(value).size !== value.length) return null;
+    return [...value].sort((left, right) => left.localeCompare(right));
+}
+
+function sameProjectCodes(actual, expected) {
+    const actualCanonical = canonicalProjectCodes(actual);
+    return actualCanonical !== null && same(actualCanonical, expected);
 }
 
 function publicMembership(row) {
@@ -357,9 +376,7 @@ async function readHumanFoundation(client, manifest, human) {
         || payload?.slack_user_id !== human.slack_user_id
         || payload?.slack_workspace_id !== manifest.transport.workspace_id
         || payload?.placement_id !== human.placement_id
-        || !Array.isArray(payload?.project_codes)
-        || payload.project_codes.length !== 1
-        || payload.project_codes[0] !== manifest.project.project_code) {
+        || !sameProjectCodes(payload?.project_codes, human.expected_project_codes)) {
         fail('MEMBERSHIP_CONFLICT', 'Declared active human membership differs from current state');
     }
     const identities = await rows(client,
