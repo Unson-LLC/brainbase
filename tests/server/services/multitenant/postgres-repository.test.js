@@ -168,9 +168,14 @@ describe('MultitenantPostgresRepository', () => {
             project_id: project.project_id
         })).resolves.toEqual(project);
         expect(client.query.mock.calls.some(([sql, values]) => (
-            sql.includes('WHERE tenant_id = $1 AND project_id = $2')
+            sql.includes('WHERE project.tenant_id = $1 AND project.project_id = $2')
             && values[0] === tenantId
             && values[1] === project.project_id
+        ))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => (
+            sql.includes('JOIN brainbase_tenants AS tenant')
+            && sql.includes('tenant.status AS project_status')
+            && sql.includes("tenant.status = 'active'")
         ))).toBe(true);
         expect(client.query.mock.calls.some(([sql]) => sql.includes("set_config('brainbase.tenant_id'"))).toBe(true);
     });
@@ -663,6 +668,9 @@ describe('MultitenantPostgresRepository', () => {
         });
         expect(client.query.mock.calls.some(([sql, values]) => (
             sql.includes('FROM tenant_projects')
+            && sql.includes('JOIN brainbase_tenants AS tenant')
+            && sql.includes('tenant.status AS project_status')
+            && sql.includes("tenant.status = 'active'")
             && values[0] === 'ten_a'
             && values[1] === 'project_a'
         ))).toBe(true);
