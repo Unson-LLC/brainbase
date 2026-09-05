@@ -1330,7 +1330,8 @@ describe('GraphMaintenanceService authorization', () => {
         const endpointQuery = client.query.mock.calls.find(([sql]) => sql.includes('WHERE ge.id=ANY'));
         expect(endpointQuery?.[0]).toContain("ge.entity_type='person'");
         expect(endpointQuery?.[0]).toContain("membership.rel_type='member_of'");
-        expect(endpointQuery?.[0]).toContain('COUNT(DISTINCT membership_project.organization_id)=1');
+        expect(endpointQuery?.[0]).toContain('membership_project.organization_id=$2');
+        expect(endpointQuery?.[0]).not.toContain('COUNT(DISTINCT membership_project.organization_id)=1');
         expect(endpointQuery?.[0]).toContain('membership.sensitivity=ANY($4::text[])');
         expect(snapshot.edges).toEqual([edge]);
         expect(snapshot.external_entities).toEqual([{
@@ -1341,7 +1342,7 @@ describe('GraphMaintenanceService authorization', () => {
         expect(validateGraphSnapshot(snapshot)).toMatchObject({ valid: true, counts: { orphans: 0 } });
     });
 
-    it('複数organizationに所属するprojectless Personを保守Snapshotでも解決しない', async () => {
+    it('複数organization所属でも対象organizationに可視なmember_ofがあるprojectless Personを解決する', async () => {
         const localEntity = {
             id: 'project_brainbase_entity', entity_type: 'project', project_code: 'brainbase', payload: {},
             role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
@@ -1351,6 +1352,10 @@ describe('GraphMaintenanceService authorization', () => {
             project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal',
             lifecycle_status: 'active', version: 1
         };
+        const projectlessPerson = {
+            id: 'person_multi_org', entity_type: 'person', project_code: 'brainbase', organization_id: 'org_1',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 2
+        };
         const client = { query: vi.fn(async (sql) => {
             if (sql.includes('SELECT id, code, organization_id FROM projects')) {
                 return { rows: [{ id: 'project_brainbase', code: 'brainbase', organization_id: 'org_1' }] };
@@ -1358,8 +1363,9 @@ describe('GraphMaintenanceService authorization', () => {
             if (sql.includes('WHERE ge.project_id=ANY')) return { rows: [localEntity] };
             if (sql.includes('SELECT gx.id, gx.from_id')) return { rows: [edge] };
             if (sql.includes('WHERE ge.id=ANY')) {
-                expect(sql).toContain('COUNT(DISTINCT membership_project.organization_id)=1');
-                return { rows: [] };
+                expect(sql).toContain('membership_project.organization_id=$2');
+                expect(sql).not.toContain('COUNT(DISTINCT membership_project.organization_id)=1');
+                return { rows: [projectlessPerson] };
             }
             throw new Error(`unexpected query: ${sql}`);
         }) };
@@ -1368,13 +1374,13 @@ describe('GraphMaintenanceService authorization', () => {
             organizationId: 'org_1', projectCodes: ['brainbase', 'techknight'], role: 'gm', clearance: ['internal']
         }, 'brainbase');
 
-        expect(snapshot.edges).toEqual([]);
-        expect(snapshot).not.toHaveProperty('external_entities');
-        expect(snapshot.suppression_summary).toEqual({
-            edge_count: 1,
-            reasons: { unresolved_or_inaccessible_endpoint: 1 }
-        });
-        expect(JSON.stringify(snapshot)).not.toContain('person_multi_org');
+        expect(snapshot.edges).toEqual([edge]);
+        expect(snapshot.external_entities).toEqual([{
+            id: projectlessPerson.id, entity_type: 'person', project_code: 'brainbase',
+            reference_scope: 'same_organization', role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 2
+        }]);
+        expect(snapshot).not.toHaveProperty('suppression_summary');
     });
 
     it('非canonical scope marker Edgeを識別子なしの理由付きで抑止する', async () => {
@@ -1625,6 +1631,11 @@ describe('GraphMaintenanceService authorization', () => {
 
         expect(readback).toEqual([expected]);
         expect(client.query.mock.calls[0][0]).toContain('FOR UPDATE');
+        expect(client.query.mock.calls[0][0]).toContain('membership_project.organization_id=$6');
+        expect(client.query.mock.calls[0][0]).not.toContain('COUNT(DISTINCT membership_project.organization_id)=1');
+        expect(client.query.mock.calls[0][1]).toEqual([
+            [expected.id], [expected.project_code], ['internal'], 'gm', [], 'org_1'
+        ]);
     });
 
     it.each([
