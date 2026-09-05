@@ -300,6 +300,29 @@ describe('Slack installation control plane', () => {
             .not.toContain('raw upstream body');
     });
 
+    it('persists an allowlisted OAuth provider failure code without provider details', async () => {
+        const providerFailure = new ContractError('OAUTH_EXCHANGE_INVALID_CODE', {
+            status: 502,
+            fault_domain: 'external_provider'
+        });
+        const { controlPlane, repository } = createControlPlane({
+            oauthClient: { exchangeCode: vi.fn(async () => { throw providerFailure; }) }
+        });
+
+        await expect(controlPlane.exchange_and_register({
+            authorization_code: 'oauth-code',
+            redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+            intent: binding
+        })).rejects.toBe(providerFailure);
+        expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
+            failure_stage: 'oauth_exchange',
+            failure_code: 'OAUTH_EXCHANGE_INVALID_CODE',
+            cleanup_status: 'not_needed'
+        }));
+        expect(JSON.stringify(repository.failSlackInstallationExchange.mock.calls[0][0]))
+            .not.toContain('oauth-code');
+    });
+
     it('does not preserve a known failure code from a different stage', async () => {
         const mismatched = new ContractError('CREDENTIAL_STORE_UNAVAILABLE', { status: 503 });
         const { controlPlane, repository } = createControlPlane({

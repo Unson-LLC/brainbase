@@ -39,6 +39,29 @@ function parseJson(text) {
     }
 }
 
+const SLACK_OAUTH_FAILURE_CODES = Object.freeze({
+    invalid_code: 'OAUTH_EXCHANGE_INVALID_CODE',
+    bad_redirect_uri: 'OAUTH_EXCHANGE_REDIRECT_MISMATCH',
+    bad_client_secret: 'OAUTH_EXCHANGE_CLIENT_CREDENTIAL_REJECTED',
+    invalid_client_id: 'OAUTH_EXCHANGE_CLIENT_CREDENTIAL_REJECTED',
+    oauth_authorization_url_mismatch: 'OAUTH_EXCHANGE_FLOW_MISMATCH',
+    invalid_code_verifier: 'OAUTH_EXCHANGE_PKCE_REJECTED',
+    pkce_not_allowed: 'OAUTH_EXCHANGE_PKCE_REJECTED',
+    access_denied: 'OAUTH_EXCHANGE_ACCESS_DENIED',
+    no_scopes: 'OAUTH_EXCHANGE_ACCESS_DENIED',
+    team_access_not_granted: 'OAUTH_EXCHANGE_ACCESS_DENIED',
+    internal_error: 'OAUTH_EXCHANGE_UNAVAILABLE',
+    fatal_error: 'OAUTH_EXCHANGE_UNAVAILABLE',
+    service_unavailable: 'OAUTH_EXCHANGE_UNAVAILABLE',
+    request_timeout: 'OAUTH_EXCHANGE_UNAVAILABLE',
+    ratelimited: 'OAUTH_EXCHANGE_UNAVAILABLE'
+});
+
+function slackOAuthFailureCode(value) {
+    if (typeof value !== 'string') return 'OAUTH_EXCHANGE_REJECTED';
+    return SLACK_OAUTH_FAILURE_CODES[value] ?? 'OAUTH_EXCHANGE_REJECTED';
+}
+
 function createSlackOAuthClient({ authService, env = process.env, fetchImpl = globalThis.fetch } = {}) {
     const dedicatedClientId = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_ID');
     const dedicatedClientSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET');
@@ -95,8 +118,10 @@ function createSlackOAuthClient({ authService, env = process.env, fetchImpl = gl
                 });
             }
             if (!response.ok || payload.ok === false) {
-                throw new ContractError('OAUTH_EXCHANGE_REJECTED', {
-                    status: 502,
+                const code = slackOAuthFailureCode(payload.error);
+                throw new ContractError(code, {
+                    status: code === 'OAUTH_EXCHANGE_UNAVAILABLE' ? 503 : 502,
+                    retryable: code === 'OAUTH_EXCHANGE_UNAVAILABLE',
                     fault_domain: 'external_provider'
                 });
             }
