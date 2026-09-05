@@ -12,6 +12,7 @@ import { createPersonalKgAuthorityEnv } from '../../helpers/personal-kg-authorit
 function createBootstrapApp({
     routineCycleExecutor,
     projectCodes = ['brainbase'],
+    serviceClaims = {},
     env = createPersonalKgAuthorityEnv({ projectId: 'brainbase' })
 } = {}) {
     const authService = {
@@ -19,7 +20,8 @@ function createBootstrapApp({
             sub: 'routine-worker',
             role: 'member',
             projectCodes,
-            clearance: ['internal']
+            clearance: ['internal'],
+            ...serviceClaims
         })),
         verifyToken: vi.fn()
     };
@@ -126,6 +128,94 @@ describe('Routine execution API production wiring', () => {
             .expect(403);
 
         expect(response.body).toEqual({ error: 'routine_company_authority_required' });
+        expect(routineCycleExecutor.execute).not.toHaveBeenCalled();
+    });
+
+    it('retro専用の署名済みservice authorityはrequest bodyの人物自己申告なしでread-only実行できる', async () => {
+        const routineCycleExecutor = { execute: vi.fn(async () => ({
+            status: 'completed',
+            routine_summary: { routine: 'retro', status: 'completed', anomaly_count: 0 }
+        })) };
+        const { app } = createBootstrapApp({
+            routineCycleExecutor,
+            serviceClaims: {
+                sub: 'brainbase_retro',
+                capabilities: ['routine.retro.execute'],
+                routineAuthority: {
+                    routine: 'retro',
+                    capability_id: 'personal_read',
+                    allowed_effects: ['read'],
+                    owner_person_id: 'person-sato',
+                    organization_id: 'organization-tenant-a',
+                    project_id: 'brainbase',
+                    authority_resolution_receipt_id: 'authres-retro-1',
+                    identity_resolution_receipt_id: 'idres-retro-1'
+                }
+            }
+        });
+
+        await request(app)
+            .post('/api/routines/retro/execute')
+            .set('Authorization', 'Bearer bbsvc_retro-test')
+            .send({ input: { project_id: 'brainbase' } })
+            .expect(200);
+
+        expect(routineCycleExecutor.execute).toHaveBeenCalledWith(
+            { routine: 'retro', input: { project_id: 'brainbase' } },
+            expect.objectContaining({
+                access: expect.objectContaining({
+                    personId: 'person-sato',
+                    actorPersonId: 'brainbase_retro',
+                    organizationId: 'organization-tenant-a',
+                    projectCodes: ['brainbase'],
+                    clearance: ['personal'],
+                    proxied: true
+                })
+            })
+        );
+    });
+
+    it('retro service authorityは別routine・write scope・bodyでのowner上書きを拒否する', async () => {
+        const routineCycleExecutor = { execute: vi.fn(async () => ({ status: 'completed' })) };
+        const claims = {
+            sub: 'brainbase_retro',
+            capabilities: ['routine.retro.execute'],
+            routineAuthority: {
+                routine: 'retro',
+                capability_id: 'personal_read',
+                allowed_effects: ['read'],
+                owner_person_id: 'person-sato',
+                organization_id: 'organization-tenant-a',
+                project_id: 'brainbase',
+                authority_resolution_receipt_id: 'authres-retro-1',
+                identity_resolution_receipt_id: 'idres-retro-1'
+            }
+        };
+        const { app } = createBootstrapApp({ routineCycleExecutor, serviceClaims: claims });
+
+        await request(app)
+            .post('/api/routines/ohayo/execute')
+            .set('Authorization', 'Bearer bbsvc_retro-test')
+            .send({ input: { project_id: 'brainbase' } })
+            .expect(403);
+        await request(app)
+            .post('/api/routines/retro/execute')
+            .set('Authorization', 'Bearer bbsvc_retro-test')
+            .send({ owner_person_id: 'person-attacker', input: { project_id: 'brainbase' } })
+            .expect(403);
+
+        const writeClaims = structuredClone(claims);
+        writeClaims.routineAuthority.allowed_effects = ['write'];
+        const writeApp = createBootstrapApp({
+            routineCycleExecutor,
+            serviceClaims: writeClaims
+        }).app;
+        await request(writeApp)
+            .post('/api/routines/retro/execute')
+            .set('Authorization', 'Bearer bbsvc_retro-test')
+            .send({ input: { project_id: 'brainbase' } })
+            .expect(403);
+
         expect(routineCycleExecutor.execute).not.toHaveBeenCalled();
     });
 

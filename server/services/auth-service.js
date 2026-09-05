@@ -599,6 +599,7 @@ export class AuthService {
             level: this.getRoleRank(input.role),
             employmentType: 'internal_service',
             organizationId,
+            ...(input.routineAuthority ? { routineAuthority: structuredClone(input.routineAuthority) } : {}),
             createdBy: typeof input.createdBy === 'string' ? input.createdBy : null,
             jti: this.generateId('svc_tok'),
             iat: now,
@@ -618,6 +619,35 @@ export class AuthService {
                 organizationId: payload.organizationId
             }
         };
+    }
+
+    issueRetroServiceToken({ ownerPersonId, organizationId, createdBy = null, ttlSeconds } = {}) {
+        const owner = typeof ownerPersonId === 'string' ? ownerPersonId.trim() : '';
+        const organization = typeof organizationId === 'string' ? organizationId.trim() : '';
+        if (!owner) throw new Error('retro service token ownerPersonId is required');
+        if (!organization) throw new Error('retro service token organizationId is required');
+        const issued = this.issueServiceToken({
+            name: 'Brainbase weekly retro',
+            serviceId: 'brainbase_retro',
+            role: 'member',
+            projectCodes: ['brainbase'],
+            clearance: ['personal'],
+            capabilities: ['routine.retro.execute'],
+            organizationId: organization,
+            createdBy,
+            ttlSeconds,
+            routineAuthority: {
+                routine: 'retro',
+                capability_id: 'personal_read',
+                allowed_effects: ['read'],
+                owner_person_id: owner,
+                organization_id: organization,
+                project_id: 'brainbase',
+                authority_resolution_receipt_id: this.generateId('authres'),
+                identity_resolution_receipt_id: this.generateId('idres')
+            }
+        });
+        return issued;
     }
 
     issueRefreshToken(payload) {

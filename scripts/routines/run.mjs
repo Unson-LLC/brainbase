@@ -45,11 +45,11 @@ function resolveRoutineApiUrl(env) {
 }
 
 function resolveRoutineExecutionAuth({ env, endpoint }) {
-    if (env.INTERNAL_API_SECRET && isLoopbackUrl(endpoint)) {
-        return { serviceToken: null, internalApiKey: env.INTERNAL_API_SECRET };
-    }
     if (env.BRAINBASE_ROUTINE_SERVICE_TOKEN) {
         return { serviceToken: env.BRAINBASE_ROUTINE_SERVICE_TOKEN, internalApiKey: null };
+    }
+    if (env.INTERNAL_API_SECRET && isLoopbackUrl(endpoint)) {
+        return { serviceToken: null, internalApiKey: env.INTERNAL_API_SECRET };
     }
     return { serviceToken: null, internalApiKey: null };
 }
@@ -285,8 +285,12 @@ export async function executeRoutineOverHttp({ routine, input = {}, env = proces
     if (!auth.serviceToken && !auth.internalApiKey) {
         throw new Error('routine authentication is required');
     }
-    resolvePersonalKgCliAuthority({ desiredEffect: 'read', env });
-    const companyAuthorityResponse = loadCompanyAuthorityResponse(env);
+    const useRetroServiceAuthority = routine === 'retro' && Boolean(auth.serviceToken);
+    let companyAuthorityResponse;
+    if (!useRetroServiceAuthority) {
+        resolvePersonalKgCliAuthority({ desiredEffect: 'read', env });
+        companyAuthorityResponse = loadCompanyAuthorityResponse(env);
+    }
     const headers = {
         'Content-Type': 'application/json',
         ...routineAuthHeaders(auth)
@@ -295,8 +299,8 @@ export async function executeRoutineOverHttp({ routine, input = {}, env = proces
         method: 'POST',
         headers,
         body: JSON.stringify({
-            thread_id: env.CODEX_THREAD_ID,
-            company_authority_response: companyAuthorityResponse,
+            ...(env.CODEX_THREAD_ID ? { thread_id: env.CODEX_THREAD_ID } : {}),
+            ...(companyAuthorityResponse ? { company_authority_response: companyAuthorityResponse } : {}),
             input
         })
     });

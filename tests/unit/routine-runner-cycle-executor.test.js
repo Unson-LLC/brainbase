@@ -105,6 +105,27 @@ describe('Routine Runner cycle execution', () => {
         expect(fetchImpl).not.toHaveBeenCalled();
     });
 
+    it('retroは専用service tokenだけを送り、Personal KG ownerをAutomation環境へ要求しない', async () => {
+        const fetchImpl = vi.fn(async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ status: 'completed' })
+        }));
+
+        await routineRunner.executeRoutineOverHttp({
+            routine: 'retro',
+            env: {
+                BRAINBASE_ROUTINE_API_URL: 'https://brainbase.example',
+                BRAINBASE_ROUTINE_SERVICE_TOKEN: 'bbsvc_retro'
+            },
+            fetchImpl
+        });
+
+        const request = fetchImpl.mock.calls[0][1];
+        expect(request.headers.Authorization).toBe('Bearer bbsvc_retro');
+        expect(JSON.parse(request.body)).toEqual({ input: {} });
+    });
+
     it('completedでもroutine_summary欠落ならrequired_artifact_missingのfailed Receiptを残す', async () => {
         const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-missing-summary-'));
         temporaryDirectories.push(repoDir);

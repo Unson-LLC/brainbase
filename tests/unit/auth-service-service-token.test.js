@@ -54,6 +54,34 @@ describe('AuthService service tokens', () => {
         expect(() => authService.verifyServiceToken(authService.issueToken({ sub: 'per_1' }))).toThrow('Invalid service token');
     });
 
+    it('週次retro専用tokenを固定service actor・read-only Personal KG scopeで発行する', () => {
+        const authService = new AuthService();
+
+        const result = authService.issueRetroServiceToken({
+            ownerPersonId: 'person-sato',
+            organizationId: 'organization-unson',
+            createdBy: 'person-sato'
+        });
+        const decoded = authService.verifyServiceToken(result.token);
+
+        expect(decoded).toMatchObject({
+            sub: 'brainbase_retro',
+            projectCodes: ['brainbase'],
+            clearance: ['personal'],
+            capabilities: ['routine.retro.execute'],
+            routineAuthority: {
+                routine: 'retro',
+                capability_id: 'personal_read',
+                allowed_effects: ['read'],
+                owner_person_id: 'person-sato',
+                organization_id: 'organization-unson',
+                project_id: 'brainbase',
+                authority_resolution_receipt_id: expect.stringMatching(/^authres_/),
+                identity_resolution_receipt_id: expect.stringMatching(/^idres_/)
+            }
+        });
+    });
+
     it('issueServiceToken呼び出し時_不正なprojectCodesとclearanceは正規化する', () => {
         const authService = new AuthService();
 
