@@ -217,6 +217,39 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         );
     });
 
+    it('accepts request authority after middleware maps intentional null fields to camelCase', async () => {
+        const repository = {
+            transaction: vi.fn(transaction),
+            findById: vi.fn(async () => ({
+                event_id: 'pke_1', owner_person_id: 'person_a', organization_id: 'org_a'
+            })),
+            createPromotionRequest: vi.fn(async (request) => request),
+            claimPromotionAuthorityUse: vi.fn(async () => undefined)
+        };
+        const service = new PersonalKnowledgePromotionService({ repository });
+        const context = requestContext();
+        const authority = context.promotionAuthority;
+        context.promotionAuthority = {
+            capabilityId: authority.capabilityId,
+            actorPersonId: authority.actorPersonId,
+            organizationIds: authority.organizationIds,
+            projectIds: authority.projectIds,
+            projectCode: authority.projectCode,
+            operationId: authority.operationId,
+            idempotencyKey: authority.idempotencyKey,
+            schemaVersion: authority.schema_version,
+            canonicalCapabilityId: authority.capability_id,
+            action: authority.action,
+            resourceRef: authority.resource_ref,
+            requestId: authority.request_id,
+            normalizedPayloadHash: authority.normalized_payload_hash
+        };
+
+        await expect(service.requestPromotion('pke_1', {
+            project_code: 'brainbase', summary: '共有可能な判断', normalized_payload: normalizedDecision()
+        }, context)).resolves.toMatchObject({ project_code: 'brainbase' });
+    });
+
     it('rejects a canonical project binding for another project code', async () => {
         const repository = {
             transaction: vi.fn(transaction),

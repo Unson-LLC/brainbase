@@ -151,7 +151,8 @@ function requirePromotionAuthority(authority, access, projectCode, capabilityId)
 }
 
 function authorityField(authority, camel, wire) {
-    return authority?.[camel] ?? authority?.[wire];
+    if (authority && Object.hasOwn(authority, camel)) return authority[camel];
+    return authority?.[wire];
 }
 
 function requirePromotionAuthorityTarget(authority, {
