@@ -192,6 +192,7 @@ export function createTenantRuntimeServicesFromEnv({
         serviceAuth,
         connectionRegistry: {
             validateRevision: (input) => repository.validateConnectionRevision(input),
+            resolveOrganizationBindingById: (input) => repository.resolveOrganizationBindingById(input),
             resolveProjectBindingById: (input) => repository.resolveProjectBindingById(input),
             resolveProjectBinding: (input) => repository.resolveProjectBinding(input)
         },

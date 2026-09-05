@@ -152,6 +152,28 @@ function quotaPool({ now = '2026-08-22T01:00:00.000Z', allowance = 100, legacyCo
 }
 
 describe('MultitenantPostgresRepository', () => {
+    it('tenant organizationをGraph正本organizationへ解決する', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const organization = {
+            tenant_id: tenantId,
+            organization_id: 'org_business',
+            organization_payload: { status: 'active', graph_organization_id: 'business' },
+            tenant_status: 'active'
+        };
+        const { pool, client } = poolWithRows({ 'FROM tenant_organizations': [organization] });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.resolveOrganizationBindingById({
+            tenant_id: tenantId,
+            organization_id: organization.organization_id
+        })).resolves.toEqual(organization);
+        expect(client.query.mock.calls.some(([sql, values]) => (
+            sql.includes('WHERE organization.tenant_id = $1 AND organization.organization_id = $2')
+            && values[0] === tenantId
+            && values[1] === organization.organization_id
+        ))).toBe(true);
+    });
+
     it('authority project bindingをtenant RLS下でproject_idから正規project_codeへ解決する', async () => {
         const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
         const project = {
