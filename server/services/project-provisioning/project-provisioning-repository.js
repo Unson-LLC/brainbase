@@ -156,6 +156,24 @@ export class PgProjectProvisioningRepository {
             [manifest.organization_entity_id, organizationId]
         );
         const graphAccess = graphAccessFrom(actor, organizationId);
+        const exactOwnerLogin = manifest.owner_person_id === actor?.personId
+            && actor?.slackUserId && actor?.slackWorkspaceId;
+        const ownerGrantQuery = exactOwnerLogin
+            ? {
+                text: `SELECT ag.id FROM auth_grants ag
+                       WHERE ag.person_id=$1 AND ag.organization_id=$2
+                         AND ag.slack_user_id=$3 AND ag.slack_workspace_id=$4
+                         AND ag.active=true LIMIT 1`,
+                values: [
+                    manifest.owner_person_id, organizationId,
+                    actor.slackUserId, actor.slackWorkspaceId
+                ]
+            }
+            : {
+                text: `SELECT ag.id FROM auth_grants ag
+                       WHERE ag.person_id=$1 AND ag.organization_id=$2 AND ag.active=true LIMIT 1`,
+                values: [manifest.owner_person_id, organizationId]
+            };
         const [organization, owner, graphOrganization, grant] = await Promise.all([
             this.withOrganization(organizationId, (client) => client.query('SELECT id FROM organizations WHERE id=$1', [organizationId])),
             this.withOrganization(organizationId, (client) => client.query("SELECT id FROM people WHERE id=$1 AND COALESCE(status,'active')='active'", [manifest.owner_person_id])),
@@ -163,9 +181,7 @@ export class PgProjectProvisioningRepository {
                 ? this.infoSSOTService.withAccessContext(graphAccess, graphOrganizationQuery)
                 : this.withOrganization(organizationId, graphOrganizationQuery),
             this.withOrganization(organizationId, (client) => client.query(
-                `SELECT ag.id FROM auth_grants ag
-                 WHERE ag.person_id=$1 AND ag.organization_id=$2 AND ag.active=true LIMIT 1`,
-                [manifest.owner_person_id, organizationId]
+                ownerGrantQuery.text, ownerGrantQuery.values
             ))
         ]);
         return {
@@ -350,7 +366,16 @@ export class PgProjectProvisioningRepository {
             }
             const registry = await client.query('SELECT * FROM project_registry WHERE project_code=$1 FOR UPDATE', [manifest.project_code]);
             const existing = registry.rows[0];
-            if (existing && (existing.display_name !== manifest.display_name || existing.catalog_version !== manifest.catalog_version)) {
+            if (existing && (
+                existing.organization_id !== organizationId
+                || existing.display_name !== manifest.display_name
+                || existing.kind !== manifest.kind
+                || existing.catalog_version !== manifest.catalog_version
+                || existing.lifecycle_status !== 'active'
+                || existing.session_select !== manifest.session_select
+                || existing.organization_entity_id !== manifest.organization_entity_id
+                || existing.owner_person_id !== manifest.owner_person_id
+            )) {
                 const error = new Error(`Project code collision: ${manifest.project_code}`);
                 error.code = 'PROJECT_PROVISIONING_PROJECT_COLLISION';
                 error.statusCode = 409;

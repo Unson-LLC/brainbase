@@ -8,6 +8,8 @@ function actor(req) {
         clearance: req.access?.clearance || [],
         organizationId: req.access?.organizationId || req.access?.tenantId || null,
         tenantId: req.access?.tenantId || null,
+        slackUserId: req.access?.slackUserId || null,
+        slackWorkspaceId: req.access?.slackWorkspaceId || null,
         authSource: req.authSource || null
     };
 }

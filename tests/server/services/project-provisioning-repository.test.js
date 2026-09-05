@@ -113,6 +113,29 @@ describe('PgProjectProvisioningRepository', () => {
         expect(graphCall[1]).toEqual(['org_entity', 'org_a']);
     });
 
+    it('ownerがactor自身ならauthorityも現在のSlack workspace grantを要求する', async () => {
+        const query = vi.fn(async (sql) => {
+            if (sql.includes('FROM organizations WHERE')) return { rows: [{ id: 'org_a' }] };
+            if (sql.includes('FROM people WHERE')) return { rows: [{ id: 'person_owner' }] };
+            if (sql.includes('JOIN projects p')) return { rows: [{ id: 'org_entity' }] };
+            if (sql.includes('FROM auth_grants')) return { rows: [] };
+            return { rows: [] };
+        });
+        const repository = new PgProjectProvisioningRepository({ pool: { query } });
+
+        await expect(repository.verifyManifestAuthority({
+            organization_entity_id: 'org_entity', owner_person_id: 'person_owner'
+        }, {
+            organizationId: 'org_a', personId: 'person_owner',
+            slackUserId: 'U_LOGIN', slackWorkspaceId: 'T_LOGIN'
+        })).resolves.toMatchObject({ owner_has_organization_grant: false });
+
+        const grantCall = query.mock.calls.find(([sql]) => sql.includes('FROM auth_grants'));
+        expect(grantCall[0]).toContain('ag.slack_user_id=$3');
+        expect(grantCall[0]).toContain('ag.slack_workspace_id=$4');
+        expect(grantCall[1]).toEqual(['person_owner', 'org_a', 'U_LOGIN', 'T_LOGIN']);
+    });
+
     it('cross-organization graph entity is not accepted as organization authority', async () => {
         const query = vi.fn(async (sql) => {
             if (sql.includes('JOIN projects p')) return { rows: [] };

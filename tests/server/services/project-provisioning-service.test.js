@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ProjectProvisioningService } from '../../../server/services/project-provisioning/project-provisioning-service.js';
 
-const actor = { role: 'gm', personId: 'person_owner', organizationId: 'unson', projectCodes: [], authSource: 'bearer' };
+const actor = {
+    role: 'gm', personId: 'person_owner', organizationId: 'unson', projectCodes: [],
+    slackUserId: 'U_LOGIN', slackWorkspaceId: 'T_LOGIN', authSource: 'bearer'
+};
 const manifest = {
     schema_version: 'project-provisioning.v1', project_code: 'growin-ai', display_name: 'Growin AI',
     kind: 'client', catalog_version: 1, session_select: true,
@@ -161,6 +164,20 @@ function createHarness({
 }
 
 describe('ProjectProvisioningService', () => {
+    it('acting personへのgrantでSlack identityがない場合は変更前に拒否する', async () => {
+        const { service, repository, authGrantService } = createHarness();
+        const actorWithoutSlackIdentity = {
+            ...actor, slackUserId: undefined, slackWorkspaceId: undefined
+        };
+
+        await expect(service.plan(actorWithoutSlackIdentity, manifest, {
+            idempotencyKey: 'missing-actor-slack-identity'
+        })).rejects.toMatchObject({ code: 'PROJECT_PROVISIONING_SLACK_IDENTITY_REQUIRED' });
+
+        expect(repository.projects.size).toBe(0);
+        expect(authGrantService.addProjectGrant).not.toHaveBeenCalled();
+    });
+
     it('organizationIdとtenantIdが一致しないactorを曖昧なtenant identityとして拒否する', async () => {
         const { service, repository } = createHarness();
 
@@ -177,6 +194,28 @@ describe('ProjectProvisioningService', () => {
         await expect(service.check(actor, manifest)).resolves.toMatchObject({ ok: true, writes_performed: 0 });
         expect(repository.runs.size).toBe(0);
         expect(repository.projects.size).toBe(0);
+    });
+
+    it('同一組織の完全一致Registryはrepository再同期のため再利用できる', async () => {
+        const { service, repository } = createHarness();
+        repository.projects.set(manifest.project_code, {
+            project_code: manifest.project_code,
+            organization_id: actor.organizationId,
+            display_name: manifest.display_name,
+            kind: manifest.kind,
+            catalog_version: manifest.catalog_version,
+            lifecycle_status: 'active',
+            session_select: manifest.session_select,
+            organization_entity_id: manifest.organization_entity_id,
+            owner_person_id: manifest.owner_person_id,
+            repository: { mode: 'none' }
+        });
+
+        await expect(service.check(actor, manifest)).resolves.toMatchObject({
+            ok: true,
+            registry_project: { status: 'reusable' },
+            writes_performed: 0
+        });
     });
 
     it.each([
@@ -240,7 +279,7 @@ describe('ProjectProvisioningService', () => {
             catalog_project_id: manifest.project_code, catalog_version: manifest.catalog_version,
             source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
         };
-        const { service, repository } = createHarness({
+        const { service, repository, authGrantService } = createHarness({
             projectSubjectIdentity,
             graphEntities: [{
                 id: manifest.project_code,
@@ -263,6 +302,13 @@ describe('ProjectProvisioningService', () => {
         });
 
         await expect(service.apply(scopedActor, plan.run_id)).resolves.toMatchObject({ state: 'active' });
+
+        expect(authGrantService.addProjectGrant).toHaveBeenCalledWith(expect.objectContaining({
+            slackUserId: 'U_LOGIN', slackWorkspaceId: 'T_LOGIN'
+        }));
+        expect(authGrantService.readProjectGrant).toHaveBeenCalledWith(expect.objectContaining({
+            slackUserId: 'U_LOGIN', slackWorkspaceId: 'T_LOGIN'
+        }));
 
         expect(repository.subjectIdentityCalls).toHaveLength(3);
         expect(repository.subjectIdentityCalls.map(({ entityId, organizationId }) => ({

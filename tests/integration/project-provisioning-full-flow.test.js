@@ -41,6 +41,8 @@ const actorAccess = {
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract'],
     organizationId: ORGANIZATION_ID,
     tenantId: ORGANIZATION_ID,
+    slackUserId: 'U_INTEGRATION',
+    slackWorkspaceId: 'WS_ORG_UNSON',
     authSource: 'bearer'
 };
 
