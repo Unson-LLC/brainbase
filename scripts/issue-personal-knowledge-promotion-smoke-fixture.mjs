@@ -131,15 +131,14 @@ function resolveCanonicalBinding(env = process.env) {
 function syntheticPayload(entityId) {
     return normalizePromotionPayload({
         schema_version: 'personal_knowledge_normalized.v1',
-        kind: 'decision',
+        kind: 'entity',
         entity: {
             id: entityId,
-            type: 'decision',
-            payload: { statement: 'synthetic production smoke decision' }
+            type: 'glossary_term',
+            payload: { label: 'synthetic production smoke term' }
         },
         edges: [],
         context_entities: [],
-        decision_domain: 'production_smoke',
         sensitivity: 'internal',
         role_min: 'member'
     });

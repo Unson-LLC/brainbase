@@ -93,7 +93,11 @@ describe('issue-personal-knowledge-promotion-smoke-fixture', () => {
         const fixture = JSON.parse(output);
         expect(parseSmokeFixture(fixture)).toMatchObject({
             runId: 'p0_smoke_20260826_issuer_001',
-            projectCode: 'brainbase'
+            projectCode: 'brainbase',
+            normalizedPayload: {
+                kind: 'entity',
+                entity: { type: 'glossary_term' }
+            }
         });
         expect(output).not.toContain(serviceToken);
         expect(output).not.toContain('private_key');

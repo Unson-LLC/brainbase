@@ -56,7 +56,7 @@ DB readbackは、接続後に`current_user`の`pg_roles.rolsuper`と`rolbypassrl
     "project_code": "brainbase",
     "summary": "synthetic production smoke",
     "subject": {"type": "decision", "id": "smoke_20260825_001"},
-    "normalized_payload": {"schema_version": "personal_knowledge_normalized.v1", "kind": "decision", "entity": {"id": "smoke_20260825_001", "type": "decision", "payload": {"statement": "synthetic smoke decision"}}, "edges": [], "context_entities": [], "decision_domain": "production_smoke", "sensitivity": "internal", "role_min": "member"},
+    "normalized_payload": {"schema_version": "personal_knowledge_normalized.v1", "kind": "entity", "entity": {"id": "smoke_20260825_001", "type": "glossary_term", "payload": {"label": "synthetic production smoke term"}}, "edges": [], "context_entities": [], "sensitivity": "internal", "role_min": "member"},
     "signed_context": "<request context object>"
   },
   "owner": {"signed_context": "<owner consent context object>"},
