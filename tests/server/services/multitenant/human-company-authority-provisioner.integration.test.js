@@ -13,6 +13,10 @@ import {
     readbackInitialTenantAdmin,
     readbackHumanCompanyAuthority
 } from '../../../../server/services/multitenant/human-company-authority-provisioner.js';
+import {
+    provisionHumanActionAuthority,
+    readbackHumanActionAuthority
+} from '../../../../server/services/multitenant/human-action-authority-provisioner.js';
 import { PostgresCompanyAuthorityRepository } from '../../../../server/services/multitenant/postgres-company-authority-repository.js';
 import { MultitenantPostgresRepository } from '../../../../server/services/multitenant/postgres-repository.js';
 import { SlackInstallationControlPlane } from '../../../../server/services/multitenant/slack-installation-control-plane.js';
@@ -162,7 +166,7 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
         await pool.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON
             organizations, people, auth_grants, brainbase_tenants, tenant_projects,
             workspace_connections, tenant_organizations, tenant_memberships,
-            company_external_identities, slack_installation_intents
+            company_external_identities, company_authority_bindings, slack_installation_intents
             TO brainbase_human_provisioner_test_app`);
         await pool.query(`GRANT EXECUTE ON FUNCTION
             resolve_company_authority_route(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT)
@@ -333,9 +337,102 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
         }
     }, 120_000);
 
+    it('adds an exact human action binding and resolves it from a fresh checkout', async () => {
+        const foundationClient = await restrictedPool.connect();
+        let foundation;
+        try {
+            foundation = await readbackHumanCompanyAuthority({ client: foundationClient, manifest });
+        } finally {
+            foundationClient.release();
+        }
+        const human = foundation.humans[0];
+        const actionManifest = {
+            version: 'human-company-action-authority.v1',
+            tenant_id: tenantTechKnight,
+            organization_id: 'org_techknight_business',
+            project: { project_id: 'prj_techknight', project_code: 'techknight' },
+            transport: { provider: 'slack', workspace_id: 'T_TECHKNIGHT', app_id: 'A_TECHKNIGHT' },
+            humans: [{
+                person_id: umedaPersonId,
+                slack_user_id: 'U_UMEDA',
+                membership_id: human.membership.membership_id,
+                membership_revision: String(human.membership.membership_payload.revision),
+                identity_id: human.external_identity.identity_id,
+                identity_revision: String(human.external_identity.identity_revision),
+                placement_id: 'techknight-slack-member',
+                bindings: [{
+                    resource_ref: 'project:techknight',
+                    capability_id: 'task.read',
+                    decision: 'auto',
+                    allowed_effects: ['read'],
+                    responsible_person_id: umedaPersonId,
+                    accountable_person_id: satoPersonId,
+                    approver_person_id: null,
+                    delegated_by_person_id: satoPersonId,
+                    resource_revision: '1',
+                    policy_revision: '1',
+                    raci_revision: '1',
+                    stop_conditions: [],
+                    valid_from: '2026-01-01T00:00:00.000Z',
+                    valid_until: null
+                }]
+            }]
+        };
+        const applyClient = await restrictedPool.connect();
+        try {
+            await expect(provisionHumanActionAuthority({
+                client: applyClient,
+                manifest: actionManifest,
+                actorId: 'integration-test',
+                commit: true
+            })).resolves.toMatchObject({ persisted: true });
+        } finally {
+            applyClient.release();
+        }
+
+        const readbackClient = await restrictedPool.connect();
+        try {
+            await expect(readbackHumanActionAuthority({
+                client: readbackClient,
+                manifest: actionManifest
+            })).resolves.toMatchObject({
+                humans: [{
+                    person_id: umedaPersonId,
+                    bindings: [expect.objectContaining({
+                        resource_ref: 'project:techknight',
+                        capability_id: 'task.read',
+                        decision: 'auto',
+                        allowed_effects: ['read']
+                    })]
+                }]
+            });
+        } finally {
+            readbackClient.release();
+        }
+
+        const repository = new PostgresCompanyAuthorityRepository({ pool: restrictedPool });
+        await expect(repository.resolveCanonicalAuthority({
+            tenant_id: tenantTechKnight,
+            canonical_person_id: umedaPersonId,
+            membership_id: human.membership.membership_id,
+            membership_revision: String(human.membership.membership_payload.revision),
+            organization_id: 'org_techknight_business',
+            project_id: 'prj_techknight',
+            resource_ref: 'project:techknight',
+            capability_id: 'task.read',
+            desired_effect: 'read'
+        })).resolves.toMatchObject({
+            decision: 'auto',
+            allowed_effects: ['read'],
+            responsible_person_id: umedaPersonId,
+            accountable_person_id: satoPersonId
+        });
+    }, 120_000);
+
     it('rolls every inserted state back when a later grant conflicts', async () => {
         await pool.query(
-            `DELETE FROM company_external_identities;
+            `DELETE FROM company_authority_bindings;
+             DELETE FROM company_external_identities;
              DELETE FROM tenant_memberships;
              DELETE FROM tenant_organizations;
              DELETE FROM auth_grants;
