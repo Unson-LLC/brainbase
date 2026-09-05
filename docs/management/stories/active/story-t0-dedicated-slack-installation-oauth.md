@@ -25,6 +25,7 @@ TechKnightの本番運用担当者として、Brainbaseログイン用Slackア�
 - [x] AC-004: `BRAINBASE_SLACK_INSTALLATION_APP_ID`とOAuth client IDを同一値と仮定しない。
 - [x] AC-005: authorization code、client secret、tokenをログ・Story・検証証跡へ保存しない。
 - [x] AC-006: focused unit testと既存installation統合テストが通る。
+- [ ] AC-007: Slackが更新トークンを返さない場合も、credential storeの`refresh_revision=0`を正本DBへ登録し、workspace connectionを有効化できる。
 
 ## 完了境界
 

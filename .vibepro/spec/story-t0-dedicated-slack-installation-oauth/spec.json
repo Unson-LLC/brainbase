@@ -51,8 +51,8 @@
         "Brainbase Tenant Authority"
       ],
       "residency": "Brainbase PostgreSQL and tenant credential store",
-      "migration": "no data migration; configuration boundary only",
-      "rollback": "remove dedicated variables to restore prior AuthService fallback"
+      "migration": "既存のcredential_broker_refs制約をrefresh_revision >= 0へ更新し、行データは変更しない",
+      "rollback": "refresh_revision=0の行が存在した後は旧制約へ戻さず、接続の失効または再登録を先に行う"
     },
     "failure_semantics": {
       "unknown_tenant": "deny",
@@ -387,6 +387,50 @@
       },
       "first_seen_at": "2026-09-05T01:28:00.000Z",
       "last_revised_at": "2026-09-05T01:28:00.000Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "Slackが更新トークンを返さない場合、credential storeのrefresh_revision=0を正本DBへ保存してworkspace connectionを有効化する。負の版数は拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6,
+            "ac_id": "AC-007"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/sql/multitenant-platform-schema.sql",
+            "anchor": "credential_broker_refs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/persistence-schema.test.js",
+            "case": "refresh tokenなしを表すrefresh revision 0を許可し、負数は拒否する"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "registers a Slack connection with refresh revision zero when no refresh token is issued"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/persistence-schema.test.js",
+            "must_cover": "refresh revision 0"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "must_cover": "refresh revision zero"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T14:46:44.000Z",
+      "last_revised_at": "2026-09-05T14:46:44.000Z"
     }
   ],
   "open_questions": [],

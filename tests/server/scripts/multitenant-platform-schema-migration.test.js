@@ -24,7 +24,7 @@ async function schemaContract() {
     };
 }
 
-async function createPool({ missingTable = null, ledgerHash = null } = {}) {
+async function createPool({ missingTable = null, ledgerHash = null, refreshConstraint = 'CHECK ((refresh_revision >= 0))' } = {}) {
     const contract = await schemaContract();
     const queries = [];
     const query = vi.fn(async (text, values = []) => {
@@ -65,6 +65,9 @@ async function createPool({ missingTable = null, ledgerHash = null } = {}) {
         if (String(text).includes('FROM pg_policies')) {
             return { rows: contract.rlsTables.map((table_name) => ({ table_name })) };
         }
+        if (String(text).includes('FROM pg_constraint')) {
+            return { rows: refreshConstraint === null ? [] : [{ definition: refreshConstraint }] };
+        }
         if (String(text).includes('FROM brainbase_schema_migrations')) {
             return { rows: [{ schema_sha256: ledgerHash ?? contract.sha256 }] };
         }
@@ -102,6 +105,7 @@ describe('multitenant platform schema migration runner', () => {
             readback: {
                 table_count: contract.tables.length,
                 rls_table_count: contract.rlsTables.length,
+                credential_refresh_revision_zero_allowed: true,
                 ledger_matches: true
             }
         });
@@ -146,6 +150,13 @@ describe('multitenant platform schema migration runner', () => {
         })).rejects.toThrow(/missing tables.*tenant_projects/u);
         expect(queries.map(({ text }) => text)).toContain('ROLLBACK');
         expect(queries.map(({ text }) => text)).not.toContain('COMMIT');
+    });
+
+    it('refresh revision 0を許可しない旧制約はreadbackでfail closedにする', async () => {
+        const { pool, queries } = await createPool({ refreshConstraint: 'CHECK ((refresh_revision > 0))' });
+        await expect(runMultitenantSchemaMigration({ argv: ['--check'], pool }))
+            .rejects.toThrow(/does not allow credential refresh revision zero/u);
+        expect(queries.some(({ text }) => text.includes('FROM pg_constraint'))).toBe(true);
     });
 
     it('接続情報がなくても秘密値を含めずに停止する', async () => {
