@@ -28,6 +28,7 @@ function signedContext(action, resourceRef, requestId = null, normalizedPayloadH
         }
     };
     if (binding) {
+        context.tenant = { tenant_id: binding.tenantId || 'tenant-smoke' };
         context.actor = {
             principal_id: binding.personId,
             principal_type: 'person',
@@ -244,7 +245,8 @@ function runnerFixture() {
 
 function runnerReadbackPool(parsed, {
     dbReceiptMismatch = false, replayReceiptMutation = false, authorityUsesInvalid = false,
-    readbackRoleInvalid = false, graphAggregate = '0'
+    readbackRoleInvalid = false, graphAggregate = '0',
+    canonicalGraphOrganizationId = 'org-smoke'
 } = {}) {
     const receipt = {
         request_id: parsed.requestId,
@@ -341,6 +343,19 @@ function runnerReadbackPool(parsed, {
     const query = async (sql) => {
         if (sql.includes('FROM pg_roles')) {
             return { rows: [{ rolsuper: readbackRoleInvalid, rolbypassrls: false }] };
+        }
+        if (sql.includes('FROM tenant_organizations')) {
+            return {
+                rows: [{
+                    tenant_id: parsed.requestContext.tenant.tenant_id,
+                    organization_id: parsed.requestContext.authorization.organization_ids[0],
+                    organization_payload: {
+                        status: 'active',
+                        graph_organization_id: canonicalGraphOrganizationId
+                    },
+                    tenant_status: 'active'
+                }]
+            };
         }
         const state = states[stateIndex];
         if (sql.includes('FROM personal_knowledge_events')) return { rows: state.event ? [state.event] : [] };
@@ -649,6 +664,33 @@ describe('Personal KG production smoke evidence helpers', () => {
 
         await expect(runSyntheticSmoke({ fetchImpl }))
             .rejects.toThrowError('personal_knowledge_graph_promotion_quarantined');
+    });
+
+    it('resolves a signed tenant organization to the canonical Graph organization before mutation', async () => {
+        const fixture = runnerFixture();
+        for (const context of [
+            fixture.request.signed_context,
+            fixture.owner.signed_context,
+            fixture.organization.signed_context
+        ]) {
+            context.authorization.organization_ids = ['org-tenant-runtime'];
+        }
+        await expect(runSyntheticSmoke({ fixture })).resolves.toMatchObject({ status: 'passed' });
+    });
+
+    it('rejects a tenant organization binding for another Graph organization before mutation', async () => {
+        const fixture = runnerFixture();
+        const parsed = parseSmokeFixture(fixture);
+        const calls = [];
+        await expect(runSmoke({
+            fixture,
+            baseUrl: 'https://brainbase.test',
+            ownerToken: 'owner-token', reviewerToken: 'reviewer-token', csrfToken: 'csrf-token',
+            databaseUrl: 'postgres://synthetic.invalid/brainbase',
+            fetchImpl: runnerFetch(parsed, { onRequest(url) { calls.push(url.pathname); } }),
+            poolFactory: () => runnerReadbackPool(parsed, { canonicalGraphOrganizationId: 'org-other' })
+        })).rejects.toThrowError('context_organization_mismatch');
+        expect(calls).toEqual(['/api/auth/verify', '/api/auth/verify']);
     });
 
     it('compares a fresh replay DB receipt instead of reusing the first API receipt', async () => {

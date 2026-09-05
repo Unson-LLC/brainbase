@@ -161,7 +161,7 @@ export async function verifySmokeAccess(fetchImpl, baseUrl, token, {
  * canonical person identity is always actor.principal_id.
  */
 export function assertSignedContextAccessBinding(context, access, {
-    label, expectedProjectId
+    label, expectedProjectId, expectedOrganizationId = access?.organizationId
 } = {}) {
     assert(typeof label === 'string' && label, 'context_label_invalid');
     const verifiedAccess = assertAccessShape(access, label);
@@ -178,12 +178,82 @@ export function assertSignedContextAccessBinding(context, access, {
     const organizationIds = strictAccessList(authorization.organization_ids, `${label}_context_organization_missing`);
     const projectIds = strictAccessList(authorization.project_ids, `${label}_context_project_missing`);
     strictAccessList(authorization.capability_ids, `${label}_context_capability_missing`);
-    assert(organizationIds.includes(verifiedAccess.organizationId), `${label}_context_organization_mismatch`);
+    const organizationId = strictAccessString(expectedOrganizationId, `${label}_context_organization_missing`);
+    assert(organizationIds.includes(organizationId), `${label}_context_organization_mismatch`);
     if (expectedProjectId !== undefined) {
         const canonicalProjectId = strictAccessString(expectedProjectId, `${label}_context_project_missing`);
         assert(projectIds.includes(canonicalProjectId), `${label}_context_project_mismatch`);
     }
     return projectIds;
+}
+
+function signedTenantBinding(context, label) {
+    assertSignedContext(context, label);
+    const tenantId = strictAccessString(context.tenant?.tenant_id, `${label}_context_tenant_missing`);
+    const organizationIds = strictAccessList(
+        context.authorization?.organization_ids,
+        `${label}_context_organization_missing`
+    );
+    assert(organizationIds.length === 1, `${label}_context_organization_mismatch`);
+    return { tenantId, tenantOrganizationId: organizationIds[0] };
+}
+
+export async function resolveCanonicalGraphOrganization(pool, { tenantId, tenantOrganizationId } = {}) {
+    const resolvedTenantId = strictAccessString(tenantId, 'context_tenant_missing');
+    const resolvedTenantOrganizationId = strictAccessString(
+        tenantOrganizationId,
+        'context_organization_missing'
+    );
+    assert(pool && typeof pool.connect === 'function', 'readback_pool_invalid');
+    const client = await pool.connect();
+    let destroy = true;
+    let began = false;
+    try {
+        assert(client && typeof client.query === 'function' && typeof client.release === 'function', 'readback_pool_invalid');
+        destroy = false;
+        await client.query('BEGIN READ ONLY');
+        began = true;
+        await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [resolvedTenantId]);
+        const result = await client.query(
+            `SELECT organization.tenant_id, organization.organization_id,
+                    organization.organization_payload, tenant.status AS tenant_status
+               FROM tenant_organizations AS organization
+               JOIN brainbase_tenants AS tenant
+                 ON tenant.tenant_id = organization.tenant_id
+              WHERE organization.tenant_id = $1 AND organization.organization_id = $2
+                AND tenant.status = 'active'
+              LIMIT 1
+              FOR SHARE`,
+            [resolvedTenantId, resolvedTenantOrganizationId]
+        );
+        const binding = result?.rows?.[0];
+        const graphOrganizationId = binding?.organization_payload?.graph_organization_id;
+        assert(binding?.tenant_id === resolvedTenantId
+            && binding?.organization_id === resolvedTenantOrganizationId
+            && binding?.tenant_status === 'active'
+            && binding?.organization_payload?.status === 'active'
+            && typeof graphOrganizationId === 'string'
+            && graphOrganizationId.length > 0
+            && graphOrganizationId.trim() === graphOrganizationId,
+        'context_organization_binding_invalid');
+        await client.query('COMMIT');
+        began = false;
+        return graphOrganizationId;
+    } catch (error) {
+        if (began) {
+            try {
+                await client.query('ROLLBACK');
+            } catch {
+                destroy = true;
+            }
+        } else {
+            destroy = true;
+        }
+        if (error instanceof SmokeFailure) throw error;
+        fail('context_organization_binding_invalid');
+    } finally {
+        client?.release?.(destroy);
+    }
 }
 
 function normalizeReadbackAccess(access) {
@@ -639,14 +709,24 @@ export async function runSmoke({
     });
     assert(ownerAccess.personId !== reviewerAccess.personId, 'distinct_reviewer_required');
     assert(ownerAccess.organizationId === reviewerAccess.organizationId, 'organization_access_mismatch');
+    const requestTenant = signedTenantBinding(parsed.requestContext, 'request');
+    const ownerTenant = signedTenantBinding(parsed.ownerContext, 'owner');
+    const reviewerTenant = signedTenantBinding(parsed.organizationContext, 'organization');
+    assert(ownerTenant.tenantId === requestTenant.tenantId
+        && reviewerTenant.tenantId === requestTenant.tenantId
+        && ownerTenant.tenantOrganizationId === requestTenant.tenantOrganizationId
+        && reviewerTenant.tenantOrganizationId === requestTenant.tenantOrganizationId,
+    'context_organization_mismatch');
     const [requestProjectId] = assertSignedContextAccessBinding(parsed.requestContext, ownerAccess, {
-        label: 'request'
+        label: 'request', expectedOrganizationId: requestTenant.tenantOrganizationId
     });
     assertSignedContextAccessBinding(parsed.ownerContext, ownerAccess, {
-        label: 'owner', expectedProjectId: requestProjectId
+        label: 'owner', expectedProjectId: requestProjectId,
+        expectedOrganizationId: requestTenant.tenantOrganizationId
     });
     assertSignedContextAccessBinding(parsed.organizationContext, reviewerAccess, {
-        label: 'organization', expectedProjectId: requestProjectId
+        label: 'organization', expectedProjectId: requestProjectId,
+        expectedOrganizationId: requestTenant.tenantOrganizationId
     });
 
     let pool = null;
@@ -654,6 +734,8 @@ export async function runSmoke({
     try {
         pool = poolFactory(databaseUrl);
         await assertReadbackRole(pool);
+        const graphOrganizationId = await resolveCanonicalGraphOrganization(pool, requestTenant);
+        assert(graphOrganizationId === ownerAccess.organizationId, 'context_organization_mismatch');
         if (!csrfToken) csrfToken = await loadCsrfToken(fetchImpl, baseUrl, sessionId);
         const graphBeforeResponse = await requestJson(fetchImpl, baseUrl, {
             path: `/api/info/graph/entities?id=${encodeURIComponent(parsed.entityId)}&project=${encodeURIComponent(parsed.projectCode)}`,
