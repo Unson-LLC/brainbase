@@ -87,6 +87,41 @@ describe('Codex Judgment Hook readiness', () => {
         });
     });
 
+    it('HostがPostToolUseFailureを列挙しない場合は3つのcanonical Hookでreadyにする', () => {
+        expect(evaluateHookReadiness(result([
+            hook('userPromptSubmit'),
+            hook('postToolUse'),
+            hook('stop')
+        ]), { cwd })).toMatchObject({
+            status: 'ready_for_fresh_task',
+            ready: true,
+            events: [
+                { event_name: 'userPromptSubmit', status: 'ready', required: true },
+                { event_name: 'postToolUse', status: 'ready', required: true },
+                { event_name: 'postToolUseFailure', status: 'not_enumerated', required: false },
+                { event_name: 'stop', status: 'ready', required: true }
+            ],
+            compatibility_gaps: ['postToolUseFailure_not_enumerated_by_host']
+        });
+    });
+
+    it('HostがPostToolUseFailureを列挙する場合はcanonical定義を検証する', () => {
+        const checked = evaluateHookReadiness(result([
+            hook('userPromptSubmit'),
+            hook('postToolUse'),
+            hook('postToolUseFailure', { matcher: '*' }),
+            hook('stop')
+        ]), { cwd });
+        expect(checked).toMatchObject({
+            status: 'configuration_error',
+            ready: false
+        });
+        expect(checked.events.find((event) => event.event_name === 'postToolUseFailure')).toMatchObject({
+            status: 'matcher_mismatch',
+            required: true
+        });
+    });
+
     it('1つでもmodifiedならtrust_requiredにしてactiveとは呼ばない', () => {
         const checked = evaluateHookReadiness(result([
             hook('userPromptSubmit'),

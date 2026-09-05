@@ -4488,6 +4488,90 @@ describe('turn_input handoff and resolved judgment line', () => {
         });
     });
 
+    it('未分類の初回Stopで観測した許可済み確認理由をresolve_turn後も継続へ昇格しない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-pre-resolution-runtime-boundary',
+            turn_id: 'turn-pre-resolution-runtime-boundary', prompt: '本番の不可逆操作を進めて', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: bootstrapReceipt(args) })
+            })
+        });
+
+        const question = '⚠️ 確認が必要[irreversible_action]: 本番の不可逆操作を実行してよいですか？';
+        const blocked = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: question
+        }, { env });
+        expect(blocked.output).toMatchObject({ decision: 'block' });
+        expect(blocked.continuation).toMatchObject({
+            observed_interruption_candidate: {
+                resolution: 'continued_without_human',
+                question_display_text: question,
+                reason_code: 'irreversible_action',
+                source: 'pre_resolution_stop'
+            }
+        });
+
+        const modelInterpretation = {
+            intent: 'operate', domains: ['operations'], action_kind: 'write', risk: 'high',
+            confidence: 'confirmed', signals: ['external_outcome']
+        };
+        const resolved = {
+            ...validReceipt(args),
+            resolution_id: 'jr_pre_resolution_runtime_boundary',
+            runtime_version: 'judgment-runtime-2.4.0',
+            request_digest: hash(canonicalJson({ ...args, model_interpretation: modelInterpretation })),
+            status: 'resolved', classification: modelInterpretation, required_capabilities: [], selected_dag_ids: [],
+            autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope', autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const turnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
+        await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'tool-resolve-runtime-boundary',
+            tool_input: { turn_ref: turnRef, model_interpretation: modelInterpretation },
+            tool_response: { status: 'ok', data: resolved }
+        }, { env });
+        await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-state-runtime-boundary',
+            tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'irreversible_action' },
+            tool_response: {
+                status: 'ok', data: {
+                    schema_version: 'brainbase-stop-state-v1', status: 'waiting_human',
+                    pending_safe_work: false, runtime_reason_code: 'irreversible_action'
+                }
+            }
+        }, { env });
+
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: [
+                '🧠 判断参照: 「本番の不可逆操作を進めて」を参照 → 運用依頼として対応 ✓',
+                episode.audit_contract.zero_call_display_line,
+                episode.audit_contract.stop_repair_complete_line,
+                question
+            ].join('\n')
+        }, { env });
+        expect(stopped.output.decision).toBeUndefined();
+        expect(stopped.continuation?.autonomy_continuation).toBeUndefined();
+        expect(stopped.final).toMatchObject({
+            completion_status: 'complete',
+            autonomy_compliance_status: 'runtime_escalated'
+        });
+        expect(stopped.final.autonomy_continuation).toBeUndefined();
+    });
+
     it('runtime 2.3はcompleted state PostToolUseだけではfinal receiptを確定しない', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
