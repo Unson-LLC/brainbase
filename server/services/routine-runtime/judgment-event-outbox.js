@@ -499,7 +499,8 @@ export async function deliverJudgmentKnowledgeEventOutbox({
                     last_error_code: lastErrorCode
                 }
             };
-            if (lastStatus === 409 || (!isReadbackFailure && next.delivery.attempt > maxAttempts)
+            if ((!isReadbackFailure && lastStatus === 409)
+                || (!isReadbackFailure && next.delivery.attempt > maxAttempts)
                 || (isReadbackFailure && next.delivery.readback_attempt > maxAttempts)) {
                 atomicWrite(target, next);
                 moveToDeadLetter(target, file);
