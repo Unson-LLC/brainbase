@@ -628,7 +628,7 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
-    it('複数organizationに所属するprojectless Personを保守Snapshotでも抑止する', async () => {
+    it('複数organization所属でも対象organizationに可視なmember_ofがあれば保守Snapshotで解決する', async () => {
         const isolated = await createScopedDatabase('gm_multi_org');
         try {
             await assertRlsEnforcedConnection(isolated.pool);
@@ -661,14 +661,17 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
             });
             const isolatedService = new GraphMaintenanceService({ infoSSOTService: isolatedInfoSSOT });
             const snapshot = await isolatedService.exportSnapshot(access, { projectCode: 'brainbase' });
-            expect(snapshot.edges).not.toEqual(expect.arrayContaining([
-                expect.objectContaining({ id: 'edge_multi_org_person' })
+            expect(snapshot.edges).toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: 'edge_multi_org_person' }),
+                expect.objectContaining({ id: 'membership_multi_org_brainbase' })
             ]));
-            expect(JSON.stringify(snapshot)).not.toContain('person_multi_org');
-            expect(snapshot.suppression_summary).toEqual({
-                edge_count: 2,
-                reasons: { unresolved_or_inaccessible_endpoint: 2 }
-            });
+            expect(snapshot.external_entities).toEqual(expect.arrayContaining([
+                expect.objectContaining({
+                    id: 'person_multi_org', project_code: 'brainbase',
+                    reference_scope: 'same_organization'
+                })
+            ]));
+            expect(snapshot).not.toHaveProperty('suppression_summary');
         } finally {
             await dropScopedDatabase(isolated);
         }
@@ -750,7 +753,7 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
-    it('RLSで不可視な別organization member_ofが混在するprojectless Personを保守Snapshotでも抑止する', async () => {
+    it('別organizationの不可視member_ofを漏らさず対象organizationの可視member_ofだけで解決する', async () => {
         const isolated = await createScopedDatabase('gm_mixed_visibility');
         try {
             await assertRlsEnforcedConnection(isolated.pool);
@@ -808,15 +811,18 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
                 projectCode: 'brainbase'
             });
 
-            expect(snapshot.edges).not.toEqual(expect.arrayContaining([
+            expect(snapshot.edges).toEqual(expect.arrayContaining([
                 expect.objectContaining({ id: 'edge_mixed_visibility' }),
                 expect.objectContaining({ id: 'membership_mixed_visible' })
             ]));
-            expect(JSON.stringify(snapshot)).not.toContain('person_mixed_visibility');
-            expect(snapshot.suppression_summary).toEqual({
-                edge_count: 2,
-                reasons: { unresolved_or_inaccessible_endpoint: 2 }
-            });
+            expect(snapshot.external_entities).toEqual(expect.arrayContaining([
+                expect.objectContaining({
+                    id: 'person_mixed_visibility', project_code: 'brainbase',
+                    reference_scope: 'same_organization'
+                })
+            ]));
+            expect(JSON.stringify(snapshot)).not.toContain('membership_mixed_hidden');
+            expect(snapshot).not.toHaveProperty('suppression_summary');
         } finally {
             await dropScopedDatabase(isolated);
         }

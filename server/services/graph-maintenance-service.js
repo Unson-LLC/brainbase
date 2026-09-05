@@ -585,33 +585,29 @@ export class GraphMaintenanceService {
              FROM graph_entities ge
              LEFT JOIN projects p ON p.id=ge.project_id
              LEFT JOIN LATERAL (
-               SELECT MIN(membership_project.code) FILTER (
-                        WHERE membership_project.code=ANY($2::text[])
-                          AND app_role_rank($4::text) >= app_role_rank(membership.role_min)
-                          AND membership.sensitivity=ANY($3::text[])
-                      ) AS project_code,
+               SELECT MIN(membership_project.code) AS project_code,
                       MIN(membership_project.organization_id) AS organization_id
                FROM graph_edges membership
                JOIN projects membership_project ON membership_project.id=membership.project_id
                WHERE ge.project_id IS NULL AND ge.entity_type='person'
                  AND membership.from_id=ge.id AND membership.rel_type='member_of'
                  AND membership.lifecycle_status='active'
-               HAVING COUNT(DISTINCT membership_project.organization_id)=1
-                  AND COUNT(*) FILTER (
-                        WHERE membership_project.code=ANY($2::text[])
-                          AND app_role_rank($4::text) >= app_role_rank(membership.role_min)
-                          AND membership.sensitivity=ANY($3::text[])
-                      ) > 0
+                 AND membership_project.code=ANY($2::text[])
+                 AND membership_project.organization_id=$6
+                 AND app_role_rank($4::text) >= app_role_rank(membership.role_min)
+                 AND membership.sensitivity=ANY($3::text[])
+               HAVING COUNT(*) > 0
              ) membership_scope ON TRUE
              WHERE ge.id=ANY($1::text[])
                AND COALESCE(p.code, membership_scope.project_code)=ANY($2::text[])
                AND COALESCE(p.organization_id, membership_scope.organization_id) IS NOT NULL
-               AND app_graph_entity_organization_id(ge.id)=COALESCE(p.organization_id, membership_scope.organization_id)
+               AND (ge.project_id IS NOT NULL
+                    OR (ge.entity_type='person' AND membership_scope.organization_id=$6))
                AND (ge.id <> ALL($5::text[])
                     OR (ge.entity_type='product' AND ge.lifecycle_status='active'))
              ORDER BY ge.id${suffix}`,
             [externalEntityIds(image), codes, access.clearance || ['internal'], access.role,
-                crossTenantExpected.map((entity) => entity.id)]
+                crossTenantExpected.map((entity) => entity.id), access.organizationId || access.tenantId]
         );
         if (rows.length !== expected.length) throw new Error('Decision subject target is missing or inaccessible');
         const sourceOrganizationId = access.organizationId || access.tenantId;
@@ -679,30 +675,24 @@ export class GraphMaintenanceService {
              FROM graph_entities ge
              LEFT JOIN projects p ON p.id=ge.project_id
              LEFT JOIN LATERAL (
-               SELECT MIN(membership_project.code) FILTER (
-                        WHERE membership_project.code=ANY($3::text[])
-                          AND membership_project.organization_id=$2
-                          AND app_role_rank($5::text) >= app_role_rank(membership.role_min)
-                          AND membership.sensitivity=ANY($4::text[])
-                      ) AS project_code,
+               SELECT MIN(membership_project.code) AS project_code,
                       MIN(membership_project.organization_id) AS organization_id
                FROM graph_edges membership
                JOIN projects membership_project ON membership_project.id=membership.project_id
                WHERE ge.project_id IS NULL AND ge.entity_type='person'
                  AND membership.from_id=ge.id AND membership.rel_type='member_of'
                  AND membership.lifecycle_status='active'
-               HAVING COUNT(DISTINCT membership_project.organization_id)=1
-                  AND COUNT(*) FILTER (
-                        WHERE membership_project.code=ANY($3::text[])
-                          AND membership_project.organization_id=$2
-                          AND app_role_rank($5::text) >= app_role_rank(membership.role_min)
-                          AND membership.sensitivity=ANY($4::text[])
-                      ) > 0
+                 AND membership_project.code=ANY($3::text[])
+                 AND membership_project.organization_id=$2
+                 AND app_role_rank($5::text) >= app_role_rank(membership.role_min)
+                 AND membership.sensitivity=ANY($4::text[])
+               HAVING COUNT(*) > 0
              ) membership_scope ON TRUE
              WHERE ge.id=ANY($1::text[])
                AND COALESCE(p.organization_id, membership_scope.organization_id)=$2
                AND COALESCE(p.code, membership_scope.project_code)=ANY($3::text[])
-               AND app_graph_entity_organization_id(ge.id)=COALESCE(p.organization_id, membership_scope.organization_id)
+               AND (ge.project_id IS NOT NULL
+                    OR (ge.entity_type='person' AND membership_scope.organization_id=$2))
              ORDER BY ge.id${endpointLockSuffix}`,
             [unresolvedEndpointIds, organizationId, access.projectCodes, access.clearance || ['internal'], access.role]
         ) : { rows: [] };
