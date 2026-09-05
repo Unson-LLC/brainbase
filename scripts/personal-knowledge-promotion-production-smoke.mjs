@@ -222,8 +222,7 @@ export async function resolveCanonicalGraphOrganization(pool, { tenantId, tenant
                  ON tenant.tenant_id = organization.tenant_id
               WHERE organization.tenant_id = $1 AND organization.organization_id = $2
                 AND tenant.status = 'active'
-              LIMIT 1
-              FOR SHARE`,
+              LIMIT 1`,
             [resolvedTenantId, resolvedTenantOrganizationId]
         );
         const binding = result?.rows?.[0];

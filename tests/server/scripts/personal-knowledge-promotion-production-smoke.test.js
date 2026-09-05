@@ -159,10 +159,21 @@ function fakeReadbackPool(promotionRequestId = READBACK.requestId, {
     };
     return {
         async connect() {
+            let readOnly = false;
             return {
                 async query(sql, params) {
-                    if (/^BEGIN READ ONLY$/u.test(sql.trim()) || /^COMMIT$/u.test(sql.trim()) || /^ROLLBACK$/u.test(sql.trim())) {
+                    if (/^BEGIN READ ONLY$/u.test(sql.trim())) {
+                        readOnly = true;
                         return { rows: [] };
+                    }
+                    if (/^(?:COMMIT|ROLLBACK)$/u.test(sql.trim())) {
+                        readOnly = false;
+                        return { rows: [] };
+                    }
+                    if (readOnly && /\bFOR SHARE\b/iu.test(sql)) {
+                        throw Object.assign(new Error('cannot execute SELECT FOR SHARE in a read-only transaction'), {
+                            code: '25006'
+                        });
                     }
                     if (sql.includes('set_config')) return { rows: [{ set_config: params?.[1] ?? null }] };
                     return query(sql);
@@ -372,10 +383,21 @@ function runnerReadbackPool(parsed, {
     };
     return {
         async connect() {
+            let readOnly = false;
             return {
                 async query(sql, params) {
-                    if (/^BEGIN READ ONLY$/u.test(sql.trim()) || /^COMMIT$/u.test(sql.trim()) || /^ROLLBACK$/u.test(sql.trim())) {
+                    if (/^BEGIN READ ONLY$/u.test(sql.trim())) {
+                        readOnly = true;
                         return { rows: [] };
+                    }
+                    if (/^(?:COMMIT|ROLLBACK)$/u.test(sql.trim())) {
+                        readOnly = false;
+                        return { rows: [] };
+                    }
+                    if (readOnly && /\bFOR SHARE\b/iu.test(sql)) {
+                        throw Object.assign(new Error('cannot execute SELECT FOR SHARE in a read-only transaction'), {
+                            code: '25006'
+                        });
                     }
                     if (sql.includes('set_config')) return { rows: [{ set_config: params?.[1] ?? null }] };
                     return query(sql);
