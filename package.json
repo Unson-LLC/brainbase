@@ -80,6 +80,7 @@
     "migrate:legacy-project-registry": "node scripts/migrate-legacy-project-registry.js",
     "provision:tenant": "node scripts/provision-tenant.js",
     "provision:tenant-project-access": "node scripts/provision-tenant-project-access.js",
+    "provision:human-action-authority": "node scripts/provision-human-action-authority.js",
     "canonical-task:readiness": "node scripts/set-canonical-task-readiness.js",
     "canonical-task:recover-writer": "node scripts/recover-canonical-task-writer.js",
     "canonical-task:check-postgres-concurrency": "node scripts/check-canonical-task-postgres-concurrency.js",

@@ -1,0 +1,45 @@
+{
+  "version": "human-company-action-authority.v1",
+  "tenant_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+  "organization_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+  "project": {
+    "project_id": "prj_01KGCS8CAJKKDWACPNK1E5WX8H",
+    "project_code": "brainbase"
+  },
+  "transport": {
+    "provider": "slack",
+    "workspace_id": "T0882T8N9UH",
+    "app_id": "A0BPM2J33SN"
+  },
+  "humans": [
+    {
+      "person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+      "slack_user_id": "U088D1HBY6L",
+      "membership_id": "membership:unson-business:U088D1HBY6L",
+      "membership_revision": "1",
+      "identity_id": "human_identity_1e27b72ca1ed8efa5a5d855dccbe8a18",
+      "identity_revision": "1",
+      "placement_id": "unson-sato",
+      "bindings": [
+        {
+          "resource_ref": "project:prj_01KGCS8CAJKKDWACPNK1E5WX8H",
+          "capability_id": "runtime.execute",
+          "decision": "auto",
+          "allowed_effects": [
+            "external_side_effect"
+          ],
+          "responsible_person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+          "accountable_person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+          "approver_person_id": null,
+          "delegated_by_person_id": null,
+          "resource_revision": "1",
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "stop_conditions": [],
+          "valid_from": "2026-09-05T00:00:00.000Z",
+          "valid_until": null
+        }
+      ]
+    }
+  ]
+}

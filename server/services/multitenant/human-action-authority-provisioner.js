@@ -88,6 +88,26 @@ function revision(value, field, { positive = false } = {}) {
     return value;
 }
 
+function safeRevisionNumber(value, field) {
+    const normalized = String(value);
+    if (!REVISION.test(normalized)) {
+        fail('AUTHORITY_REVISION_INVALID', `${field} is invalid`);
+    }
+    const parsed = Number(normalized);
+    if (!Number.isSafeInteger(parsed)) {
+        fail('AUTHORITY_REVISION_INVALID', `${field} exceeds the safe integer range`);
+    }
+    return parsed;
+}
+
+function incrementRevision(value, field) {
+    const parsed = safeRevisionNumber(value, field);
+    if (parsed === Number.MAX_SAFE_INTEGER) {
+        fail('AUTHORITY_REVISION_INVALID', `${field} cannot be incremented safely`);
+    }
+    return parsed + 1;
+}
+
 function timestamp(value, field, { nullable = false } = {}) {
     if (nullable && value == null) return null;
     if (typeof value !== 'string' || !RFC3339_UTC.test(value) || !Number.isFinite(Date.parse(value))) {
@@ -401,7 +421,7 @@ async function readMaximumBindingRevision(client, manifest, human, binding) {
         [manifest.tenant_id, human.membership_id, manifest.organization_id,
             manifest.project.project_id, binding.resource_ref, binding.capability_id]),
     'AUTHORITY_REVISION_READ_FAILED', 'Authority revision could not be read');
-    return Number(row.max_revision);
+    return safeRevisionNumber(row.max_revision, 'company_authority_bindings.binding_revision');
 }
 
 function desiredBinding(manifest, human, binding, bindingRevision, bindingId = null) {
@@ -436,13 +456,19 @@ async function prepareBinding(client, manifest, human, binding, tenantRevision, 
     if (active.length > 1) fail('HUMAN_AUTHORITY_AMBIGUOUS', 'Multiple active human authority bindings exist');
     if (active.length === 1) {
         const existing = bindingShape(active[0]);
-        const expected = desiredBinding(manifest, human, binding, Number(existing.binding_revision), existing.binding_id);
+        const existingRevision = safeRevisionNumber(
+            existing.binding_revision, 'company_authority_bindings.binding_revision'
+        );
+        const expected = desiredBinding(manifest, human, binding, existingRevision, existing.binding_id);
         if (!same(existing, expected)) fail('HUMAN_AUTHORITY_CONFLICT', 'Existing human authority differs from desired state');
         plan.push({ operation: 'noop', entity: 'company_authority_binding', id: existing.binding_id,
             person_id: human.person_id, capability_id: binding.capability_id, resource_ref: binding.resource_ref });
         return;
     }
-    const nextRevision = await readMaximumBindingRevision(client, manifest, human, binding) + 1;
+    const nextRevision = incrementRevision(
+        await readMaximumBindingRevision(client, manifest, human, binding),
+        'company_authority_bindings.binding_revision'
+    );
     const desired = desiredBinding(manifest, human, binding, nextRevision);
     await client.query(
         `INSERT INTO company_authority_bindings (
@@ -475,7 +501,10 @@ async function readHumanSnapshot(client, manifest, human) {
         const active = await readActiveBindings(client, manifest, human, binding);
         if (active.length !== 1) fail('READBACK_FAILED', 'Human authority readback is incomplete or ambiguous');
         const actual = bindingShape(active[0]);
-        const expected = desiredBinding(manifest, human, binding, Number(actual.binding_revision), actual.binding_id);
+        const actualRevision = safeRevisionNumber(
+            actual.binding_revision, 'company_authority_bindings.binding_revision'
+        );
+        const expected = desiredBinding(manifest, human, binding, actualRevision, actual.binding_id);
         if (!same(actual, expected)) fail('READBACK_FAILED', 'Human authority readback differs from declared state');
         bindings.push(actual);
     }
