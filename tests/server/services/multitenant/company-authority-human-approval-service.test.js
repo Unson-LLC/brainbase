@@ -47,11 +47,11 @@ function authorityDecision(input, overrides = {}) {
         binding_id: 'binding-task-read',
         binding_revision: '4',
         capability_id: input.capability_id,
-        decision: 'auto',
+        decision: 'approval',
         allowed_effects: [input.desired_effect],
         responsible_person_id: 'person-umeda',
         accountable_person_id: 'person-sato',
-        approver_person_id: null,
+        approver_person_id: 'person-approver',
         delegated_by_person_id: null,
         policy_revision: '8',
         raci_revision: '5',
@@ -216,6 +216,39 @@ describe('CompanyAuthorityHumanApprovalService', () => {
             actor: { person_id: 'person-approver' }
         })).rejects.toMatchObject({ code: 'company_authority_human_approval_replay' });
         expect(producerResolve).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+        ['decision=auto', { decision: 'auto', approver_person_id: null }],
+        ['accountable不在', { accountable_person_id: null }]
+    ])('rejects a non-human or ownerless original authority context: %s', async (_label, authorityOverrides) => {
+        const authorityRepo = authorityRepository();
+        authorityRepo.resolveCanonicalAuthority.mockImplementation(async (request) =>
+            authorityDecision(request, authorityOverrides));
+        const harness = createHarness({ authorityRepo });
+
+        await expect(createBoundStep(harness, observed())).rejects.toMatchObject({
+            code: 'company_authority_human_approval_invalid',
+            statusCode: 422
+        });
+        expect(harness.repository.listCompanyAuthorityApprovalReceipts()).toHaveLength(0);
+    });
+
+    it('rejects a fresh authority context that no longer requires human approval', async () => {
+        const harness = createHarness();
+        const input = observed();
+        const step = await createBoundStep(harness, input);
+        harness.authorityRepo.resolveCanonicalAuthority.mockImplementationOnce(async (request) =>
+            authorityDecision(request, { decision: 'auto', approver_person_id: null }));
+
+        await expect(harness.service.resolve({
+            step,
+            input,
+            actor: { person_id: 'person-approver' }
+        })).rejects.toMatchObject({
+            code: 'company_authority_human_approval_fresh_resolve_failed'
+        });
+        expect(harness.repository.listCompanyAuthorityApprovalReceipts()).toHaveLength(0);
     });
 
     it('元のAuthority TTLを超えたhuman delay後もfresh resolveで承認できる', async () => {
