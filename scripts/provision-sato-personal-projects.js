@@ -345,6 +345,8 @@ export async function runProvisionSatoPersonal({
     const client = await activePool.connect();
     try {
         await client.query('BEGIN');
+        await client.query("SELECT set_config('brainbase.tenant_id', $1, true)",
+            [PERSONAL_PROJECTS_TARGET.tenant_id]);
         const context = await preflight(client);
         if (args.mode !== 'check') await applyTarget(client, context, args.actorId);
         const result = args.mode === 'check'
@@ -355,7 +357,15 @@ export async function runProvisionSatoPersonal({
         if (args.mode !== 'apply') return { ok: true, mode: args.mode, persisted: false, ...result };
         const postCommitClient = await activePool.connect();
         try {
-            return { ok: true, mode: 'apply', persisted: true, post_commit_readback: await readback(postCommitClient) };
+            await postCommitClient.query('BEGIN');
+            await postCommitClient.query("SELECT set_config('brainbase.tenant_id', $1, true)",
+                [PERSONAL_PROJECTS_TARGET.tenant_id]);
+            const postCommitReadback = await readback(postCommitClient);
+            await postCommitClient.query('COMMIT');
+            return { ok: true, mode: 'apply', persisted: true, post_commit_readback: postCommitReadback };
+        } catch (error) {
+            try { await postCommitClient.query('ROLLBACK'); } catch { /* preserve the primary error */ }
+            throw error;
         } finally {
             postCommitClient.release();
         }
