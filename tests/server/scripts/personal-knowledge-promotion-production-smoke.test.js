@@ -519,11 +519,15 @@ describe('Personal KG production smoke evidence helpers', () => {
     it('rejects a production DB readback when incident Graph edge count differs from the normalized payload', () => {
         const parsed = {
             eventId: 'pke_smoke', requestId: 'kpr_smoke', entityId: 'decision_smoke',
+            event: { body: 'synthetic smoke body', body_hash: 'sha256:synthetic' },
             normalizedPayload: { edges: [] }, normalizedPayloadHash: 'sha256:normalized'
         };
         const state = {
             db: {
-                event: { event_id: parsed.eventId, body_present: true },
+                event: {
+                    event_id: parsed.eventId, body_present: true,
+                    body_hash: parsed.event.body_hash, body_length: parsed.event.body.length
+                },
                 promotion: {
                     request_id: parsed.requestId, status: 'org_accepted', graph_entity_id: parsed.entityId,
                     organization_event_id: 'kev_smoke', personal_event_id: parsed.eventId,
@@ -561,6 +565,10 @@ describe('Personal KG production smoke evidence helpers', () => {
             eventId: READBACK.eventId,
             requestId: READBACK.requestId,
             entityId: READBACK.entityId,
+            event: {
+                body: READBACK.body,
+                body_hash: 'sha256:synthetic'
+            },
             normalizedPayload: { edges: [] }, normalizedPayloadHash: 'sha256:normalized'
         };
         const state = await readbackState();
@@ -569,6 +577,12 @@ describe('Personal KG production smoke evidence helpers', () => {
         expect(state.db.event).not.toHaveProperty('body');
         expect(state.db.organization_event.personal_body_found_in_payload).toBe(false);
         expect(() => assertAcceptedState(state, parsed)).not.toThrow();
+
+        state.db.event.body_hash = 'sha256:other';
+        expect(() => assertAcceptedState(state, parsed)).toThrowError('db_event_body_hash_mismatch');
+        state.db.event.body_hash = parsed.event.body_hash;
+        state.db.event.body_length += 1;
+        expect(() => assertAcceptedState(state, parsed)).toThrowError('db_event_body_length_mismatch');
 
         for (const promotionRequestId of [null, 'kpr_other_readback']) {
             const invalidState = await readbackState(promotionRequestId);
