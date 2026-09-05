@@ -99,6 +99,7 @@ const REQUIRED_EXISTING_TABLES = [
     'workspace_connections',
     'workspace_connection_revisions',
     'credential_broker_refs',
+    'fixed_mana_slack_connection_adoption_orphans',
     'tenant_contract_revisions'
 ];
 const REQUIRED_EXISTING_COLUMNS = Object.freeze({
