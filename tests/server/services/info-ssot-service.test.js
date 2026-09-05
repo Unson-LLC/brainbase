@@ -933,6 +933,56 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(relTypes).toContain('member_of');
     });
 
+    it('ensurePerson_personId指定時にGraphの既存person IDだけを返す', async () => {
+        const { service, client } = buildService();
+        const upsertSpy = vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
+
+        client.query.mockImplementation(async (text, params) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes('WHERE id = $1')) {
+                expect(params).toEqual(['per_sato']);
+                return { rows: [{ id: 'per_sato', entity_type: 'person' }] };
+            }
+            return { rows: [] };
+        });
+
+        const id = await service.ensurePerson(client, { personId: 'per_sato' });
+
+        expect(id).toBe('per_sato');
+        expect(upsertSpy).not.toHaveBeenCalled();
+    });
+
+    it('ensurePerson_personId指定時にGraph上の別entity typeをpersonとして扱わない', async () => {
+        const { service, client } = buildService();
+        client.query.mockImplementation(async (text) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes('WHERE id = $1')) {
+                return { rows: [{ id: 'per_conflict', entity_type: 'org' }] };
+            }
+            return { rows: [] };
+        });
+
+        await expect(service.ensurePerson(client, { personId: 'per_conflict' }))
+            .rejects.toThrow('Graph entity is not a person: per_conflict');
+    });
+
+    it('ensurePerson_personId指定時にlegacy peopleにだけ存在するIDも自動復元しない', async () => {
+        const { service, client } = buildService();
+        client.query.mockImplementation(async (text) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes('WHERE id = $1')) {
+                return { rows: [] };
+            }
+            if (sql.includes('FROM people') && sql.includes('WHERE id = $1')) {
+                return { rows: [{ id: 'per_legacy', name: '旧人物' }] };
+            }
+            return { rows: [] };
+        });
+
+        await expect(service.ensurePerson(client, { personId: 'per_legacy' }))
+            .rejects.toThrow('Unknown Graph personId: per_legacy');
+    });
+
     it('ensurePerson_既存personが見つかった場合_payloadを上書きしない', async () => {
         const { service, client } = buildService();
 

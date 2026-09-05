@@ -1426,8 +1426,19 @@ export class InfoSSOTService {
     }
 
     async ensurePerson(client, { personId, personName, aliases = [], email = '' }) {
-        if (personId) {
-            return personId;
+        const canonicalPersonId = String(personId || '').trim();
+        if (canonicalPersonId) {
+            const { rows: graphRows } = await client.query(
+                'SELECT id, entity_type FROM graph_entities WHERE id = $1 LIMIT 1',
+                [canonicalPersonId]
+            );
+            if (graphRows.length > 0) {
+                if (graphRows[0].entity_type !== 'person') {
+                    throw new Error(`Graph entity is not a person: ${canonicalPersonId}`);
+                }
+                return canonicalPersonId;
+            }
+            throw new Error(`Unknown Graph personId: ${canonicalPersonId}`);
         }
         if (!personName || typeof personName !== 'string') {
             throw new Error('personId or personName is required');
