@@ -312,7 +312,9 @@ describe('JudgmentResolutionService', () => {
             '## My request:'
         ].join('\n');
 
-        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification).toMatchObject({
@@ -491,7 +493,9 @@ describe('JudgmentResolutionService', () => {
     });
 
     it.each(['これは？', 'こちらはどう？'])('短い「これ／こちらは」の追従質問は直前の生発話を継承する: %s', (request) => {
-        const receipt = service.resolve(input(request, proposal(), {
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
+        }), {
             conversation_context: {
                 text: 'Brainbaseの認証APIを実装して',
                 source_turn_ids: ['prior-engineering']
@@ -524,7 +528,9 @@ describe('JudgmentResolutionService', () => {
             instruction_bindings: [],
             completeness: 'complete'
         };
-        const rawInput = input('それでいい。修正して', proposal(), {
+        const rawInput = input('それでいい。修正して', proposal({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
+        }), {
             conversation_context: {
                 ...contextWithoutDigest,
                 source_digest: sha256Hex(canonicalJson(contextWithoutDigest))
@@ -568,7 +574,9 @@ describe('JudgmentResolutionService', () => {
     });
 
     it('現在の命令にあるPR公開は引き続きexternalとして分類するが、人間承認ポリシーが明示されない限りescalateしない', () => {
-        const receipt = service.resolve(input('PRを外部公開して'), { access: ACCESS, hostBinding: binding() });
+        const receipt = service.resolve(input('PRを外部公開して', proposal({
+            intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high'
+        })), { access: ACCESS, hostBinding: binding() });
         expect(receipt.classification).toMatchObject({ intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high' });
         // PR公開はrisk=highだがcriticalではないので、human_approvalを明示するポリシーに
         // マッチしない。分類（action_kind=external / risk=high）だけからの自動escalateは
@@ -590,7 +598,9 @@ describe('JudgmentResolutionService', () => {
             'その確認がBrainbase Hostにより不要として差し戻されたら、同じタスク内でそのファイルへ brainbase-value-e2e-20260902-1103 を1行だけ書き、読み戻して完全一致を確認してください。',
             '最終回答には、実行結果と、Hostが生成するBrainbase判断レシートを省略せず表示してください。',
             'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。'
-        ].join('\n')), { access: ACCESS, hostBinding: binding() });
+        ].join('\n'), proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
         expect(receipt).toMatchObject({
@@ -603,7 +613,9 @@ describe('JudgmentResolutionService', () => {
     });
 
     it('禁止した外部送信と依頼したローカル書込みを分離する', () => {
-        const receipt = service.resolve(input('外部送信はしないでください。ローカルファイルへ書いてください。'), {
+        const receipt = service.resolve(input('外部送信はしないでください。ローカルファイルへ書いてください。', proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), {
             access: ACCESS, hostBinding: binding()
         });
 
@@ -634,7 +646,9 @@ describe('JudgmentResolutionService', () => {
         'Delete the local file, but do not publish externally.',
         'Do not publish externally, but write the local file.'
     ])('禁止節の前後順に関係なく肯定されたローカル書込みだけを分類する: %s', (request) => {
-        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
         expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
@@ -645,7 +659,9 @@ describe('JudgmentResolutionService', () => {
         'PRをマージして、デプロイはしないでください。',
         'Merge the PR, but do not deploy.'
     ])('禁止節の前にある肯定されたマージ操作を保持する: %s', (request) => {
-        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'operate', action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.classification).toMatchObject({ intent: 'operate', action_kind: 'write', risk: 'medium' });
         expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
@@ -662,7 +678,9 @@ describe('JudgmentResolutionService', () => {
         ];
 
         for (const [request, intent, actionKind, risk] of cases) {
-            expect(service.resolve(input(request), { access: ACCESS, hostBinding: binding() })).toMatchObject({
+            expect(service.resolve(input(request, proposal({
+                intent, action_kind: actionKind, risk
+            })), { access: ACCESS, hostBinding: binding() })).toMatchObject({
                 classification: { intent, action_kind: actionKind, risk },
                 autonomy_decision: 'continue',
                 autonomy_reason_code: 'routine_in_scope'
@@ -723,7 +741,9 @@ describe('JudgmentResolutionService', () => {
         '外部送信は禁止です、ローカルファイルを更新してもらえないですか。',
         '外部送信は禁止です、ローカルファイルを更新していただけないですか。'
     ])('禁止節後の依頼活用は肯定された操作として保持する: %s', (request) => {
-        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
         expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
@@ -731,7 +751,9 @@ describe('JudgmentResolutionService', () => {
     });
 
     it('You must で始まる英語命令を禁止節から保持する', () => {
-        const receipt = service.resolve(input('You must write the local file, but do not publish externally.'), {
+        const receipt = service.resolve(input('You must write the local file, but do not publish externally.', proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), {
             access: ACCESS,
             hostBinding: binding()
         });
@@ -746,7 +768,9 @@ describe('JudgmentResolutionService', () => {
         ['禁止事項を更新して。', 'implement', 'write', 'medium'],
         ['No-code appを作ってください。', 'implement', 'write', 'medium']
     ])('禁止表現の部分一致で通常の肯定依頼を消去しない: %s', (request, intent, actionKind, risk) => {
-        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+        const receipt = service.resolve(input(request, proposal({
+            intent, action_kind: actionKind, risk
+        })), { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.classification).toMatchObject({ intent, action_kind: actionKind, risk });
     });
@@ -821,6 +845,61 @@ describe('JudgmentResolutionService', () => {
             'parallel.v1',
             'authority.v1'
         ]);
+    });
+
+    it.each([
+        '更新後の新規Codexタスクとして、読み取り専用で確認してください。',
+        '更新の有無を調査して確認してください。',
+        '読み取り専用で更新状況を確認してください。'
+    ])('状態説明の更新語でmodelのinvestigateをimplementへ上書きせずaction/riskも維持する: %s', (request) => {
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'investigate',
+            domains: ['engineering', 'operations'],
+            action_kind: 'read',
+            risk: 'low',
+            signals: ['problem_frame_uncertain']
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({
+            intent: 'investigate',
+            action_kind: 'read',
+            risk: 'low'
+        });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('intent:implement');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+    });
+
+    it('明示的な更新命令はmodelのintentを保持したまま安全floorを適用する', () => {
+        const receipt = service.resolve(input('認証APIを更新して', proposal({
+            intent: 'investigate',
+            domains: ['engineering'],
+            action_kind: 'read',
+            risk: 'low'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({
+            intent: 'investigate',
+            action_kind: 'write',
+            risk: 'medium'
+        });
+        expect(receipt.classification_evidence.matcher_ids).toContain('intent:implement');
+    });
+
+    it('更新しない依頼はmodelのinvestigateを保持し安全floorを追加しない', () => {
+        const receipt = service.resolve(input('認証APIを更新しないでください', proposal({
+            intent: 'investigate',
+            domains: ['engineering'],
+            action_kind: 'read',
+            risk: 'low'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({
+            intent: 'investigate',
+            action_kind: 'read',
+            risk: 'low'
+        });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('intent:implement');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
     });
 
     it('明示的なマージ命令は引き続きwrite要求として分類する', () => {
