@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    createInitialSlackInstallationAuthorization,
     HumanCompanyAuthorityProvisioningError,
     normalizeHumanCompanyAuthorityManifest,
-    provisionHumanCompanyAuthority
+    normalizeInitialTenantAdminManifest,
+    provisionHumanCompanyAuthority,
+    provisionInitialTenantAdmin,
+    readbackInitialTenantAdmin
 } from '../../../../server/services/multitenant/human-company-authority-provisioner.js';
 import {
     parseProvisionHumanAuthorityArgs,
@@ -163,6 +167,99 @@ function fakeClient(sharedState = null) {
 }
 
 describe('human company authority provisioning', () => {
+    it('accepts exactly one initial tenant admin and rejects broader bootstrap scope', () => {
+        const adminOnly = { ...manifest(), humans: [manifest().humans[0]] };
+        expect(normalizeInitialTenantAdminManifest(adminOnly).humans).toHaveLength(1);
+        expect(() => normalizeInitialTenantAdminManifest(manifest()))
+            .toThrowError(expect.objectContaining({ code: 'INITIAL_TENANT_ADMIN_REQUIRED' }));
+        expect(() => normalizeInitialTenantAdminManifest({ ...manifest(), humans: [manifest().humans[1]] }))
+            .toThrowError(expect.objectContaining({ code: 'INITIAL_TENANT_ADMIN_REQUIRED' }));
+        expect(() => normalizeInitialTenantAdminManifest({
+            ...manifest(),
+            humans: [{ ...manifest().humans[0], login_role: 'member' }]
+        })).toThrowError(expect.objectContaining({ code: 'INITIAL_TENANT_ADMIN_REQUIRED' }));
+    });
+
+    it('bootstraps only the initial admin states without a workspace connection or external identity', async () => {
+        const client = fakeClient();
+        client.state.workspaceConnections = [];
+        const adminOnly = { ...manifest(), humans: [manifest().humans[0]] };
+        const result = await provisionInitialTenantAdmin({
+            client, manifest: adminOnly, actorId: 'operator-keigo', commit: true
+        });
+        expect(result.persisted).toBe(true);
+        expect(result.plan.map((entry) => entry.entity)).toEqual([
+            'tenant_organization', 'person', 'auth_grant', 'tenant_membership'
+        ]);
+        expect(result.snapshot_after.human.external_identity).toBeUndefined();
+        expect(client.state.memberships).toHaveLength(1);
+        expect(client.state.identities).toHaveLength(0);
+        await expect(readbackInitialTenantAdmin({ client, manifest: adminOnly })).resolves.toMatchObject({
+            human: {
+                person_id: satoPersonId,
+                membership: { principal_id: satoPersonId }
+            }
+        });
+    });
+
+    it('issues an OAuth URL only after exact initial admin readback', async () => {
+        const client = fakeClient();
+        client.state.workspaceConnections = [];
+        const adminOnly = { ...manifest(), humans: [manifest().humans[0]] };
+        await provisionInitialTenantAdmin({
+            client, manifest: adminOnly, actorId: 'operator-keigo', commit: true
+        });
+        const authorizeBinding = vi.fn(async (binding) => binding);
+        const createAuthorization = vi.fn((binding) => ({
+            authorization_url: `https://slack.example/authorize?intent=${binding.installation_intent_id}`,
+            oauth_state: 'signed-state',
+            redirect_uri: 'https://bb.example/api/v1/slack-installations:callback'
+        }));
+        const result = await createInitialSlackInstallationAuthorization({
+            client,
+            manifest: adminOnly,
+            actorId: 'operator-keigo',
+            controlPlane: { authorizeBinding },
+            oauthFlow: { createAuthorization }
+        });
+        expect(authorizeBinding).toHaveBeenCalledWith(expect.objectContaining({
+            tenant_id: tenantId,
+            app_id: 'A_TECHKNIGHT',
+            expected_workspace_id: 'T_TECHKNIGHT',
+            initiated_by_person_id: satoPersonId,
+            installation_intent_id: expect.stringMatching(/^insi_[0-9A-HJKMNP-TV-Z]{26}$/u)
+        }), { client });
+        expect(createAuthorization).toHaveBeenCalledOnce();
+        expect(client.queries.filter((query) => query.sql.includes('FROM brainbase_tenants'))
+            .some((query) => query.sql.includes('FOR SHARE'))).toBe(true);
+        expect(result).toMatchObject({
+            tenant_id: tenantId,
+            initiated_by_person_id: satoPersonId,
+            authorization_url: expect.stringContaining('https://slack.example/authorize')
+        });
+    });
+
+    it('rolls back the initial authorization transaction when OAuth URL creation fails', async () => {
+        const client = fakeClient();
+        client.state.workspaceConnections = [];
+        const adminOnly = { ...manifest(), humans: [manifest().humans[0]] };
+        await provisionInitialTenantAdmin({
+            client, manifest: adminOnly, actorId: 'operator-keigo', commit: true
+        });
+        const authorizeBinding = vi.fn(async (binding) => binding);
+
+        await expect(createInitialSlackInstallationAuthorization({
+            client,
+            manifest: adminOnly,
+            actorId: 'operator-keigo',
+            controlPlane: { authorizeBinding },
+            oauthFlow: { createAuthorization: () => { throw new Error('oauth-url-failed'); } }
+        })).rejects.toMatchObject({ code: 'UPSTREAM_UNAVAILABLE' });
+
+        expect(authorizeBinding).toHaveBeenCalledWith(expect.any(Object), { client });
+        expect(client.queries.at(-1)?.sql).toBe('ROLLBACK');
+    });
+
     it('normalizes a strict manifest and rejects unknown fields and secrets', () => {
         const normalized = normalizeHumanCompanyAuthorityManifest(manifest());
         expect(normalized.humans).toHaveLength(2);
@@ -328,9 +425,39 @@ describe('human company authority provisioning', () => {
             ['--apply', '--approve-apply', '--manifest', 'manifest.json'], {}
         )).toThrowError(expect.objectContaining({ code: 'ACTOR_REQUIRED' }));
         expect(parseProvisionHumanAuthorityArgs(
-            ['--apply', '--approve-apply', '--manifest', 'manifest.json'],
+            ['--apply', '--approve-apply', '--phase', 'bootstrap-admin', '--manifest', 'manifest.json'],
             { BRAINBASE_PROVISIONING_ACTOR: 'operator-keigo' }
-        )).toMatchObject({ mode: 'apply', actorId: 'operator-keigo' });
+        )).toMatchObject({ mode: 'apply', phase: 'bootstrap-admin', actorId: 'operator-keigo' });
+        expect(() => parseProvisionHumanAuthorityArgs(
+            ['--dry-run', '--phase', 'bootstrap-admin', '--phase', 'bootstrap-admin',
+                '--manifest', 'manifest.json'], {}
+        )).toThrowError(expect.objectContaining({ code: 'ARGUMENT_INVALID' }));
+        expect(() => parseProvisionHumanAuthorityArgs(
+            ['--apply', '--apply', '--approve-apply', '--manifest', 'manifest.json'],
+            { BRAINBASE_PROVISIONING_ACTOR: 'operator-keigo' }
+        )).toThrowError(expect.objectContaining({ code: 'ARGUMENT_INVALID' }));
+    });
+
+    it('uses bootstrap-admin provisioning and post-commit readback through the CLI phase', async () => {
+        const sharedState = fakeClient().state;
+        sharedState.workspaceConnections = [];
+        let checkoutCount = 0;
+        const pool = {
+            connect: async () => {
+                checkoutCount += 1;
+                return { ...fakeClient(sharedState), release() {} };
+            }
+        };
+        const adminOnly = { ...manifest(), humans: [manifest().humans[0]] };
+        const result = await runProvisionHumanCompanyAuthority({
+            argv: ['--apply', '--approve-apply', '--phase', 'bootstrap-admin', '--manifest', 'manifest.json'],
+            env: { BRAINBASE_PROVISIONING_ACTOR: 'operator-keigo' },
+            pool,
+            readManifest: async () => JSON.stringify(adminOnly)
+        });
+        expect(checkoutCount).toBe(2);
+        expect(result.post_commit_readback.human.person_id).toBe(satoPersonId);
+        expect(sharedState.identities).toHaveLength(0);
     });
 
     it('checks out a fresh pool client for post-commit readback', async () => {

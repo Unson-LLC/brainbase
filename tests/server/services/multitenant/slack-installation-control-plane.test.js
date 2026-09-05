@@ -93,6 +93,17 @@ describe('Slack installation control plane', () => {
         });
     });
 
+    it('persists an authorized binding through the caller transaction when supplied', async () => {
+        const { controlPlane, repository } = createControlPlane();
+        const client = { query: vi.fn() };
+
+        await expect(controlPlane.authorizeBinding(binding, { client })).resolves.toEqual(binding);
+
+        expect(repository.createSlackInstallationIntent).toHaveBeenCalledWith(
+            expect.objectContaining(binding), { client }
+        );
+    });
+
     it('exchanges, validates Slack app/workspace identity, stores opaque credentials, and registers atomically', async () => {
         const { controlPlane, repository, oauthClient, credentialStore } = createControlPlane();
 

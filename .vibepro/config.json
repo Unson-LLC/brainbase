@@ -142,8 +142,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-t0-initial-tenant-slack-oauth-bootstrap",
+        "title": "初期テナント管理者が最初のSlack接続を安全に作れる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-t0-human-tenant-access-provisioning"
+    "current_story_id": "story-t0-initial-tenant-slack-oauth-bootstrap"
   }
 }

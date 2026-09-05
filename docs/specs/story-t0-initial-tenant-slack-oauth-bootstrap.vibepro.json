@@ -1,0 +1,369 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-t0-initial-tenant-slack-oauth-bootstrap",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": [
+        "operator-approved bootstrap manifest"
+      ],
+      "resolution_point": "before initial administrator mutation and OAuth intent creation",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "bootstrap manifest",
+        "tenant membership",
+        "OAuth installation intent"
+      ],
+      "verified_surfaces": [
+        "bootstrap manifest",
+        "tenant membership",
+        "OAuth installation intent"
+      ]
+    },
+    "resources": [
+      {
+        "name": "initial administrator and Slack installation intent",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_id",
+        "partition_key": "tenant_id/workspace_id/app_id/person_id",
+        "trust_zone": "Brainbase PostgreSQL control plane",
+        "residue_policy": "retain audited tenant-bound authority records",
+        "data_owner": "Brainbase Tenant Authority",
+        "credential_scope": "tenant-bound Slack installation"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "tenant-bound Slack installation",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Tenant Authority"
+      ],
+      "residency": "Brainbase PostgreSQL and tenant credential store",
+      "migration": "no migration; create only the missing first-administrator authority records",
+      "rollback": "rollback the transaction before commit; after commit revoke the grant and membership through an audited operator action"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "tenant",
+        "tenant organization",
+        "tenant membership",
+        "Slack installation intent"
+      ],
+      "boundary_edges": [
+        "manifest to initial administrator",
+        "initial administrator to installation intent"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "scope": "focused unit and PostgreSQL integration contracts; live Slack consent remains production evidence",
+      "evidence": {
+        "propagation_surfaces": [
+          "bootstrap manifest",
+          "tenant membership",
+          "OAuth installation intent"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "initial administrator bootstrap",
+              "tenant_key_source": "manifest tenant_id",
+              "trust_zone": "Brainbase PostgreSQL",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "single tenant",
+              "tenant_key_source": "manifest tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound Slack installation",
+              "connection_mode": "managed shared control plane",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "evidence_refs": [
+          "tests/server/services/multitenant/human-company-authority-provisioner.test.js",
+          "tests/server/services/multitenant/human-company-authority-provisioner.integration.test.js"
+        ]
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "初期登録は正確に一人のtenant_adminかつceoまたはgmだけを受け付ける。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-001"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/human-company-authority-provisioner.js",
+            "anchor": "normalizeInitialTenantAdminManifest"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js",
+            "case": "accepts exactly one initial tenant admin"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/human-company-authority-provisioner.test.js",
+            "must_cover": "accepts exactly one initial tenant admin"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T03:47:20.164Z",
+      "last_revised_at": "2026-09-05T03:47:20.164Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "初期登録はorganization、person、auth grant、tenant membershipだけを作り、workspace connectionとexternal identityを作らない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-002"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/human-company-authority-provisioner.js",
+            "anchor": "provisionInitialTenantAdmin"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js",
+            "case": "bootstraps only the initial admin states"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/human-company-authority-provisioner.test.js",
+            "must_cover": "bootstraps only the initial admin states"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T03:47:20.164Z",
+      "last_revised_at": "2026-09-05T03:47:20.164Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "通常の人員登録はactive workspace connectionとexternal identityの完全なテナント束縛を引き続き要求する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/human-company-authority-provisioner.js",
+            "anchor": "provisionHumanCompanyAuthority"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js",
+            "case": "fails closed when the declared active workspace connection is missing"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T03:47:20.164Z",
+      "last_revised_at": "2026-09-05T03:47:20.164Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "OAuth URLは初期管理者の全権限状態を再読込し、共有テナントロック下で一致を確認した場合だけ発行する。OAuth intentは同じDB transactionへ保存し、URL生成失敗時はrollbackする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/human-company-authority-provisioner.js",
+            "anchor": "createInitialSlackInstallationAuthorization"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js",
+            "case": "issues an OAuth URL only after exact initial admin readback"
+          },
+          {
+            "file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js",
+            "case": "rolls back the initial authorization transaction when OAuth URL creation fails"
+          },
+          {
+            "file": "tests/server/services/multitenant/human-company-authority-provisioner.integration.test.js",
+            "case": "bootstraps an admin before the first connection, then completes the same identity after OAuth"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T03:47:20.164Z",
+      "last_revised_at": "2026-09-05T03:47:20.164Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "認可出力にOAuth state単体、secret、token、authorization code、credential materialを含めない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-005"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/create-initial-slack-installation-authorization.js",
+            "anchor": "authorization_url"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/create-initial-slack-installation-authorization.test.js",
+            "case": "returns a bounded authorization result"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T03:47:20.164Z",
+      "last_revised_at": "2026-09-05T03:47:20.164Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "applyとauthorizeは個別の明示承認と実行者を要求し、失敗したPostgreSQL clientは破棄する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "ac_id": "AC-006"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/provision-human-company-authority.js",
+            "anchor": "--approve-apply"
+          },
+          {
+            "file": "scripts/create-initial-slack-installation-authorization.js",
+            "anchor": "--approve-authorize"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/create-initial-slack-installation-authorization.test.js",
+            "case": "requires explicit authorization approval"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T03:47:20.164Z",
+      "last_revised_at": "2026-09-05T03:47:20.164Z"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-09-05T03:47:20.162Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": null
+}
