@@ -35,6 +35,8 @@ jobs:
         run: npm run typecheck
       - name: Run PostgreSQL, API, CLI, and MCP integration
         run: npm run test:integration:project-provisioning
+      - name: Run onboarding PostgreSQL RLS integration
+        run: npm run test:integration:onboarding-rls
       - name: Install Chrome for Playwright
         run: npx playwright install --with-deps chrome
       - name: Run Project Provisioning browser contract

@@ -3,13 +3,14 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { resolveCanonicalTenantIdentity } from '../../lib/canonical-tenant-identity.js';
 import { PromotionGateService } from '../candidate-store/promotion-gate-service.js';
 import { scan } from '../candidate-store/pii-scanner.js';
 
 const SOURCE_MODES = new Set(['mcp', 'drive', 'gmail', 'local_folder', 'single_document']);
 const OBSERVATION_CLASSES = new Set(['observed', 'inferred']);
 const SUBJECT_TYPES = new Set([
-    'person', 'org', 'customer', 'partner', 'contact', 'project', 'app', 'brand',
+    'person', 'org', 'customer', 'partner', 'contact', 'project', 'push_case', 'app', 'brand',
     'frame', 'decision', 'philosophy', 'glossary_term', 'story', 'raci_assignment'
 ]);
 const SHA256 = /^sha256:[a-f0-9]{64}$/;
@@ -322,7 +323,22 @@ function assertProject(actor, projectCode) {
 
 function organizationIdForContext(context) {
     const access = context?.access || {};
-    return access.organizationId || access.organization_id || access.tenantId || null;
+    const identity = resolveCanonicalTenantIdentity(access);
+    if (identity.state === 'ambiguous') {
+        throw new OnboardingRuntimeError(
+            'onboarding_tenant_identity_ambiguous',
+            'authenticated organization claims conflict',
+            403
+        );
+    }
+    if (identity.state !== 'confirmed') {
+        throw new OnboardingRuntimeError(
+            'onboarding_organization_context_required',
+            'authenticated organization is required for candidate access',
+            403
+        );
+    }
+    return identity.organizationId;
 }
 
 function assertHumanActor(actor) {
@@ -389,13 +405,10 @@ export class OnboardingRuntimeService {
     async _withCandidateAccess(context, work) {
         const organizationId = organizationIdForContext(context);
         if (typeof this.candidateRepository.transaction !== 'function') {
-            return work(this.candidateRepository);
-        }
-        if (!organizationId) {
             throw new OnboardingRuntimeError(
-                'onboarding_organization_context_required',
-                'authenticated organization is required for candidate access',
-                403
+                'onboarding_candidate_transaction_required',
+                'candidate repository transaction boundary is unavailable',
+                503
             );
         }
         const access = {
@@ -415,6 +428,21 @@ export class OnboardingRuntimeService {
         if (context.personId !== run.owner_person_id) {
             throw new OnboardingRuntimeError('onboarding_owner_denied', 'onboarding run is visible only to its owner', 403);
         }
+        const organizationId = organizationIdForContext(context);
+        if (!run.organization_id) {
+            throw new OnboardingRuntimeError(
+                'onboarding_run_organization_unbound',
+                'legacy onboarding run is not bound to an organization',
+                403
+            );
+        }
+        if (organizationId !== run.organization_id) {
+            throw new OnboardingRuntimeError(
+                'onboarding_organization_denied',
+                'onboarding run is visible only within its organization',
+                403
+            );
+        }
         return run;
     }
 
@@ -430,6 +458,7 @@ export class OnboardingRuntimeService {
         assertNoSecretOrRaw(input);
         const projectCode = requireString(input?.project_code, 'project_code', 200);
         const context = assertProject(actor, projectCode);
+        const organizationId = organizationIdForContext(context);
         const valueTarget = requireString(input?.value_target, 'value_target', 500);
         if (!SOURCE_MODES.has(input?.source_mode)) throw new OnboardingRuntimeError('input_invalid', 'unsupported source_mode');
         const startedAt = iso(this.now);
@@ -437,6 +466,7 @@ export class OnboardingRuntimeService {
             id: this.idFactory(),
             project_code: projectCode,
             owner_person_id: context.personId,
+            organization_id: organizationId,
             value_target: valueTarget,
             source_mode: input.source_mode,
             status: 'collecting',

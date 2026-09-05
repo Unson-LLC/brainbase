@@ -6,13 +6,18 @@ function normalizedClaim(value) {
 // Choosing either with `||` would turn contradictory authentication claims
 // into an authorization bypass.
 export function resolveCanonicalTenantIdentity(access = {}) {
-    const organizationId = normalizedClaim(access?.organizationId ?? access?.organization_id);
-    const tenantId = normalizedClaim(access?.tenantId ?? access?.tenant_id);
-    if (!organizationId && !tenantId) return { state: 'missing', organizationId: null };
-    if (organizationId && tenantId && organizationId !== tenantId) {
+    const claims = [
+        access?.organizationId,
+        access?.organization_id,
+        access?.tenantId,
+        access?.tenant_id
+    ].map(normalizedClaim).filter(Boolean);
+    if (claims.length === 0) return { state: 'missing', organizationId: null };
+    const identities = new Set(claims);
+    if (identities.size !== 1) {
         return { state: 'ambiguous', organizationId: null };
     }
-    return { state: 'confirmed', organizationId: organizationId || tenantId };
+    return { state: 'confirmed', organizationId: claims[0] };
 }
 
 export class CanonicalTenantIdentityError extends Error {

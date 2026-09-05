@@ -1,4 +1,5 @@
 // @ts-check
+import { requireCanonicalTenantIdentity } from '../../lib/canonical-tenant-identity.js';
 /**
  * Candidate Repository (in-memory, swappable to DB-backed later)
  * SPEC-candidate-store-mvp Contract-2
@@ -123,12 +124,12 @@ function normalizeAudit(row) {
 
 function requireCandidateAccess(access) {
     const personId = access?.personId || access?.person_id;
-    const organizationId = access?.organizationId || access?.organization_id || access?.tenantId;
-    if (!personId || !organizationId) {
+    if (!personId) {
         const error = new Error('candidate repository requires person and organization access context');
         error.code = 'candidate_access_context_required';
         throw error;
     }
+    const organizationId = requireCanonicalTenantIdentity(access);
     return { personId, organizationId };
 }
 
@@ -243,6 +244,11 @@ export class InMemoryCandidateRepository {
         this.auditEvents = [];
         /** @type {Array<any>} */
         this.scanBlocks = [];
+    }
+
+    async transaction(work, { access } = {}) {
+        requireCandidateAccess(access);
+        return work(this);
     }
 
     create(input) {
