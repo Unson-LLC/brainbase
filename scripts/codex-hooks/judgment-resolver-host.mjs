@@ -2004,6 +2004,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         const turnResolutionMessage = kind === 'turn_resolution' && responseSuccess && turnResolution
             ? [
                 `🧠 判断契約を確定しました。最終回答の先頭にHost監査行をそのまま表示してください（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）。正確な全行が不明な場合は、最初のStopが一度だけ完全な監査ブロックを返します。`,
+                'この確定済み判断行が、直前のStop修復指示に含まれた未分類の判断行を置き換えます。古い判断行とclassification_missing確認質問は最終回答へ残さないでください。',
                 ...turnContractExecutionInstructions(turnResolution, env, { hostAutonomy: episode.host_autonomy ?? null })
             ].join('\n')
             : null;
@@ -2410,10 +2411,35 @@ function requestsUserInput(body) {
     return relevant.some((line) => (
         /(?:どちら|どれ|どうしますか|何を選びますか|よろしいですか|進めてもいいですか|進めてもよいですか)[^。]*[?？]?$/u.test(line)
         || /(?:か、|か，)[^?？]*か[?？]$/u.test(line)
-        || /(?:(?:確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え)(?:しますか|しましょうか)|(?:進め|続け)ますか)[?？]?$/u.test(line)
-        || /(?:登録|作成|確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え)して(?:も)?(?:よい|いい)ですか[?？]?$/u.test(line)
+        || /(?:(?:確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え|確定)(?:しますか|しましょうか)|(?:進め|続け)ますか)[?？]?$/u.test(line)
+        || /(?:登録|作成|確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え|確定)して(?:も)?(?:よい|いい)ですか[?？]?$/u.test(line)
         || /(?:教えて|選んで|決めて|判断して|承認して|確認して|入力して|提示して|付与して)(?:ください|もらえますか|いただけますか)[。！!？?]?$/u.test(line)
     ));
+}
+
+function completedContinueInterruption(contract, markerReason, asks, question) {
+    if (contract.decision !== 'continue') return null;
+    if (markerReason) {
+        if (!asks) {
+            return { status: null, violation: '許可された実行時確認理由と、必要な入力要求を正確な確認行で示す' };
+        }
+        if (contract.allowedRuntimeReasons.includes(markerReason)) {
+            return { status: 'runtime_escalated', violation: null };
+        }
+        return {
+            status: null,
+            violation: 'Brainbase自律判断はcontinueです。高リスク等の許可理由がないためユーザーへ判断を返さず、安全な範囲で作業を継続する',
+            triggerCode: 'unnecessary_user_question',
+            question
+        };
+    }
+    if (!asks) return null;
+    return {
+        status: null,
+        violation: 'Brainbase自律判断はcontinueです。高リスク等の許可理由がないためユーザーへ判断を返さず、安全な範囲で作業を継続する',
+        triggerCode: 'unnecessary_user_question',
+        question
+    };
 }
 
 function leavesRequestedWorkUnfinished(body, receipt) {
@@ -2501,6 +2527,8 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
                 triggerCode: 'unfinished_safe_work', stopState: state
             };
         }
+        const interruption = completedContinueInterruption(contract, markerReason, asks, proposedHumanQuestion);
+        if (interruption) return { ...interruption, stopState: state };
         return {
             status: 'continued', violation: null, stopState: state,
             evidenceEventCount: successfulEvidence.length, stateSource: 'journal'
@@ -2549,6 +2577,8 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
                 stopState: state
             };
         }
+        const interruption = completedContinueInterruption(contract, markerReason, asks, proposedHumanQuestion);
+        if (interruption) return { ...interruption, stopState: state };
         return {
             status: 'continued',
             violation: null,
@@ -2559,20 +2589,8 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
     const unfinishedSafeWork = leavesRequestedWorkUnfinished(body, receipt);
 
     if (contract.decision === 'continue') {
-        if (markerReason) {
-            if (!contract.allowedRuntimeReasons.includes(markerReason) || !asks) {
-                return { status: null, violation: '許可された実行時確認理由と、必要な入力要求を正確な確認行で示す' };
-            }
-            return { status: 'runtime_escalated', violation: null };
-        }
-        if (asks) {
-            return {
-                status: null,
-                violation: 'Brainbase自律判断はcontinueです。高リスク等の許可理由がないためユーザーへ判断を返さず、安全な範囲で作業を継続する',
-                triggerCode: 'unnecessary_user_question',
-                question: proposedHumanQuestion
-            };
-        }
+        const interruption = completedContinueInterruption(contract, markerReason, asks, proposedHumanQuestion);
+        if (interruption) return interruption;
         if (unfinishedSafeWork) {
             return {
                 status: null,
