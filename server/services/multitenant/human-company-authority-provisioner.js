@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 
 import { canonicalJson, deepFreeze } from './canonical-json.js';
+import { isCanonicalId } from './ids.js';
 
 const VERSION = 'human-company-authority.v1';
 const TENANT_ID = /^ten_[0-9A-HJKMNP-TV-Z]{26}$/u;
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/u;
-const PERSON_ID = /^per_[A-Za-z0-9][A-Za-z0-9_.:-]{1,123}$/u;
 const ROLES = new Set(['member', 'gm', 'ceo']);
 const TENANT_ROLES = new Set(['member', 'tenant_admin']);
 const ROOT_KEYS = new Set(['version', 'tenant_id', 'organization', 'project', 'transport', 'humans']);
@@ -86,8 +86,10 @@ function normalizeHuman(value, index) {
     const tenantRole = text(value.tenant_role, `${field}.tenant_role`);
     if (!ROLES.has(loginRole)) fail('MANIFEST_INVALID', `${field}.login_role is invalid`);
     if (!TENANT_ROLES.has(tenantRole)) fail('MANIFEST_INVALID', `${field}.tenant_role is invalid`);
+    const personId = text(value.person_id, `${field}.person_id`);
+    if (!isCanonicalId(personId, 'per')) fail('MANIFEST_INVALID', `${field}.person_id is invalid`);
     return {
-        person_id: text(value.person_id, `${field}.person_id`, PERSON_ID),
+        person_id: personId,
         person_name: text(value.person_name, `${field}.person_name`, null, 200),
         slack_user_id: text(value.slack_user_id, `${field}.slack_user_id`),
         login_role: loginRole,

@@ -105,7 +105,9 @@ export function createSlackInstallationControlPlaneAuthMiddleware({
     env = process.env,
     now = () => new Date(),
     resolveCanonicalAccess,
-    graphResolver
+    graphResolver,
+    companyAuthorityRepository,
+    trustedAppId
 } = {}) {
     const userGuard = authService
         ? requireAuth(authService, { allowInsecureHeaders: false })
@@ -113,7 +115,9 @@ export function createSlackInstallationControlPlaneAuthMiddleware({
     const canonicalAccessResolver = createSlackInstallationAccessResolver({
         authService,
         resolveCanonicalAccess,
-        graphResolver
+        graphResolver,
+        companyAuthorityRepository,
+        trustedAppId
     });
 
     const serviceToken = required(env, 'BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN')

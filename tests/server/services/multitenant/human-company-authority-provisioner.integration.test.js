@@ -13,6 +13,7 @@ import {
 const { Pool } = pg;
 const tenantTechKnight = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
 const tenantUnson = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAW';
+const umedaPersonId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
 const manifest = {
     version: 'human-company-authority.v1',
     tenant_id: tenantTechKnight,
@@ -24,7 +25,7 @@ const manifest = {
     project: { project_id: 'prj_techknight', project_code: 'techknight' },
     transport: { provider: 'slack', workspace_id: 'T_TECHKNIGHT', app_id: 'A_TECHKNIGHT' },
     humans: [{
-        person_id: 'per_umeda_haruka',
+        person_id: umedaPersonId,
         person_name: '梅田遼',
         slack_user_id: 'U_UMEDA',
         login_role: 'member',
@@ -107,7 +108,7 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
         try {
             const readback = await readbackHumanCompanyAuthority({ client: readbackClient, manifest });
             expect(readback.humans[0]).toMatchObject({
-                person_id: 'per_umeda_haruka',
+                person_id: umedaPersonId,
                 membership: {
                     membership_payload: {
                         slack_user_id: 'U_UMEDA', slack_workspace_id: 'T_TECHKNIGHT',
@@ -140,7 +141,7 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
              DELETE FROM tenant_memberships;
              DELETE FROM tenant_organizations;
              DELETE FROM auth_grants;
-             DELETE FROM people WHERE id = 'per_umeda_haruka'`
+             DELETE FROM people WHERE id = '${umedaPersonId}'`
         );
         await pool.query(
             `INSERT INTO people (id, name, status) VALUES ('per_conflict', 'Conflict', 'active');

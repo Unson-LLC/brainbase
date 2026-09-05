@@ -100,29 +100,46 @@ export async function runProvisionHumanCompanyAuthority({
         );
     }
     let client;
+    let clientError = null;
     try {
         client = await activePool.connect();
-        const result = await provisionHumanCompanyAuthority({
-            client,
-            manifest,
-            actorId: args.actorId,
-            commit: args.mode === 'apply'
-        });
-        client.release();
-        client = null;
+        let result;
+        try {
+            result = await provisionHumanCompanyAuthority({
+                client,
+                manifest,
+                actorId: args.actorId,
+                commit: args.mode === 'apply'
+            });
+        } catch (error) {
+            clientError = error;
+            throw error;
+        } finally {
+            if (clientError) client.release(clientError);
+            else client.release();
+            client = null;
+        }
         if (args.mode !== 'apply') return { ok: true, mode: args.mode, ...result };
         const readbackClient = await activePool.connect();
+        let readbackError = null;
         try {
             const postCommitReadback = await readbackHumanCompanyAuthority({
                 client: readbackClient,
                 manifest
             });
             return { ok: true, mode: args.mode, ...result, post_commit_readback: postCommitReadback };
+        } catch (error) {
+            readbackError = error;
+            throw error;
         } finally {
-            readbackClient.release();
+            if (readbackError) readbackClient.release(readbackError);
+            else readbackClient.release();
         }
     } finally {
-        client?.release();
+        if (client) {
+            if (clientError) client.release(clientError);
+            else client.release();
+        }
         if (!pool) {
             try { await activePool.end(); } catch { /* never expose database details */ }
         }

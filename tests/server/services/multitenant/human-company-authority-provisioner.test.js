@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     HumanCompanyAuthorityProvisioningError,
@@ -11,6 +11,8 @@ import {
 } from '../../../../scripts/provision-human-company-authority.js';
 
 const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
+const satoPersonId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
+const umedaPersonId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAZ';
 
 function manifest(overrides = {}) {
     return {
@@ -25,7 +27,7 @@ function manifest(overrides = {}) {
         transport: { provider: 'slack', workspace_id: 'T_TECHKNIGHT', app_id: 'A_TECHKNIGHT' },
         humans: [
             {
-                person_id: 'per_keigo_sato',
+                person_id: satoPersonId,
                 person_name: '佐藤 圭吾',
                 slack_user_id: 'U_KEIGO',
                 login_role: 'ceo',
@@ -35,7 +37,7 @@ function manifest(overrides = {}) {
                 placement_id: 'techknight-slack-admin'
             },
             {
-                person_id: 'per_umeda_haruka',
+                person_id: umedaPersonId,
                 person_name: '梅田遼',
                 slack_user_id: 'U_UMEDA',
                 login_role: 'member',
@@ -187,6 +189,15 @@ describe('human company authority provisioning', () => {
         })).toThrowError(expect.objectContaining({ code: 'MANIFEST_PROJECT_SCOPE_MISMATCH' }));
     });
 
+    it('rejects legacy person IDs instead of treating them as canonical identities', () => {
+        expect(() => normalizeHumanCompanyAuthorityManifest({
+            ...manifest(),
+            humans: [{ ...manifest().humans[0], person_id: 'per_umeda_haruka' }]
+        })).toThrowError(
+            expect.objectContaining({ code: 'MANIFEST_INVALID' })
+        );
+    });
+
     it('creates and exactly reads back every separate human access state, then rolls dry-run back', async () => {
         const client = fakeClient();
         const result = await provisionHumanCompanyAuthority({
@@ -195,10 +206,10 @@ describe('human company authority provisioning', () => {
         expect(result.persisted).toBe(false);
         expect(result.snapshot_after.humans).toHaveLength(2);
         expect(result.snapshot_after.humans[1]).toMatchObject({
-            person_id: 'per_umeda_haruka',
+            person_id: umedaPersonId,
             login_grant: { slack_user_id: 'U_UMEDA', slack_workspace_id: 'T_TECHKNIGHT' },
             membership: {
-                principal_id: 'per_umeda_haruka',
+                principal_id: umedaPersonId,
                 membership_payload: {
                     slack_user_id: 'U_UMEDA', slack_workspace_id: 'T_TECHKNIGHT',
                     project_codes: ['techknight'], clearance: ['internal']
@@ -261,11 +272,11 @@ describe('human company authority provisioning', () => {
         client.state.memberships.push(
             {
                 membership_id: 'membership_one', organization_id: 'org_techknight_business',
-                principal_id: 'per_keigo_sato', membership_payload: { status: 'active' }
+                principal_id: satoPersonId, membership_payload: { status: 'active' }
             },
             {
                 membership_id: 'membership_two', organization_id: 'org_techknight_business',
-                principal_id: 'per_keigo_sato', membership_payload: { status: 'active' }
+                principal_id: satoPersonId, membership_payload: { status: 'active' }
             }
         );
         await expect(provisionHumanCompanyAuthority({
@@ -339,6 +350,61 @@ describe('human company authority provisioning', () => {
         });
         expect(checkoutCount).toBe(2);
         expect(result.post_commit_readback.humans).toHaveLength(2);
-        expect(result.post_commit_readback.humans[1].person_id).toBe('per_umeda_haruka');
+        expect(result.post_commit_readback.humans[1].person_id).toBe(umedaPersonId);
+    });
+
+    it('releases a primary client with the provisioning error when rollback also fails', async () => {
+        const primaryError = new Error('primary query failed');
+        const rollbackError = new Error('rollback query failed');
+        const release = vi.fn();
+        const client = {
+            query: vi.fn(async (sql) => {
+                if (String(sql).trim() === 'BEGIN') return { rows: [] };
+                if (String(sql).trim() === 'ROLLBACK') throw rollbackError;
+                throw primaryError;
+            }),
+            release
+        };
+        const pool = { connect: vi.fn(async () => client) };
+
+        await expect(runProvisionHumanCompanyAuthority({
+            argv: ['--dry-run', '--manifest', 'manifest.json'],
+            pool,
+            readManifest: async () => JSON.stringify(manifest())
+        })).rejects.toMatchObject({ code: 'UPSTREAM_UNAVAILABLE' });
+
+        expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+        expect(release).toHaveBeenCalledWith(expect.objectContaining({ code: 'UPSTREAM_UNAVAILABLE' }));
+    });
+
+    it('releases a failed post-commit readback client with the readback error', async () => {
+        const sharedState = fakeClient().state;
+        const primaryClient = fakeClient(sharedState);
+        primaryClient.release = vi.fn();
+        const readbackClient = fakeClient(sharedState);
+        const readbackFailure = new Error('readback query failed');
+        const originalReadbackQuery = readbackClient.query;
+        readbackClient.query = async (sql, parameters = []) => {
+            if (String(sql).replace(/\s+/gu, ' ').includes('FROM people')) throw readbackFailure;
+            return originalReadbackQuery(sql, parameters);
+        };
+        readbackClient.release = vi.fn();
+        let checkoutCount = 0;
+        const pool = {
+            connect: vi.fn(async () => {
+                checkoutCount += 1;
+                return checkoutCount === 1 ? primaryClient : readbackClient;
+            })
+        };
+
+        await expect(runProvisionHumanCompanyAuthority({
+            argv: ['--apply', '--approve-apply', '--manifest', 'manifest.json'],
+            env: { BRAINBASE_PROVISIONING_ACTOR: 'operator-keigo' },
+            pool,
+            readManifest: async () => JSON.stringify(manifest())
+        })).rejects.toMatchObject({ code: 'UPSTREAM_UNAVAILABLE' });
+
+        expect(primaryClient.release).toHaveBeenCalledWith();
+        expect(readbackClient.release).toHaveBeenCalledWith(expect.objectContaining({ code: 'UPSTREAM_UNAVAILABLE' }));
     });
 });
