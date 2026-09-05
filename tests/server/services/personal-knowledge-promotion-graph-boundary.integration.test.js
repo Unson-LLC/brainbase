@@ -187,7 +187,8 @@ describe('personal knowledge promotion Graph write boundary', () => {
             capabilityId: 'personal_knowledge_promotion:organization_review',
             actorPersonId: ACCESS.actorPersonId,
             organizationIds: [ACCESS.organizationId],
-            projectIds: ['brainbase'],
+            projectIds: ['prj_brainbase'],
+            projectCode: 'brainbase',
             operationId: 'op_graph_boundary_1',
             idempotencyKey: 'ik_graph_boundary_1',
             ...buildPersonalKnowledgePromotionAuthority({

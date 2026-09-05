@@ -61,7 +61,8 @@ describe('PersonalKnowledgePromotionService runtime boundary', () => {
                 capabilityId: 'personal_knowledge_promotion:owner_consent',
                 actorPersonId: 'per_graph_sato',
                 organizationIds: ['unson'],
-                projectIds: ['brainbase'],
+                projectIds: ['prj_brainbase'],
+                projectCode: 'brainbase',
                 operationId: 'op_owner_runtime_1',
                 idempotencyKey: 'ik_owner_runtime_1',
                 ...buildPersonalKnowledgePromotionAuthority({

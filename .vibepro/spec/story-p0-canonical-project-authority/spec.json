@@ -1,0 +1,290 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-p0-canonical-project-authority",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "verified bearer access",
+        "producer-signed canonical project_id",
+        "canonical tenant project registry"
+      ],
+      "resolution_point": "signed authority middleware before promotion service or mutation",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "bearer access",
+        "signed authority",
+        "canonical project registry",
+        "authority-use audit",
+        "promotion request"
+      ],
+      "verified_surfaces": [
+        "bearer access",
+        "signed authority",
+        "canonical project registry",
+        "authority-use audit",
+        "promotion request"
+      ]
+    },
+    "resources": [
+      {
+        "name": "personal knowledge promotion",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_code",
+        "trust_zone": "Brainbase API",
+        "residue_policy": "promotion state and immutable authority-use audit",
+        "data_owner": "personal knowledge owner",
+        "credential_scope": "signed authority bound to one canonical organization and project"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "one promotion action",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "personal knowledge owner"
+      ],
+      "residency": "Brainbase PostgreSQL and Graph SSOT",
+      "migration": "not required",
+      "rollback": "revert application change before any new promotion"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "missing_canonical_project_id",
+      "multiple_canonical_project_ids",
+      "bearer_lacks_project_code",
+      "canonical_project_resolver_unavailable",
+      "canonical_project_code_mismatch"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "organization",
+        "project"
+      ],
+      "boundary_edges": [
+        "personal event to organization knowledge event"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "not_collected",
+      "scope": "project identity separation, revision propagation, one-use authority and Graph readback",
+      "evidence": {
+        "evidence_scope": "targeted_unit_verified_production_readback_pending",
+        "propagation_surfaces": [
+          "bearer access",
+          "signed authority",
+          "canonical project registry",
+          "authority-use audit",
+          "promotion request"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate",
+          "missing_canonical_project_id",
+          "multiple_canonical_project_ids",
+          "bearer_lacks_project_code",
+          "canonical_project_resolver_unavailable",
+          "canonical_project_code_mismatch"
+        ],
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "personal knowledge promotion",
+              "tenant_key_source": "verified bearer access and producer-signed authority",
+              "trust_zone": "Brainbase API",
+              "data_owner": "personal knowledge owner"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "personal event to organization knowledge event",
+              "tenant_key_source": "organization_id with project_code partition",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "one promotion action",
+              "connection_mode": "signed authority and authenticated bearer",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "署名済み権限は正規プロジェクトIDを1件だけ持ち、そのIDを正規台帳で解決したproject_codeがBearer accessとpromotion requestのproject_codeに一致しなければならない。",
+      "rationale": "正規IDとプロジェクトコードは異なる識別子なので、署名検証後に正規台帳で対応を解決し、各境界で一致を検証する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0正規プロジェクト権限で個人知識を組織Graphへ昇格できる"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/middleware/personal-knowledge-promotion-authority.js",
+            "anchor": "createPersonalKnowledgePromotionAuthorityGuard"
+          },
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "function requirePromotionAuthority"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects when the canonical project binding cannot be resolved"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects a canonical project binding for another project code"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "rejects when the canonical project binding cannot be resolved"
+          },
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "rejects a canonical project binding for another project code"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T17:00:16.949Z",
+      "last_revised_at": "2026-09-05T17:05:49.964Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "権限使用監査のproject_codeにはpromotion requestで認可したproject_codeを保存する。",
+      "rationale": "正規プロジェクトIDをproject_code列へ保存すると監査の意味が壊れる。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0の同一run証跡を正しいプロジェクト境界で残す"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "async function claimPromotionAuthorityUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "accepts one canonical project id while auditing the authorized project code"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "must_contain": "project_code: projectCode"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T17:00:16.949Z",
+      "last_revised_at": "2026-09-05T17:05:49.964Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "本番スモークはrequestとowner responseから現行改訂番号を読み、owner decision、organization decision、replayへ順に送る。",
+      "rationale": "現行の楽観ロック契約を満たし、authority replay拒否まで同じ経路で検証する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0を同一runでGraph readbackまで完了する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "scripts/personal-knowledge-promotion-production-smoke.mjs",
+            "anchor": "const ownerDecisionRevision"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "case": "sends the current owner and organization decision revisions"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "must_cover": "sends the current owner and organization decision revisions"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T17:00:16.949Z",
+      "last_revised_at": "2026-09-05T17:05:49.964Z"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-09-05T17:00:16.948Z",
+  "previous_spec_id": "2026-09-05T17:00:16.948Z"
+}

@@ -6,6 +6,10 @@ import {
     resourceRefForPersonalEvent,
     resourceRefForPromotionRequest
 } from '../services/personal-knowledge/promotion-authority-contract.js';
+import {
+    authorityProjectBinding,
+    deriveSingleAuthorityProjectId
+} from '../services/multitenant/authority-project-binding.js';
 
 function decodeContext(req) {
     const value = req.get('Brainbase-Tenant-Context');
@@ -71,11 +75,28 @@ export function createPersonalKnowledgePromotionAuthorityGuard(services, capabil
                     fault_domain: 'authorization'
                 });
             }
+            const projectId = deriveSingleAuthorityProjectId(context);
+            if (typeof services?.connectionRegistry?.resolveProjectBindingById !== 'function') {
+                throw new ContractError('PROJECT_SCOPE_MISMATCH', {
+                    status: 403,
+                    fault_domain: 'protocol',
+                    details: { scope_reason: 'project_resolver_unavailable' }
+                });
+            }
+            const resolvedProject = await services.connectionRegistry.resolveProjectBindingById({
+                tenant_id: context.tenant.tenant_id,
+                project_id: projectId
+            });
+            const project = authorityProjectBinding(resolvedProject, {
+                tenantId: context.tenant.tenant_id,
+                projectId
+            });
             req.personalKnowledgePromotionAuthority = {
                 capabilityId,
                 actorPersonId: context.actor.principal_id,
                 organizationIds: context.authorization.organization_ids,
-                projectIds: context.authorization.project_ids,
+                projectIds: [project.project_id],
+                projectCode: project.project_code,
                 operationId: context.operation_id,
                 idempotencyKey: context.idempotency_key,
                 schemaVersion: signedAuthority.schema_version,

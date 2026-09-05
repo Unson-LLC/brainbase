@@ -35,7 +35,8 @@ function authorityFor(access, capabilityId, overrides = {}) {
         capabilityId,
         actorPersonId: access.actorPersonId || access.personId,
         organizationIds: [access.organizationId],
-        projectIds: ['brainbase'],
+        projectIds: overrides.projectIds ?? ['prj_brainbase'],
+        projectCode: overrides.projectCode ?? 'brainbase',
         operationId: `op_test_${authoritySequence}`,
         idempotencyKey: `ik_test_${authoritySequence}`,
         ...target
@@ -195,13 +196,79 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         expect(repository.createPromotionRequest).not.toHaveBeenCalled();
     });
 
+    it('accepts one canonical project id while auditing the authorized project code', async () => {
+        const repository = {
+            transaction: vi.fn(transaction),
+            findById: vi.fn(async () => ({
+                event_id: 'pke_1', owner_person_id: 'person_a', organization_id: 'org_a'
+            })),
+            createPromotionRequest: vi.fn(async (request) => request),
+            claimPromotionAuthorityUse: vi.fn(async () => undefined)
+        };
+        const service = new PersonalKnowledgePromotionService({ repository });
+
+        await expect(service.requestPromotion('pke_1', {
+            project_code: 'brainbase', summary: '共有可能な判断', normalized_payload: normalizedDecision()
+        }, requestContext())).resolves.toMatchObject({ project_code: 'brainbase' });
+
+        expect(repository.claimPromotionAuthorityUse).toHaveBeenCalledWith(
+            expect.objectContaining({ project_code: 'brainbase' }),
+            expect.any(Object)
+        );
+    });
+
+    it('rejects a canonical project binding for another project code', async () => {
+        const repository = {
+            transaction: vi.fn(transaction),
+            findById: vi.fn(async () => ({
+                event_id: 'pke_1', owner_person_id: 'person_a', organization_id: 'org_a'
+            })),
+            createPromotionRequest: vi.fn(),
+            claimPromotionAuthorityUse: vi.fn()
+        };
+        const service = new PersonalKnowledgePromotionService({ repository });
+
+        await expect(service.requestPromotion('pke_1', {
+            project_code: 'brainbase', summary: '共有可能な判断', normalized_payload: normalizedDecision()
+        }, requestContext(ownerAccess, {
+            projectIds: ['prj_other'], projectCode: 'other'
+        }))).rejects.toMatchObject({
+            message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403
+        });
+
+        expect(repository.createPromotionRequest).not.toHaveBeenCalled();
+        expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
+    });
+
+    it('rejects missing or ambiguous canonical project ids before promotion effects', async () => {
+        for (const projectIds of [[], ['', 'prj_brainbase'], ['prj_brainbase', 'prj_other']]) {
+            const repository = {
+                transaction: vi.fn(transaction),
+                findById: vi.fn(async () => ({
+                    event_id: 'pke_1', owner_person_id: 'person_a', organization_id: 'org_a'
+                })),
+                createPromotionRequest: vi.fn(),
+                claimPromotionAuthorityUse: vi.fn()
+            };
+            const service = new PersonalKnowledgePromotionService({ repository });
+
+            await expect(service.requestPromotion('pke_1', {
+                project_code: 'brainbase', summary: '共有可能な判断', normalized_payload: normalizedDecision()
+            }, requestContext(ownerAccess, { projectIds }))).rejects.toMatchObject({
+                message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403
+            });
+            expect(repository.createPromotionRequest).not.toHaveBeenCalled();
+            expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
+        }
+    });
+
     it('rejects unknown_tenant and ambiguous_tenant authority before Graph effects', async () => {
         const request = consentedRequest();
         const { service, knowledgeGraphRepository } = promotionHarness({ request });
         const baseAuthority = {
             capabilityId: 'personal_knowledge_promotion:organization_review',
             actorPersonId: reviewerAccess.actorPersonId,
-            organizationIds: ['org_unknown'], projectIds: ['brainbase'],
+            organizationIds: ['org_unknown'], projectIds: ['prj_brainbase'], projectCode: 'brainbase',
             operationId: 'op_unknown', idempotencyKey: 'ik_unknown',
             ...buildPersonalKnowledgePromotionAuthority({
                 action: 'organization_review', requestId: 'kpr_1',
@@ -316,7 +383,7 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             capabilityId: 'personal_knowledge_promotion:organization_review',
             actorPersonId: reviewerAccess.actorPersonId,
             organizationIds: [reviewerAccess.organizationId],
-            projectIds: ['brainbase'],
+            projectIds: ['prj_brainbase'], projectCode: 'brainbase',
             operationId: 'op_replay_1',
             idempotencyKey: 'ik_replay_1',
             ...buildPersonalKnowledgePromotionAuthority({
@@ -430,6 +497,22 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             expect.any(Object)
         );
         expect(knowledgeEventService.ingest).not.toHaveBeenCalled();
+    });
+
+    it('rejects owner consent when bearer access lacks the request project code', async () => {
+        const request = consentedRequest();
+        const { service, repository } = promotionHarness({ request });
+        const access = { ...ownerAccess, projectCodes: ['other'] };
+
+        await expect(service.decideOwnerPromotion('kpr_1', {
+            decision: 'approve',
+            normalized_payload_hash: request.normalized_payload_hash,
+            expected_owner_decision_revision: request.owner_decision_revision
+        }, ownerContext(access))).rejects.toMatchObject({
+            message: 'personal_knowledge_project_access_denied', status: 403
+        });
+
+        expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
     });
 
     it('rejects replayed owner-consent authority before returning an already approved request', async () => {
