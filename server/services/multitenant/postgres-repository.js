@@ -12,6 +12,7 @@ import {
     validateQuotaDecision,
     validateQuotaRequest
 } from './contract-usage-ledger.js';
+import { authorityProjectBinding } from './authority-project-binding.js';
 
 const OWNED_RESOURCE_TABLES = Object.freeze({
     tenant: { table: 'brainbase_tenants', id: 'tenant_id', revision: 'tenant_revision' },
@@ -1131,6 +1132,34 @@ export class MultitenantPostgresRepository {
                 || String(lease.connection_revision) !== String(input.connection_revision)) {
                 throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
             }
+            let projectBinding = null;
+            const hasProjectScope = Object.hasOwn(input, 'project_id')
+                || Object.hasOwn(input, 'project_code');
+            if (hasProjectScope) {
+                if (![input.project_id, input.project_code]
+                    .every((value) => typeof value === 'string' && value.length > 0)) {
+                    throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+                }
+                const projectResult = await client.query(
+                    `SELECT tenant_id, project_id, project_code, project_payload
+                       FROM tenant_projects
+                      WHERE tenant_id = $1 AND project_id = $2
+                      LIMIT 1
+                      FOR SHARE`,
+                    [input.tenant_id, input.project_id]
+                );
+                try {
+                    projectBinding = authorityProjectBinding(projectResult.rows[0], {
+                        tenantId: input.tenant_id,
+                        projectId: input.project_id
+                    });
+                } catch {
+                    throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+                }
+                if (projectBinding.project_code !== input.project_code) {
+                    throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+                }
+            }
             if (lease.current_connection_status !== undefined
                 && (lease.current_connection_status !== 'active'
                     || String(lease.current_connection_revision) !== String(lease.connection_revision)
@@ -1159,7 +1188,8 @@ export class MultitenantPostgresRepository {
                 contract_revision: lease.contract_revision,
                 operation_id: lease.operation_id,
                 audience: lease.audience,
-                provider: lease.provider
+                provider: lease.provider,
+                ...(projectBinding ?? {})
             };
         });
     }

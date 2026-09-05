@@ -198,7 +198,9 @@ describe('CredentialBroker PostgreSQL ownership', () => {
                 ...binding,
                 operation_id: operationId,
                 audience: 'bb.unson.jp',
-                provider: 'slack'
+                provider: 'slack',
+                project_id: projectBinding.project_id,
+                project_code: projectBinding.project_code
             }))
         };
         const forward = vi.fn(async ({ binding: forwardedBinding }) => {
@@ -241,6 +243,64 @@ describe('CredentialBroker PostgreSQL ownership', () => {
             tenant_id: binding.tenant_id,
             project_id: projectBinding.project_id
         });
+        expect(repository.consumeCredentialLease).toHaveBeenCalledWith(expect.objectContaining({
+            project_id: projectBinding.project_id,
+            project_code: projectBinding.project_code
+        }));
+    });
+
+    it.each([
+        ['missing project_id', { project_code: 'unson' }],
+        ['missing project_code', { project_id: 'project_unson' }],
+        ['cross-tenant project id', { project_id: 'project-other', project_code: 'unson' }],
+        ['forged project code', { project_id: 'project_unson', project_code: 'other' }]
+    ])('authority MCPはlease consume結果の%sをremote call前に拒否する', async (_name, consumedProject) => {
+        const operationId = 'op_01ARZ3NDEKTSV4RRFFQ69G5FC5';
+        const consumeCredentialLease = vi.fn(async () => ({
+            ...binding,
+            operation_id: operationId,
+            audience: 'bb.unson.jp',
+            provider: 'slack',
+            ...consumedProject
+        }));
+        const forward = vi.fn();
+        const repository = {
+            resolveProjectBindingById: vi.fn(async ({ tenant_id, project_id }) => ({
+                tenant_id,
+                project_id,
+                project_code: 'unson',
+                project_payload: { status: 'active' }
+            })),
+            consumeCredentialLease
+        };
+        const broker = new CredentialBroker({
+            repository,
+            providerForwarders: {
+                'bb.unson.jp': {
+                    provider: 'brainbase',
+                    requiresCredential: () => false,
+                    allowsBindingProviderMismatch: () => true,
+                    forward
+                }
+            }
+        });
+        const lease = {
+            lease_id: 'lease_01ARZ3NDEKTSV4RRFFQ69G5FC6',
+            lease_token: 'opaque-test-capability'
+        };
+
+        await expectContractErrorAsync(() => broker.forwardProviderRequest({
+            ...binding,
+            operation_id: operationId,
+            audience: 'bb.unson.jp',
+            ...lease,
+            provider_operation: 'brainbase.authority_mcp.post',
+            authority_project_binding: { project_id: 'project_unson', project_code: 'unson' },
+            request: { body: { jsonrpc: '2.0', method: 'tools/call', params: {
+                name: 'brainbase_knowledge_resolve', arguments: {}
+            } } }
+        }), { code: 'CREDENTIAL_LEASE_SCOPE_MISMATCH', status: 403 });
+        expect(forward).not.toHaveBeenCalled();
     });
 
     it.each([
