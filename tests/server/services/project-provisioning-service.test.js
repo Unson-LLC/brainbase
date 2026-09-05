@@ -1034,7 +1034,9 @@ describe('ProjectProvisioningService', () => {
         expect(repository.runs.get(plan.run_id).steps.find((step) => step.step_name === 'graph').receipt).toMatchObject({
             status: 'already_materialized', project_code: 'brainbase', entity_version: 3
         });
-        expect(graphService.validate).toHaveBeenLastCalledWith(expect.anything(), {
+        expect(graphService.validate).toHaveBeenLastCalledWith(expect.objectContaining({
+            projectCodes: [manifest.project_code]
+        }), {
             projectCode: manifest.project_code
         });
     });

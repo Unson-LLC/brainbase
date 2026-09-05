@@ -981,11 +981,15 @@ export class ProjectProvisioningService {
         // Provisioning verifies the project being registered; validating the
         // storage scope would make unrelated legacy issues block this run.
         const graphValidationProjectCode = run.manifest.project_code;
+        const graphValidationAccess = {
+            ...graphAccess,
+            projectCodes: [graphValidationProjectCode]
+        };
         const graphValidation = await (this.catalogAdapter
             ? this.catalogAdapter.runForOrganization(actor.organizationId || actor.tenantId, () => (
-                this.graphService.validate(graphAccess, { projectCode: graphValidationProjectCode })
+                this.graphService.validate(graphValidationAccess, { projectCode: graphValidationProjectCode })
             ))
-            : this.graphService.validate(graphAccess, { projectCode: graphValidationProjectCode }));
+            : this.graphService.validate(graphValidationAccess, { projectCode: graphValidationProjectCode }));
         if (graphValidation?.valid !== true) failures.push({ layer: 'graph', code: 'graph_validation_failed' });
         for (const grant of run.manifest.initial_grants) {
             const actorSlackIdentity = slackIdentityForGrant(actor, grant);
