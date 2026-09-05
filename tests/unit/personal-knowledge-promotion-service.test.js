@@ -179,6 +179,15 @@ function promotionHarness({ request, eventResult = null, graphEdgeCount = 0 } = 
 }
 
 describe('PersonalKnowledgePromotionService two-stage organization promotion', () => {
+    it('DBからDateで読んだowner_decided_atでも発行時と同じ同意receiptを検証する', () => {
+        const request = consentedRequest();
+        const issuedReceipt = request.owner_consent_receipt_id;
+
+        request.owner_decided_at = new Date(request.owner_decided_at);
+
+        expect(ownerConsentReceipt(request)).toBe(issuedReceipt);
+    });
+
     it('rejects omitted authority before every promotion side effect', async () => {
         const repository = {
             transaction: vi.fn(transaction),

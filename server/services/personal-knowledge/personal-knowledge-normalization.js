@@ -216,11 +216,14 @@ export function ownerConsentReceipt(request) {
         || request.status !== 'pending_org_review') {
         throw promotionError('personal_knowledge_owner_consent_receipt_unavailable', 409);
     }
+    const ownerDecidedAt = request.owner_decided_at instanceof Date
+        ? request.owner_decided_at.toISOString()
+        : request.owner_decided_at;
     return `pkoc_${sha256({
         request_id: request.request_id,
         owner_person_id: request.owner_person_id,
         owner_decided_by: request.owner_decided_by,
-        owner_decided_at: request.owner_decided_at,
+        owner_decided_at: ownerDecidedAt,
         normalized_payload_hash: request.normalized_payload_hash
     }).slice(0, 24)}`;
 }
