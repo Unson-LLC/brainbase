@@ -43,6 +43,12 @@ function assert(condition, code) {
     if (!condition) fail(code);
 }
 
+function requireDecisionRevision(value, code) {
+    const revision = String(value ?? '');
+    assert(/^(?:0|[1-9]\d*)$/u.test(revision), code);
+    return revision;
+}
+
 function sha256(value) {
     return createHash('sha256').update(String(value)).digest('hex');
 }
@@ -685,19 +691,35 @@ export async function runSmoke({
         });
         const requestPayload = expectStatus(requestResponse, 202, 'promotion_request_failed');
         assert(requestPayload.request_id === parsed.requestId, 'promotion_request_id_mismatch');
+        const ownerDecisionRevision = requireDecisionRevision(
+            requestPayload.owner_decision_revision,
+            'owner_decision_revision_missing'
+        );
 
         const ownerResponse = await requestJson(fetchImpl, baseUrl, {
             method: 'POST', path: `/api/personal-knowledge/promotions/${encodeURIComponent(parsed.requestId)}/owner-decision`,
             token: ownerToken, context: parsed.ownerContext, csrfToken, sessionId,
-            body: { decision: 'approve', normalized_payload_hash: parsed.normalizedPayloadHash }
+            body: {
+                decision: 'approve',
+                normalized_payload_hash: parsed.normalizedPayloadHash,
+                expected_owner_decision_revision: ownerDecisionRevision
+            }
         });
         const ownerPayload = expectStatus(ownerResponse, 200, 'owner_consent_failed');
         assert(ownerPayload.owner_consent_receipt_id, 'owner_consent_receipt_missing');
+        const organizationReviewRevision = requireDecisionRevision(
+            ownerPayload.organization_review_revision,
+            'organization_review_revision_missing'
+        );
 
         const organizationResponse = await requestJson(fetchImpl, baseUrl, {
             method: 'POST', path: `/api/personal-knowledge/promotions/${encodeURIComponent(parsed.requestId)}/organization-decision`,
             token: reviewerToken, context: parsed.organizationContext, csrfToken, sessionId,
-            body: { decision: 'approve', reason: `synthetic smoke ${parsed.runId}` }
+            body: {
+                decision: 'approve',
+                reason: `synthetic smoke ${parsed.runId}`,
+                expected_organization_review_revision: organizationReviewRevision
+            }
         });
         const organizationPayload = expectStatus(organizationResponse, 200, 'organization_review_failed');
         assertSafeOrganizationResponse(organizationPayload, { body: parsed.event.body, ownerToken, reviewerToken });
@@ -706,6 +728,10 @@ export async function runSmoke({
         assert(firstReceipt.organization_review_receipt_id, 'organization_receipt_missing');
         assertReceiptComplete(firstReceipt, 'organization_receipt_incomplete');
         assert(ownerPayload.owner_consent_receipt_id === firstReceipt.owner_consent_receipt_id, 'owner_consent_receipt_mismatch');
+        const replayOrganizationReviewRevision = requireDecisionRevision(
+            organizationPayload.organization_review_revision,
+            'organization_replay_revision_missing'
+        );
 
         const graphAfterFirstResponse = await requestJson(fetchImpl, baseUrl, {
             path: `/api/info/graph/entities?id=${encodeURIComponent(parsed.entityId)}&project=${encodeURIComponent(parsed.projectCode)}`,
@@ -725,7 +751,11 @@ export async function runSmoke({
         const replayResponse = await requestJson(fetchImpl, baseUrl, {
             method: 'POST', path: `/api/personal-knowledge/promotions/${encodeURIComponent(parsed.requestId)}/organization-decision`,
             token: reviewerToken, context: parsed.organizationContext, csrfToken, sessionId,
-            body: { decision: 'approve', reason: `synthetic smoke ${parsed.runId}` }
+            body: {
+                decision: 'approve',
+                reason: `synthetic smoke ${parsed.runId}`,
+                expected_organization_review_revision: replayOrganizationReviewRevision
+            }
         });
         assert(replayResponse.status === 409, 'replay_not_rejected');
         assert(replayResponse.payload?.error === 'personal_knowledge_promotion_authority_replayed', 'replay_error_mismatch');

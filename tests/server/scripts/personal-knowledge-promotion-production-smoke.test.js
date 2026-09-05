@@ -372,11 +372,12 @@ function runnerReadbackPool(parsed, {
     };
 }
 
-function runnerFetch(parsed) {
+function runnerFetch(parsed, { onRequest } = {}) {
     let graphReadCount = 0;
     let organizationDecisionCount = 0;
     return async (input, init = {}) => {
         const url = new URL(input);
+        onRequest?.(url, init);
         const authorization = init.headers?.authorization || init.headers?.Authorization || '';
         const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
         if (url.pathname === '/api/auth/verify') {
@@ -407,10 +408,27 @@ function runnerFetch(parsed) {
         }
         if (url.pathname === '/api/personal-knowledge/events') return { status: 201, async json() { return {}; } };
         if (url.pathname.endsWith(`/events/${parsed.eventId}/promotion-requests`)) {
-            return { status: 202, async json() { return { request_id: parsed.requestId }; } };
+            return {
+                status: 202,
+                async json() {
+                    return {
+                        request_id: parsed.requestId,
+                        owner_decision_revision: 0,
+                        organization_review_revision: 0
+                    };
+                }
+            };
         }
         if (url.pathname.endsWith(`/promotions/${parsed.requestId}/owner-decision`)) {
-            return { status: 200, async json() { return { owner_consent_receipt_id: 'pkoc_runner' }; } };
+            return {
+                status: 200,
+                async json() {
+                    return {
+                        owner_consent_receipt_id: 'pkoc_runner',
+                        organization_review_revision: 0
+                    };
+                }
+            };
         }
         if (url.pathname.endsWith(`/promotions/${parsed.requestId}/organization-decision`)) {
             organizationDecisionCount += 1;
@@ -423,7 +441,8 @@ function runnerFetch(parsed) {
                             organization_event_id: `kev_${parsed.runId}`,
                             graph_entity_id: parsed.entityId,
                             owner_consent_receipt_id: 'pkoc_runner',
-                            organization_review_receipt_id: 'pkor_runner'
+                            organization_review_receipt_id: 'pkor_runner',
+                            organization_review_revision: 1
                         };
                     }
                 };
@@ -447,7 +466,7 @@ async function runSyntheticSmoke(options = {}) {
         reviewerToken: 'reviewer-token',
         csrfToken: 'csrf-token',
         databaseUrl: 'postgres://synthetic.invalid/brainbase',
-        fetchImpl: options.fetchImpl || runnerFetch(parsed),
+        fetchImpl: options.fetchImpl || runnerFetch(parsed, { onRequest: options.onRequest }),
         poolFactory: () => runnerReadbackPool(parsed, options)
     });
 }
@@ -594,6 +613,21 @@ describe('Personal KG production smoke evidence helpers', () => {
     it('correlates the first API receipt with every DB receipt field before passing evidence', async () => {
         await expect(runSyntheticSmoke({ dbReceiptMismatch: true }))
             .rejects.toThrowError('organization_receipt_db_mismatch');
+    });
+
+    it('sends the current owner and organization decision revisions', async () => {
+        const decisions = [];
+        await runSyntheticSmoke({
+            onRequest(url, init) {
+                if (!init.body || !url.pathname.includes('/promotions/')) return;
+                decisions.push({ path: url.pathname, body: JSON.parse(init.body) });
+            }
+        });
+
+        expect(decisions).toHaveLength(3);
+        expect(decisions[0].body.expected_owner_decision_revision).toBe('0');
+        expect(decisions[1].body.expected_organization_review_revision).toBe('0');
+        expect(decisions[2].body.expected_organization_review_revision).toBe('1');
     });
 
     it('compares a fresh replay DB receipt instead of reusing the first API receipt', async () => {

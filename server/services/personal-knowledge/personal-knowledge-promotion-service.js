@@ -141,7 +141,9 @@ function requirePromotionAuthority(authority, access, projectCode, capabilityId)
         || authority.organizationIds?.length !== 1
         || authority.organizationIds[0] !== access.organizationId
         || authority.projectIds?.length !== 1
-        || authority.projectIds[0] !== projectCode
+        || typeof authority.projectIds[0] !== 'string'
+        || !authority.projectIds[0].trim()
+        || authority.projectCode !== projectCode
         || !authority.operationId
         || !authority.idempotencyKey) {
         throw promotionError('personal_knowledge_promotion_authority_scope_mismatch', 403);
@@ -186,7 +188,7 @@ function requirePromotionAuthorityTarget(authority, {
     }
 }
 
-async function claimPromotionAuthorityUse(repository, authority, requestId, action, options) {
+async function claimPromotionAuthorityUse(repository, authority, requestId, action, projectCode, options) {
     if (!authority) {
         throw promotionError('personal_knowledge_promotion_authority_required', 403);
     }
@@ -198,7 +200,7 @@ async function claimPromotionAuthorityUse(repository, authority, requestId, acti
             action,
             actor_person_id: authority.actorPersonId,
             organization_id: options.access.organizationId,
-            project_code: authority.projectIds[0]
+            project_code: projectCode
         }, options);
         return;
     }
@@ -211,7 +213,7 @@ async function claimPromotionAuthorityUse(repository, authority, requestId, acti
               organization_id, project_code)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
             [authority.operationId, authority.idempotencyKey, requestId, action,
-                authority.actorPersonId, options.access.organizationId, authority.projectIds[0]]
+                authority.actorPersonId, options.access.organizationId, projectCode]
         );
     } catch (error) {
         if (error?.code === '23505') {
@@ -305,6 +307,7 @@ export class PersonalKnowledgePromotionService {
                 promotionAuthority,
                 request.request_id,
                 'request',
+                input.project_code,
                 options
             );
             return created;
@@ -321,6 +324,7 @@ export class PersonalKnowledgePromotionService {
             const options = { access, client };
             const request = await this.repository.findPromotionRequest(requestId, options);
             requireOwner(request, access);
+            requireProject(access, request.project_code);
             requirePromotionAuthority(
                 promotionAuthority,
                 access,
@@ -349,6 +353,7 @@ export class PersonalKnowledgePromotionService {
                 promotionAuthority,
                 requestId,
                 'owner_consent',
+                request.project_code,
                 options
             );
 
@@ -416,10 +421,11 @@ export class PersonalKnowledgePromotionService {
             const options = { access, client };
             const request = await this.repository.findPromotionRequest(requestId, options);
             requireOwner(request, access);
+            requireProject(access, request.project_code);
             requirePromotionAuthority(
                 promotionAuthority,
                 access,
-                request?.project_code,
+                request.project_code,
                 'personal_knowledge_promotion:owner_consent'
             );
             const normalizedResult = normalizePromotionPayload(input?.normalized_payload || input);
@@ -442,6 +448,7 @@ export class PersonalKnowledgePromotionService {
                 promotionAuthority,
                 requestId,
                 'owner_consent',
+                request.project_code,
                 options
             );
             if (request.normalized_payload_hash === normalizedResult.normalized_payload_hash) {
@@ -482,6 +489,7 @@ export class PersonalKnowledgePromotionService {
                 promotionAuthority,
                 requestId,
                 'organization_review',
+                request.project_code,
                 options
             );
 

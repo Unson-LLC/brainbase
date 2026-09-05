@@ -27,7 +27,7 @@ function envelope(overrides = {}) {
         tenant: { tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV', tenant_revision: '1' },
         workspace_connection: { connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV', connection_revision: '1', status: 'active', provider: 'slack', installation_id: 'i', workspace_id: 'w', app_id: 'a' },
         actor: { principal_id: 'person_a_auth', principal_type: 'person', authenticated_subject_id: 'subject_a' },
-        authorization: { organization_ids: ['org_a'], project_ids: ['brainbase'], data_scopes: ['company'], capability_ids: [CAPABILITY] },
+        authorization: { organization_ids: ['org_a'], project_ids: ['prj_brainbase'], data_scopes: ['company'], capability_ids: [CAPABILITY] },
         placement: { deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', profile: 'shared_cloud' },
         slack: { event_id: 'evt_p0_owner_1', channel_id: 'channel_a' },
         correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAV', operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -48,7 +48,12 @@ function envelope(overrides = {}) {
     return value;
 }
 
-function harness({ now = NOW, tamper = false, envelopeOverrides = {} } = {}) {
+function harness({
+    now = NOW,
+    tamper = false,
+    envelopeOverrides = {},
+    connectionRegistry = projectRegistry()
+} = {}) {
     const { publicKey, privateKey } = generateKeyPairSync('ed25519');
     const signed = createSignedTenantContext(envelope(envelopeOverrides), { key_id: 'p0-key', private_key: privateKey });
     const supplied = tamper ? { ...signed, actor: { ...signed.actor, principal_id: 'attacker' } } : signed;
@@ -57,7 +62,8 @@ function harness({ now = NOW, tamper = false, envelopeOverrides = {} } = {}) {
         tenantContextVerifier: (input) => verifyTenantContext(input, {
             keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
             audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now
-        })
+        }),
+        connectionRegistry
     };
     const app = express();
     app.use(express.json());
@@ -67,6 +73,17 @@ function harness({ now = NOW, tamper = false, envelopeOverrides = {} } = {}) {
 
 function header(value) {
     return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+function projectRegistry(projectCode = 'brainbase') {
+    return {
+        resolveProjectBindingById: vi.fn(async ({ tenant_id, project_id }) => ({
+            tenant_id,
+            project_id,
+            project_code: projectCode,
+            project_payload: { status: 'active' }
+        }))
+    };
 }
 
 function organizationReviewRuntime({
@@ -129,7 +146,8 @@ function organizationReviewRuntime({
                 tenantContextVerifier: (input) => verifyTenantContext(input, {
                     keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
                     audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now: NOW
-                })
+                }),
+                connectionRegistry: projectRegistry()
             }, 'personal_knowledge_promotion:organization_review')
         }
     }));
@@ -159,6 +177,15 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
         const { app, supplied, effect } = harness();
         await request(app).post('/promotions/kpr_test/owner-decision').set('Brainbase-Tenant-Context', header(supplied)).expect(204);
         expect(effect).toHaveBeenCalledOnce();
+    });
+
+    it('rejects when the canonical project binding cannot be resolved', async () => {
+        const { app, supplied, effect } = harness({ connectionRegistry: {} });
+        await request(app)
+            .post('/promotions/kpr_test/owner-decision')
+            .set('Brainbase-Tenant-Context', header(supplied))
+            .expect(403);
+        expect(effect).not.toHaveBeenCalled();
     });
 
     it('rejects an expired context with downstream effects at zero', async () => {
@@ -264,7 +291,8 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
             tenantContextVerifier: (input) => verifyTenantContext(input, {
                 keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
                 audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now: NOW
-            })
+            }),
+            connectionRegistry: projectRegistry()
         };
         const app = express();
         app.use(express.json());
@@ -346,7 +374,8 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
             tenantContextVerifier: (input) => verifyTenantContext(input, {
                 keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
                 audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now: NOW
-            })
+            }),
+            connectionRegistry: projectRegistry()
         };
         const app = express();
         app.use(express.json());

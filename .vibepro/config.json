@@ -166,8 +166,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-p0-canonical-project-authority",
+        "title": "P0正規プロジェクト権限で個人知識を組織Graphへ昇格できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
       }
     ],
-    "current_story_id": "story-t0-slack-provider-error-readback"
+    "current_story_id": "story-p0-canonical-project-authority"
   }
 }
