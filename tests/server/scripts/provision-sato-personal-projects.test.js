@@ -50,8 +50,9 @@ describe('provision-sato-personal-projects CLI', () => {
         await expect(runProvisionSatoPersonal({ argv: ['--check'], env: {}, pool })).resolves.toMatchObject({
             ok: true, mode: 'check', persisted: false, preflight: 'passed'
         });
-        expect(observed.slice(1, 5)).toEqual([
+        expect(observed.slice(1, 6)).toEqual([
             { sql: "SELECT set_config('brainbase.tenant_id', $1, true)", values: [PERSONAL_PROJECTS_TARGET.tenant_id] },
+            { sql: "SELECT set_config('app.organization_id', $1, true)", values: [PERSONAL_PROJECTS_TARGET.organization_id] },
             { sql: "SELECT set_config('app.role', 'ceo', true)", values: [] },
             { sql: "SELECT set_config('app.project_codes', $1, true)", values: ['fx,keiba'] },
             { sql: "SELECT set_config('app.clearance', 'internal,restricted', true)", values: [] }

@@ -72,6 +72,7 @@ function sameSet(left, right) {
 async function setProvisioningContext(client) {
     const target = PERSONAL_PROJECTS_TARGET;
     await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [target.tenant_id]);
+    await client.query("SELECT set_config('app.organization_id', $1, true)", [target.organization_id]);
     await client.query("SELECT set_config('app.role', 'ceo', true)");
     await client.query("SELECT set_config('app.project_codes', $1, true)", [target.project_codes.join(',')]);
     await client.query("SELECT set_config('app.clearance', 'internal,restricted', true)");
