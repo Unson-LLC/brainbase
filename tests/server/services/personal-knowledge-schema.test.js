@@ -51,6 +51,14 @@ describe('personal and organization knowledge schema', () => {
         expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_select[\s\S]*app_project_codes\(\)[\s\S]*graph_maintenance_mode[\s\S]*rel_type = 'member_of'/);
         expect(edgeSelectPolicy).toMatch(/current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*AND rel_type = 'member_of'[\s\S]*AND lifecycle_status = 'active'[\s\S]*\)[\s\S]*OR[\s\S]*\([\s\S]*app_current_role_rank\(\) >= app_role_rank\(role_min\)[\s\S]*AND sensitivity = ANY\(app_clearance\(\)\)/);
         expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_update[\s\S]*USING[\s\S]*current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*WITH CHECK/);
+        const edgeInsertPolicy = infoSsotRls.match(
+            /CREATE POLICY info_graph_edges_insert[\s\S]*?(?=\n\nDROP POLICY IF EXISTS info_graph_edges_update)/
+        )?.[0] || '';
+        const edgeUpdatePolicy = infoSsotRls.match(
+            /CREATE POLICY info_graph_edges_update[\s\S]*$/
+        )?.[0] || '';
+        expect(edgeInsertPolicy).not.toMatch(/app_graph_edge_source_project_matches\([\s\S]*?OR current_setting\('app\.graph_maintenance_mode'/);
+        expect(edgeUpdatePolicy).toMatch(/USING \([\s\S]*?app_graph_edge_source_project_matches\([\s\S]*?OR current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*?WITH CHECK \([\s\S]*?app_graph_edge_source_project_matches\(/);
         expect(infoSsotRls.match(/CREATE OR REPLACE FUNCTION app_setting_array\([\s\S]*?\n(?:\$\$;|\s*\$function\$;)/)?.[0])
             .not.toContain('COALESCE((');
 
