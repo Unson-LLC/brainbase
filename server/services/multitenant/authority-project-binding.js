@@ -7,7 +7,8 @@ export const AUTHORITY_PROVIDER_OPERATIONS = new Set([
     AUTHORITY_JUDGMENT_HOOK_OPERATION
 ]);
 export const AUTHORITY_PROJECT_BOUND_MCP_TOOLS = new Set([
-    'brainbase_knowledge_resolve'
+    'brainbase_knowledge_resolve',
+    'brainbase_resolve_turn'
 ]);
 
 const PROJECT_OVERRIDE_FIELDS = new Set([
@@ -100,6 +101,14 @@ function stripDirectProjectOverrides(value) {
         .filter(([field]) => !PROJECT_OVERRIDE_FIELDS.has(field)));
 }
 
+function stripNestedProjectOverrides(value, toolName) {
+    if (toolName !== 'brainbase_resolve_turn' || !isObject(value.turn_input)) return value;
+    return {
+        ...value,
+        turn_input: stripDirectProjectOverrides(value.turn_input)
+    };
+}
+
 export function injectAuthorityProject(request, projectBinding) {
     assertAuthorityProjectBinding(projectBinding);
     if (!isObject(request)
@@ -113,7 +122,10 @@ export function injectAuthorityProject(request, projectBinding) {
     }
     const body = stripDirectProjectOverrides(request.body);
     const params = stripDirectProjectOverrides(body.params);
-    const args = stripDirectProjectOverrides(params.arguments);
+    const args = stripNestedProjectOverrides(
+        stripDirectProjectOverrides(params.arguments),
+        params.name
+    );
     return {
         ...structuredClone(request),
         body: {

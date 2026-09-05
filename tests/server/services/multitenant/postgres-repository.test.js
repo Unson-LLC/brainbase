@@ -631,6 +631,43 @@ describe('MultitenantPostgresRepository', () => {
         ))).toBe(true);
     });
 
+    it('authority lease consumeは同一tenantのactive project bindingをexpected project_id/codeと照合する', async () => {
+        const binding = {
+            lease_id: 'lease_authority', tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: '3',
+            credential_ref: 'credref:a', credential_mode: 'customer_oauth', contract_revision: '11',
+            operation_id: 'op_authority', audience: 'bb.unson.jp', provider: 'brainbase',
+            lease_token_digest: `sha256:${'b'.repeat(64)}`, issued_at: '2026-08-18T00:00:00Z',
+            expires_at: '2026-08-18T00:01:00Z', max_uses: 1
+        };
+        const project = {
+            tenant_id: 'ten_a', project_id: 'project_a', project_code: 'unson',
+            project_payload: { status: 'active' }
+        };
+        const { pool, client } = poolWithRows({
+            'FROM tenant_credential_leases AS lease': [{ ...binding, consumed_at: null }],
+            'FROM tenant_projects': [project],
+            'UPDATE tenant_credential_leases': [{ lease_id: 'lease_authority' }]
+        });
+        const repository = new MultitenantPostgresRepository({
+            pool,
+            now: () => new Date('2026-08-18T00:00:30Z')
+        });
+
+        await expect(repository.consumeCredentialLease({
+            ...binding,
+            project_id: 'project_a',
+            project_code: 'unson',
+            consumed_at: '2026-08-18T00:00:30Z'
+        })).resolves.toMatchObject({
+            lease_id: 'lease_authority', project_id: 'project_a', project_code: 'unson'
+        });
+        expect(client.query.mock.calls.some(([sql, values]) => (
+            sql.includes('FROM tenant_projects')
+            && values[0] === 'ten_a'
+            && values[1] === 'project_a'
+        ))).toBe(true);
+    });
+
     it('D-006/AC-202: claim conflict時はpayload/context hash差分を追加副作用なしで拒否する', async () => {
         const { pool } = poolWithRows({
             'INSERT INTO tenant_business_effect_claims': [],

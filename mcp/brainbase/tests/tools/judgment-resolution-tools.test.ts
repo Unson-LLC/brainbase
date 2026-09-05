@@ -137,6 +137,23 @@ describe('judgment resolver Host bridge', () => {
     assert.deepEqual(posted, mergedArgs);
   });
 
+  it('authority forwarderが注入したcanonical project_codeをturn_inputより優先する', async () => {
+    const mergedArgs = { ...args, model_interpretation: classification };
+    let posted: unknown = null;
+    const result = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+      turn_input: { ...args, project_code: 'caller-project' },
+      project_code: 'brainbase',
+      model_interpretation: classification,
+    }, dependencies(async (_url, init) => {
+      posted = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify(receipt({
+        request_digest: computeJudgmentRequestDigest(mergedArgs),
+      })), { status: 200 });
+    }));
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(posted, mergedArgs);
+  });
+
   it('generalを含む複合domainのreceiptを受理する', async () => {
     const mixedClassification = {
       ...classification,

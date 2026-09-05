@@ -286,6 +286,10 @@ export class CredentialBroker {
         const expectedBinding = Object.fromEntries(
             REQUIRED_LEASE_BINDING_FIELDS.map((field) => [field, input[field]])
         );
+        if (projectBinding) {
+            expectedBinding.project_id = projectBinding.project_id;
+            expectedBinding.project_code = projectBinding.project_code;
+        }
         let binding;
         if (typeof this.repository?.consumeCredentialLease === 'function') {
             binding = await this.repository.consumeCredentialLease({
@@ -309,6 +313,11 @@ export class CredentialBroker {
                 ...binding,
                 provider: this.#credentials.get(binding.credential_ref)?.provider ?? null
             };
+        }
+        if (projectBinding
+            && (binding?.project_id !== expectedBinding.project_id
+                || binding?.project_code !== expectedBinding.project_code)) {
+            failAuthorityLeaseScope('authority_project_binding_lease_mismatch');
         }
         const forwarder = this.providerForwarders[binding.audience];
         if (!forwarder || typeof forwarder.forward !== 'function') {
@@ -369,7 +378,9 @@ export class CredentialBroker {
             } else {
                 credential = Buffer.alloc(0);
             }
-            const forwardingBinding = structuredClone(expectedBinding);
+            const forwardingBinding = Object.fromEntries(
+                REQUIRED_LEASE_BINDING_FIELDS.map((field) => [field, expectedBinding[field]])
+            );
             if (projectBinding) forwardingBinding.authority_project_binding = structuredClone(projectBinding);
             const providerResult = await forwarder.forward({
                 credential,

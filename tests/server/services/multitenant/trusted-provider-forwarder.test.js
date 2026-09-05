@@ -667,6 +667,61 @@ describe('trusted provider HTTP forwarder', () => {
         expect(request.body.project_code).toBe('caller-code');
     });
 
+    it('authority MCPは正規resolve_turnのturn_refを維持しcanonical project_codeを注入する', async () => {
+        const fetchImpl = vi.fn(async () => ({
+            status: 200,
+            headers: { get: () => 'application/json' },
+            json: async () => ({ jsonrpc: '2.0', result: { ok: true }, id: 1 })
+        }));
+        const forwarder = createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://bb.unson.jp/runtime-mcp',
+            operations: {
+                'brainbase.authority_mcp.post': {
+                    method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+                    credential_placement: 'none', allow_binding_provider_mismatch: true
+                }
+            },
+            fetchImpl
+        });
+
+        await forwarder.forward({
+            credential: Buffer.alloc(0),
+            operation: 'brainbase.authority_mcp.post',
+            request: {
+                body: {
+                    jsonrpc: '2.0', method: 'tools/call', id: 1,
+                    project_code: 'caller-code',
+                    params: {
+                        name: 'brainbase_resolve_turn',
+                        project_code: 'nested-caller-code',
+                        arguments: {
+                            turn_ref: `${'a'.repeat(64)}/${'b'.repeat(64)}`,
+                            project_code: 'argument-caller-code',
+                            model_interpretation: { intent: 'answer' }
+                        }
+                    }
+                }
+            },
+            binding: {
+                authority_project_binding: { project_id: 'project-unson', project_code: 'unson' }
+            }
+        });
+
+        const forwardedBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
+        expect(forwardedBody.params).toMatchObject({
+            name: 'brainbase_resolve_turn',
+            arguments: {
+                turn_ref: `${'a'.repeat(64)}/${'b'.repeat(64)}`,
+                project_code: 'unson',
+                model_interpretation: { intent: 'answer' }
+            }
+        });
+        expect(forwardedBody).not.toHaveProperty('project_code');
+        expect(forwardedBody.params).not.toHaveProperty('project_code');
+        expect(JSON.stringify(forwardedBody)).not.toContain('caller-code');
+    });
+
     it('authority MCPはproject-boundでないtoolをremote call前に拒否する', async () => {
         const fetchImpl = vi.fn();
         const forwarder = createTrustedHttpProviderForwarder({
@@ -687,7 +742,7 @@ describe('trusted provider HTTP forwarder', () => {
             request: {
                 body: {
                     jsonrpc: '2.0', method: 'tools/call', id: 1,
-                    params: { name: 'brainbase_resolve_turn', arguments: { model_interpretation: {} } }
+                    params: { name: 'brainbase_unknown', arguments: { model_interpretation: {} } }
                 }
             },
             binding: {

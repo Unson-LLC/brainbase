@@ -518,8 +518,10 @@ export async function handleJudgmentResolutionToolCall(
     } else {
       return toolError('error', 'judgment_resolution_input_invalid', 'turn_ref or turn_input is required', []);
     }
+    const projectCode = typeof args.project_code === 'string' ? args.project_code : undefined;
     return resolveJudgmentBeforeModel({
       ...turnInput,
+      ...(projectCode === undefined ? {} : { project_code: projectCode }),
       model_interpretation: args.model_interpretation,
     }, dependencies);
   }
