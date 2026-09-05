@@ -280,18 +280,17 @@ export class PgPersonalKnowledgeRepository {
     }
 
     async createLineage(lineage, options = {}) {
-        const { rows } = await clientFor(this, options).query(
+        const result = await clientFor(this, options).query(
             `INSERT INTO knowledge_promotion_lineage
              (lineage_id, personal_event_id, organization_event_id, promotion_request_id,
               owner_person_id, organization_id, sanitization, created_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)
-             ON CONFLICT (personal_event_id, organization_event_id) DO UPDATE
-             SET lineage_id = knowledge_promotion_lineage.lineage_id RETURNING *`,
+             VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)`,
             [lineage.lineage_id, lineage.personal_event_id, lineage.organization_event_id,
                 lineage.promotion_request_id, lineage.owner_person_id, lineage.organization_id,
                 JSON.stringify(lineage.sanitization), lineage.created_at]
         );
-        return rows[0];
+        if (result.rowCount !== 1) throw new Error('personal_knowledge_promotion_lineage_insert_failed');
+        return { lineage_id: lineage.lineage_id, persisted: true };
     }
 }
 import { createHash } from 'node:crypto';
