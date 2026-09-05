@@ -10,8 +10,7 @@ export class AuthGrantService {
             await client.query('BEGIN');
             const { rows } = await client.query(
                 `SELECT ag.id, ag.person_id, ag.role, ag.project_codes FROM auth_grants ag
-                 JOIN organizations o ON o.workspace_id=ag.slack_workspace_id
-                 WHERE ag.person_id=$1 AND o.id=$2 AND ag.active=true FOR UPDATE`,
+                 WHERE ag.person_id=$1 AND ag.organization_id=$2 AND ag.active=true FOR UPDATE`,
                 [personId, organizationId]
             );
             const grant = rows.find((row) => row.role === role);
@@ -40,8 +39,7 @@ export class AuthGrantService {
         const { rows } = await this.pool.query(
             `SELECT ag.id, ag.person_id, ag.role, ag.project_codes
              FROM auth_grants ag
-             JOIN organizations o ON o.workspace_id=ag.slack_workspace_id
-             WHERE ag.person_id=$1 AND ag.role=$2 AND o.id=$3 AND ag.active=true`,
+             WHERE ag.person_id=$1 AND ag.role=$2 AND ag.organization_id=$3 AND ag.active=true`,
             [personId, role, organizationId]
         );
         const grant = rows[0] || null;

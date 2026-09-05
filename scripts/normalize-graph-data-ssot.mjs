@@ -686,7 +686,7 @@ export async function rollback(client, backupPath) {
     await restoreRows(client, 'graph_edges', 'id', backup.target_ids.graph_edges, backup.rows.graph_edges, ['id', 'from_id', 'to_id', 'rel_type', 'project_id', 'payload', 'role_min', 'sensitivity', 'created_at', 'updated_at']);
     await restoreRows(client, 'graph_entities', 'id', backup.target_ids.graph_entities, backup.rows.graph_entities, ['id', 'entity_type', 'project_id', 'payload', 'role_min', 'sensitivity', 'created_at', 'updated_at']);
     await restoreRows(client, 'raci_assignments', 'id', backup.target_ids.raci_assignments, backup.rows.raci_assignments, ['id', 'project_id', 'person_id', 'role_code', 'authority_scope', 'sensitivity_min', 'sensitivity', 'created_at', 'updated_at']);
-    await restoreRows(client, 'auth_grants', 'id', backup.target_ids.auth_grants, backup.rows.auth_grants, ['id', 'person_id', 'person_name', 'slack_user_id', 'slack_workspace_id', 'role', 'project_codes', 'clearance', 'active', 'created_at', 'updated_at']);
+    await restoreRows(client, 'auth_grants', 'id', backup.target_ids.auth_grants, backup.rows.auth_grants, ['id', 'person_id', 'person_name', 'slack_user_id', 'slack_workspace_id', 'organization_id', 'role', 'project_codes', 'clearance', 'active', 'created_at', 'updated_at']);
     for (const person of backup.rows.people) {
       await client.query(`
         INSERT INTO people (id, name, status) VALUES ($1,$2,$3)

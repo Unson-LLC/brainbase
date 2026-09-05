@@ -10,6 +10,8 @@ export function createAuthRouter(authService) {
     router.get('/slack/callback', controller.slackCallback);
     router.post('/token/exchange', controller.tokenExchange);
     router.post('/refresh', controller.refresh);
+    router.get('/organizations', requireAuth(authService, { allowInsecureHeaders: false }), controller.organizations);
+    router.post('/organizations/switch', requireAuth(authService, { allowInsecureHeaders: false }), controller.switchOrganization);
     router.post('/logout', requireAuth(authService), controller.logout);
     router.get('/verify', requireAuth(authService), controller.verify);
     router.post('/service-tokens', requireAuth(authService), controller.createServiceToken);

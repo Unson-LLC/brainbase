@@ -163,8 +163,8 @@ export class PgProjectProvisioningRepository {
                 ? this.infoSSOTService.withAccessContext(graphAccess, graphOrganizationQuery)
                 : this.withOrganization(organizationId, graphOrganizationQuery),
             this.withOrganization(organizationId, (client) => client.query(
-                `SELECT ag.id FROM auth_grants ag JOIN organizations o ON o.workspace_id=ag.slack_workspace_id
-                 WHERE ag.person_id=$1 AND o.id=$2 AND ag.active=true LIMIT 1`,
+                `SELECT ag.id FROM auth_grants ag
+                 WHERE ag.person_id=$1 AND ag.organization_id=$2 AND ag.active=true LIMIT 1`,
                 [manifest.owner_person_id, organizationId]
             ))
         ]);

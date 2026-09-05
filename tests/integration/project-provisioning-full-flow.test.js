@@ -223,11 +223,11 @@ async function setupDatabase() {
              'member', 'internal', 'active', 1)
         ON CONFLICT (id) DO NOTHING;
         INSERT INTO auth_grants
-            (id, person_id, person_name, slack_user_id, slack_workspace_id, role,
+            (id, person_id, person_name, slack_user_id, slack_workspace_id, organization_id, role,
              project_codes, clearance, active)
         VALUES
             ('grant_integration_owner', '${PERSON_ID}', 'Integration Owner', 'U_INTEGRATION',
-             'WS_ORG_UNSON', 'gm', ARRAY['brainbase'],
+             'WS_ORG_UNSON', '${ORGANIZATION_ID}', 'gm', ARRAY['brainbase'],
              ARRAY['internal','restricted','finance','hr','contract'], true)
         ON CONFLICT (id) DO UPDATE SET
             person_id=EXCLUDED.person_id,
@@ -256,11 +256,11 @@ async function setupDatabase() {
             ('person_wrong_workspace', 'Owner With Wrong Workspace', 'active')
         ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status;
         INSERT INTO auth_grants
-            (id, person_id, person_name, slack_user_id, slack_workspace_id, role,
+            (id, person_id, person_name, slack_user_id, slack_workspace_id, organization_id, role,
              project_codes, clearance, active)
         VALUES
             ('grant_wrong_workspace', 'person_wrong_workspace', 'Owner With Wrong Workspace',
-             'U_WRONG_WORKSPACE', 'WS_ORG_OTHER', 'gm', ARRAY['brainbase'], ARRAY['internal'], true)
+             'U_WRONG_WORKSPACE', 'WS_ORG_OTHER', 'org_other', 'gm', ARRAY['brainbase'], ARRAY['internal'], true)
         ON CONFLICT (id) DO UPDATE SET
             person_id=EXCLUDED.person_id,
             slack_workspace_id=EXCLUDED.slack_workspace_id,

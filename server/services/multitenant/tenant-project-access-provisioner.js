@@ -5,7 +5,7 @@ import { isCanonicalId } from './ids.js';
 
 const VERSION = 'brainbase-two-user-access.v1';
 const TARGET = deepFreeze({
-    tenant_id: 'ten_01M0HMA228ES64N4TFX846V8T8', tenant_key: 'unson-business', organization_id: 'ten_01M0HMA228ES64N4TFX846V8T8',
+    tenant_id: 'ten_01M0HMA228ES64N4TFX846V8T8', tenant_key: 'unson-business', organization_id: 'ten_01M0HMA228ES64N4TFX846V8T8', auth_organization_id: 'unson',
     project_code: 'brainbase', project_id: 'prj_01KGCS8CAJKKDWACPNK1E5WX8H',
     workspace_id: 'T0882T8N9UH', app_id: 'A0BPM2J33SN', connection_id: 'wsc_01M0HRK94FG2Y8DMBFYJHYT14K',
     installation_id: 'slack_T0882T8N9UH_A0BPM2J33SN',
@@ -119,14 +119,14 @@ async function ensureUmeda(client, tenant, plan) {
 }
 async function ensureMinimalGrant(client, person, label, plan, { personAlreadyVerified = false } = {}) {
     if (!personAlreadyVerified) person.person_name = (await requirePerson(client, person)).name;
-    const grants = await rows(client, 'SELECT id, person_id, person_name, slack_user_id, slack_workspace_id, role, project_codes, clearance, active FROM auth_grants WHERE slack_user_id = $1 AND slack_workspace_id = $2 FOR UPDATE', [person.slack_user_id, TARGET.workspace_id]);
+    const grants = await rows(client, 'SELECT id, person_id, person_name, slack_user_id, slack_workspace_id, organization_id, role, project_codes, clearance, active FROM auth_grants WHERE slack_user_id = $1 AND slack_workspace_id = $2 AND organization_id = $3 FOR UPDATE', [person.slack_user_id, TARGET.workspace_id, TARGET.auth_organization_id]);
     if (grants.length > 1) fail('AUTH_GRANT_AMBIGUOUS', `${label} has multiple Slack grants`);
     if (grants.length === 1) { const grant = grants[0]; if (TARGET.denied_person_ids.includes(grant.person_id)) fail('LEGACY_PERSON_FORBIDDEN', 'Legacy person records are never writable by this provisioner'); if (!grant.active || grant.person_id !== person.person_id || grant.person_name !== person.person_name || grant.role !== 'member' || !same(grant.project_codes, [TARGET.project_code]) || !same(grant.clearance, ['internal'])) fail('AUTH_GRANT_NOT_LEAST_PRIVILEGE', `${label} grant is not the approved minimal scope`); plan.push({ operation: 'noop', entity: 'auth_grant', id: grant.id }); }
-    else { const id = stableId('grant', [TARGET.workspace_id, person.slack_user_id]); await client.query(`INSERT INTO auth_grants (id, person_id, person_name, slack_user_id, slack_workspace_id, role, project_codes, clearance, active) VALUES ($1, $2, $3, $4, $5, 'member', $6::text[], $7::text[], true)`, [id, person.person_id, person.person_name, person.slack_user_id, TARGET.workspace_id, [TARGET.project_code], ['internal']]); plan.push({ operation: 'create', entity: 'auth_grant', id }); }
+    else { const id = stableId('grant', [TARGET.auth_organization_id, TARGET.workspace_id, person.slack_user_id]); await client.query(`INSERT INTO auth_grants (id, person_id, person_name, slack_user_id, slack_workspace_id, organization_id, role, project_codes, clearance, active) VALUES ($1, $2, $3, $4, $5, $6, 'member', $7::text[], $8::text[], true)`, [id, person.person_id, person.person_name, person.slack_user_id, TARGET.workspace_id, TARGET.auth_organization_id, [TARGET.project_code], ['internal']]); plan.push({ operation: 'create', entity: 'auth_grant', id }); }
 }
 async function preflightPrincipal(client, tenant, principal, profile) {
     const person = { ...principal, person_name: (await requirePerson(client, principal)).name };
-    const grants = await rows(client, 'SELECT id, person_id, person_name, role, project_codes, clearance, active FROM auth_grants WHERE slack_user_id = $1 AND slack_workspace_id = $2 FOR UPDATE', [person.slack_user_id, TARGET.workspace_id]);
+    const grants = await rows(client, 'SELECT id, person_id, person_name, role, project_codes, clearance, active FROM auth_grants WHERE slack_user_id = $1 AND slack_workspace_id = $2 AND organization_id = $3 FOR UPDATE', [person.slack_user_id, TARGET.workspace_id, TARGET.auth_organization_id]);
     if (grants.length > 1) fail('AUTH_GRANT_AMBIGUOUS', 'Approved principal has multiple Slack grants');
     if (grants.length === 1) {
         const grant = grants[0];
@@ -173,7 +173,7 @@ export async function readbackTenantProjectAccess({ client, manifest = undefined
         await requireConnection(client, tenant, []);
         for (const [profile, person] of [['sato', { person_id: TARGET.sato.person_id, ...TARGET.sato }], ['umeda', { person_id: TARGET.umeda.person_id, ...TARGET.umeda }]]) {
             person.person_name = (await requirePerson(client, person)).name;
-            const grant = exactlyOne(await rows(client, 'SELECT id, person_id, person_name, role, project_codes, clearance FROM auth_grants WHERE slack_user_id = $1 AND slack_workspace_id = $2 AND active = true FOR SHARE', [person.slack_user_id, TARGET.workspace_id]), 'READBACK_FAILED', 'Approved active grant was not found');
+            const grant = exactlyOne(await rows(client, 'SELECT id, person_id, person_name, role, project_codes, clearance FROM auth_grants WHERE slack_user_id = $1 AND slack_workspace_id = $2 AND organization_id = $3 AND active = true FOR SHARE', [person.slack_user_id, TARGET.workspace_id, TARGET.auth_organization_id]), 'READBACK_FAILED', 'Approved active grant was not found');
             if (grant.person_id !== person.person_id || grant.person_name !== person.person_name || grant.role !== 'member' || !same(grant.project_codes, [TARGET.project_code]) || !same(grant.clearance, ['internal'])) fail('READBACK_FAILED', 'Grant crossed the approved minimum boundary');
             const membership = exactlyOne(await rows(client, 'SELECT membership_id, membership_payload FROM tenant_memberships WHERE tenant_id = $1 AND organization_id = $2 AND principal_id = $3 FOR SHARE', [tenant.tenant_id, TARGET.organization_id, person.person_id]), 'READBACK_FAILED', 'Approved membership was not found');
             const payload = membership.membership_payload ?? {};
