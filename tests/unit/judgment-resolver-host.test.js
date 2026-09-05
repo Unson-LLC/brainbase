@@ -2869,6 +2869,57 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
+    it('runtime 2.4のcompleted状態があってもcontinue契約への不要な確認質問を完了扱いにしない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-journal-state-question', turn_id: 'turn-journal-state-question', prompt: '検出器を修正して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) })
+        });
+        recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'apply_patch', tool_use_id: 'tool-journal-question-apply',
+            tool_input: { patch_digest: 'journal-question' }, tool_response: { success: true }
+        }, { env });
+        recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-journal-question-state',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }, { env });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                episode.audit_contract.zero_call_display_line,
+                '⚠️ 確認が必要[classification_missing]: 第二段階まで完了として確定してよいですか？'
+            ].join('\n')
+        }, { env });
+
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.continuation.autonomy_continuation).toMatchObject({
+            trigger_code: 'unnecessary_user_question', reason_code: 'routine_in_scope', status: 'requested'
+        });
+        expect(result.output.reason).toContain('ユーザーへ判断を返さず、安全な範囲で作業を継続する');
+        expect(result.final).toBeNull();
+    });
+
     it('Codex DesktopのfileChangeと単一readをtool_use_idで照合しvalue proof用証拠へ変換する', async () => {
         const root = temporaryDirectory();
         const databasePath = join(root, 'thread-history.sqlite');
@@ -4218,6 +4269,7 @@ describe('turn_input handoff and resolved judgment line', () => {
         }, { env });
         expect(output.systemMessage).toContain('判断契約を確定しました');
         expect(output.systemMessage).toContain('🧠 判断参照: 「この修正を行って」を参照 → 実装依頼として継続 ✓');
+        expect(output.systemMessage).toContain('古い判断行とclassification_missing確認質問は最終回答へ残さないでください');
         expect(output.systemMessage).toContain('Autonomy decision: continue.');
         expect(output.systemMessage).toContain('This is an implementation request.');
         expect(output.systemMessage).toContain('Use the repository-local `vibepro-workflow` Skill');
@@ -4297,7 +4349,35 @@ describe('turn_input handoff and resolved judgment line', () => {
         const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(false);
         expect(resolvedOutput.systemMessage).toContain('🧠 判断参照: 「この修正を行って」を参照 → 実装依頼として継続 ✓');
+        expect(resolvedOutput.systemMessage).toContain('古い判断行とclassification_missing確認質問は最終回答へ残さないでください');
         const ownerLine = '🧠 判断参照: 「この修正を行って」を参照 → 実装依頼として継続 ✓';
+        const staleAnswer = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                episode.audit_contract.zero_call_display_line,
+                episode.audit_contract.stop_repair_complete_line,
+                '⚠️ 確認が必要[classification_missing]: 第二段階まで完了として確定してよいですか？'
+            ].join('\n')
+        }, { env });
+        expect(staleAnswer.output).toMatchObject({ decision: 'block' });
+        expect(staleAnswer.continuation.autonomy_continuation).toMatchObject({
+            trigger_code: 'unnecessary_user_question', reason_code: 'routine_in_scope', status: 'requested'
+        });
+        expect(staleAnswer.final).toBeNull();
+
+        await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'apply_patch', tool_use_id: 'tool-resolved-post-tool-retry-apply',
+            tool_input: { patch_digest: 'resolved-post-tool-retry' }, tool_response: { success: true }
+        }, { env });
+        await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'tool-resolved-post-tool-retry-state',
+            tool_input: { status: 'completed', pending_safe_work: false, runtime_reason_code: null },
+            tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'completed', pending_safe_work: false, runtime_reason_code: null } }
+        }, { env });
+
         const stopped = finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
             last_assistant_message: [
@@ -4313,7 +4393,7 @@ describe('turn_input handoff and resolved judgment line', () => {
             owner_audit_source: 'assistant_answer',
             autonomy_continuation: {
                 status: 'completed', trigger_code: 'unnecessary_user_question', reason_code: 'routine_in_scope',
-                interruption_candidate: { question_display_text: 'この修正を進めてもよいですか？' }
+                interruption_candidate: { question_display_text: '⚠️ 確認が必要[classification_missing]: 第二段階まで完了として確定してよいですか？' }
             }
         });
     });
