@@ -130,8 +130,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-t0-human-tenant-access-provisioning",
+        "title": "別事業体の実利用者をテナント境界付きで登録できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-t0-dedicated-slack-installation-oauth"
+    "current_story_id": "story-t0-human-tenant-access-provisioning"
   }
 }
