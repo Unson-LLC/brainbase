@@ -178,8 +178,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-g0-authority-bound-execution",
+        "title": "G0の権限必須承認を実行結果へ束縛する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
       }
     ],
-    "current_story_id": "story-p0-canonical-project-authority"
+    "current_story_id": "story-g0-authority-bound-execution"
   }
 }

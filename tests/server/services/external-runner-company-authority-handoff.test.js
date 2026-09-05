@@ -78,6 +78,7 @@ function makePayload(overrides = {}) {
             prompt: 'Company Authorityで承認する',
             required_by: 'person-approver',
             requested_to: 'person-approver',
+            company_authority_required: true,
             company_authority_handoff: companyAuthorityHandoff()
         }],
         ...overrides
@@ -128,8 +129,46 @@ describe('external runner Company Authority handoff', () => {
         expect(result.human_steps[0]).toMatchObject({
             requested_by: 'person-requester',
             requested_to: 'person-approver',
-            metadata: { company_authority_human_approval: marker }
+            metadata: {
+                company_authority_required: true,
+                company_authority_human_approval: marker
+            }
         });
+    });
+
+    it('rejects a required Company Authority step without a handoff before creating any workflow surface', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const service = new ExternalRunnerIngestService({ workflowRepository: repository });
+        const humanStep = makePayload().human_steps[0];
+
+        await expect(service.ingest(makePayload({
+            human_steps: [{
+                ...humanStep,
+                company_authority_handoff: undefined
+            }]
+        }))).rejects.toMatchObject({
+            code: 'missing_company_authority_human_approval_handoff'
+        });
+        expect(repository.listWorkflows()).toHaveLength(0);
+        expect(repository.listRuns()).toHaveLength(0);
+        expect(repository.listHumanSteps()).toHaveLength(0);
+    });
+
+    it('rejects a non-boolean Company Authority requirement', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const service = new ExternalRunnerIngestService({ workflowRepository: repository });
+        const humanStep = makePayload().human_steps[0];
+
+        await expect(service.ingest(makePayload({
+            human_steps: [{
+                ...humanStep,
+                company_authority_required: 'yes'
+            }]
+        }))).rejects.toMatchObject({
+            code: 'invalid_boolean',
+            details: { path: 'human_steps[0].company_authority_required' }
+        });
+        expect(repository.listRuns()).toHaveLength(0);
     });
 
     it.each([

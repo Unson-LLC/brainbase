@@ -214,6 +214,29 @@ export class AutomationRunService {
         if (!previous) throw AppError.notFound('workflow_run', runId);
         if (isRunReceiptRun(previous)) throw AppError.notFound('workflow_run', runId);
         this.assertProjectAccess(previous.project_id, actor);
+        const companyAuthorityHumanStep = this.repository.listHumanSteps(runId).find((step) => (
+            step.metadata?.company_authority_required === true
+            || Object.prototype.hasOwnProperty.call(
+                step.metadata || {},
+                'company_authority_human_approval'
+            )
+            || Boolean(this.companyAuthorityHumanApprovalService?.isBound?.(step))
+        ));
+        if (
+            companyAuthorityHumanStep
+            || previous.company_authority_approval_receipt_id
+            || previous.source_human_step_id
+        ) {
+            const error = AppError.conflict(
+                `workflow run '${runId}' is bound to Company Authority approval and cannot be rerun`,
+                {
+                    code: 'company_authority_approved_run_rerun_forbidden',
+                    source_human_step_id: previous.source_human_step_id || companyAuthorityHumanStep?.id || null
+                }
+            );
+            error.code = 'company_authority_approved_run_rerun_forbidden';
+            throw error;
+        }
         const workflow = this.repository.getWorkflow(previous.workflow_id);
         assertWorkflowRunAllowed(workflow);
         return this.runWorkflow(previous.workflow_id, {
@@ -638,7 +661,9 @@ export class AutomationRunService {
             initialStep.metadata || {},
             'company_authority_human_approval'
         );
-        const companyAuthorityBound = hasCompanyAuthorityMarker
+        const companyAuthorityRequired = initialStep.metadata?.company_authority_required === true;
+        const companyAuthorityBound = companyAuthorityRequired
+            || hasCompanyAuthorityMarker
             || Boolean(this.companyAuthorityHumanApprovalService?.isBound?.(initialStep));
         if (
             companyAuthorityBound
@@ -652,27 +677,6 @@ export class AutomationRunService {
             );
         }
         let companyAuthorityApproval = null;
-        if (
-            companyAuthorityBound
-            && initialStep.status === 'pending'
-            && isApprovedHumanResolution(initialResolution)
-        ) {
-            companyAuthorityApproval = await this.companyAuthorityHumanApprovalService.resolve({
-                step: initialStep,
-                input,
-                actor
-            });
-            if (!companyAuthorityApproval
-                || !companyAuthorityApproval.receipt?.receipt_id
-                || !companyAuthorityApproval.consumed_at
-                || !companyAuthorityApproval.consumed_by
-                || !companyAuthorityApproval.fresh_context) {
-                throw new AppError(
-                    'Company Authority human approval did not produce a valid consumed receipt',
-                    { code: 'company_authority_human_approval_invalid', statusCode: 503 }
-                );
-            }
-        }
         const shouldPrepareCanonicalTaskCheckpoint = initialStep.status === 'pending'
             && isApprovedHumanResolution(initialResolution)
             && this._isCanonicalTaskHumanStep(initialStep)
@@ -732,11 +736,28 @@ export class AutomationRunService {
             ? await this._materializeCanonicalTaskApproval(initialStep, input, actor)
             : null;
         const resolvedStatus = approvedResolution ? 'approved' : resolution;
-        const mutation = await this._transaction(() => {
+        const mutation = await this._transaction(async () => {
             const step = this.repository.getHumanStep(stepId);
             if (!step) throw AppError.notFound('workflow_human_step', stepId);
             if (step.status !== 'pending') {
                 throw AppError.conflict(`human step '${stepId}' is already ${step.status}`);
+            }
+            if (companyAuthorityBound && approvedResolution) {
+                companyAuthorityApproval = await this.companyAuthorityHumanApprovalService.resolve({
+                    step,
+                    input,
+                    actor
+                });
+                if (!companyAuthorityApproval
+                    || !companyAuthorityApproval.receipt?.receipt_id
+                    || !companyAuthorityApproval.consumed_at
+                    || !companyAuthorityApproval.consumed_by
+                    || !companyAuthorityApproval.fresh_context) {
+                    throw new AppError(
+                        'Company Authority human approval did not produce a valid consumed receipt',
+                        { code: 'company_authority_human_approval_invalid', statusCode: 503 }
+                    );
+                }
             }
             const resolved = this.repository.updateHumanStep(stepId, {
                 status: resolvedStatus,

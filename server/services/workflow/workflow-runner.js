@@ -113,6 +113,11 @@ export class WorkflowRunner {
                     action_required: 'rerun',
                     human_waiting: false,
                     parent_run_id: options.parentRunId || null,
+                    ...(options.humanStepResolution?.companyAuthorityApprovalReceiptId ? {
+                        company_authority_approval_receipt_id:
+                            options.humanStepResolution.companyAuthorityApprovalReceiptId,
+                        source_human_step_id: options.humanStepResolution.stepId
+                    } : {}),
                     message: `Workflow '${workflow.id}' is already running`,
                     started_at: startedAt,
                     finished_at: nowIso(),
@@ -159,6 +164,11 @@ export class WorkflowRunner {
                     action_required: 'none',
                     human_waiting: false,
                     parent_run_id: options.parentRunId || null,
+                    ...(options.humanStepResolution?.companyAuthorityApprovalReceiptId ? {
+                        company_authority_approval_receipt_id:
+                            options.humanStepResolution.companyAuthorityApprovalReceiptId,
+                        source_human_step_id: options.humanStepResolution.stepId
+                    } : {}),
                     started_at: startedAt
                 });
                 const createdStep = this.repository.createRunStep({
@@ -352,6 +362,8 @@ export class WorkflowRunner {
             const status = WORKFLOW_RUN_STATUSES.has(result.status) ? result.status : 'success';
             run = await this._transaction(() => {
                 if (result.data != null || result.outputCount > 0) {
+                    const companyAuthorityApprovalReceiptId = options.humanStepResolution
+                        ?.companyAuthorityApprovalReceiptId;
                     this.repository.createOutput({
                         id: `out_${crypto.randomUUID()}`,
                         workspace_id: run.workspace_id,
@@ -361,7 +373,13 @@ export class WorkflowRunner {
                         type: 'result',
                         title: result.message || `${workflow.name} output`,
                         preview: previewData(result.data),
-                        metadata: { output_count: result.outputCount }
+                        metadata: {
+                            output_count: result.outputCount,
+                            ...(companyAuthorityApprovalReceiptId ? {
+                                company_authority_approval_receipt_id: companyAuthorityApprovalReceiptId,
+                                source_human_step_id: options.humanStepResolution.stepId
+                            } : {})
+                        }
                     });
                 }
                 const updatedRun = this.repository.updateRun(run.id, {

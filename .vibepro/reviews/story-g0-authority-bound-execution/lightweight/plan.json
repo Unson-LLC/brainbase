@@ -1,0 +1,8 @@
+{
+  "story_id": "story-g0-authority-bound-execution",
+  "roles": [
+    "code",
+    "dataflow"
+  ],
+  "instructions": "変更箇所と受入条件を一度確認し、具体的な未解決事項と検証結果を記録してください。追加のレビュー段階は要求しません。"
+}

@@ -1,0 +1,130 @@
+{
+  "schema_version": "0.1.0",
+  "kind": "vibepro_bug_diagnosis_dag",
+  "story_id": "story-g0-authority-bound-execution",
+  "run_id": "2026-09-05T234629Z",
+  "target_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+  "created_at": "2026-09-05T23:46:32.742Z",
+  "updated_at": "2026-09-05T23:47:26.650Z",
+  "nodes": [
+    {
+      "id": "failure_reproduced",
+      "label": "再現と実測",
+      "status": "passed",
+      "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "evidence_refs": [
+        "tests/server/services/external-runner-company-authority-handoff.test.js",
+        "tests/server/services/automation-run-company-authority-human-approval.test.js"
+      ],
+      "reason": "origin/developの修正前コードへ追加回帰テストを載せ、17件中5件が失敗してhandoff欠落の受理、marker欠落時の通常承認、outputのreceipt未束縛を再現した。",
+      "path_id": "g0-company-authority-human-resume",
+      "analyses": [
+        "data_flow"
+      ]
+    },
+    {
+      "id": "failure_localized",
+      "label": "発生箇所の特定",
+      "status": "passed",
+      "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "evidence_refs": [
+        "server/services/external-runner/contract-schema.js",
+        "server/services/automation-run/automation-run-service.js",
+        "server/services/workflow/workflow-runner.js"
+      ],
+      "reason": "欠落をcontract検証、human step metadata、承認経路判定、承認後output作成の4境界へ特定した。",
+      "path_id": "g0-company-authority-human-resume",
+      "analyses": [
+        "data_flow"
+      ]
+    },
+    {
+      "id": "relationship_analysis",
+      "label": "必要な関係分析",
+      "status": "passed",
+      "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "evidence_refs": [
+        "docs/architecture/external-runner-adapter-contract-architecture.md",
+        "docs/specs/story-g0-authority-bound-execution-spec.md"
+      ],
+      "reason": "external_runner入力からadapter、Company Authority receipt消費、workflow再開、output保存までの関係を照合し、agent_reportは承認専用runとして分離した。",
+      "path_id": "g0-company-authority-human-resume",
+      "analyses": [
+        "data_flow",
+        "module_boundary"
+      ]
+    },
+    {
+      "id": "preconditions_confirmed",
+      "label": "前提条件の確認",
+      "status": "passed",
+      "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "evidence_refs": [
+        "docs/management/stories/active/story-g0-authority-bound-execution.md",
+        "docs/management/milestones/brainbase-program-master-roadmap.md"
+      ],
+      "reason": "G0完了条件を、権限必須宣言の迂回防止と承認後業務handlerのreceipt束縛に限定し、本番外部読戻しは別の未完了条件として保持した。",
+      "path_id": "g0-company-authority-human-resume",
+      "analyses": []
+    },
+    {
+      "id": "root_cause_confirmed",
+      "label": "根本原因の確定",
+      "status": "passed",
+      "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "evidence_refs": [
+        "server/services/external-runner/contract-schema.js",
+        "server/services/automation-run/automation-run-service.js",
+        "server/services/workflow/workflow-runner.js"
+      ],
+      "reason": "権限必須という明示契約がなく、承認判定がmarkerだけに依存し、workflow outputへ消費receiptを保存していなかったことを根本原因として確定した。",
+      "path_id": "g0-company-authority-human-resume",
+      "analyses": []
+    },
+    {
+      "id": "regression_test_failed_before_fix",
+      "label": "失敗する回帰テスト",
+      "status": "passed",
+      "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "evidence_refs": [
+        "tests/server/services/external-runner-company-authority-handoff.test.js",
+        "tests/server/services/automation-run-company-authority-human-approval.test.js"
+      ],
+      "reason": "修正前origin/developの4実装ファイルで同じ17テストを実行し、追加した5件が失敗するREDを確認した。",
+      "path_id": "g0-company-authority-human-resume",
+      "analyses": []
+    },
+    {
+      "id": "root_fix_applied",
+      "label": "根本修正",
+      "status": "passed",
+      "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "evidence_refs": [
+        "server/services/external-runner/contract-schema.js",
+        "server/services/external-runner/external-runtime-adapter.js",
+        "server/services/automation-run/automation-run-service.js",
+        "server/services/workflow/workflow-runner.js"
+      ],
+      "reason": "必須宣言を保存前に検証・永続し、宣言またはmarkerでfail closedにし、承認後outputへreceiptとsource stepを保存した。",
+      "path_id": "g0-company-authority-human-resume",
+      "analyses": []
+    },
+    {
+      "id": "same_path_reverified",
+      "label": "同じ経路で再検証",
+      "status": "passed",
+      "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "evidence_refs": [
+        "tests/server/services/external-runner-company-authority-handoff.test.js",
+        "tests/server/services/automation-run-company-authority-human-approval.test.js"
+      ],
+      "reason": "同じ17テストを修正後コードで再実行し全件pass。影響範囲95件とtypecheckもpassした。",
+      "path_id": "g0-company-authority-human-resume",
+      "analyses": []
+    }
+  ],
+  "status": "ready",
+  "failures": [],
+  "return_to_node": null,
+  "next_actions": []
+}
