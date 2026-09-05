@@ -97,6 +97,29 @@ describe('Slack installation route-specific authentication', () => {
         expect(JSON.stringify(response.body)).not.toContain('short-lived-code');
     });
 
+    it('lets only the exact GET callback reach signed-state verification without bearer auth', async () => {
+        const middleware = createSlackInstallationControlPlaneAuthMiddleware({
+            authService: { verifyToken: vi.fn() },
+            env
+        });
+        const req = {
+            method: 'GET',
+            path: '/slack-installations:callback',
+            originalUrl: '/api/v1/slack-installations:callback?code=one-time&state=signed'
+        };
+        const response = {
+            statusCode: null,
+            status(code) { this.statusCode = code; return this; },
+            type() { return this; },
+            json() { return this; }
+        };
+        const next = vi.fn();
+
+        await middleware(req, response, next);
+        expect(next).toHaveBeenCalledOnce();
+        expect(response.statusCode).toBeNull();
+    });
+
     it('rejects a general/member service token on exchange before business logic', async () => {
         const { app, controlPlane } = createApp();
         const memberToken = `bbsvc_${jwt.sign({

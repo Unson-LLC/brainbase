@@ -452,6 +452,7 @@ export function createCoreServices({
         slackInstallationControlPlane: slackInstallationControlPlaneRuntime.controlPlane,
         slackInstallationControlPlaneAuthMiddleware: slackInstallationControlPlaneRuntime.authMiddleware,
         slackInstallationControlPlaneAppId: slackInstallationControlPlaneRuntime.appId,
+        slackInstallationOAuthFlow: slackInstallationControlPlaneRuntime.oauthFlow,
         resolvePreProvisionedSlackConnection: slackInstallationControlPlaneRuntime.resolvePreProvisionedConnection,
         slackInstallationControlPlaneReady: slackInstallationControlPlaneRuntime.ready,
         slackInstallationControlPlaneReason: slackInstallationControlPlaneRuntime.reason,

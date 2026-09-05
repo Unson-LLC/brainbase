@@ -2,6 +2,7 @@ import { ContractError } from '../services/multitenant/errors.js';
 import { MultitenantPostgresRepository } from '../services/multitenant/postgres-repository.js';
 import { SlackInstallationControlPlane } from '../services/multitenant/slack-installation-control-plane.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
+import { createSlackInstallationOAuthFlow } from '../services/multitenant/slack-installation-oauth-flow.js';
 import { createRemoteCredentialStore } from '../services/multitenant/remote-credential-store.js';
 
 function unavailableControlPlane() {
@@ -38,10 +39,23 @@ function parseJson(text) {
     }
 }
 
-function createSlackOAuthClient({ authService, fetchImpl = globalThis.fetch } = {}) {
-    const clientId = authService?.slackClientId;
-    const clientSecret = authService?.slackClientSecret;
-    const tokenUrl = authService?.tokenUrl;
+function createSlackOAuthClient({ authService, env = process.env, fetchImpl = globalThis.fetch } = {}) {
+    const dedicatedClientId = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_ID');
+    const dedicatedClientSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET');
+    const dedicatedAppId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID');
+    const dedicatedTokenUrl = required(env, 'BRAINBASE_SLACK_INSTALLATION_TOKEN_URL');
+    const dedicatedMode = Boolean(
+        dedicatedAppId || dedicatedClientId || dedicatedClientSecret || dedicatedTokenUrl
+    );
+    if (Boolean(dedicatedClientId) !== Boolean(dedicatedClientSecret)
+        || (dedicatedMode && (!dedicatedAppId || !dedicatedClientId || !dedicatedClientSecret
+            || !dedicatedTokenUrl))) {
+        throw new Error('slack_installation_oauth_configuration_incomplete');
+    }
+    const clientId = dedicatedClientId ?? authService?.slackClientId;
+    const clientSecret = dedicatedClientSecret ?? authService?.slackClientSecret;
+    const tokenUrl = dedicatedTokenUrl ?? authService?.tokenUrl;
+    const appId = dedicatedAppId ?? authService?.slackClientId;
     if (typeof fetchImpl !== 'function' || !clientId || !clientSecret || !tokenUrl) {
         throw new Error('slack_oauth_configuration_required');
     }
@@ -102,8 +116,15 @@ function createSlackOAuthClient({ authService, fetchImpl = globalThis.fetch } = 
                 ?? payload.authed_user_id
                 ?? payload.user_id
                 ?? null;
+            const providerAppId = payload.api_app_id ?? payload.app_id ?? null;
+            if (dedicatedMode && !providerAppId) {
+                throw new ContractError('OAUTH_EXCHANGE_INVALID', {
+                    status: 502,
+                    fault_domain: 'external_provider'
+                });
+            }
             return {
-                app_id: payload.api_app_id ?? payload.app_id ?? clientId,
+                app_id: providerAppId ?? appId,
                 workspace_id: workspaceId,
                 ...(enterpriseId ? { enterprise_id: enterpriseId } : {}),
                 installer_id: installerId,
@@ -147,13 +168,29 @@ export function createSlackInstallationControlPlaneFromEnv({
         env,
         now
     });
-    const appId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID')
+    const dedicatedClientId = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_ID');
+    const dedicatedClientSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET');
+    const dedicatedRedirectUri = required(env, 'BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI');
+    const dedicatedStateSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_STATE_SECRET');
+    const dedicatedBotScopes = required(env, 'BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES');
+    const dedicatedAppId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID');
+    const dedicatedTokenUrl = required(env, 'BRAINBASE_SLACK_INSTALLATION_TOKEN_URL');
+    const dedicatedRequested = Boolean(
+        dedicatedAppId || dedicatedClientId || dedicatedClientSecret || dedicatedRedirectUri
+        || dedicatedStateSecret || dedicatedBotScopes || dedicatedTokenUrl
+    );
+    const dedicatedComplete = Boolean(
+        dedicatedAppId && dedicatedClientId && dedicatedClientSecret && dedicatedRedirectUri
+        && dedicatedStateSecret && dedicatedBotScopes && dedicatedTokenUrl
+    );
+    const appId = dedicatedAppId
         ?? authService?.slackClientId
         ?? '';
     const unavailable = (reason) => ({
         controlPlane: unavailableControlPlane(),
         authMiddleware,
         appId,
+        oauthFlow: null,
         resolvePreProvisionedConnection: null,
         ready: false,
         reason
@@ -161,11 +198,24 @@ export function createSlackInstallationControlPlaneFromEnv({
 
     if (!pool) return unavailable('database_pool_required');
     if (!appId) return unavailable('slack_installation_app_id_required');
+    if (dedicatedRequested && !dedicatedComplete) {
+        return unavailable('slack_installation_oauth_configuration_incomplete');
+    }
 
     try {
         const repository = new MultitenantPostgresRepository({ pool, now });
-        const oauthClient = createSlackOAuthClient({ authService, fetchImpl });
+        const oauthClient = createSlackOAuthClient({ authService, env, fetchImpl });
         const credentialStore = createCredentialStore({ env, fetchImpl });
+        const oauthFlow = dedicatedComplete
+            ? createSlackInstallationOAuthFlow({
+                clientId: dedicatedClientId,
+                redirectUri: dedicatedRedirectUri,
+                stateSecret: dedicatedStateSecret,
+                botScopes: dedicatedBotScopes,
+                authorizeUrl: required(env, 'BRAINBASE_SLACK_INSTALLATION_AUTHORIZE_URL') ?? undefined,
+                now
+            })
+            : null;
         const controlPlane = new SlackInstallationControlPlane({
             repository,
             oauthClient,
@@ -176,6 +226,7 @@ export function createSlackInstallationControlPlaneFromEnv({
             controlPlane,
             authMiddleware,
             appId,
+            oauthFlow,
             resolvePreProvisionedConnection: null,
             ready: true,
             reason: null

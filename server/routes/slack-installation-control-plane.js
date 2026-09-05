@@ -98,6 +98,7 @@ function safeBody(req, fields) {
 
 export function createSlackInstallationControlPlaneRouter({
     controlPlane,
+    oauthFlow,
     appId,
     resolvePreProvisionedConnection,
     authorizeRequest = (req) => defaultAuthorizeRequest(req, { appId, resolvePreProvisionedConnection })
@@ -114,11 +115,40 @@ export function createSlackInstallationControlPlaneRouter({
             // The route's auth middleware and optional pre-provisioned resolver
             // establish authority; only the resulting binding is persisted.
             const result = await controlPlane.authorizeBinding(binding);
-            return res.status(200).set('cache-control', 'no-store').json({ result });
+            const authorization = oauthFlow?.createAuthorization(result) ?? null;
+            return res.status(200).set('cache-control', 'no-store').json({
+                result: authorization ? {
+                    ...result,
+                    authorization_url: authorization.authorization_url,
+                    redirect_uri: authorization.redirect_uri
+                } : result
+            });
         } catch (error) {
             return errorResponse(res, error);
         }
     });
+    if (oauthFlow) {
+        router.get('/slack-installations\:callback', async (req, res) => {
+            try {
+                if (typeof req.query?.code !== 'string' || typeof req.query?.state !== 'string'
+                    || Object.keys(req.query).some((field) => !['code', 'state'].includes(field))) {
+                    throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400, fault_domain: 'protocol' });
+                }
+                const opened = oauthFlow.open(req.query.state);
+                await controlPlane.exchange_and_register({
+                    authorization_code: req.query.code,
+                    redirect_uri: opened.redirect_uri,
+                    intent: opened.intent
+                });
+                return res.status(200)
+                    .set('cache-control', 'no-store')
+                    .type('html')
+                    .send('<!doctype html><html lang="ja"><meta charset="utf-8"><title>Slack連携完了</title><body><h1>Slack連携が完了しました</h1><p>この画面を閉じてください。</p></body></html>');
+            } catch (error) {
+                return errorResponse(res, error);
+            }
+        });
+    }
     router.post('/slack-installations\\:exchange-and-register', async (req, res) => {
         try {
             const input = safeBody(req, ['authorization_code', 'redirect_uri', 'intent']);
