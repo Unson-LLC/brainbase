@@ -53,6 +53,7 @@ import { RoutineLivenessService } from '../services/routine-runtime/liveness-ser
 import { RoutineCycleExecutor } from '../services/routine-runtime/cycle-executor.js';
 import { ProductionRoutinePorts } from '../services/routine-runtime/production-routine-ports.js';
 import {
+    createJudgmentOutboxDeliveryService,
     deliverJudgmentKnowledgeEventOutbox,
     listKnowledgeEventDeadLetters,
     listJudgmentKnowledgeEventOutboxExceptions,
@@ -401,15 +402,14 @@ export function createCoreServices({
     const feedbackService = productionRoutinePorts;
     const ohayoGenerator = productionRoutinePorts;
     const retroService = productionRoutinePorts;
-    const judgmentOutboxDeliveryService = {
-        deliverPending: () => deliverJudgmentKnowledgeEventOutbox({
-            outboxDir: judgmentKnowledgeEventOutboxDir,
-            deadLetterDir: judgmentKnowledgeEventDeadLetterDir,
-            endpoint: judgmentKnowledgeEventEndpoint,
-            organizationId: process.env.BRAINBASE_ORGANIZATION_ID,
-            ...judgmentKnowledgeEventDeliveryAuth
-        })
-    };
+    const judgmentOutboxDeliveryService = createJudgmentOutboxDeliveryService({
+        outboxDir: judgmentKnowledgeEventOutboxDir,
+        deadLetterDir: judgmentKnowledgeEventDeadLetterDir,
+        endpoint: judgmentKnowledgeEventEndpoint,
+        deliveryAuth: judgmentKnowledgeEventDeliveryAuth,
+        env: process.env,
+        deliver: deliverJudgmentKnowledgeEventOutbox
+    });
     const routineCycleExecutor = new RoutineCycleExecutor({
         oyasumiReconciler,
         episodeCompressor,

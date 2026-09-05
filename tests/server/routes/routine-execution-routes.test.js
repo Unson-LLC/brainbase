@@ -444,7 +444,8 @@ describe('Routine execution API production wiring', () => {
         );
 
         expect(coreSource).toContain('resolveJudgmentKnowledgeEventDeliveryAuth');
-        expect(coreSource).toMatch(/deliverJudgmentKnowledgeEventOutbox\(\{[\s\S]*\.\.\.judgmentKnowledgeEventDeliveryAuth/);
+        expect(coreSource).toMatch(/createJudgmentOutboxDeliveryService\(\{[\s\S]*deliveryAuth:\s*judgmentKnowledgeEventDeliveryAuth/);
+        expect(coreSource).toMatch(/createJudgmentOutboxDeliveryService\(\{[\s\S]*deliver:\s*deliverJudgmentKnowledgeEventOutbox/);
         expect(coreSource).not.toMatch(/authService\.issueServiceToken\(\{[\s\S]*svc_brainbase_judgment_knowledge_event/);
         expect(coreSource).not.toMatch(/deliverJudgmentKnowledgeEventOutbox\(\{[\s\S]*serviceToken:\s*process\.env\.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN/);
     });

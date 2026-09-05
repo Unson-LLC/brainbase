@@ -55,6 +55,28 @@ export function resolveJudgmentKnowledgeEventDeliveryAuth({
     };
 }
 
+export function createJudgmentOutboxDeliveryService({
+    outboxDir,
+    deadLetterDir,
+    endpoint,
+    deliveryAuth = {},
+    env = process.env,
+    deliver = deliverJudgmentKnowledgeEventOutbox
+} = {}) {
+    return {
+        deliverPending: (context = {}) => deliver({
+            outboxDir,
+            deadLetterDir,
+            endpoint,
+            ...deliveryAuth,
+            organizationId: context.access?.organizationId
+                || context.access?.tenantId
+                || env.BRAINBASE_ORGANIZATION_ID
+                || null
+        })
+    };
+}
+
 function jsonFiles(directory) {
     try {
         return readdirSync(directory).filter((name) => name.endsWith('.json')).sort();
