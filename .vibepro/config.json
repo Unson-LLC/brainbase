@@ -154,8 +154,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-t0-slack-provider-error-readback",
+        "title": "Slack OAuth失敗を安全な固定コードで読戻せる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
       }
     ],
-    "current_story_id": "story-t0-initial-tenant-slack-oauth-bootstrap"
+    "current_story_id": "story-t0-slack-provider-error-readback"
   }
 }

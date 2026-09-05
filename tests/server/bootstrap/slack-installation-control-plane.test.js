@@ -22,7 +22,7 @@ describe('Slack installation control-plane production adapters', () => {
     it.each([
         ['network failure', async () => { throw new Error('secret network detail'); }, 'OAUTH_EXCHANGE_UNAVAILABLE'],
         ['invalid JSON', async () => new Response('not-json', { status: 200 }), 'OAUTH_EXCHANGE_INVALID'],
-        ['provider rejection', async () => Response.json({ ok: false, error: 'invalid_code' }, { status: 400 }), 'OAUTH_EXCHANGE_REJECTED'],
+        ['provider rejection', async () => Response.json({ ok: false, error: 'invalid_code' }, { status: 400 }), 'OAUTH_EXCHANGE_INVALID_CODE'],
         ['missing credential', async () => Response.json({ ok: true, api_app_id: appId }), 'OAUTH_CREDENTIAL_MISSING']
     ])('classifies %s with a stable non-secret OAuth code', async (_name, fetchImpl, code) => {
         const client = createSlackOAuthClient({ authService: authService(), fetchImpl });
@@ -32,6 +32,52 @@ describe('Slack installation control-plane production adapters', () => {
         });
         await expect(exchange()).rejects.toMatchObject({ code });
         await expect(exchange()).rejects.not.toThrow(/one-time-code|invalid_code|secret network detail/u);
+    });
+
+    it.each([
+        ['bad_redirect_uri', 'OAUTH_EXCHANGE_REDIRECT_MISMATCH'],
+        ['bad_client_secret', 'OAUTH_EXCHANGE_CLIENT_CREDENTIAL_REJECTED'],
+        ['invalid_client_id', 'OAUTH_EXCHANGE_CLIENT_CREDENTIAL_REJECTED'],
+        ['oauth_authorization_url_mismatch', 'OAUTH_EXCHANGE_FLOW_MISMATCH'],
+        ['invalid_code_verifier', 'OAUTH_EXCHANGE_PKCE_REJECTED'],
+        ['pkce_not_allowed', 'OAUTH_EXCHANGE_PKCE_REJECTED'],
+        ['access_denied', 'OAUTH_EXCHANGE_ACCESS_DENIED'],
+        ['no_scopes', 'OAUTH_EXCHANGE_ACCESS_DENIED'],
+        ['team_access_not_granted', 'OAUTH_EXCHANGE_ACCESS_DENIED'],
+        ['internal_error', 'OAUTH_EXCHANGE_UNAVAILABLE'],
+        ['fatal_error', 'OAUTH_EXCHANGE_UNAVAILABLE'],
+        ['service_unavailable', 'OAUTH_EXCHANGE_UNAVAILABLE'],
+        ['request_timeout', 'OAUTH_EXCHANGE_UNAVAILABLE'],
+        ['ratelimited', 'OAUTH_EXCHANGE_UNAVAILABLE']
+    ])('maps Slack provider error %s to fixed code %s', async (providerError, expectedCode) => {
+        const client = createSlackOAuthClient({
+            authService: authService(),
+            fetchImpl: async () => Response.json({ ok: false, error: providerError }, { status: 400 })
+        });
+
+        await expect(client.exchangeCode({
+            authorization_code: 'one-time-code',
+            redirect_uri: 'https://mana.example.test/callback'
+        })).rejects.toMatchObject({ code: expectedCode });
+    });
+
+    it.each([
+        ['unknown_error'],
+        [''],
+        [null],
+        [{ raw: 'provider-body' }]
+    ])('fails closed without exposing unknown provider error %j', async (providerError) => {
+        const client = createSlackOAuthClient({
+            authService: authService(),
+            fetchImpl: async () => Response.json({ ok: false, error: providerError }, { status: 400 })
+        });
+        const exchange = () => client.exchangeCode({
+            authorization_code: 'one-time-code',
+            redirect_uri: 'https://mana.example.test/callback'
+        });
+
+        await expect(exchange()).rejects.toMatchObject({ code: 'OAUTH_EXCHANGE_REJECTED' });
+        await expect(exchange()).rejects.not.toThrow(/unknown_error|provider-body|one-time-code/u);
     });
 
     it('normalizes Slack OAuth response without exposing token material in errors', async () => {
