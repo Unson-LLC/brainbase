@@ -441,6 +441,30 @@ SET search_path FROM CURRENT
 AS $body$
   SELECT COALESCE((
   SELECT CASE
+    -- A canonical Person may intentionally be global and belong to more than
+    -- one organization.  Keep that identity projectless, but allow a scoped
+    -- decision to name it as owner when the Person has a visible membership
+    -- in the decision's organization.  Other cross-organization edge shapes
+    -- continue through the strict organization checks below.
+    WHEN edge_rel_type = 'owned_by'
+      AND source_entity.project_id IS NOT NULL
+      AND target_entity.project_id IS NULL
+      AND target_entity.entity_type = 'person'
+      AND source_project.organization_id IS NOT NULL
+      AND source_project.code = ANY(app_project_codes())
+      AND EXISTS (
+        SELECT 1
+        FROM graph_edges membership
+        JOIN projects membership_project ON membership_project.id = membership.project_id
+        WHERE membership.from_id = target_entity.id
+          AND membership.rel_type = 'member_of'
+          AND membership.lifecycle_status = 'active'
+          AND app_current_role_rank() >= app_role_rank(membership.role_min)
+          AND membership.sensitivity = ANY(app_clearance())
+          AND membership_project.organization_id = source_project.organization_id
+          AND membership_project.code = ANY(app_project_codes())
+      )
+    THEN TRUE
     WHEN app_graph_entity_organization_id(source_entity.id) IS NULL
       OR app_graph_entity_organization_id(target_entity.id) IS NULL
     THEN FALSE
