@@ -438,7 +438,7 @@ describe('RunReceiptIngestService', () => {
         ]));
     });
 
-    it('5 sourceすべてをingest永続化しInbox source filterでround-tripする', async () => {
+    it('5 sourceの保存結果を権限内のInboxへ返し、未認可projectを開示しない', async () => {
         const repository = new InMemoryWorkflowRepository();
         const receiptService = new RunReceiptIngestService({ workflowRepository: repository });
         const sourceTypes = ['mana', 'codex_automations', 'github_actions', 'salestailor', 'openryoko'];
@@ -449,16 +449,40 @@ describe('RunReceiptIngestService', () => {
                 run: { external_run_id: `${sourceType}:run:1` }
             }));
         }
-        const workflowService = new TestAutomationRuntime({ repository, runner: {}, configParser: null });
+        await receiptService.ingest(makeReceipt({
+            run: { project_id: 'restricted-project' }
+        }));
+        const actor = { organizationId: 'org-test', projectCodes: ['brainbase'] };
+        const workflowService = new TestAutomationRuntime({
+            repository,
+            runner: {},
+            configParser: {
+                async getProjects() {
+                    return {
+                        projects: [{ id: 'brainbase' }, { id: 'restricted-project' }],
+                        source: { status: 'loaded' }
+                    };
+                }
+            }
+        });
 
-        expect(repository.listRuns({ limit: null })).toHaveLength(5);
+        expect(repository.listRuns({ limit: null })).toHaveLength(6);
         for (const sourceType of sourceTypes) {
-            const inbox = await workflowService.runReceiptQueryService.listInbox({ sourceType }, {});
+            const inbox = await workflowService.runReceiptQueryService.listInbox({ sourceType }, actor);
             expect(inbox.items).toHaveLength(1);
             expect(inbox.items[0]).toMatchObject({
                 source: { type: sourceType },
                 project_id: 'brainbase'
             });
+        }
+        for (const unauthorizedActor of [
+            {},
+            { projectCodes: actor.projectCodes },
+            { ...actor, projectCodes: [] }
+        ]) {
+            const inbox = await workflowService.runReceiptQueryService.listInbox({}, unauthorizedActor);
+            expect(inbox.items).toEqual([]);
+            expect(inbox.count).toBe(0);
         }
     });
 
