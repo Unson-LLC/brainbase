@@ -320,6 +320,11 @@ function assertProject(actor, projectCode) {
     return context;
 }
 
+function organizationIdForContext(context) {
+    const access = context?.access || {};
+    return access.organizationId || access.organization_id || access.tenantId || null;
+}
+
 function assertHumanActor(actor) {
     if (actor?.authSource === 'internal' || actor?.authSource === 'service-token') {
         throw new OnboardingRuntimeError(
@@ -381,6 +386,28 @@ export class OnboardingRuntimeService {
         this.ingestQueues = new Map();
     }
 
+    async _withCandidateAccess(context, work) {
+        const organizationId = organizationIdForContext(context);
+        if (typeof this.candidateRepository.transaction !== 'function') {
+            return work(this.candidateRepository);
+        }
+        if (!organizationId) {
+            throw new OnboardingRuntimeError(
+                'onboarding_organization_context_required',
+                'authenticated organization is required for candidate access',
+                403
+            );
+        }
+        const access = {
+            ...(context.access || {}),
+            personId: context.personId,
+            organizationId,
+            projectCodes: context.projectCodes,
+            role: context.role || context.access?.role || 'member'
+        };
+        return this.candidateRepository.transaction(work, { access });
+    }
+
     async _scopedRun(actor, runId) {
         const run = await this.repository.findById(runId);
         if (!run) throw new OnboardingRuntimeError('onboarding_run_not_found', `run not found: ${runId}`, 404);
@@ -391,9 +418,9 @@ export class OnboardingRuntimeService {
         return run;
     }
 
-    async _project(run) {
+    async _project(run, candidateRepository = this.candidateRepository) {
         const items = await Promise.all(run.candidate_items.map(async (item) => {
-            const candidate = await this.candidateRepository.findById(item.candidate_id);
+            const candidate = await candidateRepository.findById(item.candidate_id);
             return candidate ? candidateProjection(candidate, item) : { ...item, unavailable: true };
         }));
         return { ...run, candidates: items, candidate_items: undefined };
@@ -427,7 +454,9 @@ export class OnboardingRuntimeService {
     }
 
     async getRun(actor, runId) {
-        return this._project(await this._scopedRun(actor, runId));
+        const run = await this._scopedRun(actor, runId);
+        const context = assertProject(actor, run.project_code);
+        return this._withCandidateAccess(context, (candidateRepository) => this._project(run, candidateRepository));
     }
 
     async ingestSource(actor, runId, input) {
@@ -478,39 +507,7 @@ export class OnboardingRuntimeService {
         // A candidate can be durable even when the subsequent run-ledger update fails. Consult
         // that durable surface by source_id as well, so rotating evidence_id cannot bypass the
         // receipt-version guard and leave two candidate versions behind.
-        const durableCandidates = await this.candidateRepository.list({
-            owner_person_id: run.owner_person_id,
-            source_system: `onboarding:${source.mode}`,
-            source_event_prefix: sourceEventPrefixFor(run.id, receipt.source_id)
-        });
-        for (const candidate of durableCandidates) {
-            let durableReceipt;
-            try {
-                const body = JSON.parse(candidate.body);
-                durableReceipt = {
-                    mode: source.mode,
-                    source_id: body.source_id,
-                    evidence_ref: body.evidence_ref,
-                    content_hash: body.content_hash,
-                    permission_snapshot: candidate.permission_snapshot,
-                    collection_status: 'collected'
-                };
-            } catch {
-                throw new OnboardingRuntimeError(
-                    'source_receipt_conflict',
-                    'source_id has an unreadable durable receipt',
-                    409
-                );
-            }
-            if (sourceReceiptIdentity(durableReceipt) !== sourceReceiptIdentity(receipt)) {
-                throw new OnboardingRuntimeError(
-                    'source_receipt_conflict',
-                    'source_id already belongs to a different durable receipt version',
-                    409
-                );
-            }
-        }
-        const gate = new PromotionGateService({ repository: this.candidateRepository });
+        const organizationId = organizationIdForContext(context);
         const inputCandidates = Array.isArray(input.candidates) ? input.candidates : [];
         const preparedDrafts = inputCandidates.map((draft, index) => {
             if (!OBSERVATION_CLASSES.has(draft.observation_class)) throw new OnboardingRuntimeError('input_invalid', 'unsupported observation_class');
@@ -540,7 +537,8 @@ export class OnboardingRuntimeService {
                     owner_person_id: run.owner_person_id,
                     actor_person_id: context.personId,
                     project_code: run.project_code,
-                    org_ids: [],
+                    organization_id: organizationId,
+                    org_ids: organizationId ? [organizationId] : [],
                     project_ids: [run.project_code],
                     visibility: 'owner',
                     sensitivity: 'internal',
@@ -562,34 +560,71 @@ export class OnboardingRuntimeService {
         // Resolve every existing deterministic id before writing anything. This makes a retry
         // recover candidates created before a repository/run-ledger failure, while rejecting a
         // changed payload instead of silently reusing an unrelated candidate.
-        const existingCandidates = await Promise.all(
-            preparedDrafts.map(({ item }) => this.candidateRepository.findById(item.candidate_id))
-        );
-        for (let index = 0; index < preparedDrafts.length; index += 1) {
-            const existing = existingCandidates[index];
-            if (!existing) continue;
-            const expected = preparedDrafts[index].candidate;
-            if (retryIdentity(existing) !== retryIdentity(expected)) {
-                throw new OnboardingRuntimeError('candidate_retry_conflict', 'existing candidate does not match retry payload', 409);
-            }
-        }
-
-        const createdItems = [];
-        for (let index = 0; index < preparedDrafts.length; index += 1) {
-            const prepared = preparedDrafts[index];
-            let candidate = existingCandidates[index];
-            if (!candidate) {
-                const created = await gate.createCandidate(prepared.candidate);
-                if (created.blocked || !created.candidate) {
-                    throw new OnboardingRuntimeError('candidate_content_blocked', 'candidate was blocked by PII scan', 422);
+        const createdItems = await this._withCandidateAccess(context, async (candidateRepository) => {
+            const durableCandidates = await candidateRepository.list({
+                owner_person_id: run.owner_person_id,
+                source_system: `onboarding:${source.mode}`,
+                source_event_prefix: sourceEventPrefixFor(run.id, receipt.source_id)
+            });
+            for (const candidate of durableCandidates) {
+                let durableReceipt;
+                try {
+                    const body = JSON.parse(candidate.body);
+                    durableReceipt = {
+                        mode: source.mode,
+                        source_id: body.source_id,
+                        evidence_ref: body.evidence_ref,
+                        content_hash: body.content_hash,
+                        permission_snapshot: candidate.permission_snapshot,
+                        collection_status: 'collected'
+                    };
+                } catch {
+                    throw new OnboardingRuntimeError(
+                        'source_receipt_conflict',
+                        'source_id has an unreadable durable receipt',
+                        409
+                    );
                 }
-                candidate = created.candidate;
+                if (sourceReceiptIdentity(durableReceipt) !== sourceReceiptIdentity(receipt)) {
+                    throw new OnboardingRuntimeError(
+                        'source_receipt_conflict',
+                        'source_id already belongs to a different durable receipt version',
+                        409
+                    );
+                }
             }
-            if (candidate.promotion_status === 'candidate') {
-                candidate = await gate.requestApproval(candidate.id, { actor_person_id: context.personId });
+
+            const existingCandidates = await Promise.all(
+                preparedDrafts.map(({ item }) => candidateRepository.findById(item.candidate_id))
+            );
+            for (let index = 0; index < preparedDrafts.length; index += 1) {
+                const existing = existingCandidates[index];
+                if (!existing) continue;
+                const expected = preparedDrafts[index].candidate;
+                if (retryIdentity(existing) !== retryIdentity(expected)) {
+                    throw new OnboardingRuntimeError('candidate_retry_conflict', 'existing candidate does not match retry payload', 409);
+                }
             }
-            createdItems.push(prepared.item);
-        }
+
+            const gate = new PromotionGateService({ repository: candidateRepository });
+            const createdItems = [];
+            for (let index = 0; index < preparedDrafts.length; index += 1) {
+                const prepared = preparedDrafts[index];
+                let candidate = existingCandidates[index];
+                if (!candidate) {
+                    const created = await gate.createCandidate(prepared.candidate);
+                    if (created.blocked || !created.candidate) {
+                        throw new OnboardingRuntimeError('candidate_content_blocked', 'candidate was blocked by PII scan', 422);
+                    }
+                    candidate = created.candidate;
+                }
+                if (candidate.promotion_status === 'candidate') {
+                    candidate = await gate.requestApproval(candidate.id, { actor_person_id: context.personId });
+                }
+                createdItems.push(prepared.item);
+            }
+            return createdItems;
+        });
 
         const updated = await this.repository.update(run.id, (current) => ({
             ...current,
@@ -608,7 +643,7 @@ export class OnboardingRuntimeService {
                 ...createdItems.filter((item) => !current.candidate_items.some((existing) => existing.candidate_id === item.candidate_id))
             ]
         }));
-        return this._project(updated);
+        return this._withCandidateAccess(context, (candidateRepository) => this._project(updated, candidateRepository));
     }
 
     async reviewCandidate(actor, runId, candidateId, input) {
@@ -626,55 +661,63 @@ export class OnboardingRuntimeService {
         const context = assertProject(actor, run.project_code);
         const item = run.candidate_items.find((candidate) => candidate.candidate_id === candidateId);
         if (!item) throw new OnboardingRuntimeError('candidate_not_in_run', 'candidate does not belong to this run', 404);
-        const gate = new PromotionGateService({
-            repository: this.candidateRepository,
-            graphWriter: {
-                createEntity: async (entity, metadata) => {
-                    const body = JSON.parse(entity.payload.body);
-                    const source = run.sources.find((receipt) => receipt.source_id === body.source_id);
-                    if (!source) {
-                        throw new OnboardingRuntimeError('source_receipt_missing', 'candidate source receipt is unavailable', 409);
+        const result = await this._withCandidateAccess(context, async (candidateRepository) => {
+            const gate = new PromotionGateService({
+                repository: candidateRepository,
+                graphWriter: {
+                    createEntity: async (entity, metadata) => {
+                        const body = JSON.parse(entity.payload.body);
+                        const source = run.sources.find((receipt) => receipt.source_id === body.source_id);
+                        if (!source) {
+                            throw new OnboardingRuntimeError('source_receipt_missing', 'candidate source receipt is unavailable', 409);
+                        }
+                        const id = `onb_${metadata.derived_from_candidate_id}`;
+                        const graphResult = await this.infoSSOTService.createOrUpdateGraphEntity(context.access, {
+                            id,
+                            entityType: entity.type,
+                            projectCode: run.project_code,
+                            projectName: run.project_code,
+                            payload: {
+                                ...body,
+                                derived_from_candidate_id: metadata.derived_from_candidate_id,
+                                source_system: `onboarding:${source.mode}`,
+                                source_event_ids: item.evidence_ids.map((evidenceId) => sourceEventIdFor(run.id, source.source_id, evidenceId)),
+                                evidence_ids: item.evidence_ids,
+                                permission_snapshot: source.permission_snapshot,
+                                promoted_at: iso(this.now)
+                            },
+                            roleMin: entity.role_min || 'member',
+                            sensitivity: entity.sensitivity || 'internal'
+                        });
+                        return { id: graphResult.entity_id };
                     }
-                    const id = `onb_${metadata.derived_from_candidate_id}`;
-                    const result = await this.infoSSOTService.createOrUpdateGraphEntity(context.access, {
-                        id,
-                        entityType: entity.type,
-                        projectCode: run.project_code,
-                        projectName: run.project_code,
-                        payload: {
-                            ...body,
-                            derived_from_candidate_id: metadata.derived_from_candidate_id,
-                            source_system: `onboarding:${source.mode}`,
-                            source_event_ids: item.evidence_ids.map((evidenceId) => sourceEventIdFor(run.id, source.source_id, evidenceId)),
-                            evidence_ids: item.evidence_ids,
-                            permission_snapshot: source.permission_snapshot,
-                            promoted_at: iso(this.now)
-                        },
-                        roleMin: entity.role_min || 'member',
-                        sensitivity: entity.sensitivity || 'internal'
-                    });
-                    return { id: result.entity_id };
                 }
+            });
+
+            if (decision === 'reject') {
+                return {
+                    candidate: await gate.rejectCandidate(candidateId, { actor_person_id: context.personId }, reason),
+                    graphEntity: null
+                };
             }
+            if (item.observation_class === 'inferred') {
+                throw new OnboardingRuntimeError('inferred_candidate_not_promotable', 'inferred candidate cannot be promoted', 409);
+            }
+            return gate.approveCandidate(candidateId, { actor_person_id: context.personId }, {
+                targetSubjectType: item.subject_type,
+                reason,
+                resumeApproved: true
+            });
         });
 
         if (decision === 'reject') {
-            const candidate = await gate.rejectCandidate(candidateId, { actor_person_id: context.personId }, reason);
             await this.repository.update(run.id, (current) => ({
                 ...current,
                 workflow_state: advanceWorkflowState(current.workflow_state || 'initialized', 'promotion_reviewed'),
                 updated_at: iso(this.now)
             }));
-            return { candidate: candidateProjection(candidate, item), graph_entity_id: null };
+            return { candidate: candidateProjection(result.candidate, item), graph_entity_id: null };
         }
-        if (item.observation_class === 'inferred') {
-            throw new OnboardingRuntimeError('inferred_candidate_not_promotable', 'inferred candidate cannot be promoted', 409);
-        }
-        const result = await gate.approveCandidate(candidateId, { actor_person_id: context.personId }, {
-            targetSubjectType: item.subject_type,
-            reason,
-            resumeApproved: true
-        });
         const graphEntityId = result.graphEntity?.id;
         if (!graphEntityId) throw new OnboardingRuntimeError('graph_write_unavailable', 'Graph promotion did not return an entity id', 503);
         await this.repository.update(run.id, (current) => ({

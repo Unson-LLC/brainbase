@@ -141,8 +141,17 @@ function scopedCandidateRepository(repository, client) {
         listPersonalKg: (filter = {}) => repository.listPersonalKg(filter, { client }),
         summarizePersonalKg: (filter = {}) => repository.summarizePersonalKg(filter, { client }),
         searchPersonalKg: (filter = {}) => repository.searchPersonalKg(filter, { client }),
+        transition: (id, nextStatus, audit, options = {}) => repository.transition(
+            id, nextStatus, audit, { ...options, client }
+        ),
         transitionWithAudit: (id, nextStatus, audit, options = {}) => repository.transitionWithAudit(
             id, nextStatus, audit, { ...options, client }
+        ),
+        setPromotedGraphEntity: (id, graphEntityId, options = {}) => repository.setPromotedGraphEntity(
+            id, graphEntityId, { ...options, client }
+        ),
+        recordScanBlock: (record, options = {}) => repository.recordScanBlock(
+            record, { ...options, client }
         )
     };
 }
@@ -714,8 +723,8 @@ export class PgCandidateRepository {
         };
     }
 
-    async transition(id, nextStatus, audit) {
-        const result = await this.transitionWithAudit(id, nextStatus, audit);
+    async transition(id, nextStatus, audit, options = {}) {
+        const result = await this.transitionWithAudit(id, nextStatus, audit, options);
         return result.candidate;
     }
 
@@ -821,8 +830,8 @@ export class PgCandidateRepository {
         }
     }
 
-    async setPromotedGraphEntity(id, graphEntityId) {
-        const { rows } = await this.pool.query(
+    async setPromotedGraphEntity(id, graphEntityId, { client } = {}) {
+        const { rows } = await (client || this.pool).query(
             'UPDATE memory_candidates SET promoted_graph_entity_id = $2, updated_at = NOW() WHERE id = $1 RETURNING *',
             [id, graphEntityId]
         );
@@ -876,8 +885,8 @@ export class PgCandidateRepository {
         return rows.map(normalizeAudit);
     }
 
-    async recordScanBlock(record) {
-        const { rows } = await this.pool.query(
+    async recordScanBlock(record, { client } = {}) {
+        const { rows } = await (client || this.pool).query(
             `INSERT INTO candidate_scan_blocks (
                 owner_person_id, organization_id, source_system, source_event_id, actor_person_id, findings
              ) VALUES ($1, $2, $3, $4, $5, $6::jsonb)
