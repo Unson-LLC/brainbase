@@ -371,6 +371,139 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
         }
     }, 120_000);
 
+    it('composes dedicated bootstrap -> human authorize -> signed HTTPS callback -> OAuth/store -> PostgreSQL readback', async () => {
+        const humanSecret = 'slack-installation-success-human-secret';
+        const serviceSecret = 'slack-installation-success-service-secret';
+        const dedicatedAppId = 'A2222222222';
+        const dedicatedWorkspaceId = 'T2222222222';
+        const dedicatedInstallerId = 'U2222222222';
+        const redirectUri = 'https://bb.unson.jp/api/v1/slack-installations:callback';
+        const env = {
+            BRAINBASE_SLACK_INSTALLATION_APP_ID: dedicatedAppId,
+            BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-client-id',
+            BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-client-secret',
+            BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI: redirectUri,
+            BRAINBASE_SLACK_INSTALLATION_STATE_SECRET: 'dedicated-state-secret-long-enough-for-tests',
+            BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES: 'chat:write,commands',
+            BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN: 'bbsvc_not-used-by-browser-callback',
+            BRAINBASE_SERVICE_TOKEN_SECRET: serviceSecret,
+            BRAINBASE_SLACK_INSTALLATION_SERVICE_DEPLOYMENT_ID: 'dep_01ARZ3NDEKTSV4RRFFQ69FB8',
+            BRAINBASE_SLACK_CREDENTIAL_STORE_URL: 'https://secrets.example.test/v1/credentials',
+            BRAINBASE_SLACK_CREDENTIAL_STORE_TOKEN: 'credential-store-token'
+        };
+        const authService = {
+            slackClientId: 'login-client-id-must-not-be-used',
+            slackClientSecret: 'login-client-secret-must-not-be-used',
+            tokenUrl: 'https://slack.example.test/api/oauth.v2.access',
+            slackMode: 'oauth',
+            verifyToken: (token) => jwt.verify(token, humanSecret)
+        };
+        const fetchImpl = vi.fn(async (url, init) => {
+            if (url === authService.tokenUrl) {
+                const body = new URLSearchParams(init.body);
+                expect(body.get('client_id')).toBe('dedicated-client-id');
+                expect(body.get('client_secret')).toBe('dedicated-client-secret');
+                expect(body.get('redirect_uri')).toBe(redirectUri);
+                return Response.json({
+                    ok: true,
+                    api_app_id: dedicatedAppId,
+                    team: { id: dedicatedWorkspaceId },
+                    authed_user: { id: dedicatedInstallerId },
+                    scope: 'chat:write,commands',
+                    access_token: 'xoxb-dedicated-secret'
+                });
+            }
+            if (url === env.BRAINBASE_SLACK_CREDENTIAL_STORE_URL) {
+                expect(init.headers.authorization).toBe('Bearer credential-store-token');
+                const body = JSON.parse(init.body);
+                expect(body.credential_material).toBe('xoxb-dedicated-secret');
+                return Response.json({ result: {
+                    credential_ref: 'credref://techknight/slack/primary',
+                    credential_mode: 'customer_oauth',
+                    refresh_revision: 1
+                } });
+            }
+            throw new Error('unexpected URL');
+        });
+        const previousProcessEnv = new Map([
+            ...Object.keys(env),
+            'BRAINBASE_JWT_SECRET',
+            'NODE_ENV'
+        ].map((key) => [key, process.env[key]]));
+
+        try {
+            process.env.NODE_ENV = 'production';
+            process.env.BRAINBASE_JWT_SECRET = humanSecret;
+            for (const [key, value] of Object.entries(env)) process.env[key] = value;
+            const runtime = createSlackInstallationControlPlaneFromEnv({
+                pool,
+                authService,
+                env,
+                now: () => now,
+                fetchImpl
+            });
+            expect(runtime).toMatchObject({ ready: true, appId: dedicatedAppId });
+
+            const app = express();
+            app.use(express.json());
+            app.use(csrfMiddleware());
+            registerSlackInstallationControlPlaneApiRoute(app, {
+                controlPlane: runtime.controlPlane,
+                authMiddleware: runtime.authMiddleware,
+                appId: runtime.appId,
+                oauthFlow: runtime.oauthFlow
+            });
+            const humanToken = jwt.sign({
+                typ: 'user',
+                sub: personId,
+                role: 'tenant_admin',
+                organizationId: tenantId,
+                projectCodes: ['mana'],
+                clearance: ['internal']
+            }, humanSecret, { expiresIn: '10m' });
+            const authorizeResponse = await request(app)
+                .post('/api/v1/slack-installations:authorize')
+                .set('Authorization', `Bearer ${humanToken}`)
+                .send({ app_id: dedicatedAppId, expected_workspace_id: dedicatedWorkspaceId });
+            expect(authorizeResponse.status).toBe(200);
+            const authorizationUrl = new URL(authorizeResponse.body.result.authorization_url);
+
+            const callbackResponse = await request(app)
+                .get('/api/v1/slack-installations:callback')
+                .query({ code: 'dedicated-one-time-code', state: authorizationUrl.searchParams.get('state') });
+            expect(callbackResponse.status).toBe(200);
+            expect(callbackResponse.text).not.toContain('dedicated-one-time-code');
+            expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+            const stored = await pool.query(
+                `SELECT wc.tenant_id, wc.workspace_id, wc.app_id, wc.credential_ref,
+                        ledger.status, intent.consumed_at
+                   FROM workspace_connections wc
+                   JOIN slack_installation_exchange_ledger ledger
+                     ON ledger.tenant_id = wc.tenant_id
+                    AND ledger.connection_id = wc.connection_id
+                   JOIN slack_installation_intents intent
+                     ON intent.tenant_id = ledger.tenant_id
+                    AND intent.installation_intent_id = ledger.installation_intent_id
+                  WHERE wc.tenant_id = $1 AND wc.workspace_id = $2`,
+                [tenantId, dedicatedWorkspaceId]
+            );
+            expect(stored.rows).toEqual([expect.objectContaining({
+                tenant_id: tenantId,
+                workspace_id: dedicatedWorkspaceId,
+                app_id: dedicatedAppId,
+                credential_ref: 'credref://techknight/slack/primary',
+                status: 'completed',
+                consumed_at: expect.any(Date)
+            })]);
+        } finally {
+            for (const [key, value] of previousProcessEnv) {
+                if (value === undefined) delete process.env[key];
+                else process.env[key] = value;
+            }
+        }
+    }, 120_000);
+
     it('writes and reads a bounded failed diagnostic without retaining claim or response data', async () => {
         const intent = {
             installation_intent_id: failedIntentId,

@@ -77,6 +77,7 @@ describe('Slack installation control-plane production adapters', () => {
             expect(body.get('client_secret')).toBe('dedicated-installation-client-secret');
             return Response.json({
                 ok: true,
+                api_app_id: installationAppId,
                 team: { id: 'T0123456789' },
                 access_token: 'xoxb-secret-token'
             });
@@ -95,6 +96,27 @@ describe('Slack installation control-plane production adapters', () => {
             authorization_code: 'one-time-code',
             redirect_uri: 'https://mana.example.test/callback'
         })).resolves.toMatchObject({ app_id: installationAppId, workspace_id: 'T0123456789' });
+    });
+
+    it('fails dedicated OAuth closed when provider omits the app identity', async () => {
+        const client = createSlackOAuthClient({
+            authService: authService(),
+            env: {
+                BRAINBASE_SLACK_INSTALLATION_APP_ID: 'A0TECHKNIGHT',
+                BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-installation-client-id',
+                BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-installation-client-secret'
+            },
+            fetchImpl: vi.fn(async () => Response.json({
+                ok: true,
+                team: { id: 'T0123456789' },
+                access_token: 'xoxb-secret-token'
+            }))
+        });
+
+        await expect(client.exchangeCode({
+            authorization_code: 'one-time-code',
+            redirect_uri: 'https://bb.unson.jp/api/v1/slack-installations:callback'
+        })).rejects.toMatchObject({ code: 'OAUTH_EXCHANGE_INVALID' });
     });
 
     it('uses the dedicated secret-boundary HTTP port and keeps credential operations opaque', async () => {
@@ -199,7 +221,13 @@ describe('Slack installation control-plane production adapters', () => {
 
     it.each([
         ['client ID only', { BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-client-id' }],
-        ['client secret only', { BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-client-secret' }]
+        ['client secret only', { BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-client-secret' }],
+        ['client pair without dedicated app ID', {
+            BRAINBASE_SLACK_INSTALLATION_APP_ID: undefined,
+            BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-client-id',
+            BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-client-secret'
+        }],
+        ['redirect only', { BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI: 'https://bb.unson.jp/api/v1/slack-installations:callback' }]
     ])('fails closed when dedicated installation OAuth has %s', (_name, partialOAuthEnv) => {
         const runtime = createSlackInstallationControlPlaneFromEnv({
             pool: { connect: vi.fn() },
@@ -218,5 +246,30 @@ describe('Slack installation control-plane production adapters', () => {
 
         expect(runtime.ready).toBe(false);
         expect(runtime.reason).toBe('slack_installation_oauth_configuration_incomplete');
+    });
+
+    it('constructs the HTTPS browser callback only when all dedicated OAuth inputs exist', () => {
+        const runtime = createSlackInstallationControlPlaneFromEnv({
+            pool: { connect: vi.fn() },
+            authService: authService(),
+            env: {
+                BRAINBASE_SLACK_INSTALLATION_APP_ID: 'A0TECHKNIGHT',
+                BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-installation-client-id',
+                BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-installation-client-secret',
+                BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI: 'https://bb.unson.jp/api/v1/slack-installations:callback',
+                BRAINBASE_SLACK_INSTALLATION_STATE_SECRET: 'state-secret-long-enough-for-production-tests',
+                BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES: 'chat:write,commands',
+                BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN: serviceToken,
+                BRAINBASE_SERVICE_TOKEN_SECRET: 'service-signing-secret',
+                BRAINBASE_SLACK_INSTALLATION_SERVICE_DEPLOYMENT_ID: 'dep_01ARZ3NDEKTSV4RRFFQ69FAZ',
+                BRAINBASE_SLACK_CREDENTIAL_STORE_URL: 'https://secrets.example.test/v1/credentials',
+                BRAINBASE_SLACK_CREDENTIAL_STORE_TOKEN: 'credential-store-token'
+            },
+            fetchImpl: vi.fn()
+        });
+
+        expect(runtime.ready).toBe(true);
+        expect(runtime.oauthFlow).toHaveProperty('createAuthorization');
+        expect(runtime.oauthFlow).toHaveProperty('open');
     });
 });

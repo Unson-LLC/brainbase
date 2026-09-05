@@ -159,6 +159,37 @@ systemctl status brainbase-ssot.service --no-pager | head -8
 
 The unit is `/etc/systemd/system/brainbase-ssot.service` with drop-ins (`infisical-env.conf`, `memory.conf`, `project-catalog-mode.conf`). Env comes from `/home/ubuntu/brainbase/.env` and `.env.infisical` — do not export secrets in the shell.
 
+Slack workspace installation OAuthを有効にするreleaseでは、次の名前をInfisical正本から`.env.infisical`へ同時に投影する。`TOKEN_URL`だけは既存AuthService設定へ戻せるため任意である。値は端末へ表示しない。`BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI`はSlack App管理画面のRedirect URLと完全一致させる。
+
+```text
+BRAINBASE_SLACK_INSTALLATION_APP_ID
+BRAINBASE_SLACK_INSTALLATION_CLIENT_ID
+BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET
+BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI
+BRAINBASE_SLACK_INSTALLATION_STATE_SECRET
+BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES
+BRAINBASE_SLACK_INSTALLATION_TOKEN_URL
+```
+
+再起動前後に、値ではなく必須名の存在だけをsystemdと同じenv filesで検証する。欠落が一つでもあれば再起動しない。
+
+```bash
+set -a
+source /home/ubuntu/brainbase/.env
+source /home/ubuntu/brainbase/.env.infisical
+set +a
+for name in \
+  BRAINBASE_SLACK_INSTALLATION_APP_ID \
+  BRAINBASE_SLACK_INSTALLATION_CLIENT_ID \
+  BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET \
+  BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI \
+  BRAINBASE_SLACK_INSTALLATION_STATE_SECRET \
+  BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES; do
+  test -n "$(printenv "$name")" || { echo "missing:$name" >&2; exit 1; }
+done
+echo "Slack installation OAuth required names are present"
+```
+
 ## 4. Verify
 
 ```bash

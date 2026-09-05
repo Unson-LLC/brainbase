@@ -137,6 +137,7 @@ export function registerSlackInstallationControlPlaneApiRoute(app, {
     authService,
     authMiddleware,
     appId,
+    oauthFlow,
     resolvePreProvisionedConnection,
     authEnv = process.env,
     authNow
@@ -150,7 +151,7 @@ export function registerSlackInstallationControlPlaneApiRoute(app, {
     app.use(
         '/api/v1',
         guard,
-        createSlackInstallationControlPlaneRouter({ controlPlane, appId, resolvePreProvisionedConnection })
+        createSlackInstallationControlPlaneRouter({ controlPlane, appId, oauthFlow, resolvePreProvisionedConnection })
     );
 }
 
@@ -202,6 +203,7 @@ export function registerApiRoutes(app, {
     slackInstallationControlPlane,
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
+    slackInstallationOAuthFlow,
     resolvePreProvisionedSlackConnection,
     env = process.env
 }) {
@@ -217,6 +219,7 @@ export function registerApiRoutes(app, {
             authService,
             authMiddleware: slackInstallationControlPlaneAuthMiddleware,
             appId: slackInstallationControlPlaneAppId,
+            oauthFlow: slackInstallationOAuthFlow,
             resolvePreProvisionedConnection: resolvePreProvisionedSlackConnection
         });
     }

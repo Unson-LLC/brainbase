@@ -9,6 +9,7 @@ import { createSlackInstallationAccessResolver } from './slack-installation-acce
 
 export const SLACK_INSTALLATION_AUTHORIZE_PATH = '/slack-installations:authorize';
 export const SLACK_INSTALLATION_EXCHANGE_PATH = '/slack-installations:exchange-and-register';
+export const SLACK_INSTALLATION_CALLBACK_PATH = '/slack-installations:callback';
 export const SLACK_INSTALLATION_SERVICE_CAPABILITY = 'slack_installation:exchange_and_register';
 
 function problem(res, status, code, retryable = false) {
@@ -75,14 +76,16 @@ function exactAuthorizeRequestPath(req) {
 
 function routePath(req) {
     const value = typeof req?.path === 'string' ? req.path : '';
-    if (value === SLACK_INSTALLATION_AUTHORIZE_PATH || value === SLACK_INSTALLATION_EXCHANGE_PATH) {
+    if (value === SLACK_INSTALLATION_AUTHORIZE_PATH || value === SLACK_INSTALLATION_EXCHANGE_PATH
+        || value === SLACK_INSTALLATION_CALLBACK_PATH) {
         return value;
     }
     const original = typeof req?.originalUrl === 'string' ? req.originalUrl.split('?')[0] : '';
     const marker = original.indexOf('/api/v1');
     if (marker >= 0) {
         const mounted = original.slice(marker + '/api/v1'.length);
-        if (mounted === SLACK_INSTALLATION_AUTHORIZE_PATH || mounted === SLACK_INSTALLATION_EXCHANGE_PATH) {
+        if (mounted === SLACK_INSTALLATION_AUTHORIZE_PATH || mounted === SLACK_INSTALLATION_EXCHANGE_PATH
+            || mounted === SLACK_INSTALLATION_CALLBACK_PATH) {
             return mounted;
         }
     }
@@ -166,6 +169,7 @@ export function createSlackInstallationControlPlaneAuthMiddleware({
         const path = routePath(req);
         if (path === SLACK_INSTALLATION_AUTHORIZE_PATH) return canonicalUserGuard(req, res, next);
         if (path === SLACK_INSTALLATION_EXCHANGE_PATH) return serviceGuard(req, res, next);
+        if (path === SLACK_INSTALLATION_CALLBACK_PATH && req.method === 'GET') return next();
         return problem(res, 404, 'INSTALLATION_ROUTE_NOT_ALLOWED');
     };
 }
