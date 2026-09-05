@@ -218,10 +218,9 @@ const TURN_RESOLUTION_UNAVAILABLE_PATTERN = new RegExp(
     'iu'
 );
 
-// A long-lived Codex thread keeps the MCP tool surface it started with. When
-// that surface predates the model-first contract, the model cannot call
-// brainbase_resolve_turn at all; the only deterministic evidence is the
-// recorded tool failure in the raw transcript.
+// A recorded lookup failure is evidence of an unavailable surface at that
+// point, not a permanent property of the thread. Later correlated tool
+// results can demonstrate recovery without satisfying a new turn's contract.
 function turnResolutionAttempt(eventPayload) {
     if (eventPayload.name === TURN_RESOLUTION_TOOL_NAME) return 'direct';
     const script = [eventPayload.input, eventPayload.arguments].find((value) => typeof value === 'string') ?? '';
@@ -238,6 +237,11 @@ function turnResolutionSurfaceFromOutput(attempt, eventPayload) {
         output_digest: sha256(output)
     };
     if (TURN_RESOLUTION_UNAVAILABLE_PATTERN.test(output)) return { status: 'unavailable', evidence };
+    if (attempt === 'wrapped'
+        && judgmentTurnResolutionData(eventPayload.output)
+        && responseSucceeded(eventPayload.output, { semanticSuccess: true })) {
+        return { status: 'available', evidence };
+    }
     return attempt === 'direct' ? { status: 'available', evidence } : null;
 }
 
@@ -3658,7 +3662,7 @@ export function buildOwnerAudit(args, receipt, { historicalExact = true, hostSur
 
     if (hostSurface?.turn_resolution === 'unavailable') {
         decision = 'Resolver未接続のため判断縮退';
-        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」→ ${decision}（このCodexスレッドは${TURN_RESOLUTION_TOOL_NAME}を呼べない・新しいCodexタスクで復旧）`;
+        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」→ ${decision}（過去の呼出し失敗を検出・接続回復は未確認）`;
     } else if (receipt?.status === 'needs_classification' || dagIds.includes('clarification.v1')) {
         decision = '確認質問';
         const reasons = Array.isArray(receipt?.reconciliation_reasons)
@@ -3791,7 +3795,7 @@ export function successOutput(
     const context = [
         'Brainbase Judgment Resolver Host opened one unresolved judgment episode before model generation. This bootstrap receipt is not a semantic classification or the final episode receipt.',
         ...(surfaceDegraded ? [
-            `This Codex thread cannot call ${TURN_RESOLUTION_TOOL_NAME}: its MCP tool surface predates the current Brainbase contract, and the Host recorded that tool failure from the transcript. Do not retry it, do not ask the user a classification question, and do not ask the user to restart; the Host-generated judgment line already reports the degraded state and that a new Codex task restores full judgment routing.`,
+            `The Host recorded a lookup failure for ${TURN_RESOLUTION_TOOL_NAME} from this session's transcript and has not observed subsequent recovery. This does not establish the current catalog version or guarantee that creating a new task fixes it. Do not retry it within this degraded episode, do not ask the user a classification question, and do not ask the user to restart. The Host-generated judgment line reports the evidence limitation.`,
             'Continue the user request autonomously under ordinary permissions with the repository workflow and Skills. The bootstrap clarification receipt is superseded by this degraded surface.'
         ] : [
             typeof turnRef === 'string'

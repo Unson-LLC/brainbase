@@ -706,7 +706,7 @@ function reconcileModelInterpretation(input, manifest) {
         && !(hardClassification.intent === 'answer' && hardClassification.domains.length === 1 && hardClassification.domains[0] === 'general');
     const classification = {
         ...input.model_interpretation,
-        intent: hardIsSpecific ? hardClassification.intent : input.model_interpretation.intent,
+        intent: input.model_interpretation.intent,
         domains: hardIsSpecific
             ? (input.model_interpretation.domains.length === 1 && input.model_interpretation.domains[0] === 'general'
                 ? hardClassification.domains
@@ -748,11 +748,27 @@ function matchingKeys(text, matchers, order) {
     return order.filter((key) => includesTerm(text, matchers[key]));
 }
 
+// Write/operate intent matchers must describe a requested command. State or
+// temporal mentions still remain available to the independent safety floors.
+function intentCommandTerms(terms) {
+    return terms.flatMap((term) => {
+        if (/^[a-z0-9_.-]+$/iu.test(term)) return [term];
+        if (/[、,;；。！？!?]$/u.test(term) || /(?:して|って|んで|いて|せよ|しろ)$/u.test(term)) {
+            return [term];
+        }
+        return [`${term}して`, `${term}しろ`, `${term}せよ`];
+    });
+}
+
+function includesRequestedIntentTerm(request, terms) {
+    return includesPositiveCommandClause(request, intentCommandTerms(terms));
+}
+
 function matchingIntent(text, manifest) {
     return INTENT_ORDER.find((intent) => {
         const terms = manifest.semantic_matchers.intents[intent];
         return ['implement', 'operate'].includes(intent)
-            ? includesRequestedEffectTerm(text, terms)
+            ? includesRequestedIntentTerm(text, terms)
             : includesTerm(text, terms);
     }) || null;
 }

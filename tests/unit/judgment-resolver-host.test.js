@@ -4130,12 +4130,15 @@ describe('turn-resolution surface degradation', () => {
             evidence: { attempt: 'wrapped', turn_id: 'turn-prior' }
         });
         expect(episode.owner_audit.display_line).toContain('Resolver未接続のため判断縮退');
-        expect(episode.owner_audit.display_line).toContain('新しいCodexタスクで復旧');
+        expect(episode.owner_audit.display_line).toContain('過去の呼出し失敗を検出・接続回復は未確認');
+        expect(episode.owner_audit.display_line).not.toContain('新しいCodexタスクで復旧');
 
         const context = successOutput(
             episode.turn_input, episode.initial_route_receipt, episode.owner_audit, undefined, env, episode.host_surface
         ).hookSpecificOutput.additionalContext;
-        expect(context).toContain('cannot call mcp__brainbase__brainbase_resolve_turn');
+        expect(context).toContain('recorded a lookup failure for mcp__brainbase__brainbase_resolve_turn');
+        expect(context).not.toContain('predates');
+        expect(context).not.toContain('a new Codex task restores');
         expect(context).not.toContain('exactly once');
         expect(context).not.toContain('Autonomy decision: escalate');
         expect(context).not.toContain('A clarification receipt means ask the clarification');
@@ -4183,6 +4186,41 @@ describe('turn-resolution surface degradation', () => {
             degradation_reason: 'turn_resolution_unavailable'
         });
         expect(stopped.final.host_surface).toBeUndefined();
+    });
+
+    it.each([
+        ['structured-success', 'call-recovery', { status: 'resolved', resolution_id: 'jr_recovery', classification: { intent: 'investigate' }, required_capabilities: [] }, false],
+        ['plain-text', 'call-recovery', 'resolved successfully', true],
+        ['unrelated-call', 'call-unrelated', { status: 'resolved', resolution_id: 'jr_recovery', classification: { intent: 'investigate' }, required_capabilities: [] }, true],
+        ['error-envelope', 'call-recovery', { isError: true, result: { status: 'resolved', resolution_id: 'jr_recovery', classification: { intent: 'investigate' }, required_capabilities: [] } }, true]
+    ])('ラッパーの回復証拠を限定する: %s', async (label, outputCallId, result, unavailable) => {
+        const sessionId = `session-wrapper-${label}`;
+        const { episode, env, transcript } = await startDegradedEpisode({
+            sessionId, turnId: 'turn-current', prompt: '続けて',
+            transcriptLines: [
+                event('session_meta', { id: sessionId }),
+                ...wrappedAttempt('call-failure', 'turn-prior'),
+                event('response_item', {
+                    type: 'custom_tool_call', name: 'exec', call_id: 'call-recovery',
+                    input: 'text(await tools.mcp__brainbase__brainbase_resolve_turn({ turn_ref: "prior/ref" }));'
+                }),
+                event('response_item', {
+                    type: 'custom_tool_call_output', call_id: outputCallId,
+                    output: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result) }]
+                }),
+                userMessage('続けて', 'turn-current')
+            ]
+        });
+        expect(episode.host_surface?.turn_resolution === 'unavailable').toBe(unavailable);
+        if (!unavailable) {
+            const stopped = finalizeEpisode({
+                hook_event_name: 'Stop', session_id: sessionId, turn_id: 'turn-current',
+                transcript_path: transcript, stop_hook_active: false,
+                last_assistant_message: `${episode.owner_audit.display_line}\n回答`
+            }, { env });
+            expect(stopped.output.decision).toBe('block');
+            expect(stopped.continuation.missing_capabilities).toContain('judgment.resolve_turn');
+        }
     });
 
     it('後続でresolve_turnが直接成功しているスレッドは縮退しない', async () => {
