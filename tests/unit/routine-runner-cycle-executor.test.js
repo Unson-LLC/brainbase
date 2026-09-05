@@ -126,6 +126,27 @@ describe('Routine Runner cycle execution', () => {
         expect(JSON.parse(request.body)).toEqual({ input: {} });
     });
 
+    it('oyasumiも専用service tokenだけを送り、Personal KG ownerをAutomation環境へ要求しない', async () => {
+        const fetchImpl = vi.fn(async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ status: 'completed' })
+        }));
+
+        await routineRunner.executeRoutineOverHttp({
+            routine: 'oyasumi',
+            env: {
+                BRAINBASE_ROUTINE_API_URL: 'https://brainbase.example',
+                BRAINBASE_ROUTINE_SERVICE_TOKEN: 'bbsvc_oyasumi'
+            },
+            fetchImpl
+        });
+
+        const request = fetchImpl.mock.calls[0][1];
+        expect(request.headers.Authorization).toBe('Bearer bbsvc_oyasumi');
+        expect(JSON.parse(request.body)).toEqual({ input: {} });
+    });
+
     it('completedでもroutine_summary欠落ならrequired_artifact_missingのfailed Receiptを残す', async () => {
         const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-missing-summary-'));
         temporaryDirectories.push(repoDir);
