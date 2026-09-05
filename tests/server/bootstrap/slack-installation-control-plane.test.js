@@ -68,6 +68,35 @@ describe('Slack installation control-plane production adapters', () => {
         expect(result.granted_scopes).toBe('chat:write,commands');
     });
 
+    it('uses dedicated installation OAuth credentials without changing AuthService login credentials', async () => {
+        const installationAppId = 'A0TECHKNIGHT';
+        const fetchImpl = vi.fn(async (url, init) => {
+            expect(url).toBe('https://slack.example.test/api/oauth.v2.access');
+            const body = new URLSearchParams(init.body);
+            expect(body.get('client_id')).toBe('dedicated-installation-client-id');
+            expect(body.get('client_secret')).toBe('dedicated-installation-client-secret');
+            return Response.json({
+                ok: true,
+                team: { id: 'T0123456789' },
+                access_token: 'xoxb-secret-token'
+            });
+        });
+        const client = createSlackOAuthClient({
+            authService: authService(),
+            env: {
+                BRAINBASE_SLACK_INSTALLATION_APP_ID: installationAppId,
+                BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-installation-client-id',
+                BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-installation-client-secret'
+            },
+            fetchImpl
+        });
+
+        await expect(client.exchangeCode({
+            authorization_code: 'one-time-code',
+            redirect_uri: 'https://mana.example.test/callback'
+        })).resolves.toMatchObject({ app_id: installationAppId, workspace_id: 'T0123456789' });
+    });
+
     it('uses the dedicated secret-boundary HTTP port and keeps credential operations opaque', async () => {
         const fetchImpl = vi.fn(async (_url, init) => {
             expect(init.headers.authorization).toBe('Bearer credential-store-token');
@@ -166,5 +195,28 @@ describe('Slack installation control-plane production adapters', () => {
         expect(runtime.ready).toBe(true);
         expect(runtime.reason).toBeNull();
         expect(runtime.controlPlane).toHaveProperty('exchange_and_register');
+    });
+
+    it.each([
+        ['client ID only', { BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-client-id' }],
+        ['client secret only', { BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-client-secret' }]
+    ])('fails closed when dedicated installation OAuth has %s', (_name, partialOAuthEnv) => {
+        const runtime = createSlackInstallationControlPlaneFromEnv({
+            pool: { connect: vi.fn() },
+            authService: authService(),
+            env: {
+                BRAINBASE_SLACK_INSTALLATION_APP_ID: appId,
+                BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN: serviceToken,
+                BRAINBASE_SERVICE_TOKEN_SECRET: 'service-signing-secret',
+                BRAINBASE_SLACK_INSTALLATION_SERVICE_DEPLOYMENT_ID: 'dep_01ARZ3NDEKTSV4RRFFQ69FAZ',
+                BRAINBASE_SLACK_CREDENTIAL_STORE_URL: 'https://secrets.example.test/v1/credentials',
+                BRAINBASE_SLACK_CREDENTIAL_STORE_TOKEN: 'credential-store-token',
+                ...partialOAuthEnv
+            },
+            fetchImpl: vi.fn()
+        });
+
+        expect(runtime.ready).toBe(false);
+        expect(runtime.reason).toBe('slack_installation_oauth_configuration_incomplete');
     });
 });

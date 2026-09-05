@@ -38,10 +38,18 @@ function parseJson(text) {
     }
 }
 
-function createSlackOAuthClient({ authService, fetchImpl = globalThis.fetch } = {}) {
-    const clientId = authService?.slackClientId;
-    const clientSecret = authService?.slackClientSecret;
-    const tokenUrl = authService?.tokenUrl;
+function createSlackOAuthClient({ authService, env = process.env, fetchImpl = globalThis.fetch } = {}) {
+    const dedicatedClientId = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_ID');
+    const dedicatedClientSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET');
+    if (Boolean(dedicatedClientId) !== Boolean(dedicatedClientSecret)) {
+        throw new Error('slack_installation_oauth_configuration_incomplete');
+    }
+    const clientId = dedicatedClientId ?? authService?.slackClientId;
+    const clientSecret = dedicatedClientSecret ?? authService?.slackClientSecret;
+    const tokenUrl = required(env, 'BRAINBASE_SLACK_INSTALLATION_TOKEN_URL')
+        ?? authService?.tokenUrl;
+    const appId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID')
+        ?? authService?.slackClientId;
     if (typeof fetchImpl !== 'function' || !clientId || !clientSecret || !tokenUrl) {
         throw new Error('slack_oauth_configuration_required');
     }
@@ -103,7 +111,7 @@ function createSlackOAuthClient({ authService, fetchImpl = globalThis.fetch } = 
                 ?? payload.user_id
                 ?? null;
             return {
-                app_id: payload.api_app_id ?? payload.app_id ?? clientId,
+                app_id: payload.api_app_id ?? payload.app_id ?? appId,
                 workspace_id: workspaceId,
                 ...(enterpriseId ? { enterprise_id: enterpriseId } : {}),
                 installer_id: installerId,
@@ -164,7 +172,7 @@ export function createSlackInstallationControlPlaneFromEnv({
 
     try {
         const repository = new MultitenantPostgresRepository({ pool, now });
-        const oauthClient = createSlackOAuthClient({ authService, fetchImpl });
+        const oauthClient = createSlackOAuthClient({ authService, env, fetchImpl });
         const credentialStore = createCredentialStore({ env, fetchImpl });
         const controlPlane = new SlackInstallationControlPlane({
             repository,

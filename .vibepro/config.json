@@ -118,8 +118,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-t0-dedicated-slack-installation-oauth",
+        "title": "TechKnight専用Slack OAuthで別テナント接続できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-mcp-auth-context-1396"
+    "current_story_id": "story-t0-dedicated-slack-installation-oauth"
   }
 }
