@@ -10,7 +10,7 @@ status: accepted
 
 Judgment Resolverの運用状態を、`installed`、`trusted_current`、`ready_for_fresh_task`、`proven_active`へ分離する。静的なHook定義や過去のepisodeは稼働証明に使わない。
 
-`scripts/check-codex-judgment-hook-readiness.mjs`は新しいCodex app-serverへ接続し、Codex公式`hooks/list`の実効状態を検査する。Brainbaseはprivateなhash計算を再実装せず、trustを書換しない。3イベントが現在のidentityに対して`trusted`または`managed`である場合だけ`ready_for_fresh_task`を返す。
+`scripts/check-codex-judgment-hook-readiness.mjs`は新しいCodex app-serverへ接続し、Codex公式`hooks/list`の実効状態を検査する。Brainbaseはprivateなhash計算を再実装せず、trustを書換しない。4イベントが現在のidentityに対して`trusted`または`managed`である場合だけ`ready_for_fresh_task`を返す。
 
 最終的な`proven_active`は、trust承認後に作成した新規Desktop task自身のepisode、final receipt、transcript先頭の保存済み監査行を同一turnへ束縛したlive E2Eだけが証明する。
 
@@ -33,8 +33,8 @@ any invalid Stop state -> failed_visible
 ### Readiness checker
 
 - Codex app-serverをstdioで起動し、`initialize`後に`hooks/list`を呼ぶ。macOSではDesktop同梱実体を優先し、Rosetta NodeからPATH上のuniversal wrapperを起動した際のarchitecture誤選択を避ける。
-- `UserPromptSubmit`、`PostToolUse`、`Stop`にcanonical entrypointが各1件あることを確認する。
-- 3件が同じcommandを使い、enabledで、errorなしであることを確認する。
+- `UserPromptSubmit`、`PostToolUse`、`PostToolUseFailure`、`Stop`にcanonical entrypointが各1件あることを確認する。
+- 4件が同じcommandを使い、enabledで、errorなしであることを確認する。
 - `PostToolUse`は`^mcp__brainbase__.*$`だけを対象にする。
 - `modified`、`untrusted`、missingは`trust_required`として非zeroにする。
 - JSON出力にraw `trusted_hash`や秘密情報を含めない。

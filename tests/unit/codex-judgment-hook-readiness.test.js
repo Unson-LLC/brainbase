@@ -20,7 +20,7 @@ function hook(eventName, overrides = {}) {
     return {
         key: `/hooks.json:${eventName}:0:0`,
         eventName,
-        matcher: eventName === 'postToolUse' ? '.*' : null,
+        matcher: ['postToolUse', 'postToolUseFailure'].includes(eventName) ? '.*' : null,
         command,
         enabled: true,
         trustStatus: 'trusted',
@@ -28,7 +28,7 @@ function hook(eventName, overrides = {}) {
     };
 }
 
-function result(hooks = [hook('userPromptSubmit'), hook('postToolUse'), hook('stop')], overrides = {}) {
+function result(hooks = [hook('userPromptSubmit'), hook('postToolUse'), hook('postToolUseFailure'), hook('stop')], overrides = {}) {
     return {
         data: [{ cwd, hooks, warnings: [], errors: [], ...overrides }]
     };
@@ -74,13 +74,14 @@ describe('Codex Judgment Hook readiness', () => {
         expect(resolveDefaultCodexBin({ platform: 'linux', exists: () => true })).toBe('codex');
     });
 
-    it('3つのcanonical Hookがcurrent trustならready_for_fresh_taskまで進める', () => {
+    it('4つのcanonical Hookがcurrent trustならready_for_fresh_taskまで進める', () => {
         expect(evaluateHookReadiness(result(), { cwd })).toMatchObject({
             status: 'ready_for_fresh_task',
             ready: true,
             events: [
                 { event_name: 'userPromptSubmit', status: 'ready', trust_status: 'trusted' },
                 { event_name: 'postToolUse', status: 'ready', trust_status: 'trusted' },
+                { event_name: 'postToolUseFailure', status: 'ready', trust_status: 'trusted' },
                 { event_name: 'stop', status: 'ready', trust_status: 'trusted' }
             ]
         });
@@ -90,23 +91,24 @@ describe('Codex Judgment Hook readiness', () => {
         const checked = evaluateHookReadiness(result([
             hook('userPromptSubmit'),
             hook('postToolUse', { trustStatus: 'modified' }),
+            hook('postToolUseFailure'),
             hook('stop')
         ]), { cwd });
 
         expect(checked).toMatchObject({
             status: 'trust_required',
             ready: false,
-            next_action: 'Open /hooks and approve the three current Resolver hooks.'
+            next_action: 'Open /hooks and approve the four current Resolver hooks.'
         });
         expect(JSON.stringify(checked)).not.toContain('currentHash');
         expect(JSON.stringify(checked)).not.toContain('trusted_hash');
     });
 
     it.each([
-        ['missing', [hook('userPromptSubmit'), hook('postToolUse')], 'trust_required'],
-        ['duplicate', [hook('userPromptSubmit'), hook('postToolUse'), hook('stop'), hook('stop')], 'configuration_error'],
-        ['disabled', [hook('userPromptSubmit'), hook('postToolUse'), hook('stop', { enabled: false })], 'configuration_error'],
-        ['matcher mismatch', [hook('userPromptSubmit'), hook('postToolUse', { matcher: '*' }), hook('stop')], 'configuration_error']
+        ['missing', [hook('userPromptSubmit'), hook('postToolUse'), hook('postToolUseFailure')], 'trust_required'],
+        ['duplicate', [hook('userPromptSubmit'), hook('postToolUse'), hook('postToolUseFailure'), hook('stop'), hook('stop')], 'configuration_error'],
+        ['disabled', [hook('userPromptSubmit'), hook('postToolUse'), hook('postToolUseFailure'), hook('stop', { enabled: false })], 'configuration_error'],
+        ['matcher mismatch', [hook('userPromptSubmit'), hook('postToolUse', { matcher: '*' }), hook('postToolUseFailure'), hook('stop')], 'configuration_error']
     ])('%sをreadiness成功にしない', (_name, hooks, status) => {
         expect(evaluateHookReadiness(result(hooks), { cwd })).toMatchObject({ status, ready: false });
     });
@@ -148,6 +150,7 @@ describe('Codex Judgment Hook readiness', () => {
         const modified = result([
             hook('userPromptSubmit'),
             hook('postToolUse', { trustStatus: 'modified' }),
+            hook('postToolUseFailure'),
             hook('stop')
         ]);
         const codexBin = fakeCodex(modified);

@@ -20,7 +20,7 @@ Judgment Resolver is a Host lifecycle boundary. Every managed Codex turn has one
 2. The Codex lifecycle Host adapter validates the hook payload, reads the canonical JSONL transcript, and performs structural filtering. It preserves ordered raw user/assistant text while excluding envelopes, summaries, reasoning, tool arguments, and tool output.
 3. Before model generation, the lifecycle adapter stores canonical turn input in the journal and gives the model only its `turn_ref`. The model calls `brainbase_resolve_turn` with that reference and its semantic interpretation. The MCP server reads the canonical input directly from the journal, applies manifest-backed safety floors and policies, and returns the immutable TurnContract receipt.
 4. The model follows only the returned active DAG. The resolved route and classification are immutable after that call. When `knowledge.resolve` is required, the receipt names the allowed exact tool `mcp__brainbase__brainbase_knowledge_resolve` and explains that this capability selects the canonical source and next retrieval path without retrieving the answer body. The same capability-action definition generates the first Stop repair instruction. The model may call Brainbase knowledge/retrieval tools 0..N times, using each result to decide the next lookup.
-5. Every completed tool call triggers `PostToolUse`. The Host stores one immutable safe event; direct `mcp__brainbase__*` calls also derive an accurate short audit line for the final assistant answer, while other tools remain non-visible execution evidence. A PostToolUse event or its `systemMessage` alone is not owner-visible proof. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction, so concurrent calls receive a unique `event_sequence` in atomic journal-commit order. Process exit releases the transaction lock through SQLite and the OS; the Host never guesses that a lock path is stale and deletes it. `brainbase_knowledge_resolve` selects a reference destination; it is not itself a search or retrieval.
+5. Every completed tool call triggers `PostToolUse`; Claude Code failure triggers `PostToolUseFailure`. The Host stores one immutable safe event; a failure retains the exact tool identity but forces `success=false` and stores only a fixed failure code plus error/interruption digests, never raw error text or the raw interruption flag. Direct `mcp__brainbase__*` calls also derive an accurate short audit line for the final assistant answer, while other tools remain non-visible execution evidence. A tool event or its `systemMessage` alone is not owner-visible proof. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction, so concurrent calls receive a unique `event_sequence` in atomic journal-commit order. Process exit releases the transaction lock through SQLite and the OS; the Host never guesses that a lock path is stale and deletes it. `brainbase_knowledge_resolve` selects a reference destination; it is not itself a search or retrieval.
 6. `Stop` first checks for an existing episode. If none exists, it may recover only one complete current-turn `<codex_delegation>` from a trusted `codex_app` delegation output. A recovered route is always `post_generation_recovery` and never claims pre-generation guidance. `Stop` is the sole finalization boundary: it validates the event set, required capabilities, autonomy, continuation, business-body preservation, and the exact model-authored `last_assistant_message`. The final answer must begin with the complete journal-derived owner audit block in commit order. Every required line must appear exactly once; an unjournaled `🔁` or `🛠️` line is rejected. Successful finalization records `owner_audit_source=assistant_answer` and an `answer_digest` of the exact answer. A Host `systemMessage`, stored journal line, or completed state `PostToolUse` is not owner-visible proof. On the first repairable failure, Stop returns `decision:block`, supplies the exact audit block, and stores one repair marker. Audit-only repair also binds the original non-audit body digest and refuses deletion, summarization, or replacement. Audit-only repair blocks once; actual safe-work continuation can request up to three resumptions, as specified below. Unresolved active retries converge to `audit_degraded` and never reach the knowledge outbox. True orphans and integrity failures remain fail-closed as defined below.
 
 ## Autonomy contract
@@ -131,13 +131,14 @@ A `continue` receipt that ends in an unapproved decision request returns `decisi
 
 ## Runtime and deployment
 
-Register the canonical deployed wrapper for all three user-level hooks in `~/.codex/hooks.json`:
+Register the canonical deployed wrapper for all four user-level hooks in `~/.codex/hooks.json`:
 
 ```json
 {
   "hooks": {
     "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
     "PostToolUse": [{"matcher": ".*", "hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
+    "PostToolUseFailure": [{"matcher": ".*", "hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
     "Stop": [{"hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}]
   }
 }
@@ -153,7 +154,7 @@ Files in `hooks.json`, a `config.toml` trust section, matching source content, a
 npm run check:judgment-hook-readiness -- --cwd "$BRAINBASE_CONTRACT_ROOT"
 ```
 
-The checker uses the official `hooks/list` RPC. On macOS it prefers the Codex Desktop bundled executable so a Rosetta Node process cannot accidentally route through an architecture-mismatched PATH wrapper; other environments fall back to `codex`, and `--codex-bin` remains available for an explicit override. It succeeds only when the canonical `UserPromptSubmit`, matching `PostToolUse`, and `Stop` definitions are enabled, matcher-correct, and currently trusted; the result is `ready_for_fresh_task`. `modified`, `untrusted`, missing, disabled, or matcher-mismatched state returns non-zero as `trust_required` or configuration error. Open `/hooks` and approve the three current Resolver Hooks, then rerun the checker. Repository scripts and deployment automation must never calculate or write Codex `trusted_hash`.
+The checker uses the official `hooks/list` RPC. On macOS it prefers the Codex Desktop bundled executable so a Rosetta Node process cannot accidentally route through an architecture-mismatched PATH wrapper; other environments fall back to `codex`, and `--codex-bin` remains available for an explicit override. It succeeds only when the canonical `UserPromptSubmit`, matching `PostToolUse` and `PostToolUseFailure`, and `Stop` definitions are enabled, matcher-correct, and currently trusted; the result is `ready_for_fresh_task`. `modified`, `untrusted`, missing, disabled, or matcher-mismatched state returns non-zero as `trust_required` or configuration error. Open `/hooks` and approve the four current Resolver Hooks, then rerun the checker. Repository scripts and deployment automation must never calculate or write Codex `trusted_hash`.
 
 Trust approval affects the Host lifecycle boundary. Create a new Codex task after approval; an already-open task, a past transcript, or direct entrypoint invocation cannot prove current activation. A new task with matching episode/event/final journals and transcript evidence proves `judgment_lifecycle_active`. Only the separate value-proof task described below can prove `proven_active`.
 
@@ -308,7 +309,7 @@ shasum -a 256 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" > "$BRAINBASE_ROLLBACK_
 HOOKS_FILE="$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" node <<'NODE' \
   > "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.entrypoint"
 const hooks = JSON.parse(require('node:fs').readFileSync(process.env.HOOKS_FILE, 'utf8')).hooks ?? {};
-const events = ['UserPromptSubmit', 'PostToolUse', 'Stop'];
+const events = ['UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure', 'Stop'];
 const resolved = events.map((event) => {
   const commands = (hooks[event] ?? []).flatMap((group) => group.hooks ?? [])
     .filter((hook) => hook.type === 'command')
@@ -827,7 +828,7 @@ Verify the merged/deployed checkout SHA separately after deployment. Use one tar
 
 | Surface | Proof |
 | --- | --- |
-| Global Codex lifecycle Hook checkout | Resolve all three entrypoint commands from `~/.codex/hooks.json`; they must name the same absolute entrypoint. Run `git -C <resolved-checkout-root> rev-parse HEAD` and `git -C <resolved-checkout-root> status --short`; the SHA must equal the merged target and the checkout must be clean. |
+| Global Codex lifecycle Hook checkout | Resolve all four entrypoint commands from `~/.codex/hooks.json`; they must name the same absolute entrypoint. Run `git -C <resolved-checkout-root> rev-parse HEAD` and `git -C <resolved-checkout-root> status --short`; the SHA must equal the merged target and the checkout must be clean. |
 | Canonical local UI/API | Follow [`verify-31013-source.md`](./verify-31013-source.md). `GET http://127.0.0.1:31013/api/version` must report the target SHA with `dirty=false`; use [`restart-31013-launchd.md`](./restart-31013-launchd.md) when restart is required. |
 | Persistent MCP Host bridge | Run `scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"`, then `scripts/run-brainbase-mcp.sh --check`. `/Users/ksato/workspace/var/brainbase-mcp-reconcile.last` must contain `sha=$TARGET_SHA`, and `launchctl print gui/$(id -u)/com.brainbase.mcp-brainbase` must report a running job. |
 | Lightsail Resolver API/server | Follow [`deploy-lightsail-production.md`](./deploy-lightsail-production.md). Both the instance and public `GET /api/version` must report the target SHA with `dirty=false`, and public health plus the authenticated Graph probe must pass. |

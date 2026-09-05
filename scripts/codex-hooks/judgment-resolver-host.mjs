@@ -1815,6 +1815,8 @@ function codexDesktopToolEvidence(payload, env) {
 
 export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
+    const hookEventName = payload?.hook_event_name ?? payload?.hookEventName;
+    const postToolUseFailure = hookEventName === 'PostToolUseFailure';
     const toolNameValue = payload?.tool_name ?? payload?.toolName;
     const toolName = typeof toolNameValue === 'string' ? toolNameValue : '';
     const toolUseId = typeof payload?.tool_use_id === 'string' ? payload.tool_use_id : '';
@@ -1837,8 +1839,24 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const inputDigest = sha256(canonicalJson(desktopEvidence
         ? { hook_input: inputValue, desktop_item_digest: desktopEvidence.itemDigest }
         : inputValue));
-    const responseDigest = sha256(canonicalJson(responseValue));
-    const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
+    // Claude's failure hook may contain arbitrary tool error text and an
+    // interruption flag. Keep those values out of the journal: the fixed code
+    // and digests still bind immutable replay/conflict detection.
+    const failureAudit = postToolUseFailure ? {
+        failure_code: 'tool_execution_failed',
+        error_digest: sha256(canonicalJson(payload?.error ?? null)),
+        interrupt_digest: sha256(canonicalJson(payload?.is_interrupt ?? null))
+    } : null;
+    const responseDigest = sha256(canonicalJson(postToolUseFailure
+        ? { tool_response: responseValue, failure: failureAudit }
+        : responseValue));
+    const fingerprint = sha256(canonicalJson({
+        tool_name: toolName,
+        tool_use_id: toolUseId,
+        input_digest: inputDigest,
+        response_digest: responseDigest,
+        ...(postToolUseFailure ? { hook_event_name: hookEventName } : {})
+    }));
     const callScope = brainbaseTool ? toolCallScope(toolName, inputValue) : 'tool execution';
     const resultCount = responseCount(responseValue);
     const fallbackKind = judgmentStateTool
@@ -1888,7 +1906,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                     : Boolean(taskResult || controlPlaneRead || publishedToolResult)
     });
     const satisfiesKnowledgeExecution = kind === 'route';
-    const retrievalResult = responseSuccess && ['search', 'retrieve'].includes(kind)
+    const auditResponseSuccess = !postToolUseFailure && responseSuccess;
+    const retrievalResult = auditResponseSuccess && ['search', 'retrieve'].includes(kind)
         ? desktopEvidence?.safeMetadata?.retrieval_outcome ?? retrieval?.outcome ?? null
         : null;
     const patchText = toolName === 'apply_patch'
@@ -1918,6 +1937,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     } : kind === 'execution' && executionArtifactRefs.length > 0 ? {
         artifact_refs: executionArtifactRefs
     } : {};
+    const auditMetadata = failureAudit ? { ...safeMetadata, tool_failure: failureAudit } : safeMetadata;
     const operationLabel = kind === 'write'
         ? '書込'
         : kind === 'search'
@@ -1928,8 +1948,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const displayLine = !brainbaseTool || judgmentStateTool || judgmentValueProofTool || kind === 'turn_resolution'
         ? null
         : kind === 'route'
-        ? routeDisplayLine(inputValue, resolution, responseSuccess)
-        : `${responseSuccess ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${responseSuccess
+        ? routeDisplayLine(inputValue, resolution, auditResponseSuccess)
+        : `${auditResponseSuccess ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${auditResponseSuccess
             ? retrievalResult === 'no_result'
                 ? '該当なし（不在確定ではない）'
                 : retrievalResult === 'result'
@@ -2037,8 +2057,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         const stateContract = judgmentStateTool
             ? judgmentStopStateContract(stopState, effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt, episode)
             : { valid: true, expectedReason: null };
-        const success = responseSuccess && stateContract.valid;
-        const systemMessage = judgmentStateTool && responseSuccess && !stateContract.valid
+        const success = !postToolUseFailure && responseSuccess && stateContract.valid;
+        const systemMessage = judgmentStateTool && auditResponseSuccess && !stateContract.valid
             ? stateContract.expectedReason
                 ? `Brainbase状態を修正してください。status=waiting_humanではruntime_reason_code=${stateContract.expectedReason}をHost確定理由と一字一句一致させ、状態toolを最後にもう一度実行してください。`
                 : 'Brainbase状態を修正してください。completedはpending_safe_work=false・runtime_reason_code=null、pendingはpending_safe_work=true・runtime_reason_code=null、waiting_humanは許可された理由コードを使ってください。'
@@ -2049,6 +2069,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             event_sequence: eventSequence,
             tool_name: toolName,
             tool_use_id: toolUseId,
+            ...(postToolUseFailure ? { hook_event_name: hookEventName } : {}),
             event_kind: kind,
             success,
             satisfies: kind === 'turn_resolution'
@@ -2058,7 +2079,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             response_digest: responseDigest,
             event_fingerprint: fingerprint,
             query_excerpt: desktopEvidence?.queryExcerpt ?? callScope,
-            safe_metadata: safeMetadata,
+            safe_metadata: auditMetadata,
             display_line: displayLine,
             system_message: systemMessage ?? turnResolutionMessage
         };
@@ -3817,7 +3838,7 @@ export async function processHookPayload(payload, dependencies = {}) {
             env, episode.host_surface ?? null, turnRef, episode.host_autonomy ?? null
         );
     }
-    if (eventName === 'PostToolUse') {
+    if (eventName === 'PostToolUse' || eventName === 'PostToolUseFailure') {
         const event = recordBrainbaseToolUse(payload, dependencies);
         if (event?.schema_version === 'brainbase-judgment-orphan-tool-event-v1') {
             return { systemMessage: ORPHAN_TOOL_EVENT_WARNING };
@@ -3888,7 +3909,7 @@ async function main() {
         const reason = error instanceof Error ? error.message : String(error);
         if (eventName === 'UserPromptSubmit') {
             process.stdout.write(`${JSON.stringify(blockedOutput(reason))}\n`);
-        } else if (eventName === 'PostToolUse') {
+        } else if (eventName === 'PostToolUse' || eventName === 'PostToolUseFailure') {
             process.stderr.write(`⚠️ Brainbase監査記録に失敗: ${reason}\n`);
             process.exitCode = 1;
         } else if (eventName === 'Stop') {

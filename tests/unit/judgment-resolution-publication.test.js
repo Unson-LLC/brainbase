@@ -1115,7 +1115,7 @@ describe('judgment resolver publication surfaces', () => {
         }
         expect(architecture).toContain('judgment_episode_identity_missing');
         expect(architecture).toContain('judgment_episode_not_found');
-        expect(spec).toContain('Open /hooks and approve the three current Resolver hooks.');
+        expect(spec).toContain('Open /hooks and approve the four current Resolver hooks.');
         expect(story).toContain('Brainbaseはtrust hashを計算・書換しない');
     });
 

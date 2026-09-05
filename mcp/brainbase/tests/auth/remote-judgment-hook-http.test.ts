@@ -199,6 +199,34 @@ describe('remote judgment Hook HTTP boundary', () => {
     });
   });
 
+  it('accepts PostToolUseFailure only when the Host returns a nonempty audit', async () => {
+    const payload = {
+      hook_event_name: 'PostToolUseFailure', session_id: 'session-1', turn_id: 'turn-1',
+      tool_name: 'mcp__brainbase__search', tool_use_id: 'failed-tool-use',
+      error: { message: 'raw remote failure' }, is_interrupt: true,
+    };
+    const rejected = await handleRemoteJudgmentHookRequest(request({
+      body: Buffer.from(JSON.stringify(payload)),
+      dispatch: async () => ({ output: {} }),
+    }));
+    assert.deepEqual(rejected, {
+      status: 503, body: { error: 'judgment_hook_audit_not_recorded' },
+    });
+
+    const accepted = await handleRemoteJudgmentHookRequest(request({
+      body: Buffer.from(JSON.stringify(payload)),
+      dispatch: async () => ({ output: { systemMessage: '⚠️ Brainbase検索: search「対象」→ 失敗または結果不明' } }),
+    }));
+    assert.deepEqual(accepted, {
+      status: 200,
+      body: {
+        schema_version: '1', accepted: true,
+        hook_event_name: 'PostToolUseFailure', session_id: 'session-1', turn_id: 'turn-1',
+        output: { systemMessage: '⚠️ Brainbase検索: search「対象」→ 失敗または結果不明' },
+      },
+    });
+  });
+
   it('dispatches remote toolName through the Host and returns its journal audit', async () => {
     const journalRoot = await mkdtemp(join(tmpdir(), 'remote-judgment-hook-'));
     try {

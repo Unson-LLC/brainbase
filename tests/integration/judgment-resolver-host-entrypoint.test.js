@@ -971,6 +971,69 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
     }, 20_000);
 
+    it('PostToolUseFailureをentrypointで監査し、再送は同一記録・異なる失敗内容はconflictにする', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({
+                    management_status: 'managed',
+                    receipt: {
+                        resolution_id: 'jr-post-tool-failure-entrypoint', turn_id: args.turn_id,
+                        request_digest: hash(canonicalJson(args)),
+                        context_digest: hash(canonicalJson(args.conversation_context)),
+                        status: 'resolved', host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                        classification: { intent: 'answer', domains: ['knowledge'], action_kind: 'read' },
+                        selected_dag_ids: ['knowledge.v1'], required_capabilities: [],
+                        active_node_definitions: [{ id: 'knowledge', kind: 'domain', instruction: 'Resolve knowledge.' }]
+                    }
+                }));
+            });
+        });
+        const identity = { session_id: 'session-post-tool-failure', turn_id: 'turn-post-tool-failure' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal
+        };
+        const started = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: 'Brainbaseを検索して'
+        }) });
+        expect(started.code).toBe(0);
+        const failedPayload = {
+            hook_event_name: 'PostToolUseFailure', ...identity,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'entrypoint-failed-tool-use',
+            tool_input: { query: '失敗した検索' }, tool_response: { status: 'ok' },
+            error: { message: 'entrypoint raw failure must not persist' }, is_interrupt: true
+        };
+        const first = await run('bash', [wrapper], { env, input: JSON.stringify(failedPayload) });
+        const replay = await run('bash', [wrapper], { env, input: JSON.stringify(failedPayload) });
+        expect(first).toMatchObject({ code: 0, stderr: '' });
+        expect(replay).toEqual(first);
+        expect(JSON.parse(first.stdout).systemMessage).toBe('⚠️ Brainbase検索: search「失敗した検索」→ 失敗または結果不明');
+        const eventPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.events`, `${hash('entrypoint-failed-tool-use')}.json`);
+        const event = JSON.parse(readFileSync(eventPath, 'utf8'));
+        expect(event).toMatchObject({
+            hook_event_name: 'PostToolUseFailure', tool_name: failedPayload.tool_name,
+            tool_use_id: failedPayload.tool_use_id, success: false,
+            safe_metadata: { tool_failure: { failure_code: 'tool_execution_failed' } }
+        });
+        const journalText = readFileSync(eventPath, 'utf8');
+        expect(journalText).not.toContain('entrypoint raw failure must not persist');
+        expect(journalText).not.toContain('"is_interrupt"');
+        const conflict = await run('bash', [wrapper], { env, input: JSON.stringify({
+            ...failedPayload, error: { message: 'changed raw failure' }
+        }) });
+        expect(conflict.code).not.toBe(0);
+        expect(conflict.stderr).toContain('judgment_tool_event_conflict');
+    }, 20_000);
+
     // Traceability: story-judgment-audit-continuity-v1:ac:8
     // Traceability: story-judgment-audit-continuity-v1:ac:10
     it('Brainbase PostToolUseのidentityまたはtool_use_id欠損を無音成功にしない', async () => {

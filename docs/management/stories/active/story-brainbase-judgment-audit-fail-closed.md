@@ -24,15 +24,15 @@ Brainbaseを運用監査するownerとして、各Codex turnがJudgment Resolver
 
 ## 背景
 
-global `UserPromptSubmit`、`PostToolUse`、`Stop`は設定ファイルに存在し、個別entrypointのテストも成功していた。しかし設定変更前から動き続けていたCodex Desktop Hostでは、2 turn連続でepisodeが作られず、`🧠 判断参照:`行がない回答が通常どおり完了した。
+global `UserPromptSubmit`、`PostToolUse`、`PostToolUseFailure`、`Stop`は設定ファイルに存在し、個別entrypointのテストも成功していた。しかし設定変更前から動き続けていたCodex Desktop Hostでは、2 turn連続でepisodeが作られず、`🧠 判断参照:`行がない回答が通常どおり完了した。
 
-Codex自身の`hooks/list`で確認すると、3つのResolver Hookは登録・有効だったが、すべて`trustStatus: modified`だった。保存済みtrust recordの存在を現在のHook identityへの信頼と取り違えたため、未稼働を復旧済みと報告していた。
+Codex自身の`hooks/list`で確認すると、4つのResolver Hookは登録・有効だったが、すべて`trustStatus: modified`だった。保存済みtrust recordの存在を現在のHook identityへの信頼と取り違えたため、未稼働を復旧済みと報告していた。
 
 またHost adapterは、当初、監査不足のactive再Stopを非zeroで終了していた。Codex DesktopはHookの非zero終了をblockではなく失敗通知として扱うため、最初の修復要求には`decision:block`が必要である。一方、active再Stopでも同じblockを無制限に返すと再生成が終わらないため、修復機会を1回に限定して明示終了する。さらに、参照必須でない0-call turnには`🧠`行しかなく、意図した未参照と監査欠落をownerが区別できなかった。
 
 ## 受け入れ基準
 
-- [ ] readiness checkはCodex公式`hooks/list`を使い、global `UserPromptSubmit`、`PostToolUse`、`Stop`が同じcanonical entrypointを指すこと、各Hookがenabledであること、`PostToolUse` matcherが正しいこと、現在のidentityが`trusted`または`managed`であることを検証する。
+- [ ] readiness checkはCodex公式`hooks/list`を使い、global `UserPromptSubmit`、`PostToolUse`、`PostToolUseFailure`、`Stop`が同じcanonical entrypointを指すこと、各Hookがenabledであること、両方のtool Hook matcherが正しいこと、現在のidentityが`trusted`または`managed`であることを検証する。
 - [ ] `modified`、`untrusted`、missing、Codex status取得失敗は`trust_required`または診断エラーとして非zeroで終了する。Brainbaseはtrust hashを計算・書換しない。
 - [ ] readiness check成功は`ready_for_fresh_task`までとし`active`とは呼ばない。Hookのtrust承認後に作成した新規taskのepisode、final receipt、実transcriptのowner監査prefixがそろった場合だけ`proven_active`とする。
 - [ ] episode identityまたは対応episodeがないStopは無音の`{}`を返さず、activation failureとして明示的にfail-closedする。

@@ -9,11 +9,12 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REQUIRED_HOOKS = [
     { eventName: 'userPromptSubmit', matcher: null },
     { eventName: 'postToolUse', matcher: '.*' },
+    { eventName: 'postToolUseFailure', matcher: '.*' },
     { eventName: 'stop', matcher: null }
 ];
 const CANONICAL_ENTRYPOINT = 'scripts/codex-hooks/judgment-resolver-entry.sh';
 const READY_TRUST_STATUSES = new Set(['trusted', 'managed']);
-const TRUST_ACTION = 'Open /hooks and approve the three current Resolver hooks.';
+const TRUST_ACTION = 'Open /hooks and approve the four current Resolver hooks.';
 const CODEX_DESKTOP_BIN = '/Applications/ChatGPT.app/Contents/Resources/codex';
 
 export function resolveDefaultCodexBin({

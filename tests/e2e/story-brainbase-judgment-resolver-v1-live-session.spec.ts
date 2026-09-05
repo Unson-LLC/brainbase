@@ -402,14 +402,14 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assertFreshTaskBinding(EVIDENCE_TRANSCRIPT_PATH);
 
     const config = readJson(HOOK_CONFIG);
-    for (const hookName of ['UserPromptSubmit', 'PostToolUse', 'Stop']) {
+    for (const hookName of ['UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure', 'Stop']) {
         assert.ok(
             hookCommands(config, hookName).some((command) => command.includes(CANONICAL_ENTRYPOINT)),
             `${hookName} is not bound to ${CANONICAL_ENTRYPOINT}`
         );
     }
 
-    const installedEntrypoints = ['UserPromptSubmit', 'PostToolUse', 'Stop']
+    const installedEntrypoints = ['UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure', 'Stop']
         .map((hookName) => ({
             hookName,
             path: canonicalEntrypointPath(config, hookName)
@@ -423,7 +423,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.equal(
         new Set(installedEntrypoints.map((installed) => installed.path)).size,
         1,
-        'UserPromptSubmit, PostToolUse, and Stop must use the same installed lifecycle adapter checkout'
+        'UserPromptSubmit, PostToolUse, PostToolUseFailure, and Stop must use the same installed lifecycle adapter checkout'
     );
     for (const installed of installedEntrypoints) {
         const installedHookRoot = resolve(dirname(installed.path), '..', '..');

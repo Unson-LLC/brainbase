@@ -1145,6 +1145,58 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
+    it('PostToolUseFailureは実際のhook名で失敗を監査し、生のerror/is_interruptを保存しない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-post-tool-failure', turn_id: 'turn-post-tool-failure',
+            prompt: 'Brainbaseを検索して', cwd: process.cwd()
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) })
+            })
+        });
+        const failedPayload = {
+            hook_event_name: 'PostToolUseFailure', ...payload,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'exact-failed-tool-use-id',
+            tool_input: { query: '失敗した検索' },
+            tool_response: { status: 'ok' },
+            error: { code: 'upstream_failure', message: 'secret failure message must not persist' },
+            is_interrupt: true
+        };
+        const output = await processHookPayload(failedPayload, { env });
+        const replay = recordBrainbaseToolUse(failedPayload, { env });
+
+        expect(output.systemMessage).toBe('⚠️ Brainbase検索: search「失敗した検索」→ 失敗または結果不明');
+        expect(replay).toMatchObject({
+            hook_event_name: 'PostToolUseFailure',
+            tool_name: 'mcp__brainbase__search',
+            tool_use_id: 'exact-failed-tool-use-id',
+            event_kind: 'search',
+            success: false,
+            safe_metadata: {
+                tool_failure: {
+                    failure_code: 'tool_execution_failed',
+                    error_digest: expect.stringMatching(/^[a-f0-9]{64}$/),
+                    interrupt_digest: expect.stringMatching(/^[a-f0-9]{64}$/)
+                }
+            }
+        });
+        const journalText = readFileSync(
+            join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.events`, `${hash('exact-failed-tool-use-id')}.json`),
+            'utf8'
+        );
+        expect(journalText).not.toContain('secret failure message must not persist');
+        expect(journalText).not.toContain('"is_interrupt"');
+        expect(() => recordBrainbaseToolUse({
+            ...failedPayload,
+            error: { code: 'upstream_failure', message: 'different raw failure' }
+        }, { env })).toThrow('judgment_tool_event_conflict');
+    });
+
     it('knowledge routeは採用・除外した参照先と理由を表示する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };

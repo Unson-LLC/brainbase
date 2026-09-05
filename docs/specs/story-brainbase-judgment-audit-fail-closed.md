@@ -29,8 +29,8 @@ test_files:
 ## Contracts
 
 - **C-1**: readiness CLIは`--cwd`、`--codex-bin`、`--json`を受け取り、`status`、イベント別状態、`next_action`を返す。
-- **C-2**: 3イベントが各1件、same command、enabled、expected matcher、`trusted|managed`ならexit 0と`ready_for_fresh_task`を返す。
-- **C-3**: trust不成立ならexit nonzero、`trust_required`、`Open /hooks and approve the three current Resolver hooks.`を返す。
+- **C-2**: 4イベントが各1件、same command、enabled、expected matcher、`trusted|managed`ならexit 0と`ready_for_fresh_task`を返す。
+- **C-3**: trust不成立ならexit nonzero、`trust_required`、`Open /hooks and approve the four current Resolver hooks.`を返す。
 - **C-4**: identity/episodeなしStopはfirst Stopではvisible block、active Stopではstderrとnonzeroにする。
 - **C-5**: active再Stopでrequired knowledgeまたはowner auditが不足する場合は`judgment_stop_repair_exhausted`で非zero終了し、final receiptを作らない。
 - **C-6**: audit prefix比較は行末のspace/tabだけを無視し、本文・順序・回数を保存値へ一致させる。
@@ -39,7 +39,7 @@ test_files:
 
 ## Scenarios
 
-- **S-1**: fake Codex app-serverが3件を`trusted`で返すとreadinessは`ready_for_fresh_task`になる。
+- **S-1**: fake Codex app-serverが4件を`trusted`で返すとreadinessは`ready_for_fresh_task`になる。
 - **S-2**: 1件でも`modified`なら`trust_required`になり、hashを書換しない。
 - **S-3**: matcher不一致、duplicate、missing、app-server error/timeoutは明示的に失敗する。
 - **S-4**: orphan Stopは`{}`/exit 0を返さない。
