@@ -14,7 +14,13 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS organization_id text;
 -- project remains fail-closed instead of inheriting a default tenant.
 DO $$
 BEGIN
-  IF to_regclass('organizations') IS NOT NULL THEN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_attribute
+    WHERE attrelid = to_regclass('organizations')
+      AND attname = 'workspace_id'
+      AND NOT attisdropped
+  ) THEN
     UPDATE organizations
     SET projects = CASE
       WHEN id = 'unson' AND NOT ('unson' = ANY(COALESCE(projects, ARRAY[]::text[])))
