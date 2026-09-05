@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath, URL as NodeURL } from 'node:url';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -11,6 +14,10 @@ import {
 
 const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
 const personId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
+const satoManifestPath = fileURLToPath(new NodeURL(
+    '../../../../config/manifests/human-action-authority-sato-brainbase.json', import.meta.url
+));
+
 function manifest(overrides = {}) {
     return {
         version: 'human-company-action-authority.v1',
@@ -150,6 +157,47 @@ function fakeClient(sharedState = baseState()) {
 }
 
 describe('human action authority provisioning', () => {
+    it('pins the production canary to Sato and excludes Umeda authority', async () => {
+        const satoManifest = JSON.parse(await readFile(satoManifestPath, 'utf8'));
+        const normalized = normalizeHumanActionAuthorityManifest(satoManifest);
+        expect(normalized).toMatchObject({
+            tenant_id: 'ten_01M0HMA228ES64N4TFX846V8T8',
+            organization_id: 'ten_01M0HMA228ES64N4TFX846V8T8',
+            project: {
+                project_id: 'prj_01KGCS8CAJKKDWACPNK1E5WX8H', project_code: 'brainbase'
+            },
+            transport: { provider: 'slack', workspace_id: 'T0882T8N9UH', app_id: 'A0BPM2J33SN' }
+        });
+        expect(normalized.humans).toHaveLength(1);
+        expect(normalized.humans[0]).toMatchObject({
+            person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
+            slack_user_id: 'U088D1HBY6L',
+            membership_id: 'membership:unson-business:U088D1HBY6L',
+            membership_revision: '1',
+            identity_id: 'human_identity_1e27b72ca1ed8efa5a5d855dccbe8a18',
+            identity_revision: '1',
+            placement_id: 'unson-sato'
+        });
+        expect(normalized.humans[0].bindings).toEqual([expect.objectContaining({
+            resource_ref: 'project:prj_01KGCS8CAJKKDWACPNK1E5WX8H',
+            capability_id: 'runtime.execute',
+            decision: 'auto',
+            allowed_effects: ['external_side_effect'],
+            responsible_person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
+            accountable_person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
+            approver_person_id: null,
+            delegated_by_person_id: null,
+            resource_revision: '1',
+            policy_revision: '1',
+            raci_revision: '1',
+            stop_conditions: [],
+            valid_from: '2026-09-05T00:00:00.000Z',
+            valid_until: null
+        })]);
+        expect(normalized.humans.some((human) => human.slack_user_id === 'U0BKP8D3KPD')).toBe(false);
+        expect(normalized.humans.some((human) => human.person_id === 'per_01KGYC7NPPE3FTW6SF3K5MCVWK')).toBe(false);
+    });
+
     it('normalizes an exact manifest and rejects duplicate bindings, unknown fields, and secrets', () => {
         const normalized = normalizeHumanActionAuthorityManifest(manifest());
         expect(normalized.humans[0].bindings[0]).toMatchObject({
@@ -255,6 +303,25 @@ describe('human action authority provisioning', () => {
         })).rejects.toMatchObject({ code: 'HUMAN_AUTHORITY_AMBIGUOUS' });
         expect(client.state.bindings).toHaveLength(2);
         expect(client.queries.map(({ sql }) => sql)).toContain('ROLLBACK');
+    });
+
+    it('fails closed when a stored binding revision cannot be incremented safely', async () => {
+        const revisionRow = {
+            membership_id: 'human_membership_keigo', organization_id: 'org_techknight_business',
+            project_id: 'prj_techknight', resource_ref: 'project:techknight', capability_id: 'task.read',
+            status: 'inactive'
+        };
+        const unsafe = fakeClient();
+        unsafe.state.bindings.push({ ...revisionRow, binding_revision: '9007199254740992' });
+        await expect(provisionHumanActionAuthority({
+            client: unsafe, manifest: manifest(), actorId: 'operator-keigo', commit: true
+        })).rejects.toMatchObject({ code: 'AUTHORITY_REVISION_INVALID' });
+
+        const maxed = fakeClient();
+        maxed.state.bindings.push({ ...revisionRow, binding_revision: String(Number.MAX_SAFE_INTEGER) });
+        await expect(provisionHumanActionAuthority({
+            client: maxed, manifest: manifest(), actorId: 'operator-keigo', commit: true
+        })).rejects.toMatchObject({ code: 'AUTHORITY_REVISION_INVALID' });
     });
 
     it('rejects an inactive organization before planning a binding', async () => {
