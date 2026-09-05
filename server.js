@@ -300,6 +300,7 @@ const {
     slackInstallationControlPlane,
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
+    slackInstallationOAuthFlow,
     resolvePreProvisionedSlackConnection,
     wikiService,
     learningService,
@@ -468,6 +469,7 @@ registerApiRoutes(app, {
     slackInstallationControlPlane,
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
+    slackInstallationOAuthFlow,
     resolvePreProvisionedSlackConnection
 });
 
