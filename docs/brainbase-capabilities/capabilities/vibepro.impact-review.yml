@@ -1,48 +1,33 @@
 id: vibepro.impact-review
-name: VibePro Graphify impact review
-purpose: Ensure graph-sensitive Brainbase changes use VibePro/Graphify to identify affected code paths, record evidence, and select focused verification before implementation is claimed complete.
+name: VibePro impact review
+purpose: Use VibePro or Graphify only when dependency information can change the implementation or affected-test decision.
 surfaces:
   ui:
     - Agent implementation and review responses
-    - Pull request body Graphify Impact Review section
   api:
-    - VibePro CLI status, story, graph, diagnose commands
-    - GitHub pull request checks
+    - Optional VibePro CLI graph and diagnose commands
   code:
-    - scripts/vibepro-graphify-impact-gate.mjs
-    - tests/unit/vibepro-graphify-impact-gate.test.js
     - .claude/skills/vibepro-workflow/SKILL.md
   data:
-    - .vibepro/graphify/graph.json
-    - docs/session-activity-indicator-lifecycle.md
-    - docs/brainbase-capabilities/
+    - Optional local Graphify output
 depends_on:
   - code.reading
   - verification.testing
   - graph.ssot
 visibility_rules:
-  - VibePro and Graphify are validation and impact-review aids, not the source of truth.
-  - Capability records, implementation files, tests, runtime APIs, and logs remain the source of truth.
-  - Graph-sensitive changes require a PR body section titled "Graphify Impact Review".
-  - Generic VibePro diagnose output is not enough when the change depends on runtime state-machine or realtime UI relationships.
-  - A selected or newly created VibePro story should be recorded when the work is part of a repeated issue stream.
+  - VibePro and Graphify are optional impact-review aids, not the source of truth or merge authority.
+  - Read code and affected tests directly when that is enough to choose the implementation and verification scope.
+  - Do not require a PR-body section, generated artifact, score, Gate, or command transcript.
 verification:
   commands:
-    - vibepro status . --json
-    - vibepro story select . --id <story-id>
-    - vibepro graph . --run-graphify
-    - node scripts/vibepro-graphify-impact-gate.mjs --changed-file <path> --pr-body <body>
+    - Run affected tests selected from the changed behavior.
   expected:
-    - The changed graph-sensitive files are listed before implementation or PR completion.
-    - The PR body contains Graphify Impact Review evidence with a VibePro or graphify command.
-    - Targeted contract tests or runtime checks are selected from the impacted path, not from memory alone.
-    - The Graphify impact gate fails with a pointer to this capability when evidence is missing.
+    - Verification is proportional to the changed behavior and stated acceptance criteria.
+    - Missing optional VibePro or Graphify output does not block a PR.
 common_failures:
-  - Patching graph-sensitive state-machine code before running Graphify.
-  - Running VibePro diagnose but skipping `vibepro graph . --run-graphify`.
-  - Forgetting to select or create the relevant VibePro story.
-  - Writing PR evidence that says Graphify was used without command or artifact evidence.
-  - Treating VibePro output as authoritative over code, tests, API responses, or Capability Map records.
+  - Collecting artifacts after the implementation and affected tests already establish the result.
+  - Treating optional Graphify output as approval authority.
+  - Expanding a focused change to satisfy a retired Gate.
 runbooks:
   - ../runbooks/vibepro-impact-review.md
 troubleshooting:

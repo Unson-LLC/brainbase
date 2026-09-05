@@ -15,11 +15,12 @@ function loadWorkflow() {
   ));
 }
 
-describe('VibePro Score Actions workflow contract', () => {
-  it('Linuxセルフホストrunnerで最小権限・push履歴を保つ排他・キャッシュ無効を固定する', () => {
+describe('VibePro Minimal Core Actions workflow contract', () => {
+  it('Linuxセルフホストrunnerで最小権限・排他・キャッシュ無効を固定する', () => {
     const workflow = loadWorkflow();
-    const job = workflow.jobs['score-evidence'];
+    const job = workflow.jobs['minimal-core-contract'];
 
+    expect(workflow.name).toBe('VibePro Minimal Core Contract');
     expect(workflow.permissions).toEqual({ contents: 'read' });
     expect(workflow.concurrency).toEqual({
       group: "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'push' && github.sha || 'latest' }}",
@@ -27,12 +28,11 @@ describe('VibePro Score Actions workflow contract', () => {
     });
     expect(workflow.on.pull_request.branches).toEqual(['main', 'develop']);
     expect(workflow.on.push.branches).toEqual(['main', 'develop', 'session/**']);
-    expect(workflow.on.pull_request.paths).toContain('docs/guides/github-actions-cicd-operating-guide.md');
-    expect(workflow.on.pull_request.paths).not.toContain('_codex/common/ops/scheduled-jobs.md');
+    expect(workflow.on.pull_request.paths).toContain('.claude/skills/vibepro-*/**');
+    expect(workflow.on.pull_request.paths).not.toContain('docs/internal/vibepro-dogfood/runs/**');
 
     expect(job['runs-on']).toEqual(selfHostedLinuxRunner);
     expect(job['timeout-minutes']).toBe(10);
-    expect(job.env.GITHUB_EVENT_BEFORE).toBe('${{ github.event.before }}');
     const checkout = job.steps.find((step) => step.uses === 'actions/checkout@v5');
     expect(checkout).toBeDefined();
     expect(checkout.with['persist-credentials']).toBe(false);
@@ -45,8 +45,9 @@ describe('VibePro Score Actions workflow contract', () => {
     const commands = job.steps.map((step) => step.run).filter(Boolean).join('\n');
     expect(commands).toContain('vibepro-score-actions-workflow-contract.test.js');
     expect(commands).toContain('vibepro-graph-actions-workflow-contract.test.js');
-    expect(commands).toContain('vibepro:score-verify');
-    expect(commands).toContain('vibepro:development-dag');
-    expect(commands).toContain('vibepro:doc-trace');
+    expect(commands).toContain('vibepro-minimal-core-contract.test.js');
+    expect(commands).not.toContain('vibepro:score-verify');
+    expect(commands).not.toContain('vibepro:development-dag');
+    expect(commands).not.toContain('vibepro:doc-trace');
   });
 });

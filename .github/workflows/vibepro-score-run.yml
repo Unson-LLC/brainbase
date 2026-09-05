@@ -1,21 +1,17 @@
-name: VibePro Score Evidence Check
+name: VibePro Minimal Core Contract
 
 on:
   pull_request:
     branches: [main, develop]
     paths:
       - '.github/workflows/vibepro-score-run.yml'
+      - '.github/workflows/vibepro-graphify-impact.yml'
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - '.claude/skills/vibepro-*/**'
       - 'tests/unit/vibepro-minimal-core-contract.test.js'
-      - 'docs/guides/github-actions-cicd-operating-guide.md'
-      - 'docs/internal/vibepro-dogfood/runs/**'
-      - 'docs/stories/vibepro-brainbase-dogfood-story.md'
-      - 'docs/architecture/vibepro-brainbase-dogfood-architecture.md'
-      - 'docs/specs/vibepro-brainbase-self-evaluation-spec.md'
-      - 'scripts/vibepro-*.mjs'
-      - 'tests/unit/vibepro-*.test.js'
+      - 'tests/unit/vibepro-score-actions-workflow-contract.test.js'
+      - 'tests/unit/vibepro-graph-actions-workflow-contract.test.js'
       - 'package.json'
       - 'package-lock.json'
       - 'vitest.config.js'
@@ -23,17 +19,13 @@ on:
     branches: [main, develop, 'session/**']
     paths:
       - '.github/workflows/vibepro-score-run.yml'
+      - '.github/workflows/vibepro-graphify-impact.yml'
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - '.claude/skills/vibepro-*/**'
       - 'tests/unit/vibepro-minimal-core-contract.test.js'
-      - 'docs/guides/github-actions-cicd-operating-guide.md'
-      - 'docs/internal/vibepro-dogfood/runs/**'
-      - 'docs/stories/vibepro-brainbase-dogfood-story.md'
-      - 'docs/architecture/vibepro-brainbase-dogfood-architecture.md'
-      - 'docs/specs/vibepro-brainbase-self-evaluation-spec.md'
-      - 'scripts/vibepro-*.mjs'
-      - 'tests/unit/vibepro-*.test.js'
+      - 'tests/unit/vibepro-score-actions-workflow-contract.test.js'
+      - 'tests/unit/vibepro-graph-actions-workflow-contract.test.js'
       - 'package.json'
       - 'package-lock.json'
       - 'vitest.config.js'
@@ -47,19 +39,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  score-evidence:
-    name: Verify committed VibePro score evidence
+  minimal-core-contract:
+    name: Verify VibePro minimal-core instructions
     runs-on: [self-hosted, Linux, X64, wsl-linux]
     timeout-minutes: 10
-
-    env:
-      GITHUB_EVENT_BEFORE: ${{ github.event.before }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Node.js
@@ -71,14 +59,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run VibePro scorer unit tests
-        run: npm run test:run -- tests/unit/vibepro-score-run.test.js tests/unit/vibepro-development-dag-check.test.js tests/unit/vibepro-doc-trace-check.test.js tests/unit/vibepro-score-actions-workflow-contract.test.js tests/unit/vibepro-graph-actions-workflow-contract.test.js tests/unit/vibepro-minimal-core-contract.test.js
-
-      - name: Verify committed score artifacts
-        run: npm run vibepro:score-verify
-
-      - name: Verify development DAG evidence
-        run: npm run vibepro:development-dag
-
-      - name: Verify story/architecture/spec trace
-        run: npm run vibepro:doc-trace
+      - name: Verify minimal-core instructions
+        run: npm run test:run -- tests/unit/vibepro-minimal-core-contract.test.js tests/unit/vibepro-score-actions-workflow-contract.test.js tests/unit/vibepro-graph-actions-workflow-contract.test.js

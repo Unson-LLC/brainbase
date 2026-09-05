@@ -62,7 +62,7 @@ troubleshooting: []
 | `verification.testing` | Defines how test-related prompts and changed files map to required test execution. |
 | `requirements.coverage` | Defines how completed TODOs are checked against acceptance requirements before stopping. |
 | `vibepro.impact-review` | Defines when and how VibePro Graphify impact review is required for graph-sensitive changes. |
-| `vibepro.skills-usage` | Defines how Brainbase agents use VibePro Skills for workflow, story-driven refactoring, and human-review cockpit work. |
+| `vibepro.skills-usage` | BrainbaseでVibeProを補助として使い、通常の実装・テスト・PR手順へつなぐ方法を定義します。 |
 
 ## Operating Rules
 

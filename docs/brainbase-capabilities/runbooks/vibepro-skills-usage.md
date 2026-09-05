@@ -1,33 +1,12 @@
 # VibePro Skills Usage
 
-Use this runbook when Brainbase itself is the agent workspace and the user asks for VibePro work.
+Brainbaseが管理する実装判断では、`.claude/skills/vibepro-workflow/SKILL.md`を入口にします。
 
-1. Verify Brainbase has the VibePro Skills installed:
+1. 受け入れた変更を、一つのStoryと最小限のSpecへまとめる。
+2. 変更するコードと影響するテストを特定する。
+3. 境界や依存関係が判断を変える場合だけArchitectureまたはGraphifyを使う。
+4. 実装し、影響するテストを実行する。
+5. 必要なら一回だけ範囲を絞ったレビューを行う。
+6. リポジトリ標準のGitHub PR、CI、merge手順へ進む。
 
-```bash
-vibepro skills verify /Users/ksato/workspace/code/brainbase
-```
-
-2. Choose the smallest required Skill set.
-
-- General VibePro workflow: `.claude/skills/vibepro-workflow/SKILL.md`
-- Story-driven refactoring, latent bugs, security, DRY, responsibility separation: `.claude/skills/vibepro-story-refactor/SKILL.md`
-- Human review cockpit, HTML review artifacts, approve/block/waive decisions: `.claude/skills/vibepro-human-review/SKILL.md`
-
-3. If the active agent is Codex, verify the VibePro managed block is available through `AGENTS.md`:
-
-```bash
-vibepro codex verify /Users/ksato/workspace/code/brainbase
-```
-
-4. For target repositories such as Aitle, install target-local Skills only when agents will run from that target repo. If the agent runs from Brainbase and merely operates on Aitle, Brainbase-side Skills are the required installation.
-5. Continue the VibePro workflow in the order required by the loaded Skills: Story -> Architecture -> Spec -> Task -> Code -> Gate -> PR.
-
-Minimum evidence:
-
-```md
-## VibePro Skills Usage
-- skills verify: `vibepro skills verify /Users/ksato/workspace/code/brainbase`
-- loaded skills: `vibepro-workflow`, plus task-specific VibePro Skills
-- codex verify when relevant: `vibepro codex verify /Users/ksato/workspace/code/brainbase`
-```
+Skillの導入確認、生成物、Gate、スコア、コマンド実行記録を完了条件にはしません。VibeProは補助であり、承認、merge、deploy、組織判断の権限を持ちません。

@@ -67,6 +67,7 @@ describe('VibePro Minimal Core distribution contract', () => {
 
   it('runs this contract test whenever distributed VibePro instructions change', () => {
     const workflow = yaml.load(read('.github/workflows/vibepro-score-run.yml'));
+    expect(workflow.name).toBe('VibePro Minimal Core Contract');
     for (const eventName of ['pull_request', 'push']) {
       const paths = workflow.on[eventName].paths;
       expect(paths).toContain('AGENTS.md');
@@ -74,7 +75,11 @@ describe('VibePro Minimal Core distribution contract', () => {
       expect(paths).toContain('.claude/skills/vibepro-*/**');
       expect(paths).toContain('tests/unit/vibepro-minimal-core-contract.test.js');
     }
-    const commands = workflow.jobs['score-evidence'].steps.map((step) => step.run).filter(Boolean).join('\n');
+    const commands = workflow.jobs['minimal-core-contract'].steps.map((step) => step.run).filter(Boolean).join('\n');
     expect(commands).toContain('tests/unit/vibepro-minimal-core-contract.test.js');
+    expect(commands).not.toContain('vibepro:score-verify');
+    expect(commands).not.toContain('vibepro:development-dag');
+    expect(commands).not.toContain('vibepro:doc-trace');
+    expect(fs.existsSync(path.join(repoRoot, '.github/workflows/vibepro-graphify-impact.yml'))).toBe(false);
   });
 });
