@@ -17,7 +17,7 @@ const TRANSPORT_KEYS = new Set(['provider', 'workspace_id', 'app_id']);
 const HUMAN_KEYS = new Set([
     'person_id', 'slack_user_id', 'membership_id', 'membership_revision',
     'identity_id', 'identity_revision', 'placement_id', 'membership_placement_id',
-    'expected_project_codes', 'bindings'
+    'membership_principal_type', 'expected_project_codes', 'bindings'
 ]);
 const BINDING_KEYS = new Set([
     'resource_ref', 'capability_id', 'decision', 'allowed_effects',
@@ -175,6 +175,12 @@ function normalizeHuman(value, index) {
     if (!Object.hasOwn(value, 'membership_placement_id')) {
         fail('MANIFEST_INVALID', `${field}.membership_placement_id is required`);
     }
+    if (!Object.hasOwn(value, 'membership_principal_type')) {
+        fail('MANIFEST_INVALID', `${field}.membership_principal_type is required`);
+    }
+    if (value.membership_principal_type !== null && value.membership_principal_type !== 'person') {
+        fail('MANIFEST_INVALID', `${field}.membership_principal_type is invalid`);
+    }
     const personId = text(value.person_id, `${field}.person_id`);
     if (!isCanonicalId(personId, 'per')) fail('MANIFEST_INVALID', `${field}.person_id is invalid`);
     if (!Array.isArray(value.bindings) || value.bindings.length === 0 || value.bindings.length > 32) {
@@ -195,6 +201,7 @@ function normalizeHuman(value, index) {
         placement_id: text(value.placement_id, `${field}.placement_id`),
         membership_placement_id: value.membership_placement_id === null
             ? null : text(value.membership_placement_id, `${field}.membership_placement_id`),
+        membership_principal_type: value.membership_principal_type,
         expected_project_codes: stringArray(
             value.expected_project_codes, `${field}.expected_project_codes`
         ),
@@ -381,7 +388,7 @@ async function readHumanFoundation(client, manifest, human) {
     const membership = exactlyOne(memberships, 'MEMBERSHIP_NOT_FOUND', 'Declared membership was not found');
     const payload = membership.membership_payload;
     if (membership.principal_id !== human.person_id || payload?.status !== 'active'
-        || payload?.principal_type !== 'person'
+        || (payload?.principal_type ?? null) !== human.membership_principal_type
         || membershipRevision(payload) !== human.membership_revision
         || payload?.slack_user_id !== human.slack_user_id
         || payload?.slack_workspace_id !== manifest.transport.workspace_id

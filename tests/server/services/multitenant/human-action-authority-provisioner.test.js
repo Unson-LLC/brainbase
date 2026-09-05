@@ -34,6 +34,7 @@ function manifest(overrides = {}) {
             identity_revision: '1',
             placement_id: 'techknight-slack-admin',
             membership_placement_id: 'techknight-slack-admin',
+            membership_principal_type: 'person',
             expected_project_codes: ['techknight'],
             bindings: [{
                 resource_ref: 'project:techknight',
@@ -180,6 +181,7 @@ describe('human action authority provisioning', () => {
             identity_revision: '1',
             placement_id: 'unson-sato',
             membership_placement_id: null,
+            membership_principal_type: null,
             expected_project_codes: ['brainbase', 'mana']
         });
         expect(normalized.humans[0].bindings).toEqual([expect.objectContaining({
@@ -240,6 +242,18 @@ describe('human action authority provisioning', () => {
         const undefinedMembershipPlacement = manifest();
         undefinedMembershipPlacement.humans[0].membership_placement_id = undefined;
         expect(() => normalizeHumanActionAuthorityManifest(undefinedMembershipPlacement))
+            .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
+        const missingMembershipPrincipalType = manifest();
+        delete missingMembershipPrincipalType.humans[0].membership_principal_type;
+        expect(() => normalizeHumanActionAuthorityManifest(missingMembershipPrincipalType))
+            .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
+        const undefinedMembershipPrincipalType = manifest();
+        undefinedMembershipPrincipalType.humans[0].membership_principal_type = undefined;
+        expect(() => normalizeHumanActionAuthorityManifest(undefinedMembershipPrincipalType))
+            .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
+        const serviceMembershipPrincipalType = manifest();
+        serviceMembershipPrincipalType.humans[0].membership_principal_type = 'service';
+        expect(() => normalizeHumanActionAuthorityManifest(serviceMembershipPrincipalType))
             .toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
     });
 
@@ -362,6 +376,23 @@ describe('human action authority provisioning', () => {
         await expect(provisionHumanActionAuthority({
             client: identityConflict, manifest: absentManifest, actorId: 'operator-keigo', commit: true
         })).rejects.toMatchObject({ code: 'EXTERNAL_IDENTITY_CONFLICT' });
+    });
+
+    it('requires an explicit membership principal type while allowing only a declared legacy null', async () => {
+        const legacyManifest = manifest();
+        legacyManifest.humans[0].membership_principal_type = null;
+        const legacyMembership = fakeClient();
+        delete legacyMembership.state.memberships[0].membership_payload.principal_type;
+        const legacyResult = await provisionHumanActionAuthority({
+            client: legacyMembership, manifest: legacyManifest, actorId: 'operator-keigo', commit: false
+        });
+        expect(legacyResult.snapshot_after.humans[0].membership.membership_payload.principal_type).toBeNull();
+
+        const unexpectedPrincipalType = fakeClient();
+        await expect(provisionHumanActionAuthority({
+            client: unexpectedPrincipalType, manifest: legacyManifest, actorId: 'operator-keigo', commit: true
+        })).rejects.toMatchObject({ code: 'MEMBERSHIP_CONFLICT' });
+        expect(unexpectedPrincipalType.state.bindings).toHaveLength(0);
     });
 
     it('fails closed when more than one active binding matches the natural key', async () => {

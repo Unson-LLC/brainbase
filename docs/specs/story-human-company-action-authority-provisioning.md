@@ -8,10 +8,10 @@ CLIは`human-company-action-authority.v1` manifestを受け取る。
 - organization: `organization_id`
 - project: `project_id`, `project_code`
 - transport: `provider=slack`, `workspace_id`, `app_id`
-- humans: `person_id`, `slack_user_id`, `membership_id`, `identity_id`, `placement_id`, `membership_placement_id`, `expected_project_codes`, `bindings`
+- humans: `person_id`, `slack_user_id`, `membership_id`, `identity_id`, `placement_id`, `membership_placement_id`, `membership_principal_type`, `expected_project_codes`, `bindings`
 - binding: `resource_ref`, `capability_id`, `decision`, `allowed_effects`, RACI person IDs、resource/policy/RACI revision、stop conditions、validity
 
-未知field、秘密らしいfield/value、重複human、同一human内の重複resource/capabilityを拒否する。`placement_id`は外部identityの配置を表し、`membership_placement_id`は既存membership payloadの`placement_id`に対する期待値を表す。後者は必須で、`null`はmembership payloadの配置が欠落またはnullであることを明示する。`expected_project_codes`は有界・重複なしで正規化し、既存membershipの`project_codes`とcanonicalな完全一致を要求する。`approval`はapprover、`human_action`はresponsible personを必須とする。
+未知field、秘密らしいfield/value、重複human、同一human内の重複resource/capabilityを拒否する。`placement_id`は外部identityの配置を表し、`membership_placement_id`は既存membership payloadの`placement_id`に対する期待値を表す。`membership_principal_type`は同payloadの`principal_type`に対する期待値で、いずれも必須である。各`null`は該当値が欠落またはnullであることを明示し、`membership_principal_type`の非null値は`person`だけを許す。`expected_project_codes`は有界・重複なしで正規化し、既存membershipの`project_codes`とcanonicalな完全一致を要求する。`approval`はapprover、`human_action`はresponsible personを必須とする。
 
 ## CLI
 
@@ -30,10 +30,10 @@ BRAINBASE_PROVISIONING_ACTOR=<actor> node scripts/provision-human-action-authori
 1. active tenantとtenant内project
 2. tenant内organization
 3. active Slack workspace connection
-4. active person membershipと宣言したperson ID、membership payloadの`membership_placement_id`および`expected_project_codes`
+4. active person membershipと宣言したperson ID、membership payloadの`membership_placement_id`、`membership_principal_type`および`expected_project_codes`
 5. active Slack external identityのID、subject、workspace、app、project、placement、membership
 
-membership payloadの配置が宣言した`membership_placement_id`と一致しない場合は失敗する。`null`宣言時はpayloadの配置が欠落またはnullである場合だけ一致とする。外部identityの配置は別に`placement_id`と完全一致させる。
+membership payloadの配置またはprincipal typeが宣言した`membership_placement_id`または`membership_principal_type`と一致しない場合は失敗する。`null`宣言時はpayloadの該当値が欠落またはnullである場合だけ一致とする。外部identityの配置は別に`placement_id`と完全一致させる。
 
 bindingの自然キーはtenant、membership、organization、project、resource、capabilityである。active 0件なら全statusの最大revisionに1を加えて作成する。active 1件は全項目の完全一致時だけnoopとする。active 2件以上、または1件でも差分があれば失敗する。
 
