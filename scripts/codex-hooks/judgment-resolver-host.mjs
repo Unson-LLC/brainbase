@@ -2170,6 +2170,7 @@ function effectiveEpisode(episode, events) {
         return {
             ...episode,
             initial_route_receipt: resolved,
+            initial_route_receipt_digest: sha256(canonicalJson(resolved)),
             // Route resolution must not replace the episode's frozen display
             // contract, including the absence of a contract on legacy episodes.
             owner_audit: buildOwnerAudit(args, resolved, { hostAutonomy: episode.host_autonomy ?? null })
@@ -2325,10 +2326,43 @@ function verifyFinalStopRepair(finalized, continuationMarker, auditContract) {
     }
 }
 
+function ownerVisibleBrainbaseAuditLines(events) {
+    const groupedEvents = new Map();
+    for (const event of events) {
+        if (typeof event.display_line !== 'string') continue;
+        const exactRequestKey = typeof event.tool_name === 'string'
+            && /^[0-9a-f]{64}$/u.test(event.input_digest ?? '')
+            ? `${event.tool_name}\0${event.input_digest}`
+            : `event:${event.event_sequence ?? groupedEvents.size}`;
+        const group = groupedEvents.get(exactRequestKey) ?? [];
+        group.push(event);
+        groupedEvents.set(exactRequestKey, group);
+    }
+    return [...groupedEvents.values()]
+        .sort((left, right) => (
+            (left.at(-1)?.event_sequence ?? 0) - (right.at(-1)?.event_sequence ?? 0)
+        ))
+        .map((group) => {
+            const terminal = group.at(-1);
+            if (group.length === 1) return terminal.display_line;
+            const failureCount = group.filter((event) => event.success !== true).length;
+            if (terminal.success === true && failureCount > 0) {
+                return `${terminal.display_line}（再試行で復旧・過去${failureCount}回失敗）`;
+            }
+            if (terminal.success === true) {
+                return `${terminal.display_line}（同一条件で${group.length}回実行）`;
+            }
+            if (failureCount === group.length) {
+                return `${terminal.display_line}（同一条件で${failureCount}回失敗）`;
+            }
+            return `${terminal.display_line}（同一条件で${group.length}回実行・直近失敗）`;
+        });
+}
+
 function requiredAuditLines(episode, events, continuationMarker = null) {
     const auditContract = episodeAuditContract(episode);
-    const brainbaseEvents = events.filter((event) => typeof event.display_line === 'string');
-    const zeroCallLines = brainbaseEvents.length === 0 && typeof auditContract?.zero_call_display_line === 'string'
+    const brainbaseAuditLines = ownerVisibleBrainbaseAuditLines(events);
+    const zeroCallLines = brainbaseAuditLines.length === 0 && typeof auditContract?.zero_call_display_line === 'string'
         ? [auditContract.zero_call_display_line]
         : [];
     const autonomyContinuation = verifiedAutonomyContinuation(continuationMarker, auditContract);
@@ -2344,7 +2378,7 @@ function requiredAuditLines(episode, events, continuationMarker = null) {
     return [
         episode.owner_audit.display_line,
         ...zeroCallLines,
-        ...brainbaseEvents.map((event) => event.display_line),
+        ...brainbaseAuditLines,
         ...continuationLines,
         ...stopRepairLines
     ];
@@ -3366,9 +3400,14 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     // bounded retry budget; an active re-Stop is not itself evidence of success.
     const stopAlreadyBlockedOnce = missingCapabilities.length > 0 && existingContinuation !== null && payload.stop_hook_active === true;
     const attempt = existingContinuation?.stop_attempt ?? (existingContinuation ? 1 : 0);
-    const retryContinuation = stopAlreadyBlockedOnce && missingAutonomyCompliance
-        && (autonomyContinuationRequested || existingContinuation?.autonomy_continuation)
+    const routeTransitionRetry = stopAlreadyBlockedOnce
+        && missingOwnerAudit
+        && typeof existingContinuation?.initial_route_receipt_digest === 'string'
+        && existingContinuation.initial_route_receipt_digest !== episode.initial_route_receipt_digest
         && attempt < MAX_CONTINUATION_ATTEMPTS;
+    const retryContinuation = routeTransitionRetry || (stopAlreadyBlockedOnce && missingAutonomyCompliance
+        && (autonomyContinuationRequested || existingContinuation?.autonomy_continuation)
+        && attempt < MAX_CONTINUATION_ATTEMPTS);
     if (missingCapabilities.length > 0 && (!stopAlreadyBlockedOnce || retryContinuation)) {
         let marker = existingContinuation;
         if (!marker || retryContinuation) {
@@ -3392,6 +3431,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 schema_version: 'brainbase-judgment-continuation-v2',
                 requested_at: marker?.requested_at ?? new Date().toISOString(),
                 stop_attempt: attempt + 1,
+                initial_route_receipt_digest: episode.initial_route_receipt_digest,
                 missing_capabilities: missingCapabilities,
                 ...(typeof auditContract?.stop_repair_complete_line === 'string' ? {
                     stop_repair: {
@@ -3432,9 +3472,15 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             };
             if (missingAutonomyCompliance) delete markerEntry.answer_body_binding;
             if (shouldBindAnswerBody) {
+                const bindingAuditLines = routeTransitionRetry
+                    ? [...new Set([
+                        ...requiredAuditLines(bootstrapEpisode, events, markerEntry),
+                        ...requiredAuditLines(episode, events, markerEntry)
+                    ])]
+                    : requiredAuditLines(episode, events, markerEntry);
                 markerEntry.answer_body_binding = buildAnswerBodyBinding(
                     answer,
-                    requiredAuditLines(episode, events, markerEntry)
+                    bindingAuditLines
                 );
             }
             marker = createImmutableJson(
