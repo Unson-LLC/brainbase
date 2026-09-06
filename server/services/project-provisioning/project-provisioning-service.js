@@ -849,6 +849,12 @@ export class ProjectProvisioningService {
             );
             const existingSubject = assertCompatibleProjectSubject(snapshot.entities, manifest);
             if (existingSubject) {
+                if (typeof this.repository.bindExistingProjectSubject === 'function') {
+                    await this.repository.bindExistingProjectSubject(manifest, existingSubject.id, {
+                        organizationId,
+                        ...(client ? { client } : {})
+                    });
+                }
                 return {
                     status: 'already_materialized',
                     snapshot_hash: snapshot.snapshot_hash,

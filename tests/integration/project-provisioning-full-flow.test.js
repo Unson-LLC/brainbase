@@ -191,8 +191,11 @@ async function applySql(fileName, targetPool = adminPool) {
 }
 
 async function setupDatabase() {
-    container = await new PostgreSqlContainer('postgres:16-alpine').start();
-    const adminConnectionString = container.getConnectionUri();
+    const externalConnectionString = process.env.PROJECT_PROVISIONING_TEST_DATABASE_URL;
+    if (!externalConnectionString) {
+        container = await new PostgreSqlContainer('postgres:16-alpine').start();
+    }
+    const adminConnectionString = externalConnectionString || container.getConnectionUri();
     adminPool = new Pool({ connectionString: adminConnectionString });
 
     await adminPool.query('CREATE ROLE brainbase_app NOLOGIN');
@@ -1295,7 +1298,7 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         }
     }, 300_000);
 
-    it('受入れE2E: 汎用Graph writerはProvisioningと同じID lockを通りCatalog subjectを上書きしない', async () => {
+    it('受入れE2E: 汎用Graph writerはCatalog identityを守り、Graphの事業情報をRegistryへ同期する', async () => {
         const productionService = createProjectProvisioningService({ infoSSOTService });
         const projectCode = 'acceptance-generic-writer-race';
         const manifest = projectManifest(projectCode, 'Acceptance Generic Writer Race');
@@ -1376,12 +1379,12 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
                  SET payload=jsonb_set(payload, '{name}', '"Raw Script Corruption"'::jsonb)
                  WHERE id=$1`,
                 [projectCode]
-            )).rejects.toMatchObject({ code: '23514' });
+            )).resolves.toMatchObject({ rowCount: 1 });
             const protectedSubject = await adminPool.query(
                 `SELECT payload->>'name' AS name FROM graph_entities WHERE id=$1`,
                 [projectCode]
             );
-            expect(protectedSubject.rows).toEqual([{ name: 'Acceptance Generic Writer Race' }]);
+            expect(protectedSubject.rows).toEqual([{ name: 'Raw Script Corruption' }]);
         } finally {
             if (!committed) await blocker.query('ROLLBACK').catch(() => {});
             blocker.release();
@@ -1390,14 +1393,14 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         const state = await readNoWriteState(projectCode);
         expect(state.registry).toMatchObject([{
             project_code: projectCode,
-            display_name: 'Acceptance Generic Writer Race',
+            display_name: 'Raw Script Corruption',
             catalog_version: 1
         }]);
         expect(state.entities).toMatchObject([{
             id: projectCode,
             entity_type: 'project',
             payload: {
-                name: 'Acceptance Generic Writer Race',
+                name: 'Raw Script Corruption',
                 catalog_project_id: projectCode,
                 catalog_version: 1,
                 source_ref: `project-catalog:${projectCode}@1`
