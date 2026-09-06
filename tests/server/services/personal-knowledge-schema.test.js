@@ -42,7 +42,9 @@ describe('personal and organization knowledge schema', () => {
         expect(infoSsotRls).toContain('target_project.code = ANY(app_project_codes())');
         expect(edgeScopeFunction).toContain('app_graph_entity_organization_id(source_entity.id) IS NULL');
         expect(edgeScopeFunction).toContain('app_graph_entity_organization_id(target_entity.id) IS NULL');
-        expect(edgeScopeFunction).toContain("edge_rel_type = 'owned_by'");
+        expect(edgeScopeFunction).toContain("edge_rel_type IN ('owned_by', 'assigned_to')");
+        expect(edgeScopeFunction).toContain("edge_rel_type <> 'assigned_to'");
+        expect(edgeScopeFunction).toContain("source_entity.entity_type = 'raci_assignment'");
         expect(edgeScopeFunction).toContain('membership_project.organization_id = source_project.organization_id');
         expect(edgeScopeFunction).toContain('IS DISTINCT FROM app_graph_entity_organization_id(target_entity.id)');
         expect(edgeScopeFunction).not.toContain("current_setting('app.graph_maintenance_mode', true) = 'true'");

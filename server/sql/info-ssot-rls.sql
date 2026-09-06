@@ -443,10 +443,12 @@ AS $body$
   SELECT CASE
     -- A canonical Person may intentionally be global and belong to more than
     -- one organization.  Keep that identity projectless, but allow a scoped
-    -- decision to name it as owner when the Person has a visible membership
-    -- in the decision's organization.  Other cross-organization edge shapes
-    -- continue through the strict organization checks below.
-    WHEN edge_rel_type = 'owned_by'
+    -- decision to name it as owner, or a scoped RACI assignment to name it as
+    -- assignee, when the Person has a visible membership in the source
+    -- organization. Other cross-organization edge shapes continue through the
+    -- strict organization checks below.
+    WHEN edge_rel_type IN ('owned_by', 'assigned_to')
+      AND (edge_rel_type <> 'assigned_to' OR source_entity.entity_type = 'raci_assignment')
       AND source_entity.project_id IS NOT NULL
       AND target_entity.project_id IS NULL
       AND target_entity.entity_type = 'person'
