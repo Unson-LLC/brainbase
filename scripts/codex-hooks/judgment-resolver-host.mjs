@@ -3880,7 +3880,9 @@ function ownerEvidenceSource(args, receipt) {
         : [];
     const inherited = Array.isArray(receipt?.reconciliation_reasons)
         && receipt.reconciliation_reasons.includes('classification_inherited_from_prior_turn');
-    const prior = PRIOR_EVIDENCE_SOURCES.has(evidence.source) || inherited;
+    const currentRequestEvidence = evidence.source === 'current_request'
+        && sourceTurnIds.includes(args.turn_id);
+    const prior = !currentRequestEvidence && (PRIOR_EVIDENCE_SOURCES.has(evidence.source) || inherited);
     if (!prior) return { sourceKind: 'current_request', text: args.request, sourceTurnIds };
 
     const messages = Array.isArray(args?.conversation_context?.messages)

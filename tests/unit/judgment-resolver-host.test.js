@@ -172,6 +172,33 @@ describe('Codex Judgment Resolver Host', () => {
         expect(line).not.toContain('使用しました');
     });
 
+    it('current requestのturn証跡はprior継承フラグがあっても現依頼として表示する', () => {
+        const args = {
+            request: '判断契約を確認してこの修正を続けて',
+            turn_id: 'turn-current',
+            conversation_context: {
+                messages: [{
+                    sequence: 0,
+                    turn_id: 'turn-current',
+                    role: 'user',
+                    phase: null,
+                    text: '判断契約を確認してこの修正を続けて'
+                }]
+            }
+        };
+        const receipt = {
+            status: 'resolved',
+            classification_evidence: { source: 'current_request', source_turn_ids: ['turn-current'] },
+            classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write' },
+            selected_dag_ids: ['engineering.v1'],
+            reconciliation_reasons: ['classification_inherited_from_prior_turn']
+        };
+
+        expect(buildOwnerReferenceLine(args, receipt)).toBe(
+            '🧠 判断参照: 「判断契約を確認してこの修正を続けて」を参照 → 実装依頼として継続 ✓'
+        );
+    });
+
     it('owner監査行の山括弧を表示時に変形しない安全な文字へ正規化する', () => {
         const args = {
             request: '<hook_prompt id="repair">監査行を直して</hook_prompt>',
