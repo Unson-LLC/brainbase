@@ -204,6 +204,7 @@ function isInjectedHostEnvelope(text) {
 }
 
 const TURN_RESOLUTION_TOOL_NAME = 'mcp__brainbase__brainbase_resolve_turn';
+const TURN_RESOLUTION_UNAVAILABLE_CODE = 'brainbase_api_unavailable';
 // Mirrors the brainbase_resolve_turn inputSchema; exec-mode models do not
 // reliably read tool schemas, so the exact shape is stated in the context.
 const MODEL_INTERPRETATION_SHAPE = 'model_interpretation must contain exactly these keys and nothing else: '
@@ -1682,6 +1683,17 @@ function judgmentTurnResolutionData(response) {
     )) ?? null;
 }
 
+function judgmentTurnResolutionUnavailableData(response) {
+    const items = nestedRecords(response);
+    // Conflicting or malformed success claims must pass contract validation;
+    // an embedded unavailable result cannot turn them into a failure bypass.
+    if (items.some((item) => item.status === 'resolved')) return null;
+    return items.find((item) => (
+        item.status === 'unavailable'
+        && record(item.error)?.code === TURN_RESOLUTION_UNAVAILABLE_CODE
+    )) ?? null;
+}
+
 function knowledgeCanonicalLocation(value) {
     const location = record(value);
     if (!location) return '所在未指定';
@@ -1876,6 +1888,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const kind = retrieval?.kind ?? fallbackKind;
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const turnResolution = kind === 'turn_resolution' ? judgmentTurnResolutionData(responseValue) : null;
+    const turnResolutionUnavailable = kind === 'turn_resolution'
+        ? judgmentTurnResolutionUnavailableData(responseValue)
+        : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
     const publishedToolResult = brainbaseTool ? publishedToolSemanticData(toolName, responseValue, inputValue) : null;
     const controlPlaneRead = kind === 'call' || kind === 'retrieve'
@@ -1926,7 +1941,12 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             .map((match) => match[1].trim())
             .filter((value) => value && !value.includes('\0')))]
         : [];
-    const safeMetadata = turnResolution ? { turn_contract: turnResolution } : valueProofInput ? { value_proof: valueProofInput } : stopState ? { stop_state: stopState } : resolution ? {
+    const safeMetadata = turnResolution ? { turn_contract: turnResolution } : turnResolutionUnavailable ? {
+        turn_resolution_failure: {
+            status: 'unavailable',
+            code: TURN_RESOLUTION_UNAVAILABLE_CODE
+        }
+    } : valueProofInput ? { value_proof: valueProofInput } : stopState ? { stop_state: stopState } : resolution ? {
         resolution_id: resolution.resolution_id,
         status: resolution.status,
         source_class: resolution.source_class ?? null,
@@ -1949,7 +1969,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             : kind === 'retrieve'
                 ? '取得'
                 : '呼出';
-    const displayLine = !brainbaseTool || judgmentStateTool || judgmentValueProofTool || kind === 'turn_resolution'
+    const displayLine = turnResolutionUnavailable
+        ? '⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（brainbase_api_unavailable）'
+        : !brainbaseTool || judgmentStateTool || judgmentValueProofTool || kind === 'turn_resolution'
         ? null
         : kind === 'route'
         ? routeDisplayLine(inputValue, resolution, auditResponseSuccess)
@@ -2017,11 +2039,17 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                     ? episode.turn_input
                     : suppliedTurnInput;
             const interpretation = record(turnToolInput?.model_interpretation);
-            if (!turnInput || !interpretation
-                || canonicalJson(turnInput) !== canonicalJson(episode.turn_input)
-                || turnResolution?.turn_id !== episode.initial_route_receipt.turn_id
-                || turnResolution?.context_digest !== episode.initial_route_receipt.context_digest
-                || turnResolution?.request_digest !== sha256(canonicalJson({ ...turnInput, model_interpretation: interpretation }))) {
+            const bindingValid = turnInput
+                && interpretation
+                && canonicalJson(turnInput) === canonicalJson(episode.turn_input)
+                && (turnResolution
+                    ? turnResolution.turn_id === episode.initial_route_receipt.turn_id
+                        && turnResolution.context_digest === episode.initial_route_receipt.context_digest
+                        && turnResolution.request_digest === sha256(canonicalJson({ ...turnInput, model_interpretation: interpretation }))
+                    : turnResolutionUnavailable
+                        ? suppliedTurnRef === null || suppliedTurnRef === expectedTurnRef
+                        : false);
+            if (!bindingValid) {
                 throw new Error('judgment_turn_resolution_binding_invalid');
             }
         }
@@ -2108,21 +2136,57 @@ function episodeEvents(paths) {
     });
 }
 
+function turnResolutionUnavailableEvent(event) {
+    return event?.event_kind === 'turn_resolution'
+        && event.success === false
+        && event.safe_metadata?.turn_resolution_failure?.status === 'unavailable'
+        && event.safe_metadata.turn_resolution_failure.code === TURN_RESOLUTION_UNAVAILABLE_CODE;
+}
+
+function turnResolutionUnavailableHostSurface(event, episode) {
+    return {
+        schema_version: 'brainbase-judgment-host-surface-v1',
+        turn_resolution: 'unavailable',
+        failure_code: TURN_RESOLUTION_UNAVAILABLE_CODE,
+        evidence: {
+            attempt: 'direct',
+            turn_id: typeof episode.initial_route_receipt?.turn_id === 'string'
+                ? episode.initial_route_receipt.turn_id
+                : null,
+            call_ref: sha256(String(event.tool_use_id ?? '')),
+            output_digest: event.response_digest
+        }
+    };
+}
+
 function effectiveEpisode(episode, events) {
     const resolved = [...events].reverse().find((event) => (
         event.success
         && event.satisfies.includes('judgment.resolve_turn')
         && record(event.safe_metadata?.turn_contract)
     ))?.safe_metadata.turn_contract;
-    if (!resolved) return episode;
+    if (resolved) {
+        const args = episode.turn_input;
+        return {
+            ...episode,
+            initial_route_receipt: resolved,
+            initial_route_receipt_digest: sha256(canonicalJson(resolved)),
+            // Route resolution must not replace the episode's frozen display
+            // contract, including the absence of a contract on legacy episodes.
+            owner_audit: buildOwnerAudit(args, resolved, { hostAutonomy: episode.host_autonomy ?? null })
+        };
+    }
+    const unavailable = [...events].reverse().find(turnResolutionUnavailableEvent);
+    if (!unavailable || !turnResolutionRequired(episode)) return episode;
     const args = episode.turn_input;
     return {
         ...episode,
-        initial_route_receipt: resolved,
-        initial_route_receipt_digest: sha256(canonicalJson(resolved)),
-        // Route resolution must not replace the episode's frozen display
-        // contract, including the absence of a contract on legacy episodes.
-        owner_audit: buildOwnerAudit(args, resolved, { hostAutonomy: episode.host_autonomy ?? null })
+        // A failed Resolver call is projected into the effective owner audit
+        // only. The immutable bootstrap episode remains unchanged.
+        owner_audit: buildOwnerAudit(args, episode.initial_route_receipt, {
+            hostSurface: turnResolutionUnavailableHostSurface(unavailable, episode),
+            hostAutonomy: episode.host_autonomy ?? null
+        })
     };
 }
 
@@ -3228,13 +3292,14 @@ function continuationFailureLine(finalized) {
 function finalizeEpisodeLocked(payload, episode, paths, env) {
     const events = episodeEvents(paths);
     const hasTurnResolution = events.some((event) => event.success && event.satisfies.includes('judgment.resolve_turn'));
+    const unavailableTurnResolution = events.some(turnResolutionUnavailableEvent);
     const bootstrapEpisode = episode;
     // The first degraded turn opens before the failure is visible, so the Stop
     // re-reads the transcript; later turns carry the surface in the episode.
     const surfaceUnavailable = turnResolutionUnavailable(bootstrapEpisode)
         || (turnResolutionRequired(bootstrapEpisode)
             && !hasTurnResolution
-            && transcriptTurnResolutionSurface(payload, env) !== null);
+            && (transcriptTurnResolutionSurface(payload, env) !== null || unavailableTurnResolution));
     const requiresTurnResolution = turnResolutionRequired(bootstrapEpisode) && !surfaceUnavailable;
     episode = effectiveEpisode(episode, events);
     let existingContinuation = latestContinuation(paths);
@@ -3718,8 +3783,12 @@ export function buildOwnerAudit(args, receipt, { historicalExact = true, hostSur
     let displayLine;
 
     if (hostSurface?.turn_resolution === 'unavailable') {
-        decision = 'Resolver未接続のため判断縮退';
-        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」→ ${decision}（過去の呼出し失敗を検出・接続回復は未確認）`;
+        const serviceFailure = hostSurface.failure_code === TURN_RESOLUTION_UNAVAILABLE_CODE;
+        decision = serviceFailure ? 'Resolver呼び出し失敗のため判断縮退' : 'Resolver未接続のため判断縮退';
+        const detail = serviceFailure
+            ? '判断契約は未確定・呼び出し失敗を記録'
+            : '過去の呼出し失敗を検出・接続回復は未確認';
+        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」→ ${decision}（${detail}）`;
     } else if (receipt?.status === 'needs_classification' || dagIds.includes('clarification.v1')) {
         decision = '確認質問';
         const reasons = Array.isArray(receipt?.reconciliation_reasons)

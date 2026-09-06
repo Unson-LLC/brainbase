@@ -4327,6 +4327,206 @@ describe('turn-resolution surface degradation', () => {
     });
 });
 
+describe('structured Resolver unavailable failures', () => {
+    const modelInterpretation = {
+        intent: 'implement',
+        domains: ['engineering'],
+        action_kind: 'write',
+        risk: 'low',
+        confidence: 'confirmed',
+        signals: []
+    };
+    const unavailableResponse = {
+        status: 'unavailable',
+        error: {
+            code: 'brainbase_api_unavailable',
+            http_status: 503,
+            message: 'Resolver receipt persistence is unavailable'
+        }
+    };
+    const bootstrapReceipt = (args) => ({
+        ...validReceipt(args),
+        status: 'needs_classification',
+        reconciliation_reasons: ['model_interpretation_missing'],
+        classification: null,
+        required_capabilities: [],
+        autonomy_decision: 'escalate',
+        autonomy_reason_code: 'classification_missing',
+        autonomy_policy_ids: [],
+        allowed_runtime_escalation_reasons: []
+    });
+    const startUnavailableEpisode = async ({
+        sessionId,
+        turnId = 'turn-structured-unavailable',
+        prompt = 'この修正を行って'
+    } = {}) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit',
+            session_id: sessionId,
+            turn_id: turnId,
+            prompt,
+            cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true,
+                status: 200,
+                json: async () => ({ management_status: 'managed', receipt: bootstrapReceipt(args) })
+            })
+        });
+        const ownTurnRef = `${hash(sessionId)}/${hash(turnId)}`;
+        const invoke = (toolResponse, turnRef = ownTurnRef, legacyInput = null) => processHookPayload({
+            hook_event_name: 'PostToolUse',
+            session_id: sessionId,
+            turn_id: turnId,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: `tool-resolve-${sessionId}`,
+            tool_input: legacyInput ?? { turn_ref: turnRef, model_interpretation: modelInterpretation },
+            tool_response: toolResponse
+        }, { env });
+        return { root, env, payload, episode, ownTurnRef, invoke };
+    };
+
+    const eventEntries = (root, sessionId, turnId) => {
+        const directory = join(root, 'journal', hash(sessionId), `${hash(turnId)}.events`);
+        return readdirSync(directory).map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')));
+    };
+
+    it('directの構造化503を失敗イベントとして保存し、成功契約には昇格しない', async () => {
+        const sessionId = 'session-structured-unavailable-direct';
+        const { root, episode, invoke } = await startUnavailableEpisode({ sessionId });
+
+        await expect(invoke(unavailableResponse)).resolves.toMatchObject({
+            systemMessage: '⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（brainbase_api_unavailable）'
+        });
+        const [entry] = eventEntries(root, sessionId, 'turn-structured-unavailable');
+        expect(entry).toMatchObject({
+            event_kind: 'turn_resolution',
+            success: false,
+            satisfies: ['judgment.resolve_turn']
+        });
+        expect(entry.safe_metadata).toMatchObject({
+            turn_resolution_failure: {
+                status: 'unavailable',
+                code: 'brainbase_api_unavailable'
+            }
+        });
+        expect(readFileSync(join(root, 'journal', hash(sessionId), `${hash('turn-structured-unavailable')}.events`, `${hash(`tool-resolve-${sessionId}`)}.json`), 'utf8'))
+            .not.toContain(unavailableResponse.error.message);
+        expect(entry.safe_metadata.turn_contract).toBeUndefined();
+        expect(episode.initial_route_receipt.status).toBe('needs_classification');
+    });
+
+    it('MCP content wrapperの構造化503も同じ失敗イベント経路へ保存する', async () => {
+        const sessionId = 'session-structured-unavailable-wrapper';
+        const setup = await startUnavailableEpisode({ sessionId: `${sessionId}-inner` });
+        await expect(setup.invoke({
+            content: [{ type: 'text', text: JSON.stringify(unavailableResponse) }]
+        })).resolves.toMatchObject({ systemMessage: expect.stringContaining('失敗（brainbase_api_unavailable）') });
+        const [entry] = eventEntries(setup.root, `${sessionId}-inner`, 'turn-structured-unavailable');
+        expect(entry).toMatchObject({ event_kind: 'turn_resolution', success: false });
+        expect(entry.safe_metadata.turn_resolution_failure).toMatchObject({
+            status: 'unavailable', code: 'brainbase_api_unavailable'
+        });
+    });
+
+    it.each(['nested-ref', 'path', 'full'])('旧形式 %s でも現在turnの失敗を記録し、別turnは拒否する', async (format) => {
+        const sessionId = `session-unavailable-legacy-${format}`;
+        const { root, ownTurnRef, episode, invoke } = await startUnavailableEpisode({ sessionId });
+        const ownPath = join(root, 'journal', hash(sessionId), `${hash('turn-structured-unavailable')}.turn-input.json`);
+        const legacyValue = format === 'nested-ref'
+            ? { turn_ref: ownTurnRef }
+            : format === 'path' ? { turn_input_path: ownPath } : episode.turn_input;
+        const foreignValue = format === 'nested-ref'
+            ? { turn_ref: `${ownTurnRef}/foreign` }
+            : format === 'path' ? { turn_input_path: `${ownPath}.foreign` } : { ...episode.turn_input, turn_id: 'foreign' };
+        await expect(invoke(unavailableResponse, ownTurnRef, {
+            turn_input: foreignValue, model_interpretation: modelInterpretation
+        })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        await expect(invoke(unavailableResponse, ownTurnRef, {
+            turn_input: legacyValue, model_interpretation: modelInterpretation
+        })).resolves.toMatchObject({ systemMessage: expect.stringContaining('失敗（brainbase_api_unavailable）') });
+        const [entry] = eventEntries(root, sessionId, 'turn-structured-unavailable');
+        expect(entry.success).toBe(false);
+        expect(entry.safe_metadata.turn_contract).toBeUndefined();
+    });
+
+    it('失敗イベント後のStopは呼び出し失敗をaudit_degradedへ投影し、classification_missingを再要求しない', async () => {
+        const sessionId = 'session-structured-unavailable-stop';
+        const turnId = 'turn-structured-unavailable-stop';
+        const { env, episode, invoke } = await startUnavailableEpisode({ sessionId, turnId });
+        await invoke(unavailableResponse);
+
+        const firstStop = finalizeEpisode({
+            hook_event_name: 'Stop',
+            session_id: sessionId,
+            turn_id: turnId,
+            stop_hook_active: false,
+            last_assistant_message: '安全な範囲の作業を続けます。'
+        }, { env });
+        expect(firstStop.output).toMatchObject({ decision: 'block' });
+        expect(firstStop.output.reason).toContain('Resolver呼び出し失敗のため判断縮退');
+        expect(firstStop.output.reason).not.toContain('classification_missing');
+        expect(firstStop.output.reason).not.toContain('対象を特定できず');
+        expect(firstStop.output.reason).not.toContain('実呼び出し0回');
+        expect(firstStop.output.reason).toContain('⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（brainbase_api_unavailable）');
+        expect(firstStop.output.reason).not.toContain('mcp__brainbase__brainbase_resolve_turnをturn_ref=');
+
+        const auditBlock = firstStop.output.reason.split('最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n')[1].split('\nその後、')[0];
+
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop',
+            session_id: sessionId,
+            turn_id: turnId,
+            stop_hook_active: true,
+            last_assistant_message: `${auditBlock}\n安全な範囲の作業を続けます。`
+        }, { env });
+        expect(stopped.output.decision).toBeUndefined();
+        expect(stopped.output.systemMessage).toContain('Resolver呼び出し失敗のため判断縮退');
+        expect(stopped.output.systemMessage).not.toContain('対象を特定できず');
+        expect(stopped.final).toMatchObject({
+            completion_status: 'audit_degraded',
+            degradation_reason: 'turn_resolution_unavailable',
+            qualifying_event_count: 0
+        });
+        expect(episode.owner_audit.display_line).toContain('対象を特定できず');
+    });
+
+    it.each([
+        ['foreign turn_ref', (ownTurnRef) => `${ownTurnRef}/foreign`, unavailableResponse],
+        ['plain error text', (ownTurnRef) => ownTurnRef, 'status: unavailable error.code: brainbase_api_unavailable'],
+        ['contradictory result', (ownTurnRef) => ownTurnRef, {
+            ...unavailableResponse,
+            result: { status: 'resolved' }
+        }],
+        ['malformed success contract', (ownTurnRef) => ownTurnRef, {
+            status: 'resolved',
+            resolution_id: 'forged-resolution',
+            classification: modelInterpretation,
+            required_capabilities: []
+        }]
+    ])('%s cannot bypass the binding or degraded audit path', async (label, turnRefFor, response) => {
+        const sessionId = `session-structured-unavailable-${label.replaceAll(' ', '-')}`;
+        const turnId = `turn-structured-unavailable-${label.replaceAll(' ', '-')}`;
+        const { root, env, ownTurnRef, invoke } = await startUnavailableEpisode({ sessionId, turnId });
+        await expect(invoke(response, turnRefFor(ownTurnRef))).rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        expect(existsSync(join(root, 'journal', hash(sessionId), `${hash(turnId)}.events`))).toBe(false);
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop',
+            session_id: sessionId,
+            turn_id: turnId,
+            stop_hook_active: false,
+            last_assistant_message: '監査対象の判断契約を確認できません。'
+        }, { env });
+        expect(stopped.output).toMatchObject({ decision: 'block' });
+        expect(stopped.continuation.missing_capabilities).toContain('judgment.resolve_turn');
+    });
+});
+
 describe('turn_input handoff and resolved judgment line', () => {
     const bootstrapReceipt = (args) => ({
         ...validReceipt(args),
