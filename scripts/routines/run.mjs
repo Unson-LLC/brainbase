@@ -113,7 +113,8 @@ export function serializeRoutineCliResult(result) {
             'today_focus', 'ai_actions', 'immediate_decisions', 'warnings', 'carryovers', 'source_coverage', 'references',
             'sleep_causes', 'consolidated_memories', 'associations', 'feedback_targets', 'unresolved_items',
             'tomorrow_focus', 'closed', 'personal_kg_registration_candidates',
-            'system_changes', 'repeated_patterns', 'personal_kg_registration_reviews', 'graph_promotion_reviews'
+            'system_changes', 'repeated_patterns', 'personal_kg_registration_reviews', 'graph_promotion_reviews',
+            'outcomes', 'decision_replays', 'changed_judgments', 'mistaken_assumptions'
         ]) {
             if (!Array.isArray(result.routine_output[key])) continue;
             safeRoutineOutput[key] = result.routine_output[key].slice(0, 10).map((item) => ({
@@ -209,6 +210,38 @@ function persistOhayoDayView({ input, routineOutput, varDir }) {
     fs.writeFileSync(target, buildDailyOpsReportHtml(report), { mode: 0o600 });
     fs.writeFileSync(target.replace(/\.html$/u, '.json'), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
     return { kind: 'artifact_ref', ref: `ohayo-day-view:${relativePath}`, label: 'ohayo_day_view' };
+}
+
+function persistRetroWeekView({ input, routineOutput, varDir }) {
+    const weekView = input?.week_view;
+    if (!weekView || typeof weekView !== 'object' || !varDir) return null;
+    const until = typeof weekView.until === 'string' ? weekView.until.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const item = (value, status) => (Array.isArray(value) ? value : []).map((entry) => ({
+        ...entry,
+        meta: { ...(entry?.meta || {}), status }
+    }));
+    const report = normalizeDailyOpsReport({
+        mode: 'retro',
+        date: until,
+        title: '週次レトロ',
+        summary: routineOutput?.headline || weekView.summary || '',
+        outcomes: item(routineOutput?.outcomes, '確認済みOutcome'),
+        decisionReplays: item(routineOutput?.decision_replays, 'Replay'),
+        changedJudgments: item(routineOutput?.changed_judgments, '判断差分'),
+        mistakenAssumptions: item(routineOutput?.mistaken_assumptions, '要修正'),
+        repeatedPatterns: item(routineOutput?.repeated_patterns, '反復'),
+        systemChanges: item(routineOutput?.system_changes, '候補・未適用'),
+        personalKgReviews: item(routineOutput?.personal_kg_registration_reviews, '要レビュー'),
+        graphPromotionReviews: item(routineOutput?.graph_promotion_reviews, '要レビュー'),
+        sourceCoverage: item(routineOutput?.source_coverage, '確認範囲'),
+        evidence: Array.isArray(weekView.evidence) ? weekView.evidence : []
+    });
+    const relativePath = path.posix.join('daily-ops-reports', `retro-${until}.html`);
+    const target = path.join(varDir, ...relativePath.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(target, buildDailyOpsReportHtml(report), { mode: 0o600 });
+    fs.writeFileSync(target.replace(/\.html$/u, '.json'), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+    return { kind: 'artifact_ref', ref: `retro-week-view:${relativePath}`, label: 'retro_week_view' };
 }
 
 export function buildRoutineRunReceipt({
@@ -313,6 +346,27 @@ export async function runRoutine({
             };
         }
     }
+    let weekViewRef = null;
+    if (routine === 'retro' && input?.week_view) {
+        try {
+            weekViewRef = persistRetroWeekView({
+                input,
+                routineOutput: cycleResult?.routine_output || cycleResult?.routine_summary?.routine_output,
+                varDir
+            });
+        } catch {
+            const anomalies = [
+                ...(Array.isArray(cycleResult?.anomalies) ? cycleResult.anomalies : []),
+                { code: 'retro_week_view_persistence_failed' }
+            ];
+            cycleResult = {
+                ...cycleResult,
+                status: cycleResult?.status === 'failed' ? 'failed' : 'partial',
+                coverage: 'partial',
+                anomalies
+            };
+        }
+    }
     const summaryRef = persistRoutineSummary({
         routine,
         routineSummary: cycleResult?.routine_summary,
@@ -323,6 +377,7 @@ export async function runRoutine({
         : [];
     if (summaryRef) evidenceRefs.push(summaryRef);
     if (dayViewRef) evidenceRefs.push(dayViewRef);
+    if (weekViewRef) evidenceRefs.push(weekViewRef);
     const receiptInput = {
         ...cycleResult,
         status: cycleResult?.status === 'partial' ? 'waiting_human' : cycleResult?.status,

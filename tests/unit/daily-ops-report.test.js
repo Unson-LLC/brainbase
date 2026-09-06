@@ -6,6 +6,17 @@ import {
 } from '../../scripts/daily-ops-report.mjs';
 
 describe('daily-ops-report', () => {
+    it('retro report exposes the weekly judgment and outcome sections without write actions', () => {
+        const report = normalizeDailyOpsReport({ mode: 'retro', date: '2026-09-07' });
+
+        expect(report.sections.map((section) => section.id)).toEqual([
+            'outcomes', 'decisionReplays', 'changedJudgments', 'mistakenAssumptions',
+            'repeatedPatterns', 'systemChanges', 'personalKgReviews',
+            'graphPromotionReviews', 'sourceCoverage'
+        ]);
+        expect(report.actions).toEqual([]);
+    });
+
     it('ohayo report has required sections and draft-only default actions', () => {
         const report = normalizeDailyOpsReport({
             mode: 'ohayo',

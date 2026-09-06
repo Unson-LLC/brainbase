@@ -790,7 +790,10 @@ describe('RoutineCycleExecutor', () => {
             }
         });
 
-        await expect(executor.execute({ routine: 'retro' })).resolves.toMatchObject({ status: 'completed' });
+        await expect(executor.execute({
+            routine: 'retro',
+            input: { week_view: { source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }] } }
+        })).resolves.toMatchObject({ status: 'completed' });
     });
 
     it('retroは5指標を評価しStory/PR候補を最大3件返すだけで本番状態を直接変更しない', async () => {
@@ -810,10 +813,14 @@ describe('RoutineCycleExecutor', () => {
         };
         const executor = new RoutineCycleExecutor({ retroService });
 
-        const result = await executor.execute({ routine: 'retro' });
+        const result = await executor.execute({
+            routine: 'retro',
+            input: { week_view: { source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }] } }
+        });
 
         expect(retroService.evaluateMetrics).toHaveBeenCalledWith({
-            metrics: ['misregistration_rate', 'correction_rate', 'open_contradictions', 'processing_time_ms', 'stoppage_count']
+            metrics: ['misregistration_rate', 'correction_rate', 'open_contradictions', 'processing_time_ms', 'stoppage_count'],
+            input: { week_view: { source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }] } }
         });
         expect(retroService.createImprovementCandidates).toHaveBeenCalledWith({ metrics, limit: 3, output: 'story_pr' });
         expect(result.improvement_candidates).toEqual(['story-1', 'story-2', 'story-3']);
@@ -927,7 +934,10 @@ describe('RoutineCycleExecutor', () => {
         };
         const executor = new RoutineCycleExecutor({ retroService });
 
-        const result = await executor.execute({ routine: 'retro' });
+        const result = await executor.execute({
+            routine: 'retro',
+            input: { week_view: { source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }] } }
+        });
 
         expect(result.routine_output).toMatchObject({
             personal_kg_registration_reviews: [{ id: 'personal-draft-1', summary: '個人の判断基準' }],
@@ -936,5 +946,43 @@ describe('RoutineCycleExecutor', () => {
         expect(result.routine_output.system_changes[0]).toMatchObject({ applies_changes: false });
         expect(retroService.approveCandidate).not.toHaveBeenCalled();
         expect(retroService.promoteToGraph).not.toHaveBeenCalled();
+    });
+
+    it('retroは週のOutcomeと判断Replayがなければ成功扱いしない', async () => {
+        const executor = new RoutineCycleExecutor({
+            retroService: {
+                evaluateMetrics: vi.fn(async () => ({
+                    misregistration_rate: 0, correction_rate: 0, open_contradictions: 0,
+                    processing_time_ms: 0, stoppage_count: 0
+                })),
+                createImprovementCandidates: vi.fn(async () => [])
+            }
+        });
+
+        await expect(executor.execute({ routine: 'retro' })).resolves.toMatchObject({
+            status: 'partial',
+            coverage: 'partial',
+            anomalies: [expect.objectContaining({ code: 'retro_week_view_missing' })]
+        });
+    });
+
+    it('retroは確認範囲が空なら0件確認済みとみなさない', async () => {
+        const executor = new RoutineCycleExecutor({
+            retroService: {
+                evaluateMetrics: vi.fn(async () => ({
+                    misregistration_rate: 0, correction_rate: 0, open_contradictions: 0,
+                    processing_time_ms: 0, stoppage_count: 0
+                })),
+                createImprovementCandidates: vi.fn(async () => [])
+            }
+        });
+
+        await expect(executor.execute({
+            routine: 'retro',
+            input: { week_view: { source_coverage: [] } }
+        })).resolves.toMatchObject({
+            status: 'partial',
+            anomalies: [expect.objectContaining({ code: 'retro_source_coverage_missing' })]
+        });
     });
 });

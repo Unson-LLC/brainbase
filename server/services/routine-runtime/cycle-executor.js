@@ -122,6 +122,12 @@ function safeRoutineOutput(routine, output = {}) {
         headline,
         system_changes: safeOutputItems(output.system_changes),
         repeated_patterns: safeOutputItems(output.repeated_patterns),
+        outcomes: safeOutputItems(output.outcomes),
+        decision_replays: safeOutputItems(output.decision_replays),
+        changed_judgments: safeOutputItems(output.changed_judgments),
+        mistaken_assumptions: safeOutputItems(output.mistaken_assumptions),
+        source_coverage: safeOutputItems(output.source_coverage, { review: true, reference: true }),
+        references: safeOutputItems(output.references, { reference: true }),
         personal_kg_registration_reviews: safeOutputItems(output.personal_kg_registration_reviews, { review: true }),
         graph_promotion_reviews: safeOutputItems(output.graph_promotion_reviews, { review: true })
     };
@@ -443,24 +449,53 @@ export class RoutineCycleExecutor {
                 : await listKnowledgeReviews({ input: input.input || {}, limit: 10 }, context);
         }
         const improvementCandidates = (Array.isArray(candidates) ? candidates : []).slice(0, 3);
+        const weekView = input?.input?.week_view;
+        const sourceCoverage = Array.isArray(weekView?.source_coverage) ? weekView.source_coverage : [];
+        const sourceAnomalies = weekView && sourceCoverage.length > 0
+            ? sourceCoverage.filter((item) => item?.status !== 'confirmed').map((item) => ({
+                code: 'retro_source_unconfirmed',
+                source: safeText(item?.source) || 'unknown',
+                status: safeText(item?.status) || 'unavailable',
+                summary: safeText(item?.summary) || '確認範囲を取得できませんでした'
+            }))
+            : [weekView ? {
+                code: 'retro_source_coverage_missing',
+                source: 'source_coverage',
+                status: 'unavailable',
+                summary: '一週間の取得元と確認状態が入力されていません'
+            } : {
+                code: 'retro_week_view_missing',
+                source: 'week_view',
+                status: 'unavailable',
+                summary: '一週間の判断・実行・Outcomeの確認結果が入力されていません'
+            }];
         return {
-            status: 'completed',
-            coverage: listKnowledgeReviews ? 'confirmed' : 'partial',
+            status: sourceAnomalies.length > 0 ? 'partial' : 'completed',
+            coverage: listKnowledgeReviews && sourceAnomalies.length === 0 ? 'confirmed' : 'partial',
             metrics,
             improvement_candidates: improvementCandidates,
             routine_output: {
-                headline: improvementCandidates.length > 0
+                headline: safeText(weekView?.headline) || (improvementCandidates.length > 0
                     ? '来週から、繰り返し起きた詰まりを仕組みで減らす'
-                    : '来週から変える仕組みはありません',
-                system_changes: improvementCandidates.map((candidate) => ({
+                    : '来週から変える仕組みはありません'),
+                outcomes: weekView?.outcomes || [],
+                decision_replays: weekView?.decision_replays || [],
+                changed_judgments: weekView?.changed_judgments || [],
+                mistaken_assumptions: weekView?.mistaken_assumptions || [],
+                system_changes: (Array.isArray(weekView?.system_changes)
+                    ? weekView.system_changes : improvementCandidates).slice(0, 3).map((candidate) => ({
                     summary: typeof candidate === 'string' ? candidate : candidate?.summary || candidate?.metric,
                     applies_changes: false
                 })),
-                repeated_patterns: [],
-                personal_kg_registration_reviews: reviews?.personal_kg_registration_reviews || [],
-                graph_promotion_reviews: reviews?.graph_promotion_reviews || []
+                repeated_patterns: weekView?.repeated_patterns || [],
+                source_coverage: sourceCoverage,
+                references: weekView?.references || [],
+                personal_kg_registration_reviews: reviews?.personal_kg_registration_reviews
+                    || weekView?.personal_kg_registration_reviews || [],
+                graph_promotion_reviews: reviews?.graph_promotion_reviews
+                    || weekView?.graph_promotion_reviews || []
             },
-            anomalies: []
+            anomalies: sourceAnomalies
         };
     }
 }

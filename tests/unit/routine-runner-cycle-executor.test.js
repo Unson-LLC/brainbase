@@ -370,6 +370,61 @@ describe('Routine Runner cycle execution', () => {
         expect(html).toContain('https://calendar.google.com/calendar/event?eid=12');
     });
 
+    it('retroは一週間の判断とOutcomeを辿れるHTMLを成果物として保存する', async () => {
+        const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-retro-week-view-'));
+        temporaryDirectories.push(repoDir);
+        const varDir = path.join(repoDir, 'canonical-var');
+        const weekView = {
+            until: '2026-09-06',
+            summary: '判断をOutcomeまで追い、来週変える仕組みを決める',
+            source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分を確認済み' }],
+            evidence: [{ label: 'Run Receipt', ref: 'receipt-week-1' }]
+        };
+
+        const result = await runRoutine({
+            routine: 'retro',
+            repoDir,
+            env: { CODEX_THREAD_ID: 'thread-retro-week-view', BRAINBASE_VAR_DIR: varDir },
+            input: { week_view: weekView },
+            executeCycle: vi.fn(async () => ({
+                status: 'completed',
+                coverage: 'confirmed',
+                routine_summary: {
+                    routine: 'retro', status: 'completed', coverage: 'confirmed', anomaly_count: 0,
+                    headline: '来週は実行環境のpreflightを必須にする'
+                },
+                routine_output: {
+                    headline: '来週は実行環境のpreflightを必須にする',
+                    outcomes: [{ title: '定期実行のドリフトを特定', summary: '古いcheckoutが原因だった' }],
+                    decision_replays: [{ title: 'Automation登録判断', summary: '実行環境の成立確認が不足していた' }],
+                    changed_judgments: [{ title: '成功条件を変更', summary: '登録済みから実行結果のreadbackへ変更' }],
+                    mistaken_assumptions: [{ title: '誤った前提', summary: 'cwdはdevelopへ追随すると仮定していた' }],
+                    repeated_patterns: [{ title: '反復問題', summary: '稼働SHAを確認せず成功扱いした' }],
+                    system_changes: [{ title: 'preflight追加', summary: 'cwdとSHAを実行前に検証する' }],
+                    personal_kg_registration_reviews: [{ title: '個人KG候補', summary: '自動登録せずレビュー待ち' }],
+                    graph_promotion_reviews: [{ title: 'Graph候補', summary: '組織ルール化をレビューする' }],
+                    source_coverage: weekView.source_coverage
+                },
+                evidence_refs: []
+            })),
+            now: () => new Date('2026-09-06T22:00:00.000Z')
+        });
+
+        const reportRef = result.evidence_refs.find((ref) => ref.label === 'retro_week_view');
+        expect(reportRef).toBeTruthy();
+        const reportRelativePath = reportRef.ref.replace(/^retro-week-view:/u, '');
+        const reportPath = path.join(varDir, ...reportRelativePath.split('/'));
+        const html = fs.readFileSync(reportPath, 'utf8');
+        expect(html).toContain('来週は実行環境のpreflightを必須にする');
+        expect(html).toContain('定期実行のドリフトを特定');
+        expect(html).toContain('Automation登録判断');
+        expect(html).toContain('誤った前提');
+        expect(html).toContain('preflight追加');
+        expect(html).toContain('自動登録せずレビュー待ち');
+        expect(html).toContain('7日分を確認済み');
+        expect(html).toContain('receipt-week-1');
+    });
+
     it('ohayo Runner公開結果が最大3例外とgenerator選択記憶の人間向け出力を保持する', async () => {
         const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-ohayo-output-'));
         temporaryDirectories.push(repoDir);
