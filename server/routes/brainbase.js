@@ -55,13 +55,17 @@ export function createBrainbaseRouter(options = {}) {
 
     router.use(createBrainbaseTrendsRouter({
         nocodbService,
-        configParser
+        configParser,
+        projectCatalogParser,
+        projectCatalogAuthGuard
     }));
 
     // ==================== Portal API ====================
     router.use(createBrainbasePortalRouter({
         nocodbService,
         configParser,
+        projectCatalogParser,
+        projectCatalogAuthGuard,
         infoSSOTService,
         wikiService
     }));

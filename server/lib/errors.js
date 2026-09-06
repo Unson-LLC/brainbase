@@ -40,6 +40,9 @@ export const ErrorCodes = {
     INTERNAL_ERROR: { code: 'INTERNAL_ERROR', statusCode: 500 },
     DATABASE_ERROR: { code: 'DATABASE_ERROR', statusCode: 500 },
 
+    // 依存サービス利用不能 (503)
+    PROJECT_CATALOG_UNAVAILABLE: { code: 'PROJECT_CATALOG_UNAVAILABLE', statusCode: 503 },
+
     // タイムアウト (504)
     TIMEOUT: { code: 'TIMEOUT', statusCode: 504 },
 };

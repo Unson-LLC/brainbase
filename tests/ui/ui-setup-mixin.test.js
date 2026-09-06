@@ -7,10 +7,12 @@ const projectMapping = vi.hoisted(() => ({
     getRuntimeProjectCatalogSource: vi.fn(),
     getRuntimeProjectCatalogStatusMessage: vi.fn()
 }));
+const httpClient = vi.hoisted(() => ({ get: vi.fn() }));
 
 vi.mock('../../public/modules/project-mapping.js', () => projectMapping);
+vi.mock('../../public/modules/core/http-client.js', () => ({ httpClient }));
 
-import { applyUiSetupMixin } from '../../public/modules/app/ui-setup-mixin.js';
+import { applyUiSetupMixin, loadPortalCatalogProjects } from '../../public/modules/app/ui-setup-mixin.js';
 
 describe('ui setup mixin Workspace Setup selector', () => {
     class TestApp {}
@@ -118,5 +120,22 @@ describe('ui setup mixin Workspace Setup selector', () => {
         const status = document.getElementById('session-project-catalog-status');
         expect(status.dataset.severity).toBe('warning');
         expect(status.textContent).toContain('ローカルのワークスペース設定');
+    });
+});
+
+describe('ui setup mixin Portal selector', () => {
+    it('旧configではなくGraph catalogのプロジェクトだけを表示対象にする', async () => {
+        httpClient.get.mockResolvedValue({
+            source: { status: 'loaded', mode: 'graph_ssot_registry_scoped' },
+            projects: [
+                { id: 'registry-only', name: 'Registry Name' },
+                { id: 'archived', name: 'Archived', archived: true }
+            ]
+        });
+
+        await expect(loadPortalCatalogProjects()).resolves.toEqual([
+            { id: 'registry-only', name: 'Registry Name' }
+        ]);
+        expect(httpClient.get).toHaveBeenCalledWith('/api/config/projects');
     });
 });
