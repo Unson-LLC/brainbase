@@ -577,6 +577,71 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
+    it('同一turn・同一送り元のcreateと後続sendを全入力順で結合してStop復旧する', async () => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = 'session-delegation-input-chain';
+        const turnId = 'turn-delegation-input-chain';
+        const prompts = [
+            '最初の実装依頼を完了してください。',
+            '対象は検証用Taskだけに限定してください。',
+            '変更後に読み戻してください。外部送信は禁止です。'
+        ];
+        const delegatedOutput = (prompt) =>
+            `<codex_delegation><source_thread_id>source-thread</source_thread_id><input>${prompt}</input></codex_delegation>`;
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            ...prompts.map((prompt, index) => event('response_item', {
+                type: 'function_call_output',
+                name: index === 0 ? 'create_thread' : 'send_message_to_thread',
+                namespace: 'codex_app',
+                output: delegatedOutput(prompt),
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            }))
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const fetchImpl = vi.fn(async (_url, options) => {
+            const args = JSON.parse(options.body);
+            const currentMessage = args.conversation_context.messages.find((message) => message.turn_id === turnId);
+            expect(currentMessage?.text).toContain('【委任入力 1/3】');
+            expect(currentMessage?.text).toContain('【追加指示 2/3】');
+            expect(currentMessage?.text).toContain('【追加指示 3/3】');
+            let previousIndex = -1;
+            for (const prompt of prompts) {
+                const index = currentMessage?.text.indexOf(prompt) ?? -1;
+                expect(index).toBeGreaterThan(previousIndex);
+                previousIndex = index;
+            }
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(args) })
+            };
+        });
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, cwd: process.cwd(), stop_hook_active: false,
+            last_assistant_message: '確認しますか？'
+        }, { env, fetchImpl });
+
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(result).toMatchObject({ decision: 'block' });
+        const episodePath = join(root, 'journal', hash(sessionId), `${hash(turnId)}.episode.json`);
+        const episode = JSON.parse(readFileSync(episodePath, 'utf8'));
+        expect(episode).toMatchObject({
+            episode_origin: 'stop_delegation_recovery',
+            route_application: 'post_generation_recovery'
+        });
+        expect(episode.turn_input.request).toContain('【委任入力 1/3】');
+        expect(episode.turn_input.request).toContain('【追加指示 2/3】');
+        expect(episode.turn_input.request).toContain('【追加指示 3/3】');
+        expect(episode.request_text_digest).toBe(hash(episode.turn_input.request));
+    });
+
     it('確認質問を含まない最初のStopでも正規委任episodeを復元する', async () => {
         const root = temporaryDirectory();
         const transcript = join(root, 'session.jsonl');
@@ -816,7 +881,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(result.reason).toContain('judgment_episode_not_found');
     });
 
-    it('同一turnに委任候補が複数ある場合はStop時episodeへ推測採用しない', async () => {
+    it('同一turnに複数create_threadがある場合はStop時episodeへ推測採用しない', async () => {
         const root = temporaryDirectory();
         const transcript = join(root, 'session.jsonl');
         const sessionId = 'session-multiple-delegations';
@@ -831,7 +896,7 @@ describe('Codex Judgment Resolver Host', () => {
                 internal_chat_message_metadata_passthrough: { turn_id: turnId }
             }),
             event('response_item', {
-                type: 'function_call_output', name: 'send_message_to_thread', namespace: 'codex_app',
+                type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
                 output: delegatedOutput('後続の依頼'),
                 internal_chat_message_metadata_passthrough: { turn_id: turnId }
             })
@@ -845,6 +910,60 @@ describe('Codex Judgment Resolver Host', () => {
         const result = await processHookPayload({
             hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
             transcript_path: transcript, stop_hook_active: false,
+            last_assistant_message: '確認しますか？'
+        }, { env, fetchImpl });
+
+        expect(fetchImpl).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ decision: 'block' });
+        expect(result.reason).toContain('judgment_episode_not_found');
+    });
+
+    it.each([
+        ['異なる送り元', [
+            { name: 'create_thread', source: 'source-a', prompt: '最初の依頼' },
+            { name: 'send_message_to_thread', source: 'source-b', prompt: '後続の依頼' }
+        ]],
+        ['作成前の追加指示', [
+            { name: 'send_message_to_thread', source: 'source-a', prompt: '後続の依頼' },
+            { name: 'create_thread', source: 'source-a', prompt: '最初の依頼' }
+        ]],
+        ['createを含まない複数send', [
+            { name: 'send_message_to_thread', source: 'source-a', prompt: '最初の追加指示' },
+            { name: 'send_message_to_thread', source: 'source-a', prompt: '二つ目の追加指示' }
+        ]],
+        ['後続の壊れた委任包み', [
+            { name: 'create_thread', source: 'source-a', prompt: '最初の依頼' },
+            {
+                name: 'send_message_to_thread',
+                output: '<codex_delegation><source_thread_id>source-a</source_thread_id><input>後続の依頼</input>'
+            }
+        ]]
+    ])('%sは委任入力列としてStop時に推測結合しない', async (_label, entries) => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const sessionId = 'session-delegation-invalid-chain';
+        const turnId = 'turn-delegation-invalid-chain';
+        const outputFor = (entry) => entry.output ??
+            `<codex_delegation><source_thread_id>${entry.source}</source_thread_id><input>${entry.prompt}</input></codex_delegation>`;
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId }),
+            ...entries.map((entry) => event('response_item', {
+                type: 'function_call_output',
+                name: entry.name,
+                namespace: 'codex_app',
+                output: outputFor(entry),
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            }))
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+        };
+        const fetchImpl = vi.fn();
+
+        const result = await processHookPayload({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            transcript_path: transcript, cwd: process.cwd(), stop_hook_active: false,
             last_assistant_message: '確認しますか？'
         }, { env, fetchImpl });
 

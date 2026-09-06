@@ -355,27 +355,27 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(degraded.systemMessage).toContain('⚠️ 監査縮退: knowledge.resolve');
     }, 20_000);
 
-    it('Codex App委任turnはUserPromptSubmitなしでもStop前に同じturnのepisodeへ復元される', async () => {
+    it.each([false, true])('Codex App委任turnはUserPromptSubmitなしでも同じturnへ復元される (追加指示=%s)', async (withFollowups) => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const transcript = join(root, 'agent-created.jsonl');
         const identity = { session_id: 'session-agent-created-entrypoint', turn_id: 'turn-agent-created-entrypoint' };
         const prompt = 'Canonical Taskへ検証項目を登録してください。';
+        const prompts = withFollowups
+            ? [prompt, '対象は検証用Taskだけに限定してください。', '変更後に読み戻してください。外部送信は禁止です。']
+            : [prompt];
         writeFileSync(transcript, [
             JSON.stringify({ type: 'session_meta', payload: { id: identity.session_id } }),
-            JSON.stringify({
+            ...prompts.map((input, index) => JSON.stringify({
                 type: 'response_item',
                 payload: {
-                    type: 'function_call_output', name: 'create_thread', namespace: 'codex_app',
-                    output: [
-                        '<codex_delegation>',
-                        '  <source_thread_id>source-thread</source_thread_id>',
-                        `  <input>${prompt}</input>`,
-                        '</codex_delegation>'
-                    ].join('\n'),
+                    type: 'function_call_output',
+                    name: index === 0 ? 'create_thread' : 'send_message_to_thread',
+                    namespace: 'codex_app',
+                    output: `<codex_delegation><source_thread_id>source-thread</source_thread_id><input>${input}</input></codex_delegation>`,
                     internal_chat_message_metadata_passthrough: { turn_id: identity.turn_id }
                 }
-            })
+            }))
         ].join('\n'));
         let requestCount = 0;
         const hostUrl = await listen((request, response) => {
@@ -435,9 +435,18 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(episodes).toHaveLength(1);
         const episode = JSON.parse(readFileSync(join(directory, episodes[0]), 'utf8'));
         expect(episode).toMatchObject({
-            schema_version: 'brainbase-judgment-episode-v1', state: 'open', request_text_digest: hash(prompt),
+            schema_version: 'brainbase-judgment-episode-v1', state: 'open',
             episode_origin: 'stop_delegation_recovery', route_application: 'post_generation_recovery'
         });
+        const recoveredRequest = episode.turn_input.request;
+        if (!withFollowups) expect(recoveredRequest).toBe(prompt);
+        let previousIndex = -1;
+        for (const input of prompts) {
+            const index = recoveredRequest.indexOf(input);
+            expect(index).toBeGreaterThan(previousIndex);
+            previousIndex = index;
+        }
+        expect(episode.request_text_digest).toBe(hash(recoveredRequest));
         const turnInputPath = join(directory, `${hash(identity.turn_id)}.turn-input.json`);
         expect(existsSync(turnInputPath)).toBe(true);
         expect(JSON.parse(readFileSync(turnInputPath, 'utf8'))).toEqual(episode.turn_input);

@@ -277,6 +277,7 @@ function readCanonicalTranscript(payload, env) {
     const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
     const messages = [];
     const delegations = [];
+    const invalidDelegationTurns = new Set();
     const parsedEvents = [];
     const turnResolutionAttempts = new Map();
     const injectedUserTurns = new Set();
@@ -347,10 +348,24 @@ function readCanonicalTranscript(payload, env) {
                 && eventPayload.namespace === 'codex_app'
                 && inputTagCount === 1
                 && closingInputTagCount === 1
-                ? output.match(/^<codex_delegation>\s*<source_thread_id>[^<]+<\/source_thread_id>\s*<input>([\s\S]+)<\/input>\s*<\/codex_delegation>$/u)
+                ? output.match(/^<codex_delegation>\s*<source_thread_id>([^<]+)<\/source_thread_id>\s*<input>([\s\S]+)<\/input>\s*<\/codex_delegation>$/u)
                 : null;
-            const prompt = match?.[1]?.trim() ?? '';
-            if (turnId && prompt) delegations.push({ turn_id: turnId, prompt, name: eventPayload.name });
+            const sourceThreadId = match?.[1]?.trim() ?? '';
+            const prompt = match?.[2]?.trim() ?? '';
+            const isDelegationTool = allowedName;
+            if (turnId && sourceThreadId && prompt) {
+                delegations.push({
+                    turn_id: turnId,
+                    source_thread_id: sourceThreadId,
+                    prompt,
+                    name: eventPayload.name
+                });
+            } else if (turnId && isDelegationTool) {
+                // A malformed delegation output must make the whole same-turn
+                // chain ineligible. Silently dropping one input would let a
+                // later valid send be recovered without its constraint.
+                invalidDelegationTurns.add(turnId);
+            }
             continue;
         }
         if (eventPayload.type !== 'message') continue;
@@ -380,6 +395,7 @@ function readCanonicalTranscript(payload, env) {
     return {
         messages,
         delegations,
+        invalid_delegation_turns: [...invalidDelegationTurns],
         turn_resolution_surface: turnResolutionSurface,
         injected_user_turns: [...injectedUserTurns],
         complete: true
@@ -421,8 +437,25 @@ function delegatedPromptForTurn(payload, env) {
     if (!identity) return null;
     const transcript = readCanonicalTranscript(payload, env);
     if (!transcript.complete) return null;
+    if (transcript.invalid_delegation_turns?.includes(identity.turnId)) return null;
     const exact = transcript.delegations.filter((delegation) => delegation.turn_id === identity.turnId);
-    return exact.length === 1 ? exact[0].prompt : null;
+    if (exact.length === 0) return null;
+    if (exact.length === 1) return exact[0].prompt;
+
+    const sourceThreadId = exact[0].source_thread_id;
+    const validChain = exact[0].name === 'create_thread'
+        && Boolean(sourceThreadId)
+        && exact.slice(1).every((delegation) =>
+            delegation.name === 'send_message_to_thread'
+            && delegation.source_thread_id === sourceThreadId);
+    if (!validChain) return null;
+
+    return exact.map((delegation, index) => {
+        const marker = index === 0
+            ? `【委任入力 ${index + 1}/${exact.length}】`
+            : `【追加指示 ${index + 1}/${exact.length}】`;
+        return `${marker}\n${delegation.prompt}`;
+    }).join('\n\n');
 }
 
 function findRepoRoot(start) {

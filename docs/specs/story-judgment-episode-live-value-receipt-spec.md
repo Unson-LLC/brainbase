@@ -8,7 +8,7 @@ Accepted。正本Storyは`docs/management/stories/active/story-judgment-episode-
 
 - 通常turnは`UserPromptSubmit`で開始し、episodeへ`episode_origin=user_prompt_submit`、`route_application=pre_generation`を記録する。
 - episodeがないCodex App委任turnだけ、最初の`Stop`で現在turnの正規`codex_delegation`を復元できる。
-- 復元は`namespace=codex_app`、toolが`create_thread`または`send_message_to_thread`、完全な包み、現在turn、候補1件、現在session aliasと連結するsession componentだけに限定する。
+- 復元は`namespace=codex_app`、toolが`create_thread`または`send_message_to_thread`、完全な包み、現在turn、単一入力または`docs/specs/delegation-input-chain.md`に定める同じ送り元の作成・追加指示列、現在session aliasと連結するsession componentだけに限定する。
 - transcriptに別session componentが混在する場合は、候補の内容に関係なくfail-closedとする。
 - Stop時のepisode復元は、最初の回答が確認質問か完了報告かに依存しない。復元後にHostが回答本文と実行状態を評価し、不要質問の差し戻し、未完了作業の継続、正常完了をそれぞれ既存契約で判定する。
 - 復元episodeは`episode_origin=stop_delegation_recovery`、`route_application=post_generation_recovery`を記録し、final receiptへ同じ値を束縛する。
@@ -25,7 +25,7 @@ Accepted。正本Storyは`docs/management/stories/active/story-judgment-episode-
 |---|---|---|
 | AC-001 | Stop時の委任episode復元とlifecycle marker | unitの委任復元、entrypoint integration |
 | AC-002 | tool、turn、包み、候補数、session componentの限定 | unitの拒否ケースと混在session回帰テスト |
-| AC-003 | 復元不能時は既存orphan監査へ収束 | unitの別tool・別turn・別session・壊れた包み・複数候補拒否、integrationの`judgment_episode_not_found`契約 |
+| AC-003 | 復元不能時は既存orphan監査へ収束 | unitの別tool・別turn・別session・壊れた包み・曖昧な入力列拒否、integrationの`judgment_episode_not_found`契約 |
 | AC-004 | continuation、value proof、final renderer | entrypoint integrationの同一episode完全経路 |
 | AC-005 | 通常開始、通常続行、人間判断、既存final、結果未確認のlifecycle整合検証 | Host unit/integrationの通常開始・pending/completed・waiting_human・orphan・unconfirmed経路 |
 | AC-006 | 自動テスト、型検査、fresh task/journal readback | 現HEADのunit・Host entrypoint integration・型検査と、本番反映後のfresh Codex task出力・同一episode journal readback |
