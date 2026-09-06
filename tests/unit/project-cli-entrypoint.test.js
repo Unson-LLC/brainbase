@@ -10,9 +10,11 @@ describe('project CLI entrypoint', () => {
             encoding: 'utf8'
         });
 
-        expect(output).toContain('brainbase project create <project.yml>');
-        expect(output).toContain('enabled     利用する');
-        expect(output).toContain('unspecified 方針が未指定');
-        expect(output).toContain('安全上の不整合だけを拒否します');
+        expect(output).toContain('brainbase project provision check --manifest FILE');
+        expect(output).toContain('brainbase project provision plan --manifest FILE --idempotency-key KEY');
+        expect(output).not.toContain('brainbase project create');
+        expect(output).not.toContain('brainbase project configure');
+        expect(output).not.toContain('brainbase project inspect');
+        expect(output).not.toContain('brainbase project reconcile');
     });
 });

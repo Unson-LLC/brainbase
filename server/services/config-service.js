@@ -2,15 +2,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
-import { AppError, ErrorCodes } from '../lib/errors.js';
-import {
-    assertNoDeclaredCrossTenantReferences,
-    inspectProjectProfile,
-    normalizeCapabilities,
-    reconcileProjectPeople,
-    validatePeople,
-    validateProjectCreateInput
-} from './project-profile-service.js';
+import { AppError } from '../lib/errors.js';
 
 /**
  * @typedef {object} ProjectConfig
@@ -116,194 +108,6 @@ export class ConfigService {
         return projects.find(p => p.id === projectId || p.project_code === projectId);
     }
 
-    /**
-     * 最小情報でProject Profileを登録する。既存のlocal_path必須CRUDとは分離する。
-     * @param {Record<string, any>} input
-     */
-    async createProjectProfile(input, access = {}) {
-        let normalized;
-        try {
-            normalized = validateProjectCreateInput(input);
-        } catch (error) {
-            throw AppError.validation(error instanceof Error ? error.message : String(error));
-        }
-
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        this._assertCreateScope(normalized.organization, access);
-        if (this._findProject(projects, normalized.project_code)) {
-            throw AppError.conflict(`Projectコード '${normalized.project_code}' は既に利用されています`);
-        }
-
-        if (!Array.isArray(data.organizations) || data.organizations.length === 0) {
-            throw AppError.validation('Project登録前に組織一覧の設定が必要です');
-        }
-        const sameOrganization = data.organizations
-            .filter(organization => organization.id === normalized.organization);
-        if (sameOrganization.length === 0) {
-            throw AppError.validation(`組織 '${normalized.organization}' は登録されていません`);
-        }
-        if (sameOrganization.length > 1) {
-            throw AppError.conflict(`組織 '${normalized.organization}' が複数あり特定できません`);
-        }
-        try {
-            assertNoDeclaredCrossTenantReferences(
-                normalized.organization,
-                normalized.capabilities,
-                normalized.people
-            );
-        } catch (error) {
-            throw AppError.validation(error instanceof Error ? error.message : String(error));
-        }
-
-        const project = {
-            id: normalized.project_code,
-            ...normalized
-        };
-        projects.push(project);
-        await this._saveConfig(data);
-        return project;
-    }
-
-    /**
-     * @param {string} projectCode
-     * @param {Record<string, any>} patch
-     */
-    async configureProjectProfile(projectCode, patch, access = {}) {
-        if (!projectCode) throw AppError.validation('project_codeは必須です');
-        if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
-            throw AppError.validation('Project設定はオブジェクト形式で指定してください');
-        }
-
-        return this._withProject(projectCode, (project) => {
-            this._assertProjectScope(project, access);
-            if (patch.project_code && patch.project_code !== projectCode) {
-                throw AppError.validation('project_codeは変更できません');
-            }
-            if (patch.organization && patch.organization !== project.organization) {
-                throw AppError.validation('configureではorganizationを変更できません');
-            }
-            if (patch.created_by && patch.created_by !== project.created_by) {
-                throw AppError.validation('created_byは変更できません');
-            }
-            if (patch.name !== undefined) {
-                if (typeof patch.name !== 'string' || !patch.name.trim()) {
-                    throw AppError.validation('nameは空でない文字列で指定してください');
-                }
-                project.name = patch.name.trim();
-            }
-            if (patch.success_criteria !== undefined) {
-                const criteria = patch.success_criteria;
-                if (!((typeof criteria === 'string' && criteria.trim()) || (Array.isArray(criteria)
-                    && criteria.length > 0
-                    && criteria.every(item => typeof item === 'string' && item.trim())))) {
-                    throw AppError.validation('success_criteriaは文字列または文字列配列で指定してください');
-                }
-                project.success_criteria = criteria;
-            }
-            if (patch.capabilities !== undefined) {
-                let capabilities;
-                try {
-                    if (!patch.capabilities || typeof patch.capabilities !== 'object' || Array.isArray(patch.capabilities)) {
-                        throw new Error('capabilitiesはオブジェクト形式で指定してください');
-                    }
-                    const mergedCapabilities = Object.fromEntries(
-                        Object.entries(patch.capabilities).map(([name, capability]) => {
-                            if (!capability || typeof capability !== 'object' || Array.isArray(capability)) {
-                                throw new Error(`capabilities.${name}はオブジェクト形式で指定してください`);
-                            }
-                            if (capability.verification !== undefined) {
-                                throw new Error(`capabilities.${name}.verificationは信頼済み検証器が管理します`);
-                            }
-                            const currentCapability = project.capabilities?.[name] || {};
-                            const nextCapability = {
-                                ...currentCapability,
-                                ...capability
-                            };
-                            const verificationInputsChanged = Object.entries(capability)
-                                .some(([key, value]) => key !== 'reason'
-                                    && JSON.stringify(currentCapability[key]) !== JSON.stringify(value));
-                            if (verificationInputsChanged) delete nextCapability.verification;
-                            return [
-                                name,
-                                nextCapability
-                            ];
-                        })
-                    );
-                    capabilities = normalizeCapabilities(mergedCapabilities, { allowVerification: true });
-                } catch (error) {
-                    throw AppError.validation(error instanceof Error ? error.message : String(error));
-                }
-                project.capabilities = {
-                    ...(project.capabilities || {}),
-                    ...capabilities
-                };
-            }
-            if (patch.people !== undefined) {
-                let people;
-                try {
-                    if (!patch.people || typeof patch.people !== 'object' || Array.isArray(patch.people)) {
-                        throw new Error('peopleはオブジェクト形式で指定してください');
-                    }
-                    people = validatePeople({ ...(project.people || {}), ...patch.people });
-                } catch (error) {
-                    throw AppError.validation(error instanceof Error ? error.message : String(error));
-                }
-                project.people = people;
-            }
-            try {
-                assertNoDeclaredCrossTenantReferences(
-                    project.organization,
-                    project.capabilities || {},
-                    project.people
-                );
-            } catch (error) {
-                throw AppError.validation(error instanceof Error ? error.message : String(error));
-            }
-            return project;
-        }, { profileNotFound: true });
-    }
-
-    /** @param {string} projectCode */
-    async getProjectProfile(projectCode, access = {}) {
-        const { data } = await this._loadConfig();
-        const project = this._findProject(this._getProjects(data), projectCode);
-        if (!project) {
-            throw new AppError(
-                `Project「${projectCode}」が見つかりません`,
-                ErrorCodes.PROJECT_NOT_FOUND
-            );
-        }
-        this._assertProjectScope(project, access);
-        return project;
-    }
-
-    /** @param {string} projectCode */
-    async inspectProjectProfile(projectCode, access = {}) {
-        return inspectProjectProfile(await this.getProjectProfile(projectCode, access));
-    }
-
-    /**
-     * createで認可・保存済みの同一レコードを、再認可せず応答用に検査する。
-     * @param {ProjectConfig} project
-     */
-    inspectProjectRecord(project) {
-        return inspectProjectProfile(project);
-    }
-
-    /**
-     * @param {string} projectCode
-     * @param {unknown} candidates
-     */
-    async reconcileProjectProfile(projectCode, candidates, access = {}) {
-        try {
-            return reconcileProjectPeople(await this.getProjectProfile(projectCode, access), candidates);
-        } catch (error) {
-            if (AppError.isAppError(error)) throw error;
-            throw AppError.validation(error instanceof Error ? error.message : String(error));
-        }
-    }
-
     _accessOrganization(access = {}) {
         const organizationId = access.organizationId || access.organization_id || null;
         const tenantId = access.tenantId || null;
@@ -362,16 +166,12 @@ export class ConfigService {
      * プロジェクトを取得→変更→保存する共通パターン
      * @param {string} projectId
      * @param {(project: ProjectConfig, data: BrainbaseConfig) => any} fn - project を変更する関数
-     * @param {{ profileNotFound?: boolean }} [options]
      */
-    async _withProject(projectId, fn, options = {}) {
+    async _withProject(projectId, fn) {
         const { data } = await this._loadConfig();
         const projects = this._getProjects(data);
         const project = this._findProject(projects, projectId);
         if (!project) {
-            if (options.profileNotFound) {
-                throw new AppError(`Project「${projectId}」が見つかりません`, ErrorCodes.PROJECT_NOT_FOUND);
-            }
             throw AppError.notFound('project', projectId);
         }
         const result = fn(project, data);

@@ -63,6 +63,17 @@ afterEach(() => {
 });
 
 describe('Project Provisioning health bootstrap', () => {
+    it('registerApiRoutesはGraph MaintenanceにもRegistry-aware runtime catalogを配線する', () => {
+        const source = fs.readFileSync(
+            path.resolve('server/bootstrap/register-api-routes.js'),
+            'utf8'
+        );
+
+        expect(source).toMatch(
+            /createInfoSSOTRouter\(infoSSOTService,\s*\{[\s\S]*?configParser:\s*runtimeProjectCatalog[\s\S]*?\}\)/
+        );
+    });
+
     it('registerApiRoutesはRegistry-aware runtime catalogを/api/healthへ配線する', async () => {
         vi.stubEnv('BRAINBASE_TEST_MODE', 'true');
         vi.stubEnv('SNS_POSTING_LEDGER_MODE', 'json_test');

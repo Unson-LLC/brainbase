@@ -118,54 +118,6 @@ export class ConfigController {
         });
     });
 
-    /** POST /api/config/project-profiles */
-    /** @param {Request} req @param {Response} res */
-    createProjectProfile = asyncHandler(async (req, res) => {
-        this._requireConfigService();
-        const access = this._projectAccess(req);
-        const project = await this.configService.createProjectProfile(req.body || {}, access);
-        const inspection = this.configService.inspectProjectRecord(project);
-        res.status(201).json({ ok: true, project, inspection });
-    });
-
-    /** PUT /api/config/project-profiles/:projectCode */
-    /** @param {Request} req @param {Response} res */
-    configureProjectProfile = asyncHandler(async (req, res) => {
-        this._requireConfigService();
-        const project = await this.configService.configureProjectProfile(
-            req.params.projectCode,
-            req.body || {},
-            this._projectAccess(req)
-        );
-        const inspection = await this.configService.inspectProjectProfile(
-            req.params.projectCode,
-            this._projectAccess(req)
-        );
-        res.json({ ok: true, project, inspection });
-    });
-
-    /** GET /api/config/project-profiles/:projectCode/inspect */
-    /** @param {Request} req @param {Response} res */
-    inspectProjectProfile = asyncHandler(async (req, res) => {
-        this._requireConfigService();
-        res.json(await this.configService.inspectProjectProfile(
-            req.params.projectCode,
-            this._projectAccess(req)
-        ));
-    });
-
-    /** POST /api/config/project-profiles/:projectCode/reconcile */
-    /** @param {Request} req @param {Response} res */
-    reconcileProjectProfile = asyncHandler(async (req, res) => {
-        this._requireConfigService();
-        const result = await this.configService.reconcileProjectProfile(
-            req.params.projectCode,
-            req.body?.people_candidates,
-            this._projectAccess(req)
-        );
-        res.json(result);
-    });
-
     /** POST /api/config/projects, PUT /api/config/projects/:projectId */
     /** @param {Request} req @param {Response} res */
     upsertProject = asyncHandler(async (req, res) => {

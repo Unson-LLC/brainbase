@@ -6,9 +6,7 @@ import path from 'path';
 import {
     createConfigRouter,
     requireConfigAuth,
-    requireConfigWriteRole,
-    requireProjectProfileAuth,
-    requireProjectProfileWriteRole
+    requireConfigWriteRole
 } from '../../../server/routes/config.js';
 
 function makeApp({ actor } = {}) {
@@ -27,9 +25,7 @@ function makeApp({ actor } = {}) {
         upsertNocoDBMapping: async () => ({}),
         deleteNocoDBMapping: async () => ({})
     };
-    app.use('/api/config', createConfigRouter(fakeConfigParser, fakeConfigService, null, {
-        profileWriteGuard: requireProjectProfileWriteRole
-    }));
+    app.use('/api/config', createConfigRouter(fakeConfigParser, fakeConfigService));
     return app;
 }
 
@@ -49,23 +45,9 @@ describe('phase0 INV-2: config write requires auth', () => {
         expect(res.body).toEqual({ error: 'role required: gm or ceo', actual: 'member' });
     });
 
-    it.each([
-        ['POST', '/api/config/project-profiles'],
-        ['PUT', '/api/config/project-profiles/brainbase'],
-        ['POST', '/api/config/project-profiles/brainbase/reconcile']
-    ])('INV-2: %s %s with member role → structured 403', async (method, url) => {
-        const app = makeApp({ actor: { sub: 'u', role: 'member' } });
-        const { default: request } = await import('supertest');
-        const res = await request(app)[method.toLowerCase()](url).send({});
-        expect(res.status).toBe(403);
-        expect(res.body.error).toMatchObject({ code: 'FORBIDDEN' });
-    });
-
     it('INV-2: middleware exported and composable', () => {
         expect(typeof requireConfigAuth).toBe('function');
         expect(typeof requireConfigWriteRole).toBe('function');
-        expect(typeof requireProjectProfileAuth).toBe('function');
-        expect(typeof requireProjectProfileWriteRole).toBe('function');
     });
 
     it('INV-2: runtime config router is wired with shared requireAuth middleware', () => {
@@ -78,10 +60,6 @@ describe('phase0 INV-2: config write requires auth', () => {
         ['POST', '/api/config/projects'],
         ['PUT', '/api/config/projects/brainbase'],
         ['DELETE', '/api/config/projects/brainbase'],
-        ['POST', '/api/config/project-profiles'],
-        ['PUT', '/api/config/project-profiles/brainbase'],
-        ['GET', '/api/config/project-profiles/brainbase/inspect'],
-        ['POST', '/api/config/project-profiles/brainbase/reconcile'],
         ['POST', '/api/config/organizations'],
         ['PUT', '/api/config/organizations/unson'],
         ['DELETE', '/api/config/organizations/unson'],
