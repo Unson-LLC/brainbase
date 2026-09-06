@@ -326,6 +326,13 @@ export class AdminVisualizationService {
         this.clock = clock;
     }
 
+    async withCandidateRepository(access, work) {
+        if (!hasMethod(this.candidateRepository, 'transaction')) {
+            return work(this.candidateRepository);
+        }
+        return this.candidateRepository.transaction(work, { access });
+    }
+
     async withPersonalKgRepository(access, ownerPersonId, work) {
         if (!hasMethod(this.candidateRepository, 'transaction')) {
             return work(this.candidateRepository);
@@ -389,7 +396,10 @@ export class AdminVisualizationService {
         }
         try {
             const queryFilter = candidateQueryFilter(safeAccess, filters);
-            const rows = await this.candidateRepository.list(queryFilter);
+            const rows = await this.withCandidateRepository(
+                safeAccess,
+                (repository) => repository.list(queryFilter)
+            );
             const displayLimit = limit(filters.limit);
             const visibleRows = rows
                 .filter((record) => canReadCandidate(record, safeAccess))
@@ -616,9 +626,11 @@ export class AdminVisualizationService {
         }
         const safeAccess = accessSafe(access);
         try {
-            const row = hasMethod(this.candidateRepository, 'findById')
-                ? await this.candidateRepository.findById(candidateId)
-                : (await this.candidateRepository.list({ ...candidateQueryFilter(safeAccess, { limit: CANDIDATE_SCAN_LIMIT }), id: candidateId })).find((candidate) => candidate.id === candidateId);
+            const row = await this.withCandidateRepository(safeAccess, async (repository) => (
+                hasMethod(repository, 'findById')
+                    ? repository.findById(candidateId)
+                    : (await repository.list({ ...candidateQueryFilter(safeAccess, { limit: CANDIDATE_SCAN_LIMIT }), id: candidateId })).find((candidate) => candidate.id === candidateId)
+            ));
             const visible = row
                 && canReadCandidate(row, safeAccess)
                 && (!filters.project || candidateProjectCodes(row).includes(filters.project));
