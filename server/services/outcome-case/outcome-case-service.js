@@ -338,6 +338,56 @@ export class OutcomeCaseService {
         return outcomeCase;
     }
 
+    async linkRunReceipt({ caseId, runReceiptRef, projectCode, organizationId = null } = {}, actor = {}) {
+        const normalizedCaseId = requireString(caseId, 'case_id');
+        const normalizedRunReceiptRef = requireString(runReceiptRef, 'run_receipt_ref');
+        const normalizedProjectCode = requireString(projectCode, 'project_code');
+        const actorOrganizationId = this.assertOrganizationAccess(actor);
+        const receiptOrganizationId = organizationId === null || organizationId === undefined
+            ? null
+            : requireString(organizationId, 'organization_id');
+        if (receiptOrganizationId && receiptOrganizationId !== actorOrganizationId) {
+            throw new OutcomeCaseError(
+                'outcome_case_tenant_mismatch',
+                'The RunReceipt organization does not match the authenticated OutcomeCase organization',
+                { status: 403 }
+            );
+        }
+
+        const outcomeCase = await this.read(normalizedCaseId, actor);
+        if (outcomeCase.project_code !== normalizedProjectCode) {
+            throw new OutcomeCaseError(
+                'outcome_case_project_mismatch',
+                'The RunReceipt project does not match the OutcomeCase project',
+                { status: 403 }
+            );
+        }
+        if (outcomeCase.organization_id && outcomeCase.organization_id !== actorOrganizationId) {
+            throw new OutcomeCaseError(
+                'outcome_case_tenant_mismatch',
+                'The OutcomeCase organization does not match the authenticated organization',
+                { status: 403 }
+            );
+        }
+        if (typeof this.repository.appendRunReceiptRef !== 'function') {
+            throw new OutcomeCaseError(
+                'outcome_case_receipt_link_unavailable',
+                'OutcomeCase RunReceipt linking is not configured',
+                { status: 503 }
+            );
+        }
+        const linked = await this.repository.appendRunReceiptRef({
+            caseId: normalizedCaseId,
+            runReceiptRef: normalizedRunReceiptRef,
+            now: this.now().toISOString(),
+            actor
+        });
+        if (!linked) {
+            throw new OutcomeCaseError('outcome_case_not_found', 'OutcomeCase not found', { status: 404 });
+        }
+        return linked;
+    }
+
     assertProjectAccess(projectCode, actor) {
         const organizationId = this.assertOrganizationAccess(actor);
         if (!Array.isArray(actor?.projectCodes) || !actor.projectCodes.includes(projectCode)) {

@@ -72,6 +72,44 @@ describe('OutcomeCasePostgresRepository', () => {
         expect(infoSSOTService.withAccessContext).toHaveBeenCalledTimes(2);
     });
 
+    it('appends a RunReceipt ref atomically and returns duplicate without touching evaluation history', async () => {
+        const pool = {
+            query: vi.fn().mockResolvedValue({ rows: [{
+                ...record,
+                run_receipt_refs: ['run-1'],
+                revision: 2,
+                receipt_ref_already_present: false
+            }] })
+        };
+        const infoSSOTService = {
+            withAccessContext: vi.fn((_access, handler) => handler(pool))
+        };
+        const repository = new OutcomeCasePostgresRepository({ pool, infoSSOTService });
+
+        const linked = await repository.appendRunReceiptRef({
+            caseId: 'oc_01',
+            runReceiptRef: 'run-1',
+            now: '2026-09-04T00:01:00.000Z',
+            actor: { projectCodes: ['brainbase'], organizationId: 'org_unson' }
+        });
+
+        expect(linked).toMatchObject({
+            status: 'linked',
+            outcomeCase: { case_id: 'oc_01', run_receipt_refs: ['run-1'], revision: 2 }
+        });
+        expect(pool.query.mock.calls[0][0]).toContain('run_receipt_refs');
+        expect(pool.query.mock.calls[0][0]).toContain('FOR UPDATE');
+        expect(pool.query.mock.calls[0][0]).not.toContain('evaluation_history =');
+        expect(pool.query.mock.calls[0][1]).toEqual([
+            'oc_01', 'run-1', ['brainbase'], 'org_unson', '2026-09-04T00:01:00.000Z'
+        ]);
+        expect(infoSSOTService.withAccessContext).toHaveBeenCalledWith(
+            expect.objectContaining({ projectCodes: ['brainbase'], organizationId: 'org_unson' }),
+            expect.any(Function),
+            { requireCanonicalTenant: true }
+        );
+    });
+
     it('reports a revision conflict instead of silently overwriting a newer evaluation', async () => {
         const pool = { query: vi.fn().mockResolvedValue({ rows: [] }) };
         const repository = new OutcomeCasePostgresRepository({
