@@ -81,7 +81,7 @@
         "period": null,
         "started_at": null,
         "due_at": null,
-        "contract_type": null
+        "contract_type": "bug_fix"
       },
       {
         "story_id": "story-canonical-company-authority-context",
@@ -207,8 +207,26 @@
           "同じrun IDで元payloadの内容が変わった再送は承認後もduplicate_payload_mismatchで拒否する。",
           "承認後再送で承認処理やTask生成を再実行せず、既存Taskが1件のまま残る。"
         ]
+      },
+      {
+        "story_id": "story-admin-read-tenant-boundary-repair",
+        "title": "認証済み管理ビューの読み取り経路を復旧する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix",
+        "acceptance_criteria": [
+          "認証済みの管理読み取りは、既存の人物・役割・プロジェクト・機密区分による制御を維持したまま応答する。",
+          "未認証の管理読み取りは401で拒否する。",
+          "監査書込みなどテナント所有資源を変更する経路は署名済みテナント境界を維持する。",
+          "実MCPから管理ビューを読み戻し、HTTP 400 TENANT_CONTEXT_INVALIDが解消したことを確認する。"
+        ]
       }
     ],
-    "current_story_id": "story-g0-post-approval-redelivery"
+    "current_story_id": "story-admin-read-tenant-boundary-repair"
   }
 }

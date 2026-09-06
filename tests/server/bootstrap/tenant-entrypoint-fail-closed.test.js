@@ -6,7 +6,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes.js';
 import { createTenantRuntimeServicesFromEnv } from '../../../server/services/multitenant/tenant-runtime-services.js';
 
-// VibePro traceability: story-brainbase-multitenant-platform:AC-005.
+// VibePro traceability:
+// story-brainbase-multitenant-platform:AC-005,
+// story-admin-read-tenant-boundary-repair:AC-001..AC-003.
 
 function bootstrapApp({ env }) {
     const infoSSOTService = {
@@ -51,11 +53,21 @@ function bootstrapApp({ env }) {
     return { app, authService, infoSSOTService };
 }
 
-describe('AC-005 tenant entrypoint bootstrap fail-closed', () => {
+describe('tenant entrypoint bootstrap boundaries', () => {
+    it('rejects unauthenticated admin reads before the visualization service runs', async () => {
+        const { app, authService, infoSSOTService } = bootstrapApp({ env: {} });
+
+        const response = await request(app).get('/api/admin/overview');
+
+        expect(response.status).toBe(401);
+        expect(authService.verifyToken).not.toHaveBeenCalled();
+        expect(infoSSOTService.listGraphEntities).not.toHaveBeenCalled();
+    });
+
     it.each([
         ['unset', {}],
         ['disabled', { BRAINBASE_TENANT_RUNTIME_ENABLED: '0' }]
-    ])('AC-005 rejects authenticated admin and audit routes when tenant runtime is %s', async (_label, env) => {
+    ])('AC-005 keeps audit writes fail-closed while authenticated admin reads remain available when tenant runtime is %s', async (_label, env) => {
         const { app, authService, infoSSOTService } = bootstrapApp({ env });
 
         const adminResponse = await request(app)
@@ -66,17 +78,16 @@ describe('AC-005 tenant entrypoint bootstrap fail-closed', () => {
             .set('Authorization', 'Bearer admin-token')
             .send({});
 
-        for (const response of [adminResponse, auditResponse]) {
-            expect(response.status).toBe(503);
-            expect(response.headers['content-type']).toContain('application/problem+json');
-            expect(response.body).toMatchObject({
-                code: 'UPSTREAM_UNAVAILABLE',
-                retryable: true,
-                fault_domain: 'brainbase_cloud'
-            });
-        }
+        expect(adminResponse.status).toBe(200);
+        expect(auditResponse.status).toBe(503);
+        expect(auditResponse.headers['content-type']).toContain('application/problem+json');
+        expect(auditResponse.body).toMatchObject({
+            code: 'UPSTREAM_UNAVAILABLE',
+            retryable: true,
+            fault_domain: 'brainbase_cloud'
+        });
         expect(authService.verifyToken).toHaveBeenCalledTimes(2);
-        expect(infoSSOTService.listGraphEntities).not.toHaveBeenCalled();
+        expect(infoSSOTService.listGraphEntities).toHaveBeenCalled();
         expect(infoSSOTService.auditOntology).not.toHaveBeenCalled();
     });
 });
