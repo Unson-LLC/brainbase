@@ -1,0 +1,1237 @@
+{
+  "schema_version": "0.2.0",
+  "created_at": "2026-09-05T23:57:17.841Z",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-09-05T23:57:17.205Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.22",
+      "exact_version": "0.2.0-beta.22",
+      "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+      "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.22",
+          "package_json_sha256": "7d756059a51ef8b0fc4df295b76602a32678474a7ed5b780f4be677d95083770",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "b9b4184c814af2c6a8171f3e2ee1fe2a1bc3b084608898a1f15f97b12bbdc7df",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "pr_judgment",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "story": {
+    "story_id": "story-g0-authority-bound-execution",
+    "title": "G0の権限必須承認を実行結果へ束縛する",
+    "ssot": "local",
+    "status": "active",
+    "horizon": null,
+    "view": null,
+    "period": null,
+    "started_at": null,
+    "due_at": null,
+    "category": null,
+    "contract_type": "bug_fix"
+  },
+  "outcome_case_status": "none",
+  "outcome_case_reason_code": "not_linked",
+  "task_context": null,
+  "task_authorities": {
+    "human": {
+      "authority": "human_authored",
+      "path": null,
+      "present": false,
+      "task_count": 0,
+      "status_counts": {},
+      "tasks": []
+    },
+    "accepted": {
+      "authority": "accepted",
+      "path": null,
+      "present": false,
+      "task_count": 0,
+      "status_counts": {},
+      "tasks": []
+    },
+    "generated": {
+      "authority": "generated_proposal",
+      "path": ".vibepro/stories/story-g0-authority-bound-execution/tasks/tasks.md",
+      "present": true,
+      "task_count": 3,
+      "status_counts": {
+        "todo": 3
+      },
+      "execution_policies": [],
+      "mutates_repository": [],
+      "tasks": [
+        {
+          "id": "VP-TASK-STATIC-002-REVIEW",
+          "status": "todo",
+          "execution_policy": null,
+          "mutates_repository": null
+        },
+        {
+          "id": "VP-TASK-FLOW-006",
+          "status": "todo",
+          "execution_policy": null,
+          "mutates_repository": null
+        },
+        {
+          "id": "VP-TASK-STATIC-003",
+          "status": "todo",
+          "execution_policy": null,
+          "mutates_repository": null
+        }
+      ]
+    }
+  },
+  "output": {
+    "language": "ja"
+  },
+  "git": {
+    "current_branch": "codex/g0-authority-completion",
+    "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+    "base_ref": "origin/develop",
+    "head_ref": "HEAD",
+    "changed_files": [],
+    "dirty_files": [
+      {
+        "status": "M",
+        "path": "vibepro/config.json"
+      },
+      {
+        "status": "M",
+        "path": "docs/architecture/external-runner-adapter-contract-architecture.md"
+      },
+      {
+        "status": "M",
+        "path": "server/services/automation-run/automation-run-service.js"
+      },
+      {
+        "status": "M",
+        "path": "server/services/external-runner/contract-schema.js"
+      },
+      {
+        "status": "M",
+        "path": "server/services/external-runner/external-runtime-adapter.js"
+      },
+      {
+        "status": "M",
+        "path": "server/services/workflow/workflow-runner.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/server/services/automation-run-company-authority-human-approval.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/server/services/external-runner-company-authority-handoff.test.js"
+      },
+      {
+        "status": "??",
+        "path": "docs/management/stories/active/story-g0-authority-bound-execution.md"
+      },
+      {
+        "status": "??",
+        "path": "docs/specs/story-g0-authority-bound-execution-spec.md"
+      }
+    ],
+    "commit_count": 0
+  },
+  "spec": {
+    "present": true,
+    "story_id": "story-g0-authority-bound-execution",
+    "clause_count": 5
+  },
+  "spec_drift": null,
+  "verification": {
+    "recorded": true,
+    "updated_at": "2026-09-05T23:57:09.647Z",
+    "artifact": ".vibepro/pr/story-g0-authority-bound-execution/verification-evidence.json",
+    "commands": [
+      {
+        "kind": "typecheck",
+        "status": "pass",
+        "command": "npm run typecheck",
+        "summary": "公開JavaScriptの型検査が成功",
+        "summary_authority": "agent_provided_non_authoritative",
+        "evidence_source": "self_reported",
+        "observation": {
+          "targets": [
+            "server/services/automation-run/automation-run-service.js",
+            "server/services/workflow/workflow-runner.js"
+          ],
+          "scenarios": [
+            "変更した公開JavaScriptがjsconfigの型制約を満たす"
+          ],
+          "values": {}
+        },
+        "computed_observation": null,
+        "computed_counts": null,
+        "artifact_check": {
+          "status": "missing",
+          "format": null,
+          "artifact_outcome": null,
+          "reason": "no machine-readable artifact was provided for a passing claim"
+        },
+        "observation_check": {
+          "status": "recorded",
+          "reason": "observation states the inspected targets and what was observed"
+        },
+        "git_context": {
+          "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "current_branch": "codex/g0-authority-completion",
+          "dirty": true,
+          "raw_dirty": true,
+          "status_fingerprint_hash": "00c7498c92da9f22a16371c1822db6358ed94943e6153cb35b755b544e63ba6e",
+          "user_status_fingerprint_hash": "d208263558671208c5f3f76fce53324f75091bc79baa42b62f9c8f3e92cde31f",
+          "fingerprint_scope": {
+            "user_excludes": [
+              ".vibepro/",
+              ".worktrees/vibepro/"
+            ]
+          },
+          "recorded_at": "2026-09-05T23:57:09.631Z"
+        },
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "strict_head",
+          "status": "strict_head",
+          "reason": "strict HEAD binding was requested for this evidence",
+          "recorded_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "surface_files": [
+            {
+              "path": "server/services/automation-run/automation-run-service.js",
+              "sha256": "f38573bee5b8b887d2751125809c93c9a18d733c8bc8ee20f27f468c5152f72b",
+              "size": 46371
+            },
+            {
+              "path": "server/services/workflow/workflow-runner.js",
+              "sha256": "93b9546a6d4b64f12199da0c05e2690af07bb41cec0e6ec2cb61b865ed2fd2a6",
+              "size": 22652
+            }
+          ],
+          "missing_files": [],
+          "surface_hash": "552321d5ce94f87e5017b6dc1571d9901c7af0dab45d77125eee4d8eae7efe60"
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "verify record",
+            "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/private/tmp/brainbase-g0-authority-completion",
+            "actual_root": "/private/tmp/brainbase-g0-authority-completion",
+            "expected_root": null,
+            "expected_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+            "current_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+            "managed_worktree": null
+          }
+        ],
+        "runtime_identity": {
+          "schema_version": "0.2.0",
+          "collected_at": "2026-09-05T23:57:09.317Z",
+          "mode": "normal",
+          "source_kind": "npm_package",
+          "test_context": null,
+          "package": {
+            "name": "vibepro",
+            "version": "0.2.0-beta.22",
+            "exact_version": "0.2.0-beta.22",
+            "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+          },
+          "cli": {
+            "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+            "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+            "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+          },
+          "release_manifest": {
+            "status": "valid",
+            "manifest": {
+              "schema_version": "0.1.0",
+              "package": {
+                "name": "vibepro",
+                "version": "0.2.0-beta.22",
+                "package_json_sha256": "7d756059a51ef8b0fc4df295b76602a32678474a7ed5b780f4be677d95083770",
+                "entrypoint": "bin/vibepro.js"
+              },
+              "source_git": {
+                "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+                "origin_url": "https://github.com/Unson-LLC/vibepro",
+                "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+                "origin_main_relation": "same",
+                "dirty": false
+              }
+            },
+            "errors": []
+          },
+          "source_git": {
+            "is_git_repo": false,
+            "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+            "branch": null,
+            "origin_url": "https://github.com/Unson-LLC/vibepro",
+            "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+            "origin_main_relation": "published",
+            "dirty": false,
+            "dirty_summary": []
+          },
+          "identity_digest": "b9b4184c814af2c6a8171f3e2ee1fe2a1bc3b084608898a1f15f97b12bbdc7df",
+          "integrity": {
+            "status": "trusted",
+            "code": null,
+            "purpose": "evidence_generation",
+            "reasons": [
+              "manifested immutable npm runtime"
+            ]
+          }
+        },
+        "executed_at": "2026-09-05T23:57:09.647Z",
+        "trust_status": "untrusted"
+      },
+      {
+        "kind": "unit",
+        "status": "pass",
+        "command": "npm run test:run -- tests/server/routes/external-runner-routes.test.js tests/server/services/external-runner-company-authority-handoff.test.js tests/server/services/external-runner-contract-schema.test.js tests/server/services/external-runner-ingest-service.test.js tests/server/services/workflow-runner.test.js tests/server/services/automation-run-company-authority-human-approval.test.js tests/server/services/automation-run-service.test.js tests/server/services/multitenant/company-authority-human-approval-service.test.js",
+        "summary": "外部runner、権限承認、workflow再開、transaction、lock競合、再実行拒否の関連8ファイル109件が成功",
+        "summary_authority": "agent_provided_non_authoritative",
+        "evidence_source": "self_reported",
+        "observation": {
+          "targets": [
+            "server/services/external-runner/contract-schema.js",
+            "server/services/external-runner/external-runtime-adapter.js",
+            "server/services/automation-run/automation-run-service.js",
+            "server/services/workflow/workflow-runner.js"
+          ],
+          "scenarios": [
+            "Company Authority必須handoffから成功・失敗・lock競合までreceipt帰属を保持し、汎用rerunを拒否する"
+          ],
+          "values": {}
+        },
+        "computed_observation": null,
+        "computed_counts": null,
+        "artifact_check": {
+          "status": "missing",
+          "format": null,
+          "artifact_outcome": null,
+          "reason": "no machine-readable artifact was provided for a passing claim"
+        },
+        "observation_check": {
+          "status": "recorded",
+          "reason": "observation states the inspected targets and what was observed"
+        },
+        "git_context": {
+          "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "current_branch": "codex/g0-authority-completion",
+          "dirty": true,
+          "raw_dirty": true,
+          "status_fingerprint_hash": "6927cea879baf2b5724438e1f231052344ae18eae0bf99f40fea8349cf868ebe",
+          "user_status_fingerprint_hash": "ed536639128cd4f4b40d7568987445f2c87419c14df59ea783079f645d410c7d",
+          "fingerprint_scope": {
+            "user_excludes": [
+              ".vibepro/",
+              ".worktrees/vibepro/"
+            ]
+          },
+          "recorded_at": "2026-09-05T23:55:38.125Z"
+        },
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "strict_head",
+          "status": "strict_head",
+          "reason": "strict HEAD binding was requested for this evidence",
+          "recorded_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "surface_files": [
+            {
+              "path": "server/services/automation-run/automation-run-service.js",
+              "sha256": "f38573bee5b8b887d2751125809c93c9a18d733c8bc8ee20f27f468c5152f72b",
+              "size": 46371
+            },
+            {
+              "path": "server/services/external-runner/contract-schema.js",
+              "sha256": "f0bc045937e2f0c9e257d4b87867ca951549dba1367de5d7260a50b2cab13610",
+              "size": 14059
+            },
+            {
+              "path": "server/services/external-runner/external-runtime-adapter.js",
+              "sha256": "8b463ee87b56be13d6a2d573ab4f6bdc6b735a3295b06cd9a5eedc93eaf47ab6",
+              "size": 15546
+            },
+            {
+              "path": "server/services/workflow/workflow-runner.js",
+              "sha256": "93b9546a6d4b64f12199da0c05e2690af07bb41cec0e6ec2cb61b865ed2fd2a6",
+              "size": 22652
+            }
+          ],
+          "missing_files": [],
+          "surface_hash": "94a36917b4cd3e4349c9d26f9e69e0be8083017ebeceb5d2497ec405ab85ef3d"
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "verify record",
+            "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/private/tmp/brainbase-g0-authority-completion",
+            "actual_root": "/private/tmp/brainbase-g0-authority-completion",
+            "expected_root": null,
+            "expected_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+            "current_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+            "managed_worktree": null
+          }
+        ],
+        "runtime_identity": {
+          "schema_version": "0.2.0",
+          "collected_at": "2026-09-05T23:55:37.773Z",
+          "mode": "normal",
+          "source_kind": "npm_package",
+          "test_context": null,
+          "package": {
+            "name": "vibepro",
+            "version": "0.2.0-beta.22",
+            "exact_version": "0.2.0-beta.22",
+            "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+          },
+          "cli": {
+            "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+            "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+            "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+          },
+          "release_manifest": {
+            "status": "valid",
+            "manifest": {
+              "schema_version": "0.1.0",
+              "package": {
+                "name": "vibepro",
+                "version": "0.2.0-beta.22",
+                "package_json_sha256": "7d756059a51ef8b0fc4df295b76602a32678474a7ed5b780f4be677d95083770",
+                "entrypoint": "bin/vibepro.js"
+              },
+              "source_git": {
+                "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+                "origin_url": "https://github.com/Unson-LLC/vibepro",
+                "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+                "origin_main_relation": "same",
+                "dirty": false
+              }
+            },
+            "errors": []
+          },
+          "source_git": {
+            "is_git_repo": false,
+            "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+            "branch": null,
+            "origin_url": "https://github.com/Unson-LLC/vibepro",
+            "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+            "origin_main_relation": "published",
+            "dirty": false,
+            "dirty_summary": []
+          },
+          "identity_digest": "b9b4184c814af2c6a8171f3e2ee1fe2a1bc3b084608898a1f15f97b12bbdc7df",
+          "integrity": {
+            "status": "trusted",
+            "code": null,
+            "purpose": "evidence_generation",
+            "reasons": [
+              "manifested immutable npm runtime"
+            ]
+          }
+        },
+        "executed_at": "2026-09-05T23:55:38.142Z",
+        "trust_status": "untrusted"
+      }
+    ]
+  },
+  "review": {
+    "recorded": true,
+    "complete": true,
+    "status": "pass",
+    "records": [
+      {
+        "schema_version": "1.0.0",
+        "story_id": "story-g0-authority-bound-execution",
+        "role": "code",
+        "status": "pass",
+        "summary": "receiptとstep承認のtransaction原子性、実サービスでのmarker欠落fail-closed、handler失敗後のreceipt帰属と再実行拒否を確認。対象・回帰テストにblockingなし。",
+        "recorded_at": "2026-09-05T23:56:17.988Z",
+        "findings": [],
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "content_surface",
+          "status": "recorded",
+          "reason": "content surface recorded for 4 file(s)",
+          "recorded_head_sha": null,
+          "surface_files": [
+            {
+              "path": "server/services/automation-run/automation-run-service.js",
+              "sha256": "f38573bee5b8b887d2751125809c93c9a18d733c8bc8ee20f27f468c5152f72b",
+              "size": 46371
+            },
+            {
+              "path": "server/services/workflow/workflow-runner.js",
+              "sha256": "93b9546a6d4b64f12199da0c05e2690af07bb41cec0e6ec2cb61b865ed2fd2a6",
+              "size": 22652
+            },
+            {
+              "path": "tests/server/services/automation-run-company-authority-human-approval.test.js",
+              "sha256": "1cae0610191283da2afffb7c73b1ac8be3f0243b6c3ef848ead74f80d49cd740",
+              "size": 16773
+            },
+            {
+              "path": "tests/server/services/multitenant/company-authority-human-approval-service.test.js",
+              "sha256": "bd1b1a1fdc1e9c97160162f16d9a6b396e098de6ecf8c11e2f38fe65d315f64f",
+              "size": 13942
+            }
+          ],
+          "missing_files": [],
+          "surface_hash": "621fb065b10fd69b0be847c1f80840f10a59a726269f3c478240891df05d61eb"
+        },
+        "reviewer": {
+          "system": "codex",
+          "id": "audit_g0_tests"
+        },
+        "artifact": "/private/tmp/brainbase-g0-authority-completion/.vibepro/reviews/story-g0-authority-bound-execution/lightweight/review-code.json",
+        "binding_status": "current"
+      },
+      {
+        "schema_version": "1.0.0",
+        "story_id": "story-g0-authority-bound-execution",
+        "role": "dataflow",
+        "status": "pass",
+        "summary": "Company Authority承認からsuccess・failed・timeout・skipped_lockedまでreceipt/source帰属が維持され、汎用rerunを409拒否することを再現確認。新たなblockingなし。",
+        "recorded_at": "2026-09-05T23:56:21.509Z",
+        "findings": [],
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "content_surface",
+          "status": "recorded",
+          "reason": "content surface recorded for 6 file(s)",
+          "recorded_head_sha": null,
+          "surface_files": [
+            {
+              "path": "server/services/automation-run/automation-run-service.js",
+              "sha256": "f38573bee5b8b887d2751125809c93c9a18d733c8bc8ee20f27f468c5152f72b",
+              "size": 46371
+            },
+            {
+              "path": "server/services/external-runner/contract-schema.js",
+              "sha256": "f0bc045937e2f0c9e257d4b87867ca951549dba1367de5d7260a50b2cab13610",
+              "size": 14059
+            },
+            {
+              "path": "server/services/external-runner/external-runtime-adapter.js",
+              "sha256": "8b463ee87b56be13d6a2d573ab4f6bdc6b735a3295b06cd9a5eedc93eaf47ab6",
+              "size": 15546
+            },
+            {
+              "path": "server/services/workflow/workflow-runner.js",
+              "sha256": "93b9546a6d4b64f12199da0c05e2690af07bb41cec0e6ec2cb61b865ed2fd2a6",
+              "size": 22652
+            },
+            {
+              "path": "tests/server/services/automation-run-company-authority-human-approval.test.js",
+              "sha256": "1cae0610191283da2afffb7c73b1ac8be3f0243b6c3ef848ead74f80d49cd740",
+              "size": 16773
+            },
+            {
+              "path": "tests/server/services/external-runner-company-authority-handoff.test.js",
+              "sha256": "5703403440d93e39d6e4e4b3494a0d4664019c14edc61afe7c71f0a9fe1708ea",
+              "size": 12221
+            }
+          ],
+          "missing_files": [],
+          "surface_hash": "d9a68688bcc9a536f196bf03e39c9f884c617320ae1f0d40aec2ea68660330ec"
+        },
+        "reviewer": {
+          "system": "codex",
+          "id": "trace_g0_dataflow"
+        },
+        "artifact": "/private/tmp/brainbase-g0-authority-completion/.vibepro/reviews/story-g0-authority-bound-execution/lightweight/review-dataflow.json",
+        "binding_status": "current"
+      }
+    ],
+    "blocking_findings": []
+  },
+  "development_judgment": {
+    "available": false,
+    "status": "not_recorded",
+    "story_id": null,
+    "run_id": null,
+    "development_mode": null,
+    "recommendation": null,
+    "unknown_count": 0,
+    "outcome_count": 0,
+    "latest_outcome_status": null,
+    "artifact": null,
+    "advisory": true,
+    "blocking": false,
+    "error": null,
+    "lifecycle": "not_started",
+    "applicable": null,
+    "input_adopted": false,
+    "actionable": false,
+    "plan_binding": null,
+    "disposition": null,
+    "pending_disposition": false,
+    "pending_outcome": false,
+    "outcome": null,
+    "next_actions": [
+      "vibepro judgment applicability record . --id story-g0-authority-bound-execution --applicable yes|no --reason <text>"
+    ],
+    "operational_status": {
+      "schema_version": "0.1.0",
+      "story_id": "story-g0-authority-bound-execution",
+      "lifecycle": "not_started",
+      "applicable": null,
+      "applicability": null,
+      "run_id": null,
+      "draft": null,
+      "adoption": null,
+      "evaluation": null,
+      "actionable": false,
+      "plan_binding": null,
+      "disposition": null,
+      "outcome": null,
+      "pending_disposition": false,
+      "pending_outcome": false,
+      "next_actions": [
+        "vibepro judgment applicability record . --id story-g0-authority-bound-execution --applicable yes|no --reason <text>"
+      ],
+      "advisory": true,
+      "blocking": false
+    }
+  },
+  "multi_tenant_architecture": {
+    "applicable": true,
+    "activation_reasons": [
+      "boundary_without_tenant_actor"
+    ],
+    "mode": "final",
+    "status": "needs_review",
+    "findings": [
+      {
+        "severity": "review",
+        "code": "applicability_ambiguous",
+        "path": "story_context",
+        "message": "マルチテナント適用要否を確定できる境界シグナルが不足しています"
+      }
+    ],
+    "coverage": {
+      "status": "inconclusive",
+      "scanners": {}
+    },
+    "views": {},
+    "implementation_readiness": {
+      "status": "needs_review",
+      "evidence_status": "inconclusive",
+      "required_surfaces": [
+        "story",
+        "spec",
+        "implementation"
+      ],
+      "reasons": [
+        "explicit_non_applicability_required"
+      ]
+    },
+    "review_lenses": [
+      {
+        "id": "tenant_architecture",
+        "question": "tenant identityは入口から全実行面と資源境界まで一意に伝播するか",
+        "status": "needs_review",
+        "findings": [],
+        "unconfirmed": [
+          {
+            "code": "applicability_ambiguous",
+            "path": "story_context"
+          }
+        ]
+      },
+      {
+        "id": "security_boundary",
+        "question": "credential、secret、dataにcross-tenant fallbackまたは混線経路がないか",
+        "status": "needs_review",
+        "findings": [],
+        "unconfirmed": [
+          {
+            "code": "applicability_ambiguous",
+            "path": "story_context"
+          }
+        ]
+      },
+      {
+        "id": "operations_and_migration",
+        "question": "各配備形態で移行・rollback・削除・接続不能の意味が維持されるか",
+        "status": "needs_review",
+        "findings": [],
+        "unconfirmed": [
+          {
+            "code": "applicability_ambiguous",
+            "path": "story_context"
+          }
+        ]
+      }
+    ]
+  },
+  "bug_diagnosis": {
+    "schema_version": "0.1.0",
+    "story_id": "story-g0-authority-bound-execution",
+    "run_id": "2026-09-05T234629Z",
+    "target_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+    "status": "ready",
+    "return_to_node": null,
+    "next_actions": [],
+    "failures": [],
+    "nodes": [
+      {
+        "id": "failure_reproduced",
+        "status": "passed",
+        "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "evidence_refs": [
+          "tests/server/services/external-runner-company-authority-handoff.test.js",
+          "tests/server/services/automation-run-company-authority-human-approval.test.js"
+        ],
+        "reason": "origin/developの修正前コードへ追加回帰テストを載せ、17件中5件が失敗してhandoff欠落の受理、marker欠落時の通常承認、outputのreceipt未束縛を再現した。",
+        "path_id": "g0-company-authority-human-resume",
+        "analyses": [
+          "data_flow"
+        ]
+      },
+      {
+        "id": "failure_localized",
+        "status": "passed",
+        "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "evidence_refs": [
+          "server/services/external-runner/contract-schema.js",
+          "server/services/automation-run/automation-run-service.js",
+          "server/services/workflow/workflow-runner.js"
+        ],
+        "reason": "欠落をcontract検証、human step metadata、承認経路判定、承認後output作成の4境界へ特定した。",
+        "path_id": "g0-company-authority-human-resume",
+        "analyses": [
+          "data_flow"
+        ]
+      },
+      {
+        "id": "relationship_analysis",
+        "status": "passed",
+        "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "evidence_refs": [
+          "docs/architecture/external-runner-adapter-contract-architecture.md",
+          "docs/specs/story-g0-authority-bound-execution-spec.md"
+        ],
+        "reason": "external_runner入力からadapter、Company Authority receipt消費、workflow再開、output保存までの関係を照合し、agent_reportは承認専用runとして分離した。",
+        "path_id": "g0-company-authority-human-resume",
+        "analyses": [
+          "data_flow",
+          "module_boundary"
+        ]
+      },
+      {
+        "id": "preconditions_confirmed",
+        "status": "passed",
+        "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "evidence_refs": [
+          "docs/management/stories/active/story-g0-authority-bound-execution.md",
+          "docs/management/milestones/brainbase-program-master-roadmap.md"
+        ],
+        "reason": "G0完了条件を、権限必須宣言の迂回防止と承認後業務handlerのreceipt束縛に限定し、本番外部読戻しは別の未完了条件として保持した。",
+        "path_id": "g0-company-authority-human-resume",
+        "analyses": []
+      },
+      {
+        "id": "root_cause_confirmed",
+        "status": "passed",
+        "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "evidence_refs": [
+          "server/services/external-runner/contract-schema.js",
+          "server/services/automation-run/automation-run-service.js",
+          "server/services/workflow/workflow-runner.js"
+        ],
+        "reason": "権限必須という明示契約がなく、承認判定がmarkerだけに依存し、workflow outputへ消費receiptを保存していなかったことを根本原因として確定した。",
+        "path_id": "g0-company-authority-human-resume",
+        "analyses": []
+      },
+      {
+        "id": "regression_test_failed_before_fix",
+        "status": "passed",
+        "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "evidence_refs": [
+          "tests/server/services/external-runner-company-authority-handoff.test.js",
+          "tests/server/services/automation-run-company-authority-human-approval.test.js"
+        ],
+        "reason": "修正前origin/developの4実装ファイルで同じ17テストを実行し、追加した5件が失敗するREDを確認した。",
+        "path_id": "g0-company-authority-human-resume",
+        "analyses": []
+      },
+      {
+        "id": "root_fix_applied",
+        "status": "passed",
+        "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "evidence_refs": [
+          "server/services/external-runner/contract-schema.js",
+          "server/services/external-runner/external-runtime-adapter.js",
+          "server/services/automation-run/automation-run-service.js",
+          "server/services/workflow/workflow-runner.js"
+        ],
+        "reason": "必須宣言を保存前に検証・永続し、宣言またはmarkerでfail closedにし、承認後outputへreceiptとsource stepを保存した。",
+        "path_id": "g0-company-authority-human-resume",
+        "analyses": []
+      },
+      {
+        "id": "same_path_reverified",
+        "status": "passed",
+        "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "evidence_refs": [
+          "tests/server/services/external-runner-company-authority-handoff.test.js",
+          "tests/server/services/automation-run-company-authority-human-approval.test.js"
+        ],
+        "reason": "同じ17テストを修正後コードで再実行し全件pass。影響範囲95件とtypecheckもpassした。",
+        "path_id": "g0-company-authority-human-resume",
+        "analyses": []
+      }
+    ],
+    "artifact": ".vibepro/bug-diagnosis/story-g0-authority-bound-execution/2026-09-05T234629Z/bug-diagnosis.json"
+  },
+  "execution_dag": {
+    "schema_version": "0.1.0",
+    "nodes": [
+      {
+        "id": "story_selected",
+        "status": "passed",
+        "required": true,
+        "reason": "Story id is bound to this execution state"
+      },
+      {
+        "id": "worktree_created",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "managed worktree mode is disabled",
+        "evidence": null
+      },
+      {
+        "id": "branch_bound",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "no managed branch recorded",
+        "evidence": null
+      },
+      {
+        "id": "head_bound",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "managed worktree HEAD binding is not recorded",
+        "evidence": null
+      },
+      {
+        "id": "implementation_started",
+        "status": "passed",
+        "required": false,
+        "reason": "implementation starts in the current checkout because managed worktree mode is disabled"
+      },
+      {
+        "id": "failure_reproduced",
+        "status": "passed",
+        "required": true,
+        "reason": "origin/developの修正前コードへ追加回帰テストを載せ、17件中5件が失敗してhandoff欠落の受理、marker欠落時の通常承認、outputのreceipt未束縛を再現した。",
+        "evidence": {
+          "story_id": "story-g0-authority-bound-execution",
+          "run_id": "2026-09-05T234629Z",
+          "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "evidence_refs": [
+            "tests/server/services/external-runner-company-authority-handoff.test.js",
+            "tests/server/services/automation-run-company-authority-human-approval.test.js"
+          ],
+          "path_id": "g0-company-authority-human-resume",
+          "analyses": [
+            "data_flow"
+          ]
+        }
+      },
+      {
+        "id": "failure_localized",
+        "status": "passed",
+        "required": true,
+        "reason": "欠落をcontract検証、human step metadata、承認経路判定、承認後output作成の4境界へ特定した。",
+        "evidence": {
+          "story_id": "story-g0-authority-bound-execution",
+          "run_id": "2026-09-05T234629Z",
+          "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "evidence_refs": [
+            "server/services/external-runner/contract-schema.js",
+            "server/services/automation-run/automation-run-service.js",
+            "server/services/workflow/workflow-runner.js"
+          ],
+          "path_id": "g0-company-authority-human-resume",
+          "analyses": [
+            "data_flow"
+          ]
+        }
+      },
+      {
+        "id": "relationship_analysis",
+        "status": "passed",
+        "required": true,
+        "reason": "external_runner入力からadapter、Company Authority receipt消費、workflow再開、output保存までの関係を照合し、agent_reportは承認専用runとして分離した。",
+        "evidence": {
+          "story_id": "story-g0-authority-bound-execution",
+          "run_id": "2026-09-05T234629Z",
+          "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "evidence_refs": [
+            "docs/architecture/external-runner-adapter-contract-architecture.md",
+            "docs/specs/story-g0-authority-bound-execution-spec.md"
+          ],
+          "path_id": "g0-company-authority-human-resume",
+          "analyses": [
+            "data_flow",
+            "module_boundary"
+          ]
+        }
+      },
+      {
+        "id": "preconditions_confirmed",
+        "status": "passed",
+        "required": true,
+        "reason": "G0完了条件を、権限必須宣言の迂回防止と承認後業務handlerのreceipt束縛に限定し、本番外部読戻しは別の未完了条件として保持した。",
+        "evidence": {
+          "story_id": "story-g0-authority-bound-execution",
+          "run_id": "2026-09-05T234629Z",
+          "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "evidence_refs": [
+            "docs/management/stories/active/story-g0-authority-bound-execution.md",
+            "docs/management/milestones/brainbase-program-master-roadmap.md"
+          ],
+          "path_id": "g0-company-authority-human-resume",
+          "analyses": []
+        }
+      },
+      {
+        "id": "root_cause_confirmed",
+        "status": "passed",
+        "required": true,
+        "reason": "権限必須という明示契約がなく、承認判定がmarkerだけに依存し、workflow outputへ消費receiptを保存していなかったことを根本原因として確定した。",
+        "evidence": {
+          "story_id": "story-g0-authority-bound-execution",
+          "run_id": "2026-09-05T234629Z",
+          "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "evidence_refs": [
+            "server/services/external-runner/contract-schema.js",
+            "server/services/automation-run/automation-run-service.js",
+            "server/services/workflow/workflow-runner.js"
+          ],
+          "path_id": "g0-company-authority-human-resume",
+          "analyses": []
+        }
+      },
+      {
+        "id": "regression_test_failed_before_fix",
+        "status": "passed",
+        "required": true,
+        "reason": "修正前origin/developの4実装ファイルで同じ17テストを実行し、追加した5件が失敗するREDを確認した。",
+        "evidence": {
+          "story_id": "story-g0-authority-bound-execution",
+          "run_id": "2026-09-05T234629Z",
+          "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "evidence_refs": [
+            "tests/server/services/external-runner-company-authority-handoff.test.js",
+            "tests/server/services/automation-run-company-authority-human-approval.test.js"
+          ],
+          "path_id": "g0-company-authority-human-resume",
+          "analyses": []
+        }
+      },
+      {
+        "id": "root_fix_applied",
+        "status": "passed",
+        "required": true,
+        "reason": "必須宣言を保存前に検証・永続し、宣言またはmarkerでfail closedにし、承認後outputへreceiptとsource stepを保存した。",
+        "evidence": {
+          "story_id": "story-g0-authority-bound-execution",
+          "run_id": "2026-09-05T234629Z",
+          "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "evidence_refs": [
+            "server/services/external-runner/contract-schema.js",
+            "server/services/external-runner/external-runtime-adapter.js",
+            "server/services/automation-run/automation-run-service.js",
+            "server/services/workflow/workflow-runner.js"
+          ],
+          "path_id": "g0-company-authority-human-resume",
+          "analyses": []
+        }
+      },
+      {
+        "id": "same_path_reverified",
+        "status": "passed",
+        "required": true,
+        "reason": "同じ17テストを修正後コードで再実行し全件pass。影響範囲95件とtypecheckもpassした。",
+        "evidence": {
+          "story_id": "story-g0-authority-bound-execution",
+          "run_id": "2026-09-05T234629Z",
+          "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "evidence_refs": [
+            "tests/server/services/external-runner-company-authority-handoff.test.js",
+            "tests/server/services/automation-run-company-authority-human-approval.test.js"
+          ],
+          "path_id": "g0-company-authority-human-resume",
+          "analyses": []
+        }
+      },
+      {
+        "id": "implementation_complete",
+        "status": "passed",
+        "required": true,
+        "reason": "implementation has produced PR preparation or verification evidence"
+      },
+      {
+        "id": "verification_recorded",
+        "status": "passed",
+        "required": false,
+        "reason": "verification evidence exists"
+      },
+      {
+        "id": "pr_prepare_ready",
+        "status": "passed",
+        "required": true,
+        "reason": "PR summary has no unresolved blockers"
+      },
+      {
+        "id": "pr_created",
+        "status": "pending",
+        "required": true,
+        "reason": "PR has not been created yet"
+      },
+      {
+        "id": "merge_ready",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "PR has not been created yet"
+      },
+      {
+        "id": "merged_or_closed",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "PR has not been created yet"
+      },
+      {
+        "id": "delivery_reconciliation",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "delivery has not been observed"
+      },
+      {
+        "id": "worktree_cleaned",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "managed worktree cleanup is outside this MVP implementation scope"
+      }
+    ],
+    "edges": [
+      {
+        "from": "story_selected",
+        "to": "worktree_created"
+      },
+      {
+        "from": "worktree_created",
+        "to": "branch_bound"
+      },
+      {
+        "from": "branch_bound",
+        "to": "head_bound"
+      },
+      {
+        "from": "head_bound",
+        "to": "implementation_started"
+      },
+      {
+        "from": "implementation_started",
+        "to": "failure_reproduced"
+      },
+      {
+        "from": "failure_reproduced",
+        "to": "failure_localized"
+      },
+      {
+        "from": "failure_localized",
+        "to": "relationship_analysis"
+      },
+      {
+        "from": "relationship_analysis",
+        "to": "preconditions_confirmed"
+      },
+      {
+        "from": "preconditions_confirmed",
+        "to": "root_cause_confirmed"
+      },
+      {
+        "from": "root_cause_confirmed",
+        "to": "regression_test_failed_before_fix"
+      },
+      {
+        "from": "regression_test_failed_before_fix",
+        "to": "root_fix_applied"
+      },
+      {
+        "from": "root_fix_applied",
+        "to": "same_path_reverified"
+      },
+      {
+        "from": "same_path_reverified",
+        "to": "implementation_complete"
+      },
+      {
+        "from": "implementation_complete",
+        "to": "verification_recorded"
+      },
+      {
+        "from": "verification_recorded",
+        "to": "pr_prepare_ready"
+      },
+      {
+        "from": "pr_prepare_ready",
+        "to": "pr_created"
+      },
+      {
+        "from": "pr_created",
+        "to": "merge_ready"
+      },
+      {
+        "from": "merge_ready",
+        "to": "merged_or_closed"
+      },
+      {
+        "from": "merged_or_closed",
+        "to": "delivery_reconciliation"
+      },
+      {
+        "from": "delivery_reconciliation",
+        "to": "worktree_cleaned"
+      }
+    ]
+  },
+  "gate_status": "ready",
+  "blocking_reasons": [],
+  "story_source": {
+    "path": "docs/management/stories/active/story-g0-authority-bound-execution.md",
+    "title": "Story: G0の権限必須承認を実行結果へ束縛する",
+    "found": true,
+    "acceptance_criteria_count": 7
+  },
+  "traceability": {
+    "acceptance_criteria": [],
+    "scenario_clauses": [],
+    "scenario_lineage": null,
+    "accepted_spec_lineage": {
+      "status": "invalid",
+      "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "spec_path": ".vibepro/spec/story-g0-authority-bound-execution/spec.json",
+      "spec_blob_oid": null,
+      "story_path": "docs/management/stories/active/story-g0-authority-bound-execution.md",
+      "story_blob_oid": null,
+      "mapping_source": "accepted_spec",
+      "clause_count": 5,
+      "resolved_clause_count": 0,
+      "reason_codes": [
+        "accepted_spec_not_in_head",
+        "story_not_in_head",
+        "unknown_story_ac",
+        "test_case_missing",
+        "test_ref_missing",
+        "test_pattern_missing"
+      ],
+      "failures": [
+        {
+          "clause_id": "C-001",
+          "reason_codes": [
+            "unknown_story_ac",
+            "test_case_missing"
+          ]
+        },
+        {
+          "clause_id": "C-002",
+          "reason_codes": [
+            "unknown_story_ac",
+            "test_case_missing"
+          ]
+        },
+        {
+          "clause_id": "C-003",
+          "reason_codes": [
+            "unknown_story_ac",
+            "test_case_missing"
+          ]
+        },
+        {
+          "clause_id": "C-004",
+          "reason_codes": [
+            "unknown_story_ac",
+            "test_case_missing"
+          ]
+        },
+        {
+          "clause_id": "INV-001",
+          "reason_codes": [
+            "unknown_story_ac",
+            "test_ref_missing",
+            "test_pattern_missing"
+          ]
+        }
+      ]
+    },
+    "summary": {
+      "clause_count": 0,
+      "acceptance_criteria_count": 0,
+      "scenario_clause_count": 0,
+      "mapped_count": 0,
+      "weakly_mapped_count": 0,
+      "unmapped_count": 0,
+      "scenario_lineage": null,
+      "examples": []
+    }
+  }
+}

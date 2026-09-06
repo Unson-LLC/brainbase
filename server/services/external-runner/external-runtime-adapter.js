@@ -240,6 +240,7 @@ export class ExternalRuntimeAdapter {
                     prompt: actionableText || null,
                     approval_reason: step.approval_reason || null,
                     evidence_refs: step.evidence_refs || [],
+                    ...(step.company_authority_required === true ? { company_authority_required: true } : {}),
                     ...(handoffDigest ? { company_authority_handoff_digest: handoffDigest } : {})
                 }
             };

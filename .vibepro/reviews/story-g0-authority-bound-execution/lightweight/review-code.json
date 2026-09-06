@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-g0-authority-bound-execution",
+  "role": "code",
+  "status": "pass",
+  "summary": "receiptとstep承認のtransaction原子性、実サービスでのmarker欠落fail-closed、handler失敗後のreceipt帰属と再実行拒否を確認。対象・回帰テストにblockingなし。",
+  "recorded_at": "2026-09-05T23:56:17.988Z",
+  "findings": [],
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 4 file(s)",
+    "recorded_head_sha": null,
+    "surface_files": [
+      {
+        "path": "server/services/automation-run/automation-run-service.js",
+        "sha256": "f38573bee5b8b887d2751125809c93c9a18d733c8bc8ee20f27f468c5152f72b",
+        "size": 46371
+      },
+      {
+        "path": "server/services/workflow/workflow-runner.js",
+        "sha256": "93b9546a6d4b64f12199da0c05e2690af07bb41cec0e6ec2cb61b865ed2fd2a6",
+        "size": 22652
+      },
+      {
+        "path": "tests/server/services/automation-run-company-authority-human-approval.test.js",
+        "sha256": "1cae0610191283da2afffb7c73b1ac8be3f0243b6c3ef848ead74f80d49cd740",
+        "size": 16773
+      },
+      {
+        "path": "tests/server/services/multitenant/company-authority-human-approval-service.test.js",
+        "sha256": "bd1b1a1fdc1e9c97160162f16d9a6b396e098de6ecf8c11e2f38fe65d315f64f",
+        "size": 13942
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "621fb065b10fd69b0be847c1f80840f10a59a726269f3c478240891df05d61eb"
+  },
+  "reviewer": {
+    "system": "codex",
+    "id": "audit_g0_tests"
+  }
+}

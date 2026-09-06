@@ -1,6 +1,9 @@
+import { generateKeyPairSync } from 'node:crypto';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { AutomationRunService } from '../../../server/services/automation-run/automation-run-service.js';
+import { CompanyAuthorityHumanApprovalService } from '../../../server/services/multitenant/company-authority-human-approval-service.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 
@@ -15,7 +18,7 @@ const workflow = {
     hitl_policy: 'none'
 };
 
-function seedWaitingRun(repository, { marker = undefined } = {}) {
+function seedWaitingRun(repository, { marker = undefined, authorityRequired = false } = {}) {
     repository.createRun({
         id: 'run-company-authority',
         workspace_id: workflow.workspace_id,
@@ -36,8 +39,11 @@ function seedWaitingRun(repository, { marker = undefined } = {}) {
         workflow_id: workflow.id,
         requested_by: 'requester',
         requested_to: 'approver',
-        ...(marker === undefined ? {} : {
-            metadata: { company_authority_human_approval: marker }
+        ...((marker === undefined && !authorityRequired) ? {} : {
+            metadata: {
+                ...(authorityRequired ? { company_authority_required: true } : {}),
+                ...(marker === undefined ? {} : { company_authority_human_approval: marker })
+            }
         })
     });
 }
@@ -49,7 +55,13 @@ function makeService({ companyAuthorityHumanApprovalService = null, events = [] 
         handlers: {
             [workflow.implementation_key]: vi.fn(async (context) => {
                 events.push({ type: 'handler', actorId: context.actorId });
-                return { status: 'success', closureState: 'closed', message: 'resumed' };
+                return {
+                    status: 'success',
+                    closureState: 'closed',
+                    message: 'resumed',
+                    outputCount: 1,
+                    data: { effect: 'completed' }
+                };
             })
         }
     });
@@ -120,6 +132,195 @@ describe('AutomationRunService Company Authority human approval wiring', () => {
             expect.objectContaining({ actorId: 'approver' }),
             expect.objectContaining({ id: workflow.id })
         );
+        expect(repository.listOutputs(result.resumed_run.id)).toEqual([
+            expect.objectContaining({
+                metadata: {
+                    output_count: 1,
+                    company_authority_approval_receipt_id: 'cahapr_integration',
+                    source_human_step_id: 'human-company-authority'
+                }
+            })
+        ]);
+
+        await expect(service.resolveHumanStep(
+            'human-company-authority',
+            { resolution: 'approved' },
+            { person_id: 'approver' }
+        )).rejects.toMatchObject({ statusCode: 409 });
+        expect(approval.resolve).toHaveBeenCalledTimes(1);
+        expect(runner.handlers[workflow.implementation_key]).toHaveBeenCalledTimes(1);
+        expect(repository.listOutputs(result.resumed_run.id)).toHaveLength(1);
+    });
+
+    it('必須stepのmarkerが欠落してもCompany Authorityを迂回しない', async () => {
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+        const producer = {
+            resolve: vi.fn(),
+            signingKey: {
+                key_id: 'company-authority-missing-marker-test-key',
+                private_key: privateKey,
+                public_key: publicKey
+            }
+        };
+        const repository = new InMemoryWorkflowRepository({ seedWorkflows: [workflow] });
+        const approval = new CompanyAuthorityHumanApprovalService({
+            repository,
+            companyAuthorityContextProducer: producer
+        });
+        const runner = new WorkflowRunner({
+            repository,
+            handlers: {
+                [workflow.implementation_key]: vi.fn(async () => ({ status: 'success' }))
+            }
+        });
+        const service = new AutomationRunService({
+            repository,
+            runner,
+            ensureDefaultWorkflows: async () => {},
+            prepareProjectAccess: async () => {},
+            assertProjectSelectable: async () => {},
+            assertProjectAccess: () => {},
+            assertHumanStepAccess: () => {},
+            companyAuthorityHumanApprovalService: approval
+        });
+        seedWaitingRun(repository, { authorityRequired: true });
+
+        await expect(service.resolveHumanStep(
+            'human-company-authority',
+            { resolution: 'approved' },
+            { person_id: 'approver' }
+        )).rejects.toMatchObject({
+            code: 'company_authority_human_approval_unavailable',
+            statusCode: 503
+        });
+
+        expect(producer.resolve).not.toHaveBeenCalled();
+        expect(repository.getHumanStep('human-company-authority')).toMatchObject({ status: 'pending' });
+        expect(runner.handlers[workflow.implementation_key]).not.toHaveBeenCalled();
+        expect(repository.listOutputs()).toHaveLength(0);
+        expect(repository.listCompanyAuthorityApprovalReceipts()).toHaveLength(0);
+    });
+
+    it('receipt消費とstep承認を同じtransactionでrollbackする', async () => {
+        const approval = {
+            isBound: vi.fn(() => true),
+            resolve: vi.fn()
+        };
+        const { repository, runner, service } = makeService({ companyAuthorityHumanApprovalService: approval });
+        approval.resolve.mockImplementation(async ({ step, actor }) => repository.transaction(() => {
+            repository.createCompanyAuthorityApprovalReceipt({
+                id: 'cahapr-atomic',
+                human_step_id: step.id,
+                tenant_id: 'tenant-a',
+                binding_digest: 'digest',
+                receipt: { receipt_id: 'cahapr-atomic' }
+            });
+            const consumed = repository.consumeCompanyAuthorityApprovalReceipt('cahapr-atomic', {
+                consumed_at: '2026-09-05T00:00:00.000Z',
+                consumed_by: actor.person_id
+            });
+            return {
+                receipt: consumed.receipt,
+                consumed_at: consumed.consumed_at,
+                consumed_by: consumed.consumed_by,
+                fresh_context: { tenant_context: { tenant: { tenant_id: 'tenant-a' } } }
+            };
+        }));
+        seedWaitingRun(repository, { marker: { schema_version: '1.0' } });
+        const originalUpdate = repository.updateHumanStep.bind(repository);
+        vi.spyOn(repository, 'updateHumanStep').mockImplementation((stepId, patch) => {
+            if (patch.status === 'approved') throw new Error('injected step persistence failure');
+            return originalUpdate(stepId, patch);
+        });
+
+        await expect(service.resolveHumanStep(
+            'human-company-authority',
+            { resolution: 'approved' },
+            { person_id: 'approver' }
+        )).rejects.toThrow('injected step persistence failure');
+
+        expect(repository.getHumanStep('human-company-authority')).toMatchObject({ status: 'pending' });
+        expect(repository.listCompanyAuthorityApprovalReceipts()).toHaveLength(0);
+        expect(runner.handlers[workflow.implementation_key]).not.toHaveBeenCalled();
+    });
+
+    it('権限承認に束縛された失敗runはreceipt帰属を保持し、汎用rerunを拒否する', async () => {
+        const approval = {
+            isBound: vi.fn(() => true),
+            resolve: vi.fn(async ({ actor }) => ({
+                receipt: { receipt_id: 'cahapr-failed-run' },
+                consumed_at: '2026-09-05T00:00:00.000Z',
+                consumed_by: actor.person_id,
+                fresh_context: { tenant_context: { tenant: { tenant_id: 'tenant-a' } } }
+            }))
+        };
+        const { repository, runner, service } = makeService({ companyAuthorityHumanApprovalService: approval });
+        seedWaitingRun(repository, { marker: { schema_version: '1.0' } });
+        runner.handlers[workflow.implementation_key] = vi.fn(async () => {
+            throw new Error('external effect state is unknown');
+        });
+
+        const result = await service.resolveHumanStep(
+            'human-company-authority',
+            { resolution: 'approved' },
+            { person_id: 'approver', projectCodes: [workflow.project_id] }
+        );
+
+        expect(result.resumed_run).toMatchObject({
+            status: 'failed',
+            company_authority_approval_receipt_id: 'cahapr-failed-run',
+            source_human_step_id: 'human-company-authority'
+        });
+        await expect(service.rerun(result.resumed_run.id, {}, {
+            person_id: 'approver',
+            projectCodes: [workflow.project_id]
+        })).rejects.toMatchObject({
+            code: 'company_authority_approved_run_rerun_forbidden',
+            statusCode: 409
+        });
+        expect(runner.handlers[workflow.implementation_key]).toHaveBeenCalledTimes(1);
+        expect(repository.listOutputs(result.resumed_run.id)).toHaveLength(0);
+    });
+
+    it('権限承認後にworkflow lockが競合してもskipped runへreceipt帰属を保持し、汎用rerunを拒否する', async () => {
+        const approval = {
+            isBound: vi.fn(() => true),
+            resolve: vi.fn(async ({ actor }) => ({
+                receipt: { receipt_id: 'cahapr-skipped-run' },
+                consumed_at: '2026-09-05T00:00:00.000Z',
+                consumed_by: actor.person_id,
+                fresh_context: { tenant_context: { tenant: { tenant_id: 'tenant-a' } } }
+            }))
+        };
+        const { repository, runner, service } = makeService({ companyAuthorityHumanApprovalService: approval });
+        seedWaitingRun(repository, { marker: { schema_version: '1.0' } });
+        repository.acquireWorkflowLock({
+            workspace_id: workflow.workspace_id,
+            workflow_id: workflow.id,
+            locked_by: 'run-already-running',
+            ttl_ms: 300000
+        });
+
+        const result = await service.resolveHumanStep(
+            'human-company-authority',
+            { resolution: 'approved' },
+            { person_id: 'approver', projectCodes: [workflow.project_id] }
+        );
+
+        expect(result.resumed_run).toMatchObject({
+            status: 'skipped',
+            company_authority_approval_receipt_id: 'cahapr-skipped-run',
+            source_human_step_id: 'human-company-authority'
+        });
+        await expect(service.rerun(result.resumed_run.id, {}, {
+            person_id: 'approver',
+            projectCodes: [workflow.project_id]
+        })).rejects.toMatchObject({
+            code: 'company_authority_approved_run_rerun_forbidden',
+            statusCode: 409
+        });
+        expect(runner.handlers[workflow.implementation_key]).not.toHaveBeenCalled();
+        expect(repository.listOutputs(result.resumed_run.id)).toHaveLength(0);
     });
 
     it('通常のhuman stepはCompany Authority serviceを通らず従来どおりresumeする', async () => {

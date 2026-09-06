@@ -1,0 +1,83 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-g0-authority-bound-execution",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "lifecycle": "final",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "company_authority_required=true のhuman stepはCompany Authority handoffなしで保存しない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
+        "code_refs": [
+          { "file": "server/services/external-runner/contract-schema.js", "anchor": "validateHumanSteps" },
+          { "file": "server/services/external-runner/external-runtime-adapter.js", "anchor": "humanSteps" }
+        ],
+        "test_refs": [{ "file": "tests/server/services/external-runner-company-authority-handoff.test.js", "case": "required Company Authority step without a handoff" }]
+      }
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "権限必須stepはmarker欠落時も通常承認へ縮退せず、検証済みreceiptなしでworkflowを再開しない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
+        "code_refs": [{ "file": "server/services/automation-run/automation-run-service.js", "anchor": "resolveHumanStep" }],
+        "test_refs": [{ "file": "tests/server/services/automation-run-company-authority-human-approval.test.js", "case": "必須stepのmarkerが欠落してもCompany Authorityを迂回しない" }]
+      }
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "承認後handlerのoutputを承認receipt IDと元human step IDへ結び付け、再承認で重複生成しない。",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "ac_id": "AC-003" },
+          { "kind": "acceptance_criteria", "ac_id": "AC-004" }
+        ],
+        "code_refs": [{ "file": "server/services/workflow/workflow-runner.js", "anchor": "createOutput" }],
+        "test_refs": [{ "file": "tests/server/services/automation-run-company-authority-human-approval.test.js", "case": "marker付きstepだけapproval receiptを検証" }]
+      }
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "承認後の失敗、時間切れ、workflow lock競合でも再開runにreceipt帰属を残し、汎用rerunを拒否する。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
+        "code_refs": [
+          { "file": "server/services/workflow/workflow-runner.js", "anchor": "runWorkflow" },
+          { "file": "server/services/automation-run/automation-run-service.js", "anchor": "rerun" }
+        ],
+        "test_refs": [
+          { "file": "tests/server/services/automation-run-company-authority-human-approval.test.js", "case": "権限承認に束縛された失敗run" },
+          { "file": "tests/server/services/automation-run-company-authority-human-approval.test.js", "case": "workflow lockが競合してもskipped run" }
+        ]
+      }
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "agent_reportの取り込み済みoutputは承認後実行成果物として扱わない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "scope" }],
+        "code_refs": [
+          { "file": "server/services/external-runner/ingest-service.js", "anchor": "normalized.outputs" },
+          { "file": "server/services/automation-run/automation-run-service.js", "anchor": "isApprovalOnlyIngestWorkflow" }
+        ]
+      }
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q-001",
+      "question": "本番G0完了に使う権限必須の業務handlerと外部読戻し対象を決める。",
+      "owner": "brainbase-program",
+      "status": "open"
+    }
+  ]
+}

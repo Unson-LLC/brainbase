@@ -164,6 +164,26 @@ function validateHumanSteps(payload) {
     const allSteps = validateOptionalArray(payload.human_steps, 'human_steps');
     allSteps.forEach((step, index) => {
         requireObject(step, `human_steps[${index}]`);
+        if (
+            Object.prototype.hasOwnProperty.call(step, 'company_authority_required')
+            && typeof step.company_authority_required !== 'boolean'
+        ) {
+            throw new ExternalRunnerContractError(
+                'invalid_boolean',
+                `human_steps[${index}].company_authority_required must be a boolean`,
+                { path: `human_steps[${index}].company_authority_required` }
+            );
+        }
+        if (
+            step.company_authority_required === true
+            && (step.company_authority_handoff === undefined || step.company_authority_handoff === null)
+        ) {
+            throw new ExternalRunnerContractError(
+                'missing_company_authority_human_approval_handoff',
+                `human_steps[${index}] requires company_authority_handoff`,
+                { index }
+            );
+        }
         if (Object.prototype.hasOwnProperty.call(step, 'company_authority_handoff')) {
             if (!APPROVAL_REQUIRED_STATUSES.has(status)) {
                 throw new ExternalRunnerContractError(
