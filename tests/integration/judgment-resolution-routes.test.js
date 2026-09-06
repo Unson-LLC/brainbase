@@ -55,7 +55,7 @@ function bindingHeaders(payload, issuedAt = NOW.toISOString()) {
     };
 }
 
-function app({ access, service, receiptWriter } = {}) {
+function app({ access, service, receiptWriter, resolveReceiptAccess } = {}) {
     const value = express();
     value.use(express.json());
     value.use((req, _res, next) => {
@@ -68,7 +68,7 @@ function app({ access, service, receiptWriter } = {}) {
         }),
         bindingSecret: SECRET,
         now: () => NOW,
-        receiptWriter
+        receiptWriter, resolveReceiptAccess
     }));
     return value;
 }
@@ -144,6 +144,32 @@ describe('judgment resolution API', () => {
             .set(bindingHeaders(payload)).send(payload);
 
         expect(response.status).toBe(200);
+        expect(receiptWriter.record).not.toHaveBeenCalled();
+    });
+
+    it('保存用accessだけを選択し元の判断主体を変更しない', async () => {
+        const access = { personId: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] };
+        const selected = { ...access, tenantId: 'target', organizationId: 'target' };
+        const resolveReceiptAccess = vi.fn().mockResolvedValue(selected);
+        const receiptWriter = { record: vi.fn() };
+        const payload = body();
+        await request(app({ access, receiptWriter, resolveReceiptAccess })).post('/api/judgment/resolve')
+            .set(bindingHeaders(payload)).send(payload).expect(200);
+        expect(receiptWriter.record.mock.calls[0][1]).toBe(selected);
+        expect(access.tenantId).toBe('unson');
+    });
+
+    it.each([
+        ['judgment_receipt_access_denied', 403],
+        ['database_unavailable', 503]
+    ])('保存先の検証エラー%sを秘密情報なしで返す', async (code, status) => {
+        const receiptWriter = { record: vi.fn() };
+        const resolveReceiptAccess = vi.fn().mockRejectedValue(Object.assign(new Error('secret'), { code }));
+        const payload = body();
+        const response = await request(app({ receiptWriter, resolveReceiptAccess })).post('/api/judgment/resolve')
+            .set(bindingHeaders(payload)).send(payload).expect(status);
+        expect(response.body.error.code).toBe(status === 403 ? code : 'judgment_receipt_persistence_unavailable');
+        expect(JSON.stringify(response.body)).not.toContain('secret');
         expect(receiptWriter.record).not.toHaveBeenCalled();
     });
 

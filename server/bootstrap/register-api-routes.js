@@ -14,6 +14,7 @@ import { createOnboardingRouter } from '../routes/onboarding.js';
 import { createKnowledgeResolutionRouter } from '../routes/knowledge-resolution.js';
 import { createKnowledgeEventRouter } from '../routes/knowledge-events.js';
 import { createJudgmentResolutionRouter } from '../routes/judgment-resolution.js';
+import { createJudgmentReceiptAccessResolver } from '../services/judgment-receipt/judgment-receipt-access.js';
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
 import { createRunReceiptRouter } from '../routes/run-receipts.js';
@@ -122,7 +123,10 @@ export function registerJudgmentResolutionApiRoute(app, {
     app.use(
         '/api/judgment',
         requireAuth(authService, { allowInsecureHeaders: false }),
-        createJudgmentResolutionRouter({ service, bindingSecret, now, maxAgeMs, maxFutureSkewMs, receiptWriter })
+        createJudgmentResolutionRouter({
+            service, bindingSecret, now, maxAgeMs, maxFutureSkewMs, receiptWriter,
+            resolveReceiptAccess: createJudgmentReceiptAccessResolver({ authService })
+        })
     );
 }
 

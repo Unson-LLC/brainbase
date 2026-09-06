@@ -58,6 +58,14 @@ For runtime 2.4 implement/operate episodes, the answer contains no Stop state. T
 
 Orphan PostToolUse events are not attached to an episode; each leaves a digest-only orphan marker and visible warning without consuming the Stop repair state. A true orphan Stop cannot create a complete episode or reconstruct the pre-generation route. It writes a digest-only diagnostic, requests one exact degraded-warning/body-preservation repair, then converges to an immutable non-final `audit_degraded` receipt. That receipt is not completion, retrieval success, prior finalized judgment, or action authorization. Missing identity and integrity conflicts remain terminal failures.
 
+### 保存先組織と既存権限
+
+`story-judgment-owner-audit-visibility-v1:AC-008` に対応する。保存するprojectが認証scope内にあることを確認し、`projects.organization_id` を正規の保存先として取得する。同じ組織なら既存accessを保つ。組織が異なる場合はBearer認証に限り、対象組織・Slack user・Slack workspace・person・対象projectがすべて一致する有効な `auth_grants` が一件だけ存在することを確認する。
+
+保存専用のaccessは対象組織と対象projectだけを持ち、roleは元の認証とgrantの低い方、clearanceは共通部分とする。元のreq.access、JWT、セッション、所属、権限行、RLSを変更しない。Cookie・service token・内部認証による暗黙の組織越境、権限なし・複数候補・不明な所属は403で拒否する。DB障害は従来の秘密情報を含まない503を維持する。
+
+正規所属・本人・workspace・project scopeの一致と不一致、非Bearer、権限昇格防止、同一組織の互換性、403/503の区別を回帰テストで検証する。
+
 ## 3. Canonical Resolver input
 
 The public request contains only `request`, `turn_id`, optional `project_code`, and required `conversation_context` using `brainbase-conversation-context-v1`. Context preserves ordered exact user/assistant text, current request exactly once, prior complete episode projections, runtime/project binding, repo-relative instruction digests, completeness, and `source_digest`.

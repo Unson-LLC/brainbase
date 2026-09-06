@@ -95,7 +95,8 @@ export function createJudgmentResolutionRouter({
     now,
     maxAgeMs,
     maxFutureSkewMs,
-    receiptWriter
+    receiptWriter,
+    resolveReceiptAccess
 }) {
     const router = Router();
     router.post('/resolve', async (req, res) => {
@@ -115,8 +116,16 @@ export function createJudgmentResolutionRouter({
             if (mayPersist) {
                 try {
                     if (typeof receiptWriter.record !== 'function') throw new Error('receipt writer is invalid');
-                    await receiptWriter.record(receipt, access);
-                } catch {
+                    const receiptAccess = resolveReceiptAccess
+                        ? await resolveReceiptAccess({ access, projectCode: receipt.project_code, authSource: req.authSource })
+                        : access;
+                    await receiptWriter.record(receipt, receiptAccess);
+                } catch (error) {
+                    if (error?.code === 'judgment_receipt_access_denied') {
+                        throw new JudgmentResolutionError(
+                            'judgment_receipt_access_denied', 'The authenticated actor cannot access this judgment receipt', 403
+                        );
+                    }
                     throw new JudgmentResolutionError(
                         'judgment_receipt_persistence_unavailable', 'Judgment receipt persistence is unavailable', 503
                     );

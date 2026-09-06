@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { registerJudgmentResolutionApiRoute } from '../../../server/bootstrap/register-api-routes.js';
 import { csrfMiddleware } from '../../../server/middleware/csrf.js';
+import { AuthService } from '../../../server/services/auth-service.js';
 import { canonicalJson, computeRequestDigest } from '../../../server/services/judgment-resolution-service.js';
 
 const secret = 'registration-secret';
@@ -30,23 +31,25 @@ function headers() {
     };
 }
 
-function createApp({ receiptWriter } = {}) {
+function createApp({ receiptWriter, authService: authServiceOverride } = {}) {
     const resolve = vi.fn((input) => ({
         resolution_id: 'jr_registered', status: 'resolved', turn_id: input.turn_id, project_code: input.project_code
     }));
+    const authService = authServiceOverride || {
+        pool: { query: vi.fn().mockResolvedValue({ rows: [{ organization_id: 'unson' }] }) },
+        verifyToken: vi.fn((token) => {
+            if (token !== 'test-token') throw new Error('invalid token');
+            return { sub: 'person_owner', tenantId: 'unson', role: 'ceo', projectCodes: ['brainbase'] };
+        })
+    };
     const app = express();
     app.use(express.json());
     app.use(csrfMiddleware());
     registerJudgmentResolutionApiRoute(app, {
-        authService: {
-            verifyToken: vi.fn((token) => {
-                if (token !== 'test-token') throw new Error('invalid token');
-                return { sub: 'person_owner', tenantId: 'unson', role: 'ceo', projectCodes: ['brainbase'] };
-            })
-        },
+        authService,
         service: { resolve, hasHostBinding: vi.fn(() => true) }, bindingSecret: secret, now: () => now, receiptWriter
     });
-    return { app, resolve };
+    return { app, resolve, authService };
 }
 
 describe('judgment resolution production API registration', () => {
@@ -101,5 +104,53 @@ describe('judgment resolution production API registration', () => {
             expect.objectContaining({ resolution_id: 'jr_registered', project_code: 'brainbase' }),
             expect.objectContaining({ personId: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] })
         );
+    });
+
+    it('登録済みrouterがbearerのtarget project grantだけを保存用accessへ反映する', async () => {
+        const receiptWriter = { record: vi.fn().mockResolvedValue(undefined) };
+        const pool = {
+            query: vi.fn()
+                .mockResolvedValueOnce({ rows: [{ organization_id: 'techknight' }] })
+                .mockResolvedValueOnce({ rows: [{
+                    organization_id: 'techknight',
+                    person_id: 'person_owner',
+                    slack_user_id: 'U_OWNER',
+                    slack_workspace_id: 'T_UNSON',
+                    role: 'ceo',
+                    project_codes: ['brainbase'],
+                    clearance: ['internal', 'restricted']
+                }] })
+        };
+        const authService = Object.create(AuthService.prototype);
+        authService.pool = pool;
+        authService.verifyToken = vi.fn((token) => {
+            if (token !== 'test-token') throw new Error('invalid token');
+            return {
+                sub: 'person_owner', tenantId: 'unson', role: 'member', projectCodes: ['brainbase'],
+                clearance: ['internal', 'finance'], slackUserId: 'U_OWNER', slackWorkspaceId: 'T_UNSON'
+            };
+        });
+        const { app, resolve } = createApp({ receiptWriter, authService });
+
+        const response = await request(app).post('/api/judgment/resolve')
+            .set('authorization', 'Bearer test-token').set(headers()).send(payload).expect(200);
+
+        expect(response.body).toMatchObject({ resolution_id: 'jr_registered', project_code: 'brainbase' });
+        expect(resolve.mock.calls[0][1]).toMatchObject({
+            access: {
+                tenantId: 'unson', projectCodes: ['brainbase'], role: 'member', personId: 'person_owner'
+            }
+        });
+        expect(receiptWriter.record).toHaveBeenCalledWith(
+            expect.objectContaining({ resolution_id: 'jr_registered', project_code: 'brainbase' }),
+            {
+                personId: 'person_owner', role: 'member', projectCodes: ['brainbase'], clearance: ['internal'],
+                organizationId: 'techknight', tenantId: 'techknight', slackUserId: 'U_OWNER', slackWorkspaceId: 'T_UNSON'
+            }
+        );
+        expect(pool.query).toHaveBeenCalledTimes(2);
+        expect(pool.query.mock.calls[1][1]).toEqual([
+            'techknight', 'U_OWNER', 'T_UNSON', 'person_owner', 'brainbase'
+        ]);
     });
 });
