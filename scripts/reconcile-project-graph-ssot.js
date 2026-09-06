@@ -35,11 +35,14 @@ export function classifyProjectBinding(row) {
     const candidates = (Array.isArray(row?.candidates) ? row.candidates : [])
         .filter((candidate) => candidate.lifecycle_status !== 'merged');
     const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+    const isLegacyCodeCandidate = (candidate) => candidate.id !== row.project_code
+        && !text(candidate.payload?.catalog_project_id)
+        && text(candidate.payload?.code) === row.project_code;
     const linked = text(row?.graph_entity_id);
     if (linked && byId.has(linked)) {
         const remaining = candidates.filter((candidate) => candidate.id !== linked);
-        const mergeable = remaining.filter((candidate) => candidate.id === row.scope_id);
-        const conflicts = remaining.filter((candidate) => candidate.id !== row.scope_id)
+        const mergeable = remaining.filter((candidate) => candidate.id === row.scope_id || isLegacyCodeCandidate(candidate));
+        const conflicts = remaining.filter((candidate) => !mergeable.includes(candidate))
             .map((candidate) => candidate.id).sort();
         if (conflicts.length) {
             return { action: 'ambiguous', canonical_entity_id: linked, merge_entity_ids: [], conflicts };
@@ -52,8 +55,8 @@ export function classifyProjectBinding(row) {
     const exact = byId.get(row.project_code);
     if (exact) {
         const remaining = candidates.filter((candidate) => candidate.id !== exact.id);
-        const mergeable = remaining.filter((candidate) => candidate.id === row.scope_id);
-        const conflicts = remaining.filter((candidate) => candidate.id !== row.scope_id).map((candidate) => candidate.id).sort();
+        const mergeable = remaining.filter((candidate) => candidate.id === row.scope_id || isLegacyCodeCandidate(candidate));
+        const conflicts = remaining.filter((candidate) => !mergeable.includes(candidate)).map((candidate) => candidate.id).sort();
         if (conflicts.length) {
             return { action: 'ambiguous', canonical_entity_id: exact.id, merge_entity_ids: [], conflicts };
         }
@@ -64,6 +67,12 @@ export function classifyProjectBinding(row) {
     }
     if (candidates.length === 0) {
         return { action: 'create_canonical', canonical_entity_id: row.project_code, merge_entity_ids: [], conflicts: [] };
+    }
+    if (candidates.every(isLegacyCodeCandidate)) {
+        return {
+            action: 'create_canonical', canonical_entity_id: row.project_code,
+            merge_entity_ids: candidates.map((candidate) => candidate.id).sort(), conflicts: []
+        };
     }
     if (candidates.length === 1 && candidates[0].id === row.scope_id) {
         return {
@@ -182,7 +191,9 @@ async function mergeLegacyEntity(client, legacyId, canonicalId) {
     }
     await client.query(
         `UPDATE graph_entities SET lifecycle_status='merged',
-                payload=payload || jsonb_build_object('canonical_entity_id',$2,'merged_by',$3),
+                payload=payload || jsonb_build_object(
+                  'canonical_entity_id',$2::text,'merged_by',$3::text
+                ),
                 version=version+1,updated_at=now() WHERE id=$1`,
         [legacyId, canonicalId, MIGRATION_ID]
     );
