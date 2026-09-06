@@ -1160,6 +1160,76 @@ describe('ExternalRunnerIngestService', () => {
         ]));
     });
 
+    it('treats an identical replay after human approval lifecycle updates as a duplicate', async () => {
+        const { repository, service } = makeService();
+        const payload = makePayload({
+            runner: {
+                type: 'agent_report',
+                external_run_id: 'agent-report-approved-replay',
+                agent_id: 'report-agent',
+                trace_ref: 'agent-report://trace/approved-replay'
+            },
+            run: {
+                project_id: 'brainbase',
+                role_agent_id: 'reporter',
+                workflow_id: 'wf_agent_report_approval',
+                workflow_name: 'Agent report approval',
+                status: 'waiting_human',
+                selected_workflow_reason: '人間承認後に業務結果を確定する'
+            },
+            human_steps: [{
+                id: 'hs-agent-report-approved-replay',
+                step_type: 'approval',
+                prompt: 'Agent reportを承認する'
+            }]
+        });
+
+        const first = await service.ingest(payload);
+        repository.updateHumanStep('hs-agent-report-approved-replay', {
+            status: 'approved',
+            response_ref: 'approval://approved-replay',
+            resolved_at: '2026-09-06T00:00:00.000Z',
+            resolved_by: 'keigo'
+        });
+        repository.updateRun(first.run.id, {
+            status: 'success',
+            closure_state: 'closed',
+            action_required: 'none',
+            human_waiting: false,
+            message: 'Agent report human approvals completed',
+            finished_at: '2026-09-06T00:00:00.000Z'
+        });
+
+        const replay = await service.ingest(payload);
+
+        expect(replay).toMatchObject({
+            status: 'duplicate',
+            run: {
+                id: first.run.id,
+                status: 'success',
+                closure_state: 'closed'
+            }
+        });
+        expect(repository.listRuns({ limit: null })).toHaveLength(1);
+        expect(repository.listHumanSteps(first.run.id)).toEqual([
+            expect.objectContaining({
+                id: 'hs-agent-report-approved-replay',
+                status: 'approved'
+            })
+        ]);
+
+        await expect(service.ingest({
+            ...payload,
+            outputs: [{
+                ...payload.outputs[0],
+                body: '同じrun IDで変更されたAgent report'
+            }]
+        })).rejects.toMatchObject({
+            code: 'duplicate_payload_mismatch'
+        });
+        expect(repository.listRuns({ limit: null })).toHaveLength(1);
+    });
+
     it('serializes concurrent identical ingests across JsonFile repository instances', async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-external-runner-race-'));
         tempDirs.push(dir);
