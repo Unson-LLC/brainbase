@@ -119,7 +119,7 @@ const BRAINBASE_WRITE_TOOL_NAMES = Object.freeze([
     'brainbase_judgment_value_proof_record', 'brainbase_judgment_state_record',
     'brainbase_automation_human_step_resolve', 'brainbase_onboarding_start', 'brainbase_onboarding_ingest',
     'brainbase_onboarding_review', 'brainbase_onboarding_first_value', 'brainbase_knowledge_event_record',
-    'create_task', 'update_task', 'transition_task', 'graph_record_human_gate_receipt',
+    'register_personal_kg', 'create_task', 'update_task', 'transition_task', 'graph_record_human_gate_receipt',
     'graph_plan_mutations', 'graph_apply_plan', 'graph_rollback_plan', 'graph_export_snapshot', 'mesh_query'
 ]);
 export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
@@ -145,7 +145,7 @@ export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
     brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
     brainbase_automation_human_step_resolve: 'published_contract', brainbase_onboarding_start: 'published_contract', brainbase_onboarding_ingest: 'published_contract',
     brainbase_onboarding_review: 'published_contract', brainbase_onboarding_first_value: 'published_contract', brainbase_knowledge_event_record: 'published_contract',
-    create_task: 'task_contract', update_task: 'task_contract', transition_task: 'task_contract', graph_record_human_gate_receipt: 'graph_contract',
+    register_personal_kg: 'published_contract', create_task: 'task_contract', update_task: 'task_contract', transition_task: 'task_contract', graph_record_human_gate_receipt: 'graph_contract',
     graph_plan_mutations: 'graph_contract', graph_apply_plan: 'graph_contract', graph_rollback_plan: 'graph_contract', graph_export_snapshot: 'graph_contract',
     mesh_query: 'mesh_query'
 });
@@ -1567,6 +1567,13 @@ function publishedToolSemanticData(toolName, response, input) {
             const resource = record(item.resource_ref);
             return item.authorized === true && item.entry_point === 'mcp' && nonEmptyString(item.tenant_id)
                 && nonEmptyString(item.tenant_revision_at_write) && nonEmptyString(resource?.object_type) && nonEmptyString(resource?.resource_id);
+        }
+        if (name === 'register_personal_kg') {
+            const event = record(record(input)?.event);
+            return !Object.hasOwn(item, 'error')
+                && ['event_id', 'owner_person_id', 'organization_id', 'body_hash'].every((key) => nonEmptyString(item[key]))
+                && nonEmptyString(event?.body_hash) && item.body_hash === event.body_hash
+                && (!event.event_id || item.event_id === event.event_id);
         }
         if (name === 'mesh_query') return nonEmptyString(item.queryId) && item.status === 'sent';
         if (item.status !== 'ok') return false;
