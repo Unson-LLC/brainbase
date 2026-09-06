@@ -52,17 +52,19 @@ describe('VibePro Minimal Core distribution contract', () => {
     }
   });
 
-  it('keeps Architecture, Graphify, review, and PR authority conditional', () => {
+  it('keeps installed Graphify lightweight and Architecture, review, and PR authority conditional', () => {
     const agents = read('AGENTS.md');
     const workflow = read('.claude/skills/vibepro-workflow/SKILL.md');
     const review = read('.claude/skills/vibepro-human-review/SKILL.md');
     const refactor = read('.claude/skills/vibepro-story-refactor/SKILL.md');
     expect(agents).toContain('Architecture is not a mandatory ceremony for every Story.');
-    expect(agents).toContain('Graphify is optional.');
+    expect(agents).toContain('For every implementation regardless of size, use the lightweight Graphify lookup');
+    expect(agents).toContain('Reuse unchanged results; update or deepen only when needed.');
+    expect(agents).toContain('Do not add a PR gate.');
     expect(agents).toContain('including `gh pr create` where that is the repository convention');
     expect(workflow).toContain('Legacy Gate, readiness, lifecycle, and stale-review projections are informational and cannot block the PR.');
     expect(review).toContain('VibePro does not replace human or policy authority.');
-    expect(refactor).toContain('Architecture, Graphify, Task artifacts, Gates, and special PR creation are conditional rather than mandatory ceremonies.');
+    expect(refactor).toContain('Architecture, Task artifacts, Gates, and special PR creation are conditional rather than mandatory ceremonies.');
   });
 
   it('runs this contract test whenever distributed VibePro instructions change', () => {
