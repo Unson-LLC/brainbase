@@ -439,6 +439,7 @@ export class AutomationRunService {
                 after: {
                     human_step_id: step.id,
                     task_ids: materialization.task_ids || [],
+                    operation_refs: materialization.operation_refs || [],
                     status: materialization.status || 'completed'
                 }
             });
@@ -732,9 +733,7 @@ export class AutomationRunService {
         ) {
             return this._resolveWithCheckpoint(initialStep, input, actor);
         }
-        const materialization = approvedResolution && materializationEnabled
-            ? await this._materializeCanonicalTaskApproval(initialStep, input, actor)
-            : null;
+        let materialization = null;
         const resolvedStatus = approvedResolution ? 'approved' : resolution;
         const mutation = await this._transaction(async () => {
             const step = this.repository.getHumanStep(stepId);
@@ -758,6 +757,9 @@ export class AutomationRunService {
                         { code: 'company_authority_human_approval_invalid', statusCode: 503 }
                     );
                 }
+            }
+            if (approvedResolution && materializationEnabled) {
+                materialization = await this._materializeCanonicalTaskApproval(step, input, actor);
             }
             const resolved = this.repository.updateHumanStep(stepId, {
                 status: resolvedStatus,
@@ -840,12 +842,17 @@ export class AutomationRunService {
                 const rejectedHumanSteps = allHumanSteps.filter((humanStep) => isRejectedHumanStepStatus(humanStep.status));
                 const allApproved = allHumanSteps.length > 0 && approvedHumanSteps.length === allHumanSteps.length;
                 const hasRejectedStep = rejectedHumanSteps.length > 0 || previousRun.status === 'cancelled';
+                const companyAuthorityRunLink = companyAuthorityApproval ? {
+                    company_authority_approval_receipt_id: companyAuthorityApproval.receipt.receipt_id,
+                    source_human_step_id: stepId
+                } : {};
                 const updatedRun = hasRejectedStep
                     ? this.repository.updateRun(previousRun.id, {
                         status: 'cancelled',
                         closure_state: 'closed',
                         human_waiting: false,
                         action_required: 'none',
+                        ...companyAuthorityRunLink,
                         message: `${approvalLabel} human approvals stopped after rejected gate`,
                         finished_at: new Date().toISOString()
                     })
@@ -854,6 +861,7 @@ export class AutomationRunService {
                         closure_state: allApproved ? 'closed' : 'open',
                         human_waiting: !allApproved,
                         action_required: allApproved ? 'none' : 'approve',
+                        ...companyAuthorityRunLink,
                         message: allApproved
                             ? `${approvalLabel} human approvals completed`
                             : `${approvalLabel} is waiting for ${pendingHumanSteps.length} human approval(s)`,

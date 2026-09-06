@@ -18,7 +18,11 @@ const workflow = {
     hitl_policy: 'none'
 };
 
-function seedWaitingRun(repository, { marker = undefined, authorityRequired = false } = {}) {
+function seedWaitingRun(repository, {
+    marker = undefined,
+    authorityRequired = false,
+    canonicalTask = false
+} = {}) {
     repository.createRun({
         id: 'run-company-authority',
         workspace_id: workflow.workspace_id,
@@ -31,6 +35,18 @@ function seedWaitingRun(repository, { marker = undefined, authorityRequired = fa
         action_required: 'approve',
         started_by: 'requester'
     });
+    if (canonicalTask) {
+        repository.createOutput({
+            id: 'output-company-authority-task',
+            workspace_id: workflow.workspace_id,
+            project_id: workflow.project_id,
+            workflow_id: workflow.id,
+            workflow_run_id: 'run-company-authority',
+            type: 'task_candidates',
+            payload: [{ id: 'candidate-company-authority', title: '権限承認後に作るTask', selected_owner_id: 'approver' }],
+            metadata: { write_back_target: 'task_store' }
+        });
+    }
     return repository.createHumanStep({
         id: 'human-company-authority',
         workspace_id: workflow.workspace_id,
@@ -42,13 +58,21 @@ function seedWaitingRun(repository, { marker = undefined, authorityRequired = fa
         ...((marker === undefined && !authorityRequired) ? {} : {
             metadata: {
                 ...(authorityRequired ? { company_authority_required: true } : {}),
-                ...(marker === undefined ? {} : { company_authority_human_approval: marker })
+                ...(marker === undefined ? {} : { company_authority_human_approval: marker }),
+                ...(canonicalTask ? {
+                    write_back_target: 'task_store',
+                    output_id: 'output-company-authority-task'
+                } : {})
             }
         })
     });
 }
 
-function makeService({ companyAuthorityHumanApprovalService = null, events = [] } = {}) {
+function makeService({
+    companyAuthorityHumanApprovalService = null,
+    canonicalTaskService = null,
+    events = []
+} = {}) {
     const repository = new InMemoryWorkflowRepository({ seedWorkflows: [workflow] });
     const runner = new WorkflowRunner({
         repository,
@@ -73,12 +97,185 @@ function makeService({ companyAuthorityHumanApprovalService = null, events = [] 
         assertProjectSelectable: async () => {},
         assertProjectAccess: () => {},
         assertHumanStepAccess: () => {},
-        companyAuthorityHumanApprovalService
+        companyAuthorityHumanApprovalService,
+        canonicalTaskService
     });
     return { repository, runner, service };
 }
 
 describe('AutomationRunService Company Authority human approval wiring', () => {
+    it('Company Authorityが拒否した場合は正本Taskを作らずpendingを維持する', async () => {
+        const approval = {
+            isBound: vi.fn(() => true),
+            resolve: vi.fn(async () => {
+                throw Object.assign(new Error('approver is not authorized'), {
+                    code: 'company_authority_approver_mismatch',
+                    statusCode: 403
+                });
+            })
+        };
+        const materializeWorkflowApproval = vi.fn(async () => ({
+            status: 'completed',
+            task_ids: ['ct1.must-not-exist'],
+            operation_refs: [],
+            excluded_candidates: [],
+            warnings: [],
+            replayed: false
+        }));
+        const { repository, runner, service } = makeService({
+            companyAuthorityHumanApprovalService: approval,
+            canonicalTaskService: { materializeWorkflowApproval }
+        });
+        seedWaitingRun(repository, {
+            marker: { schema_version: '1.0' },
+            canonicalTask: true
+        });
+
+        await expect(service.resolveHumanStep(
+            'human-company-authority',
+            { resolution: 'approved' },
+            { person_id: 'approver' }
+        )).rejects.toMatchObject({ code: 'company_authority_approver_mismatch' });
+
+        expect(materializeWorkflowApproval).not.toHaveBeenCalled();
+        expect(repository.getHumanStep('human-company-authority')).toMatchObject({ status: 'pending' });
+        expect(runner.handlers[workflow.implementation_key]).not.toHaveBeenCalled();
+    });
+
+    it('Company Authority receiptを消費してから正本Taskを作り、次にworkflowをresumeする', async () => {
+        const events = [];
+        const approval = {
+            isBound: vi.fn(() => true),
+            resolve: vi.fn(async ({ actor }) => {
+                events.push('approval');
+                return {
+                    receipt: { receipt_id: 'cahapr-task-order' },
+                    consumed_at: '2026-09-06T00:00:00.000Z',
+                    consumed_by: actor.person_id,
+                    fresh_context: { tenant_context: { tenant: { tenant_id: 'tenant-a' } } }
+                };
+            })
+        };
+        const materializeWorkflowApproval = vi.fn(async () => {
+            events.push('task');
+            return {
+                status: 'completed',
+                task_ids: ['ct1.company-authority-task'],
+                operation_refs: [{
+                    scope: 'workflow-task-create',
+                    operation_key: 'workflow:output-company-authority-task:fingerprint:1',
+                    task_id: 'ct1.company-authority-task'
+                }],
+                excluded_candidates: [],
+                warnings: [],
+                replayed: false
+            };
+        });
+        const { repository, service } = makeService({
+            companyAuthorityHumanApprovalService: approval,
+            canonicalTaskService: { materializeWorkflowApproval },
+            events: {
+                push(event) {
+                    events.push(typeof event === 'string' ? event : event.type);
+                }
+            }
+        });
+        seedWaitingRun(repository, {
+            marker: { schema_version: '1.0' },
+            canonicalTask: true
+        });
+
+        const result = await service.resolveHumanStep(
+            'human-company-authority',
+            { resolution: 'approved' },
+            { person_id: 'approver' }
+        );
+
+        expect(events).toEqual(['approval', 'task', 'handler']);
+        expect(result).toMatchObject({
+            materialized_task_ids: ['ct1.company-authority-task'],
+            materialization: {
+                operation_refs: [{
+                    scope: 'workflow-task-create',
+                    task_id: 'ct1.company-authority-task'
+                }]
+            },
+            company_authority_approval: {
+                receipt: { receipt_id: 'cahapr-task-order' }
+            },
+            resumed_run: {
+                company_authority_approval_receipt_id: 'cahapr-task-order',
+                source_human_step_id: 'human-company-authority'
+            }
+        });
+    });
+
+    it('approval-only external runにreceipt・human step・Task操作参照を一緒に保存する', async () => {
+        const approvalOnlyWorkflow = {
+            ...workflow,
+            implementation_key: 'external-runner:agent_report'
+        };
+        const repository = new InMemoryWorkflowRepository({ seedWorkflows: [approvalOnlyWorkflow] });
+        const approval = {
+            isBound: vi.fn(() => true),
+            resolve: vi.fn(async ({ actor }) => ({
+                receipt: { receipt_id: 'cahapr-approval-only-task' },
+                consumed_at: '2026-09-06T00:00:00.000Z',
+                consumed_by: actor.person_id,
+                fresh_context: { tenant_context: { tenant: { tenant_id: 'tenant-a' } } }
+            }))
+        };
+        const operationRef = {
+            scope: 'workflow-task-create',
+            operation_key: 'workflow:output-company-authority-task:fingerprint:1',
+            task_id: 'ct1.approval-only-task'
+        };
+        const service = new AutomationRunService({
+            repository,
+            runner: new WorkflowRunner({ repository, handlers: {} }),
+            ensureDefaultWorkflows: async () => {},
+            prepareProjectAccess: async () => {},
+            assertProjectSelectable: async () => {},
+            assertProjectAccess: () => {},
+            assertHumanStepAccess: () => {},
+            companyAuthorityHumanApprovalService: approval,
+            canonicalTaskService: {
+                materializeWorkflowApproval: vi.fn(async () => ({
+                    status: 'completed',
+                    task_ids: [operationRef.task_id],
+                    operation_refs: [operationRef],
+                    excluded_candidates: [],
+                    warnings: [],
+                    replayed: false
+                }))
+            }
+        });
+        seedWaitingRun(repository, {
+            marker: { schema_version: '1.0' },
+            canonicalTask: true
+        });
+
+        const result = await service.resolveHumanStep(
+            'human-company-authority',
+            { resolution: 'approved' },
+            { person_id: 'approver' }
+        );
+
+        expect(result.resumed_run).toMatchObject({
+            id: 'run-company-authority',
+            status: 'success',
+            company_authority_approval_receipt_id: 'cahapr-approval-only-task',
+            source_human_step_id: 'human-company-authority'
+        });
+        expect(result.human_step).toMatchObject({
+            status: 'approved',
+            canonical_task_materialization: {
+                task_ids: ['ct1.approval-only-task'],
+                operation_refs: [operationRef]
+            }
+        });
+    });
+
     it('marker付きstepだけapproval receiptを検証してから、approver実行・original requester保持でresumeする', async () => {
         const events = [];
         const approval = {

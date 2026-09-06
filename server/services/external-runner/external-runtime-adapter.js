@@ -240,6 +240,8 @@ export class ExternalRuntimeAdapter {
                     prompt: actionableText || null,
                     approval_reason: step.approval_reason || null,
                     evidence_refs: step.evidence_refs || [],
+                    ...(step.write_back_target ? { write_back_target: step.write_back_target } : {}),
+                    ...(step.output_id ? { output_id: step.output_id } : {}),
                     ...(step.company_authority_required === true ? { company_authority_required: true } : {}),
                     ...(handoffDigest ? { company_authority_handoff_digest: handoffDigest } : {})
                 }
@@ -253,14 +255,17 @@ export class ExternalRuntimeAdapter {
             project_id: projectId,
             workflow_id: workflowId,
             workflow_run_id: runId,
+            type: output.output_type || output.type || 'artifact',
             output_type: output.output_type || output.type || 'artifact',
             title: output.title || `External runner output ${index + 1}`,
             body: output.body || output.content || '',
+            ...(Array.isArray(output.payload) ? { payload: output.payload } : {}),
             visibility: output.visibility || 'internal',
             approval_required: Boolean(output.approval_required),
             metadata: {
                 evidence_refs: output.evidence_refs || [],
-                runner_output_ref: output.runner_output_ref || null
+                runner_output_ref: output.runner_output_ref || null,
+                ...(output.write_back_target ? { write_back_target: output.write_back_target } : {})
             }
         }));
 
