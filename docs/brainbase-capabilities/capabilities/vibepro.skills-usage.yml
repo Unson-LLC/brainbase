@@ -20,7 +20,7 @@ depends_on:
 visibility_rules:
   - Load vibepro-workflow for Brainbase-managed implement judgments.
   - Use story-refactor or human-review only when the requested work needs that bounded activity.
-  - Architecture and Graphify are conditional, not mandatory ceremonies.
+  - Architecture is conditional; installed Graphify receives a lightweight lookup for every implementation, with reuse and deeper work only when needed.
   - Use the repository's normal GitHub PR, review, CI, and merge authority.
   - Do not require generated review artifacts, Gate state, score, or tool-usage evidence.
 verification:

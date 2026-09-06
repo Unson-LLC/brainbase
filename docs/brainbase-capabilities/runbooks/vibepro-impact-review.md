@@ -1,11 +1,19 @@
-# VibePro Impact Review
+# 改修ごとの軽量な影響確認
 
-Use this runbook only when dependency information from VibePro or Graphify can change the implementation or affected-test decision.
+改修の規模では省略しない。実装の判断DAGは観測後・仮説前にこの手順を渡す。
 
-1. Start from the accepted behavior and the changed code path.
-2. Read the directly affected code and tests.
-3. If the dependency boundary remains unclear, run the smallest useful VibePro or Graphify command.
-4. Use the result to adjust the implementation or affected-test scope.
-5. Stop when the accepted behavior is implemented and the affected tests pass.
+1. 受け入れ条件、対象リポジトリ、変更予定のファイルを特定する。
+2. Brainbaseの次のコマンドで、Graphifyの導入状態と既存グラフの周辺関係を確認する。
 
-Do not create a Graphify section in the PR body merely to prove the tool ran. Generated graphs, command transcripts, scores, and Gate artifacts are optional diagnostics and never merge authority.
+```sh
+node scripts/graphify-impact-context.mjs --repo <対象repo> --file <変更予定の相対パス>
+```
+
+`--file`は複数指定できる。他のrepoを調べる場合、スクリプトはBrainbaseのcheckoutから呼ぶ。必要な場合だけ`--graph <graph.json>`で対象repoに対応するグラフを指定する。
+
+3. 導入済みなら、対象と直接関連するファイルから読むコードとテストを選ぶ。同じ対象・ソース状態・グラフ内容の結果は再利用する。
+4. グラフがない、対象が一致しない、解析範囲が不足する、鮮度が不明、読み取りに失敗した場合は不明として扱う。関連が返っても、最新であることや網羅性を証明したことにはならない。必要な範囲のGraphify更新またはコード確認で補う。
+5. 更新・深い探索は実装やテスト範囲を決める情報が不足するときに限る。毎編集で再生成しない。未導入なら自動導入せずコード探索へ進む。
+6. 変更した振る舞いと影響するテストを確認する。グラフ参照は実動作の検証を代替しない。
+
+結果は出力量を制限した診断情報で、キャッシュはrepo外に置く。切り詰められた結果は全影響範囲ではない。PR本文用の生成物、記載証明、スコア、Gateは要求しない。判断DAGは実行手順を選択するが、CLI成功だけを検証完了やマージ権限にしない。

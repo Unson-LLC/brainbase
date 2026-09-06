@@ -1,6 +1,6 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-2.4.4",
+  "runtime_version": "judgment-runtime-2.4.5",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
@@ -139,6 +139,7 @@
     { "id": "personal-decision", "kind": "judgment", "instruction": "Apply visible owner judgment policies.", "required_capability_template": null },
     { "id": "problem-frame", "kind": "judgment", "instruction": "Test whether the stated problem is only a symptom.", "required_capability_template": null },
     { "id": "observe", "kind": "judgment", "instruction": "Separate observations from explanations.", "required_capability_template": null },
+    { "id": "graphify-impact", "kind": "judgment", "instruction": "Before editing, identify the target repository and files. For every implementation, regardless of change size, run the Brainbase scripts/graphify-impact-context.mjs helper with --repo and repeated --file arguments. When Graphify is installed, consult its existing graph for bounded adjacent dependencies. Reuse only results bound to the same repository, source state, target set, and graph content. Missing, stale, unmatched, partial, or failed graph evidence is unknown, never no impact. Update or deepen only when needed to choose code and affected tests; do not rebuild on every edit, install automatically, or create a PR/merge gate. Follow docs/brainbase-capabilities/runbooks/vibepro-impact-review.md. Graph evidence does not prove runtime correctness.", "required_capability_template": null },
     { "id": "hypothesis", "kind": "judgment", "instruction": "Generate a causal hypothesis.", "required_capability_template": null },
     { "id": "prediction", "kind": "judgment", "instruction": "Derive observable consequences from the hypothesis.", "required_capability_template": null },
     { "id": "falsify", "kind": "judgment", "instruction": "Try the strongest counterexample.", "required_capability_template": null },
@@ -180,6 +181,7 @@
     { "id": "knowledge.v1", "kind": "domain", "path": ["source-intent", "knowledge-handoff"], "policy_ids": [] },
     { "id": "personal-judgment.v1", "kind": "domain", "path": ["goal", "challenge-assumptions", "personal-decision"], "policy_ids": ["global.goal-before-solution.v1", "global.problem-frame-rederive.v1", "owner.sato.hypothesis-loop.v1"] },
     { "id": "engineering.v1", "kind": "domain", "path": ["goal", "problem-frame", "observe", "hypothesis", "prediction", "falsify", "constraints", "generate", "reject", "decide"], "policy_ids": ["global.goal-before-solution.v1", "global.problem-frame-rederive.v1"] },
+    { "id": "engineering-implementation.v1", "kind": "domain", "path": ["goal", "problem-frame", "observe", "graphify-impact", "hypothesis", "prediction", "falsify", "constraints", "generate", "reject", "decide"], "policy_ids": ["global.goal-before-solution.v1", "global.problem-frame-rederive.v1"] },
     { "id": "organization.v1", "kind": "domain", "path": ["goal", "organization-actor", "organization-incentive", "organization-authority", "feedback-loop", "decide"], "policy_ids": ["global.goal-before-solution.v1", "global.problem-frame-rederive.v1"] },
     { "id": "operations.v1", "kind": "domain", "path": ["current-state", "operations-owner", "runbook", "reversibility", "evidence", "decide"], "policy_ids": [] },
     { "id": "cumulative-complexity.v1", "kind": "constraint", "path": ["controller-scope", "subtract-first", "external-outcome-check"], "policy_ids": ["global.subtraction-first.v1", "global.external-outcome-first.v1"] },
@@ -200,6 +202,7 @@
     ["decide", "external-outcome-check"]
   ],
   "selectors": {
+    "engineering_implementation_dag": "engineering-implementation.v1",
     "domain_order": ["general", "knowledge", "personal_judgment", "engineering", "organization", "operations"],
     "domain_dags": {
       "general": "direct.v1",

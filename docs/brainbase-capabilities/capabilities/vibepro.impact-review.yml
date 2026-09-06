@@ -1,32 +1,43 @@
 id: vibepro.impact-review
-name: VibePro impact review
-purpose: Use VibePro or Graphify only when dependency information can change the implementation or affected-test decision.
+name: 改修ごとのGraphify軽量参照
+purpose: Every implementation consults installed Graphify without a change-size exemption; reuse unchanged context and deepen only when evidence is insufficient.
 surfaces:
   ui:
     - Agent implementation and review responses
   api:
-    - Optional VibePro CLI graph and diagnose commands
+    - node scripts/graphify-impact-context.mjs --repo <repo> --file <relative-path>
   code:
+    - scripts/graphify-impact-context.mjs
+    - config/judgment-runtime-manifest.json
+    - server/services/judgment-resolution-service.js
     - .claude/skills/vibepro-workflow/SKILL.md
   data:
-    - Optional local Graphify output
+    - graphify-out/graph.json
+    - .vibepro/graphify/graph.json
 depends_on:
   - code.reading
   - verification.testing
-  - graph.ssot
 visibility_rules:
-  - VibePro and Graphify are optional impact-review aids, not the source of truth or merge authority.
-  - Read code and affected tests directly when that is enough to choose the implementation and verification scope.
+  - Installed Graphify receives a bounded lookup for every implementation, regardless of size.
+  - Reuse requires the same repository, source state, target files, and graph content.
+  - Missing, unmatched, stale, incomplete, or failed graph evidence is unknown, never no impact.
+  - Graph freshness is unknown unless supported by verifiable evidence; timestamps alone are insufficient.
+  - Update or deepen only when needed; do not install automatically or rebuild on every edit.
+  - Graph context guides code and test selection; it is not correctness proof or merge authority.
   - Do not require a PR-body section, generated artifact, score, Gate, or command transcript.
 verification:
   commands:
-    - Run affected tests selected from the changed behavior.
+    - node scripts/graphify-impact-context.mjs --repo <repo> --file <relative-path>
+    - npm run test:run -- tests/unit/graphify-impact-context.test.js tests/unit/judgment-resolution-service.test.js
   expected:
-    - Verification is proportional to the changed behavior and stated acceptance criteria.
-    - Missing optional VibePro or Graphify output does not block a PR.
+    - Engineering implementation selects observe -> graphify-impact -> hypothesis.
+    - Other intents retain the existing engineering DAG without a mandatory lookup.
+    - Repeated identical lookups reuse results and source or graph changes invalidate them.
+    - Unknown or truncated context never becomes a claim of no impact.
 common_failures:
-  - Collecting artifacts after the implementation and affected tests already establish the result.
-  - Treating optional Graphify output as approval authority.
+  - Skipping a lookup merely because the change is small.
+  - Rebuilding on every edit or repeating identical lookups.
+  - Treating graph presence or a successful command as fresh complete evidence.
   - Expanding a focused change to satisfy a retired Gate.
 runbooks:
   - ../runbooks/vibepro-impact-review.md

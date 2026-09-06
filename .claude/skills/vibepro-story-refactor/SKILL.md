@@ -1,6 +1,6 @@
 ---
 name: vibepro-story-refactor
-description: Use when a refactor benefits from a VibePro-assisted focused Story and testable Spec. Architecture, Graphify, Task artifacts, Gates, and special PR creation are conditional rather than mandatory ceremonies.
+description: Use when a refactor benefits from a VibePro-assisted focused Story and testable Spec. Architecture, Task artifacts, Gates, and special PR creation are conditional rather than mandatory ceremonies. Installed Graphify receives a lightweight lookup for every implementation.
 ---
 
 # VibePro Story Refactor
@@ -12,7 +12,7 @@ description: Use when a refactor benefits from a VibePro-assisted focused Story 
 1. Resolve the governing Brainbase judgment, conventions, and project knowledge by reference.
 2. Define one focused Story with a user-visible or operator-visible outcome and explicit acceptance criteria.
 3. Add Architecture/ADR only when the refactor changes a boundary, ownership, data contract, security boundary, deployment model, or rollback strategy.
-4. Use Graphify only when dependency or graph evidence can change the refactor or its tests.
+4. Use the lightweight Graphify lookup in `docs/brainbase-capabilities/runbooks/vibepro-impact-review.md` for every implementation when installed. Reuse unchanged results and update or deepen only when needed; missing evidence remains unknown.
 5. Write the smallest Spec that protects behavior and invariants.
 6. Refactor the smallest coherent surface and run affected tests.
 7. Run one bounded review wave. Fix evidence-backed blockers; move all non-blocking improvements to follow-up work.
