@@ -654,14 +654,21 @@ export class AutomationRunService {
         if (input.run_id && input.run_id !== initialStep.workflow_run_id) {
             throw AppError.validation(`human step '${stepId}' does not belong to run '${input.run_id}'`);
         }
-        this.assertProjectAccess(initialStep.project_id, actor);
-        this.assertHumanStepAccess(initialStep, actor);
-        if (this._isCanonicalTaskHumanStep(initialStep)) input = this._canonicalTaskApprovalInput(initialStep, input);
-        const initialResolution = input.resolution || input.status || 'approved';
         const hasCompanyAuthorityMarker = Object.prototype.hasOwnProperty.call(
             initialStep.metadata || {},
             'company_authority_human_approval'
         );
+        const projectAccessBinding = hasCompanyAuthorityMarker
+            && this.companyAuthorityHumanApprovalService?.verifiedProjectAccessBinding
+            ? this.companyAuthorityHumanApprovalService.verifiedProjectAccessBinding(initialStep)
+            : null;
+        const projectAccessId = projectAccessBinding
+            ? projectAccessBinding.project_access_key
+            : initialStep.project_id;
+        this.assertProjectAccess(projectAccessId, actor);
+        this.assertHumanStepAccess(initialStep, actor);
+        if (this._isCanonicalTaskHumanStep(initialStep)) input = this._canonicalTaskApprovalInput(initialStep, input);
+        const initialResolution = input.resolution || input.status || 'approved';
         const companyAuthorityRequired = initialStep.metadata?.company_authority_required === true;
         const companyAuthorityBound = companyAuthorityRequired
             || hasCompanyAuthorityMarker

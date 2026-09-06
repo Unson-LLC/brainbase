@@ -170,6 +170,41 @@ async function createBoundStep(harness, input = observed(), overrides = {}) {
 describe('CompanyAuthorityHumanApprovalService', () => {
     afterEach(() => vi.restoreAllMocks());
 
+    it('署名済みresource_refからproject access codeを返し、改ざんは拒否する', async () => {
+        const harness = createHarness();
+        const step = await createBoundStep(harness, observed());
+
+        expect(harness.service.verifiedProjectAccessBinding(step)).toEqual({
+            project_id: 'project-unson-backoffice',
+            project_access_key: 'unson-backoffice'
+        });
+
+        const tampered = structuredClone(step);
+        tampered.metadata.company_authority_human_approval.binding.resource_ref = 'project:another-project';
+        expect(() => harness.service.verifiedProjectAccessBinding(tampered)).toThrowError(
+            expect.objectContaining({ code: 'company_authority_human_approval_tampered' })
+        );
+    });
+
+    it('署名済みproject_hintとresource_refが異なる場合はaccess keyを返さない', async () => {
+        const harness = createHarness();
+        const input = observed({
+            requested_action: {
+                capability_id: 'task.read',
+                resource_ref: 'project:another-project',
+                project_hint: 'unson-backoffice',
+                desired_effect: 'read'
+            }
+        });
+        const step = await createBoundStep(harness, input);
+
+        expect(() => harness.service.verifiedProjectAccessBinding(step)).toThrowError(
+            expect.objectContaining({
+                code: 'company_authority_human_approval_binding_mismatch'
+            })
+        );
+    });
+
     it('issues a signed, request-bound receipt with separate requester and approver, then consumes it once', async () => {
         const harness = createHarness();
         const input = observed();

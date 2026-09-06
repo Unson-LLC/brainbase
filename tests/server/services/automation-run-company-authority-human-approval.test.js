@@ -71,7 +71,8 @@ function seedWaitingRun(repository, {
 function makeService({
     companyAuthorityHumanApprovalService = null,
     canonicalTaskService = null,
-    events = []
+    events = [],
+    assertProjectAccess = () => {}
 } = {}) {
     const repository = new InMemoryWorkflowRepository({ seedWorkflows: [workflow] });
     const runner = new WorkflowRunner({
@@ -95,7 +96,7 @@ function makeService({
         ensureDefaultWorkflows: async () => {},
         prepareProjectAccess: async () => {},
         assertProjectSelectable: async () => {},
-        assertProjectAccess: () => {},
+        assertProjectAccess,
         assertHumanStepAccess: () => {},
         companyAuthorityHumanApprovalService,
         canonicalTaskService
@@ -104,6 +105,81 @@ function makeService({
 }
 
 describe('AutomationRunService Company Authority human approval wiring', () => {
+    it('署名検証済みresource_refのproject codeでapprover accessを判定する', async () => {
+        const assertProjectAccess = vi.fn();
+        const approval = {
+            isBound: vi.fn(() => true),
+            verifiedProjectAccessBinding: vi.fn(() => ({
+                project_id: workflow.project_id,
+                project_access_key: 'techknight'
+            })),
+            resolve: vi.fn(async ({ actor }) => ({
+                receipt: { receipt_id: 'cahapr-project-access' },
+                consumed_at: '2026-09-06T00:00:00.000Z',
+                consumed_by: actor.person_id,
+                fresh_context: { tenant_context: { tenant: { tenant_id: 'tenant-a' } } }
+            }))
+        };
+        const { repository, service } = makeService({
+            companyAuthorityHumanApprovalService: approval,
+            assertProjectAccess
+        });
+        seedWaitingRun(repository, { marker: { schema_version: '1.0' } });
+
+        await service.resolveHumanStep(
+            'human-company-authority',
+            { resolution: 'approved' },
+            { person_id: 'approver', projectCodes: ['techknight'] }
+        );
+
+        expect(approval.verifiedProjectAccessBinding).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'human-company-authority' })
+        );
+        expect(assertProjectAccess).toHaveBeenCalledWith(
+            'techknight',
+            expect.objectContaining({ person_id: 'approver' })
+        );
+        expect(assertProjectAccess.mock.calls[0][0]).toBe('techknight');
+    });
+
+    it('署名検証済みproject codeへのaccessがないapproverは承認処理前に拒否する', async () => {
+        const approval = {
+            isBound: vi.fn(() => true),
+            verifiedProjectAccessBinding: vi.fn(() => ({
+                project_id: workflow.project_id,
+                project_access_key: 'techknight'
+            })),
+            resolve: vi.fn()
+        };
+        const assertProjectAccess = vi.fn((projectId, actor) => {
+            if (!actor.projectCodes.includes(projectId)) {
+                throw Object.assign(new Error('project access denied'), {
+                    code: 'project_access_denied',
+                    statusCode: 403
+                });
+            }
+        });
+        const { repository, runner, service } = makeService({
+            companyAuthorityHumanApprovalService: approval,
+            assertProjectAccess
+        });
+        seedWaitingRun(repository, { marker: { schema_version: '1.0' } });
+
+        await expect(service.resolveHumanStep(
+            'human-company-authority',
+            { resolution: 'approved' },
+            { person_id: 'approver', projectCodes: ['another-project'] }
+        )).rejects.toMatchObject({ code: 'project_access_denied', statusCode: 403 });
+
+        expect(assertProjectAccess).toHaveBeenCalledWith(
+            'techknight',
+            expect.objectContaining({ person_id: 'approver' })
+        );
+        expect(approval.resolve).not.toHaveBeenCalled();
+        expect(repository.getHumanStep('human-company-authority')).toMatchObject({ status: 'pending' });
+        expect(runner.handlers[workflow.implementation_key]).not.toHaveBeenCalled();
+    });
+
     it('Company Authorityが拒否した場合は正本Taskを作らずpendingを維持する', async () => {
         const approval = {
             isBound: vi.fn(() => true),
