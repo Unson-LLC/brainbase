@@ -220,9 +220,6 @@ export function registerApiRoutes(app, {
     resolvePreProvisionedSlackConnection,
     env = process.env
 }) {
-    const adminTenantGuard = tenantRuntimeServices
-        ? createTenantEntrypointGuard(tenantRuntimeServices, 'admin_api')
-        : createUnavailableTenantEntrypointGuard();
     const auditTenantGuard = tenantRuntimeServices
         ? createTenantEntrypointGuard(tenantRuntimeServices, 'audit_log')
         : createUnavailableTenantEntrypointGuard();
@@ -354,7 +351,9 @@ export function registerApiRoutes(app, {
             ownerAliasIds: canonicalTaskStoreConfig?.ownerAliasIds
         }
     }));
-    app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), adminTenantGuard, createAdminVisualizationRouter(new AdminVisualizationService({
+    // Aggregate admin reads are scoped by req.access. A single-tenant signed
+    // envelope does not represent this cross-project, read-only surface.
+    app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({
         infoSSOTService,
         candidateRepository
     })));
