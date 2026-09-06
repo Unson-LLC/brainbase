@@ -26,11 +26,13 @@ export function parseProvisionOutcomeCaseControlPlaneArgs(argv = [], env = proce
     if (mode === 'apply' && !argv.includes('--approve-apply')) {
         throw new OutcomeCaseProductionProvisioningError('APPLY_APPROVAL_REQUIRED', 'Apply requires --approve-apply');
     }
-    const actorId = String(env.BRAINBASE_PROVISIONING_ACTOR ?? '').trim();
-    if (mode === 'apply' && !actorId) {
-        throw new OutcomeCaseProductionProvisioningError('ACTOR_REQUIRED', 'BRAINBASE_PROVISIONING_ACTOR is required for apply');
+    const actorPersonId = String(env.BRAINBASE_PROVISIONING_ACTOR ?? '').trim();
+    if (mode === 'apply' && !actorPersonId) {
+        throw new OutcomeCaseProductionProvisioningError(
+            'ACTOR_REQUIRED', 'BRAINBASE_PROVISIONING_ACTOR must be a canonical person ID for apply'
+        );
     }
-    return { mode, actorId: actorId || mode };
+    return { mode, actorPersonId: actorPersonId || null };
 }
 
 export async function runProvisionOutcomeCaseControlPlane({
@@ -54,7 +56,7 @@ export async function runProvisionOutcomeCaseControlPlane({
     try {
         const result = await provisionOutcomeCaseControlPlane({
             infoSSOTService: service,
-            actorId: args.actorId,
+            actorPersonId: args.actorPersonId,
             commit: args.mode === 'apply'
         });
         if (args.mode !== 'apply') return { ok: true, mode: args.mode, ...result };

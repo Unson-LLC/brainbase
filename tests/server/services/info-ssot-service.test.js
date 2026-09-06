@@ -963,7 +963,9 @@ describe('InfoSSOTService (Graph SSOT)', () => {
     it('createRaci can join an already-authorized provisioning transaction', async () => {
         const { service, client } = buildService();
         vi.spyOn(service, 'ensureProject').mockResolvedValue('prj_1');
-        vi.spyOn(service, 'ensurePerson').mockResolvedValue('per_sato');
+        vi.spyOn(service, 'ensurePerson')
+            .mockResolvedValueOnce('per_sato')
+            .mockResolvedValueOnce('per_provisioning_operator');
         vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
         vi.spyOn(service, 'upsertGraphEdge').mockResolvedValue();
         const withAccessContext = vi.spyOn(service, 'withAccessContext');
@@ -974,6 +976,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         }, {
             projectCode: 'brainbase',
             personId: 'per_sato',
+            actorPersonId: 'per_provisioning_operator',
             roleCode: 'outcome_case:close',
             roleMin: 'gm',
             sensitivity: 'internal',
@@ -983,6 +986,8 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(withAccessContext).not.toHaveBeenCalled();
         expect(client.query).not.toHaveBeenCalledWith('BEGIN');
         expect(client.query).not.toHaveBeenCalledWith('COMMIT');
+        const eventCall = client.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO events'));
+        expect(eventCall?.[1]?.[2]).toBe('per_provisioning_operator');
     });
 
     it('ensurePerson_personId指定時にGraphの既存person IDだけを返す', async () => {

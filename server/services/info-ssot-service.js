@@ -1896,6 +1896,12 @@ export class InfoSSOTService {
                 personId: input.personId,
                 personName: input.personName
             });
+            const actorPersonId = input.actorPersonId
+                ? await this.ensurePerson(client, {
+                    personId: input.actorPersonId,
+                    personName: input.actorPersonName
+                })
+                : personId;
 
             const eventId = this.generateId('evt');
             const desiredRaciId = this.generateId('rac');
@@ -1917,7 +1923,7 @@ export class InfoSSOTService {
                 [
                     eventId,
                     projectId,
-                    personId,
+                    actorPersonId,
                     'RACI_ASSIGNED',
                     JSON.stringify({
                         role_code: input.roleCode,

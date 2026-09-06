@@ -7,13 +7,16 @@ import {
     readbackOutcomeCaseControlPlane
 } from '../../../server/services/outcome-case/outcome-case-production-provisioner.js';
 
-function createService({ capabilityStatus = null, authorityPresent = false } = {}) {
+function createService({ capabilityStatus = null, authorityPresent = false, actorExists = true } = {}) {
     const state = { capabilityStatus, authorityPresent };
     const queries = [];
     const client = {
         async query(sql, parameters = []) {
             const compact = String(sql).replace(/\s+/gu, ' ').trim();
             queries.push({ sql: compact, parameters });
+            if (compact.includes('pg_advisory_xact_lock')) {
+                return { rows: [{ pg_advisory_xact_lock: null }] };
+            }
             if (compact.includes("to_regclass('brainbase_capabilities')")) {
                 return { rows: [{ relation_name: 'brainbase_capabilities' }] };
             }
@@ -21,7 +24,8 @@ function createService({ capabilityStatus = null, authorityPresent = false } = {
                 return { rows: [{ id: OUTCOME_CASE_CONTROL_PLANE_TARGET.project_id }] };
             }
             if (compact.includes('FROM graph_entities') && compact.includes("entity_type = 'person'")) {
-                return { rows: [{ id: OUTCOME_CASE_CONTROL_PLANE_TARGET.closure_authority.person_id }] };
+                if (parameters[0] === 'per_unknown' && !actorExists) return { rows: [] };
+                return { rows: [{ id: parameters[0] }] };
             }
             if (compact.startsWith('SELECT status FROM brainbase_capabilities')) {
                 return { rows: state.capabilityStatus ? [{ status: state.capabilityStatus }] : [] };
@@ -50,7 +54,8 @@ function createService({ capabilityStatus = null, authorityPresent = false } = {
                 projectCode: 'brainbase',
                 personId: OUTCOME_CASE_CONTROL_PLANE_TARGET.closure_authority.person_id,
                 roleCode: 'outcome_case:close',
-                authorityScope: 'outcome_case.close'
+                authorityScope: 'outcome_case.close',
+                actorPersonId: 'per_operator'
             });
             state.authorityPresent = true;
             return { raci_id: 'rac_outcome_case_close', event_id: 'evt_outcome_case_close' };
@@ -59,18 +64,81 @@ function createService({ capabilityStatus = null, authorityPresent = false } = {
     return { service, state, queries };
 }
 
+function createConcurrentService() {
+    const state = { capabilityStatus: null, authorityPresent: false };
+    const lockKeys = [];
+    let lockTail = Promise.resolve();
+    const createRaci = vi.fn(async () => {
+        state.authorityPresent = true;
+        return { raci_id: 'rac_outcome_case_close', event_id: 'evt_outcome_case_close' };
+    });
+    const service = {
+        createRaci,
+        withAccessContext: vi.fn(async (_access, handler) => {
+            let releaseLock = null;
+            const client = {
+                async query(sql, parameters = []) {
+                    const compact = String(sql).replace(/\s+/gu, ' ').trim();
+                    if (compact.includes('pg_advisory_xact_lock')) {
+                        lockKeys.push(parameters[0]);
+                        const previousLock = lockTail;
+                        lockTail = new Promise((resolve) => {
+                            releaseLock = resolve;
+                        });
+                        await previousLock;
+                        return { rows: [{ pg_advisory_xact_lock: null }] };
+                    }
+                    if (compact.includes("to_regclass('brainbase_capabilities')")) {
+                        return { rows: [{ relation_name: 'brainbase_capabilities' }] };
+                    }
+                    if (compact.includes('FROM projects p') && compact.includes('p.organization_id = $3')) {
+                        return { rows: [{ id: OUTCOME_CASE_CONTROL_PLANE_TARGET.project_id }] };
+                    }
+                    if (compact.includes('FROM graph_entities') && compact.includes("entity_type = 'person'")) {
+                        return { rows: [{ id: parameters[0] }] };
+                    }
+                    if (compact.startsWith('SELECT status FROM brainbase_capabilities')) {
+                        return { rows: state.capabilityStatus ? [{ status: state.capabilityStatus }] : [] };
+                    }
+                    if (compact.includes('FROM raci_assignments r') && compact.includes('r.role_code = $5')) {
+                        return { rows: state.authorityPresent ? [{
+                            person_id: OUTCOME_CASE_CONTROL_PLANE_TARGET.closure_authority.person_id,
+                            role_code: OUTCOME_CASE_CONTROL_PLANE_TARGET.closure_authority.role_code,
+                            authority_scope: OUTCOME_CASE_CONTROL_PLANE_TARGET.closure_authority.authority_scope,
+                            sensitivity_min: OUTCOME_CASE_CONTROL_PLANE_TARGET.closure_authority.sensitivity_min,
+                            sensitivity: OUTCOME_CASE_CONTROL_PLANE_TARGET.closure_authority.sensitivity
+                        }] : [] };
+                    }
+                    if (compact.startsWith('INSERT INTO brainbase_capabilities')) {
+                        state.capabilityStatus = 'active';
+                        return { rows: [] };
+                    }
+                    throw new Error(`Unexpected query: ${compact}`);
+                }
+            };
+            try {
+                return await handler(client);
+            } finally {
+                releaseLock?.();
+            }
+        })
+    };
+    return { service, createRaci, lockKeys };
+}
+
 describe('OutcomeCase production control-plane provisioning', () => {
     it('provisions the exact registry capability and Sato close RACI in one access context', async () => {
         const { service, queries } = createService();
 
         const result = await provisionOutcomeCaseControlPlane({
             infoSSOTService: service,
-            actorId: 'operator-keigo',
+            actorPersonId: 'per_operator',
             commit: true
         });
 
         expect(result).toMatchObject({
             persisted: true,
+            actor_person_id: 'per_operator',
             capability: { capability_id: 'cap_outcome_control', status: 'active' },
             closure_authority: {
                 person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
@@ -78,6 +146,7 @@ describe('OutcomeCase production control-plane provisioning', () => {
             }
         });
         expect(service.createRaci).toHaveBeenCalledTimes(1);
+        expect(queries[0].sql).toContain('pg_advisory_xact_lock');
         expect(queries.some(({ sql, parameters }) => sql.startsWith('INSERT INTO brainbase_capabilities')
             && parameters[0] === 'cap_outcome_control')).toBe(true);
     });
@@ -87,7 +156,6 @@ describe('OutcomeCase production control-plane provisioning', () => {
 
         const result = await provisionOutcomeCaseControlPlane({
             infoSSOTService: service,
-            actorId: 'dry-run',
             commit: false
         });
 
@@ -101,10 +169,44 @@ describe('OutcomeCase production control-plane provisioning', () => {
 
         await expect(provisionOutcomeCaseControlPlane({
             infoSSOTService: service,
-            actorId: 'operator-keigo',
+            actorPersonId: 'per_operator',
             commit: true
         })).resolves.toMatchObject({ persisted: true, raci: null });
         expect(service.createRaci).not.toHaveBeenCalled();
+    });
+
+    it('rejects an apply actor that is not an existing canonical person', async () => {
+        const { service } = createService({ actorExists: false });
+
+        await expect(provisionOutcomeCaseControlPlane({
+            infoSSOTService: service,
+            actorPersonId: 'per_unknown',
+            commit: true
+        })).rejects.toThrow(expect.objectContaining({ code: 'PROVISIONING_ACTOR_NOT_FOUND' }));
+        expect(service.createRaci).not.toHaveBeenCalled();
+    });
+
+    it('serializes concurrent applies and re-reads after the fixed control-plane lock', async () => {
+        const { service, createRaci, lockKeys } = createConcurrentService();
+
+        await Promise.all([
+            provisionOutcomeCaseControlPlane({
+                infoSSOTService: service,
+                actorPersonId: 'per_operator_one',
+                commit: true
+            }),
+            provisionOutcomeCaseControlPlane({
+                infoSSOTService: service,
+                actorPersonId: 'per_operator_two',
+                commit: true
+            })
+        ]);
+
+        expect(lockKeys).toEqual([
+            'outcome-case-control-plane:unson:prj_01KGCS8CAJKKDWACPNK1E5WX8H',
+            'outcome-case-control-plane:unson:prj_01KGCS8CAJKKDWACPNK1E5WX8H'
+        ]);
+        expect(createRaci).toHaveBeenCalledTimes(1);
     });
 
     it('requires both exact records in post-commit readback', async () => {

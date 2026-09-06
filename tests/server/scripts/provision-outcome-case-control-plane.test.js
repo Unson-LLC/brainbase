@@ -7,15 +7,15 @@ import {
 
 describe('provision-outcome-case-control-plane CLI', () => {
     it('permits only one explicit mode and requires approval plus actor for apply', () => {
-        expect(parseProvisionOutcomeCaseControlPlaneArgs(['--check'], {})).toEqual({ mode: 'check', actorId: 'check' });
-        expect(parseProvisionOutcomeCaseControlPlaneArgs(['--dry-run'], {})).toEqual({ mode: 'dry-run', actorId: 'dry-run' });
+        expect(parseProvisionOutcomeCaseControlPlaneArgs(['--check'], {})).toEqual({ mode: 'check', actorPersonId: null });
+        expect(parseProvisionOutcomeCaseControlPlaneArgs(['--dry-run'], {})).toEqual({ mode: 'dry-run', actorPersonId: null });
         expect(() => parseProvisionOutcomeCaseControlPlaneArgs(['--apply'], {}))
             .toThrow(expect.objectContaining({ code: 'APPLY_APPROVAL_REQUIRED' }));
         expect(() => parseProvisionOutcomeCaseControlPlaneArgs(['--apply', '--approve-apply'], {}))
             .toThrow(expect.objectContaining({ code: 'ACTOR_REQUIRED' }));
         expect(parseProvisionOutcomeCaseControlPlaneArgs(['--apply', '--approve-apply'], {
-            BRAINBASE_PROVISIONING_ACTOR: 'operator-keigo'
-        })).toEqual({ mode: 'apply', actorId: 'operator-keigo' });
+            BRAINBASE_PROVISIONING_ACTOR: 'per_01KGYC7NNS0VXADK7NP48W4VR5'
+        })).toEqual({ mode: 'apply', actorPersonId: 'per_01KGYC7NNS0VXADK7NP48W4VR5' });
     });
 
     it('exposes the fixed target for an offline check without database access', async () => {

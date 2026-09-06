@@ -72,7 +72,18 @@ function hasExpectedClosureAuthority(authority) {
         && authority.sensitivity === TARGET.closure_authority.sensitivity;
 }
 
-async function loadState(client, { lock = false } = {}) {
+async function assertCanonicalPerson(client, personId, code, message, lockClause) {
+    const person = await client.query(
+        `SELECT id
+           FROM graph_entities
+          WHERE id = $1
+            AND entity_type = 'person'${lockClause}`,
+        [personId]
+    );
+    if (person.rows.length !== 1) fail(code, message);
+}
+
+async function loadState(client, { lock = false, actorPersonId = null } = {}) {
     const lockClause = lock ? ' FOR SHARE' : '';
     const registry = await client.query("SELECT to_regclass('brainbase_capabilities') AS relation_name");
     if (!registry.rows[0]?.relation_name) {
@@ -89,15 +100,21 @@ async function loadState(client, { lock = false } = {}) {
     if (project.rows.length !== 1) {
         fail('PROJECT_NOT_FOUND', 'Canonical Brainbase project was not resolved exactly once');
     }
-    const person = await client.query(
-        `SELECT id
-           FROM graph_entities
-          WHERE id = $1
-            AND entity_type = 'person'${lockClause}`,
-        [TARGET.closure_authority.person_id]
+    await assertCanonicalPerson(
+        client,
+        TARGET.closure_authority.person_id,
+        'CLOSURE_PERSON_NOT_FOUND',
+        'Canonical Sato person was not resolved exactly once',
+        lockClause
     );
-    if (person.rows.length !== 1) {
-        fail('CLOSURE_PERSON_NOT_FOUND', 'Canonical Sato person was not resolved exactly once');
+    if (actorPersonId) {
+        await assertCanonicalPerson(
+            client,
+            actorPersonId,
+            'PROVISIONING_ACTOR_NOT_FOUND',
+            'Provisioning actor must be an existing canonical person',
+            lockClause
+        );
     }
     const capability = await client.query(
         `SELECT status FROM brainbase_capabilities
@@ -134,14 +151,24 @@ function requireService(infoSSOTService) {
     }
 }
 
-export async function provisionOutcomeCaseControlPlane({ infoSSOTService, actorId, commit = false } = {}) {
+export async function provisionOutcomeCaseControlPlane({ infoSSOTService, actorPersonId, commit = false } = {}) {
     requireService(infoSSOTService);
-    if (typeof actorId !== 'string' || !actorId.trim()) {
+    const canonicalActorPersonId = typeof actorPersonId === 'string' ? actorPersonId.trim() : '';
+    if (commit && !canonicalActorPersonId) {
         fail('ACTOR_REQUIRED', 'A provisioning actor is required');
     }
     const access = provisioningAccess();
     return infoSSOTService.withAccessContext(access, async (client) => {
-        const before = await loadState(client, { lock: commit });
+        if (commit) {
+            await client.query(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                [`outcome-case-control-plane:${TARGET.organization_id}:${TARGET.project_id}`]
+            );
+        }
+        const before = await loadState(client, {
+            lock: commit,
+            actorPersonId: commit ? canonicalActorPersonId : null
+        });
         if (!commit) {
             return {
                 persisted: false,
@@ -170,11 +197,12 @@ export async function provisionOutcomeCaseControlPlane({ infoSSOTService, actorI
                 authorityScope: TARGET.closure_authority.authority_scope,
                 roleMin: TARGET.closure_authority.sensitivity_min,
                 sensitivity: TARGET.closure_authority.sensitivity,
+                actorPersonId: canonicalActorPersonId,
                 source: 'provisioning'
             }, { client, access_context_applied: true });
         return {
             persisted: true,
-            actor_id: actorId.trim(),
+            actor_person_id: canonicalActorPersonId,
             capability: { ...TARGET.capability },
             closure_authority: { ...TARGET.closure_authority },
             raci: raci ? { raci_id: raci.raci_id, event_id: raci.event_id } : null
