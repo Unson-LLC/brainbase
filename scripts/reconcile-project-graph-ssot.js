@@ -71,6 +71,12 @@ export function classifyProjectBinding(row) {
             merge_entity_ids: [row.scope_id], conflicts: []
         };
     }
+    if (candidates.length === 1) {
+        return {
+            action: 'link_existing', canonical_entity_id: candidates[0].id,
+            merge_entity_ids: [], conflicts: []
+        };
+    }
     return {
         action: 'ambiguous', canonical_entity_id: null, merge_entity_ids: [],
         conflicts: candidates.map((candidate) => candidate.id).sort()
@@ -119,7 +125,12 @@ async function readRows(client, organizationId = null) {
                 ) ORDER BY ge.id) FILTER (WHERE ge.id IS NOT NULL), '[]'::jsonb) AS candidates
            FROM project_registry pr
            JOIN projects p ON p.code=pr.project_code AND p.organization_id=pr.organization_id
-      LEFT JOIN graph_entities ge ON ge.project_id=p.id AND ge.entity_type='project'
+      LEFT JOIN graph_entities ge ON ge.entity_type='project'
+            AND EXISTS (
+              SELECT 1 FROM projects graph_scope
+               WHERE graph_scope.id=ge.project_id
+                 AND graph_scope.organization_id=pr.organization_id
+            )
             AND (ge.id=pr.project_code OR ge.id=pr.graph_entity_id OR ge.id=p.id
               OR ge.payload->>'catalog_project_id'=pr.project_code
               OR ge.payload->>'code'=pr.project_code)
@@ -189,9 +200,9 @@ async function applyPlan(client, row, plan, actor) {
         );
     } else {
         await client.query(
-            `UPDATE graph_entities SET payload=$2::jsonb,updated_at=now()
+            `UPDATE graph_entities SET payload=$2::jsonb,project_id=$3,updated_at=now()
               WHERE id=$1 AND entity_type='project'`,
-            [plan.canonical_entity_id, JSON.stringify(canonicalPayload(row, candidate?.payload || {}))]
+            [plan.canonical_entity_id, JSON.stringify(canonicalPayload(row, candidate?.payload || {})), row.scope_id]
         );
     }
     const merge = { rewired: 0, deduplicated: 0 };
@@ -285,12 +296,25 @@ export async function runProjectGraphReconciliation({
         await client.query('BEGIN');
         transactionStarted = true;
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0::bigint))', [LOCK_NAME]);
-        const rows = await readRows(client, organizationId);
+        const organizations = organizationId
+            ? [{ id: organizationId }]
+            : (await client.query(
+                `SELECT DISTINCT organization_id AS id
+                   FROM projects
+                  WHERE organization_id IS NOT NULL
+                  ORDER BY organization_id`
+            )).rows;
+        const rows = [];
         const byOrganization = new Map();
-        for (const row of rows) {
-            const codes = byOrganization.get(row.organization_id) || [];
-            codes.push(row.project_code);
-            byOrganization.set(row.organization_id, codes);
+        for (const organization of organizations) {
+            const projectScopes = await client.query(
+                'SELECT code FROM projects WHERE organization_id=$1 ORDER BY code',
+                [organization.id]
+            );
+            const projectCodes = projectScopes.rows.map(({ code }) => code);
+            byOrganization.set(organization.id, projectCodes);
+            await setContext(client, organization.id, projectCodes);
+            rows.push(...await readRows(client, organization.id));
         }
         const results = [];
         for (const row of rows) {
