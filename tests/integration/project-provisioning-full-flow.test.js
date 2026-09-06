@@ -792,7 +792,7 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         const quotedOwner = `"${functionOwner.replaceAll('"', '""')}"`;
         let dryRun;
         await adminPool.query('GRANT CREATE ON SCHEMA public TO brainbase_app');
-        await adminPool.query('GRANT SELECT ON graph_entities, projects TO brainbase_app');
+        await adminPool.query('GRANT SELECT ON graph_entities, graph_edges, projects TO brainbase_app');
         try {
             await adminPool.query('ALTER FUNCTION project_graph_identity_probe(text) OWNER TO brainbase_app');
             await adminPool.query('REVOKE CREATE ON SCHEMA public FROM brainbase_app');
@@ -800,7 +800,7 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         } finally {
             await adminPool.query(`ALTER FUNCTION project_graph_identity_probe(text) OWNER TO ${quotedOwner}`);
             await adminPool.query('REVOKE CREATE ON SCHEMA public FROM brainbase_app');
-            await adminPool.query('REVOKE SELECT ON graph_entities, projects FROM brainbase_app');
+            await adminPool.query('REVOKE SELECT ON graph_entities, graph_edges, projects FROM brainbase_app');
         }
         expect(dryRun).toMatchObject({
             complete: true,
