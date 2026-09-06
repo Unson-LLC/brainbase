@@ -33,6 +33,8 @@ describe('Brainbase routine outcome contract', () => {
         expect(spec).toContain('`immediate_decisions`');
         expect(spec).toContain('`tomorrow_focus`');
         expect(spec).toContain('`personal_kg_registration_candidates`');
+        expect(spec).toContain('`personal_kg_memories`');
+        expect(spec).toContain('`personal_kg_review_exceptions`');
         expect(spec).toContain('`graph_promotion_reviews`');
     });
 

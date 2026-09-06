@@ -58,6 +58,7 @@ function safeText(value) {
 
 function safeOutputItems(items, {
     review = false,
+    approval = false,
     reference = false,
     feedback = false,
     diagnostic = false
@@ -68,6 +69,8 @@ function safeOutputItems(items, {
         return {
             ...((review || feedback) && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
             ...(review && typeof item?.status === 'string' ? { status: item.status.slice(0, 100) } : {}),
+            ...(approval && typeof item?.requires_approval === 'boolean'
+                ? { requires_approval: item.requires_approval } : {}),
             ...((reference || feedback) && typeof item?.source === 'string' ? { source: item.source.slice(0, 100) } : {}),
             ...(diagnostic && typeof item?.code === 'string' ? { code: item.code.slice(0, 100) } : {}),
             ...(diagnostic && Number.isFinite(item?.count) ? { count: item.count } : {}),
@@ -109,7 +112,9 @@ function safeRoutineOutput(routine, output = {}) {
             tomorrow_focus: safeOutputItems(output.tomorrow_focus),
             closed: safeOutputItems(output.closed),
             carryovers: safeOutputItems(output.carryovers),
-            personal_kg_registration_candidates: safeOutputItems(output.personal_kg_registration_candidates, { review: true }),
+            personal_kg_memories: safeOutputItems(output.personal_kg_memories, { review: true, approval: true }),
+            personal_kg_review_exceptions: safeOutputItems(output.personal_kg_review_exceptions, { review: true, approval: true }),
+            personal_kg_registration_candidates: safeOutputItems(output.personal_kg_registration_candidates, { review: true, approval: true }),
             graph_promotion_reviews: safeOutputItems(output.graph_promotion_reviews, { review: true })
         };
     }

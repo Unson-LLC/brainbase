@@ -31,7 +31,8 @@ function createPorts(overrides = {}) {
         list: vi.fn(async (filter) => filter.promotion_status === 'candidate' ? [{
             id: 'candidate-personal-1',
             body: '午前は設計を優先する',
-            promotion_status: 'candidate'
+            promotion_status: 'candidate',
+            requires_approval: false
         }] : [{
             id: 'candidate-graph-1',
             body: '顧客Aの正式方針',
@@ -167,7 +168,10 @@ describe('ProductionRoutinePorts', () => {
         await expect(ports.buildNightOutput({
             input: {
                 tomorrow_focus: [{ summary: '朝一で提案を確定する' }],
-                personal_kg_registration_candidates: [{ id: 'personal-1', summary: '午前は設計を優先する' }],
+                personal_kg_registration_candidates: [
+                    { id: 'personal-1', summary: '午前は設計を優先する' },
+                    { id: 'personal-review-1', summary: '本人は常に即断する', requires_approval: true }
+                ],
                 graph_promotion_reviews: [{ id: 'graph-1', summary: '顧客Aの正式方針' }]
             },
             reconciliation: { unprocessed_count: 1, contradiction_count: 1, expired_count: 0, outbox_count: 0 },
@@ -193,7 +197,15 @@ describe('ProductionRoutinePorts', () => {
             ],
             personal_kg_registration_candidates: [
                 { id: 'personal-1', summary: '午前は設計を優先する' },
-                { id: 'candidate-personal-1', status: 'candidate', summary: '午前は設計を優先する' }
+                { id: 'personal-review-1', summary: '本人は常に即断する', requires_approval: true },
+                { id: 'candidate-personal-1', status: 'candidate', requires_approval: false, summary: '午前は設計を優先する' }
+            ],
+            personal_kg_memories: [
+                { id: 'personal-1', summary: '午前は設計を優先する' },
+                { id: 'candidate-personal-1', status: 'candidate', requires_approval: false, summary: '午前は設計を優先する' }
+            ],
+            personal_kg_review_exceptions: [
+                { id: 'personal-review-1', summary: '本人は常に即断する', requires_approval: true }
             ],
             graph_promotion_reviews: [
                 { id: 'graph-1', summary: '顧客Aの正式方針' },
@@ -544,7 +556,7 @@ describe('ProductionRoutinePorts', () => {
         expect(dependencies.runReceiptQueryService.summarizeRoutineState).toHaveBeenCalled();
     });
 
-    it('retroはpending_approvalのGraph昇格候補を読むだけで状態を変更しない', async () => {
+    it('retroはPersonal KGの確認必須例外とGraph昇格候補だけを読み、通常記憶はレビューへ戻さない', async () => {
         const { dependencies, ports } = createPorts();
 
         await expect(ports.listKnowledgeReviews({
@@ -555,8 +567,7 @@ describe('ProductionRoutinePorts', () => {
             limit: 10
         }, context)).resolves.toEqual({
             personal_kg_registration_reviews: [
-                { id: 'personal-1', summary: '個人の判断基準' },
-                { id: 'candidate-personal-1', status: 'candidate', summary: '午前は設計を優先する' }
+                { id: 'personal-1', summary: '個人の判断基準' }
             ],
             graph_promotion_reviews: [{ id: 'candidate-graph-1', status: 'pending_approval', summary: '顧客Aの正式方針' }]
         });

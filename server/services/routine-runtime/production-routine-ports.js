@@ -77,6 +77,7 @@ function reviewItem(item) {
     return {
         ...(typeof item?.id === 'string' ? { id: item.id } : {}),
         ...(typeof item?.promotion_status === 'string' ? { status: item.promotion_status } : {}),
+        ...(typeof item?.requires_approval === 'boolean' ? { requires_approval: item.requires_approval } : {}),
         summary
     };
 }
@@ -275,6 +276,11 @@ export class ProductionRoutinePorts {
             ]),
             { access: context?.access }
         );
+        const personalKgCandidates = uniqueReviews([
+            ...(Array.isArray(input.personal_kg_registration_candidates)
+                ? input.personal_kg_registration_candidates.map(reviewItem) : []),
+            ...personalCandidates.map(reviewItem)
+        ]);
         return {
             headline: sleepState === 'deep'
                 ? '深い睡眠です。経験の整理と検索確認が完了しました'
@@ -289,11 +295,9 @@ export class ProductionRoutinePorts {
             tomorrow_focus: Array.isArray(input.tomorrow_focus) ? input.tomorrow_focus : [],
             closed: Array.isArray(input.closed) ? input.closed : [],
             carryovers: unresolvedItems,
-            personal_kg_registration_candidates: uniqueReviews([
-                ...(Array.isArray(input.personal_kg_registration_candidates)
-                    ? input.personal_kg_registration_candidates.map(reviewItem) : []),
-                ...personalCandidates.map(reviewItem)
-            ]),
+            personal_kg_memories: personalKgCandidates.filter((item) => item.requires_approval !== true),
+            personal_kg_review_exceptions: personalKgCandidates.filter((item) => item.requires_approval === true),
+            personal_kg_registration_candidates: personalKgCandidates,
             graph_promotion_reviews: uniqueReviews([
                 ...(Array.isArray(input.graph_promotion_reviews)
                     ? input.graph_promotion_reviews.map(reviewItem) : []),
@@ -540,7 +544,7 @@ export class ProductionRoutinePorts {
             personal_kg_registration_reviews: uniqueReviews([
                 ...(Array.isArray(input.personal_kg_registration_reviews)
                     ? input.personal_kg_registration_reviews.map(reviewItem) : []),
-                ...personalCandidates.map(reviewItem)
+                ...personalCandidates.filter((item) => item.requires_approval === true).map(reviewItem)
             ]),
             graph_promotion_reviews: uniqueReviews(graphCandidates.map(reviewItem))
         };

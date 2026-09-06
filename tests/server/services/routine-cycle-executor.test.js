@@ -859,7 +859,7 @@ describe('RoutineCycleExecutor', () => {
         expect(result.routine_summary.routine_output).toEqual(result.routine_output);
     });
 
-    it('oyasumiはおやすみレポートを主成果物にし、Personal KG確認待ちとGraph昇格待ちも混ぜない', async () => {
+    it('oyasumiは通常のPersonal KG記憶、確認必須の例外、Graph昇格待ちを混ぜない', async () => {
         const routineOutput = {
             headline: '深い睡眠です。経験の整理と検索確認が完了しました',
             sleep_state: 'deep',
@@ -872,6 +872,8 @@ describe('RoutineCycleExecutor', () => {
             closed: [{ summary: '設計方針を決定した' }],
             carryovers: [],
             personal_kg_registration_candidates: [{ id: 'personal-draft-1', summary: '午前は設計を優先する' }],
+            personal_kg_memories: [{ id: 'personal-draft-1', summary: '午前は設計を優先する' }],
+            personal_kg_review_exceptions: [{ id: 'personal-review-1', summary: '本人は常に即断する', requires_approval: true }],
             graph_promotion_reviews: [{ id: 'candidate-1', summary: '顧客Aの正式方針' }]
         };
         const executor = new RoutineCycleExecutor({
@@ -893,6 +895,12 @@ describe('RoutineCycleExecutor', () => {
         });
         expect(result.routine_output.personal_kg_registration_candidates).toEqual([
             { id: 'personal-draft-1', summary: '午前は設計を優先する' }
+        ]);
+        expect(result.routine_output.personal_kg_memories).toEqual([
+            { id: 'personal-draft-1', summary: '午前は設計を優先する' }
+        ]);
+        expect(result.routine_output.personal_kg_review_exceptions).toEqual([
+            { id: 'personal-review-1', summary: '本人は常に即断する', requires_approval: true }
         ]);
         expect(result.routine_output.graph_promotion_reviews).toEqual([
             { id: 'candidate-1', summary: '顧客Aの正式方針' }
