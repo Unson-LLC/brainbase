@@ -35,6 +35,9 @@ export function classifyProjectBinding(row) {
     const candidates = (Array.isArray(row?.candidates) ? row.candidates : [])
         .filter((candidate) => candidate.lifecycle_status !== 'merged');
     const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+    const codeIdentityOccupied = Boolean(row?.canonical_id_occupancy?.entity_id)
+        && !byId.has(row.project_code);
+    const availableCanonicalId = codeIdentityOccupied ? row.scope_id : row.project_code;
     const isLegacyCodeCandidate = (candidate) => candidate.id !== row.project_code
         && !text(candidate.payload?.catalog_project_id)
         && text(candidate.payload?.code) === row.project_code;
@@ -66,15 +69,25 @@ export function classifyProjectBinding(row) {
         };
     }
     if (candidates.length === 0) {
-        return { action: 'create_canonical', canonical_entity_id: row.project_code, merge_entity_ids: [], conflicts: [] };
+        return { action: 'create_canonical', canonical_entity_id: availableCanonicalId, merge_entity_ids: [], conflicts: [] };
     }
     if (candidates.every(isLegacyCodeCandidate)) {
+        const existingCanonical = byId.get(availableCanonicalId);
         return {
-            action: 'create_canonical', canonical_entity_id: row.project_code,
-            merge_entity_ids: candidates.map((candidate) => candidate.id).sort(), conflicts: []
+            action: existingCanonical ? 'link_existing' : 'create_canonical',
+            canonical_entity_id: availableCanonicalId,
+            merge_entity_ids: candidates.filter((candidate) => candidate.id !== availableCanonicalId)
+                .map((candidate) => candidate.id).sort(),
+            conflicts: []
         };
     }
     if (candidates.length === 1 && candidates[0].id === row.scope_id) {
+        if (availableCanonicalId === row.scope_id) {
+            return {
+                action: 'link_existing', canonical_entity_id: row.scope_id,
+                merge_entity_ids: [], conflicts: []
+            };
+        }
         return {
             action: 'create_canonical', canonical_entity_id: row.project_code,
             merge_entity_ids: [row.scope_id], conflicts: []
@@ -128,6 +141,9 @@ async function readRows(client, organizationId = null) {
                 pr.catalog_version, pr.lifecycle_status, pr.organization_entity_id,
                 pr.owner_person_id, pr.graph_entity_id, pr.graph_binding_status,
                 p.id AS scope_id, p.name AS scope_name,
+                (SELECT to_jsonb(probe)
+                   FROM project_graph_identity_probe(pr.project_code) probe
+                  LIMIT 1) AS canonical_id_occupancy,
                 COALESCE(jsonb_agg(jsonb_build_object(
                   'id', ge.id, 'project_id', ge.project_id, 'payload', ge.payload,
                   'lifecycle_status', ge.lifecycle_status, 'version', ge.version
