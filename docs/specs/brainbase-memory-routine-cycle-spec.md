@@ -15,7 +15,11 @@ architecture: docs/architecture/brainbase-memory-routine-cycle-architecture.md
 
 ## おやすみ
 
-処理順は`reconcile`、`compressEpisodes`、`verifyRetrievability`とする。照合対象は未処理キュー、矛盾、期限切れ、Outboxである。Episode圧縮は判断、結果、未解決事項、対象event ID集合、版、ハッシュを持つ成果物を永続化し、対象全件の更新と再読取が成立した場合だけ完了する。検索不能または確認不能が1件でもあれば、表示可能な成果物を残しても`status=partial`、`coverage=partial`とし、異常を`artifacts.anomalies`へ残す。`routine_output`は`headline`、`tomorrow_focus`、`closed`、`carryovers`、`personal_kg_registration_candidates`、`graph_promotion_reviews`の順で返す。候補が無いことを表示するのは、候補抽出元を確認できた場合だけとする。
+`/oyasumi`は睡眠のように1日の経験を整理・統合する夜間処理であり、「今日を閉じてよいか」の判定ではない。処理順は`reconcile`、`compressEpisodes`、`verifyRetrievability`とする。照合対象は未処理キュー、矛盾、期限切れ、Outboxである。Episode圧縮は判断、結果、未解決事項、対象event ID集合、版、ハッシュを持つ成果物を永続化し、対象全件の更新と再読取が成立した場合だけ完了する。
+
+`routine_output`は`headline`、`sleep_state`、`sleep_causes`、`consolidated_memories`、`associations`、`feedback_targets`、`unresolved_items`を主成果物として返す。`deep`は4つの照合値が確認済み0件で圧縮と再読取が完了した場合だけ、`shallow`は残件または確認不能がある場合、`unconfirmed`は深浅を確定できない場合とする。浅い場合は原因、件数、記憶への影響を見出しと`sleep_causes`へ明示する。再編された各記憶には翌朝の訂正に使える正式event IDと`graph_ssot|personal_kg`の出典を付ける。
+
+睡眠レポートは夜に生成・保存し、翌朝に読むが、`/ohayo`の成果物にはしない。互換欄として`tomorrow_focus`、`closed`、`carryovers`を残し、`personal_kg_registration_candidates`と`graph_promotion_reviews`は訂正対象とは分離する。検索不能または確認不能が1件でもあれば、表示可能な成果物を残しても`status=partial`、`coverage=partial`とし、異常を`artifacts.anomalies`へ残す。
 
 ## おはよう
 
@@ -48,3 +52,6 @@ architecture: docs/architecture/brainbase-memory-routine-cycle-architecture.md
 13. 夜はPersonal KG登録候補とGraph昇格レビュー待ちを別配列へ分類する。
 14. レトロは`pending_approval`候補を表示するが、候補状態やGraphを変更しない。
 15. CLIと`routine_summary`成果物は朝だけでなく夜・週次の`routine_output`も保持する。
+16. 夜は深い／浅い／未確認を分け、浅い場合は原因と影響を明示する。
+17. 夜の圧縮成果は記憶、関連付け、正式event ID付き訂正対象としてCLIと成果物へ残る。
+18. 睡眠レポートは`/oyasumi`に属し、`/ohayo`の表示契約を変更しない。

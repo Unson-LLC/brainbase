@@ -27,7 +27,7 @@ flowchart TD
     EXEC --> NIGHT["おやすみ: 照合・圧縮・検索確認"]
     EXEC --> MORNING["おはよう: 例外・想起・利用結果"]
     EXEC --> RETRO["レトロ: 品質評価・変更候補"]
-    NIGHT --> NIGHTVIEW["今日を閉じてよいか"]
+    NIGHT --> NIGHTVIEW["睡眠状態・原因・再編記憶・訂正対象"]
     MORNING --> MORNINGVIEW["今日進めること"]
     RETRO --> RETROVIEW["来週から変える仕組み"]
     NIGHT --> RESULT["共通実行結果"]
@@ -45,6 +45,8 @@ flowchart TD
 - 実行の順序と完了条件はコードで決め、Markdownへ複製しない。
 - 確認済みの空集合と取得不能を分ける。
 - `/ohayo`は生成ポート自身が選んだ最大3件だけを出力し、正式なsource event IDへ解決できた知識だけを再固定する。
+- `/oyasumi`は照合値、圧縮確認、再読取確認から睡眠の深浅を決め、浅い原因を件数と影響付きで説明する。
+- Episode圧縮で再編した記憶と関連付けは、正式event ID付きの翌朝訂正対象として安全化済み`routine_output`へ投影する。睡眠レポートは`/ohayo`へ移さない。
 - Judgment Outboxの未配信、再試行、Dead Letterは朝の異常とルーティン状態へ反映する。
 - `/retro`は変更案を作る制御面であり、本番ルールの書込み面ではない。
 - 内部処理結果と利用者向け成果を分離する。前者は照合・圧縮・指標を保持し、後者は`routine_output`として結論、次の判断、詳細の順に並べる。

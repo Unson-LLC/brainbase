@@ -21,6 +21,24 @@ function clientFor(repository, options) {
     return options.client;
 }
 
+function personalSleepReportMemory(event) {
+    if (!event?.event_id || typeof event?.body !== 'string' || !event.body.trim()) return null;
+    return { id: event.event_id, source: 'personal_kg', summary: event.body.trim().slice(0, 2000) };
+}
+
+function personalSleepReportAssociations(events) {
+    const byEpisode = new Map();
+    for (const event of events) {
+        const memory = personalSleepReportMemory(event);
+        if (!memory || !event?.parent_episode_id) continue;
+        if (!byEpisode.has(event.parent_episode_id)) byEpisode.set(event.parent_episode_id, []);
+        byEpisode.get(event.parent_episode_id).push(memory.summary);
+    }
+    return [...byEpisode.values()].filter((summaries) => summaries.length > 1).map((summaries) => ({
+        summary: `「${summaries[0]}」と「${summaries[1]}」を同じ経験として関連付けました`
+    }));
+}
+
 export class PgPersonalKnowledgeRepository {
     constructor({ pool }) {
         if (!pool?.query) throw new Error('PgPersonalKnowledgeRepository requires pool');
@@ -154,7 +172,14 @@ export class PgPersonalKnowledgeRepository {
 
     async compressRoutineEpisodes({ project_id: projectCode, episode_ids: episodeIds = [] } = {}, options = {}) {
         const ids = [...new Set(episodeIds.filter(Boolean))];
-        if (ids.length === 0) return { confirmed: true, episode_ids: [], missing_ids: [] };
+        if (ids.length === 0) return {
+            confirmed: true,
+            episode_ids: [],
+            missing_ids: [],
+            consolidated_memories: [],
+            associations: [],
+            feedback_targets: []
+        };
         const client = clientFor(this, options);
         const { rows: events } = await client.query(
             `SELECT event_id, parent_episode_id, body_hash, body
@@ -197,7 +222,16 @@ export class PgPersonalKnowledgeRepository {
         );
         const savedIds = new Set(saved.map((row) => row.episode_id));
         const missingIds = ids.filter((id) => !savedIds.has(id));
-        return { confirmed: missingIds.length === 0, episode_ids: [...savedIds], missing_ids: missingIds };
+        const confirmedEvents = events.filter((event) => savedIds.has(event.parent_episode_id));
+        const consolidatedMemories = confirmedEvents.map(personalSleepReportMemory).filter(Boolean);
+        return {
+            confirmed: missingIds.length === 0,
+            episode_ids: [...savedIds],
+            missing_ids: missingIds,
+            consolidated_memories: consolidatedMemories,
+            associations: personalSleepReportAssociations(confirmedEvents),
+            feedback_targets: consolidatedMemories
+        };
     }
 
     async verifyRoutineRetrievability({ episode_ids: episodeIds = [] } = {}, options = {}) {

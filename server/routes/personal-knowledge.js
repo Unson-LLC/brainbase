@@ -66,6 +66,9 @@ export function createPersonalKnowledgeRouter({
     router.post('/events', async (req, res) => {
         try { res.status(201).json(await personalKnowledgeService.ingest(req.body || {}, context(req))); } catch (error) { sendError(res, error); }
     });
+    router.post('/feedback', async (req, res) => {
+        try { res.json(await personalKnowledgeService.recordFeedback(req.body || {}, context(req))); } catch (error) { sendError(res, error); }
+    });
     router.get('/search', async (req, res) => {
         try { res.json(await personalKnowledgeService.search({ query: req.query.q || req.query.query, limit: req.query.limit }, context(req))); } catch (error) { sendError(res, error); }
     });

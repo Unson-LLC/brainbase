@@ -24,6 +24,8 @@ function sameEventIdentity(existing, incoming) {
         || canonicalJson(existing[field]) === canonicalJson(incoming[field]));
 }
 
+const FEEDBACK_ACTIONS = new Set(['adopt', 'correct', 'reject', 'not_useful']);
+
 export class PersonalKnowledgeService {
     constructor({ repository, now = () => new Date() }) {
         if (!repository) throw new Error('PersonalKnowledgeService requires repository');
@@ -97,6 +99,87 @@ export class PersonalKnowledgeService {
                 payload: { routine: 'ohayo', outcome: 'used' },
                 occurred_at: this.now().toISOString()
             }, options);
+        };
+        return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
+    }
+
+    async recordFeedback(feedback, { access } = {}) {
+        required(access?.personId, 'person_id');
+        required(access?.organizationId, 'organization_id');
+        const eventIdValue = required(feedback?.event_id, 'event_id');
+        const action = required(feedback?.action, 'action');
+        if (!FEEDBACK_ACTIONS.has(action)) throw new Error('personal_knowledge_feedback_invalid:action');
+
+        const run = async ({ client } = {}) => {
+            const options = { access, client };
+            const current = await this.repository.findById(eventIdValue, options);
+            if (!current) throw new Error('personal_knowledge_event_not_found');
+            const occurredAt = this.now().toISOString();
+
+            if (action === 'adopt' || action === 'not_useful') {
+                await this.repository.appendTransition(eventIdValue, {
+                    transition_type: 'feedback',
+                    payload: {
+                        routine: 'oyasumi',
+                        action,
+                        ...(feedback.reason ? { reason: feedback.reason } : {})
+                    },
+                    occurred_at: occurredAt
+                }, options);
+                return { event_id: eventIdValue, action, semantic_state: current.semantic_state || 'active' };
+            }
+
+            if (action === 'reject') {
+                await this.repository.appendTransition(eventIdValue, {
+                    transition_type: 'semantic_state',
+                    semantic_state: 'retracted',
+                    ...(feedback.reason ? { reason: feedback.reason } : {}),
+                    payload: { routine: 'oyasumi', action },
+                    occurred_at: occurredAt
+                }, options);
+                return { event_id: eventIdValue, action, semantic_state: 'retracted' };
+            }
+
+            const correctionInput = required(feedback.correction_event, 'correction_event');
+            if (correctionInput.corrects_event_id !== eventIdValue) {
+                throw new Error('personal_knowledge_feedback_invalid:corrects_event_id');
+            }
+            const replacement = {
+                ...correctionInput,
+                event_id: eventId(correctionInput),
+                owner_person_id: access.personId,
+                organization_id: access.organizationId,
+                occurred_at: correctionInput.occurred_at || occurredAt,
+                captured_at: correctionInput.captured_at || occurredAt,
+                body_hash: required(correctionInput.body_hash, 'correction_event.body_hash')
+            };
+            const existingReplacement = await this.repository.findById(replacement.event_id, options);
+            if (existingReplacement && !sameEventIdentity(existingReplacement, replacement)) {
+                throw new Error('personal_knowledge_event_identity_conflict');
+            }
+            if (!existingReplacement) {
+                await this.repository.createEvent(replacement, options);
+                await this.repository.appendTransition(replacement.event_id, {
+                    transition_type: 'processing_stage', processing_stage: 'received', occurred_at: occurredAt
+                }, options);
+                await this.repository.appendTransition(replacement.event_id, {
+                    transition_type: 'semantic_state', semantic_state: 'active', occurred_at: occurredAt
+                }, options);
+            }
+            await this.repository.appendTransition(eventIdValue, {
+                transition_type: 'semantic_state',
+                semantic_state: 'superseded',
+                supersedes_event_id: replacement.event_id,
+                ...(feedback.reason ? { reason: feedback.reason } : {}),
+                payload: { routine: 'oyasumi', action },
+                occurred_at: occurredAt
+            }, options);
+            return {
+                event_id: eventIdValue,
+                action,
+                semantic_state: 'superseded',
+                replacement_event_id: replacement.event_id
+            };
         };
         return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
     }

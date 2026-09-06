@@ -56,14 +56,21 @@ function safeText(value) {
     return typeof value === 'string' && value.trim() ? value.trim().slice(0, 2000) : null;
 }
 
-function safeOutputItems(items, { review = false, reference = false } = {}) {
+function safeOutputItems(items, {
+    review = false,
+    reference = false,
+    feedback = false,
+    diagnostic = false
+} = {}) {
     return (Array.isArray(items) ? items : []).slice(0, 10).map((item) => {
         const summary = safeText(typeof item === 'string' ? item : item?.summary);
         if (!summary) return null;
         return {
-            ...(review && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
+            ...((review || feedback) && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
             ...(review && typeof item?.status === 'string' ? { status: item.status.slice(0, 100) } : {}),
-            ...(reference && typeof item?.source === 'string' ? { source: item.source.slice(0, 100) } : {}),
+            ...((reference || feedback) && typeof item?.source === 'string' ? { source: item.source.slice(0, 100) } : {}),
+            ...(diagnostic && typeof item?.code === 'string' ? { code: item.code.slice(0, 100) } : {}),
+            ...(diagnostic && Number.isFinite(item?.count) ? { count: item.count } : {}),
             summary,
             ...(item?.applies_changes === false ? { applies_changes: false } : {})
         };
@@ -74,7 +81,7 @@ function safeRoutineOutput(routine, output = {}) {
     output = output || {};
     const headline = safeText(output?.headline) || ({
         ohayo: '今日進めることは未確定です',
-        oyasumi: '今日を閉じてよいか確認できていません',
+        oyasumi: '睡眠状態を確認できていません',
         retro: '来週から変える仕組みは未確定です'
     }[routine] || 'ルーティン結果を確認できていません');
     if (routine === 'ohayo') {
@@ -90,6 +97,13 @@ function safeRoutineOutput(routine, output = {}) {
     if (routine === 'oyasumi') {
         return {
             headline,
+            sleep_state: ['deep', 'shallow', 'unconfirmed'].includes(output.sleep_state)
+                ? output.sleep_state : 'unconfirmed',
+            sleep_causes: safeOutputItems(output.sleep_causes, { diagnostic: true }),
+            consolidated_memories: safeOutputItems(output.consolidated_memories, { feedback: true }),
+            associations: safeOutputItems(output.associations),
+            feedback_targets: safeOutputItems(output.feedback_targets, { feedback: true }),
+            unresolved_items: safeOutputItems(output.unresolved_items),
             tomorrow_focus: safeOutputItems(output.tomorrow_focus),
             closed: safeOutputItems(output.closed),
             carryovers: safeOutputItems(output.carryovers),

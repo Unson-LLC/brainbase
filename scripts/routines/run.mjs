@@ -99,21 +99,30 @@ export function serializeRoutineCliResult(result) {
         if (typeof result.routine_output.headline === 'string') {
             safeRoutineOutput.headline = result.routine_output.headline.slice(0, 2000);
         }
+        if (['deep', 'shallow', 'unconfirmed'].includes(result.routine_output.sleep_state)) {
+            safeRoutineOutput.sleep_state = result.routine_output.sleep_state;
+        }
         const reviewKeys = new Set([
             'personal_kg_registration_candidates',
             'personal_kg_registration_reviews',
             'graph_promotion_reviews'
         ]);
+        const feedbackKeys = new Set(['consolidated_memories', 'feedback_targets']);
         for (const key of [
             'today_focus', 'immediate_decisions', 'warnings', 'carryovers', 'references',
+            'sleep_causes', 'consolidated_memories', 'associations', 'feedback_targets', 'unresolved_items',
             'tomorrow_focus', 'closed', 'personal_kg_registration_candidates',
             'system_changes', 'repeated_patterns', 'personal_kg_registration_reviews', 'graph_promotion_reviews'
         ]) {
             if (!Array.isArray(result.routine_output[key])) continue;
             safeRoutineOutput[key] = result.routine_output[key].slice(0, 10).map((item) => ({
                 ...(reviewKeys.has(key) && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
+                ...(feedbackKeys.has(key) && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
                 ...(reviewKeys.has(key) && typeof item?.status === 'string' ? { status: item.status.slice(0, 100) } : {}),
-                ...(key === 'references' && typeof item?.source === 'string' ? { source: item.source.slice(0, 100) } : {}),
+                ...((key === 'references' || feedbackKeys.has(key)) && typeof item?.source === 'string'
+                    ? { source: item.source.slice(0, 100) } : {}),
+                ...(key === 'sleep_causes' && typeof item?.code === 'string' ? { code: item.code.slice(0, 100) } : {}),
+                ...(key === 'sleep_causes' && Number.isFinite(item?.count) ? { count: item.count } : {}),
                 ...(typeof item?.summary === 'string' ? { summary: item.summary.slice(0, 2000) } : {}),
                 ...(item?.applies_changes === false ? { applies_changes: false } : {})
             })).filter((item) => item.summary);

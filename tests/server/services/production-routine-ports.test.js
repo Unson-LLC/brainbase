@@ -161,7 +161,7 @@ describe('ProductionRoutinePorts', () => {
         });
     });
 
-    it('oyasumiは残件と登録先を分けた夜の結論を作る', async () => {
+    it('oyasumiは浅い眠りの原因・記憶の再編・翌朝の訂正対象をレポートにする', async () => {
         const { dependencies, ports } = createPorts();
 
         await expect(ports.buildNightOutput({
@@ -170,10 +170,27 @@ describe('ProductionRoutinePorts', () => {
                 personal_kg_registration_candidates: [{ id: 'personal-1', summary: '午前は設計を優先する' }],
                 graph_promotion_reviews: [{ id: 'graph-1', summary: '顧客Aの正式方針' }]
             },
-            reconciliation: { unprocessed_count: 1, contradiction_count: 0, expired_count: 0, outbox_count: 0 }
+            reconciliation: { unprocessed_count: 1, contradiction_count: 1, expired_count: 0, outbox_count: 0 },
+            compression: {
+                consolidated_memories: [{ id: 'kev_1', source: 'graph_ssot', summary: '設計判断を記憶として固定した' }],
+                associations: [{ summary: '設計判断と顧客の反応を同じ経験として関連付けた' }],
+                feedback_targets: [{ id: 'kev_1', source: 'graph_ssot', summary: '設計判断を記憶として固定した' }]
+            },
+            verification: { retrievable: true }
         }, context)).resolves.toMatchObject({
-            headline: '残件を確認してから今日を閉じる',
-            carryovers: [{ summary: '未処理が1件あります' }],
+            headline: expect.stringContaining('浅い睡眠'),
+            sleep_state: 'shallow',
+            sleep_causes: [
+                expect.objectContaining({ code: 'unprocessed', count: 1, summary: expect.stringContaining('未処理') }),
+                expect.objectContaining({ code: 'contradiction', count: 1, summary: expect.stringContaining('矛盾') })
+            ],
+            consolidated_memories: [{ id: 'kev_1', source: 'graph_ssot', summary: '設計判断を記憶として固定した' }],
+            associations: [{ summary: '設計判断と顧客の反応を同じ経験として関連付けた' }],
+            feedback_targets: [{ id: 'kev_1', source: 'graph_ssot', summary: '設計判断を記憶として固定した' }],
+            unresolved_items: [
+                { summary: '未処理が1件あります' },
+                { summary: '矛盾が1件あります' }
+            ],
             personal_kg_registration_candidates: [
                 { id: 'personal-1', summary: '午前は設計を優先する' },
                 { id: 'candidate-personal-1', status: 'candidate', summary: '午前は設計を優先する' }
@@ -187,6 +204,21 @@ describe('ProductionRoutinePorts', () => {
             expect.any(Function),
             { access: context.access }
         );
+    });
+
+    it('oyasumiは全処理と再読取が成立した時だけ深い眠りとする', async () => {
+        const { ports } = createPorts();
+
+        await expect(ports.buildNightOutput({
+            reconciliation: { unprocessed_count: 0, contradiction_count: 0, expired_count: 0, outbox_count: 0 },
+            compression: { confirmed: true, consolidated_memories: [], associations: [], feedback_targets: [] },
+            verification: { retrievable: true }
+        }, context)).resolves.toMatchObject({
+            headline: expect.stringContaining('深い睡眠'),
+            sleep_state: 'deep',
+            sleep_causes: [],
+            unresolved_items: []
+        });
     });
 
     it('ohayoはInfoSSOT Graphと認証本人のPersonal Vaultだけを想起する', async () => {

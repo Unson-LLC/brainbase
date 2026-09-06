@@ -186,19 +186,52 @@ export class ProductionRoutinePorts {
                 ...(organization.episode_ids || []),
                 ...(personal.episode_ids || [])
             ],
+            consolidated_memories: [
+                ...(organization.consolidated_memories || []),
+                ...(personal.consolidated_memories || [])
+            ],
+            associations: [
+                ...(organization.associations || []),
+                ...(personal.associations || [])
+            ],
+            feedback_targets: [
+                ...(organization.feedback_targets || []),
+                ...(personal.feedback_targets || [])
+            ],
             confirmed: organization.confirmed === true && personal.confirmed === true
         };
     }
 
-    async buildNightOutput({ input = {}, reconciliation = {} } = {}, context) {
-        const carryovers = [
-            ['未処理', reconciliation.unprocessed_count],
-            ['矛盾', reconciliation.contradiction_count],
-            ['期限切れ', reconciliation.expired_count],
-            ['未配信', reconciliation.outbox_count]
-        ].filter(([, count]) => Number(count) > 0)
-            .map(([label, count]) => ({ summary: `${label}が${count}件あります` }));
-        const confirmedClosed = carryovers.length === 0;
+    async buildNightOutput({ input = {}, reconciliation = {}, compression = {}, verification = {} } = {}, context) {
+        const causeDefinitions = [
+            ['unprocessed', '未処理', reconciliation.unprocessed_count, '経験を記憶へ統合しきれませんでした'],
+            ['contradiction', '矛盾', reconciliation.contradiction_count, 'どの記憶を優先するか確定できませんでした'],
+            ['expired', '期限切れ', reconciliation.expired_count, '古い記憶の整理が残りました'],
+            ['outbox', '未配信', reconciliation.outbox_count, '経験の取り込みが完了していません']
+        ];
+        const sleepCauses = causeDefinitions
+            .filter(([, , count]) => Number(count) > 0)
+            .map(([code, label, count, impact]) => ({
+                code,
+                count: Number(count),
+                summary: `${label}が${Number(count)}件あり、${impact}`
+            }));
+        if (compression.confirmed === false) {
+            sleepCauses.push({
+                code: 'compression_unconfirmed',
+                summary: '記憶の再編が完了したことを確認できませんでした'
+            });
+        }
+        if (verification.retrievable !== true) {
+            sleepCauses.push({
+                code: 'retrievability_unconfirmed',
+                summary: '再編した記憶を思い出せることを確認できませんでした'
+            });
+        }
+        const unresolvedItems = causeDefinitions
+            .filter(([, , count]) => Number(count) > 0)
+            .map(([, label, count]) => ({ summary: `${label}が${Number(count)}件あります` }));
+        const sleepState = sleepCauses.length === 0 ? 'deep' : 'shallow';
         const candidateRepository = requireDependency(this.candidateRepository, 'candidateRepository', 'transaction');
         const projectCode = projectInput({ input }).project_id;
         const [personalCandidates, graphCandidates] = await candidateRepository.transaction(
@@ -222,10 +255,19 @@ export class ProductionRoutinePorts {
             { access: context?.access }
         );
         return {
-            headline: confirmedClosed ? '今日は閉じてよい' : '残件を確認してから今日を閉じる',
+            headline: sleepState === 'deep'
+                ? '深い睡眠です。経験の整理と検索確認が完了しました'
+                : `浅い睡眠です。${sleepCauses[0].summary}`,
+            sleep_state: sleepState,
+            sleep_causes: sleepCauses,
+            consolidated_memories: Array.isArray(compression.consolidated_memories)
+                ? compression.consolidated_memories : [],
+            associations: Array.isArray(compression.associations) ? compression.associations : [],
+            feedback_targets: Array.isArray(compression.feedback_targets) ? compression.feedback_targets : [],
+            unresolved_items: unresolvedItems,
             tomorrow_focus: Array.isArray(input.tomorrow_focus) ? input.tomorrow_focus : [],
             closed: Array.isArray(input.closed) ? input.closed : [],
-            carryovers,
+            carryovers: unresolvedItems,
             personal_kg_registration_candidates: uniqueReviews([
                 ...(Array.isArray(input.personal_kg_registration_candidates)
                     ? input.personal_kg_registration_candidates.map(reviewItem) : []),

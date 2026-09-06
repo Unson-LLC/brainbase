@@ -82,7 +82,14 @@ describe('PgPersonalKnowledgeRepository', () => {
         const insertSql = client.query.mock.calls[1][0];
         expect(insertSql).toContain('INSERT INTO episode_compaction_artifacts');
         expect(insertSql).toContain("'personal'");
-        expect(result).toEqual({ confirmed: true, episode_ids: ['ep_1'], missing_ids: [] });
+        expect(result).toEqual({
+            confirmed: true,
+            episode_ids: ['ep_1'],
+            missing_ids: [],
+            consolidated_memories: [{ id: 'pke_1', source: 'personal_kg', summary: '判断A' }],
+            associations: [],
+            feedback_targets: [{ id: 'pke_1', source: 'personal_kg', summary: '判断A' }]
+        });
     });
 
     it('creates promotion lineage with reviewer insert permission without requiring row readback', async () => {

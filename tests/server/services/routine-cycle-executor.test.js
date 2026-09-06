@@ -813,9 +813,15 @@ describe('RoutineCycleExecutor', () => {
         expect(result.routine_summary.routine_output).toEqual(result.routine_output);
     });
 
-    it('oyasumiはPersonal KG登録候補とGraph昇格レビュー待ちを混ぜない', async () => {
+    it('oyasumiは睡眠レポートを主成果物にし、Personal KG候補とGraph昇格待ちも混ぜない', async () => {
         const routineOutput = {
-            headline: '今日は閉じてよい',
+            headline: '深い睡眠です。経験の整理と検索確認が完了しました',
+            sleep_state: 'deep',
+            sleep_causes: [],
+            consolidated_memories: [{ id: 'pke_1', source: 'personal_kg', summary: '午前は設計を優先する' }],
+            associations: [{ summary: '集中時間と設計品質を関連付けた' }],
+            feedback_targets: [{ id: 'pke_1', source: 'personal_kg', summary: '午前は設計を優先する' }],
+            unresolved_items: [],
             tomorrow_focus: [{ summary: '朝一で提案を確定する' }],
             closed: [{ summary: '設計方針を決定した' }],
             carryovers: [],
@@ -833,6 +839,12 @@ describe('RoutineCycleExecutor', () => {
 
         const result = await executor.execute({ routine: 'oyasumi' });
 
+        expect(result.routine_output).toMatchObject({
+            sleep_state: 'deep',
+            consolidated_memories: [{ id: 'pke_1', source: 'personal_kg', summary: '午前は設計を優先する' }],
+            associations: [{ summary: '集中時間と設計品質を関連付けた' }],
+            feedback_targets: [{ id: 'pke_1', source: 'personal_kg', summary: '午前は設計を優先する' }]
+        });
         expect(result.routine_output.personal_kg_registration_candidates).toEqual([
             { id: 'personal-draft-1', summary: '午前は設計を優先する' }
         ]);

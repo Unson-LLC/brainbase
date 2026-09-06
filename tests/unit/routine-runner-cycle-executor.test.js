@@ -386,7 +386,11 @@ describe('Routine Runner cycle execution', () => {
             status: 'completed',
             coverage: 'confirmed',
             routine_output: {
-                headline: '今日は閉じてよい',
+                headline: '浅い睡眠です。未処理が残っています',
+                sleep_state: 'shallow',
+                sleep_causes: [{ code: 'unprocessed', count: 1, summary: '未処理が1件あります', secret: 'hidden' }],
+                consolidated_memories: [{ id: 'pke_1', source: 'personal_kg', summary: '集中時間を守る' }],
+                feedback_targets: [{ id: 'pke_1', source: 'personal_kg', summary: '集中時間を守る' }],
                 tomorrow_focus: [{ id: 'internal-id', summary: '朝一で提案を確定する', secret: 'hidden' }],
                 graph_promotion_reviews: [{ id: 'candidate-1', summary: '顧客Aの正式方針', status: 'pending_approval' }]
             }
@@ -396,7 +400,11 @@ describe('Routine Runner cycle execution', () => {
             status: 'completed',
             coverage: 'confirmed',
             routine_output: {
-                headline: '今日は閉じてよい',
+                headline: '浅い睡眠です。未処理が残っています',
+                sleep_state: 'shallow',
+                sleep_causes: [{ code: 'unprocessed', count: 1, summary: '未処理が1件あります' }],
+                consolidated_memories: [{ id: 'pke_1', source: 'personal_kg', summary: '集中時間を守る' }],
+                feedback_targets: [{ id: 'pke_1', source: 'personal_kg', summary: '集中時間を守る' }],
                 tomorrow_focus: [{ summary: '朝一で提案を確定する' }],
                 graph_promotion_reviews: [{ id: 'candidate-1', summary: '顧客Aの正式方針', status: 'pending_approval' }]
             }
