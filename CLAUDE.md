@@ -66,7 +66,7 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 - **Skills first**: Load only the smallest relevant Skill. Do not bulk-load Skill folders.
 - **Local vs Lightsail matters**: For `/oyasumi` Graph/candidate writes, use the canonical local control-plane path backed by the Lightsail tunnel, not an accidental local database. Wiki writes are retired.
 - **Multi-account ops**: `/ohayo` must check all configured Gmail/Calendar accounts and Slack workspaces per command/Skill guidance.
-- **VibePro / Brainbase boundary**: Brainbase is the authority for organization judgment, knowledge, development conventions, infrastructure/secret locations, and reusable learning. VibePro is a repository-local aid for one accepted change: Story -> Spec -> implement -> affected tests -> one review wave -> GitHub PR -> CI -> merge. Architecture and Graphify are conditional, and normal repository PR/permission rules remain authoritative.
+- **VibePro / Brainbase boundary**: Brainbase is the authority for organization judgment, knowledge, development conventions, infrastructure/secret locations, and reusable learning. VibePro is a repository-local aid for one accepted change: Story -> Spec -> implement -> affected tests -> one review wave -> GitHub PR -> CI -> merge. Architecture is conditional; installed Graphify receives a lightweight lookup for every implementation, and normal repository PR/permission rules remain authoritative.
 - **UI/runtime claims require evidence**: When saying something works, cite the file, API, process, log, test, or screenshot used to verify it.
 
 ## 4. Skill Routing
@@ -141,7 +141,7 @@ When a repository uses VibePro:
 - Start from one focused Story with one user-visible outcome and explicit acceptance criteria.
 - Keep Program, roadmap, portfolio, and organization policy outside the Story. Link to their canonical source instead of copying them.
 - Add or update an Architecture/ADR only when the accepted change materially alters a system boundary, ownership, data contract, security boundary, deployment model, or rollback strategy. Architecture is not a mandatory ceremony for every Story.
-- Use `vibepro story diagnose <repo> --id <story-id> --run-graphify` only when code or graph evidence changes the implementation or test decision. Graphify is optional.
+- For every implementation regardless of size, use the lightweight Graphify lookup in `docs/brainbase-capabilities/runbooks/vibepro-impact-review.md` when installed. Reuse unchanged results; update or deepen only when needed. Missing or incomplete evidence is unknown, not no impact. Do not add a PR gate.
 - Write the smallest Spec that makes the accepted behavior and invariants testable.
 - During implementation, run only tests affected by the change. The full suite belongs in CI unless the change can only be proven by a local release rehearsal.
 - Run at most one review wave after implementation is stable. Use no more than three independent roles in parallel and no more than five total review dispatches.

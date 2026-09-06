@@ -409,6 +409,10 @@ function validateSelectableGraphs(manifest) {
             .filter((domain) => domain !== 'general')
             .map((domain) => manifest.selectors.domain_dags[domain])
     ];
+    if (manifest.selectors.engineering_implementation_dag) {
+        domainGroups.push(domainGroups[1].map((id) => id === manifest.selectors.domain_dags.engineering
+            ? manifest.selectors.engineering_implementation_dag : id));
+    }
     for (const domainDagIds of domainGroups) {
         try {
             buildGraph([...new Set([...domainDagIds, ...commonDagIds])], manifest);
@@ -501,6 +505,7 @@ function validateManifest(manifest, lock) {
         selectors.authority_dag,
         selectors.clarification_dag
     ];
+    if (Object.hasOwn(selectors, 'engineering_implementation_dag')) selectorDagIds.push(selectors.engineering_implementation_dag);
     for (const dagId of selectorDagIds) if (!dags.has(dagId)) throw new TypeError(`judgment selector references missing DAG ${dagId}`);
     const matchers = manifest.semantic_matchers;
     validateExactKeys(matchers?.intents, INTENT_MATCHERS, 'judgment intent matchers');
@@ -974,7 +979,11 @@ function mergePolicies(policies) {
 
 function selectedDags(classification, manifest) {
     const selected = [];
-    for (const domain of classification.domains) selected.push(manifest.selectors.domain_dags[domain]);
+    for (const domain of classification.domains) {
+        const implementationDag = domain === 'engineering' && classification.intent === 'implement'
+            ? manifest.selectors.engineering_implementation_dag : null;
+        selected.push(implementationDag ?? manifest.selectors.domain_dags[domain]);
+    }
     for (const signal of classification.signals) selected.push(manifest.selectors.signal_dags[signal]);
     if (['high', 'critical'].includes(classification.risk) || ['write', 'external'].includes(classification.action_kind) || classification.signals.includes('authority_boundary')) {
         selected.push(manifest.selectors.authority_dag);

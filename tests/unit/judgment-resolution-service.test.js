@@ -220,6 +220,30 @@ describe('JudgmentResolutionService', () => {
         personalOwnerAliasIds: ['person_alias']
     });
 
+    it('小さな実装でも観測後・仮説前にGraphify参照を選ぶ', () => {
+        const receipt = service.resolve(input('表示の一文字を直して', proposal({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.selected_dag_ids).toContain('engineering-implementation.v1');
+        expect(receipt.active_edges).toEqual(expect.arrayContaining([
+            ['observe', 'graphify-impact'], ['graphify-impact', 'hypothesis']
+        ]));
+        expect(receipt.active_nodes.indexOf('graphify-impact')).toBeGreaterThan(receipt.active_nodes.indexOf('observe'));
+        expect(receipt.active_nodes.indexOf('graphify-impact')).toBeLessThan(receipt.active_nodes.indexOf('hypothesis'));
+        const node = receipt.active_node_definitions.find((entry) => entry.id === 'graphify-impact');
+        expect(node.instruction).toContain('scripts/graphify-impact-context.mjs');
+        expect(node.required_capability_template).toBeNull();
+        expect(receipt.required_capabilities).toEqual([]);
+    });
+
+    it.each(['answer', 'investigate', 'diagnose', 'design', 'review', 'operate'])('%sには実装専用のGraphify工程を追加しない', (intent) => {
+        const receipt = service.resolve(input('現在の構成を確認', proposal({
+            intent, domains: ['engineering'], action_kind: 'read'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.active_nodes).not.toContain('graphify-impact');
+        expect(receipt.selected_dag_ids).toContain('engineering.v1');
+    });
+
     it('repository共有goldenでcanonical JSONとmanifest digestを固定する', () => {
         const golden = readFixture('judgment-runtime-golden-vectors.json');
         const manifest = readFixture('judgment-runtime-manifest.json');
@@ -269,7 +293,7 @@ describe('JudgmentResolutionService', () => {
         const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.status).toBe('resolved');
-        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        expect(receipt.selected_dag_ids).toEqual(['engineering-implementation.v1', 'authority.v1']);
         expect(receipt.context_digest).toBe(sha256Hex(canonicalJson(rawInput.conversation_context)));
         expect(receipt.active_node_definitions.map((node) => node.id)).toEqual(receipt.active_nodes);
     });
@@ -337,7 +361,7 @@ describe('JudgmentResolutionService', () => {
 
         expect(receipt.status).toBe('resolved');
         expect(receipt.selected_dag_ids).toEqual([
-            'engineering.v1',
+            'engineering-implementation.v1',
             'cumulative-complexity.v1',
             'parallel.v1',
             'authority.v1'
@@ -546,7 +570,7 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.classification_evidence).toMatchObject({
             source: 'current_request', source_turn_ids: ['host-turn-1']
         });
-        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        expect(receipt.selected_dag_ids).toEqual(['engineering-implementation.v1', 'authority.v1']);
     });
 
     it('PR採用は人材採用ではなくengineeringとして分類する', () => {
@@ -909,7 +933,7 @@ describe('JudgmentResolutionService', () => {
 
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification.action_kind).toBe('write');
-        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        expect(receipt.selected_dag_ids).toEqual(['engineering-implementation.v1', 'authority.v1']);
     });
 
     it('依頼表現のマージしてもらえるを条件言及に落とさない', () => {
@@ -1164,12 +1188,27 @@ describe('judgment policy resolution', () => {
 });
 
 describe('judgment manifest validation', () => {
+    it('実装専用selectorがない旧manifestでは既存engineering DAGを使う', () => {
+        const service = serviceWithManifest((manifest) => { delete manifest.selectors.engineering_implementation_dag; });
+        const receipt = service.resolve(input('この修正を実装して', proposal({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+    });
+
+    it('実装専用DAGを含む合成cycleを起動時に拒否する', () => {
+        expect(() => serviceWithManifest((manifest) => {
+            manifest.composition_edges.push(['hypothesis', 'graphify-impact']);
+        })).toThrowError(/selectable judgment graph contains a cycle/);
+    });
+
     it.each([
         ['policy field', (manifest) => { delete manifest.policies[0].version; }, /version is invalid/],
         ['node capability reference', (manifest) => { manifest.nodes.find((node) => node.id === 'knowledge-handoff').required_capability_template = null; }, /capability reference is required/],
         ['DAG policy reference', (manifest) => { manifest.dags[0].policy_ids.push('missing.policy'); }, /missing policy/],
         ['DAG cycle', (manifest) => { manifest.dags[0].path.push(manifest.dags[0].path[0]); }, /contains a cycle/],
         ['selector reference', (manifest) => { manifest.selectors.domain_dags.engineering = 'missing.dag'; }, /missing DAG/],
+        ['implementation selector reference', (manifest) => { manifest.selectors.engineering_implementation_dag = 'missing.dag'; }, /missing DAG/],
         ['matcher reference', (manifest) => { manifest.semantic_matchers.signals.unsupported = ['x']; }, /unsupported selector or matcher/],
         ['composition edge reference', (manifest) => { manifest.composition_edges.push(['missing-node', 'generate']); }, /composition edge references/],
         ['composition edge self reference', (manifest) => { manifest.composition_edges.push(['generate', 'generate']); }, /cannot reference itself/],
