@@ -97,6 +97,14 @@ function resetProjectSelectToGeneral(projectSelect) {
     projectSelect.value = 'general';
 }
 
+export async function loadPortalCatalogProjects() {
+    const catalog = await httpClient.get('/api/config/projects');
+    if (catalog?.source?.status !== 'loaded') return [];
+    return (Array.isArray(catalog.projects) ? catalog.projects : [])
+        .filter(project => !project.archived)
+        .map(project => ({ id: project.id, name: project.name || project.id }));
+}
+
 export function applyUiSetupMixin(AppClass) {
     AppClass.prototype.ensureTopBannerStack = function() {
         let stack = document.getElementById('top-banner-stack');
@@ -313,11 +321,7 @@ export function applyUiSetupMixin(AppClass) {
 
     AppClass.prototype._initPortalView = async function(container) {
         try {
-            const configResp = await httpClient.get('/api/config');
-            const rawProjects = configResp?.projects?.projects || configResp?.projects || [];
-            const projects = (Array.isArray(rawProjects) ? rawProjects : [])
-                .filter(p => !p.archived)
-                .map(p => ({ id: p.id, name: p.name || p.id }));
+            const projects = await loadPortalCatalogProjects();
 
             this.views.portalView = new PortalView({
                 portalService: this.portalService,
@@ -335,11 +339,7 @@ export function applyUiSetupMixin(AppClass) {
 
     AppClass.prototype._initPortalOverlayView = async function(container) {
         try {
-            const configResp = await httpClient.get('/api/config');
-            const rawProjects = configResp?.projects?.projects || configResp?.projects || [];
-            const projects = (Array.isArray(rawProjects) ? rawProjects : [])
-                .filter(p => !p.archived)
-                .map(p => ({ id: p.id, name: p.name || p.id }));
+            const projects = await loadPortalCatalogProjects();
 
             this.views.portalOverlayView = new PortalOverlayView({
                 portalService: this.portalService,

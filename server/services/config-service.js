@@ -494,7 +494,7 @@ export class ConfigService {
 
         if (existing) {
             existing.emoji = emoji || existing.emoji || '';
-            existing.archived = Boolean(archived);
+            if (archived !== undefined) existing.archived = Boolean(archived);
             existing.local = {
                 ...(existing.local || {}),
                 path: normalizedPath,

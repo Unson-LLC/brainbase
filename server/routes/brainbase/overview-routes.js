@@ -1,8 +1,12 @@
 import express from 'express';
 import { logger } from '../../utils/logger.js';
-import { cacheMiddleware } from '../../middleware/cache.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { filterProjectsForAccess } from '../../services/project-access/project-code-matcher.js';
+import {
+    catalogTechnicalMetadataUnavailable,
+    catalogUnavailableResponse,
+    loadRuntimeProjectCatalog
+} from '../../services/project-access/runtime-project-catalog.js';
 
 export function createBrainbaseOverviewRouter(options = {}) {
     const router = express.Router();
@@ -18,6 +22,12 @@ export function createBrainbaseOverviewRouter(options = {}) {
         })
     } = options;
     const isRuntimeCatalog = typeof projectCatalogParser?.runForOrganization === 'function';
+    const catalogReadGuard = isRuntimeCatalog
+        ? projectCatalogAuthGuard
+        : (_req, _res, next) => next();
+    const catalogReadGuardUnlessFixture = (req, res, next) => (
+        req.query.test === 'true' ? next() : catalogReadGuard(req, res, next)
+    );
 
     /**
      * GET /api/brainbase
@@ -88,7 +98,7 @@ export function createBrainbaseOverviewRouter(options = {}) {
      * Critical Alerts取得（ブロッカー + 期限超過タスク）
      * クエリパラメータ: ?test=true でテストデータを返す
      */
-    router.get('/critical-alerts', cacheMiddleware(300), asyncHandler(async (req, res) => {
+    router.get('/critical-alerts', catalogReadGuardUnlessFixture, asyncHandler(async (req, res) => {
         if (req.query.test === 'true') {
             return res.json({
                 alerts: [
@@ -102,9 +112,11 @@ export function createBrainbaseOverviewRouter(options = {}) {
             });
         }
 
-        const config = await configParser.getAll();
-        const projects = (config.projects?.projects || [])
-            .filter((p) => !p.archived && p.nocodb?.project_id)
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
+        const projects = catalog.projects
+            .filter((p) => p.nocodb?.project_id)
             .map((p) => ({ id: p.id, project_id: p.nocodb.project_id }));
 
         const alerts = await nocodbService.getCriticalAlerts(projects);
@@ -116,10 +128,12 @@ export function createBrainbaseOverviewRouter(options = {}) {
      * GET /api/brainbase/strategic-overview
      * 戦略的意思決定支援情報（プロジェクト優先度 + リソース配分）
      */
-    router.get('/strategic-overview', cacheMiddleware(300), asyncHandler(async (req, res) => {
-        const config = await configParser.getAll();
-        const projects = (config.projects?.projects || [])
-            .filter((p) => !p.archived && p.nocodb?.project_id)
+    router.get('/strategic-overview', catalogReadGuard, asyncHandler(async (req, res) => {
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
+        const projects = catalog.projects
+            .filter((p) => p.nocodb?.project_id)
             .map((p) => ({ id: p.id, project_id: p.nocodb.project_id }));
 
         const stats = await Promise.all(
@@ -179,13 +193,13 @@ export function createBrainbaseOverviewRouter(options = {}) {
      * 指定プロジェクトの統計を返す
      * @param {string} id - プロジェクトID（config.ymlのprojects[].id）
      */
-    router.get('/projects/:id/stats', asyncHandler(async (req, res) => {
+    router.get('/projects/:id/stats', catalogReadGuard, asyncHandler(async (req, res) => {
         const { id } = req.params;
 
-        const config = await configParser.getAll();
-        const projects = config.projects?.projects || [];
-
-        const project = projects.find((p) => p.id === id);
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
+        const project = catalog.projects.find((p) => p.id === id);
 
         if (!project || project.archived || !project.nocodb?.project_id) {
             return res.status(404).json({

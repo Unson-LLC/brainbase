@@ -1,6 +1,11 @@
 import express from 'express';
 import { logger } from '../../utils/logger.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import {
+    catalogTechnicalMetadataUnavailable,
+    catalogUnavailableResponse,
+    loadRuntimeProjectCatalog
+} from '../../services/project-access/runtime-project-catalog.js';
 
 /**
  * プロジェクトポータルAPI
@@ -11,18 +16,25 @@ export function createBrainbasePortalRouter(options = {}) {
     const {
         nocodbService,
         configParser,
+        projectCatalogParser = configParser,
+        projectCatalogAuthGuard = (_req, _res, next) => next(),
         infoSSOTService,
         wikiService
     } = options;
+    const catalogReadGuard = typeof projectCatalogParser?.runForOrganization === 'function'
+        ? projectCatalogAuthGuard
+        : (_req, _res, next) => next();
 
     /**
      * GET /api/brainbase/portal/:projectCode/value-loop
      * Value Loopデータ（Decision/Work/Ship/Learn）を返す
      */
-    router.get('/portal/:projectCode/value-loop', asyncHandler(async (req, res) => {
+    router.get('/portal/:projectCode/value-loop', catalogReadGuard, asyncHandler(async (req, res) => {
         const { projectCode } = req.params;
-        const config = await configParser.getAll();
-        const projectConfig = (config.projects?.projects || []).find(p => p.id === projectCode && !p.archived);
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
+        const projectConfig = catalog.projects.find(p => p.id === projectCode);
         if (!projectConfig) return res.status(404).json({ error: 'Project not found' });
         const nocodbBaseId = projectConfig.nocodb?.project_id || null;
         if (!nocodbBaseId) return res.json({ decision: {}, work: {}, ship: {}, learn: {} });
@@ -34,13 +46,13 @@ export function createBrainbasePortalRouter(options = {}) {
      * GET /api/brainbase/portal/:projectCode
      * プロジェクトポータルの全データを集約して返す
      */
-    router.get('/portal/:projectCode', asyncHandler(async (req, res) => {
+    router.get('/portal/:projectCode', catalogReadGuard, asyncHandler(async (req, res) => {
         const { projectCode } = req.params;
 
-        // config.yml からプロジェクト情報を取得
-        const config = await configParser.getAll();
-        const projectConfig = (config.projects?.projects || [])
-            .find(p => p.id === projectCode && !p.archived);
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
+        const projectConfig = catalog.projects.find(p => p.id === projectCode);
 
         if (!projectConfig) {
             return res.status(404).json({ error: 'Project not found' });
@@ -117,8 +129,13 @@ export function createBrainbasePortalRouter(options = {}) {
      * GET /api/brainbase/portal/:projectCode/members
      * プロジェクトメンバー詳細
      */
-    router.get('/portal/:projectCode/members', asyncHandler(async (req, res) => {
+    router.get('/portal/:projectCode/members', catalogReadGuard, asyncHandler(async (req, res) => {
         const { projectCode } = req.params;
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (!catalog.projects.some((project) => project.id === projectCode)) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
         const members = await fetchMembers(projectCode);
         res.json({ members });
     }));
