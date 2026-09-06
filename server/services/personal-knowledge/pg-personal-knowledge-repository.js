@@ -21,9 +21,31 @@ function clientFor(repository, options) {
     return options.client;
 }
 
+function readablePersonalBody(body) {
+    if (typeof body !== 'string' || !body.trim()) return null;
+    const raw = body.trim();
+    try {
+        const parsed = JSON.parse(raw);
+        const preferred = [
+            parsed?.summary,
+            parsed?.principle,
+            parsed?.statement,
+            parsed?.decision?.statement,
+            parsed?.title,
+            parsed?.outcome,
+            parsed?.description
+        ].find((value) => typeof value === 'string' && value.trim());
+        if (preferred) return preferred.trim().slice(0, 2000);
+    } catch {
+        // Plain text is already suitable for the report.
+    }
+    return raw.slice(0, 2000);
+}
+
 function personalSleepReportMemory(event) {
-    if (!event?.event_id || typeof event?.body !== 'string' || !event.body.trim()) return null;
-    return { id: event.event_id, source: 'personal_kg', summary: event.body.trim().slice(0, 2000) };
+    const summary = readablePersonalBody(event?.body);
+    if (!event?.event_id || !summary) return null;
+    return { id: event.event_id, source: 'personal_kg', summary };
 }
 
 function personalSleepReportAssociations(events) {

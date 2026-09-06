@@ -92,6 +92,33 @@ describe('PgPersonalKnowledgeRepository', () => {
         });
     });
 
+    it('睡眠レポートではJSON本文から人が読める要点を取り出す', async () => {
+        const client = { query: vi.fn()
+            .mockResolvedValueOnce({ rows: [{
+                event_id: 'pke_1',
+                parent_episode_id: 'ep_1',
+                body_hash: 'h1',
+                body: JSON.stringify({
+                    principle: '自分の意思を、最小の認知負荷で現実へ変える。',
+                    metrics: ['verified_outcome', 'rework']
+                })
+            }] })
+            .mockResolvedValueOnce({ rows: [{ artifact_id: 'artifact_1' }] })
+            .mockResolvedValueOnce({ rows: [{ episode_id: 'ep_1' }] }) };
+        const repository = new PgPersonalKnowledgeRepository({ pool: { query: vi.fn() } });
+
+        const result = await repository.compressRoutineEpisodes(
+            { project_id: 'brainbase', episode_ids: ['ep_1'] }, { access, client }
+        );
+
+        expect(result.consolidated_memories).toEqual([{
+            id: 'pke_1',
+            source: 'personal_kg',
+            summary: '自分の意思を、最小の認知負荷で現実へ変える。'
+        }]);
+        expect(result.feedback_targets).toEqual(result.consolidated_memories);
+    });
+
     it('creates promotion lineage with reviewer insert permission without requiring row readback', async () => {
         const client = { query: vi.fn(async () => ({ rowCount: 1 })) };
         const repository = new PgPersonalKnowledgeRepository({ pool: { query: vi.fn() } });
