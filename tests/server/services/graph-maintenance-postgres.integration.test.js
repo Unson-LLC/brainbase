@@ -753,6 +753,77 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
+    it('同一organizationのprojectless Personをassigned_to先に持つRACIを別projectへ移動できる', async () => {
+        const isolated = await createScopedDatabase('gm_shared_raci_assignee');
+        try {
+            await assertRlsEnforcedConnection(isolated.pool);
+            await applyInfoSSOTSchema(isolated.pool);
+            await isolated.pool.query(`
+                INSERT INTO projects (id, code, name, organization_id)
+                VALUES
+                    ('project_raci_old', 'smartfront', 'SmartFront legacy', 'org_phase0'),
+                    ('project_raci_new', 'smart-front', 'Smart Front', 'org_phase0');
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('project_raci_new_entity', 'project', 'project_raci_new', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('raci_shared_assignee', 'raci_assignment', 'project_raci_old', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('person_shared_assignee', 'person', NULL, '{"name":"Shared assignee"}',
+                     'member', 'internal', 'active', 1);
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity,
+                     lifecycle_status, version)
+                VALUES
+                    ('membership_shared_assignee', 'person_shared_assignee', 'project_raci_new_entity',
+                     'member_of', 'project_raci_new', '{}', 'member', 'internal', 'active', 1),
+                    ('assigned_to_shared_assignee', 'raci_shared_assignee', 'person_shared_assignee',
+                     'assigned_to', 'project_raci_old', '{}', 'member', 'internal', 'active', 1)
+            `);
+            await applyInfoSSOTRls(isolated.pool);
+            const isolatedInfoSSOT = new InfoSSOTService({
+                pool: isolated.pool,
+                ontologyRegistry: new OntologyRegistry({ rootDir: sourceRoot, publicKeyPem: '' })
+            });
+
+            const { rows: updatedRows } = await isolatedInfoSSOT.withAccessContext(
+                { ...access, projectCodes: ['smartfront', 'smart-front'], graphMaintenanceMode: true },
+                async (client) => {
+                    await client.query(`
+                        UPDATE graph_entities
+                        SET project_id = 'project_raci_new', version = version + 1
+                        WHERE id = 'raci_shared_assignee'
+                    `);
+                    return client.query(`
+                        UPDATE graph_edges
+                        SET project_id = 'project_raci_new', version = version + 1
+                        WHERE id = 'assigned_to_shared_assignee'
+                        RETURNING id, project_id, version
+                    `);
+                }
+            );
+
+            expect(updatedRows).toEqual([{
+                id: 'assigned_to_shared_assignee',
+                project_id: 'project_raci_new',
+                version: 2
+            }]);
+
+            const { rows: visibleRows } = await isolatedInfoSSOT.withAccessContext(
+                { ...access, projectCodes: ['smart-front'] },
+                (client) => client.query(`
+                    SELECT id
+                    FROM graph_edges
+                    WHERE id = 'assigned_to_shared_assignee'
+                `)
+            );
+            expect(visibleRows).toEqual([{ id: 'assigned_to_shared_assignee' }]);
+        } finally {
+            await dropScopedDatabase(isolated);
+        }
+    });
+
     it('別organizationの不可視member_ofを漏らさず対象organizationの可視member_ofだけで解決する', async () => {
         const isolated = await createScopedDatabase('gm_mixed_visibility');
         try {
