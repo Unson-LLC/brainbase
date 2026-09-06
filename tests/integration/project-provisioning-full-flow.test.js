@@ -747,7 +747,7 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         ]);
     }, 300_000);
 
-    it('実PostgreSQLでプロジェクトコードIDが組織主体に占有されている場合は技術的プロジェクトIDへ結び付ける', async () => {
+    it('実PostgreSQLで別組織の組織主体がコードIDを占有していても既存プロジェクト主体へ結び付ける', async () => {
         const organizationId = 'org_reconcile_collision';
         const holderOrganizationId = 'org_reconcile_collision_holder';
         const projectCode = 'reconcile-collision';
@@ -792,6 +792,7 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         const quotedOwner = `"${functionOwner.replaceAll('"', '""')}"`;
         let dryRun;
         await adminPool.query('GRANT CREATE ON SCHEMA public TO brainbase_app');
+        await adminPool.query('GRANT SELECT ON graph_entities, projects TO brainbase_app');
         try {
             await adminPool.query('ALTER FUNCTION project_graph_identity_probe(text) OWNER TO brainbase_app');
             await adminPool.query('REVOKE CREATE ON SCHEMA public FROM brainbase_app');
@@ -799,6 +800,7 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         } finally {
             await adminPool.query(`ALTER FUNCTION project_graph_identity_probe(text) OWNER TO ${quotedOwner}`);
             await adminPool.query('REVOKE CREATE ON SCHEMA public FROM brainbase_app');
+            await adminPool.query('REVOKE SELECT ON graph_entities, projects FROM brainbase_app');
         }
         expect(dryRun).toMatchObject({
             complete: true,
