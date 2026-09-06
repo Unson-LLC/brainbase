@@ -5300,3 +5300,64 @@ describe('pre-2.4.4 control-plane compatibility', () => {
         expect(episode.initial_route_receipt.autonomy_policy_ids).toBeUndefined();
     });
 });
+
+
+describe('resolved prior episode continuity', () => {
+    it.each(['valid', 'legacy-bootstrap', 'wrong-final', 'missing-event', 'invalid-event'])(
+        '次の入力は確定済みrouteを照合し履歴の破損を拒否する: %s', async (mode) => {
+            const root = temporaryDirectory();
+            const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+            const payload = { session_id: 'session-resolved-prior', turn_id: 'turn-first', prompt: '原因を調べて', cwd: process.cwd() };
+            const args = buildJudgmentRequest(payload, { env });
+            const bootstrap = {
+                ...validReceipt(args), status: 'needs_classification', classification: null,
+                reconciliation_reasons: ['model_interpretation_missing'], required_capabilities: [],
+                autonomy_decision: 'escalate', autonomy_reason_code: 'classification_missing',
+                allowed_runtime_escalation_reasons: []
+            };
+            const episode = await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: bootstrap })
+            }) });
+            const interpretation = { intent: 'diagnose', domains: ['engineering'], action_kind: 'read', risk: 'low', confidence: 'confirmed', signals: [] };
+            const resolved = {
+                ...validReceipt(args), request_digest: hash(canonicalJson({ ...args, model_interpretation: interpretation })), resolution_id: 'jr_resolved_prior', plan_digest: 'a'.repeat(64),
+                classification: { intent: 'diagnose', action_kind: 'read', domains: ['engineering'] },
+                selected_dag_ids: ['engineering.v1'], required_capabilities: []
+            };
+            recordBrainbaseToolUse({
+                ...payload, tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'resolve-first',
+                tool_input: { turn_ref: `${hash(payload.session_id)}/${hash(payload.turn_id)}`, model_interpretation: interpretation },
+                tool_response: { status: 'ok', data: resolved }
+            }, { env });
+            const stopped = finalizeEpisode({
+                ...payload, stop_hook_active: false,
+                last_assistant_message: [buildOwnerReferenceLine(args, resolved), episode.audit_contract.zero_call_display_line, '原因を確認しました。'].join('\n')
+            }, { env });
+            expect(stopped.final).toMatchObject({ completion_status: 'complete', initial_route_receipt_digest: hash(canonicalJson(resolved)) });
+            const prefix = join(root, 'journal', hash(payload.session_id), hash(payload.turn_id));
+            expect(JSON.parse(readFileSync(`${prefix}.episode.json`, 'utf8')).initial_route_receipt.status).toBe('needs_classification');
+            if (mode === 'wrong-final' || mode === 'legacy-bootstrap') {
+                writeFileSync(`${prefix}.final.json`, JSON.stringify({ ...stopped.final, initial_route_receipt_digest: mode === 'legacy-bootstrap' ? episode.initial_route_receipt_digest : '0'.repeat(64) }));
+            } else if (mode === 'missing-event') {
+                rmSync(`${prefix}.events`, { recursive: true });
+            } else if (mode === 'invalid-event') {
+                writeFileSync(join(`${prefix}.events`, `${hash('resolve-first')}.json`), JSON.stringify({ schema_version: 'invalid' }));
+            }
+            const next = () => buildJudgmentRequest({ ...payload, turn_id: 'turn-next', prompt: '続けて' }, { env });
+            const stopAgain = () => finalizeEpisode({ ...payload, stop_hook_active: true }, { env });
+            if (mode === 'valid') {
+                expect(stopAgain().final).toEqual(stopped.final);
+                expect(next().conversation_context.prior_receipts).toEqual([expect.objectContaining({
+                    turn_id: payload.turn_id, resolution_id: resolved.resolution_id, classification: resolved.classification
+                })]);
+            } else if (mode === 'legacy-bootstrap') {
+                expect(stopAgain().final.initial_route_receipt_digest).toBe(episode.initial_route_receipt_digest);
+                expect(next().conversation_context.prior_receipts).toEqual([]);
+            } else {
+                const error = mode === 'invalid-event' ? 'judgment_episode_events_invalid' : 'judgment_episode_final_route_mismatch';
+                expect(next).toThrow(error);
+                expect(stopAgain).toThrow(mode === 'invalid-event' ? 'judgment_tool_event_schema_invalid' : error);
+            }
+        }
+    );
+});

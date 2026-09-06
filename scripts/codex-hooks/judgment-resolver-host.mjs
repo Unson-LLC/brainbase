@@ -643,10 +643,10 @@ function priorReceipts(sessionRef, currentTurnId, env) {
             if (episodeName === name) return [];
             const episode = readJson(join(directory, episodeName));
             if (episode.schema_version !== 'brainbase-judgment-episode-v1') return [];
-            if (entry.initial_route_receipt_digest !== episode.initial_route_receipt_digest) {
-                throw new Error('judgment_episode_final_route_mismatch');
-            }
-            const projection = acceptedProjection(episode.initial_route_receipt);
+            const finalizedEpisode = finalizedRouteEpisode(entry, episode, {
+                events: join(directory, name.replace(/\.final\.json$/u, '.events'))
+            });
+            const projection = acceptedProjection(finalizedEpisode.initial_route_receipt);
             return projection ? [{ accepted_at: entry.finalized_at, projection }] : [];
         } catch (error) {
             if (String(error?.message ?? '').startsWith('judgment_episode_')) throw error;
@@ -2740,15 +2740,29 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
     return { status: 'escalated', violation: null };
 }
 
+function finalizedRouteEpisode(entry, episode, paths) {
+    // Finalization uses the resolved contract while the bootstrap episode
+    // remains immutable. Every final reader must reconstruct the same route.
+    let resolvedEpisode;
+    try {
+        resolvedEpisode = effectiveEpisode(episode, episodeEvents(paths));
+    } catch (cause) {
+        throw new Error('judgment_episode_events_invalid', { cause });
+    }
+    if (entry.initial_route_receipt_digest === resolvedEpisode.initial_route_receipt_digest) return resolvedEpisode;
+    // Older Hosts finalized the bootstrap digest even after model resolution.
+    // Preserve their projection without promoting an unbound resolved contract.
+    if (entry.initial_route_receipt_digest === episode.initial_route_receipt_digest) return episode;
+    throw new Error('judgment_episode_final_route_mismatch');
+}
+
 function existingFinal(paths, episode) {
     try {
         const entry = readJson(paths.final);
         if (!['brainbase-judgment-episode-final-v1', 'brainbase-judgment-episode-final-v2'].includes(entry.schema_version)) {
             throw new Error('judgment_episode_final_schema_invalid');
         }
-        if (episode && entry.initial_route_receipt_digest !== episode.initial_route_receipt_digest) {
-            throw new Error('judgment_episode_final_route_mismatch');
-        }
+        if (episode) finalizedRouteEpisode(entry, episode, paths);
         const episodeHasLifecycle = episode
             && (episode.episode_origin !== undefined || episode.route_application !== undefined);
         if (episodeHasLifecycle
