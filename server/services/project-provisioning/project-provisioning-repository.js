@@ -420,7 +420,7 @@ export class PgProjectProvisioningRepository {
                 `INSERT INTO project_registry
                  (project_code,organization_id,display_name,kind,catalog_version,session_select,organization_entity_id,owner_person_id,repository,
                   graph_entity_id,graph_binding_status,graph_binding_reason,graph_binding_evidence)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NULL,'unresolved','project_provisioning_pending_graph',jsonb_build_object('project_code',$1))
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NULL,'unresolved','project_provisioning_pending_graph',jsonb_build_object('project_code',$1::text))
                  ON CONFLICT (project_code) DO UPDATE SET repository=EXCLUDED.repository, updated_at=now()
                  RETURNING *`,
                 [manifest.project_code, organizationId, manifest.display_name, manifest.kind, manifest.catalog_version,
