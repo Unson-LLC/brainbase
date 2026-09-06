@@ -3273,14 +3273,96 @@ function latestContinuation(paths) {
     return marker;
 }
 
+const NON_BUSINESS_EVENT_KINDS = new Set(['state', 'value_proof', 'turn_resolution', 'route']);
+const NON_BUSINESS_TOOL_PATTERN = /(?:^|__)(?:get_goal|update_goal|create_goal|search_tools|list_tools|list_mcp_resources|list_mcp_resource_templates|curr_time|sleep)$/u;
+
+function isSuccessfulBusinessExecutionEvent(event) {
+    return event.success
+        && !NON_BUSINESS_EVENT_KINDS.has(event.event_kind)
+        && !NON_BUSINESS_TOOL_PATTERN.test(event.tool_name);
+}
+
 function continuationExecutionEvents(events, marker) {
     if (!marker?.autonomy_continuation) return [];
-    return events.filter((event) => event.success
-        && !['state', 'value_proof', 'turn_resolution', 'route'].includes(event.event_kind)
-        && !/(?:^|__)(?:get_goal|update_goal|create_goal|search_tools|list_tools|list_mcp_resources|list_mcp_resource_templates|curr_time|sleep)$/u.test(event.tool_name)
+    return events.filter((event) => isSuccessfulBusinessExecutionEvent(event)
         && (Number.isSafeInteger(marker.event_sequence_boundary)
             ? Number.isSafeInteger(event.event_sequence) && event.event_sequence > marker.event_sequence_boundary
             : Date.parse(event.recorded_at) > Date.parse(marker.requested_at)));
+}
+
+function deriveStopDecision({
+    receipt,
+    episodeOrigin,
+    autonomyCompliance,
+    autonomyContinuationRequested,
+    missingAutonomyCompliance,
+    missingStopState,
+    businessExecutionEvidence,
+    missingTurnResolution,
+    missingKnowledge,
+    missingValueProof,
+    missingOwnerAudit,
+    missingAnswerBody,
+    surfaceUnavailable,
+    preEpisodeAuditGap,
+    stopAlreadyBlockedOnce,
+    retryContinuation
+}) {
+    const businessReasons = [];
+    const protocolReasons = [];
+    const businessContinuationRequested = autonomyContinuationRequested
+        || (episodeOrigin === 'stop_delegation_recovery'
+            && missingStopState
+            && !businessExecutionEvidence);
+    const humanDecisionRequired = receipt?.autonomy_decision === 'escalate'
+        && autonomyCompliance.triggerCode !== 'unfinished_safe_work';
+    const businessDecision = humanDecisionRequired
+        || ['runtime_escalated', 'escalated'].includes(autonomyCompliance.status)
+        ? 'ASK_HUMAN'
+        : businessContinuationRequested ? 'CONTINUE' : 'RELEASE';
+
+    if (businessDecision === 'CONTINUE') {
+        businessReasons.push(autonomyCompliance.triggerCode ?? 'unfinished_safe_work');
+    } else if (businessDecision === 'ASK_HUMAN') {
+        businessReasons.push(
+            autonomyCompliance.stopState?.runtime_reason_code
+                ?? episodeAutonomyContract({ initial_route_receipt: receipt })?.reasonCode
+                ?? 'human_confirmation_required'
+        );
+    }
+
+    if (missingTurnResolution) protocolReasons.push('judgment.resolve_turn');
+    if (missingKnowledge) protocolReasons.push('knowledge.resolve');
+    if (missingValueProof) protocolReasons.push('judgment.value_proof.record');
+    if (missingOwnerAudit) protocolReasons.push('owner.audit.display');
+    if (missingAnswerBody) protocolReasons.push('answer.body.preservation');
+    if (missingStopState) protocolReasons.push('judgment_state_record');
+    else if (missingAutonomyCompliance && !autonomyContinuationRequested) protocolReasons.push('autonomy.compliance');
+    if (surfaceUnavailable) protocolReasons.push('judgment.resolve_turn.surface');
+    if (preEpisodeAuditGap) protocolReasons.push('pre_episode_tool_events');
+
+    const degraded = Boolean((surfaceUnavailable && !missingOwnerAudit) || preEpisodeAuditGap
+        || (stopAlreadyBlockedOnce && !retryContinuation));
+    const continuationTriggerCode = autonomyCompliance.triggerCode ?? 'unfinished_safe_work';
+    const nextObjective = continuationTriggerCode === 'unnecessary_user_question'
+        ? 'resume_approved_work'
+        : 'complete_remaining_safe_work_and_verification';
+    return {
+        business_decision: businessDecision,
+        protocol_status: degraded ? 'degraded' : protocolReasons.length > 0 ? 'repair' : 'ready',
+        business_reasons: businessReasons,
+        protocol_reasons: protocolReasons,
+        ...(businessDecision === 'CONTINUE' ? {
+            continuation_plan: {
+                trigger_code: continuationTriggerCode,
+                reason_code: receipt?.autonomy_reason_code ?? 'contract_reason_unavailable',
+                next_objective: nextObjective,
+                allowed_scope: 'current_turn_approved_scope',
+                done_when: 'required_business_execution_and_verification_are_complete',
+                max_stop_attempts: MAX_CONTINUATION_ATTEMPTS
+            }
+        } : {})
+    };
 }
 
 function continuationFailureLine(finalized) {
@@ -3396,6 +3478,15 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         ...(missingOwnerAudit ? ['owner.audit.display'] : []),
         ...(missingAnswerBody ? ['answer.body.preservation'] : [])
     ];
+    const preEpisodeAuditGap = episode.pre_episode_audit_gap
+        ? verifyPreEpisodeAuditGap(episode.pre_episode_audit_gap)
+        : null;
+    const stateRequired = journalStopStateRequired(episode.initial_route_receipt)
+        || structuredStopStateRequired(episode.initial_route_receipt);
+    const missingStopState = missingAutonomyCompliance
+        && !autonomyCompliance.stopState
+        && stateRequired;
+    const businessExecutionEvidence = events.some(isSuccessfulBusinessExecutionEvent);
     // Audit-only repair remains one-shot. Real continuation gets a persisted,
     // bounded retry budget; an active re-Stop is not itself evidence of success.
     const stopAlreadyBlockedOnce = missingCapabilities.length > 0 && existingContinuation !== null && payload.stop_hook_active === true;
@@ -3408,7 +3499,35 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const retryContinuation = routeTransitionRetry || (stopAlreadyBlockedOnce && missingAutonomyCompliance
         && (autonomyContinuationRequested || existingContinuation?.autonomy_continuation)
         && attempt < MAX_CONTINUATION_ATTEMPTS);
-    if (missingCapabilities.length > 0 && (!stopAlreadyBlockedOnce || retryContinuation)) {
+    const stopDecision = deriveStopDecision({
+        receipt: episode.initial_route_receipt,
+        episodeOrigin: episode.episode_origin,
+        autonomyCompliance,
+        autonomyContinuationRequested,
+        missingAutonomyCompliance,
+        missingStopState,
+        businessExecutionEvidence,
+        missingTurnResolution,
+        missingKnowledge,
+        missingValueProof,
+        missingOwnerAudit,
+        missingAnswerBody,
+        surfaceUnavailable,
+        preEpisodeAuditGap,
+        stopAlreadyBlockedOnce,
+        retryContinuation
+    });
+    const decisionMissingCapabilities = [...new Set([
+        ...missingCapabilities.filter((capability) => capability !== 'autonomy.continuation'),
+        ...(stopDecision.business_decision === 'CONTINUE' ? ['autonomy.continuation'] : []),
+        ...(missingStopState ? ['judgment_state_record'] : [])
+    ])];
+    const shouldBlock = stopDecision.business_decision === 'CONTINUE'
+        || stopDecision.protocol_status === 'repair';
+    const continuationTriggerCode = stopDecision.business_decision === 'CONTINUE'
+        ? stopDecision.business_reasons[0] ?? 'unfinished_safe_work'
+        : null;
+    if (shouldBlock && (!stopAlreadyBlockedOnce || retryContinuation)) {
         let marker = existingContinuation;
         if (!marker || retryContinuation) {
             const shouldBindAnswerBody = !missingTurnResolution
@@ -3432,8 +3551,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 requested_at: marker?.requested_at ?? new Date().toISOString(),
                 stop_attempt: attempt + 1,
                 initial_route_receipt_digest: episode.initial_route_receipt_digest,
-                missing_capabilities: missingCapabilities,
-                ...(typeof auditContract?.stop_repair_complete_line === 'string' ? {
+                missing_capabilities: decisionMissingCapabilities,
+                stop_decision: stopDecision,
+                ...((missingOwnerAudit || missingAnswerBody)
+                    && typeof auditContract?.stop_repair_complete_line === 'string' ? {
                     stop_repair: {
                         count: 1,
                         status: 'requested'
@@ -3448,22 +3569,22 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                         source: 'pre_resolution_stop'
                     }
                 } : {}),
-                ...(autonomyContinuationRequested ? {
+                ...(stopDecision.business_decision === 'CONTINUE' ? {
                     event_sequence_boundary: marker?.event_sequence_boundary
                         ?? events.reduce((max, event) => Number.isSafeInteger(event.event_sequence)
                             ? Math.max(max, event.event_sequence) : max, -1),
                     autonomy_continuation: {
                         ...(marker?.autonomy_continuation ?? {}),
                         count: 1,
-                        trigger_code: marker?.autonomy_continuation?.trigger_code ?? autonomyCompliance.triggerCode,
-                        reason_code: autonomyContract.reasonCode,
+                        trigger_code: marker?.autonomy_continuation?.trigger_code ?? continuationTriggerCode,
+                        reason_code: autonomyContract?.reasonCode ?? 'routine_in_scope',
                         status: 'requested',
                         ...(autonomyCompliance.question ? {
                             interruption_candidate: {
                                 resolution: 'continued_without_human',
                                 question_display_text: autonomyCompliance.question,
                                 question_digest: `sha256:${sha256(autonomyCompliance.question)}`,
-                                reason_code: autonomyContract.reasonCode,
+                                reason_code: autonomyContract?.reasonCode ?? 'routine_in_scope',
                                 source: 'autonomy_continuation'
                             }
                         } : {})
@@ -3491,7 +3612,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         }
         const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
         const reasons = [
-            ...(autonomyContinuationRequested ? [
+            ...(stopDecision.business_decision === 'CONTINUE' ? [
                 'まず承認済み範囲の安全な次の作業・検証を実際に実行する。状態登録、監査行の追加、将来の作業予定だけで終了しない。権限・外部影響の境界は広げず、許可された確認理由が生じた場合だけwaiting_humanで止める'
             ] : []),
             ...(missingTurnResolution ? [
@@ -3504,7 +3625,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ...(missingValueProof ? [
                 `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
             ] : []),
-            ...((missingOwnerAudit || missingAutonomyCompliance) ? [
+            ...((stopDecision.protocol_status === 'repair' || stopDecision.business_decision === 'CONTINUE') ? [
                 `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
             ] : []),
             ...(unauthorizedContinuationAudit ? ['Hostが記録していない🔁監査行を削除する'] : []),
@@ -3519,11 +3640,11 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ...(missingAutonomyCompliance ? [autonomyCompliance.violation] : [])
         ];
         const reasonSequence = reasons.join('\nその後、');
-        const completionInstruction = missingAutonomyCompliance
+        const completionInstruction = stopDecision.business_decision === 'CONTINUE'
             ? '作業・検証を先に行い、その結果に基づく状態を最後のtool callで記録してください。安全な残作業があればpendingのまま実行を続け、完了した範囲と未完了を区別して報告してください。'
             : '監査行の後に、元の回答本文をそのまま続けてください。';
-        const progressLine = autonomyContinuationRequested
-            ? autonomyCompliance.triggerCode === 'unfinished_safe_work'
+        const progressLine = stopDecision.business_decision === 'CONTINUE'
+            ? continuationTriggerCode === 'unfinished_safe_work'
                 ? auditContract.outcome_continuation_progress_line
                 : auditContract.autonomy_continuation_progress_line
             : null;
@@ -3573,9 +3694,6 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         );
     }
     const finalAutonomyContract = episodeAutonomyContract(episode);
-    const preEpisodeAuditGap = episode.pre_episode_audit_gap
-        ? verifyPreEpisodeAuditGap(episode.pre_episode_audit_gap)
-        : null;
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
         finalized_at: finalizedAt,
@@ -3583,18 +3701,21 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             completion_status: 'audit_degraded',
             degradation_reason: 'turn_resolution_unavailable',
             ...(bootstrapEpisode.host_surface ? { host_surface: bootstrapEpisode.host_surface } : {})
-        } : stopAlreadyBlockedOnce ? {
-            completion_status: 'audit_degraded',
-            degradation_reason: missingCapabilities[0],
-            missing_capabilities: missingCapabilities
         } : preEpisodeAuditGap ? {
             completion_status: 'audit_degraded',
             degradation_reason: 'pre_episode_tool_events',
             pre_episode_audit_gap: preEpisodeAuditGap
+        } : stopAlreadyBlockedOnce ? {
+            completion_status: 'audit_degraded',
+            degradation_reason: stopDecision.business_decision === 'CONTINUE'
+                ? 'autonomy.continuation'
+                : decisionMissingCapabilities[0],
+            missing_capabilities: decisionMissingCapabilities
         } : { completion_status: 'complete' }),
         protocol_status: stopAlreadyBlockedOnce || preEpisodeAuditGap
             ? 'audit_protocol_incomplete'
             : 'audit_protocol_complete',
+        stop_decision: stopDecision,
         content_verification_status: 'not_evaluated',
         ...(finalAutonomyContract?.approvalRef ? { approval_ref: finalAutonomyContract.approvalRef } : {}),
         ...(episode.episode_origin !== undefined ? {
@@ -3651,9 +3772,13 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
     enqueueFinalKnowledgeEvent(payload, final, env);
     const baseOutput = completedAuditOutput(valueProof, valueProofAttention);
-    const immediateDegradationReason = stopAlreadyBlockedOnce
-        ? missingCapabilities[0]
-        : preEpisodeAuditGap ? 'pre_episode_tool_events' : null;
+    const immediateDegradationReason = preEpisodeAuditGap
+        ? 'pre_episode_tool_events'
+        : stopAlreadyBlockedOnce
+            ? stopDecision.business_decision === 'CONTINUE'
+                ? 'autonomy.continuation'
+                : decisionMissingCapabilities[0]
+            : null;
     const output = immediateDegradationReason
         ? { ...baseOutput, systemMessage: `${baseOutput.systemMessage}\n⚠️ 監査縮退: ${immediateDegradationReason}${continuationFailureLine(final)}` }
         : baseOutput;

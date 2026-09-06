@@ -359,7 +359,7 @@ describe('Judgment Resolver Host value proof integration', () => {
     const proofMissing = finalizeEpisode({
       hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false,
-      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を差し戻し、再開要求を記録\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
+      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を差し戻し、再開要求を記録\n\n既存の正本更新とテストを完了しました。`,
     }, { env });
     expect(proofMissing.output.decision).toBe('block');
     expect(proofMissing.output.reason).toContain('brainbase_judgment_value_proof_record');
@@ -402,11 +402,12 @@ describe('Judgment Resolver Host value proof integration', () => {
       session_id: payload.session_id,
       turn_id: payload.turn_id,
       stop_hook_active: true,
-      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を差し戻し、再開要求を記録\n🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\n既存の正本更新とテストを完了しました。`,
+      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を差し戻し、再開要求を記録\n\n既存の正本更新とテストを完了しました。`,
     }, { env });
 
     expect(result.output.systemMessage).toContain(`${ownerLine}\n${execution.display_line}`);
-    expect(result.output.systemMessage).toContain('🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓\n\nBrainbase判断レシート');
+    expect(result.output.systemMessage).not.toContain('🛠️ Stop修復:');
+    expect(result.output.systemMessage).toContain('🔁 自律継続: 不要な確認を差し戻し、再開要求を記録\n\nBrainbase判断レシート');
     expect(result.output.systemMessage).toContain('結果: 変更後の正本を読み戻し、テスト成功を確認した');
     expect(result.output.systemMessage).toContain('判断: 既存SSOTを最小更新する');
     expect(result.output.systemMessage).toContain('状態: 成果確認済み');

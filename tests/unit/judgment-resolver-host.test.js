@@ -3591,7 +3591,6 @@ describe('Codex Judgment Resolver Host', () => {
         expect(result.output.reason).toContain('安全な範囲で作業を継続');
         expect(result.continuation).toMatchObject({
             missing_capabilities: expect.arrayContaining(['autonomy.continuation']),
-            stop_repair: { count: 1, status: 'requested' },
             autonomy_continuation: {
                 count: 1,
                 trigger_code: 'unnecessary_user_question',
@@ -3610,7 +3609,6 @@ describe('Codex Judgment Resolver Host', () => {
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
                 '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
-                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '安全な範囲の実装と検証を完了しました。'
             ].join('\n')
         }, { env });
@@ -3618,20 +3616,18 @@ describe('Codex Judgment Resolver Host', () => {
         expect(completed.output.systemMessage).toBe([
             episode.owner_audit.display_line,
             '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
-            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
+            '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録'
         ].join('\n'));
         expect(completed.final).toMatchObject({
             completion_status: 'complete',
-            owner_audit_line_count: 4,
+            owner_audit_line_count: 3,
             autonomy_compliance_status: 'continued',
             autonomy_continuation: {
                 count: 1,
                 trigger_code: 'unnecessary_user_question',
                 reason_code: 'routine_in_scope',
                 status: 'completed'
-            },
-            stop_repair: { count: 1, status: 'completed' }
+            }
         });
     });
 
@@ -3694,7 +3690,6 @@ describe('Codex Judgment Resolver Host', () => {
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
                 '🔁 実行継続: 安全な残作業の再開要求を記録',
-                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
                 '検証処理を修正しました。回帰テストも完了しました。'
             ].join('\n')
         }, { env });
