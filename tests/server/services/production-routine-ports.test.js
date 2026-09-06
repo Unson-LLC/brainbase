@@ -377,13 +377,93 @@ describe('ProductionRoutinePorts', () => {
             memories: [{ summary: '判断1' }, { summary: '判断2' }, { summary: '判断3' }]
         });
         expect(result.morning_output.routine_output).toMatchObject({
-            headline: '今日は「判断1」を判断軸に進める',
-            today_focus: [{ summary: '判断1' }],
-            immediate_decisions: [{ summary: '判断2' }, { summary: '判断3' }]
+            headline: '今日進めることは未確定です',
+            today_focus: [],
+            immediate_decisions: [],
+            warnings: [
+                { code: 'one', summary: '例外1' },
+                { code: 'two', summary: '例外2' },
+                { code: 'three', summary: '例外3' },
+                { summary: '朝の予定・メール・Slackは未確認です' }
+            ],
+            references: [
+                { source: 'graph_ssot', summary: '判断1' },
+                { source: 'graph_ssot', summary: '判断2' },
+                { source: 'graph_ssot', summary: '判断3' }
+            ]
         });
         expect(JSON.stringify(result.morning_output)).not.toContain('raw-graph');
         expect(JSON.stringify(result.morning_output)).not.toContain('/secret/one.json');
         expect(JSON.stringify(result.morning_output)).not.toContain('判断4');
+    });
+
+    it('ohayoは必須ソースの入力欠落を0件ではなくunavailableとして残す', async () => {
+        const { ports } = createPorts();
+        const result = await ports.generate({
+            input: {
+                day_view: {
+                    today_focus: [],
+                    source_coverage: [
+                        { source: 'calendar', status: 'confirmed', summary: '全アカウント確認済み' }
+                    ]
+                }
+            },
+            exceptions: [],
+            graph_memories: [],
+            personal_memories: []
+        }, context);
+
+        expect(result.morning_output.routine_output.source_coverage).toEqual([
+            { source: 'calendar', status: 'confirmed', summary: '全アカウント確認済み' },
+            { source: 'mail', status: 'unavailable', summary: '確認結果が入力されていません' },
+            { source: 'slack', status: 'unavailable', summary: '確認結果が入力されていません' }
+        ]);
+        expect(result.anomalies).toEqual([
+            expect.objectContaining({ code: 'ohayo_source_unconfirmed', source: 'mail', status: 'unavailable' }),
+            expect.objectContaining({ code: 'ohayo_source_unconfirmed', source: 'slack', status: 'unavailable' })
+        ]);
+    });
+
+    it('ohayoは想起順を今日の目的にせず、収集済みday_viewから行動と人間判断を分ける', async () => {
+        const { ports } = createPorts();
+        const result = await ports.generate({
+            input: {
+                day_view: {
+                    today_focus: [{ summary: '顧客Aの提案を合意可能な状態にする' }],
+                    ai_actions: [{ summary: '会議前に論点と選択肢を整理する' }],
+                    human_decisions: [{ summary: '値引きを許容するか決める' }],
+                    carryovers: [{ summary: '昨日の契約条項確認' }],
+                    source_coverage: [
+                        { source: 'calendar', status: 'confirmed', summary: '2アカウント確認済み' },
+                        { source: 'mail', status: 'partial', summary: '1アカウント認証切れ' },
+                        { source: 'slack', status: 'confirmed', summary: '3ワークスペース確認済み' }
+                    ]
+                }
+            },
+            exceptions: [],
+            graph_memories: [{ id: 'graph-1', source_event_id: 'kev_graph_1', name: '過去の判断' }],
+            personal_memories: []
+        }, context);
+
+        expect(result.anomalies).toEqual([
+            expect.objectContaining({ code: 'ohayo_source_unconfirmed', source: 'mail' })
+        ]);
+        expect(result.morning_output.routine_output).toMatchObject({
+            headline: '今日は「顧客Aの提案を合意可能な状態にする」まで進める',
+            today_focus: [{ summary: '顧客Aの提案を合意可能な状態にする' }],
+            ai_actions: [{ summary: '会議前に論点と選択肢を整理する' }],
+            immediate_decisions: [{ summary: '値引きを許容するか決める' }],
+            carryovers: [{ summary: '昨日の契約条項確認' }],
+            source_coverage: [
+                { source: 'calendar', status: 'confirmed', summary: '2アカウント確認済み' },
+                { source: 'mail', status: 'partial', summary: '1アカウント認証切れ' },
+                { source: 'slack', status: 'confirmed', summary: '3ワークスペース確認済み' }
+            ],
+            references: [{ source: 'graph_ssot', summary: '過去の判断' }]
+        });
+        expect(result.morning_output.routine_output.warnings).toEqual([
+            { summary: 'mail: 1アカウント認証切れ' }
+        ]);
     });
 
     it('ohayoはGraph実返却payloadとPersonal KGから正式knowledge event IDだけを解決する', async () => {

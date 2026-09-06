@@ -17,6 +17,7 @@ import {
     enqueueCodexAutomationReceipt
 } from '../run-receipt/codex-automations-reporter.mjs';
 import { resolveRoutineReceiptPaths } from './runtime-paths.mjs';
+import { buildDailyOpsReportHtml, normalizeDailyOpsReport } from '../daily-ops-report.mjs';
 
 const ROUTINE_NAMES = Object.freeze(['ohayo', 'oyasumi', 'retro']);
 const routineExpectations = parseRoutineExpectations(expectationManifest);
@@ -109,7 +110,7 @@ export function serializeRoutineCliResult(result) {
         ]);
         const feedbackKeys = new Set(['consolidated_memories', 'feedback_targets']);
         for (const key of [
-            'today_focus', 'immediate_decisions', 'warnings', 'carryovers', 'references',
+            'today_focus', 'ai_actions', 'immediate_decisions', 'warnings', 'carryovers', 'source_coverage', 'references',
             'sleep_causes', 'consolidated_memories', 'associations', 'feedback_targets', 'unresolved_items',
             'tomorrow_focus', 'closed', 'personal_kg_registration_candidates',
             'system_changes', 'repeated_patterns', 'personal_kg_registration_reviews', 'graph_promotion_reviews'
@@ -119,8 +120,10 @@ export function serializeRoutineCliResult(result) {
                 ...(reviewKeys.has(key) && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
                 ...(feedbackKeys.has(key) && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
                 ...(reviewKeys.has(key) && typeof item?.status === 'string' ? { status: item.status.slice(0, 100) } : {}),
-                ...((key === 'references' || feedbackKeys.has(key)) && typeof item?.source === 'string'
+                ...((key === 'references' || key === 'source_coverage' || feedbackKeys.has(key)) && typeof item?.source === 'string'
                     ? { source: item.source.slice(0, 100) } : {}),
+                ...(key === 'source_coverage' && typeof item?.status === 'string'
+                    ? { status: item.status.slice(0, 100) } : {}),
                 ...(key === 'sleep_causes' && typeof item?.code === 'string' ? { code: item.code.slice(0, 100) } : {}),
                 ...(key === 'sleep_causes' && Number.isFinite(item?.count) ? { count: item.count } : {}),
                 ...(typeof item?.summary === 'string' ? { summary: item.summary.slice(0, 2000) } : {}),
@@ -164,6 +167,48 @@ function persistRoutineSummary({ routine, routineSummary, varDir }) {
     const discoverableTarget = path.join(varDir, 'routine-artifacts', `${routine}-${contentSha256}.json`);
     if (!fs.existsSync(discoverableTarget)) fs.linkSync(target, discoverableTarget);
     return { kind: 'artifact_ref', ref: relativePath, label: 'routine_summary' };
+}
+
+function persistOhayoDayView({ input, routineOutput, varDir }) {
+    const dayView = input?.day_view;
+    if (!dayView || typeof dayView !== 'object' || !varDir) return null;
+    const date = typeof dayView.date === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(dayView.date)
+        ? dayView.date : new Date().toISOString().slice(0, 10);
+    const sourceCoverage = Array.isArray(routineOutput?.source_coverage)
+        ? routineOutput.source_coverage
+        : (Array.isArray(dayView.source_coverage) ? dayView.source_coverage : []);
+    const coverageEvidence = sourceCoverage
+        .map((item) => ({
+            label: `${String(item?.source || 'source')}: ${String(item?.status || 'unavailable')}`,
+            ref: String(item?.summary || '確認範囲を取得できませんでした')
+        }));
+    const priorityItems = (items, status) => (Array.isArray(items) ? items : []).map((item) => ({
+        ...item,
+        meta: { ...(item?.meta || {}), status }
+    }));
+    const report = normalizeDailyOpsReport({
+        mode: 'ohayo',
+        date,
+        title: '今日の見通し',
+        summary: [routineOutput?.headline, dayView.summary].filter(Boolean).join('。'),
+        calendar: dayView.calendar,
+        mail: dayView.mail,
+        slack: dayView.slack,
+        priorityTasks: [
+            ...priorityItems(dayView.today_focus, '今日の到達点'),
+            ...priorityItems(dayView.ai_actions, 'AIが進める'),
+            ...priorityItems(dayView.human_decisions, '要判断'),
+            ...priorityItems(dayView.carryovers, '持ち越し'),
+            ...(Array.isArray(dayView.priority_tasks) ? dayView.priority_tasks : [])
+        ],
+        evidence: [...coverageEvidence, ...(Array.isArray(dayView.evidence) ? dayView.evidence : [])]
+    });
+    const relativePath = path.posix.join('daily-ops-reports', `ohayo-${date}.html`);
+    const target = path.join(varDir, ...relativePath.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(target, buildDailyOpsReportHtml(report), { mode: 0o600 });
+    fs.writeFileSync(target.replace(/\.html$/u, '.json'), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+    return { kind: 'artifact_ref', ref: `ohayo-day-view:${relativePath}`, label: 'ohayo_day_view' };
 }
 
 export function buildRoutineRunReceipt({
@@ -239,15 +284,45 @@ export async function runRoutine({
             routine_summary: { routine, status: 'failed', anomaly_count: 1 }
         };
     }
+    const varDir = env.BRAINBASE_VAR_DIR || resolveRoutineReceiptPaths({ repoDir, env }).varDir;
+    let dayViewRef = null;
+    if (routine === 'ohayo' && input?.day_view) {
+        try {
+            dayViewRef = persistOhayoDayView({
+                input,
+                routineOutput: cycleResult?.routine_output || cycleResult?.routine_summary?.routine_output,
+                varDir
+            });
+        } catch {
+            const anomalies = [
+                ...(Array.isArray(cycleResult?.anomalies) ? cycleResult.anomalies : []),
+                { code: 'ohayo_day_view_persistence_failed' }
+            ];
+            cycleResult = {
+                ...cycleResult,
+                status: cycleResult?.status === 'failed' ? 'failed' : 'partial',
+                coverage: 'partial',
+                anomalies,
+                routine_summary: {
+                    ...(cycleResult?.routine_summary || {}),
+                    routine,
+                    status: cycleResult?.status === 'failed' ? 'failed' : 'partial',
+                    coverage: 'partial',
+                    anomaly_count: anomalies.length
+                }
+            };
+        }
+    }
     const summaryRef = persistRoutineSummary({
         routine,
         routineSummary: cycleResult?.routine_summary,
-        varDir: env.BRAINBASE_VAR_DIR || resolveRoutineReceiptPaths({ repoDir, env }).varDir
+        varDir
     });
     const evidenceRefs = Array.isArray(cycleResult?.evidence_refs)
         ? cycleResult.evidence_refs.filter((ref) => !summaryRef || ref?.label !== 'routine_summary')
         : [];
     if (summaryRef) evidenceRefs.push(summaryRef);
+    if (dayViewRef) evidenceRefs.push(dayViewRef);
     const receiptInput = {
         ...cycleResult,
         status: cycleResult?.status === 'partial' ? 'waiting_human' : cycleResult?.status,
@@ -281,6 +356,7 @@ export async function runRoutine({
         ...cycleResult,
         status: cycleResult.status,
         cycle_status: cycleResult.status,
+        evidence_refs: evidenceRefs,
         queued: queued.status,
         delivery
     };

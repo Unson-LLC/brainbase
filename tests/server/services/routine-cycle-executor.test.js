@@ -121,6 +121,52 @@ describe('RoutineCycleExecutor', () => {
         );
     });
 
+    it('ohayoは朝の入力ソースが未確認ならcompletedにせずpartialを返す', async () => {
+        const executor = new RoutineCycleExecutor({
+            livenessService: { listExceptions: vi.fn(async () => []) },
+            recallService: {
+                recallGraph: vi.fn(async () => []),
+                recallPersonalKg: vi.fn(async () => [])
+            },
+            ohayoGenerator: {
+                generate: vi.fn(async () => ({
+                    anomalies: [{
+                        code: 'ohayo_source_unconfirmed',
+                        source: 'mail',
+                        status: 'unavailable',
+                        summary: '認証切れで確認できませんでした'
+                    }],
+                    morning_output: {
+                        exceptions: [],
+                        memories: [],
+                        routine_output: {
+                            headline: '今日進めることは未確定です',
+                            source_coverage: [{
+                                source: 'mail',
+                                status: 'unavailable',
+                                summary: '認証切れで確認できませんでした'
+                            }]
+                        }
+                    }
+                }))
+            },
+            feedbackService: { recordUsage: vi.fn(async () => ({})) }
+        });
+
+        const result = await executor.execute({ routine: 'ohayo', input: {} });
+
+        expect(result).toMatchObject({
+            status: 'partial',
+            coverage: 'partial',
+            anomalies: [expect.objectContaining({ code: 'ohayo_source_unconfirmed', source: 'mail' })],
+            routine_output: {
+                source_coverage: [{
+                    source: 'mail', status: 'unavailable', summary: '認証切れで確認できませんでした'
+                }]
+            }
+        });
+    });
+
     it('認証contextをretroの評価・候補作成portへ伝播する', async () => {
         const context = {
             access: { personId: 'routine-worker', projectCodes: ['brainbase'], role: 'member' },

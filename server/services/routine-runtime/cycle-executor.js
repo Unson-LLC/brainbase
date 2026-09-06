@@ -88,9 +88,11 @@ function safeRoutineOutput(routine, output = {}) {
         return {
             headline,
             today_focus: safeOutputItems(output.today_focus),
+            ai_actions: safeOutputItems(output.ai_actions),
             immediate_decisions: safeOutputItems(output.immediate_decisions),
             warnings: safeOutputItems(output.warnings),
             carryovers: safeOutputItems(output.carryovers),
+            source_coverage: safeOutputItems(output.source_coverage, { review: true, reference: true }),
             references: safeOutputItems(output.references, { reference: true })
         };
     }
@@ -306,6 +308,7 @@ export class RoutineCycleExecutor {
                 : recallPersonalKg({ input: input.input || {} }, context)
         ]);
         const generateInput = {
+            input: input.input || {},
             exceptions,
             graph_memories: graphKnowledge,
             personal_memories: personalKnowledge
@@ -318,7 +321,10 @@ export class RoutineCycleExecutor {
             ? generated.used_knowledge_ids
             : [])]
             .filter((id) => recalledIds.has(id));
-        const anomalies = morningExceptionAnomalies(exceptions);
+        const anomalies = [
+            ...morningExceptionAnomalies(exceptions),
+            ...(Array.isArray(generated?.anomalies) ? generated.anomalies : [])
+        ];
         if (judgmentOutboxDelivery) {
             const deliveryCode = judgmentOutboxDelivery.dead_lettered > 0
                 ? 'judgment_outbox_dead_lettered'

@@ -4,6 +4,7 @@ const ROUTINE_AUTOMATION_IDS = Object.freeze([
     'brainbase-oyasumi',
     'brainbase-retro'
 ]);
+const OHAYO_REQUIRED_SOURCES = Object.freeze(['calendar', 'mail', 'slack']);
 
 function projectInput(input = {}) {
     const projectId = input?.input?.project_id || input?.project_id || ROUTINE_PROJECT_ID;
@@ -82,6 +83,26 @@ function reviewItem(item) {
 
 function uniqueReviews(items) {
     return [...new Map(items.filter(Boolean).map((item) => [item.id || item.summary, item])).values()];
+}
+
+function safeDayItems(items) {
+    return (Array.isArray(items) ? items : []).map(safeMemory).filter(Boolean);
+}
+
+function safeSourceCoverage(items) {
+    const normalized = (Array.isArray(items) ? items : []).map((item) => {
+        const summary = safeMemory(item)?.summary;
+        const source = typeof item?.source === 'string' ? item.source.trim().slice(0, 100) : '';
+        const status = ['confirmed', 'partial', 'unavailable'].includes(item?.status)
+            ? item.status : 'unavailable';
+        return summary && source ? { source, status, summary } : null;
+    }).filter(Boolean);
+    const bySource = new Map(normalized.map((item) => [item.source, item]));
+    return OHAYO_REQUIRED_SOURCES.map((source) => bySource.get(source) || {
+        source,
+        status: 'unavailable',
+        summary: '確認結果が入力されていません'
+    });
 }
 
 export class ProductionRoutinePorts {
@@ -347,7 +368,8 @@ export class ProductionRoutinePorts {
     async generate({
         exceptions,
         graph_memories: graphMemories,
-        personal_memories: personalMemories
+        personal_memories: personalMemories,
+        input = {}
     } = {}) {
         const graph = Array.isArray(graphMemories) ? graphMemories : [];
         const personal = Array.isArray(personalMemories) ? personalMemories : [];
@@ -368,8 +390,30 @@ export class ProductionRoutinePorts {
                 summary: memory.summary
             } : null;
         }).filter(Boolean);
-        const focus = displayedMemories.slice(0, 1);
+        const dayView = input?.day_view && typeof input.day_view === 'object' ? input.day_view : null;
+        const focus = dayView ? safeDayItems(dayView.today_focus).slice(0, 3) : [];
+        const aiActions = dayView ? safeDayItems(dayView.ai_actions) : [];
+        const humanDecisions = dayView ? safeDayItems(dayView.human_decisions) : [];
+        const carryovers = dayView ? safeDayItems(dayView.carryovers) : [];
+        const sourceCoverage = dayView ? safeSourceCoverage(dayView.source_coverage) : [];
+        const coverageWarnings = sourceCoverage
+            .filter((item) => item.status !== 'confirmed')
+            .map((item) => ({ summary: `${item.source}: ${item.summary}` }));
+        const anomalies = (dayView ? sourceCoverage
+            .filter((item) => item.status !== 'confirmed')
+            .map((item) => ({
+                code: 'ohayo_source_unconfirmed',
+                source: item.source,
+                status: item.status,
+                summary: item.summary
+            })) : [{
+                code: 'ohayo_day_view_missing',
+                source: 'day_view',
+                status: 'unavailable',
+                summary: '朝の予定・メール・Slack確認結果が入力されていません'
+            }]);
         return {
+            anomalies,
             exceptions: visibleExceptions,
             graph_memories: graph,
             personal_memories: personal,
@@ -381,12 +425,19 @@ export class ProductionRoutinePorts {
                 memories: displayedMemories,
                 routine_output: {
                     headline: focus[0]
-                        ? `今日は「${focus[0].summary}」を判断軸に進める`
+                        ? dayView
+                            ? `今日は「${focus[0].summary}」まで進める`
+                            : `今日は「${focus[0].summary}」を判断軸に進める`
                         : '今日進めることは未確定です',
                     today_focus: focus,
-                    immediate_decisions: displayedMemories.slice(1),
-                    warnings: visibleExceptions,
-                    carryovers: [],
+                    ai_actions: aiActions,
+                    immediate_decisions: humanDecisions,
+                    warnings: [
+                        ...visibleExceptions,
+                        ...(dayView ? coverageWarnings : [{ summary: '朝の予定・メール・Slackは未確認です' }])
+                    ],
+                    carryovers,
+                    source_coverage: sourceCoverage,
                     references
                 }
             }

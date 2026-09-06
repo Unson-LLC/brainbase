@@ -306,6 +306,70 @@ describe('Routine Runner cycle execution', () => {
         expect(result).toMatchObject({ delivery: { delivered: 1 } });
     });
 
+    it('ohayoは全件を辿れるHTMLを成果物として保存し、要約で詳細を捨てない', async () => {
+        const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-ohayo-day-view-'));
+        temporaryDirectories.push(repoDir);
+        const varDir = path.join(repoDir, 'canonical-var');
+        const calendarItems = Array.from({ length: 12 }, (_, index) => ({
+            title: `予定${index + 1}`,
+            summary: `${index + 9}:00`,
+            htmlLink: `https://calendar.google.com/calendar/event?eid=${index + 1}`
+        }));
+
+        const result = await runRoutine({
+            routine: 'ohayo',
+            repoDir,
+            env: { CODEX_THREAD_ID: 'thread-ohayo-day-view', BRAINBASE_VAR_DIR: varDir },
+            input: {
+                day_view: {
+                    date: '2026-09-06',
+                    summary: '今日の焦点を先に示し、詳細はすべて辿れる',
+                    calendar: calendarItems,
+                    mail: [{ title: '返信依頼', summary: '本日中', url: 'https://mail.google.com/mail/u/0/#inbox/thread-1' }],
+                    slack: [{ title: '確認依頼', summary: '未対応', permalink: 'https://salestailor.slack.com/archives/C08SX913NER/p1778324649001229' }],
+                    today_focus: [{ title: '顧客合意', summary: '提案条件を確定する' }],
+                    ai_actions: [{ title: '論点整理', summary: '会議前に選択肢を並べる' }],
+                    human_decisions: [{ title: '値引き判断', summary: '許容幅を決める' }],
+                    priority_tasks: [{ title: '提案確定', summary: '午前中' }],
+                    source_coverage: [{ source: 'calendar', status: 'confirmed', summary: '全アカウント確認済み' }]
+                }
+            },
+            executeCycle: vi.fn(async () => ({
+                status: 'completed',
+                coverage: 'confirmed',
+                routine_summary: {
+                    routine: 'ohayo', status: 'completed', coverage: 'confirmed', anomaly_count: 0,
+                    headline: '今日は提案確定まで進める'
+                },
+                routine_output: {
+                    headline: '今日は提案確定まで進める',
+                    source_coverage: [
+                        { source: 'calendar', status: 'confirmed', summary: '全アカウント確認済み' },
+                        { source: 'mail', status: 'unavailable', summary: '確認結果が入力されていません' },
+                        { source: 'slack', status: 'unavailable', summary: '確認結果が入力されていません' }
+                    ]
+                },
+                evidence_refs: []
+            })),
+            now: () => new Date('2026-09-05T22:00:00.000Z')
+        });
+
+        const reportRef = result.evidence_refs.find((ref) => ref.label === 'ohayo_day_view');
+        expect(reportRef).toBeTruthy();
+        const reportRelativePath = reportRef.ref.replace(/^ohayo-day-view:/u, '');
+        const reportPath = path.join(varDir, ...reportRelativePath.split('/'));
+        const html = fs.readFileSync(reportPath, 'utf8');
+        expect(html).toContain('今日は提案確定まで進める');
+        expect(html).toContain('予定12');
+        expect(html).toContain('返信依頼');
+        expect(html).toContain('確認依頼');
+        expect(html).toContain('全アカウント確認済み');
+        expect(html).toContain('AIが進める');
+        expect(html).toContain('要判断');
+        expect(html).toContain('mail: unavailable');
+        expect(html).toContain('https://calendar.google.com/calendar/event?eid=12');
+    });
+
     it('ohayo Runner公開結果が最大3例外とgenerator選択記憶の人間向け出力を保持する', async () => {
         const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-ohayo-output-'));
         temporaryDirectories.push(repoDir);
@@ -411,6 +475,26 @@ describe('Routine Runner cycle execution', () => {
         });
         expect(JSON.stringify(output)).not.toContain('hidden');
         expect(JSON.stringify(output)).not.toContain('internal-id');
+    });
+
+    it('CLI stdoutは朝のAI実行項目と取得元別の確認範囲を保持する', () => {
+        const output = JSON.parse(routineRunner.serializeRoutineCliResult({
+            status: 'partial',
+            coverage: 'partial',
+            routine_output: {
+                headline: '今日は提案確定まで進める',
+                today_focus: [{ summary: '提案を確定する' }],
+                ai_actions: [{ summary: '論点を整理する' }],
+                immediate_decisions: [{ summary: '価格方針を決める' }],
+                source_coverage: [{ source: 'mail', status: 'partial', summary: '1アカウント未確認' }]
+            }
+        }));
+
+        expect(output.routine_output).toMatchObject({
+            ai_actions: [{ summary: '論点を整理する' }],
+            immediate_decisions: [{ summary: '価格方針を決める' }],
+            source_coverage: [{ source: 'mail', status: 'partial', summary: '1アカウント未確認' }]
+        });
     });
 
     it('executorがthrowしてもfailed Receiptを正規Outboxへ永続化する', async () => {

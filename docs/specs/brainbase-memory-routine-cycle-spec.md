@@ -25,6 +25,12 @@ architecture: docs/architecture/brainbase-memory-routine-cycle-architecture.md
 
 生存診断から`listExceptions({ limit: 3 })`を呼び、優先順の最大3件を返す。GraphとPersonal KGの両方を想起する。生成ポート自身が表示対象を最大3件へ選び、Graphの`payload.derived_from_event_id`または正式な`kev_*`出典へ解決できた`used_knowledge_ids`だけへ利用結果を記録する。利用結果の記録失敗、Judgment Outboxの未配信、再試行、Dead Letterは、朝の表示を失わず`partial`にする。`routine_output`は`headline`、`today_focus`、`immediate_decisions`、`warnings`、`carryovers`、`references`の順で返す。根拠はGraph SSOTとPersonal KGを区別する。
 
+コマンド入口は、認証済みの全Googleアカウントの当日Calendarと未処理Gmail、および`salestailor`、`unson`、`techknight`のSlackを確認し、`input.day_view`へ渡す。取得元ごとの`source_coverage`は`confirmed|partial|unavailable`と対象範囲を持ち、`confirmed`以外を確認済み0件へ変換しない。
+
+`today_focus`は今日変える状態であり、想起された記憶の並び順から生成しない。`ai_actions`は既存権限内でBrainbaseが進める作業、`immediate_decisions`は目的・価値・責任・追加権限など人間が決める事項だけを持つ。想起記憶は`references`へ残す。
+
+Runnerは`day_view`のCalendar、Mail、Slack、優先事項を省略せず、`var/daily-ops-reports/ohayo-YYYY-MM-DD.html`と同名JSONへ保存する。CLIと`routine_summary`は短い判断面を返し、HTMLは各項目のリンクと証跡を含む詳細面とする。HTML生成または成果物参照に失敗した場合は完了扱いにしない。
+
 ## レトロ
 
 誤登録率、訂正率、矛盾残数、処理時間、停止回数の5指標を評価する。標準期間は実行時刻までの7日間とし、イベント指標は`occurred_at`、訂正・却下指標は`feedback.created_at`で絞る。Run Receiptは3ルーティンについて同一runの再送を除外し、期間内の各最新runを集計する。改善候補は効果順に最大3件のStory／PR候補として返す。加えて、夜間にPersonal KGへ登録済みで確認待ちの記憶と、`pending_approval`のGraph昇格候補をレビュー項目として返す。`routine_output`は`headline`、`system_changes`、`repeated_patterns`、`personal_kg_registration_reviews`、`graph_promotion_reviews`の順とする。入力が部分的なら変更なしへ潰さず`coverage=partial`とする。本番ポリシー、Skill、Graphを変更するポートは依存として受け取らず、定期実行は`applies_changes=false`を守る。
@@ -55,3 +61,6 @@ architecture: docs/architecture/brainbase-memory-routine-cycle-architecture.md
 16. 夜は深い／浅い／未確認を分け、浅い場合は原因と影響を明示する。
 17. 夜の圧縮成果は記憶、関連付け、正式event ID付き訂正対象としてCLIと成果物へ残る。
 18. おやすみレポートは`/oyasumi`に属し、`/ohayo`の表示契約を変更しない。
+19. おはようは収集元別の未確認を`partial`にし、確認済み0件と区別する。
+20. おはようは今日の到達点、AIの作業、人間の判断、想起根拠を混ぜない。
+21. おはようHTMLは要約上限を超える全項目とリンクを保持する。
