@@ -37,7 +37,6 @@ export function classifyProjectBinding(row) {
     const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
     const codeIdentityOccupied = Boolean(row?.canonical_id_occupancy?.entity_id)
         && !byId.has(row.project_code);
-    const availableCanonicalId = codeIdentityOccupied ? row.scope_id : row.project_code;
     const isLegacyCodeCandidate = (candidate) => candidate.id !== row.project_code
         && !text(candidate.payload?.catalog_project_id)
         && text(candidate.payload?.code) === row.project_code;
@@ -68,26 +67,41 @@ export function classifyProjectBinding(row) {
             merge_entity_ids: mergeable.map((candidate) => candidate.id), conflicts: []
         };
     }
+    if (codeIdentityOccupied) {
+        const collisionCanonical = byId.get(row.scope_id)
+            || (candidates.length === 1 ? candidates[0] : null);
+        if (!collisionCanonical) {
+            return {
+                action: 'ambiguous', canonical_entity_id: null,
+                merge_entity_ids: [], conflicts: [row.project_code]
+            };
+        }
+        const remaining = candidates.filter((candidate) => candidate.id !== collisionCanonical.id);
+        const mergeable = remaining.filter((candidate) => candidate.id === row.scope_id || isLegacyCodeCandidate(candidate));
+        const conflicts = remaining.filter((candidate) => !mergeable.includes(candidate))
+            .map((candidate) => candidate.id).sort();
+        if (conflicts.length) {
+            return {
+                action: 'ambiguous', canonical_entity_id: collisionCanonical.id,
+                merge_entity_ids: [], conflicts
+            };
+        }
+        return {
+            action: 'link_existing', canonical_entity_id: collisionCanonical.id,
+            merge_entity_ids: mergeable.map((candidate) => candidate.id).sort(), conflicts: []
+        };
+    }
     if (candidates.length === 0) {
-        return { action: 'create_canonical', canonical_entity_id: availableCanonicalId, merge_entity_ids: [], conflicts: [] };
+        return { action: 'create_canonical', canonical_entity_id: row.project_code, merge_entity_ids: [], conflicts: [] };
     }
     if (candidates.every(isLegacyCodeCandidate)) {
-        const existingCanonical = byId.get(availableCanonicalId);
         return {
-            action: existingCanonical ? 'link_existing' : 'create_canonical',
-            canonical_entity_id: availableCanonicalId,
-            merge_entity_ids: candidates.filter((candidate) => candidate.id !== availableCanonicalId)
-                .map((candidate) => candidate.id).sort(),
+            action: 'create_canonical', canonical_entity_id: row.project_code,
+            merge_entity_ids: candidates.map((candidate) => candidate.id).sort(),
             conflicts: []
         };
     }
     if (candidates.length === 1 && candidates[0].id === row.scope_id) {
-        if (availableCanonicalId === row.scope_id) {
-            return {
-                action: 'link_existing', canonical_entity_id: row.scope_id,
-                merge_entity_ids: [], conflicts: []
-            };
-        }
         return {
             action: 'create_canonical', canonical_entity_id: row.project_code,
             merge_entity_ids: [row.scope_id], conflicts: []
@@ -264,13 +278,13 @@ async function applyPlan(client, row, plan, actor) {
     return { canonical_entity_id: graph.id, ...merge };
 }
 
-async function readBackCommitted(client, rows, results, byOrganization) {
+async function readBackCommitted(client, rows, results, projectCodes) {
     await client.query('BEGIN READ ONLY');
     try {
         for (const result of results.filter((item) => item.status === 'applied')) {
             const row = rows.find((item) => item.project_code === result.project_code
                 && item.organization_id === result.organization_id);
-            await setContext(client, result.organization_id, byOrganization.get(result.organization_id));
+            await setContext(client, result.organization_id, projectCodes);
             const { rows: readbackRows } = await client.query(
                 `SELECT pr.graph_entity_id,pr.graph_binding_status,p.id AS scope_id,
                         ge.id AS entity_id,ge.project_id,ge.lifecycle_status,
@@ -331,21 +345,19 @@ export async function runProjectGraphReconciliation({
                   WHERE organization_id IS NOT NULL
                   ORDER BY organization_id`
             )).rows;
+        // 組織を明示的に絞る特権保守処理。別組織で使用中のGraph IDを空きと誤認しないよう、
+        // 同一ID照合に限って全プロジェクトの保存スコープを見せる。
+        const allProjectCodes = (await client.query(
+            'SELECT DISTINCT code FROM projects WHERE code IS NOT NULL ORDER BY code'
+        )).rows.map(({ code }) => code);
         const rows = [];
-        const byOrganization = new Map();
         for (const organization of organizations) {
-            const projectScopes = await client.query(
-                'SELECT code FROM projects WHERE organization_id=$1 ORDER BY code',
-                [organization.id]
-            );
-            const projectCodes = projectScopes.rows.map(({ code }) => code);
-            byOrganization.set(organization.id, projectCodes);
-            await setContext(client, organization.id, projectCodes);
+            await setContext(client, organization.id, allProjectCodes);
             rows.push(...await readRows(client, organization.id));
         }
         const results = [];
         for (const row of rows) {
-            await setContext(client, row.organization_id, byOrganization.get(row.organization_id));
+            await setContext(client, row.organization_id, allProjectCodes);
             const plan = classifyProjectBinding(row);
             if (plan.action === 'ambiguous') {
                 if (mode === 'execute') {
@@ -368,7 +380,7 @@ export async function runProjectGraphReconciliation({
         let postCommitReadback = { status: mode === 'execute' ? 'pending' : 'not_applicable' };
         if (mode === 'execute') {
             try {
-                await readBackCommitted(client, rows, results, byOrganization);
+                await readBackCommitted(client, rows, results, allProjectCodes);
                 postCommitReadback = { status: 'completed' };
             } catch (error) {
                 for (const result of results.filter((item) => item.status === 'applied')) {
