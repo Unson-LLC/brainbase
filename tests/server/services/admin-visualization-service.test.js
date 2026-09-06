@@ -114,6 +114,40 @@ describe('AdminVisualizationService', () => {
         expect(result.records.map((record) => record.id)).toEqual(['new']);
     });
 
+    it('INV-7: candidate-store reads use the request access context for database RLS', async () => {
+        const calls = [];
+        const scopedRepository = {
+            async list(filter) {
+                calls.push(['list', filter]);
+                return [];
+            }
+        };
+        const repository = {
+            async list() {
+                throw new Error('unscoped list must not be called');
+            },
+            async transaction(work, options) {
+                calls.push(['transaction', options.access]);
+                return work(scopedRepository);
+            }
+        };
+        const requestAccess = {
+            ...access,
+            organizationId: 'unson'
+        };
+
+        const result = await new AdminVisualizationService({ candidateRepository: repository })
+            .listCandidates(requestAccess, { project: 'brainbase' });
+
+        expect(calls[0]).toEqual(['transaction', expect.objectContaining({
+            personId: 'sato',
+            organizationId: 'unson',
+            projectCodes: ['brainbase']
+        })]);
+        expect(calls.map(([method]) => method)).toEqual(['transaction', 'list']);
+        expect(result.status).toBe('available');
+    });
+
     it('INV-7: candidate-store bounded scans surface underfill as a visible warning', async () => {
         const repository = {
             async list() {
