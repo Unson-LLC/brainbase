@@ -58,9 +58,9 @@ function graphHeaders(token) {
   };
 }
 
-async function fetchGraphNames(type, token, fetchImpl = fetch) {
+async function fetchGraphNames(type, token, fetch = globalThis.fetch) {
   try {
-    const res = await fetchImpl(`${GRAPH_API}/api/info/graph/entities?type=${type}&limit=500`, {
+    const res = await fetch(`${GRAPH_API}/api/info/graph/entities?type=${type}&limit=500`, {
       headers: graphHeaders(token),
       signal: AbortSignal.timeout(10_000),
     });
