@@ -2119,6 +2119,7 @@ function effectiveEpisode(episode, events) {
     return {
         ...episode,
         initial_route_receipt: resolved,
+        initial_route_receipt_digest: sha256(canonicalJson(resolved)),
         // Route resolution must not replace the episode's frozen display
         // contract, including the absence of a contract on legacy episodes.
         owner_audit: buildOwnerAudit(args, resolved, { hostAutonomy: episode.host_autonomy ?? null })
@@ -3301,9 +3302,14 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     // bounded retry budget; an active re-Stop is not itself evidence of success.
     const stopAlreadyBlockedOnce = missingCapabilities.length > 0 && existingContinuation !== null && payload.stop_hook_active === true;
     const attempt = existingContinuation?.stop_attempt ?? (existingContinuation ? 1 : 0);
-    const retryContinuation = stopAlreadyBlockedOnce && missingAutonomyCompliance
-        && (autonomyContinuationRequested || existingContinuation?.autonomy_continuation)
+    const routeTransitionRetry = stopAlreadyBlockedOnce
+        && missingOwnerAudit
+        && typeof existingContinuation?.initial_route_receipt_digest === 'string'
+        && existingContinuation.initial_route_receipt_digest !== episode.initial_route_receipt_digest
         && attempt < MAX_CONTINUATION_ATTEMPTS;
+    const retryContinuation = routeTransitionRetry || (stopAlreadyBlockedOnce && missingAutonomyCompliance
+        && (autonomyContinuationRequested || existingContinuation?.autonomy_continuation)
+        && attempt < MAX_CONTINUATION_ATTEMPTS);
     if (missingCapabilities.length > 0 && (!stopAlreadyBlockedOnce || retryContinuation)) {
         let marker = existingContinuation;
         if (!marker || retryContinuation) {
@@ -3327,6 +3333,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 schema_version: 'brainbase-judgment-continuation-v2',
                 requested_at: marker?.requested_at ?? new Date().toISOString(),
                 stop_attempt: attempt + 1,
+                initial_route_receipt_digest: episode.initial_route_receipt_digest,
                 missing_capabilities: missingCapabilities,
                 ...(typeof auditContract?.stop_repair_complete_line === 'string' ? {
                     stop_repair: {
@@ -3367,9 +3374,15 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             };
             if (missingAutonomyCompliance) delete markerEntry.answer_body_binding;
             if (shouldBindAnswerBody) {
+                const bindingAuditLines = routeTransitionRetry
+                    ? [...new Set([
+                        ...requiredAuditLines(bootstrapEpisode, events, markerEntry),
+                        ...requiredAuditLines(episode, events, markerEntry)
+                    ])]
+                    : requiredAuditLines(episode, events, markerEntry);
                 markerEntry.answer_body_binding = buildAnswerBodyBinding(
                     answer,
-                    requiredAuditLines(episode, events, markerEntry)
+                    bindingAuditLines
                 );
             }
             marker = createImmutableJson(
