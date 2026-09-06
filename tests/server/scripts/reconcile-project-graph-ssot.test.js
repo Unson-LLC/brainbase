@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { classifyProjectBinding } from '../../../scripts/reconcile-project-graph-ssot.js';
+import { describe, expect, it, vi } from 'vitest';
+import {
+    classifyProjectBinding,
+    runProjectGraphReconciliation
+} from '../../../scripts/reconcile-project-graph-ssot.js';
 
 const row = (overrides = {}) => ({
     project_code: 'brainbase',
@@ -42,6 +45,16 @@ describe('project Graph SSOT reconciliation classification', () => {
         expect(result).toMatchObject({ action: 'link_existing', canonical_entity_id: 'legacy_a' });
     });
 
+    it('links the only candidate selected by the project-code identity predicates', () => {
+        const result = classifyProjectBinding(row({
+            candidates: [{ id: 'legacy_a', payload: { catalog_project_id: 'brainbase' } }]
+        }));
+        expect(result).toMatchObject({
+            action: 'link_existing', canonical_entity_id: 'legacy_a',
+            merge_entity_ids: [], conflicts: []
+        });
+    });
+
     it('is idempotent after a deterministic technical duplicate was marked merged', () => {
         const result = classifyProjectBinding(row({ candidates: [
             { id: 'brainbase', lifecycle_status: 'active' },
@@ -60,5 +73,40 @@ describe('project Graph SSOT reconciliation classification', () => {
         expect(result).toMatchObject({
             action: 'ambiguous', canonical_entity_id: 'brainbase', conflicts: ['legacy_other']
         });
+    });
+
+    it('enumerates each organization and exposes all of its Graph storage scopes before reading RLS data', async () => {
+        const query = vi.fn(async (sql) => {
+            if (sql.includes('SELECT DISTINCT organization_id AS id')) return { rows: [{ id: 'org_a' }] };
+            if (sql === 'SELECT code FROM projects WHERE organization_id=$1 ORDER BY code') {
+                return { rows: [{ code: 'brainbase' }, { code: 'child-project' }] };
+            }
+            if (sql.includes('FROM project_registry pr')) {
+                return { rows: [{
+                    ...row({ project_code: 'child-project', scope_id: 'project_child_project' }),
+                    organization_id: 'org_a', display_name: 'Child Project', kind: 'client',
+                    catalog_version: 1, lifecycle_status: 'active',
+                    organization_entity_id: 'org_a', owner_person_id: 'person_owner'
+                }] };
+            }
+            return { rows: [] };
+        });
+        const client = { query, release: vi.fn() };
+        const pool = { connect: vi.fn(async () => client) };
+
+        await expect(runProjectGraphReconciliation({ pool })).resolves.toMatchObject({
+            summary: { total: 1, planned: 1, unresolved: 0 },
+            complete: true
+        });
+
+        const inventoryQuery = query.mock.calls.find(([sql]) => sql.includes('FROM project_registry pr'));
+        expect(inventoryQuery[0]).toContain('graph_scope.organization_id=pr.organization_id');
+        expect(inventoryQuery[0]).not.toContain('ge.project_id=p.id');
+        expect(query).not.toHaveBeenCalledWith('SELECT id FROM organizations ORDER BY id');
+        expect(query).toHaveBeenCalledWith(
+            "SELECT set_config('app.project_codes',$1,true)",
+            ['brainbase,child-project']
+        );
+        expect(client.release).toHaveBeenCalledOnce();
     });
 });

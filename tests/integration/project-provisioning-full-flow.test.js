@@ -25,6 +25,7 @@ vi.mock('../../cli/config.js', () => ({
 }));
 
 import { runProjectProvisioning } from '../../cli/project-provisioning.js';
+import { runProjectGraphReconciliation } from '../../scripts/reconcile-project-graph-ssot.js';
 
 const { Pool } = pg;
 const ORGANIZATION_ID = 'org_unson';
@@ -617,6 +618,77 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
             owner_person_exists: true,
             owner_has_organization_grant: false
         });
+    }, 300_000);
+
+    it('実PostgreSQLの非特権ロールでRLS配下の台帳と親スコープGraph主体を列挙・再配置・再読込する', async () => {
+        const organizationId = 'org_reconcile';
+        const projectCode = 'reconcile-child';
+        const entityId = 'legacy-reconcile-subject';
+        await adminPool.query(`
+            INSERT INTO organizations (id, name, workspace_id, projects)
+            VALUES ($1, 'Reconciliation Integration', 'WS_RECONCILE', ARRAY['reconcile-parent', $2])
+        `, [organizationId, projectCode]);
+        await adminPool.query(`
+            INSERT INTO projects (id, code, name, organization_id)
+            VALUES
+                ('project_reconcile_parent', 'reconcile-parent', 'Reconcile Parent', $1),
+                ('project_reconcile_child', $2, 'Reconcile Child', $1)
+        `, [organizationId, projectCode]);
+        await adminPool.query(`
+            INSERT INTO graph_entities
+                (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+            VALUES
+                ($1, 'project', 'project_reconcile_parent', $2::jsonb,
+                 'member', 'internal', 'active', 1)
+        `, [entityId, JSON.stringify({
+            name: 'Reconcile Child', catalog_project_id: projectCode, catalog_version: 1,
+            source_ref: `project-catalog:${projectCode}@1`, kind: 'client',
+            organization_entity_id: organizationId, owner_person_id: PERSON_ID
+        })]);
+        await adminPool.query(`
+            INSERT INTO project_registry
+                (project_code, organization_id, display_name, kind, catalog_version,
+                 lifecycle_status, session_select, organization_entity_id, owner_person_id, repository)
+            VALUES ($2, $1, 'Reconcile Child', 'client', 1, 'active', true, $1, $3, '{"mode":"none"}'::jsonb)
+        `, [organizationId, projectCode, PERSON_ID]);
+
+        const dryRun = await runProjectGraphReconciliation({
+            pool, mode: 'dry-run', organizationId
+        });
+        expect(dryRun).toMatchObject({
+            complete: true,
+            summary: { total: 1, planned: 1, unresolved: 0 },
+            results: [expect.objectContaining({
+                project_code: projectCode, action: 'link_existing',
+                canonical_entity_id: entityId, status: 'planned'
+            })]
+        });
+
+        const executed = await runProjectGraphReconciliation({
+            pool, mode: 'execute', organizationId, actor: 'integration-test'
+        });
+        expect(executed).toMatchObject({
+            complete: true,
+            summary: { total: 1, verified: 1, unresolved: 0, readback_failed_or_unknown: 0 },
+            results: [expect.objectContaining({
+                project_code: projectCode, canonical_entity_id: entityId,
+                status: 'verified', readback: 'matched'
+            })]
+        });
+        const { rows } = await adminPool.query(`
+            SELECT pr.graph_entity_id, pr.graph_binding_status, ge.project_id,
+                   pr.display_name, ge.payload->>'name' AS graph_name
+              FROM project_registry pr
+              JOIN graph_entities ge ON ge.id=pr.graph_entity_id
+             WHERE pr.project_code=$1 AND pr.organization_id=$2
+        `, [projectCode, organizationId]);
+        expect(rows).toEqual([{
+            graph_entity_id: entityId,
+            graph_binding_status: 'linked',
+            project_id: 'project_reconcile_child',
+            display_name: 'Reconcile Child',
+            graph_name: 'Reconcile Child'
+        }]);
     }, 300_000);
 
     it('実PostgreSQLのGraph同一ID probeは同一組織だけidentityを返し他組織の詳細を隠す', async () => {
