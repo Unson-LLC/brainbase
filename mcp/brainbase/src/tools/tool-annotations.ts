@@ -30,6 +30,7 @@ const READ_ONLY_TOOL_NAMES = new Set([
 ]);
 
 const WRITE_TOOL_NAMES = new Set([
+  'register_personal_kg',
   'brainbase_judgment_value_proof_record',
   'brainbase_judgment_state_record',
   'brainbase_automation_human_step_resolve',

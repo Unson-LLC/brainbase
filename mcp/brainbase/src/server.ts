@@ -32,7 +32,16 @@ import {
   type EntityType,
 } from './indexer/index.js';
 import { CORE_ENTITY_TYPES } from './indexer/ontology.js';
-import { loadConfig, resolveBrainbaseApiUrl } from './config.js';
+import {
+  loadConfig,
+  normalizePersonalKgApiUrl,
+  resolveBrainbaseApiUrl,
+  type PersonalKgStorageMode,
+} from './config.js';
+import {
+  PersonalKnowledgeClient,
+  type PersonalKnowledgeEvent,
+} from './personal-knowledge-client.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
 import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager, createConnectionTokenManager } from './auth/token-manager.js';
@@ -83,6 +92,9 @@ const taskApiToken = process.env.BRAINBASE_TASK_API_TOKEN;
 let wikiApiBaseUrl: string;
 let globalTokenManager: TokenManager;
 let globalOwnerTokenManager: TokenManager;
+let personalKgStorageMode: PersonalKgStorageMode | undefined;
+let personalKgApiUrl: string | undefined;
+let personalKnowledgeClient: PersonalKnowledgeClient | null = null;
 let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
 let configuredProjectCodes: string[] | undefined;
@@ -516,7 +528,34 @@ interface PersonalKgHit {
   created_at: string;
 }
 
-async function fetchPersonalKgSearch(
+function asPersonalKnowledgeRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function canonicalPersonalKgHit(event: PersonalKnowledgeEvent): PersonalKgHit {
+  const record = asPersonalKnowledgeRecord(event);
+  const source = asPersonalKnowledgeRecord(record.source);
+
+  return {
+    id: record.event_id as string,
+    cognitive_type: 'event',
+    body: nonEmptyString(record.body) || '',
+    confidence: null,
+    source_system: nonEmptyString(source.type) || 'personal_knowledge',
+    created_at: nonEmptyString(record.created_at)
+      || nonEmptyString(record.occurred_at)
+      || nonEmptyString(record.captured_at)
+      || '',
+  };
+}
+
+async function fetchLegacyPersonalKgSearch(
   query: string,
   options: { cognitiveType?: string; limit?: number } = {}
 ): Promise<PersonalKgHit[]> {
@@ -526,6 +565,7 @@ async function fetchPersonalKgSearch(
   if (options.cognitiveType) url.searchParams.set('cognitive_type', options.cognitiveType);
   if (options.limit) url.searchParams.set('limit', String(options.limit));
   const response = await fetch(url.toString(), {
+    redirect: 'error',
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) {
@@ -533,6 +573,38 @@ async function fetchPersonalKgSearch(
   }
   const data = (await response.json()) as { candidates?: PersonalKgHit[] };
   return data.candidates || [];
+}
+
+function getPersonalKnowledgeClient(): PersonalKnowledgeClient {
+  if (!personalKgStorageMode || !personalKgApiUrl) {
+    throw new Error(
+      'Personal KG canonical access requires explicit BRAINBASE_PERSONAL_KG_STORAGE_MODE and its API URL.'
+    );
+  }
+  if (!personalKnowledgeClient) {
+    personalKnowledgeClient = new PersonalKnowledgeClient({
+      mode: personalKgStorageMode,
+      apiUrl: personalKgApiUrl,
+      tokenManager: globalOwnerTokenManager,
+    });
+  }
+  return personalKnowledgeClient;
+}
+
+async function fetchPersonalKgSearch(
+  query: string,
+  options: { cognitiveType?: string; limit?: number } = {}
+): Promise<PersonalKgHit[]> {
+  if (!personalKgStorageMode) {
+    return fetchLegacyPersonalKgSearch(query, options);
+  }
+
+  if (options.cognitiveType?.trim()) {
+    throw new Error('Personal KG cognitive_type filtering is unavailable in canonical storage mode.');
+  }
+
+  const events = await getPersonalKnowledgeClient().search(query, options.limit);
+  return events.map(canonicalPersonalKgHit);
 }
 
 function wikiPathToResourceUri(pagePath: string): string {
@@ -791,6 +863,36 @@ const tools: Tool[] = [
         },
       },
       required: ['query'],
+    },
+  },
+  {
+    name: 'register_personal_kg',
+    description:
+      'Register an event in the authenticated owner\'s canonical Personal Vault. The server derives owner and organization from authentication; this tool never promotes content to the organization KG.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        event: {
+          type: 'object',
+          description: 'Personal Vault event fields persisted by the canonical API. Do not include owner_person_id or organization_id.',
+          properties: {
+            event_id: { type: 'string', minLength: 1 },
+            occurred_at: { type: 'string' },
+            captured_at: { type: 'string' },
+            source: { type: 'object' },
+            source_pointer: { type: 'object' },
+            body_hash: { type: 'string', minLength: 1 },
+            body: { type: 'string', minLength: 1 },
+            parent_episode_id: { type: 'string' },
+            permission_snapshot: { type: 'object' },
+            sensitivity: { type: 'string' },
+          },
+          additionalProperties: false,
+          required: ['body', 'body_hash'],
+        },
+      },
+      required: ['event'],
+      additionalProperties: false,
     },
   },
 ];
@@ -1057,6 +1159,18 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       return lines.join('\n');
     }
 
+    case 'register_personal_kg': {
+      if (!personalKgStorageMode) {
+        throw new Error(
+          'Personal KG registration requires explicit BRAINBASE_PERSONAL_KG_STORAGE_MODE; no legacy write fallback is available.'
+        );
+      }
+      const receipt = await getPersonalKnowledgeClient().register(
+        args.event as PersonalKnowledgeEvent,
+      );
+      return JSON.stringify(receipt, null, 2);
+    }
+
     default:
       return `Unknown tool: ${name}`;
   }
@@ -1088,6 +1202,13 @@ export const __testing = {
   createDefaultJudgmentResolutionDependencies,
   resolveBrainbaseApiUrl,
   resolveWikiApiBaseUrl,
+  setPersonalKgStorage(mode: PersonalKgStorageMode | null | undefined, apiUrl?: string): void {
+    personalKgStorageMode = mode || undefined;
+    personalKgApiUrl = personalKgStorageMode
+      ? normalizePersonalKgApiUrl(apiUrl || '', personalKgStorageMode)
+      : undefined;
+    personalKnowledgeClient = null;
+  },
   setEntityIndex(index: EntityIndex): void {
     entityIndex = index;
   },
@@ -1149,6 +1270,9 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   globalTokenManager = tokenManager;
   // All routes share the connection actor. Personal APIs still enforce owner authorization.
   globalOwnerTokenManager = tokenManager;
+  personalKgStorageMode = config.personalKgStorageMode;
+  personalKgApiUrl = config.personalKgApiUrl;
+  personalKnowledgeClient = null;
   wikiApiBaseUrl = resolveWikiApiBaseUrl(config.graphApiUrl);
   const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
   globalGraphSource = source;

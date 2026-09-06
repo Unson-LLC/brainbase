@@ -5,9 +5,19 @@ function required(value, field) {
     return value;
 }
 
-function eventId(input) {
+function eventId(input, access) {
     if (input.event_id) return input.event_id;
-    return `pke_${createHash('sha256').update(JSON.stringify(input)).digest('hex').slice(0, 24)}`;
+    const identity = access ? [access.organizationId, access.personId, input] : input;
+    // The namespaced ID must be stable across equivalent JSON key orderings.
+    // Keep the access-less form byte-compatible for legacy retry lookup below.
+    const serialized = access ? canonicalJson(identity) : JSON.stringify(identity);
+    return `pke_${createHash('sha256').update(serialized).digest('hex').slice(0, 24)}`;
+}
+
+async function findExistingEvent(repository, input, event, options) {
+    const existing = await repository.findById(event.event_id, options);
+    // Preserve retries of pre-namespace generated IDs, still inside owner RLS.
+    return existing || (!input.event_id ? await repository.findById(eventId(input), options) : null);
 }
 
 function canonicalJson(value) {
@@ -38,7 +48,10 @@ export class PersonalKnowledgeService {
         required(access?.organizationId, 'organization_id');
         const event = {
             ...input,
-            event_id: eventId(input),
+            event_id: eventId(input, access),
+            source: input.source || {},
+            source_pointer: input.source_pointer || {},
+            parent_episode_id: input.parent_episode_id || null,
             owner_person_id: access.personId,
             organization_id: access.organizationId,
             occurred_at: input.occurred_at || this.now().toISOString(),
@@ -47,12 +60,17 @@ export class PersonalKnowledgeService {
         };
         const run = async ({ client } = {}) => {
             const options = { client, access };
-            const existing = await this.repository.findById(event.event_id, options);
+            const existing = await findExistingEvent(this.repository, input, event, options);
             if (existing) {
                 if (!sameEventIdentity(existing, event)) throw new Error('personal_knowledge_event_identity_conflict');
                 return { ...existing, idempotent: true };
             }
-            await this.repository.createEvent(event, options);
+            const created = await this.repository.createEvent(event, options);
+            if (!created) {
+                const concurrent = await this.repository.findById(event.event_id, options);
+                if (concurrent && sameEventIdentity(concurrent, event)) return { ...concurrent, idempotent: true };
+                throw new Error('personal_knowledge_event_identity_conflict');
+            }
             await this.repository.appendTransition(event.event_id, {
                 transition_type: 'processing_stage', processing_stage: 'received', occurred_at: this.now().toISOString()
             }, options);
@@ -146,19 +164,24 @@ export class PersonalKnowledgeService {
             }
             const replacement = {
                 ...correctionInput,
-                event_id: eventId(correctionInput),
+                event_id: eventId(correctionInput, access),
+                source: correctionInput.source || {},
+                source_pointer: correctionInput.source_pointer || {},
+                parent_episode_id: correctionInput.parent_episode_id || null,
                 owner_person_id: access.personId,
                 organization_id: access.organizationId,
                 occurred_at: correctionInput.occurred_at || occurredAt,
                 captured_at: correctionInput.captured_at || occurredAt,
                 body_hash: required(correctionInput.body_hash, 'correction_event.body_hash')
             };
-            const existingReplacement = await this.repository.findById(replacement.event_id, options);
+            const existingReplacement = await findExistingEvent(this.repository, correctionInput, replacement, options);
             if (existingReplacement && !sameEventIdentity(existingReplacement, replacement)) {
                 throw new Error('personal_knowledge_event_identity_conflict');
             }
+            if (existingReplacement) replacement.event_id = existingReplacement.event_id;
             if (!existingReplacement) {
-                await this.repository.createEvent(replacement, options);
+                const created = await this.repository.createEvent(replacement, options);
+                if (!created) throw new Error('personal_knowledge_event_identity_conflict');
                 await this.repository.appendTransition(replacement.event_id, {
                     transition_type: 'processing_stage', processing_stage: 'received', occurred_at: occurredAt
                 }, options);
