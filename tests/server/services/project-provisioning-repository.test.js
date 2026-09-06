@@ -2,6 +2,61 @@ import { describe, expect, it, vi } from 'vitest';
 import { PgProjectProvisioningRepository } from '../../../server/services/project-provisioning/project-provisioning-repository.js';
 
 describe('PgProjectProvisioningRepository', () => {
+    it('project catalog reads business metadata from the canonical Graph subject', async () => {
+        const query = vi.fn(async () => ({ rows: [] }));
+        const repository = new PgProjectProvisioningRepository({ pool: { query } });
+
+        await repository.listProjects('org_a');
+
+        expect(query.mock.calls[0][0]).toContain("ge.entity_type='project'");
+        expect(query.mock.calls[0][0]).toContain('graph_scope.organization_id=pr.organization_id');
+        expect(query.mock.calls[0][0]).not.toContain('ge.project_id=p.id');
+        expect(query.mock.calls[0][0]).toContain("ge.payload->>'name' AS display_name");
+        expect(query.mock.calls[0][0]).toContain('pr.display_name AS projection_display_name');
+        expect(query.mock.calls[0][1]).toEqual(['org_a']);
+    });
+
+    it('project catalog exposes both Registry membership and legacy Graph storage scopes to RLS', async () => {
+        const membershipQuery = vi.fn(async () => ({
+            rows: [{ project_code: 'child-project', graph_scope_code: 'brainbase' }]
+        }));
+        const graphQuery = vi.fn(async () => ({ rows: [] }));
+        const withAccessContext = vi.fn(async (access, handler) => handler({
+            query: access.projectCodes.length ? graphQuery : membershipQuery
+        }));
+        const repository = new PgProjectProvisioningRepository({
+            pool: { query: vi.fn() }, infoSSOTService: { withAccessContext }
+        });
+
+        await repository.listProjects('org_a');
+
+        expect(withAccessContext).toHaveBeenLastCalledWith(expect.objectContaining({
+            organizationId: 'org_a',
+            projectCodes: ['child-project', 'brainbase']
+        }), expect.any(Function));
+        expect(membershipQuery.mock.calls[0][0]).toContain("pr.graph_binding_evidence->>'project_id'");
+        expect(graphQuery.mock.calls[0][0]).toContain('JOIN graph_entities ge');
+    });
+
+    it('reused Graph subject is explicitly bound to the Registry without rewriting Graph business data', async () => {
+        const query = vi.fn(async (sql) => {
+            if (sql.includes('FROM graph_entities ge')) {
+                return { rows: [{ id: 'child-project', project_id: 'project_brainbase', source_ref: 'catalog-ref' }] };
+            }
+            return { rows: [{ project_code: 'child-project', graph_entity_id: 'child-project' }] };
+        });
+        const repository = new PgProjectProvisioningRepository({ pool: { query } });
+
+        await expect(repository.bindExistingProjectSubject(
+            { project_code: 'child-project' },
+            'child-project',
+            { organizationId: 'org_a', client: { query } }
+        )).resolves.toMatchObject({ graph_entity_id: 'child-project' });
+
+        expect(query).toHaveBeenCalledTimes(2);
+        expect(query.mock.calls[1][0]).toContain("graph_binding_status='linked'");
+        expect(query.mock.calls[1][0]).toContain("graph_binding_reason='project_provisioning_existing_subject'");
+    });
     it('read-only project check does not execute schema DDL', async () => {
         const query = vi.fn(async () => ({ rows: [] }));
         const repository = new PgProjectProvisioningRepository({ pool: { query } });

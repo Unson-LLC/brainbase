@@ -2,9 +2,9 @@
 
 `ProjectProvisioningService` が状態遷移とstep順序を所有します。HTTP APIとCLIとSkillは薄い入口であり、直接SQLや独自Graph writerを呼び出しません。
 
-永続層は `project_registry`、`project_provisioning_runs`、`project_provisioning_steps` です。Graph stepは既存の `GraphMaintenanceService` を、権限stepは `AuthGrantService` を使用します。外部GitHub操作はRepository Bootstrap adapterが存在するときだけ実行し、存在しなければfail-closedにします。本番Graph/GitHub writerの実行はこのPRの対象外であり、契約テストではfake/adapter doubleを使います。
+永続層は `project_registry`、`project_provisioning_runs`、`project_provisioning_steps` です。Projectの業務情報はGraphを正本とし、`project_registry`は組織membership、repository設定、`graph_entity_id`による正本対応を保持します。Graph stepは既存の `GraphMaintenanceService` を、権限stepは `AuthGrantService` を使用します。外部GitHub操作はRepository Bootstrap adapterが存在するときだけ実行し、存在しなければfail-closedにします。
 
-3表は `app.organization_id` による `ENABLE/FORCE ROW LEVEL SECURITY` で分離します。Repositoryは各トランザクションで組織コンテキストを設定し、組織指定のない実行時Catalog読込はRegistryへ到達させません。移行未適用時はRegistryを`unavailable`として扱い、既存のローカルCatalogを組織membershipや権限根拠にせず、正式なCLI/API/MCPの応答へ未確認状態を残します。`/api/health`と`/api/config/integrity`も同じadapterでRegistry schemaの実在を確認し、legacy設定だけが読める状態をhealthyにしません。Registry由来の行を既存Catalogへ重ねる場合も、既存aliasを保持し、Repository情報をCatalog metadataへ投影します。
+3表は `app.organization_id` による `ENABLE/FORCE ROW LEVEL SECURITY` で分離します。Repositoryは各トランザクションで組織コンテキストを設定し、組織指定のない実行時Catalog読込はRegistryへ到達させません。実行時CatalogはRegistry membershipと紐づくGraph Projectを結合し、名称・種別・状態・所有者をGraphから読みます。未接続・曖昧・取得不能をconfirmed emptyへ落とさず、legacy設定だけが読める状態をhealthyにしません。既存のローカルCatalogはmatching rowへのlocal-only metadata enrichmentに限定します。
 
 適用順は Registry → Graph → Auth Grants → Repository boundary です。すべてのPlanはManifestと差分全体の`manifest_plan_approval`を必須とし、Repository作成・公開・広域Grantは追加Gateにします。Human GateはBearer認証済み人物が専用`approve` APIでPlanの完全一致scopeを承認し、Manifest fingerprintへ束縛した不変Receiptとして保存します。`apply`リクエスト自身から承認を自己申告することはできません。
 

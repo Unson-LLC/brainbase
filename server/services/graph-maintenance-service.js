@@ -390,6 +390,42 @@ export class GraphMaintenanceService {
             'materialize_project_subject', 'link_decision_project_subject'
         ].includes(operation.operation));
         if (!catalogOperations.length) return operations;
+        const directlyBoundMaterializations = new Map(operations
+            .filter((operation) => operation.operation === 'materialize_project_subject'
+                && operation.catalog_project_id
+                && operation.name
+                && Number.isInteger(operation.catalog_version)
+                && operation.catalog_version > 0
+                && operation.source_ref === `project-catalog:${operation.catalog_project_id}@${operation.catalog_version}`)
+            .map((operation) => [operation, {
+                id: operation.catalog_project_id,
+                name: operation.name,
+                catalog_version: operation.catalog_version,
+                kind: operation.kind,
+                organization_entity_id: operation.organization_entity_id,
+                owner_person_id: operation.owner_person_id,
+                source_ref: operation.source_ref
+            }]));
+        const catalogResolutionOperations = catalogOperations
+            .filter((operation) => !directlyBoundMaterializations.has(operation));
+        if (!catalogResolutionOperations.length) {
+            return operations.map((operation) => {
+                const project = directlyBoundMaterializations.get(operation);
+                if (!project) return operation;
+                if (!Array.isArray(access?.projectCodes) || !access.projectCodes.includes(project.id)) {
+                    const error = new Error(`Project subject is inaccessible: ${project.id}`);
+                    error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE';
+                    error.status = 403;
+                    throw error;
+                }
+                return {
+                    ...operation,
+                    entity_id: project.id,
+                    ...project,
+                    catalog_project_id: project.id
+                };
+            });
+        }
         if (!this.configParser) {
             const error = new Error('Project Catalog resolver is unavailable');
             error.code = 'GRAPH_PROJECT_CATALOG_UNAVAILABLE';
@@ -412,7 +448,7 @@ export class GraphMaintenanceService {
             .map((project) => [project.id, project]));
         const projectByOperation = new Map();
         const materializedSubjectIds = new Set();
-        for (const operation of catalogOperations) {
+        for (const operation of catalogResolutionOperations) {
             const catalogProjectId = operation.operation === 'materialize_project_subject'
                 ? operation.catalog_project_id : operation.subject_entity_id;
             const project = byId.get(catalogProjectId);
@@ -441,13 +477,22 @@ export class GraphMaintenanceService {
         return operations.map((operation) => {
             if (operation.operation !== 'link_decision_project_subject') {
                 if (operation.operation !== 'materialize_project_subject') return operation;
-                const project = projectByOperation.get(operation);
+                const project = directlyBoundMaterializations.get(operation) || projectByOperation.get(operation);
+                if (!Array.isArray(access?.projectCodes) || !access.projectCodes.includes(project.id)) {
+                    const error = new Error(`Project subject is inaccessible: ${project.id}`);
+                    error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_INACCESSIBLE';
+                    error.status = 403;
+                    throw error;
+                }
                 return {
                     ...operation,
                     entity_id: project.id,
                     catalog_project_id: project.id,
                     catalog_version: project.catalog_version,
                     name: project.name,
+                    kind: project.kind,
+                    organization_entity_id: project.organization_entity_id,
+                    owner_person_id: project.owner_person_id,
                     source_ref: project.source_ref
                 };
             }

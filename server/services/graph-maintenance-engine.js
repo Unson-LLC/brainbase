@@ -276,7 +276,11 @@ export function applyGraphOperations(snapshot, operations, { projectCode, humanG
                     name: operation.name,
                     catalog_project_id: operation.catalog_project_id,
                     catalog_version: operation.catalog_version,
-                    source_ref: operation.source_ref
+                    source_ref: operation.source_ref,
+                    ...(operation.kind ? { kind: operation.kind } : {}),
+                    ...(operation.organization_entity_id
+                        ? { organization_entity_id: operation.organization_entity_id } : {}),
+                    ...(operation.owner_person_id ? { owner_person_id: operation.owner_person_id } : {})
                 },
                 role_min: 'member',
                 sensitivity: 'internal',

@@ -849,6 +849,12 @@ export class ProjectProvisioningService {
             );
             const existingSubject = assertCompatibleProjectSubject(snapshot.entities, manifest);
             if (existingSubject) {
+                if (typeof this.repository.bindExistingProjectSubject === 'function') {
+                    await this.repository.bindExistingProjectSubject(manifest, existingSubject.id, {
+                        organizationId,
+                        ...(client ? { client } : {})
+                    });
+                }
                 return {
                     status: 'already_materialized',
                     snapshot_hash: snapshot.snapshot_hash,
@@ -866,6 +872,12 @@ export class ProjectProvisioningService {
                     operations: [{
                         operation: 'materialize_project_subject',
                         catalog_project_id: manifest.project_code,
+                        name: manifest.display_name,
+                        catalog_version: manifest.catalog_version,
+                        kind: manifest.kind,
+                        organization_entity_id: manifest.organization_entity_id,
+                        owner_person_id: manifest.owner_person_id,
+                        source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`,
                         expected_version: 0
                     }]
                 },

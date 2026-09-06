@@ -63,6 +63,31 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         vi.restoreAllMocks();
     });
 
+    it('existing project scope does not create or overwrite a second Graph project subject', async () => {
+        const { service, client } = buildService();
+        const upsertGraphEntity = vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
+
+        await expect(service.ensureProject(client, {
+            projectCode: 'brainbase',
+            projectName: 'Caller supplied stale name'
+        })).resolves.toBe('prj_1');
+
+        expect(upsertGraphEntity).not.toHaveBeenCalled();
+    });
+
+    it('generic Graph writers cannot register a new project outside Project Provisioning', async () => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValueOnce({ rows: [] });
+        const upsertGraphEntity = vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
+
+        await expect(service.ensureProject(client, {
+            projectCode: 'new-project', projectName: 'New Project'
+        })).rejects.toThrow('Unknown project: new-project');
+
+        expect(upsertGraphEntity).not.toHaveBeenCalled();
+        expect(client.query).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO projects'), expect.anything());
+    });
+
     it('keeps the generic access context compatible while allowing tenant-bound callers to require a canonical claim', async () => {
         const { service, client } = buildService();
         await service.withAccessContext(accessContext, async () => 'generic');
@@ -306,7 +331,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         })).resolves.toMatchObject({ entity_id: 'app_one', guard_status: 'active_current' });
     });
 
-    it('追加で判明したproject IDが競合中なら待機せずretryable 409でentity書込前に止める', async () => {
+    it('technical project IDをGraph identityとして追加lock・書込しない', async () => {
         const { service, client } = buildService();
         service.withAccessContext = async (_access, callback) => callback(client);
         vi.spyOn(service, 'validateGraphMutation').mockResolvedValue(undefined);
@@ -314,7 +339,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         client.query.mockImplementation(async (sql) => {
             if (String(sql).includes('pg_try_advisory_xact_lock')) {
                 identityLockCount += 1;
-                return { rows: [{ acquired: identityLockCount === 1 }] };
+                return { rows: [{ acquired: true }] };
             }
             if (String(sql).startsWith('SELECT id FROM projects')) {
                 return { rows: [{ id: 'prj_1' }] };
@@ -329,13 +354,15 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             payload: { name: 'Updated' },
             roleMin: 'member',
             sensitivity: 'internal'
-        })).rejects.toMatchObject({
-            code: 'GRAPH_PROJECT_IDENTITY_BUSY',
-            status: 409,
-            details: { entity_id: 'prj_1', retryable: true }
-        });
+        })).resolves.toMatchObject({ entity_id: 'app_one' });
         expect(identityLockCount).toBe(2);
-        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO graph_entities'))).toBe(false);
+        const identityLockKeys = client.query.mock.calls
+            .filter(([sql]) => String(sql).includes('pg_try_advisory_xact_lock'))
+            .map(([, values]) => values[0]);
+        expect(identityLockKeys.every((key) => key.endsWith('app_one'))).toBe(true);
+        const graphWrites = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
+        expect(graphWrites).toHaveLength(1);
+        expect(graphWrites[0][1][0]).toBe('app_one');
     });
 
     it('active ontology rejects a second owner edge before persistence', async () => {

@@ -1382,36 +1382,18 @@ export class InfoSSOTService {
             [projectCode]
         );
         if (rows.length > 0) {
-            const projectId = rows[0].id;
-            await this.upsertGraphEntity(client, {
-                id: projectId,
-                entityType: 'project',
-                projectId,
-                payload: { code: projectCode, name: projectName || '' },
-                roleMin: 'member',
-                sensitivity: 'internal'
-            });
-            return projectId;
+            // `projects.id` is a technical storage/auth scope. The canonical
+            // Project subject uses project_code as its Graph identity and is
+            // managed only by Project Provisioning. Creating/updating a Graph
+            // entity at this technical id produced duplicate Project subjects
+            // and let stale caller labels overwrite the canonical name.
+            return rows[0].id;
         }
-        if (!projectName) {
-            throw new Error(`Unknown project: ${projectCode}`);
-        }
-        const id = this.generateId('prj');
-        await lockProjectGraphIdentity(client, id);
-        await client.query(
-            `INSERT INTO projects (id, code, name, organization_id)
-             VALUES ($1, $2, $3, NULLIF(current_setting('app.organization_id', true), ''))`,
-            [id, projectCode, projectName]
-        );
-        await this.upsertGraphEntity(client, {
-            id,
-            entityType: 'project',
-            projectId: id,
-            payload: { code: projectCode, name: projectName },
-            roleMin: 'member',
-            sensitivity: 'internal'
-        });
-        return id;
+        // New project identity is intentionally not created from a generic
+        // entity writer. Project Provisioning owns the only registration path
+        // and creates the technical scope plus the canonical Graph subject in
+        // one transaction.
+        throw new Error(`Unknown project: ${projectCode}`);
     }
 
     async getProjectId(client, projectCode) {

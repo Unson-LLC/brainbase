@@ -129,11 +129,117 @@ export class PgProjectProvisioningRepository {
     }
 
     async listProjects(organizationId, { client = null } = {}) {
-        const { rows } = await this.withOrganization(organizationId, (client) => client.query(
-            'SELECT * FROM project_registry WHERE organization_id=$1 ORDER BY project_code',
+        const queryProjects = (scopedClient) => scopedClient.query(
+            `SELECT pr.project_code,
+                    pr.organization_id,
+                    ge.payload->>'name' AS display_name,
+                    ge.payload->>'kind' AS kind,
+                    CASE WHEN ge.payload->>'catalog_version' ~ '^[1-9][0-9]*$'
+                      THEN (ge.payload->>'catalog_version')::integer ELSE NULL END AS catalog_version,
+                    ge.lifecycle_status,
+                    pr.session_select,
+                    ge.payload->>'organization_entity_id' AS organization_entity_id,
+                    ge.payload->>'owner_person_id' AS owner_person_id,
+                    pr.repository,
+                    pr.display_name AS projection_display_name,
+                    pr.kind AS projection_kind,
+                    pr.catalog_version AS projection_catalog_version,
+                    pr.lifecycle_status AS projection_lifecycle_status,
+                    pr.organization_entity_id AS projection_organization_entity_id,
+                    pr.owner_person_id AS projection_owner_person_id,
+                    ge.id AS canonical_graph_entity_id,
+                    'graph'::text AS canonical_source
+               FROM project_registry pr
+               JOIN projects p
+                 ON p.code=pr.project_code
+                AND p.organization_id=pr.organization_id
+               JOIN graph_entities ge
+                 ON ge.id=pr.graph_entity_id
+                AND ge.entity_type='project'
+               JOIN projects graph_scope
+                 ON graph_scope.id=ge.project_id
+                AND graph_scope.organization_id=pr.organization_id
+              WHERE pr.organization_id=$1
+                AND pr.graph_binding_status IN ('linked','retired')
+              ORDER BY pr.project_code`,
             [organizationId]
-        ), { client });
+        );
+        let result;
+        if (client || !this.infoSSOTService?.withAccessContext) {
+            result = await this.withOrganization(organizationId, queryProjects, { client });
+        } else {
+            const membership = await this.withOrganization(organizationId, (scopedClient) => scopedClient.query(
+                `SELECT pr.project_code, graph_scope.code AS graph_scope_code
+                   FROM project_registry pr
+                   LEFT JOIN projects graph_scope
+                     ON graph_scope.id=pr.graph_binding_evidence->>'project_id'
+                    AND graph_scope.organization_id=pr.organization_id
+                  WHERE pr.organization_id=$1
+                    AND pr.graph_binding_status IN ('linked','retired')
+                  ORDER BY pr.project_code`,
+                [organizationId]
+            ));
+            const visibleProjectCodes = membership.rows.flatMap((row) => (
+                [row.project_code, row.graph_scope_code].filter(Boolean)
+            ));
+            result = await this.infoSSOTService.withAccessContext({
+                role: 'ceo',
+                projectCodes: [...new Set(visibleProjectCodes)],
+                clearance: ['internal', 'restricted', 'finance', 'hr', 'contract'],
+                organizationId
+            }, queryProjects);
+        }
+        const { rows } = result;
         return rows;
+    }
+
+    async bindExistingProjectSubject(manifest, graphEntityId, { organizationId, client = null }) {
+        return this.withOrganization(organizationId, async (scopedClient) => {
+            const identity = await scopedClient.query(
+                `SELECT ge.id, ge.project_id, ge.payload->>'source_ref' AS source_ref
+                   FROM graph_entities ge
+                   JOIN projects scope
+                     ON scope.id=ge.project_id
+                    AND scope.organization_id=$3
+                  WHERE ge.id=$1
+                    AND ge.entity_type='project'
+                    AND ge.lifecycle_status='active'
+                    AND ge.payload->>'catalog_project_id'=$2
+                  FOR UPDATE`,
+                [graphEntityId, manifest.project_code, organizationId]
+            );
+            if (identity.rows.length !== 1) {
+                const error = new Error('Existing Graph project subject could not be bound to Project Registry');
+                error.code = 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT';
+                error.statusCode = 409;
+                throw error;
+            }
+            const subject = identity.rows[0];
+            const saved = await scopedClient.query(
+                `UPDATE project_registry
+                    SET graph_entity_id=$2,
+                        graph_binding_status='linked',
+                        graph_binding_reason='project_provisioning_existing_subject',
+                        graph_binding_evidence=jsonb_build_object(
+                          'entity_id',$2::text,
+                          'project_id',$3::text,
+                          'source_ref',$4::text
+                        ),
+                        updated_at=now()
+                  WHERE project_code=$1
+                    AND organization_id=$5
+                    AND (graph_entity_id IS NULL OR graph_entity_id=$2)
+                  RETURNING *`,
+                [manifest.project_code, graphEntityId, subject.project_id, subject.source_ref, organizationId]
+            );
+            if (saved.rows.length !== 1) {
+                const error = new Error('Project Registry is already bound to another Graph subject');
+                error.code = 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT';
+                error.statusCode = 409;
+                throw error;
+            }
+            return saved.rows[0];
+        }, { client });
     }
 
     async checkAvailability() {
@@ -389,8 +495,9 @@ export class PgProjectProvisioningRepository {
             );
             const saved = await client.query(
                 `INSERT INTO project_registry
-                 (project_code,organization_id,display_name,kind,catalog_version,session_select,organization_entity_id,owner_person_id,repository)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+                 (project_code,organization_id,display_name,kind,catalog_version,session_select,organization_entity_id,owner_person_id,repository,
+                  graph_entity_id,graph_binding_status,graph_binding_reason,graph_binding_evidence)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NULL,'unresolved','project_provisioning_pending_graph',jsonb_build_object('project_code',$1::text))
                  ON CONFLICT (project_code) DO UPDATE SET repository=EXCLUDED.repository, updated_at=now()
                  RETURNING *`,
                 [manifest.project_code, organizationId, manifest.display_name, manifest.kind, manifest.catalog_version,

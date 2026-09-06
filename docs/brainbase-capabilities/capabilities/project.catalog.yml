@@ -27,12 +27,18 @@ surfaces:
     - public/modules/project-mapping.js
     - public/modules/app/ui-setup-mixin.js
   data:
-    - runtime-injected configPath (config.yml; resolved by the host environment)
+    - graph_entities (project business metadata SSOT)
+    - project_registry (organization membership, repository configuration, and Graph binding)
+    - projects (technical authorization and storage scope)
+    - runtime-injected configPath (legacy local-only enrichment)
 depends_on:
   - config.projects.projects
 visibility_rules:
   - /api/config is the legacy Workspace Setup topology surface for local paths; it is not the organization-scoped Project Catalog authority.
   - /api/config/projects exposes the organization-scoped runtime catalog, filters it to the authenticated actor's project grants, and returns source.status so Registry failure is not mistaken for confirmed success.
+  - Project name, kind, lifecycle, organization entity, owner, and catalog version come from the bound Graph project entity. Registry fields with the same names are compatibility projections, not an independent authority.
+  - project_registry.graph_entity_id binds technical membership to the canonical Graph subject; unresolved, ambiguous, or conflicting bindings are excluded from loaded catalog results and remain visible in migration evidence.
+  - projects.id is a technical authorization/storage scope and must not be created or updated as a second Project Graph subject.
   - Project grants match only the project ID, an explicit alias, or the GitHub repository name; prefix similarity never expands access.
   - The provisioning CLI status and verify commands read back Registry, Graph validation, Auth Grant, Repository boundary, and runtime catalog state before reporting completion.
   - Authentication, transport, or Registry availability failure is returned as unavailable or error and never retained as a legacy catalog result.
@@ -48,7 +54,7 @@ visibility_rules:
   - "Desktop and mobile legacy CREATE_SESSION actions show the Codex migration notice without opening the Picker or calling session APIs."
   - Codex app/CLI owns task and worktree creation and ownership. Workspace Setup owns per-user local paths and is separate from Project Catalog and Project Provisioning.
   - Project Catalogの正本パスはhost runtimeがConfigParserへ注入し、個人の絶対パスへ固定しない。
-  - Graph MaintenanceでProjectをbusiness subjectへ投影するprojectは、空でないnameと正の整数catalog_versionを持つ。
+  - Graph上のProject business subjectは、空でないnameと正の整数catalog_versionを持つ。
   - Graph projectionのsource_refはproject-catalog:<id>@<catalog_version>としてサーバーが導出し、呼び出し元の自己申告値を採用しない。
   - Project Profileはproject_code、name、organization、created_byの4項目で登録でき、外部能力の未設定を登録拒否理由にしない。
   - 各能力のdesired_stateはenabled、disabled、deferred、unspecifiedのいずれかとし、Project全体のready/not_readyへ集約しない。
@@ -74,6 +80,8 @@ verification:
     - brainbase_projects exposes only the intersection of token and configured project scopes
     - CLI status and verify expose individual readback results and never mark unavailable data as verified
     - Graph subjectとして投影するprojectのnameとcatalog_versionがProject Catalogから保持される
+    - Graphのnameを更新すると、組織別CatalogのnameがGraphから読まれ、Registry projectionも同じtransactionで同期される
+    - 未接続またはambiguousなRegistry行はloaded projectとして扱われない
     - a short grant such as growin does not authorize growin-payroll
     - Registry or catalog authentication failure remains unavailable/error and never falls back to the legacy topology
     - Workspace Setup renders a loaded zero-project catalog as confirmed_empty with a 0件 message
