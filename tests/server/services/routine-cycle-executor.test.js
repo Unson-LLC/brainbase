@@ -813,7 +813,7 @@ describe('RoutineCycleExecutor', () => {
         expect(result.routine_summary.routine_output).toEqual(result.routine_output);
     });
 
-    it('oyasumiは睡眠レポートを主成果物にし、Personal KG候補とGraph昇格待ちも混ぜない', async () => {
+    it('oyasumiはおやすみレポートを主成果物にし、Personal KG確認待ちとGraph昇格待ちも混ぜない', async () => {
         const routineOutput = {
             headline: '深い睡眠です。経験の整理と検索確認が完了しました',
             sleep_state: 'deep',

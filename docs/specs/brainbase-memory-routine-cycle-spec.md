@@ -19,7 +19,7 @@ architecture: docs/architecture/brainbase-memory-routine-cycle-architecture.md
 
 `routine_output`は`headline`、`sleep_state`、`sleep_causes`、`consolidated_memories`、`associations`、`feedback_targets`、`unresolved_items`を主成果物として返す。`deep`は4つの照合値が確認済み0件で圧縮と再読取が完了した場合だけ、`shallow`は残件または確認不能がある場合、`unconfirmed`は深浅を確定できない場合とする。浅い場合は原因、件数、記憶への影響を見出しと`sleep_causes`へ明示する。再編された各記憶には翌朝の訂正に使える正式event IDと`graph_ssot|personal_kg`の出典を付ける。
 
-睡眠レポートは夜に生成・保存し、翌朝に読むが、`/ohayo`の成果物にはしない。互換欄として`tomorrow_focus`、`closed`、`carryovers`を残し、`personal_kg_registration_candidates`と`graph_promotion_reviews`は訂正対象とは分離する。検索不能または確認不能が1件でもあれば、表示可能な成果物を残しても`status=partial`、`coverage=partial`とし、異常を`artifacts.anomalies`へ残す。
+おやすみレポートは夜に生成・保存し、翌朝に読むが、`/ohayo`の成果物にはしない。互換欄として`tomorrow_focus`、`closed`、`carryovers`を残し、`personal_kg_registration_candidates`と`graph_promotion_reviews`は訂正対象とは分離する。検索不能または確認不能が1件でもあれば、表示可能な成果物を残しても`status=partial`、`coverage=partial`とし、異常を`artifacts.anomalies`へ残す。
 
 ## おはよう
 
@@ -27,7 +27,7 @@ architecture: docs/architecture/brainbase-memory-routine-cycle-architecture.md
 
 ## レトロ
 
-誤登録率、訂正率、矛盾残数、処理時間、停止回数の5指標を評価する。標準期間は実行時刻までの7日間とし、イベント指標は`occurred_at`、訂正・却下指標は`feedback.created_at`で絞る。Run Receiptは3ルーティンについて同一runの再送を除外し、期間内の各最新runを集計する。改善候補は効果順に最大3件のStory／PR候補として返す。加えて、夜間に蓄積したPersonal KG登録候補と、`pending_approval`のGraph昇格候補をレビュー項目として返す。`routine_output`は`headline`、`system_changes`、`repeated_patterns`、`personal_kg_registration_reviews`、`graph_promotion_reviews`の順とする。入力が部分的なら変更なしへ潰さず`coverage=partial`とする。本番ポリシー、Skill、Graphを変更するポートは依存として受け取らず、定期実行は`applies_changes=false`を守る。
+誤登録率、訂正率、矛盾残数、処理時間、停止回数の5指標を評価する。標準期間は実行時刻までの7日間とし、イベント指標は`occurred_at`、訂正・却下指標は`feedback.created_at`で絞る。Run Receiptは3ルーティンについて同一runの再送を除外し、期間内の各最新runを集計する。改善候補は効果順に最大3件のStory／PR候補として返す。加えて、夜間にPersonal KGへ登録済みで確認待ちの記憶と、`pending_approval`のGraph昇格候補をレビュー項目として返す。`routine_output`は`headline`、`system_changes`、`repeated_patterns`、`personal_kg_registration_reviews`、`graph_promotion_reviews`の順とする。入力が部分的なら変更なしへ潰さず`coverage=partial`とする。本番ポリシー、Skill、Graphを変更するポートは依存として受け取らず、定期実行は`applies_changes=false`を守る。
 
 ## Codex Host Adapter
 
@@ -49,9 +49,9 @@ architecture: docs/architecture/brainbase-memory-routine-cycle-architecture.md
 10. レトロのfeedback期間はfeedback自身の作成日時で評価する。
 11. 3ルーティンの先頭結論と詳細欄は同じ密度にせず、`routine_output`の固定階層を保つ。
 12. `completed`でも一部ソースが未確認なら`coverage=partial`にできる。
-13. 夜はPersonal KG登録候補とGraph昇格レビュー待ちを別配列へ分類する。
+13. 夜はPersonal KGに登録済み・確認待ちの記憶とGraph昇格レビュー待ちを別配列へ分類する。
 14. レトロは`pending_approval`候補を表示するが、候補状態やGraphを変更しない。
 15. CLIと`routine_summary`成果物は朝だけでなく夜・週次の`routine_output`も保持する。
 16. 夜は深い／浅い／未確認を分け、浅い場合は原因と影響を明示する。
 17. 夜の圧縮成果は記憶、関連付け、正式event ID付き訂正対象としてCLIと成果物へ残る。
-18. 睡眠レポートは`/oyasumi`に属し、`/ohayo`の表示契約を変更しない。
+18. おやすみレポートは`/oyasumi`に属し、`/ohayo`の表示契約を変更しない。

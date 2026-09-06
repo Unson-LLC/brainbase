@@ -92,7 +92,7 @@ describe('PgPersonalKnowledgeRepository', () => {
         });
     });
 
-    it('睡眠レポートではJSON本文から人が読める要点を取り出す', async () => {
+    it('おやすみレポートではJSON本文から人が読める要点を取り出す', async () => {
         const client = { query: vi.fn()
             .mockResolvedValueOnce({ rows: [{
                 event_id: 'pke_1',
