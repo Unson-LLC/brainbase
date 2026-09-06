@@ -1546,6 +1546,74 @@ describe('Codex Judgment Resolver Host', () => {
         }
     });
 
+    it('同一条件の取得失敗後に成功した場合はowner表示を復旧済みの終端結果へ集約する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-terminal-audit', turn_id: 'turn-terminal-audit',
+            prompt: 'Brainbaseの接続状態を確認して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(args) })
+            })
+        });
+        const recoveredInput = { view: 'candidates', project: 'brainbase', limit: 100 };
+        const failingInput = { view: 'overview', project: 'brainbase', limit: 100 };
+        const recordAdminRead = (toolUseId, toolInput, toolResponse) => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', ...payload,
+            tool_name: 'mcp__brainbase__brainbase_admin_read', tool_use_id: toolUseId,
+            tool_input: toolInput, tool_response: toolResponse
+        }, { env });
+
+        recordAdminRead('candidates-failed', recoveredInput, { status: 'error', error: { code: 'brainbase_api_error' } });
+        recordAdminRead('candidates-recovered', recoveredInput, withRetrievalAudit('brainbase_admin_read', {
+            status: 'ok', data: { candidates: [] }
+        }));
+        recordAdminRead('candidates-rechecked', recoveredInput, withRetrievalAudit('brainbase_admin_read', {
+            status: 'ok', data: { candidates: [] }
+        }));
+        recordAdminRead('overview-failed', failingInput, { status: 'error', error: { code: 'brainbase_api_error' } });
+        recordAdminRead('overview-retried', failingInput, { status: 'error', error: { code: 'brainbase_api_error' } });
+
+        const stopped = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: '接続は復旧しています。'
+        }, { env });
+        const recoveredLine = '📚 Brainbase取得: brainbase_admin_read「管理ビュー candidates・project=brainbase・最大100件」→ 結果を取得 ✓（再試行で復旧・過去1回失敗）';
+        const failedLine = '⚠️ Brainbase取得: brainbase_admin_read「管理ビュー overview・project=brainbase・最大100件」→ 失敗または結果不明（同一条件で2回失敗）';
+        expect(stopped.output.reason).toContain([
+            episode.owner_audit.display_line,
+            recoveredLine,
+            failedLine,
+            episode.audit_contract.stop_repair_complete_line
+        ].join('\n'));
+        expect(stopped.output.reason).not.toContain('⚠️ Brainbase取得: brainbase_admin_read「管理ビュー candidates');
+        expect(stopped.continuation.answer_body_binding).toMatchObject({
+            schema_version: 'brainbase-answer-body-binding-v2'
+        });
+        const repaired = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                recoveredLine,
+                failedLine,
+                episode.audit_contract.stop_repair_complete_line,
+                '接続は復旧しています。'
+            ].join('\n')
+        }, { env });
+        expect(repaired.final).toMatchObject({
+            completion_status: 'complete',
+            event_count: 5,
+            owner_audit_line_count: 4,
+            owner_audit_complete: true
+        });
+    });
+
     it('task書込の対象を表示し、未知結果と埋込成功行をfail-closedにする', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };

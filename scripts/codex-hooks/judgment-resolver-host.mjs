@@ -2262,10 +2262,43 @@ function verifyFinalStopRepair(finalized, continuationMarker, auditContract) {
     }
 }
 
+function ownerVisibleBrainbaseAuditLines(events) {
+    const groupedEvents = new Map();
+    for (const event of events) {
+        if (typeof event.display_line !== 'string') continue;
+        const exactRequestKey = typeof event.tool_name === 'string'
+            && /^[0-9a-f]{64}$/u.test(event.input_digest ?? '')
+            ? `${event.tool_name}\0${event.input_digest}`
+            : `event:${event.event_sequence ?? groupedEvents.size}`;
+        const group = groupedEvents.get(exactRequestKey) ?? [];
+        group.push(event);
+        groupedEvents.set(exactRequestKey, group);
+    }
+    return [...groupedEvents.values()]
+        .sort((left, right) => (
+            (left.at(-1)?.event_sequence ?? 0) - (right.at(-1)?.event_sequence ?? 0)
+        ))
+        .map((group) => {
+            const terminal = group.at(-1);
+            if (group.length === 1) return terminal.display_line;
+            const failureCount = group.filter((event) => event.success !== true).length;
+            if (terminal.success === true && failureCount > 0) {
+                return `${terminal.display_line}（再試行で復旧・過去${failureCount}回失敗）`;
+            }
+            if (terminal.success === true) {
+                return `${terminal.display_line}（同一条件で${group.length}回実行）`;
+            }
+            if (failureCount === group.length) {
+                return `${terminal.display_line}（同一条件で${failureCount}回失敗）`;
+            }
+            return `${terminal.display_line}（同一条件で${group.length}回実行・直近失敗）`;
+        });
+}
+
 function requiredAuditLines(episode, events, continuationMarker = null) {
     const auditContract = episodeAuditContract(episode);
-    const brainbaseEvents = events.filter((event) => typeof event.display_line === 'string');
-    const zeroCallLines = brainbaseEvents.length === 0 && typeof auditContract?.zero_call_display_line === 'string'
+    const brainbaseAuditLines = ownerVisibleBrainbaseAuditLines(events);
+    const zeroCallLines = brainbaseAuditLines.length === 0 && typeof auditContract?.zero_call_display_line === 'string'
         ? [auditContract.zero_call_display_line]
         : [];
     const autonomyContinuation = verifiedAutonomyContinuation(continuationMarker, auditContract);
@@ -2281,7 +2314,7 @@ function requiredAuditLines(episode, events, continuationMarker = null) {
     return [
         episode.owner_audit.display_line,
         ...zeroCallLines,
-        ...brainbaseEvents.map((event) => event.display_line),
+        ...brainbaseAuditLines,
         ...continuationLines,
         ...stopRepairLines
     ];
