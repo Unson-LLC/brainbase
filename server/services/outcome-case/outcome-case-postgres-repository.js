@@ -89,6 +89,46 @@ export class OutcomeCasePostgresRepository {
         return normalizeRow(result.rows[0]);
     }
 
+    async appendRunReceiptRef({ caseId, runReceiptRef, now = new Date().toISOString(), actor = {} } = {}) {
+        const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
+        const organizationId = requireCanonicalTenantIdentity(actor);
+        const result = await this.query(actor, `
+            WITH scoped AS MATERIALIZED (
+                SELECT case_id,
+                       run_receipt_refs @> jsonb_build_array($2::text) AS already_linked
+                  FROM outcome_cases
+                 WHERE case_id = $1
+                   AND project_code = ANY($3::text[])
+                   AND organization_id = NULLIF($4, '')
+                 FOR UPDATE
+            )
+            UPDATE outcome_cases AS outcome_case
+               SET run_receipt_refs = CASE
+                       WHEN scoped.already_linked THEN outcome_case.run_receipt_refs
+                       ELSE outcome_case.run_receipt_refs || jsonb_build_array($2::text)
+                   END,
+                   revision = CASE
+                       WHEN scoped.already_linked THEN outcome_case.revision
+                       ELSE outcome_case.revision + 1
+                   END,
+                   updated_at = CASE
+                       WHEN scoped.already_linked THEN outcome_case.updated_at
+                       ELSE $5::timestamptz
+                   END
+              FROM scoped
+             WHERE outcome_case.case_id = scoped.case_id
+         RETURNING outcome_case.*, scoped.already_linked AS receipt_ref_already_present
+        `, [caseId, runReceiptRef, projectCodes, organizationId, now]);
+        if (!result.rows[0]) return null;
+        const row = { ...result.rows[0] };
+        const alreadyLinked = Boolean(row.receipt_ref_already_present);
+        delete row.receipt_ref_already_present;
+        return {
+            status: alreadyLinked ? 'duplicate' : 'linked',
+            outcomeCase: normalizeRow(row)
+        };
+    }
+
     async create(outcomeCase, actor = {}) {
         const result = await this.query(actor, `
             INSERT INTO outcome_cases (

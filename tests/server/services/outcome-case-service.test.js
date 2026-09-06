@@ -21,6 +21,21 @@ class MemoryOutcomeCaseRepository {
         this.items.set(outcomeCase.case_id, structuredClone(outcomeCase));
         return structuredClone(outcomeCase);
     }
+
+    async appendRunReceiptRef({ caseId, runReceiptRef, now }) {
+        const item = this.items.get(caseId);
+        if (!item) return null;
+        const alreadyLinked = item.run_receipt_refs.includes(runReceiptRef);
+        if (!alreadyLinked) {
+            item.run_receipt_refs.push(runReceiptRef);
+            item.revision += 1;
+            item.updated_at = now;
+        }
+        return {
+            status: alreadyLinked ? 'duplicate' : 'linked',
+            outcomeCase: structuredClone(item)
+        };
+    }
 }
 
 function createInput(overrides = {}) {
@@ -116,6 +131,62 @@ describe('OutcomeCaseService', () => {
             closure_authorized_person_ids: ['per_owner'],
             provenance: { source: 'test_raci' }
         });
+    });
+
+    it('links a RunReceipt ref idempotently without evaluating or closing the OutcomeCase', async () => {
+        const { service } = createService();
+        const actor = authenticatedActor();
+        const outcomeCase = await service.create(createInput(), actor);
+
+        const linked = await service.linkRunReceipt({
+            caseId: outcomeCase.case_id,
+            runReceiptRef: 'run_receipt_run_123',
+            projectCode: 'brainbase',
+            organizationId: 'org_unson'
+        }, actor);
+        const duplicate = await service.linkRunReceipt({
+            caseId: outcomeCase.case_id,
+            runReceiptRef: 'run_receipt_run_123',
+            projectCode: 'brainbase',
+            organizationId: 'org_unson'
+        }, actor);
+
+        expect(linked).toMatchObject({
+            status: 'linked',
+            outcomeCase: {
+                case_id: outcomeCase.case_id,
+                run_receipt_refs: ['run_receipt_run_123'],
+                closure_status: 'open',
+                evaluation_history: [],
+                terminal_evaluation: null,
+                revision: 2
+            }
+        });
+        expect(duplicate).toMatchObject({
+            status: 'duplicate',
+            outcomeCase: { run_receipt_refs: ['run_receipt_run_123'], revision: 2 }
+        });
+    });
+
+    it('rejects receipt links whose tenant or project does not match the authenticated OutcomeCase scope', async () => {
+        const { service, repository } = createService();
+        const actor = authenticatedActor();
+        const outcomeCase = await service.create(createInput(), actor);
+
+        await expect(service.linkRunReceipt({
+            caseId: outcomeCase.case_id,
+            runReceiptRef: 'run_receipt_run_other_project',
+            projectCode: 'other',
+            organizationId: 'org_unson'
+        }, actor)).rejects.toMatchObject({ code: 'outcome_case_project_mismatch', status: 403 });
+        await expect(service.linkRunReceipt({
+            caseId: outcomeCase.case_id,
+            runReceiptRef: 'run_receipt_run_other_tenant',
+            projectCode: 'brainbase',
+            organizationId: 'org_other'
+        }, actor)).rejects.toMatchObject({ code: 'outcome_case_tenant_mismatch', status: 403 });
+
+        expect((await repository.findByCaseId(outcomeCase.case_id)).run_receipt_refs).toEqual([]);
     });
 
     it('closes only with four-way confirmed evidence', async () => {

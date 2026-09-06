@@ -342,7 +342,7 @@ export function createCoreServices({
         candidateRepository,
         companyAuthorityHumanApprovalService
     });
-    const runReceiptIngestService = new RunReceiptIngestService({ workflowRepository });
+    const runReceiptIngestService = new RunReceiptIngestService({ workflowRepository, outcomeCaseService });
     const routineReceiptPaths = resolveRoutineReceiptPaths({ repoDir: serverDir });
     const judgmentKnowledgeEventOutboxDir = resolveJudgmentKnowledgeEventOutboxPath({
         env: process.env,
