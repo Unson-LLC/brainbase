@@ -25,6 +25,7 @@ depends_on:
   - auth.grants
 visibility_rules:
   - Graph is primary for canonical names, aliases, customers, partners, projects, terms, decisions, stories, and RACI assignments.
+  - Project business metadata is canonical only in the bound Graph project entity. project_registry is the membership and identity-binding projection; projects.id is only a technical scope.
   - Meeting notes, transcripts, local memory, and generated summaries are secondary evidence.
   - If Graph conflicts with secondary evidence, prefer Graph and state the conflict when it matters.
   - For Graph operations, include Brainbase Philosophy Context unless the tool explicitly disables it.

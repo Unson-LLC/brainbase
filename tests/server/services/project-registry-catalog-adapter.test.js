@@ -82,7 +82,7 @@ describe('ProjectRegistryCatalogAdapter', () => {
 
         expect(catalog.projects).toHaveLength(1);
         expect(catalog.projects[0]).toMatchObject({ id: 'growin-ai', aliases: ['growin'] });
-        expect(catalog.source).toEqual({ status: 'loaded', mode: 'registry_scoped' });
+        expect(catalog.source).toEqual({ status: 'loaded', mode: 'graph_ssot_registry_scoped' });
     });
 
     it('Registry unavailable時はlegacy catalogをmembershipに使わず空一覧を返す', async () => {
@@ -111,10 +111,31 @@ describe('ProjectRegistryCatalogAdapter', () => {
             .resolves.toMatchObject({
                 projects: [{ id: 'growin-ai', name: 'Growin AI' }],
                 source: {
-                    status: 'loaded', mode: 'registry_scoped',
+                    status: 'loaded', mode: 'graph_ssot_registry_scoped',
                     enrichment_status: 'unavailable', enrichment_code: 'ENOENT'
                 }
             });
+    });
+
+    it('Graph canonical name and lifecycle win over stale compatibility mirror values', async () => {
+        const repository = { listProjects: vi.fn(async () => [{
+            project_code: 'growin-ai',
+            display_name: 'Graph canonical name',
+            catalog_version: 3,
+            lifecycle_status: 'retired',
+            session_select: true,
+            projection_display_name: 'Old registry name',
+            projection_lifecycle_status: 'active',
+            canonical_source: 'graph'
+        }]) };
+        const adapter = new ProjectRegistryCatalogAdapter({ repository });
+
+        const catalog = await adapter.runForOrganization('org_a', () => adapter.getProjects());
+
+        expect(catalog.projects[0]).toMatchObject({
+            id: 'growin-ai', name: 'Graph canonical name', archived: true
+        });
+        expect(catalog.source).toMatchObject({ status: 'loaded', mode: 'graph_ssot_registry_scoped' });
     });
 
     it('Registry DB接続障害は500へ漏らさずunavailableとして返す', async () => {

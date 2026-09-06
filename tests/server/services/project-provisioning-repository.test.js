@@ -2,6 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { PgProjectProvisioningRepository } from '../../../server/services/project-provisioning/project-provisioning-repository.js';
 
 describe('PgProjectProvisioningRepository', () => {
+    it('project catalog reads business metadata from the canonical Graph subject', async () => {
+        const query = vi.fn(async () => ({ rows: [] }));
+        const repository = new PgProjectProvisioningRepository({ pool: { query } });
+
+        await repository.listProjects('org_a');
+
+        expect(query.mock.calls[0][0]).toContain("ge.entity_type='project'");
+        expect(query.mock.calls[0][0]).toContain("ge.payload->>'name' AS display_name");
+        expect(query.mock.calls[0][0]).toContain('pr.display_name AS projection_display_name');
+        expect(query.mock.calls[0][1]).toEqual(['org_a']);
+    });
     it('read-only project check does not execute schema DDL', async () => {
         const query = vi.fn(async () => ({ rows: [] }));
         const repository = new PgProjectProvisioningRepository({ pool: { query } });

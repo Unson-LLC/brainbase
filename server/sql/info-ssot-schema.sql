@@ -484,6 +484,12 @@ CREATE TABLE IF NOT EXISTS project_registry (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE project_registry
+  ADD COLUMN IF NOT EXISTS graph_entity_id text,
+  ADD COLUMN IF NOT EXISTS graph_binding_status text NOT NULL DEFAULT 'unresolved',
+  ADD COLUMN IF NOT EXISTS graph_binding_reason text,
+  ADD COLUMN IF NOT EXISTS graph_binding_evidence jsonb NOT NULL DEFAULT '{}'::jsonb;
+
 CREATE TABLE IF NOT EXISTS project_provisioning_runs (
   run_id text PRIMARY KEY,
   organization_id text NOT NULL,

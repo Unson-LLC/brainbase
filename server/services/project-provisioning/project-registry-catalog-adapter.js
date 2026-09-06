@@ -65,7 +65,7 @@ export class ProjectRegistryCatalogAdapter {
             );
         } catch (error) {
             // Do not flatten database outages, timeouts, or migration gaps into
-            // a confirmed empty catalog. The Registry is the membership authority,
+            // a confirmed empty catalog. The Registry is the membership boundary,
             // so a fallback-only row must never become selectable during an outage.
             return {
                 projects: [],
@@ -83,15 +83,16 @@ export class ProjectRegistryCatalogAdapter {
                 fallback = await this.fallbackConfigParser.getProjects();
             } catch (error) {
                 // Local workspace metadata is optional enrichment. Its absence
-                // must not make a successfully read canonical Registry unavailable.
+                // must not make a successfully read Graph catalog unavailable.
                 enrichmentFailure = error?.code || 'LOCAL_PROJECT_ENRICHMENT_UNAVAILABLE';
             }
         }
         const fallbackById = new Map((fallback.projects || []).map((project) => [project.id, project]));
         const merged = new Map();
         for (const row of rows) {
-            // Registry membership is the organization boundary. Legacy config may
-            // enrich a matching Registry row with local-only metadata, but must
+            // Registry membership is the organization boundary; Graph is the
+            // business metadata SSOT. Legacy config may enrich a matching row with
+            // local-only metadata, but must
             // never introduce a fallback-only project into this organization.
             const existing = fallbackById.get(row.project_code) || {};
             const repository = row.repository || {};
@@ -119,7 +120,7 @@ export class ProjectRegistryCatalogAdapter {
             projects: Array.from(merged.values()),
             source: {
                 status: 'loaded',
-                mode: 'registry_scoped',
+                mode: 'graph_ssot_registry_scoped',
                 ...(enrichmentFailure ? {
                     enrichment_status: 'unavailable',
                     enrichment_code: enrichmentFailure

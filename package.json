@@ -78,6 +78,7 @@
     "migrate:multitenant-platform-schema": "node scripts/migrate-multitenant-platform-schema.js",
     "migrate:tenant-production-provisioning": "node scripts/migrate-tenant-production-provisioning.js",
     "migrate:legacy-project-registry": "node scripts/migrate-legacy-project-registry.js",
+    "migrate:project-graph-ssot": "node scripts/reconcile-project-graph-ssot.js",
     "provision:tenant": "node scripts/provision-tenant.js",
     "provision:tenant-project-access": "node scripts/provision-tenant-project-access.js",
     "provision:human-action-authority": "node scripts/provision-human-action-authority.js",

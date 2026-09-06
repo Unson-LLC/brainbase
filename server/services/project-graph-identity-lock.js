@@ -40,7 +40,7 @@ export async function lockProjectGraphIdentity(client, entityId) {
 }
 
 function catalogSubjectError(entityId, reason) {
-    const error = new Error(`Project Catalog subject is protected: ${entityId}`);
+    const error = new Error(`Canonical Project Graph subject is protected: ${entityId}`);
     error.code = 'GRAPH_PROJECT_CATALOG_SUBJECT_PROTECTED';
     error.status = 409;
     error.statusCode = 409;
@@ -49,12 +49,15 @@ function catalogSubjectError(entityId, reason) {
 }
 
 /**
- * Protect a registered Project's canonical Graph subject from generic writers.
+ * Protect a registered Project's canonical Graph identity from generic writers.
  *
  * The Project Catalog is optional in deployments that only install Info SSOT,
  * so the relation check intentionally precedes the catalog query. When the
- * catalog exists, callers must either reject the mutation outright or prove
- * that a Graph Maintenance snapshot preserves the exact catalog projection.
+ * registry exists, callers must either reject the mutation outright or prove
+ * that a Graph Maintenance snapshot preserves its identity and tenant scope.
+ * Business metadata is intentionally not compared with the Registry: Graph is
+ * its SSOT and the database trigger mirrors accepted Graph writes back into the
+ * Registry projection.
  */
 export async function assertCatalogProjectSubjectMutation(client, {
     id,
@@ -72,7 +75,7 @@ export async function assertCatalogProjectSubjectMutation(client, {
     if (!relation.rows[0]?.project_registry) return { protected: false };
 
     const catalog = await client.query(
-        `SELECT pr.project_code, pr.display_name, pr.catalog_version,
+        `SELECT pr.project_code, pr.graph_entity_id, pr.graph_binding_status,
                 EXISTS (
                     SELECT 1 FROM projects scope
                     WHERE scope.id=$2 AND scope.organization_id=pr.organization_id
@@ -80,7 +83,10 @@ export async function assertCatalogProjectSubjectMutation(client, {
          FROM project_registry pr
          JOIN projects p
            ON p.code=pr.project_code AND p.organization_id=pr.organization_id
-         WHERE pr.project_code=$1
+         WHERE pr.graph_entity_id=$1
+            OR (pr.graph_entity_id IS NULL AND pr.project_code=$1)
+         ORDER BY CASE WHEN pr.graph_entity_id=$1 THEN 0 ELSE 1 END
+         LIMIT 1
          FOR UPDATE OF pr, p`,
         [id, projectId]
     );
@@ -88,15 +94,15 @@ export async function assertCatalogProjectSubjectMutation(client, {
     if (!project) return { protected: false };
     if (!allowCompatible) throw catalogSubjectError(id, 'generic_writer_forbidden');
 
-    const expectedSourceRef = `project-catalog:${project.project_code}@${project.catalog_version}`;
     const compatible = entityType === 'project'
         && project.project_scope_compatible === true
-        && lifecycleStatus === 'active'
+        && ['active', 'retired'].includes(lifecycleStatus)
+        && (project.graph_binding_status !== 'linked' || project.graph_entity_id === id)
         && payload?.catalog_project_id === project.project_code
-        && payload?.catalog_version === project.catalog_version
-        && payload?.source_ref === expectedSourceRef
-        && String(payload?.name || '').trim() === String(project.display_name || '').trim();
-    if (!compatible) throw catalogSubjectError(id, 'catalog_projection_mismatch');
+        && Number.isInteger(payload?.catalog_version)
+        && payload.catalog_version > 0
+        && String(payload?.name || '').trim().length > 0;
+    if (!compatible) throw catalogSubjectError(id, 'canonical_graph_identity_mismatch');
     return { protected: true, compatible: true };
 }
 

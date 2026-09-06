@@ -130,7 +130,36 @@ export class PgProjectProvisioningRepository {
 
     async listProjects(organizationId, { client = null } = {}) {
         const { rows } = await this.withOrganization(organizationId, (client) => client.query(
-            'SELECT * FROM project_registry WHERE organization_id=$1 ORDER BY project_code',
+            `SELECT pr.project_code,
+                    pr.organization_id,
+                    ge.payload->>'name' AS display_name,
+                    ge.payload->>'kind' AS kind,
+                    CASE WHEN ge.payload->>'catalog_version' ~ '^[1-9][0-9]*$'
+                      THEN (ge.payload->>'catalog_version')::integer ELSE NULL END AS catalog_version,
+                    ge.lifecycle_status,
+                    pr.session_select,
+                    ge.payload->>'organization_entity_id' AS organization_entity_id,
+                    ge.payload->>'owner_person_id' AS owner_person_id,
+                    pr.repository,
+                    pr.display_name AS projection_display_name,
+                    pr.kind AS projection_kind,
+                    pr.catalog_version AS projection_catalog_version,
+                    pr.lifecycle_status AS projection_lifecycle_status,
+                    pr.organization_entity_id AS projection_organization_entity_id,
+                    pr.owner_person_id AS projection_owner_person_id,
+                    ge.id AS canonical_graph_entity_id,
+                    'graph'::text AS canonical_source
+               FROM project_registry pr
+               JOIN projects p
+                 ON p.code=pr.project_code
+                AND p.organization_id=pr.organization_id
+               JOIN graph_entities ge
+                 ON ge.id=pr.graph_entity_id
+                AND ge.project_id=p.id
+                AND ge.entity_type='project'
+              WHERE pr.organization_id=$1
+                AND pr.graph_binding_status IN ('linked','retired')
+              ORDER BY pr.project_code`,
             [organizationId]
         ), { client });
         return rows;
@@ -389,8 +418,9 @@ export class PgProjectProvisioningRepository {
             );
             const saved = await client.query(
                 `INSERT INTO project_registry
-                 (project_code,organization_id,display_name,kind,catalog_version,session_select,organization_entity_id,owner_person_id,repository)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+                 (project_code,organization_id,display_name,kind,catalog_version,session_select,organization_entity_id,owner_person_id,repository,
+                  graph_entity_id,graph_binding_status,graph_binding_reason,graph_binding_evidence)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NULL,'unresolved','project_provisioning_pending_graph',jsonb_build_object('project_code',$1))
                  ON CONFLICT (project_code) DO UPDATE SET repository=EXCLUDED.repository, updated_at=now()
                  RETURNING *`,
                 [manifest.project_code, organizationId, manifest.display_name, manifest.kind, manifest.catalog_version,

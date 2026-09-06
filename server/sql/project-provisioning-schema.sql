@@ -15,6 +15,20 @@ CREATE TABLE IF NOT EXISTS project_registry (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE project_registry
+  ADD COLUMN IF NOT EXISTS graph_entity_id text,
+  ADD COLUMN IF NOT EXISTS graph_binding_status text NOT NULL DEFAULT 'unresolved',
+  ADD COLUMN IF NOT EXISTS graph_binding_reason text,
+  ADD COLUMN IF NOT EXISTS graph_binding_evidence jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE project_registry DROP CONSTRAINT IF EXISTS project_registry_graph_binding_status_check;
+ALTER TABLE project_registry ADD CONSTRAINT project_registry_graph_binding_status_check
+  CHECK (graph_binding_status IN ('linked','unresolved','ambiguous','conflict','retired'));
+
+CREATE UNIQUE INDEX IF NOT EXISTS project_registry_linked_graph_entity_unique
+  ON project_registry(graph_entity_id)
+  WHERE graph_entity_id IS NOT NULL AND graph_binding_status = 'linked';
+
 -- Global project-code ownership is kept outside tenant-readable tables. The
 -- table itself is not queryable by application roles; callers only receive a
 -- collision source through the narrow SECURITY DEFINER function below.
@@ -186,32 +200,60 @@ BEGIN
     candidate_payload := NEW.payload;
   END IF;
 
-  SELECT pr.project_code, pr.organization_id, pr.display_name, pr.catalog_version
+  SELECT pr.project_code, pr.organization_id, pr.graph_entity_id, pr.graph_binding_status
   INTO catalog
   FROM public.project_registry pr
-  WHERE pr.project_code = candidate_id;
+  JOIN public.projects scope ON scope.code=pr.project_code
+    AND scope.organization_id=pr.organization_id
+  WHERE pr.graph_entity_id = candidate_id
+     OR (pr.graph_entity_id IS NULL AND pr.project_code = candidate_id)
+  ORDER BY CASE WHEN pr.graph_entity_id = candidate_id THEN 0 ELSE 1 END
+  LIMIT 1;
 
   IF FOUND THEN
     IF TG_OP = 'DELETE'
        OR candidate_entity_type IS DISTINCT FROM 'project'
-       OR candidate_lifecycle_status IS DISTINCT FROM 'active'
+       OR btrim(coalesce(candidate_payload->>'name', '')) = ''
        OR candidate_payload->>'catalog_project_id' IS DISTINCT FROM catalog.project_code
-       OR candidate_payload->>'catalog_version' IS DISTINCT FROM catalog.catalog_version::text
-       OR candidate_payload->>'source_ref' IS DISTINCT FROM
-          ('project-catalog:' || catalog.project_code || '@' || catalog.catalog_version::text)
-       OR btrim(coalesce(candidate_payload->>'name', '')) IS DISTINCT FROM btrim(catalog.display_name)
+       OR (catalog.graph_binding_status = 'linked' AND catalog.graph_entity_id IS DISTINCT FROM candidate_id)
        OR NOT EXISTS (
          SELECT 1 FROM public.projects scope
          WHERE scope.id = candidate_project_id
            AND scope.organization_id = catalog.organization_id
        ) THEN
-      RAISE EXCEPTION 'Project Catalog subject projection is protected: %', candidate_id
+      RAISE EXCEPTION 'Canonical Project Graph subject is protected: %', candidate_id
         USING ERRCODE = 'check_violation',
               DETAIL = json_build_object(
                 'entity_id', candidate_id,
-                'reason', 'catalog_projection_mismatch'
+                'reason', 'canonical_project_identity_mismatch'
               )::text;
     END IF;
+
+    UPDATE public.project_registry AS pr
+       SET graph_entity_id = candidate_id,
+           graph_binding_status = CASE
+             WHEN candidate_lifecycle_status = 'active' THEN 'linked' ELSE 'retired' END,
+           graph_binding_reason = 'canonical_graph_write',
+           graph_binding_evidence = jsonb_build_object(
+             'entity_id', candidate_id,
+             'project_id', candidate_project_id,
+             'source_ref', candidate_payload->>'source_ref'
+           ),
+           display_name = btrim(candidate_payload->>'name'),
+           kind = COALESCE(NULLIF(candidate_payload->>'kind', ''), pr.kind),
+           catalog_version = CASE
+             WHEN candidate_payload->>'catalog_version' ~ '^[1-9][0-9]*$'
+               THEN (candidate_payload->>'catalog_version')::integer
+             ELSE pr.catalog_version END,
+           lifecycle_status = candidate_lifecycle_status,
+           organization_entity_id = COALESCE(NULLIF(candidate_payload->>'organization_entity_id', ''), pr.organization_entity_id),
+           owner_person_id = COALESCE(NULLIF(candidate_payload->>'owner_person_id', ''), pr.owner_person_id),
+           updated_at = now()
+     WHERE pr.project_code = catalog.project_code;
+
+    UPDATE public.projects
+       SET name = btrim(candidate_payload->>'name')
+     WHERE id = candidate_project_id;
   END IF;
 
   IF TG_OP = 'DELETE' THEN
@@ -227,6 +269,19 @@ DROP TRIGGER IF EXISTS project_graph_entity_write_guard ON graph_entities;
 CREATE TRIGGER project_graph_entity_write_guard
   BEFORE INSERT OR UPDATE OR DELETE ON graph_entities
   FOR EACH ROW EXECUTE FUNCTION guard_project_graph_entity_write();
+
+DO $project_registry_graph_fk$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname='project_registry_graph_entity_fk'
+  ) THEN
+    ALTER TABLE project_registry
+      ADD CONSTRAINT project_registry_graph_entity_fk
+      FOREIGN KEY (graph_entity_id) REFERENCES graph_entities(id)
+      DEFERRABLE INITIALLY DEFERRED NOT VALID;
+  END IF;
+END
+$project_registry_graph_fk$;
 
 -- Project provisioning uses these three SECURITY DEFINER functions as one
 -- runtime contract. Grant them together when the canonical API role exists.
