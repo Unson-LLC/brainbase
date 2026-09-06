@@ -747,27 +747,35 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         ]);
     }, 300_000);
 
-    it('実PostgreSQLでプロジェクトコードIDが組織主体に占有されている場合は技術的プロジェクトIDへ結び付ける', async () => {
+    it('実PostgreSQLで別組織の組織主体がコードIDを占有していても既存プロジェクト主体へ結び付ける', async () => {
         const organizationId = 'org_reconcile_collision';
+        const holderOrganizationId = 'org_reconcile_collision_holder';
         const projectCode = 'reconcile-collision';
-        const technicalProjectId = 'project_reconcile_collision';
+        const technicalProjectId = projectCode;
+        const legacyProjectEntityId = 'prj_reconcile_collision';
         await adminPool.query(`
             INSERT INTO organizations (id, name, workspace_id, projects)
-            VALUES ($1, 'Collision Reconciliation', 'WS_RECONCILE_COLLISION', ARRAY[$2])
-        `, [organizationId, projectCode]);
+            VALUES
+                ($1, 'Collision Reconciliation', 'WS_RECONCILE_COLLISION', ARRAY[$2]),
+                ($3, 'Collision Holder', 'WS_RECONCILE_COLLISION_HOLDER', ARRAY['collision-holder'])
+        `, [organizationId, projectCode, holderOrganizationId]);
         await adminPool.query(`
             INSERT INTO projects (id, code, name, organization_id)
-            VALUES ($1, $2, 'Reconcile Collision', $3)
-        `, [technicalProjectId, projectCode, organizationId]);
+            VALUES
+                ($1, $2, 'Reconcile Collision', $3),
+                ('project_reconcile_collision_holder', 'collision-holder', 'Collision Holder', $4)
+        `, [technicalProjectId, projectCode, organizationId, holderOrganizationId]);
         await adminPool.query(`
             INSERT INTO graph_entities
                 (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
             VALUES
-                ($1, 'org', $2, '{"name":"Existing Organization Subject"}'::jsonb,
+                ($1, 'org', 'project_reconcile_collision_holder',
+                 '{"name":"Existing Organization Subject"}'::jsonb,
                  'member', 'internal', 'active', 1),
-                ($2, 'project', $2, '{"name":"Legacy Project Subject"}'::jsonb,
+                ($3, 'project', $2,
+                 '{"name":"Legacy Project Subject","code":"reconcile-collision"}'::jsonb,
                  'member', 'internal', 'active', 1)
-        `, [projectCode, technicalProjectId]);
+        `, [projectCode, technicalProjectId, legacyProjectEntityId]);
         await adminPool.query(`
             INSERT INTO project_registry
                 (project_code, organization_id, display_name, kind, catalog_version,
@@ -776,14 +784,31 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
                     '{"mode":"none"}'::jsonb)
         `, [organizationId, projectCode, PERSON_ID]);
 
-        const dryRun = await runProjectGraphReconciliation({ pool, mode: 'dry-run', organizationId });
+        const functionOwner = (await adminPool.query(`
+            SELECT pg_get_userbyid(proowner) AS owner
+              FROM pg_proc
+             WHERE oid='project_graph_identity_probe(text)'::regprocedure
+        `)).rows[0].owner;
+        const quotedOwner = `"${functionOwner.replaceAll('"', '""')}"`;
+        let dryRun;
+        await adminPool.query('GRANT CREATE ON SCHEMA public TO brainbase_app');
+        await adminPool.query('GRANT SELECT ON graph_entities, graph_edges, projects TO brainbase_app');
+        try {
+            await adminPool.query('ALTER FUNCTION project_graph_identity_probe(text) OWNER TO brainbase_app');
+            await adminPool.query('REVOKE CREATE ON SCHEMA public FROM brainbase_app');
+            dryRun = await runProjectGraphReconciliation({ pool, mode: 'dry-run', organizationId });
+        } finally {
+            await adminPool.query(`ALTER FUNCTION project_graph_identity_probe(text) OWNER TO ${quotedOwner}`);
+            await adminPool.query('REVOKE CREATE ON SCHEMA public FROM brainbase_app');
+            await adminPool.query('REVOKE SELECT ON graph_entities, graph_edges, projects FROM brainbase_app');
+        }
         expect(dryRun).toMatchObject({
             complete: true,
             summary: { total: 1, planned: 1, unresolved: 0 },
             results: [expect.objectContaining({
                 project_code: projectCode,
                 action: 'link_existing',
-                canonical_entity_id: technicalProjectId,
+                canonical_entity_id: legacyProjectEntityId,
                 merge_entity_ids: [],
                 status: 'planned'
             })]
@@ -807,7 +832,7 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
              WHERE pr.project_code=$1 AND pr.organization_id=$2
         `, [projectCode, organizationId]);
         expect(rows).toEqual([{
-            graph_entity_id: technicalProjectId,
+            graph_entity_id: legacyProjectEntityId,
             graph_binding_status: 'linked',
             project_entity_type: 'project',
             occupied_entity_type: 'org',

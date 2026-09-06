@@ -29,6 +29,33 @@ describe('project Graph SSOT reconciliation classification', () => {
         });
     });
 
+    it('uses the sole legacy project subject when the technical scope ID also equals the occupied code', () => {
+        const result = classifyProjectBinding(row({
+            scope_id: 'brainbase',
+            canonical_id_occupancy: {
+                scope_relation: 'other_organization', entity_id: 'brainbase', entity_type: null
+            },
+            candidates: [{ id: 'prj_brainbase_legacy', payload: { code: 'brainbase' } }]
+        }));
+        expect(result).toMatchObject({
+            action: 'link_existing', canonical_entity_id: 'prj_brainbase_legacy',
+            merge_entity_ids: [], conflicts: []
+        });
+    });
+
+    it('does not invent another Graph ID when an occupied code has no project candidate', () => {
+        const result = classifyProjectBinding(row({
+            scope_id: 'brainbase',
+            canonical_id_occupancy: {
+                scope_relation: 'other_organization', entity_id: 'brainbase', entity_type: null
+            }
+        }));
+        expect(result).toMatchObject({
+            action: 'ambiguous', canonical_entity_id: null,
+            merge_entity_ids: [], conflicts: ['brainbase']
+        });
+    });
+
     it('keeps an exact canonical subject and merges only the deterministic technical duplicate', () => {
         const result = classifyProjectBinding(row({ candidates: [
             { id: 'brainbase', payload: { catalog_project_id: 'brainbase' } },
@@ -109,11 +136,11 @@ describe('project Graph SSOT reconciliation classification', () => {
         });
     });
 
-    it('enumerates each organization and exposes all of its Graph storage scopes before reading RLS data', async () => {
+    it('enumerates each organization and exposes every Graph storage scope before reading RLS data', async () => {
         const query = vi.fn(async (sql) => {
             if (sql.includes('SELECT DISTINCT organization_id AS id')) return { rows: [{ id: 'org_a' }] };
-            if (sql === 'SELECT code FROM projects WHERE organization_id=$1 ORDER BY code') {
-                return { rows: [{ code: 'brainbase' }, { code: 'child-project' }] };
+            if (sql === 'SELECT DISTINCT code FROM projects WHERE code IS NOT NULL ORDER BY code') {
+                return { rows: [{ code: 'brainbase' }, { code: 'child-project' }, { code: 'other-org-project' }] };
             }
             if (sql.includes('FROM project_registry pr')) {
                 return { rows: [{
@@ -139,7 +166,7 @@ describe('project Graph SSOT reconciliation classification', () => {
         expect(query).not.toHaveBeenCalledWith('SELECT id FROM organizations ORDER BY id');
         expect(query).toHaveBeenCalledWith(
             "SELECT set_config('app.project_codes',$1,true)",
-            ['brainbase,child-project']
+            ['brainbase,child-project,other-org-project']
         );
         expect(client.release).toHaveBeenCalledOnce();
     });
