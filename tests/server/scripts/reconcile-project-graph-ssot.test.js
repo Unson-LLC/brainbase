@@ -28,10 +28,32 @@ describe('project Graph SSOT reconciliation classification', () => {
         });
     });
 
+    it('keeps the exact catalog subject and merges legacy code-only duplicates', () => {
+        const result = classifyProjectBinding(row({ candidates: [
+            { id: 'brainbase', payload: { catalog_project_id: 'brainbase', code: 'brainbase' } },
+            { id: 'project_legacy', payload: { code: 'brainbase' } }
+        ] }));
+        expect(result).toMatchObject({
+            action: 'link_existing', canonical_entity_id: 'brainbase',
+            merge_entity_ids: ['project_legacy'], conflicts: []
+        });
+    });
+
+    it('creates the code-id canonical subject and merges multiple legacy code-only duplicates', () => {
+        const result = classifyProjectBinding(row({ candidates: [
+            { id: 'legacy_b', payload: { code: 'brainbase' } },
+            { id: 'legacy_a', payload: { code: 'brainbase' } }
+        ] }));
+        expect(result).toMatchObject({
+            action: 'create_canonical', canonical_entity_id: 'brainbase',
+            merge_entity_ids: ['legacy_a', 'legacy_b'], conflicts: []
+        });
+    });
+
     it('does not guess when multiple non-canonical Graph candidates exist', () => {
         const result = classifyProjectBinding(row({ candidates: [
-            { id: 'legacy_a', payload: { code: 'brainbase' } },
-            { id: 'legacy_b', payload: { code: 'brainbase' } }
+            { id: 'legacy_a', payload: { catalog_project_id: 'brainbase' } },
+            { id: 'legacy_b', payload: { catalog_project_id: 'another-project' } }
         ] }));
         expect(result).toMatchObject({ action: 'ambiguous', canonical_entity_id: null });
         expect(result.conflicts).toEqual(['legacy_a', 'legacy_b']);

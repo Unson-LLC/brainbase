@@ -691,6 +691,62 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         }]);
     }, 300_000);
 
+    it('実PostgreSQLでコードだけを持つ複数の旧Graph主体をコードIDの正本へ統合する', async () => {
+        const organizationId = 'org_reconcile_duplicates';
+        const projectCode = 'reconcile-duplicates';
+        await adminPool.query(`
+            INSERT INTO organizations (id, name, workspace_id, projects)
+            VALUES ($1, 'Duplicate Reconciliation', 'WS_RECONCILE_DUPLICATES', ARRAY[$2])
+        `, [organizationId, projectCode]);
+        await adminPool.query(`
+            INSERT INTO projects (id, code, name, organization_id)
+            VALUES ('project_reconcile_duplicates', $2, 'Reconcile Duplicates', $1)
+        `, [organizationId, projectCode]);
+        for (const entityId of ['legacy-duplicate-a', 'legacy-duplicate-b']) {
+            await adminPool.query(`
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES ($1, 'project', 'project_reconcile_duplicates', $2::jsonb,
+                        'member', 'internal', 'active', 1)
+            `, [entityId, JSON.stringify({ name: 'Reconcile Duplicates', code: projectCode })]);
+        }
+        await adminPool.query(`
+            INSERT INTO project_registry
+                (project_code, organization_id, display_name, kind, catalog_version,
+                 lifecycle_status, session_select, organization_entity_id, owner_person_id, repository)
+            VALUES ($2, $1, 'Reconcile Duplicates', 'client', 1, 'active', true, $1, $3,
+                    '{"mode":"none"}'::jsonb)
+        `, [organizationId, projectCode, PERSON_ID]);
+
+        const dryRun = await runProjectGraphReconciliation({ pool, mode: 'dry-run', organizationId });
+        expect(dryRun.results).toEqual([expect.objectContaining({
+            project_code: projectCode,
+            action: 'create_canonical',
+            canonical_entity_id: projectCode,
+            merge_entity_ids: ['legacy-duplicate-a', 'legacy-duplicate-b'],
+            status: 'planned'
+        })]);
+
+        const executed = await runProjectGraphReconciliation({
+            pool, mode: 'execute', organizationId, actor: 'integration-test'
+        });
+        expect(executed).toMatchObject({
+            complete: true,
+            summary: { total: 1, verified: 1, unresolved: 0, readback_failed_or_unknown: 0 }
+        });
+        const { rows } = await adminPool.query(`
+            SELECT id, lifecycle_status, payload->>'canonical_entity_id' AS canonical_entity_id
+              FROM graph_entities
+             WHERE id = ANY($1::text[])
+             ORDER BY id
+        `, [['legacy-duplicate-a', 'legacy-duplicate-b', projectCode]]);
+        expect(rows).toEqual([
+            { id: 'legacy-duplicate-a', lifecycle_status: 'merged', canonical_entity_id: projectCode },
+            { id: 'legacy-duplicate-b', lifecycle_status: 'merged', canonical_entity_id: projectCode },
+            { id: projectCode, lifecycle_status: 'active', canonical_entity_id: null }
+        ]);
+    }, 300_000);
+
     it('実PostgreSQLのGraph同一ID probeは同一組織だけidentityを返し他組織の詳細を隠す', async () => {
         await adminPool.query(`
             INSERT INTO graph_entities
