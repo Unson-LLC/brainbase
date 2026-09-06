@@ -1880,7 +1880,7 @@ export class InfoSSOTService {
         });
     }
 
-    async createRaci(access, input) {
+    async createRaci(access, input, { client: externalClient, access_context_applied: accessContextApplied = false } = {}) {
         const roleMin = this.normalizeRole(input.roleMin || input.sensitivityMin || input.roleCode);
         const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
         this.assertWriteAccess(access, {
@@ -1890,7 +1890,7 @@ export class InfoSSOTService {
         });
         const guard = this.getOntologyGuard();
 
-        return this.withAccessContext(access, async (client) => {
+        const commit = async (client) => {
             const projectId = await this.ensureProject(client, input);
             const personId = await this.ensurePerson(client, {
                 personId: input.personId,
@@ -2006,7 +2006,10 @@ export class InfoSSOTService {
                 sensitivity: 'internal'
             });
             return { raci_id: raciId, event_id: eventId, ...guard };
-        });
+        };
+        if (externalClient && accessContextApplied) return commit(externalClient);
+        if (externalClient) return this.withAccessContext(access, commit, { client: externalClient });
+        return this.withAccessContext(access, commit);
     }
 
     async listDecisions(access, { projectCode, since }) {

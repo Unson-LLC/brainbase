@@ -960,6 +960,31 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(relTypes).toContain('member_of');
     });
 
+    it('createRaci can join an already-authorized provisioning transaction', async () => {
+        const { service, client } = buildService();
+        vi.spyOn(service, 'ensureProject').mockResolvedValue('prj_1');
+        vi.spyOn(service, 'ensurePerson').mockResolvedValue('per_sato');
+        vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
+        vi.spyOn(service, 'upsertGraphEdge').mockResolvedValue();
+        const withAccessContext = vi.spyOn(service, 'withAccessContext');
+
+        await expect(service.createRaci({
+            role: 'ceo', projectCodes: ['brainbase'], clearance: ['internal'],
+            organizationId: 'unson', tenantId: 'unson'
+        }, {
+            projectCode: 'brainbase',
+            personId: 'per_sato',
+            roleCode: 'outcome_case:close',
+            roleMin: 'gm',
+            sensitivity: 'internal',
+            authorityScope: 'outcome_case.close'
+        }, { client, access_context_applied: true })).resolves.toMatchObject({ raci_id: expect.any(String) });
+
+        expect(withAccessContext).not.toHaveBeenCalled();
+        expect(client.query).not.toHaveBeenCalledWith('BEGIN');
+        expect(client.query).not.toHaveBeenCalledWith('COMMIT');
+    });
+
     it('ensurePerson_personId指定時にGraphの既存person IDだけを返す', async () => {
         const { service, client } = buildService();
         const upsertSpy = vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
