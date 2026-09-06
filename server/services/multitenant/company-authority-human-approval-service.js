@@ -3,6 +3,7 @@
 import { createHash, createPublicKey, randomUUID } from 'node:crypto';
 
 import { AppError } from '../../lib/errors.js';
+import { parseCompanyAuthorityResourceRef } from './company-authority-resolver.js';
 import {
     CONTRACT_ID,
     MAX_TTL_SECONDS,
@@ -232,6 +233,26 @@ export class CompanyAuthorityHumanApprovalService {
 
     isBound(step) {
         return isCompanyAuthorityHumanApprovalMarker(step?.metadata?.company_authority_human_approval);
+    }
+
+    verifiedProjectAccessBinding(step) {
+        const marker = this._verifyBinding(step);
+        const projectHint = marker.observed_request.requested_action.project_hint || null;
+        const resource = parseCompanyAuthorityResourceRef(marker.binding.resource_ref);
+        if (projectHint && resource.lookupResourceRef !== `project:${projectHint}`) {
+            throw approvalError(
+                'company_authority_human_approval_binding_mismatch',
+                'project_hint does not match the signed resource_ref',
+                {
+                    project_hint: projectHint,
+                    resource_ref: marker.binding.resource_ref
+                }
+            );
+        }
+        return {
+            project_id: marker.binding.project_id,
+            project_access_key: projectHint || marker.binding.project_id
+        };
     }
 
     /**
