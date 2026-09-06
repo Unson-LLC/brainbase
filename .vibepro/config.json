@@ -190,8 +190,25 @@
         "started_at": null,
         "due_at": null,
         "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-g0-post-approval-redelivery",
+        "title": "承認後の外部run再送を冪等に処理する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix",
+        "acceptance_criteria": [
+          "同一external run payloadは、人承認でrunとhuman stepの状態が更新された後に再送されてもduplicateとして200を返す。",
+          "同じrun IDで元payloadの内容が変わった再送は承認後もduplicate_payload_mismatchで拒否する。",
+          "承認後再送で承認処理やTask生成を再実行せず、既存Taskが1件のまま残る。"
+        ]
       }
     ],
-    "current_story_id": "story-g0-authority-bound-execution"
+    "current_story_id": "story-g0-post-approval-redelivery"
   }
 }

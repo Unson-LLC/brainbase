@@ -88,7 +88,13 @@ export class ExternalRunnerIngestService {
             const existingWorkflow = this.workflowRepository.getWorkflow(normalized.workflow.id);
             this._assertExistingWorkflowCompatible(existingWorkflow, normalized.run);
             const workflow = existingWorkflow || this.workflowRepository.upsertWorkflow(normalized.workflow);
-            const run = this.workflowRepository.createRun(normalized.run);
+            const run = this.workflowRepository.createRun({
+                ...normalized.run,
+                metadata: {
+                    ...(normalized.run.metadata || {}),
+                    external_runner_ingest_source_digest: this._ingestSourceDigest(normalized)
+                }
+            });
             const contextSnapshots = normalized.contextSnapshots.map((snapshot) => (
                 this.workflowRepository.createContextSnapshot(snapshot)
             ));
@@ -239,13 +245,52 @@ export class ExternalRunnerIngestService {
                 }
             );
         }
-        this._assertDuplicatePayloadMatches(existingRun, normalized, {
+        const persisted = {
             contextSnapshots,
             humanSteps,
             outputs,
             auditLogs,
             learningCandidates
-        });
+        };
+        const storedSourceDigest = existingRun.metadata?.external_runner_ingest_source_digest;
+        if (storedSourceDigest) {
+            const replaySourceDigest = this._ingestSourceDigest(normalized);
+            if (storedSourceDigest === replaySourceDigest) {
+                this._assertPersistedSourceSurfaces(existingRun, normalized, persisted);
+                return;
+            }
+            this._assertDuplicatePayloadMatches(existingRun, normalized, persisted);
+            throw new ExternalRunnerContractError(
+                'duplicate_payload_mismatch',
+                `existing workflow_run '${existingRun.id}' duplicate replay differs from its ingest source`,
+                {
+                    workflow_run_id: existingRun.id,
+                    surface: 'ingest_source'
+                }
+            );
+        }
+        this._assertDuplicatePayloadMatches(existingRun, normalized, persisted);
+    }
+
+    _assertPersistedSourceSurfaces(existingRun, normalized, persisted) {
+        this._assertComparableSurface(
+            'run_identity',
+            existingRun,
+            this._runSourceIdentityShape(normalized.run),
+            existingRun.id
+        );
+        this._assertComparableSurface('context_snapshots', persisted.contextSnapshots, normalized.contextSnapshots, existingRun.id);
+        this._assertComparableSurface(
+            'human_step_identity',
+            persisted.humanSteps,
+            normalized.humanSteps.map((step) => this._humanStepSourceIdentityShape(step)),
+            existingRun.id
+        );
+        this._assertComparableSurface('outputs', persisted.outputs, normalized.outputs, existingRun.id);
+        this._assertExactListSurface('audit_logs', this._auditDuplicateShape(persisted.auditLogs, normalized.auditEvents), normalized.auditEvents.map((entry) => ({
+            action: entry.action,
+            after: entry.after
+        })), existingRun.id);
     }
 
     _writeDuplicateReplayAudit(existingRun, normalized) {
@@ -286,6 +331,43 @@ export class ExternalRunnerIngestService {
             ...stableRun
         } = run;
         return stableRun;
+    }
+
+    _runSourceIdentityShape(run) {
+        const {
+            status: _status,
+            closure_state: _closureState,
+            action_required: _actionRequired,
+            human_waiting: _humanWaiting,
+            message: _message,
+            output_count: _outputCount,
+            error: _error,
+            data_preview: _dataPreview,
+            duration_ms: _durationMs,
+            ...identity
+        } = this._runDuplicateShape(run);
+        return identity;
+    }
+
+    _humanStepSourceIdentityShape(step) {
+        const { status: _status, ...identity } = step;
+        return identity;
+    }
+
+    _ingestSourceDigest(normalized) {
+        return sha256(stableString({
+            contract_version: normalized.contractVersion,
+            runner_type: normalized.runnerType,
+            run: this._runDuplicateShape(normalized.run),
+            context_snapshots: sortComparableList(normalized.contextSnapshots),
+            human_steps: sortComparableList(normalized.humanSteps),
+            outputs: sortComparableList(normalized.outputs),
+            audit_events: sortComparableList(normalized.auditEvents.map((entry) => ({
+                action: entry.action,
+                after: entry.after
+            }))),
+            learning_candidates: sortComparableList(normalized.learningCandidates)
+        }));
     }
 
     _auditDuplicateShape(auditLogs, expectedAuditEvents) {
