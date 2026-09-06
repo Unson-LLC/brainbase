@@ -8,6 +8,7 @@ const row = (overrides = {}) => ({
     project_code: 'brainbase',
     scope_id: 'project_brainbase',
     graph_entity_id: null,
+    canonical_id_occupancy: null,
     candidates: [],
     ...overrides
 });
@@ -15,6 +16,17 @@ const row = (overrides = {}) => ({
 describe('project Graph SSOT reconciliation classification', () => {
     it('creates the canonical Graph subject when the registry has no candidate', () => {
         expect(classifyProjectBinding(row())).toMatchObject({ action: 'create_canonical', conflicts: [] });
+    });
+
+    it('uses the technical project identity when the code ID belongs to a non-project subject', () => {
+        const result = classifyProjectBinding(row({
+            canonical_id_occupancy: { entity_id: 'brainbase', entity_type: 'org' },
+            candidates: [{ id: 'project_brainbase', payload: { name: 'Brainbase' } }]
+        }));
+        expect(result).toMatchObject({
+            action: 'link_existing', canonical_entity_id: 'project_brainbase',
+            merge_entity_ids: [], conflicts: []
+        });
     });
 
     it('keeps an exact canonical subject and merges only the deterministic technical duplicate', () => {

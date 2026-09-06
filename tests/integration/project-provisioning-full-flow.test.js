@@ -747,6 +747,74 @@ describe.sequential('Project Provisioning acceptance E2E', () => {
         ]);
     }, 300_000);
 
+    it('実PostgreSQLでプロジェクトコードIDが組織主体に占有されている場合は技術的プロジェクトIDへ結び付ける', async () => {
+        const organizationId = 'org_reconcile_collision';
+        const projectCode = 'reconcile-collision';
+        const technicalProjectId = 'project_reconcile_collision';
+        await adminPool.query(`
+            INSERT INTO organizations (id, name, workspace_id, projects)
+            VALUES ($1, 'Collision Reconciliation', 'WS_RECONCILE_COLLISION', ARRAY[$2])
+        `, [organizationId, projectCode]);
+        await adminPool.query(`
+            INSERT INTO projects (id, code, name, organization_id)
+            VALUES ($1, $2, 'Reconcile Collision', $3)
+        `, [technicalProjectId, projectCode, organizationId]);
+        await adminPool.query(`
+            INSERT INTO graph_entities
+                (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+            VALUES
+                ($1, 'org', $2, '{"name":"Existing Organization Subject"}'::jsonb,
+                 'member', 'internal', 'active', 1),
+                ($2, 'project', $2, '{"name":"Legacy Project Subject"}'::jsonb,
+                 'member', 'internal', 'active', 1)
+        `, [projectCode, technicalProjectId]);
+        await adminPool.query(`
+            INSERT INTO project_registry
+                (project_code, organization_id, display_name, kind, catalog_version,
+                 lifecycle_status, session_select, organization_entity_id, owner_person_id, repository)
+            VALUES ($2, $1, 'Reconcile Collision', 'internal', 1, 'active', true, $1, $3,
+                    '{"mode":"none"}'::jsonb)
+        `, [organizationId, projectCode, PERSON_ID]);
+
+        const dryRun = await runProjectGraphReconciliation({ pool, mode: 'dry-run', organizationId });
+        expect(dryRun).toMatchObject({
+            complete: true,
+            summary: { total: 1, planned: 1, unresolved: 0 },
+            results: [expect.objectContaining({
+                project_code: projectCode,
+                action: 'link_existing',
+                canonical_entity_id: technicalProjectId,
+                merge_entity_ids: [],
+                status: 'planned'
+            })]
+        });
+
+        const executed = await runProjectGraphReconciliation({
+            pool, mode: 'execute', organizationId, actor: 'integration-test'
+        });
+        expect(executed).toMatchObject({
+            complete: true,
+            summary: { total: 1, verified: 1, unresolved: 0, readback_failed_or_unknown: 0 }
+        });
+        const { rows } = await adminPool.query(`
+            SELECT pr.graph_entity_id, pr.graph_binding_status,
+                   project_subject.entity_type AS project_entity_type,
+                   occupied_subject.entity_type AS occupied_entity_type,
+                   occupied_subject.payload->>'name' AS occupied_name
+              FROM project_registry pr
+              JOIN graph_entities project_subject ON project_subject.id=pr.graph_entity_id
+              JOIN graph_entities occupied_subject ON occupied_subject.id=pr.project_code
+             WHERE pr.project_code=$1 AND pr.organization_id=$2
+        `, [projectCode, organizationId]);
+        expect(rows).toEqual([{
+            graph_entity_id: technicalProjectId,
+            graph_binding_status: 'linked',
+            project_entity_type: 'project',
+            occupied_entity_type: 'org',
+            occupied_name: 'Existing Organization Subject'
+        }]);
+    }, 300_000);
+
     it('実PostgreSQLのGraph同一ID probeは同一組織だけidentityを返し他組織の詳細を隠す', async () => {
         await adminPool.query(`
             INSERT INTO graph_entities
