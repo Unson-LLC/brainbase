@@ -31,10 +31,18 @@ git status --short --branch
 git diff --name-status
 git diff --cached --name-status
 git fetch origin
-git worktree add /private/tmp/<name> -b codex/<intent> origin/<base>
+test -n "${CODEX_WORKTREE_ROOT:-}" || { echo "CODEX_WORKTREE_ROOT is required" >&2; exit 1; }
+mkdir -p "$CODEX_WORKTREE_ROOT/manual/$(basename "$PWD")"
+git worktree add "$CODEX_WORKTREE_ROOT/manual/$(basename "$PWD")/<name>" -b codex/<intent> origin/<base>
 ```
 
-base branchとremote trackingはrepoごとに確認する。dirtyな元worktree内でbranchを切り替えない。
+`CODEX_WORKTREE_ROOT` は容量に余裕がある作業用ボリュームへ設定し、未設定時は内部ディスクへfallbackせず停止する。佐藤環境では同じ契約を検証する `codex-worktree-add <name> codex/<intent> origin/<base>` を優先する。
+
+base branchとremote trackingはrepoごとに確認する。dirtyな元worktree内でbranchを切り替えない。既存worktreeは一括移動せず、個別にowner・dirty状態・実行中プロセスを確認する。
+
+## 長時間ログの終了境界
+
+`wrangler tail` のような終端のない診断コマンドは裸で起動しない。佐藤環境では `wrangler-tail-bounded --duration 1h -- <wrangler tailを含むコマンド>` を使い、タスク終了または上限時間で子プロセスを含めて終了させる。既存プロセスを止める場合は、親が終了済みであることと対象PID・cwdを確認してから `TERM` を送る。
 
 ## 完了手順
 
