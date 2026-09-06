@@ -11,7 +11,7 @@
 #   scripts/generate-memory-preamble.mjs で明示的に materialize する。
 # - tsx/node ではなく POSIX shell + python3 で実装し、codex hook 実行の
 #   node/esbuild arch mismatch / timeout 飽和の罠を避ける。
-# - file が無い/空/古い時は安全に縮退 (continue:true, additionalContext 無し or 警告)。
+# - file が無い/空/古い時は安全に縮退 (continue:true, additionalContext 無し)。
 #
 # 出力 schema (codex hookSpecificOutput):
 #   {"continue":true,"hookSpecificOutput":{"hookEventName":"SessionStart",
@@ -34,6 +34,8 @@ PREAMBLE_PATH="$PREAMBLE_PATH" STALE_DAYS="$STALE_DAYS" python3 - <<'PY' || emit
 import json
 import os
 import time
+import re
+from datetime import datetime, timezone
 
 path = os.environ["PREAMBLE_PATH"]
 stale_days = float(os.environ.get("STALE_DAYS", "2"))
@@ -49,19 +51,25 @@ if not text:
     print('{"continue":true,"suppressOutput":true}')
     raise SystemExit(0)
 
-age_days = (time.time() - os.path.getmtime(path)) / 86400.0
-note = ""
-if age_days > stale_days:
-    note = (
-        f" (注意: この preamble は {int(age_days)} 日前のもの。"
-        "generate-memory-preamble.mjs で更新を)"
-    )
+# 本文の日付も検証する。コピーや touch で古いメモが再び有効にならないようにする。
+header = re.match(r"^\[Brainbase memory preamble — (\d{4}-\d{2}-\d{2})\]", text)
+try:
+    generated_at = datetime.strptime(header.group(1), "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()
+    now = time.time()
+    age_days = max((now - os.path.getmtime(path)) / 86400, (now - generated_at) // 86400)
+    fresh = generated_at <= now and age_days <= stale_days
+except (AttributeError, ValueError, OSError):
+    fresh = False
+
+if not fresh:
+    print('{"continue":true,"suppressOutput":true}')
+    raise SystemExit(0)
 
 print(json.dumps({
     "continue": True,
     "hookSpecificOutput": {
         "hookEventName": "SessionStart",
-        "additionalContext": text + note,
+        "additionalContext": text,
     },
     "suppressOutput": True,
 }, ensure_ascii=False))

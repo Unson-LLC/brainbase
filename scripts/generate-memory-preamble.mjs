@@ -58,19 +58,22 @@ function graphHeaders(token) {
   };
 }
 
-async function fetchGraphNames(type, token) {
+async function fetchGraphNames(type, token, fetchImpl = fetch) {
   try {
-    const res = await fetch(`${GRAPH_API}/api/info/graph/entities?type=${type}&limit=500`, {
+    const res = await fetchImpl(`${GRAPH_API}/api/info/graph/entities?type=${type}&limit=500`, {
       headers: graphHeaders(token),
+      signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return [];
+    if (!res.ok) return { names: [], status: 'failed' };
     const data = await res.json();
-    const records = data.records || data.entities || [];
-    return records
-      .map((r) => (r.payload && r.payload.name) || '')
-      .filter((n) => n && !n.startsWith('__deprecated'));
+    const records = data.records || data.entities;
+    if (!Array.isArray(records)) return { names: [], status: 'failed' };
+    const names = [...new Set(records
+      .map((r) => String(r?.payload?.name || '').trim())
+      .filter((name) => name && !name.startsWith('__deprecated')))];
+    return { names, status: records.length >= 500 ? 'partial' : 'available' };
   } catch {
-    return [];
+    return { names: [], status: 'failed' };
   }
 }
 
@@ -182,23 +185,29 @@ async function build() {
     fetchGraphNames('customer', token),
   ]);
   const kgResult = await fetchPersonalKg();
-  const kg = kgResult.records;
-  const caps = capabilityIds();
+  return renderPreamble({ persons, orgs, customers, kgResult, caps: capabilityIds() });
+}
 
-  const today = new Date().toISOString().slice(0, 10);
+function renderPreamble({ persons, orgs, customers, kgResult, caps, today = new Date().toISOString().slice(0, 10) }) {
+  const kg = kgResult.records;
+  const ranked = [...new Map(kg
+    .map((candidate) => [String(candidate.body || '').replace(/\s+/gu, ' ').trim(), candidate])
+    .filter(([body]) => body)).entries()];
   const lines = [];
   lines.push(`[Brainbase memory preamble — ${today}]`);
-  lines.push('返答前に: 固有名詞・機能・判断が下記に該当したら、記憶/推測で書く前に pull (MCP search / yml Read) で一次情報を引け。該当が無ければ「SSOTに未登録」と明示してから推測に移る。');
+  lines.push('これは取得時点の参照用メモ。必要な情報は MCP search / Capability yml で一次情報を確認する。この一覧にない情報は未確認であり、SSOTへの未登録を意味しない。');
   lines.push('');
 
   // 1. 個人KG (判断OS)
   lines.push('■ 個人KG (明示された所有者の判断OS)');
   if (kg.length) {
-    // fetchPersonalKg で confidence + created_at ランク済み。body をそのまま使う。
-    const ranked = kg
-      .map((c) => String(c.body || '').replace(/\s+/gu, ' ').trim())
-      .filter(Boolean);
-    for (const t of truncate(ranked, PERSONAL_KG_TOP)) lines.push(`  - ${t.slice(0, 110)}`);
+    // 同じ本文は1件にまとめる。意味が変わる途中切断はせず、長文は参照先だけを示す。
+    for (const [body, candidate] of ranked.slice(0, PERSONAL_KG_TOP)) {
+      lines.push(body.length <= 1200
+        ? `  - ${body}`
+        : `  - (長文のため本文省略。candidate_id=${candidate.id || '未確認'} を一次情報で確認)`);
+    }
+    if (ranked.length > PERSONAL_KG_TOP) lines.push(`  (他${ranked.length - PERSONAL_KG_TOP}件は一次情報で確認)`);
   } else if (kgResult.status === 'confirmed_empty') {
     lines.push('  (確認済み: 対象の個人KG候補なし)');
   } else {
@@ -208,10 +217,12 @@ async function build() {
   lines.push('');
 
   // 2. Graph SSOT カタログ
-  lines.push('■ Graph SSOT 登録エンティティ (これらの名前が出たら推測せず get_entity/search で引く)');
-  lines.push(`  people(${persons.length}): ${truncate(persons, 20).join(', ')}`);
-  lines.push(`  org(${orgs.length}): ${truncate(orgs, 19).join(', ')}`);
-  lines.push(`  customer(${customers.length}): ${truncate(customers, 12).join(', ')}`);
+  lines.push('■ Graph SSOT 取得した名前 (各種別は最大500レコードの参照用一覧)');
+  for (const [label, result, limit] of [['people', persons, 20], ['org', orgs, 19], ['customer', customers, 12]]) {
+    lines.push(result.status === 'failed'
+      ? `  ${label}: 未確認 (取得失敗)`
+      : `  ${label}(取得した名前${result.names.length}件${result.status === 'partial' ? '・上限到達' : ''}): ${truncate(result.names, limit).join(', ')}`);
+  }
   lines.push('');
 
   // 3. Capability menu
@@ -219,16 +230,14 @@ async function build() {
   lines.push(`  capability_id: ${caps.join(', ')}`);
   lines.push('');
 
-  // 4. merge guardrail (旧 merge-api-reminder を1行に集約)
-  lines.push('■ merge: session マージは Brainbase merge API (/merge) 経由。raw git merge / gh pr merge を session マージに使わない。');
 
   return {
     text: lines.join('\n'),
     counts: {
-      persons: persons.length,
-      orgs: orgs.length,
-      customers: customers.length,
-      kg: kg.length,
+      persons: persons.status === 'failed' ? null : persons.names.length,
+      orgs: orgs.status === 'failed' ? null : orgs.names.length,
+      customers: customers.status === 'failed' ? null : customers.names.length,
+      kg: ['available', 'confirmed_empty'].includes(kgResult.status) ? ranked.length : null,
       kg_status: kgResult.status,
       caps: caps.length,
     },
@@ -247,7 +256,13 @@ async function main() {
     process.stdout.write(text + '\n');
   } else {
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, text + '\n', { mode: 0o600 });
+    const temporaryPath = `${outPath}.${process.pid}.tmp`;
+    try {
+      fs.writeFileSync(temporaryPath, text + '\n', { mode: 0o600, flag: 'wx' });
+      fs.renameSync(temporaryPath, outPath);
+    } finally {
+      fs.rmSync(temporaryPath, { force: true });
+    }
     const approxTokens = Math.round(text.length / 3.2);
     process.stderr.write(`memory-preamble written: ${outPath} (~${approxTokens} tokens) counts=${JSON.stringify(counts)}\n`);
   }
@@ -258,6 +273,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 }
 
 export {
+  fetchGraphNames,
+  renderPreamble,
   fetchPersonalKg,
   personalKgDatabaseConfig,
   resolvePersonalKgAccess,

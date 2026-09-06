@@ -52,7 +52,7 @@ Orphan PostToolUse events are not attached to an episode; each leaves a digest-o
 
 The public request contains only `request`, `turn_id`, optional `project_code`, and required `conversation_context` using `brainbase-conversation-context-v1`. Context preserves ordered exact user/assistant text, current request exactly once, prior complete episode projections, runtime/project binding, repo-relative instruction digests, completeness, and `source_digest`.
 
-The Host performs structural filtering. It excludes developer envelopes, compaction summaries, reasoning, tool arguments, tool output, raw session identity, and personal absolute paths. Resolver deterministically determines classification and the initial route from that canonical context; there is no caller-supplied classification and no Host-generated semantic summary.
+The Host performs structural filtering. It excludes developer envelopes, compaction summaries, reasoning, tool arguments, tool output, raw session identity, and personal absolute paths. The Codex model supplies the semantic classification as `model_interpretation`; Resolver combines it with the unchanged canonical context and manifest-owned policy to reconcile safety floors and select the initial route. The Host does not generate or inject a semantic summary.
 
 ## 4. Canonical JSON and digests
 
@@ -67,7 +67,7 @@ The Host performs structural filtering. It excludes developer envelopes, compact
 
 All digests are lowercase SHA-256 hexadecimal strings.
 
-## 5. Server-owned classification and DAG
+## 5. Model interpretation reconciliation and DAG
 
 The Codex model proposes semantic classification as `model_interpretation`. Resolver validates it against canonical input and manifest-backed deterministic policy, may inherit bounded context for an under-specified follow-up, and applies minimum action/risk floors. Keyword matches are monotonic safety evidence: they may add obligations, domains, signals, action floors, or risk, but never subtract model-derived requirements. An unmatched keyword rule never removes a capability and never implies a server-owned `general/answer` fallback. Resolver owns policy reconciliation and active-DAG selection, not natural-language understanding.
 
@@ -144,7 +144,7 @@ The operator commands and the four-surface rollback order are canonical in `docs
 
 ## 13. Verification matrix
 
-- service/API: strict schema, signing, deterministic manifest-backed classification without an LLM dependency, follow-up inheritance, policy scope, DAG topology
+- service/API: strict schema and signing, model-supplied classification reconciliation with deterministic manifest-backed safety floors, follow-up inheritance, policy scope, and DAG topology
 - UserPromptSubmit Host: transcript extraction, structural exclusion, privacy, exact current message, retry/create/reuse/conflict
 - PostToolUse Host: 0..N events, exact capability qualification, replay, conflict, safe projection, accurate reference/search/retrieval wording
 - Stop Host: explicit zero-call audit when allowed, exact ordered assistant-answer audit prefix, answer-body preservation, repeated repairable continuation, active retry degraded convergence, orphan Stop one-shot degraded convergence, diagnostic integrity fail-closed, complete final, replay

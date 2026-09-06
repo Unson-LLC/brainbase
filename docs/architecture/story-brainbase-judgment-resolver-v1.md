@@ -67,11 +67,11 @@ In the current implementation, `semantic_matchers` is a deterministic safety rai
 
 ## Decision
 
-The accepted v1 runtime keeps initial classification deterministic and manifest-backed. The Codex lifecycle Host adapter supplies canonical context and owns the episode lifecycle, the persistent Brainbase Host bridge owns the signer copy of the shared secret and signs the API request, the Resolver API/server owns the verifier copy and verifies that signature, Judgment Resolver selects the bounded initial route, and the Codex model performs open-ended reasoning plus iterative Brainbase query refinement inside that route. Claude Code is a future Host-adapter candidate—specifically a lifecycle adapter—for the same responsibility split, but it is not part of the current episode-lifecycle hook integration and would not receive either copy of the shared secret.
+The accepted v1 runtime takes semantic classification from the Codex model's explicit `model_interpretation`. The Codex lifecycle Host adapter supplies canonical context and owns the episode lifecycle, the persistent Brainbase Host bridge owns the signer copy of the shared secret and signs the API request, the Resolver API/server owns the verifier copy and verifies that signature, and Judgment Resolver reconciles the model interpretation with canonical input, manifest policy, and monotonic safety floors before selecting the bounded initial route. The Codex model then performs open-ended reasoning plus iterative Brainbase query refinement inside that route. Claude Code is a future Host-adapter candidate—specifically a lifecycle adapter—for the same responsibility split, but it is not part of the current episode-lifecycle hook integration and would not receive either copy of the shared secret.
 
 This division is intentional: the Codex model understands language, Brainbase owns policy and evidence, MCP transports the request, and Hooks enforce the lifecycle. Resolver has no hidden model provider; it validates the explicit `model_interpretation` supplied through `brainbase_resolve_turn`.
 
-Introducing model-assisted initial classification later would require a new Architecture and Spec decision covering provider ownership, context and prompt boundaries, latency and failure semantics, observability, cost, and how model output is constrained before it can select an active DAG.
+Introducing a separate Resolver model provider later would require a new Architecture and Spec decision covering provider ownership, context and prompt boundaries, latency and failure semantics, observability, cost, and how that provider's output is constrained before it can select an active DAG. The current contract has no such provider: the Codex model supplies `model_interpretation` through `brainbase_resolve_turn`.
 
 ## Evidence semantics
 
@@ -100,7 +100,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 2. Every model turn calls `brainbase_resolve_turn` before other work, using the Host-issued `turn_ref` for the unchanged saved input and an explicit model interpretation.
 3. `brainbase_resolve_turn` is the single model-visible Judgment Resolver entrypoint. Its preferred input is the Host-issued `turn_ref` and model interpretation, while the server reads unchanged canonical input from the Host journal. Cached-schema legacy forms (`turn_input.turn_ref`, `turn_input_path`, or full `turn_input`) remain migration-only compatibility paths and cannot replace Host ownership in the preferred path.
 4. Canonical context preserves ordered exact user/assistant text and current request exactly once.
-5. Resolver owns deterministic manifest-backed classification, policy, required capabilities, and active-DAG selection, with no LLM provider/API dependency.
+5. The Codex model supplies semantic classification as `model_interpretation`; Resolver validates and reconciles it with deterministic manifest-backed safety floors, policy, required capabilities, and active-DAG selection, with no separate LLM provider/API dependency.
 6. The model may execute 0..N tool calls after the initial route; Brainbase calls alone derive Brainbase audit lines, and those lines count as owner-visible only when Stop verifies them in the final assistant answer.
 7. Every matching `PostToolUse` creates at most one immutable event per `tool_use_id`.
 8. A replayed identical event is a no-op; a conflicting event fails loudly.
