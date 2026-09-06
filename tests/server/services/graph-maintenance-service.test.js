@@ -1147,13 +1147,15 @@ describe('GraphMaintenanceService authorization', () => {
             if (sql.includes('SELECT id, code FROM projects')) return { rows: [{ id: 'project_brainbase', code: 'brainbase' }] };
             if (sql.includes("to_regclass('public.project_registry')")) return { rows: [{ project_registry: null }] };
             if (sql.includes('SELECT id FROM graph_entities') || sql.includes('SELECT id FROM graph_edges')) return { rows: [] };
-            if (sql.includes('INSERT INTO graph_entities') || sql.includes('INSERT INTO graph_edges')) return { rowCount: 1, rows: [] };
+            if (sql.includes('INSERT INTO graph_entities')) return { rowCount: 1, rows: [] };
+            if (sql.includes('INSERT INTO graph_edges')) throw new Error('unchanged legacy edge must not be rewritten');
             throw new Error(`unexpected query: ${sql}`);
         }) };
         await expect(service.replaceSnapshot(client, {
             organizationId: 'org_1', projectCodes: ['brainbase'], role: 'gm'
         }, after, { baseline: before })).resolves.toBeUndefined();
-        expect(client.query).toHaveBeenCalledTimes(7);
+        expect(client.query).toHaveBeenCalledTimes(5);
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_edges'))).toBe(false);
     });
 
     it('rejects a stored plan snapshot whose content no longer matches its hash before mutation', async () => {
