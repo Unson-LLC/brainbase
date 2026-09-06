@@ -1142,7 +1142,7 @@ describe('judgment resolver publication surfaces', () => {
         const readme = read('docs/brainbase-capabilities/README.md');
 
         expect(readme).toContain('Codex Host opens one canonical-context-bound judgment episode');
-        expect(readme).toContain('internal-LLM-free Resolver deterministically selects the initial route');
+        expect(readme).toContain('the Codex model supplies the semantic interpretation and the internal-LLM-free Resolver reconciles it');
         expect(readme).toContain('`PostToolUse` records completed tool calls as execution evidence without finalizing');
         expect(readme).toContain('The resulting receipt is non-authorizing');
         expect(readme).toContain('Claude Code remains a future Host-adapter candidate');

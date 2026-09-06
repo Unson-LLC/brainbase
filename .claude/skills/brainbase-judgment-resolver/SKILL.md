@@ -15,6 +15,7 @@ description: Brainbase管理対象turnを1つのjudgment episodeとして扱い�
 
 1. Global `UserPromptSubmit` Hostが、current request、順序付きの生のuser/assistant発話、prior finalized episodes、project/runtime、適用instructionのdigestからcanonical `conversation_context`を作る。modelは文脈を要約・選別・生成しない。
 2. UserPromptSubmitは生のturn inputを短期episodeへ保存するだけで、意味分類やBrainbase利用可否を確定しない。Codex modelが自然言語を解釈し、毎turn最初にmodel-callable `brainbase_resolve_turn`へその解釈を渡す。
+   - Preferred input is exactly `{ turn_ref, model_interpretation }`. `turn_ref` is the Host-issued journal reference; `model_interpretation` must contain exactly `intent`, `domains`, `action_kind`, `risk`, `confidence`, and `signals`. Do not pass raw `turn_input`, a journal path, or extra interpretation fields. Legacy `turn_input` forms are migration compatibility only.
 3. Brainbaseは保存済みturn input、model interpretation、manifest-owned policyを突合し、改変不能なTurnContractを返す。`semantic_matchers`は義務・action floor・riskを追加できる安全railだが、未一致を`general/answer`へ落としたり必要能力を減らしたりしない。
 4. PostToolUseは`resolve_turn`と後続toolの証拠をturnへ結合する。Stopは成功した`resolve_turn`証拠がなければ必ず差し戻し、TurnContractのrequired capabilitiesと実行証拠が揃った場合だけ完了させる。
 5. `PostToolUse` Hostは実際に完了した全tool callをappend-only eventとして記録する。raw tool入出力やsecretは保存せず、tool名・成功状態・digestだけを保存する。Brainbase callだけは安全な短い要約とowner表示行も保存し、一般toolの実行証跡は最終監査行へ表示しない。同じturnのepisode開始・event確定・Stop確定はturn専用SQLiteの`BEGIN IMMEDIATE` transactionで直列化し、並列callは原子的なjournal commit順で`event_sequence`を付ける。process終了時はOSがtransaction lockを解放するため、Hostがstale lock fileを判定・削除しない。同じ`tool_use_id`の再送は再利用し、異なる内容との衝突は明示的に失敗する。

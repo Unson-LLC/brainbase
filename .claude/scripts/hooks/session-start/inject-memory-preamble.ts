@@ -9,7 +9,7 @@
 // - hook は ~/.brainbase/memory-preamble.txt を読むだけ。DB / Lightsail tunnel を
 //   hot path に持ち込まない。生成は日次ルーティンと分離し、
 //   scripts/generate-memory-preamble.mjs で明示的に materialize する。
-// - file が無い/古い時は安全に縮退 (空注入 or stale 警告)。
+// - file が無い/古い時は安全に縮退 (本文を注入しない)。
 
 import * as fs from "fs";
 import * as os from "os";
@@ -29,11 +29,15 @@ function loadPreamble(): { text: string; note: string } {
     const ageDays = ageMs / (1000 * 60 * 60 * 24);
     const text = fs.readFileSync(PREAMBLE_PATH, "utf8").trim();
     if (!text) return { text: "", note: "empty" };
-    const note =
-      ageDays > STALE_DAYS
-        ? ` (注意: この preamble は ${Math.floor(ageDays)} 日前のもの。generate-memory-preamble.mjs で更新を)`
-        : "";
-    return { text, note };
+    const match = text.match(/^\[Brainbase memory preamble — (\d{4}-\d{2}-\d{2})\]/u);
+    const generatedAt = match ? Date.parse(`${match[1]}T00:00:00Z`) : NaN;
+    const validDate = Number.isFinite(generatedAt)
+      && new Date(generatedAt).toISOString().slice(0, 10) === match?.[1];
+    const generatedAgeDays = Math.floor((Date.now() - generatedAt) / 86400000);
+    if (!validDate || generatedAgeDays < 0 || Math.max(ageDays, generatedAgeDays) > STALE_DAYS) {
+      return { text: "", note: "stale_or_invalid_date" };
+    }
+    return { text, note: "" };
   } catch {
     return { text: "", note: "missing" };
   }
