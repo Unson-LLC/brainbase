@@ -9,6 +9,8 @@ describe('PgProjectProvisioningRepository', () => {
         await repository.listProjects('org_a');
 
         expect(query.mock.calls[0][0]).toContain("ge.entity_type='project'");
+        expect(query.mock.calls[0][0]).toContain('graph_scope.organization_id=pr.organization_id');
+        expect(query.mock.calls[0][0]).not.toContain('ge.project_id=p.id');
         expect(query.mock.calls[0][0]).toContain("ge.payload->>'name' AS display_name");
         expect(query.mock.calls[0][0]).toContain('pr.display_name AS projection_display_name');
         expect(query.mock.calls[0][1]).toEqual(['org_a']);

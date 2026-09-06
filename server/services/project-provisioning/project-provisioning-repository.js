@@ -155,8 +155,10 @@ export class PgProjectProvisioningRepository {
                 AND p.organization_id=pr.organization_id
                JOIN graph_entities ge
                  ON ge.id=pr.graph_entity_id
-                AND ge.project_id=p.id
                 AND ge.entity_type='project'
+               JOIN projects graph_scope
+                 ON graph_scope.id=ge.project_id
+                AND graph_scope.organization_id=pr.organization_id
               WHERE pr.organization_id=$1
                 AND pr.graph_binding_status IN ('linked','retired')
               ORDER BY pr.project_code`,
