@@ -188,10 +188,11 @@ function normalizeRunReceiptSnapshot(receipt, ref) {
 
 function receiptRequiresAction(receipt) {
     const issueCodes = Array.isArray(receipt?.issue_codes) ? receipt.issue_codes : [];
+    const recommendedAction = optionalString(receipt?.recommended_action);
     return (optionalString(receipt?.action_required) !== null && receipt.action_required !== 'none')
         || receipt?.diagnostics?.state === 'action_required'
         || issueCodes.length > 0
-        || optionalString(receipt?.recommended_action) !== null;
+        || (recommendedAction !== null && recommendedAction !== 'none');
 }
 
 function normalizeCreate(input, { now, generateCaseId }) {

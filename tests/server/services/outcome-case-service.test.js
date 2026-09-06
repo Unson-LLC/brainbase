@@ -104,6 +104,24 @@ function createService({ receiptStates = {}, receiptSnapshots = {}, referenceSta
     };
 }
 
+function confirmedClosureInputs(recommendedAction) {
+    return {
+        technicalEvidence: { status: 'confirmed', refs: ['test:outcome-case'] },
+        runReceipts: [{
+            ref: 'run-1', source_status: 'success', evidence_state: 'confirmed',
+            action_required: 'none', issue_codes: [], recommended_action: recommendedAction,
+            diagnostics: { state: 'healthy', issue_codes: [], recommended_action: recommendedAction }
+        }],
+        externalReadback: { status: 'confirm', ref: 'external:receipt-1' },
+        constraintsStatus: 'satisfied',
+        referenceResolution: {
+            project: { ref: 'brainbase', state: 'confirmed' },
+            capability: { ref: 'cap_outcome_control', state: 'confirmed' }
+        },
+        authority: { state: 'confirmed', closure_authorized_person_ids: ['per_owner'] }
+    };
+}
+
 describe('OutcomeCaseService', () => {
     it('creates the required control-plane record with an explicit external state', async () => {
         const { service } = createService();
@@ -216,6 +234,48 @@ describe('OutcomeCaseService', () => {
                 diagnostics: { state: 'healthy', issue_codes: [], recommended_action: null }
             }
         ]);
+    });
+
+    it('closes when a healthy RunReceipt recommends literal none', () => {
+        expect(deriveClosureStatus(confirmedClosureInputs('none'))).toEqual({
+            closure_status: 'closed',
+            close_eligible: true
+        });
+    });
+
+    it('closes when a healthy RunReceipt has no recommended action', () => {
+        expect(deriveClosureStatus(confirmedClosureInputs(null))).toEqual({
+            closure_status: 'closed',
+            close_eligible: true
+        });
+    });
+
+    it('closes when a healthy RunReceipt has an empty recommended action', () => {
+        expect(deriveClosureStatus(confirmedClosureInputs(''))).toEqual({
+            closure_status: 'closed',
+            close_eligible: true
+        });
+    });
+
+    it('closes when a healthy RunReceipt recommends padded literal none', () => {
+        expect(deriveClosureStatus(confirmedClosureInputs('  none  '))).toEqual({
+            closure_status: 'closed',
+            close_eligible: true
+        });
+    });
+
+    it('does not close when a healthy RunReceipt recommends uppercase NONE', () => {
+        expect(deriveClosureStatus(confirmedClosureInputs('NONE'))).toEqual({
+            closure_status: 'waiting_human',
+            close_eligible: false
+        });
+    });
+
+    it('does not close when a healthy RunReceipt recommends a manual retry', () => {
+        expect(deriveClosureStatus(confirmedClosureInputs('retry manually'))).toEqual({
+            closure_status: 'waiting_human',
+            close_eligible: false
+        });
     });
 
     it.each(['unconfirmed', 'no_data'])('keeps %s technical evidence out of service closure', async (technicalEvidenceStatus) => {
