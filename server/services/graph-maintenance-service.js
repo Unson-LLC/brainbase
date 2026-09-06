@@ -322,6 +322,15 @@ function changedRecords(before = [], after = [], limit = 100) {
     };
 }
 
+function recordsToWrite(records = [], baselineRecords = null) {
+    if (!Array.isArray(baselineRecords)) return records;
+    const baselineById = new Map(baselineRecords.map((record) => [record.id, record]));
+    return records.filter((record) => {
+        const previous = baselineById.get(record.id);
+        return !previous || fingerprint(previous) !== fingerprint(record);
+    });
+}
+
 function normalizeSuppressionSummary(snapshot = {}) {
     const raw = snapshot?.suppression_summary;
     const reasons = {};
@@ -1125,6 +1134,8 @@ export class GraphMaintenanceService {
         assertValidSnapshot(snapshot, 'Graph snapshot is invalid', baseline);
         const organizationId = access.organizationId || access.tenantId;
         const codes = snapshotProjectCodes(snapshot);
+        const entitiesToWrite = recordsToWrite(snapshot.entities, baseline?.entities);
+        const edgesToWrite = recordsToWrite(snapshot.edges, baseline?.edges);
         if (!identityLocksHeld) {
             await lockProjectGraphIdentities(client, uniqueIds(snapshot.entities));
         }
@@ -1135,7 +1146,7 @@ export class GraphMaintenanceService {
         if (projects.rows.length !== codes.length || !codes.every((code) => access.projectCodes.includes(code))) throw new Error('Access denied for target project scope');
         const projectIds = new Map(projects.rows.map((row) => [row.code, row.id]));
         const authorizedProjectIds = [...projectIds.values()];
-        for (const entity of [...snapshot.entities].sort((left, right) => left.id.localeCompare(right.id))) {
+        for (const entity of [...entitiesToWrite].sort((left, right) => left.id.localeCompare(right.id))) {
             await assertCatalogProjectSubjectMutation(client, {
                 id: entity.id,
                 entityType: entity.entity_type,
@@ -1146,8 +1157,8 @@ export class GraphMaintenanceService {
                 identityLocked: true
             });
         }
-        const entityIds = uniqueIds(snapshot.entities);
-        const edgeIds = uniqueIds(snapshot.edges);
+        const entityIds = uniqueIds(entitiesToWrite);
+        const edgeIds = uniqueIds(edgesToWrite);
         if (entityIds.length) {
             const conflicts = await client.query(
                 `SELECT id FROM graph_entities
@@ -1168,7 +1179,7 @@ export class GraphMaintenanceService {
             );
             if (conflicts.rows.length) throw new Error('edge id tenant conflict');
         }
-        for (const entity of snapshot.entities) {
+        for (const entity of entitiesToWrite) {
             const result = await client.query(
                 `INSERT INTO graph_entities
                  (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version, updated_at)
@@ -1182,7 +1193,7 @@ export class GraphMaintenanceService {
             );
             if (!result.rowCount) throw new Error('entity id tenant conflict');
         }
-        for (const edge of snapshot.edges) {
+        for (const edge of edgesToWrite) {
             const result = await client.query(
                 `INSERT INTO graph_edges
                  (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version, updated_at)
@@ -1416,7 +1427,7 @@ export class GraphMaintenanceService {
                 if (remains.rows.length) throw new Error('Graph rollback created-entity cleanup failed');
             }
             await this.replaceSnapshot(client, access, plan.before_snapshot, {
-                baseline: plan.before_snapshot,
+                baseline: plan.after_snapshot,
                 identityLocksHeld: true
             });
             const { snapshot: readback } = await this.loadSnapshot(client, access, projectCode, {
