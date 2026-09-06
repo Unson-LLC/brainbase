@@ -14,13 +14,18 @@ The local Brainbase runtime owns the project catalog and uses the default
 `unhealthy` config check locally; it must never be reported as a valid empty
 catalog.
 
+On the public runtime, `disabled` disables the personal `config.yml` catalog,
+not the canonical Graph-backed project catalog. When Info SSOT is available,
+the health endpoint must therefore report the Graph schema catalog as
+`healthy`.
+
 ## Post-deploy verification
 
 Run from the deployed checkout:
 
 ```bash
 BRAINBASE_EXPECTED_SHA="$(git rev-parse --short HEAD)" \
-BRAINBASE_EXPECTED_CATALOG_STATUS=not_applicable \
+BRAINBASE_EXPECTED_CATALOG_STATUS=healthy \
 node scripts/verify-brainbase-runtime-hygiene.mjs
 ```
 
