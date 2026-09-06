@@ -277,7 +277,85 @@ function validateOutputs(outputs) {
     const runnerOutputs = validateOptionalArray(outputs, 'outputs');
     runnerOutputs.forEach((output, index) => {
         requireObject(output, `outputs[${index}]`);
+        const target = validateOptionalString(output.write_back_target, `outputs[${index}].write_back_target`);
+        if (target !== null && target !== 'task_store') {
+            throw new ExternalRunnerContractError(
+                'unsupported_write_back_target',
+                `outputs[${index}].write_back_target=${target} is not supported`,
+                { path: `outputs[${index}].write_back_target`, value: target }
+            );
+        }
+        if (target === 'task_store') {
+            const outputType = requireString(output.output_type || output.type, `outputs[${index}].output_type`);
+            if (outputType !== 'task_candidates') {
+                throw new ExternalRunnerContractError(
+                    'invalid_task_candidate_output',
+                    `outputs[${index}] must use output_type=task_candidates for task_store`,
+                    { index, output_type: outputType }
+                );
+            }
+            requireArray(output.payload, `outputs[${index}].payload`);
+        }
     });
+}
+
+function validateTaskApprovalLinks(payload) {
+    const outputs = payload.outputs || [];
+    const humanSteps = payload.human_steps || [];
+    const taskOutputs = new Map();
+    outputs.forEach((output) => {
+        if (output.write_back_target === 'task_store') {
+            const outputId = requireString(output.id, 'outputs[].id');
+            if (taskOutputs.has(outputId)) {
+                throw new ExternalRunnerContractError(
+                    'duplicate_task_candidate_output_id',
+                    `Task candidate output '${outputId}' is duplicated`,
+                    { output_id: outputId }
+                );
+            }
+            taskOutputs.set(outputId, output);
+        }
+    });
+
+    const referencedOutputIds = new Set();
+    humanSteps.forEach((step, index) => {
+        const target = validateOptionalString(step.write_back_target, `human_steps[${index}].write_back_target`);
+        const hasOutputId = step.output_id !== undefined && step.output_id !== null;
+        if (target !== null && target !== 'task_store') {
+            throw new ExternalRunnerContractError(
+                'unsupported_write_back_target',
+                `human_steps[${index}].write_back_target=${target} is not supported`,
+                { path: `human_steps[${index}].write_back_target`, value: target }
+            );
+        }
+        if (target !== 'task_store' && !hasOutputId) return;
+        if (target !== 'task_store') {
+            throw new ExternalRunnerContractError(
+                'invalid_task_approval_output_reference',
+                `human_steps[${index}].output_id requires write_back_target=task_store`,
+                { index }
+            );
+        }
+        const outputId = requireString(step.output_id, `human_steps[${index}].output_id`);
+        if (!taskOutputs.has(outputId) || referencedOutputIds.has(outputId)) {
+            throw new ExternalRunnerContractError(
+                'invalid_task_approval_output_reference',
+                `human_steps[${index}] must reference one unique task_store output`,
+                { index, output_id: outputId }
+            );
+        }
+        referencedOutputIds.add(outputId);
+    });
+
+    for (const outputId of taskOutputs.keys()) {
+        if (!referencedOutputIds.has(outputId)) {
+            throw new ExternalRunnerContractError(
+                'invalid_task_approval_output_reference',
+                `Task candidate output '${outputId}' requires one task_store human step`,
+                { output_id: outputId }
+            );
+        }
+    }
 }
 
 export function validateExternalRunnerEnvelope(payload) {
@@ -325,6 +403,7 @@ export function validateExternalRunnerEnvelope(payload) {
     validateRounds(envelope.rounds);
     validateHumanSteps(envelope);
     validateOutputs(envelope.outputs);
+    validateTaskApprovalLinks(envelope);
     validateLearningCandidates(envelope.learning_candidates);
     return envelope;
 }

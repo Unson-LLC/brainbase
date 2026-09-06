@@ -649,6 +649,7 @@ export class CanonicalTaskService {
                 .map((candidate, index) => [candidate, index + 1])
         );
         const taskIds = [];
+        const operationRefs = [];
         let replayed = false;
         for (const candidate of prepared) {
             const payloadFingerprint = fingerprint(candidate.payload);
@@ -698,6 +699,11 @@ export class CanonicalTaskService {
                 sourceRefs: candidate.payload.source_refs
             });
             taskIds.push(created.id);
+            operationRefs.push({
+                scope: 'workflow-task-create',
+                operation_key: operationKey,
+                task_id: created.id
+            });
         }
 
         if (candidates.length === 0) {
@@ -706,6 +712,7 @@ export class CanonicalTaskService {
         return {
             status: 'completed',
             task_ids: taskIds,
+            operation_refs: operationRefs,
             excluded_candidates: excludedCandidates,
             warnings,
             replayed

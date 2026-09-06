@@ -86,6 +86,81 @@ function makePayload(overrides = {}) {
 }
 
 describe('external runner Company Authority handoff', () => {
+    it('persists a Company Authority-bound Task candidate and its approval target', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const marker = {
+            schema_version: '1.0',
+            binding: { human_step_id: 'human-step-company-authority-1' },
+            integrity: { method: 'jws_detached', key_id: 'test-key', value: 'signed-marker' }
+        };
+        const service = new ExternalRunnerIngestService({
+            workflowRepository: repository,
+            companyAuthorityHumanApprovalService: { createBinding: vi.fn(() => marker) }
+        });
+
+        const result = await service.ingest(makePayload({
+            human_steps: [{
+                ...makePayload().human_steps[0],
+                write_back_target: 'task_store',
+                output_id: 'output-company-authority-task'
+            }],
+            outputs: [{
+                id: 'output-company-authority-task',
+                output_type: 'task_candidates',
+                write_back_target: 'task_store',
+                title: '承認後に作るTask候補',
+                payload: [{
+                    id: 'candidate-company-authority-task',
+                    title: '本番G0の権限承認後Task',
+                    selected_owner_id: 'person-approver'
+                }]
+            }]
+        }));
+
+        expect(result.human_steps[0]).toMatchObject({
+            metadata: {
+                write_back_target: 'task_store',
+                output_id: 'output-company-authority-task',
+                company_authority_human_approval: marker
+            }
+        });
+        expect(result.outputs[0]).toMatchObject({
+            id: 'output-company-authority-task',
+            type: 'task_candidates',
+            payload: [{
+                id: 'candidate-company-authority-task',
+                title: '本番G0の権限承認後Task',
+                selected_owner_id: 'person-approver'
+            }],
+            metadata: { write_back_target: 'task_store' }
+        });
+    });
+
+    it('rejects a Task approval whose output reference is missing before creating a run', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const service = new ExternalRunnerIngestService({ workflowRepository: repository });
+        const {
+            company_authority_handoff: _handoff,
+            company_authority_required: _required,
+            ...ordinaryStep
+        } = makePayload().human_steps[0];
+
+        await expect(service.ingest(makePayload({
+            human_steps: [{
+                ...ordinaryStep,
+                write_back_target: 'task_store',
+                output_id: 'missing-task-output'
+            }],
+            outputs: []
+        }))).rejects.toMatchObject({
+            code: 'invalid_task_approval_output_reference'
+        });
+
+        expect(repository.listRuns()).toHaveLength(0);
+        expect(repository.listHumanSteps()).toHaveLength(0);
+        expect(repository.listOutputs()).toHaveLength(0);
+    });
+
     it('keeps the original requester and attaches the Company Authority marker at human-step creation', async () => {
         const repository = new InMemoryWorkflowRepository();
         const marker = {
