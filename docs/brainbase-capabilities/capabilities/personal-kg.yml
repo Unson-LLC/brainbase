@@ -10,21 +10,30 @@ surfaces:
     - /retro が候補の状態変化と昇格判断を確認する
   mcp:
     - search_personal_kg
+    - register_personal_kg
   api:
     - GET /api/learning/memory-candidates/search
+    - GET /api/personal-knowledge/search
+    - POST /api/personal-knowledge/search
+    - POST /api/personal-knowledge/events
   code:
     - .claude/commands/oyasumi.md
     - .claude/commands/retro.md
     - server/services/learning-service.js
     - server/services/candidate-store/candidate-repository.js
     - server/sql/candidate-store-schema.sql
+    - server/middleware/personal-knowledge-company-authority.js
+    - server/services/personal-knowledge/personal-knowledge-service.js
+    - server/sql/personal-knowledge-schema.sql
   data:
     - memory_candidates
     - personal_kg_entity_links
+    - personal_knowledge_events
 depends_on:
   - auth.grants
 visibility_rules:
   - Personal KG coreはowner-visibleに限定する。
+  - Manaの登録・検索は本人のSlack DMに限定し、署名された本人ID・組織・用途を検証する。サービス認証だけでは代理アクセスを認めない。
   - 候補ごとにprovenance、sensitivity、visibility、review state、適用範囲を保持する。
   - 私生活、医療、家族、取引先機密などの機微情報はowner-onlyとし、安全な抽象化が未確定ならレビューを必須にする。
   - Personal KG本文をGraph SSOTへコピーしない。別途レビューした組織事実、関係、RACI、正式な決定だけを昇格対象にする。
@@ -36,16 +45,19 @@ verification:
   commands:
     - npm run test:run -- tests/server/services/admin-visualization-service.test.js
     - npm run test:e2e -- tests/e2e/story-personal-kg-review-projection-cli.spec.ts --reporter=line
+    - npm run test:run -- tests/server/services/personal-knowledge-client-isolation.integration.test.js
   expected:
     - ownerが対象候補を検索でき、provenanceとreview stateが維持される。
     - owner-onlyとneeds-reviewの内容がGraphや他の投影面から分離される。
     - 3ルーティンの契約がSNS生成または投影を要求しない。
+    - 実PostgreSQLで本人・組織ごとの登録後読戻しが分離され、認証文脈のない接続では閲覧できない。
 common_failures:
   - 個人記憶を組織事実としてGraph SSOTへ書き込む。
   - 機微な候補を、抽出に成功しただけで承認済みとして扱う。
   - 未接続またはtimeoutした候補ソースを0件として報告する。
   - 旧projection-ready項目を現行ルーティンの責務と誤認する。
 runbooks:
+  - ../../runbooks/personal-kg-client-connection.md
   - ../../../.claude/commands/oyasumi.md
   - ../../../.claude/commands/retro.md
 troubleshooting: []

@@ -43,6 +43,7 @@ import {
 } from '../routes/workflows.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePersonalKnowledgeAccess } from '../middleware/personal-knowledge-access.js';
+import { requirePersonalKnowledgeCompanyAuthority } from '../middleware/personal-knowledge-company-authority.js';
 import { requireRoutineCompanyAuthority } from '../middleware/routine-company-authority.js';
 import {
     createPersonalKnowledgePromotionAuthorityGuard,
@@ -333,6 +334,10 @@ export function registerApiRoutes(app, {
         app.use(
             '/api/personal-knowledge',
             personalKnowledgeAuthGuard,
+            requirePersonalKnowledgeCompanyAuthority({
+                env,
+                connectionRegistry: tenantRuntimeServices?.connectionRegistry
+            }),
             personalKnowledgeAccessGuard,
             createPersonalKnowledgeRouter({
                 personalKnowledgeService,

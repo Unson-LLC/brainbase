@@ -1923,7 +1923,7 @@ describe('Codex Judgment Resolver Host', () => {
             brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
             brainbase_automation_human_step_resolve: 'write', brainbase_onboarding_start: 'write', brainbase_onboarding_ingest: 'write',
             brainbase_onboarding_review: 'write', brainbase_onboarding_first_value: 'write', brainbase_knowledge_event_record: 'write',
-            create_task: 'write', update_task: 'write', transition_task: 'write', graph_record_human_gate_receipt: 'write',
+            register_personal_kg: 'write', create_task: 'write', update_task: 'write', transition_task: 'write', graph_record_human_gate_receipt: 'write',
             graph_plan_mutations: 'write', graph_apply_plan: 'write', graph_rollback_plan: 'write', graph_export_snapshot: 'write',
             mesh_query: 'write'
         };
@@ -1951,6 +1951,7 @@ describe('Codex Judgment Resolver Host', () => {
         const receipt = (receiptType) => ({ receipt_id: `r-${receiptType}`, plan_id: 'p1', receipt_type: receiptType, status: 'completed', before_hash: snapshotHash, after_hash: snapshotHash, result: {}, created_at: '2026-09-02T00:00:00.000Z' });
         const validCases = [
             ['brainbase_get_meeting_minutes_context', { receipt_id: 'm1', run_id: 'run1', project_code: 'brainbase', transcript_sha256: 'b'.repeat(64) }, { status: 'ok', receipt: { receipt_id: 'm1', status: 'resolved', identity: { run_id: 'run1', project_code: 'brainbase', transcript_sha256: 'b'.repeat(64) } } }],
+            ['register_personal_kg', { event: { event_id: 'pke1', body_hash: 'hash1' } }, { event_id: 'pke1', owner_person_id: 'owner1', organization_id: 'org1', body_hash: 'hash1' }],
             ['authorize_tenant_resource', {}, { authorized: true, entry_point: 'mcp', resource_ref: { object_type: 'task', resource_id: 't1' }, tenant_id: 'tenant1', tenant_revision_at_write: '2026-09-02T00:00:00.000Z' }],
             ['mesh_query', {}, { queryId: 'q1', status: 'sent' }],
             ['mesh_peers', {}, '# メッシュピア一覧 (1)\n\n- **node-1** [online]'],
@@ -1969,6 +1970,8 @@ describe('Codex Judgment Resolver Host', () => {
         }
         const invalidCases = [
             ['brainbase_get_meeting_minutes_context', validCases[0][1], { status: 'ok', receipt: { receipt_id: 'wrong', status: 'resolved', identity: {} } }],
+            ['register_personal_kg', { event: { body_hash: 'hash1' } }, { event_id: 'pke1', owner_person_id: 'owner1', organization_id: 'org1', body_hash: 'different' }],
+            ['register_personal_kg', { event: { body_hash: 'hash1' } }, { status: 'ok' }],
             ['authorize_tenant_resource', {}, { authorized: true }],
             ['mesh_query', {}, { status: 'sent' }],
             ['mesh_peers', {}, { peers: [] }],

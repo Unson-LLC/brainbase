@@ -1,7 +1,7 @@
 export interface KnowledgeOwnerAudit {
   schema_version: 'brainbase-knowledge-owner-audit-v1';
   source: 'Graph' | 'Personal KG' | 'Wiki互換面' | 'Brainbase';
-  operation: '検索' | '取得';
+  operation: '検索' | '取得' | '登録';
   query: string;
   outcome: '結果を取得' | '該当なし（不在確定ではない）';
   display_line: string;
@@ -58,6 +58,16 @@ const TARGETS: Record<string, AuditTarget> = {
     source: 'Personal KG',
     operation: '検索',
     query: (args) => String(args.query ?? ''),
+  },
+  register_personal_kg: {
+    source: 'Personal KG',
+    operation: '登録',
+    query: (args) => {
+      const event = args.event && typeof args.event === 'object' && !Array.isArray(args.event)
+        ? args.event as Record<string, unknown>
+        : {};
+      return String(event.event_id ?? event.body_hash ?? '個人記憶');
+    },
   },
   search_wiki: {
     source: 'Wiki互換面',
@@ -215,6 +225,8 @@ export function buildKnowledgeOwnerAudit(
   const success = outcome === '結果を取得' ? ' ✓' : '';
   const action = operation === '検索'
     ? `${target.source}で「${query}」を検索`
+    : operation === '登録'
+      ? `${target.source}へ「${query}」を登録`
     : `${target.source}から「${query}」を取得`;
 
   return {

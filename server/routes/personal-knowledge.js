@@ -72,6 +72,15 @@ export function createPersonalKnowledgeRouter({
     router.get('/search', async (req, res) => {
         try { res.json(await personalKnowledgeService.search({ query: req.query.q || req.query.query, limit: req.query.limit }, context(req))); } catch (error) { sendError(res, error); }
     });
+    router.post('/search', async (req, res) => {
+        const query = req.body?.query;
+        const limit = req.body?.limit ?? 10;
+        if (typeof query !== 'string' || !query.trim() || query.length > 4000
+            || !Number.isInteger(limit) || limit < 1 || limit > 50) {
+            return res.status(400).json({ error: 'personal_knowledge_search_input_invalid' });
+        }
+        try { res.json(await personalKnowledgeService.search({ query: query.trim(), limit }, context(req))); } catch (error) { sendError(res, error); }
+    });
     router.get('/cycles/:eventId', async (req, res) => {
         try {
             const value = await personalKnowledgeService.getCycle(req.params.eventId, context(req));
