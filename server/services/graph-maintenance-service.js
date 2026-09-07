@@ -802,6 +802,92 @@ export class GraphMaintenanceService {
         return { project, snapshot };
     }
 
+    requiredRelationTypes() {
+        const manifest = this.infoSSOTService.resolveOntology?.({})?.kernel?.manifest;
+        if (!Array.isArray(manifest?.constraints)) return [];
+        return [...new Set(manifest.constraints
+            .filter((rule) => ['required_relation', 'required_relation_when'].includes(rule.kind))
+            .flatMap((rule) => [{ relation: rule.relation }, ...(rule.alternatives || [])])
+            .map((alternative) => alternative?.relation)
+            .filter(Boolean))].sort();
+    }
+
+    async loadRequiredRelationEvidence(client, access, localEntityIds) {
+        try {
+            const relationTypes = this.requiredRelationTypes();
+            if (!localEntityIds.length || !relationTypes.length) {
+                return { edges: [], externalEntities: [], suppressedEdgeCount: 0 };
+            }
+            const organizationId = access.organizationId || access.tenantId;
+            const clearance = access.clearance || ['internal'];
+            const edgeResult = await client.query(
+                `SELECT gx.id, gx.from_id, gx.to_id, gx.rel_type, p.code AS project_code, gx.payload,
+                    gx.role_min, gx.sensitivity, gx.lifecycle_status, gx.version
+             FROM graph_edges gx
+             JOIN projects p ON p.id=gx.project_id
+             WHERE (gx.from_id=ANY($1::text[]) OR gx.to_id=ANY($1::text[]))
+               AND gx.rel_type=ANY($2::text[])
+               AND gx.lifecycle_status='active'
+               AND p.organization_id=$3
+               AND p.code=ANY($4::text[])
+               AND app_role_rank($6::text) >= app_role_rank(gx.role_min)
+               AND gx.sensitivity=ANY($5::text[])
+                 ORDER BY gx.id`,
+                [localEntityIds, relationTypes, organizationId, access.projectCodes, clearance, access.role]
+            );
+            const localIds = new Set(localEntityIds);
+            const endpointIds = [...new Set(edgeResult.rows
+                .flatMap((edge) => [edge.from_id, edge.to_id])
+                .filter((id) => !localIds.has(id)))];
+            const endpointResult = endpointIds.length ? await client.query(
+                `SELECT ge.id, ge.entity_type,
+                    COALESCE(p.code, membership_scope.project_code) AS project_code,
+                    COALESCE(p.organization_id, membership_scope.organization_id) AS organization_id,
+                    ge.role_min, ge.sensitivity, ge.lifecycle_status, ge.version
+             FROM graph_entities ge
+             LEFT JOIN projects p ON p.id=ge.project_id
+             LEFT JOIN LATERAL (
+               SELECT MIN(membership_project.code) AS project_code,
+                      MIN(membership_project.organization_id) AS organization_id
+               FROM graph_edges membership
+               JOIN projects membership_project ON membership_project.id=membership.project_id
+               WHERE ge.project_id IS NULL AND ge.entity_type='person'
+                 AND membership.from_id=ge.id AND membership.rel_type='member_of'
+                 AND membership.lifecycle_status='active'
+                 AND membership_project.code=ANY($3::text[])
+                 AND membership_project.organization_id=$2
+                 AND app_role_rank($5::text) >= app_role_rank(membership.role_min)
+                 AND membership.sensitivity=ANY($4::text[])
+               HAVING COUNT(*) > 0
+             ) membership_scope ON TRUE
+             WHERE ge.id=ANY($1::text[])
+               AND ge.lifecycle_status='active'
+               AND app_role_rank($5::text) >= app_role_rank(ge.role_min)
+               AND ge.sensitivity=ANY($4::text[])
+               AND COALESCE(p.organization_id, membership_scope.organization_id)=$2
+               AND COALESCE(p.code, membership_scope.project_code)=ANY($3::text[])
+               AND (ge.project_id IS NOT NULL
+                    OR (ge.entity_type='person' AND membership_scope.organization_id=$2))
+                 ORDER BY ge.id`,
+                [endpointIds, organizationId, access.projectCodes, clearance, access.role]
+            ) : { rows: [] };
+            const visibleEndpointIds = new Set([...localEntityIds, ...endpointResult.rows.map((entity) => entity.id)]);
+            const visibleEdges = edgeResult.rows.filter((edge) => !hasCrossTenantMarker(edge)
+                && visibleEndpointIds.has(edge.from_id)
+                && visibleEndpointIds.has(edge.to_id));
+            return {
+                edges: visibleEdges,
+                externalEntities: endpointResult.rows.map((entity) => externalEntityProjection(entity, 'same_organization')),
+                suppressedEdgeCount: edgeResult.rows.length - visibleEdges.length
+            };
+        } catch (cause) {
+            const error = new Error('Required relation evidence collection is incomplete', { cause });
+            error.code = 'GRAPH_REQUIRED_RELATION_EVIDENCE_INCOMPLETE';
+            error.status = 503;
+            throw error;
+        }
+    }
+
     /**
      * @deprecated Internal legacy row loader. Apply and rollback use loadSnapshot so
      * external_entities and suppression_summary retain their canonical contract.
@@ -1456,6 +1542,16 @@ export class GraphMaintenanceService {
             const activeLocalEntityIds = snapshot.entities
                 .filter((item) => item.lifecycle_status === 'active')
                 .map((item) => item.id);
+            const relationEvidence = await this.loadRequiredRelationEvidence(client, access, activeLocalEntityIds);
+            const ontologyEntitiesById = new Map([
+                ...snapshot.entities,
+                ...(snapshot.external_entities || []),
+                ...relationEvidence.externalEntities
+            ].map((item) => [item.id, item]));
+            const ontologyEdgesByRelation = new Map([
+                ...relationEvidence.edges,
+                ...snapshot.edges.filter((item) => item.lifecycle_status === 'active')
+            ].map((item) => [`${item.from_id}\u0000${item.to_id}\u0000${item.rel_type}`, item]));
             const requiredRelationScopeSummary = {
                 included: {
                     active_local_entities: activeLocalEntityIds.length
@@ -1470,14 +1566,28 @@ export class GraphMaintenanceService {
                     external_metadata_entities: (snapshot.external_entities || []).length
                 }
             };
+            const requiredRelationEvidenceSummary = {
+                included: {
+                    cross_project_edges: relationEvidence.edges
+                        .filter((item) => !snapshot.edges.some((edge) => edge.id === item.id)).length,
+                    metadata_entities: relationEvidence.externalEntities
+                        .filter((item) => !(snapshot.external_entities || []).some((entity) => entity.id === item.id)).length
+                },
+                excluded: {
+                    inaccessible_edges: relationEvidence.suppressedEdgeCount
+                }
+            };
             const ontology = this.infoSSOTService.validateOntology({ snapshot: {
-                entities: [...snapshot.entities, ...(snapshot.external_entities || [])]
+                entities: [...ontologyEntitiesById.values()]
                     .map((item) => ({ id: item.id, type: item.entity_type, payload: item.payload || {} })),
-                edges: snapshot.edges.filter((item) => item.lifecycle_status === 'active').map((item) => ({ from_id: item.from_id, to_id: item.to_id, relation: item.rel_type })),
+                edges: [...ontologyEdgesByRelation.values()]
+                    .map((item) => ({ id: item.id, from_id: item.from_id, to_id: item.to_id, relation: item.rel_type })),
                 required_relation_validation_entity_ids: activeLocalEntityIds
             } });
             const suppressedEdgeCount = Number(snapshot.suppression_summary?.edge_count || 0);
-            const collectionComplete = strictCollection ? suppressedEdgeCount === 0 : true;
+            const collectionComplete = strictCollection
+                ? suppressedEdgeCount === 0 && relationEvidence.suppressedEdgeCount === 0
+                : true;
             return {
                 ...structural,
                 collection_complete: collectionComplete,
@@ -1486,6 +1596,7 @@ export class GraphMaintenanceService {
                 snapshot_hash: snapshot.hash,
                 validation_scope: { strict_collection: strictCollection },
                 required_relation_scope_summary: requiredRelationScopeSummary,
+                required_relation_evidence_summary: requiredRelationEvidenceSummary,
                 ...(snapshot.suppression_summary
                     ? { suppression_summary: snapshot.suppression_summary }
                     : {})

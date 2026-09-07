@@ -263,6 +263,115 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         }
     });
 
+    it('別project保存の判断者relationを検証証拠として読み、正本snapshotとDBを変更しない', async () => {
+        const isolated = await createScopedDatabase('gm_cross_project_evidence');
+        const fixtureIds = [
+            'decision_cross_project_decider',
+            'person_cross_project_decider',
+            'membership_cross_project_decider',
+            'scope_cross_project_decider',
+            'owned_by_cross_project_decider'
+        ];
+        try {
+            await assertRlsEnforcedConnection(isolated.pool);
+            await applyInfoSSOTSchema(isolated.pool);
+            await isolated.pool.query(`
+                INSERT INTO people (id, name) VALUES ('person_phase0', 'Phase 0 actor');
+                INSERT INTO projects (id, code, name, organization_id)
+                VALUES
+                    ('project_phase0', 'brainbase', 'Brainbase', 'org_phase0'),
+                    ('project_vibepro', 'vibepro', 'VibePro', 'org_phase0');
+                INSERT INTO graph_entities
+                    (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('project_entity_a', 'project', 'project_phase0',
+                     '{"name":"Brainbase"}', 'member', 'internal', 'active', 1),
+                    ('project_vibepro_entity', 'project', 'project_vibepro',
+                     '{"name":"VibePro"}', 'member', 'internal', 'active', 1),
+                    ('decision_cross_project_decider', 'decision', 'project_vibepro',
+                     '{"title":"VibePro OSS decision","status":"decided"}',
+                     'member', 'internal', 'active', 1),
+                    ('person_cross_project_decider', 'person', NULL,
+                     '{"name":"Cross-project decider"}',
+                     'member', 'internal', 'active', 1);
+                INSERT INTO graph_edges
+                    (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+                VALUES
+                    ('membership_cross_project_decider', 'person_cross_project_decider',
+                     'project_entity_a', 'member_of', 'project_phase0', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('scope_cross_project_decider', 'decision_cross_project_decider',
+                     'project_vibepro_entity', 'belongs_to_project', 'project_vibepro', '{}',
+                     'member', 'internal', 'active', 1),
+                    ('owned_by_cross_project_decider', 'decision_cross_project_decider',
+                     'person_cross_project_decider', 'owned_by', 'project_phase0', '{}',
+                     'member', 'internal', 'active', 1)
+            `);
+            await applyInfoSSOTRls(isolated.pool);
+            const isolatedInfoSSOT = new InfoSSOTService({
+                pool: isolated.pool,
+                ontologyRegistry: new OntologyRegistry({ rootDir: sourceRoot, publicKeyPem: '' })
+            });
+            const isolatedService = new GraphMaintenanceService({ infoSSOTService: isolatedInfoSSOT });
+            const before = await isolatedService.exportSnapshot(access, { projectCode: 'vibepro' });
+            const { rows: beforeRows } = await isolatedInfoSSOT.withAccessContext(access, (client) => client.query(`
+                SELECT id, version, lifecycle_status
+                FROM graph_entities
+                WHERE id=ANY($1::text[])
+                UNION ALL
+                SELECT id, version, lifecycle_status
+                FROM graph_edges
+                WHERE id=ANY($1::text[])
+                ORDER BY id
+            `, [fixtureIds]));
+
+            await expect(isolatedService.validate(access, {
+                projectCode: 'vibepro', strictCollection: true
+            })).resolves.toMatchObject({
+                valid: true,
+                collection_complete: true,
+                snapshot_hash: before.hash,
+                required_relation_evidence_summary: {
+                    included: { cross_project_edges: 1, metadata_entities: 1 },
+                    excluded: { inaccessible_edges: 0 }
+                }
+            });
+
+            const after = await isolatedService.exportSnapshot(access, { projectCode: 'vibepro' });
+            const { rows: afterRows } = await isolatedInfoSSOT.withAccessContext(access, (client) => client.query(`
+                SELECT id, version, lifecycle_status
+                FROM graph_entities
+                WHERE id=ANY($1::text[])
+                UNION ALL
+                SELECT id, version, lifecycle_status
+                FROM graph_edges
+                WHERE id=ANY($1::text[])
+                ORDER BY id
+            `, [fixtureIds]));
+            expect(after.hash).toBe(before.hash);
+            expect(after.entities).toEqual(before.entities);
+            expect(after.edges).toEqual(before.edges);
+            expect(after.external_entities).toEqual(before.external_entities);
+            expect(afterRows).toEqual(beforeRows);
+
+            const restricted = await isolatedService.validate(
+                { ...access, projectCodes: ['vibepro'] },
+                { projectCode: 'vibepro', strictCollection: true }
+            );
+            expect(restricted.valid).toBe(false);
+            expect(restricted.ontology.violations).toEqual(expect.arrayContaining([
+                expect.objectContaining({
+                    rule_id: 'CON-DECISION-DECIDER-001',
+                    entity_id: 'decision_cross_project_decider'
+                })
+            ]));
+            expect(JSON.stringify(restricted)).not.toContain('owned_by_cross_project_decider');
+            expect(JSON.stringify(restricted)).not.toContain('person_cross_project_decider');
+        } finally {
+            await dropScopedDatabase(isolated);
+        }
+    });
+
     it('同一projectのphilosophy governs edgeをRLSで許可する', async () => {
         await infoSSOTService.withAccessContext(access, async (client) => {
             await client.query(`
