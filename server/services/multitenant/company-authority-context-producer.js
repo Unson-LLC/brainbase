@@ -190,6 +190,14 @@ export class CompanyAuthorityContextProducer {
                 error: null
             };
         } catch (error) {
+            console.error(JSON.stringify({
+                event: 'company_authority_resolution_failed',
+                correlation_id: correlationId,
+                provider: input.provider_identity.provider,
+                capability_id: input.requested_action.capability_id,
+                internal_code: typeof error?.code === 'string' ? error.code : 'UNCLASSIFIED',
+                error_name: error instanceof Error ? error.name : 'UnknownError'
+            }));
             return errorResponse(correlationId, error);
         }
     }
