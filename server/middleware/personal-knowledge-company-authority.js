@@ -82,7 +82,14 @@ export function requirePersonalKnowledgeCompanyAuthority({
             const { company_authority_response: _authority, ...input } = req.body;
             req.body = input;
             return next();
-        } catch {
+        } catch (error) {
+            const reason = error instanceof Error && /^[a-z0-9_:-]+$/.test(error.message)
+                ? error.message
+                : 'contract_validation_failed';
+            console.error(JSON.stringify({
+                event: 'personal_knowledge_company_authority_rejected',
+                reason
+            }));
             return res.status(403).json({ error: 'personal_knowledge_company_authority_rejected' });
         }
     };
