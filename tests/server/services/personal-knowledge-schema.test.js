@@ -54,6 +54,11 @@ describe('personal and organization knowledge schema', () => {
         expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_select[\s\S]*current_setting\('app\.graph_maintenance_mode', true\) = 'true'/);
         expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_select[\s\S]*app_project_codes\(\)[\s\S]*graph_maintenance_mode[\s\S]*rel_type = 'member_of'/);
         expect(edgeSelectPolicy).toMatch(/current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*AND rel_type = 'member_of'[\s\S]*AND lifecycle_status = 'active'[\s\S]*\)[\s\S]*OR[\s\S]*\([\s\S]*app_current_role_rank\(\) >= app_role_rank\(role_min\)[\s\S]*AND sensitivity = ANY\(app_clearance\(\)\)/);
+        expect(edgeSelectPolicy).toMatch(/CASE[\s\S]*WHEN current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*THEN TRUE[\s\S]*ELSE \([\s\S]*rel_type = 'member_of'[\s\S]*OR app_graph_edge_scope_visible\([\s\S]*END/);
+        expect(edgeSelectPolicy.indexOf("p.code = ANY(app_project_codes())"))
+            .toBeLessThan(edgeSelectPolicy.indexOf("WHEN current_setting('app.graph_maintenance_mode', true) = 'true'"));
+        expect(edgeSelectPolicy.indexOf("THEN TRUE"))
+            .toBeLessThan(edgeSelectPolicy.indexOf('app_graph_edge_scope_visible('));
         expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_update[\s\S]*USING[\s\S]*current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*WITH CHECK/);
         const edgeInsertPolicy = infoSsotRls.match(
             /CREATE POLICY info_graph_edges_insert[\s\S]*?(?=\n\nDROP POLICY IF EXISTS info_graph_edges_update)/
