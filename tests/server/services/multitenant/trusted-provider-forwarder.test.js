@@ -752,6 +752,50 @@ describe('trusted provider HTTP forwarder', () => {
         expect(fetchImpl).not.toHaveBeenCalled();
     });
 
+    it.each(['search_personal_kg', 'register_personal_kg'])(
+        'authority MCPは本人スコープで検証する%sをproject注入なしで転送する',
+        async (name) => {
+            const fetchImpl = vi.fn(async () => ({
+                status: 200,
+                headers: { get: () => 'application/json' },
+                json: async () => ({ jsonrpc: '2.0', result: { ok: true }, id: 1 })
+            }));
+            const forwarder = createTrustedHttpProviderForwarder({
+                provider: 'brainbase',
+                baseUrl: 'https://bb.unson.jp/runtime-mcp',
+                operations: {
+                    'brainbase.authority_mcp.post': {
+                        method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+                        credential_placement: 'none', allow_binding_provider_mismatch: true
+                    }
+                },
+                fetchImpl
+            });
+            const arguments_ = name === 'search_personal_kg'
+                ? { query: '判断', project_code: 'caller-code' }
+                : { event: { body: '判断', body_hash: 'sha256:abc' }, project_code: 'caller-code' };
+
+            await forwarder.forward({
+                credential: Buffer.alloc(0),
+                operation: 'brainbase.authority_mcp.post',
+                request: {
+                    body: {
+                        jsonrpc: '2.0', method: 'tools/call', id: 1,
+                        params: { name, arguments: arguments_ }
+                    }
+                },
+                binding: {
+                    authority_project_binding: { project_id: 'project-unson', project_code: 'unson' }
+                }
+            });
+
+            const forwardedBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
+            expect(forwardedBody.params.name).toBe(name);
+            expect(forwardedBody.params.arguments).not.toHaveProperty('project_code');
+            expect(forwardedBody.params.arguments).not.toHaveProperty('project_id');
+        }
+    );
+
     it.each(['initialize', 'notifications/initialized', 'ping', 'tools/list'])(
         'authority MCPはMCP lifecycleの%sをproject overrideなしで転送する',
         async (method) => {
