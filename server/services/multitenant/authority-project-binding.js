@@ -10,6 +10,12 @@ export const AUTHORITY_PROJECT_BOUND_MCP_TOOLS = new Set([
     'brainbase_knowledge_resolve',
     'brainbase_resolve_turn'
 ]);
+const AUTHORITY_MCP_LIFECYCLE_METHODS = new Set([
+    'initialize',
+    'notifications/initialized',
+    'ping',
+    'tools/list'
+]);
 
 const PROJECT_OVERRIDE_FIELDS = new Set([
     'project',
@@ -111,10 +117,13 @@ function stripNestedProjectOverrides(value, toolName) {
 
 export function injectAuthorityProject(request, projectBinding) {
     assertAuthorityProjectBinding(projectBinding);
-    if (!isObject(request)
-        || !isObject(request.body)
-        || request.body.jsonrpc !== '2.0'
-        || request.body.method !== 'tools/call'
+    if (!isObject(request) || !isObject(request.body) || request.body.jsonrpc !== '2.0') {
+        throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
+    if (AUTHORITY_MCP_LIFECYCLE_METHODS.has(request.body.method)) {
+        return structuredClone(request);
+    }
+    if (request.body.method !== 'tools/call'
         || !isObject(request.body.params)
         || !AUTHORITY_PROJECT_BOUND_MCP_TOOLS.has(request.body.params.name)
         || !isObject(request.body.params.arguments)) {
