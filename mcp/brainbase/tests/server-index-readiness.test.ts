@@ -1,0 +1,77 @@
+import { afterEach, test } from 'node:test';
+import assert from 'node:assert/strict';
+import { __testing } from '../src/server.js';
+import { GraphAPISource } from '../src/sources/graphapi-source.js';
+import { TokenManager } from '../src/auth/token-manager.js';
+
+class ControlledSource extends GraphAPISource {
+  failure = false;
+  loads = 0;
+  philosophyLoads = 0;
+  release: Promise<void> = Promise.resolve();
+  constructor() { super('http://unused.invalid', new TokenManager()); }
+  override async initialize() {
+    this.loads++;
+    await this.release;
+    if (this.failure) throw new Error('GRAPH_UNAVAILABLE');
+  }
+  override async getPhilosophyContext() {
+    this.philosophyLoads++;
+    if (this.failure) throw new Error('PHILOSOPHY_UNAVAILABLE');
+    return {mode: 'test', project_code: 'brainbase', scope: 'graph', prompt_block: 'VERIFIED_PHILOSOPHY'};
+  }
+}
+afterEach(() => {
+  __testing.setIndexRefreshEnabled(false);
+  __testing.setGraphSource(null);
+});
+function useSource() {
+  const source = new ControlledSource();
+  __testing.setGraphSource(source);
+  __testing.setIndexRefreshEnabled(true);
+  return source;
+}
+
+test('all index consumers reject failed initialization instead of returning absence', async () => {
+  const source = useSource();
+  source.failure = true;
+  for (const [name, args] of [
+    ['get_context', {topic: 'missing'}],
+    ['get_entity', {type: 'project', id: 'missing'}],
+    ['list_entities', {type: 'project'}],
+    ['search', {query: 'missing'}],
+    ['resolve_entity', {query: 'missing'}],
+    ['list_extension_entities', {type: 'initiative'}],
+    ['search_personal_kg', {query: 'missing', person_entity_id: 'per_fixture'}],
+  ] as const) {
+    await assert.rejects(__testing.handleToolCall(name, args), /GRAPH_UNAVAILABLE/);
+  }
+});
+
+test('concurrent readers share initialization and recover on the same server after failure', async () => {
+  const source = useSource();
+  source.failure = true;
+  await assert.rejects(__testing.handleToolCall('get_context', {topic: 'missing'}));
+  source.failure = false;
+  let release!: () => void;
+  source.release = new Promise<void>(resolve => { release = resolve; });
+  let completed = false;
+  const reads = Promise.all([
+    __testing.handleToolCall('get_context', {topic: 'missing'}),
+    __testing.handleToolCall('list_entities', {type: 'project'}),
+    __testing.handleToolCall('get_entity', {type: 'project', id: 'missing'}),
+  ]).then(results => { completed = true; return results; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(completed, false);
+  assert.equal(source.loads, 2);
+  release();
+  const results = await reads;
+  for (const result of results) assert.match(result, /VERIFIED_PHILOSOPHY/);
+  assert.equal(source.philosophyLoads, 3);
+});
+
+test('philosophy failure is propagated after a successful index load', async () => {
+  const source = useSource();
+  source.getPhilosophyContext = async () => { throw new Error('PHILOSOPHY_UNAVAILABLE'); };
+  await assert.rejects(__testing.handleToolCall('get_context', {topic: 'missing'}), /PHILOSOPHY_UNAVAILABLE/);
+});

@@ -15,6 +15,10 @@ describe('ChatGPT Secure MCP Tunnel contract', () => {
     expect(runner).not.toContain('--mcp-server-url');
     expect(stdio).toContain('unset MCP_HTTP_PORT MCP_HTTP_HOST MCP_HTTP_BEARER_TOKEN');
     expect(stdio).toContain('unset CONTROL_PLANE_API_KEY OPENAI_MCP_TUNNEL_ID');
+    expect(stdio).toContain('export BRAINBASE_REPO_ROOT="$REPO_ROOT"');
+    expect(stdio).toContain('FACADE_ENTRY="${BRAINBASE_MCP_FACADE_ENTRY:-$REPO_ROOT/mcp/brainbase/dist/stdio-facade.js}"');
+    expect(stdio).toContain('exec "$NODE_BIN" "$FACADE_ENTRY" "$@"');
+    expect(stdio).toContain('if [ "${1:-}" = "--check" ]');
     expect(stdio).toContain('exec "$SCRIPT_DIR/run-brainbase-mcp.sh" "$@"');
   });
 
