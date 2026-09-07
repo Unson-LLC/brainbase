@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import express from 'express';
 import request from 'supertest';
 import { createHmac } from 'node:crypto';
@@ -7,6 +9,7 @@ import { registerJudgmentResolutionApiRoute } from '../../../server/bootstrap/re
 import { csrfMiddleware } from '../../../server/middleware/csrf.js';
 import { AuthService } from '../../../server/services/auth-service.js';
 import { canonicalJson, computeRequestDigest } from '../../../server/services/judgment-resolution-service.js';
+import { createPersonalKnowledgeAuthority } from '../../helpers/personal-knowledge-client-authority.js';
 
 const secret = 'registration-secret';
 const now = new Date('2026-08-07T00:00:00.000Z');
@@ -93,6 +96,67 @@ describe('judgment resolution production API registration', () => {
             access: { personId: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] },
             hostBinding: { status: 'managed' }
         });
+    });
+
+    it('service transportを署名済みSlack DM actorへrequest単位で束縛する', async () => {
+        const authority = createPersonalKnowledgeAuthority({
+            owner: 'person_owner', externalSubjectId: 'U_OWNER', requesterId: 'U_OWNER', now
+        });
+        const previous = Object.fromEntries(Object.keys(authority.env).map((key) => [key, process.env[key]]));
+        Object.assign(process.env, authority.env);
+        try {
+            const authService = {
+                verifyServiceToken: vi.fn(() => ({
+                    sub: 'svc_mana', organizationId: 'unson', projectCodes: ['brainbase']
+                }))
+            };
+            const { app, resolve } = createApp({ authService });
+            await request(app).post('/api/judgment/resolve')
+                .set('authorization', 'Bearer bbsvc_test')
+                .set('x-brainbase-company-authority-response', Buffer.from(JSON.stringify(authority.response)).toString('base64url'))
+                .set(headers()).send(payload).expect(200);
+            expect(resolve.mock.calls[0][1].access).toMatchObject({
+                personId: 'person_owner', organizationId: 'unson', slackUserId: 'U_OWNER'
+            });
+        } finally {
+            for (const [key, value] of Object.entries(previous)) {
+                if (value === undefined) delete process.env[key];
+                else process.env[key] = value;
+            }
+        }
+    });
+
+    it('interactive tokenによるCompany Authority header注入を拒否する', async () => {
+        const { app, resolve } = createApp();
+        await request(app).post('/api/judgment/resolve')
+            .set('authorization', 'Bearer test-token')
+            .set('x-brainbase-company-authority-response', Buffer.from('{}').toString('base64url'))
+            .set(headers()).send(payload).expect(403);
+        expect(resolve).not.toHaveBeenCalled();
+    });
+
+    it('改ざんされたCompany Authorityを拒否する', async () => {
+        const authority = createPersonalKnowledgeAuthority({
+            owner: 'person_owner', externalSubjectId: 'U_OWNER', requesterId: 'U_OWNER', now
+        });
+        authority.response.context.actor.canonical_person_id = 'person_attacker';
+        const previous = Object.fromEntries(Object.keys(authority.env).map((key) => [key, process.env[key]]));
+        Object.assign(process.env, authority.env);
+        try {
+            const { app, resolve } = createApp({
+                authService: { verifyServiceToken: vi.fn(() => ({ sub: 'svc_mana', projectCodes: ['brainbase'] })) }
+            });
+            await request(app).post('/api/judgment/resolve')
+                .set('authorization', 'Bearer bbsvc_test')
+                .set('x-brainbase-company-authority-response', Buffer.from(JSON.stringify(authority.response)).toString('base64url'))
+                .set(headers()).send(payload).expect(403);
+            expect(resolve).not.toHaveBeenCalled();
+        } finally {
+            for (const [key, value] of Object.entries(previous)) {
+                if (value === undefined) delete process.env[key];
+                else process.env[key] = value;
+            }
+        }
     });
 
     it('任意のreceiptWriterを認証後のrouterへ伝搬する', async () => {

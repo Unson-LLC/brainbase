@@ -274,15 +274,19 @@ describe('judgment resolver Host bridge', () => {
 
   it('Host内部callだけが署名付きAPI requestを送る', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
-    const result = await resolveJudgmentBeforeModel(args, dependencies(async (url, init) => {
-      calls.push({ url: String(url), init });
-      return new Response(JSON.stringify(receipt()), { status: 200 });
-    }));
+    const result = await resolveJudgmentBeforeModel(args, {
+      ...dependencies(async (url, init) => {
+        calls.push({ url: String(url), init });
+        return new Response(JSON.stringify(receipt()), { status: 200 });
+      }),
+      companyAuthorityResponse: 'signed-company-authority',
+    });
     assert.equal(result.status, 'ok');
     assert.equal(calls[0].url, 'http://brainbase.test/api/judgment/resolve');
     assert.equal(JSON.parse(String(calls[0].init?.body)).conversation_context.schema_version, 'brainbase-conversation-context-v1');
     const headers = calls[0].init?.headers as Record<string, string>;
     assert.equal(headers['x-brainbase-judgment-adapter'], 'brainbase-mcp');
+    assert.equal(headers['x-brainbase-company-authority-response'], 'signed-company-authority');
     assert.match(headers['x-brainbase-judgment-signature'], /^[a-f0-9]{64}$/u);
   });
 

@@ -1292,7 +1292,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   // Factory (not a singleton) so the stateless Streamable HTTP transport can
   // build one Server per request — the heavy shared state (entityIndex,
   // resolved Brainbase API URL) lives outside each request handler.
-  function createServer() {
+  function createServer(requestContext: { companyAuthorityResponse?: string } = {}) {
   const server = new Server(
     {
       name: 'brainbase',
@@ -1375,7 +1375,10 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         }),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentResolutionToolCall(
-          toolName, extensionArgs, createDefaultJudgmentResolutionDependencies(),
+          toolName, extensionArgs, {
+            ...createDefaultJudgmentResolutionDependencies(),
+            companyAuthorityResponse: requestContext.companyAuthorityResponse,
+          },
         ),
         (toolName, extensionArgs) => handleJudgmentAuditToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentValueProofToolCall(toolName, extensionArgs),
@@ -1531,7 +1534,12 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         }
       }
 
-      const server = createServer();
+      const rawCompanyAuthority = req.headers['x-brainbase-company-authority-response'];
+      const server = createServer({
+        companyAuthorityResponse: Array.isArray(rawCompanyAuthority)
+          ? rawCompanyAuthority[0]
+          : rawCompanyAuthority,
+      });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => {
         void transport.close();
