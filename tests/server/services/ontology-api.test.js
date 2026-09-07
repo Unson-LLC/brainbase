@@ -217,7 +217,7 @@ describe('InfoSSOTService ontology API', () => {
             })
         });
         expect(statements).toContain('ROLLBACK');
-        expect(statements.filter((sql) => sql.trim().startsWith('INSERT INTO graph_entities'))).toHaveLength(1);
+        expect(statements.filter((sql) => sql.trim().startsWith('INSERT INTO graph_entities'))).toHaveLength(0);
     });
 
     it('rejects caller-declared context entities that do not exist in the canonical Graph', async () => {

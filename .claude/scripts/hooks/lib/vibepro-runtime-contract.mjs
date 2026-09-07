@@ -5,8 +5,8 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const EXPECTED_VIBEPRO_VERSION = "0.2.0-beta.21";
-export const EXPECTED_VIBEPRO_SOURCE_COMMIT = "c3446c227873fc01c0223b3334cf5544903693a7";
+export const EXPECTED_VIBEPRO_VERSION = "0.2.0-beta.22";
+export const EXPECTED_VIBEPRO_SOURCE_COMMIT = "b5b6e6742652caba9cb5e6402e848e57321576d8";
 export const CANONICAL_VIBEPRO_LAUNCHER = path.join(homedir(), ".local", "bin", "vibepro");
 
 export function sanitizeHookEnvironment(env = process.env) {

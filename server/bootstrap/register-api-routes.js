@@ -384,7 +384,6 @@ export function registerApiRoutes(app, {
         // canonical Memory Promotion Kernel の外部受け口。
         app.use('/api/candidate-store', createCandidateStoreRouter({
             candidateRepository,
-            auditPersonalAccess,
             allowedSources: process.env.CANDIDATE_STORE_ALLOWED_SOURCES
                 ? process.env.CANDIDATE_STORE_ALLOWED_SOURCES.split(',').map((s) => s.trim()).filter(Boolean)
                 : null

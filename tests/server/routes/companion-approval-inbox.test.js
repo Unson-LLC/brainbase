@@ -96,6 +96,10 @@ function makeBootstrapApp({
             workspace: {}
         },
         testMode: true,
+        canonicalTaskStoreConfig: {
+            ownerPersonId: 'sato_keigo',
+            ownerAliasIds: ['per_keigo']
+        },
         configParser: {},
         configService: {},
         runtimePaths: { varDir: '/tmp' },

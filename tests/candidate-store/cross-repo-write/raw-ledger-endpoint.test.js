@@ -36,9 +36,9 @@ function sign(secret, body) {
     return createHmac('sha256', secret).update(body, 'utf8').digest('hex');
 }
 
-function asProxy(req, {
-    personId = 'person:ksato',
-    organizationId = 'org:unson'
+function withUnsignedProxyHeaders(req, {
+    personId = 'person:attacker',
+    organizationId = 'org:attacker'
 } = {}) {
     return req
         .set('x-brainbase-proxy-person-id', personId)
@@ -88,7 +88,7 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         const body = JSON.stringify(validEnvelope());
         const sig = sign(SECRET, body);
 
-        const res = await asProxy(request(app)
+        const res = await withUnsignedProxyHeaders(request(app)
             .post('/api/candidate-store/raw-ledger')
             .set('Content-Type', 'application/json')
             .set('x-cs-source', 'salestailor_ops_refactor')
@@ -103,12 +103,12 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         expect(candidates.length).toBe(res.body.candidate_ids.length);
         expect(candidates[0]).toMatchObject({
             owner_person_id: 'person:ksato',
-            organization_id: 'org:unson'
+            organization_id: 'unson'
         });
     });
 
-    it('署名済みサービスでも代理本人・組織がなければ403で閉じる', async () => {
-        const { app } = makeApp();
+    it('署名対象のenvelopeだけで本人・組織を固定できる', async () => {
+        const { app, candidateRepository } = makeApp();
         const body = JSON.stringify(validEnvelope());
         const sig = sign(SECRET, body);
 
@@ -119,8 +119,12 @@ describe('POST /api/candidate-store/raw-ledger', () => {
             .set('x-cs-signature', sig)
             .send(body);
 
-        expect(res.status).toBe(403);
-        expect(res.body.error).toBe('personal_knowledge_proxy_required');
+        expect(res.status).toBe(202);
+        const [candidate] = await candidateRepository.list({});
+        expect(candidate).toMatchObject({
+            owner_person_id: 'person:ksato',
+            organization_id: 'unson'
+        });
     });
 
     it('上位JSON parserが先にbodyを消費してもraw body HMACを検証できる', async () => {
@@ -128,7 +132,7 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         const body = JSON.stringify(validEnvelope({ raw_event_id: 'raw_upstream_parser_001' }));
         const sig = sign(SECRET, body);
 
-        const res = await asProxy(request(app)
+        const res = await withUnsignedProxyHeaders(request(app)
             .post('/api/candidate-store/raw-ledger')
             .set('Content-Type', 'application/json')
             .set('x-cs-source', 'salestailor_ops_refactor')
@@ -143,7 +147,7 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         const { app } = makeApp();
         const body = JSON.stringify(validEnvelope());
 
-        const res = await asProxy(request(app)
+        const res = await withUnsignedProxyHeaders(request(app)
             .post('/api/candidate-store/raw-ledger')
             .set('Content-Type', 'application/json')
             .set('x-cs-source', 'salestailor_ops_refactor')
@@ -159,7 +163,7 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         const body = JSON.stringify(validEnvelope());
         const sig = sign(SECRET, body);
 
-        const res = await asProxy(request(app)
+        const res = await withUnsignedProxyHeaders(request(app)
             .post('/api/candidate-store/raw-ledger')
             .set('Content-Type', 'application/json')
             .set('x-cs-signature', sig)
@@ -173,7 +177,7 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         const body = JSON.stringify(validEnvelope());
         const sig = sign(SECRET, body);
 
-        const res = await asProxy(request(app)
+        const res = await withUnsignedProxyHeaders(request(app)
             .post('/api/candidate-store/raw-ledger')
             .set('Content-Type', 'application/json')
             .set('x-cs-source', 'salestailor_ops_refactor')
@@ -189,7 +193,7 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         const body = JSON.stringify(validEnvelope());
         const sig = sign('whatever', body);
 
-        const res = await asProxy(request(app)
+        const res = await withUnsignedProxyHeaders(request(app)
             .post('/api/candidate-store/raw-ledger')
             .set('Content-Type', 'application/json')
             .set('x-cs-source', 'salestailor_ops_refactor')
@@ -207,7 +211,7 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         const body = JSON.stringify(broken);
         const sig = sign(SECRET, body);
 
-        const res = await asProxy(request(app)
+        const res = await withUnsignedProxyHeaders(request(app)
             .post('/api/candidate-store/raw-ledger')
             .set('Content-Type', 'application/json')
             .set('x-cs-source', 'salestailor_ops_refactor')
@@ -224,7 +228,7 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         const body = JSON.stringify(validEnvelope({ source_system: 'mana_slack' }));
         const sig = sign(SECRET, body);
 
-        const res = await asProxy(request(app)
+        const res = await withUnsignedProxyHeaders(request(app)
             .post('/api/candidate-store/raw-ledger')
             .set('Content-Type', 'application/json')
             .set('x-cs-source', 'salestailor_ops_refactor')
@@ -241,7 +245,7 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         const body = JSON.stringify(env);
         const sig = sign(SECRET, body);
 
-        const res1 = await asProxy(request(app)
+        const res1 = await withUnsignedProxyHeaders(request(app)
             .post('/api/candidate-store/raw-ledger')
             .set('Content-Type', 'application/json')
             .set('x-cs-source', 'salestailor_ops_refactor')
@@ -249,7 +253,7 @@ describe('POST /api/candidate-store/raw-ledger', () => {
             .send(body));
         expect(res1.status).toBe(202);
 
-        const res2 = await asProxy(request(app)
+        const res2 = await withUnsignedProxyHeaders(request(app)
             .post('/api/candidate-store/raw-ledger')
             .set('Content-Type', 'application/json')
             .set('x-cs-source', 'salestailor_ops_refactor')
