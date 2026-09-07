@@ -752,6 +752,40 @@ describe('trusted provider HTTP forwarder', () => {
         expect(fetchImpl).not.toHaveBeenCalled();
     });
 
+    it.each(['initialize', 'notifications/initialized', 'ping', 'tools/list'])(
+        'authority MCPはMCP lifecycleの%sをproject overrideなしで転送する',
+        async (method) => {
+            const fetchImpl = vi.fn(async () => ({
+                status: 200,
+                headers: { get: () => 'application/json' },
+                json: async () => ({ jsonrpc: '2.0', result: {}, id: 1 })
+            }));
+            const forwarder = createTrustedHttpProviderForwarder({
+                provider: 'brainbase',
+                baseUrl: 'https://bb.unson.jp/runtime-mcp',
+                operations: {
+                    'brainbase.authority_mcp.post': {
+                        method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+                        credential_placement: 'none', allow_binding_provider_mismatch: true
+                    }
+                },
+                fetchImpl
+            });
+            const request = { body: { jsonrpc: '2.0', method, params: {}, id: 1 } };
+
+            await forwarder.forward({
+                credential: Buffer.alloc(0),
+                operation: 'brainbase.authority_mcp.post',
+                request,
+                binding: {
+                    authority_project_binding: { project_id: 'project-unson', project_code: 'unson' }
+                }
+            });
+
+            expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual(request.body);
+        }
+    );
+
     it('server-owned bearerは未定義envとtenant credential placementの併用を拒否する', () => {
         const operation = {
             method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
