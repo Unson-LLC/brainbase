@@ -205,6 +205,7 @@ function assertResolvedAuthority(authority, request) {
 
 function compactAuthorityScopes(identity, authority, request) {
     return [
+        ...(request.requested_action.resource_ref.startsWith('personal://') ? ['personal'] : []),
         `company_authority:decision:${authority.decision}`,
         `company_authority:membership:${identity.membership_id}@${identity.membership_revision}`,
         `company_authority:resource:${request.requested_action.resource_ref}@${authority.resource_revision}`,
