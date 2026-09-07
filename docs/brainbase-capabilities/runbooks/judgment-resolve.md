@@ -4,6 +4,20 @@ Judgment Resolver is a Host lifecycle boundary. Every managed Codex turn has one
 
 The preferred Resolver call is exactly `{ turn_ref, model_interpretation }`. `turn_ref` is the Host-issued `<sessionRef>/<turnRef>` pointer to the journal-saved input. `model_interpretation` must contain exactly `intent`, `domains`, `action_kind`, `risk`, `confidence`, and `signals`; the Codex model supplies these semantic fields. The Resolver validates them, applies manifest-owned policy and monotonic safety floors, and returns the immutable TurnContract. Raw `turn_input`, absolute journal paths, and extra interpretation fields are not part of the preferred model path; legacy `turn_input` forms remain migration compatibility only.
 
+## ツール未公開時の切り分け
+
+`model_interpretation_missing`はモデルの意味解釈が未提出であることを示す。利用者の依頼対象が不明という証拠ではない。未確定の判断契約を確定済みとして扱わず、利用者への対象確認に置き換えない。
+
+復旧確認は次の順に分ける。
+
+1. Codexの`mcp_servers.brainbase`に設定された起動先を読む。作業コピーのビルド失敗を、別checkoutから動くMCPの停止と混同しない。
+2. 設定されたstdio launcherの`--check`で認証・API・署名の事前確認を行う。秘密値を表示しない。
+3. 同じlauncherのMCP `tools/list`で`brainbase_resolve_turn`の公開を確認する。`--check`成功だけではツール公開を証明しない。
+4. Codexの`mcpServerStatus/list`と、実行中モデルが呼べるツールを照合する。前者に存在しても、実行中の会話へ公開された証拠にはならない。
+5. 実行中モデルからHostの`turn_ref`と意味解釈を渡し、実際の呼び出し・PostToolUse・Stopの回答読戻しまで確認する。
+
+一覧にない場合の診断出力やモデルの自己申告を、成功したResolver呼び出しとして登録しない。実呼び出しが`is not a function`等で失敗した場合は既存の未接続処理で監査を縮退させる。HTTPや別SDKからの呼び出しでこの会話のMCP成功証跡を代用しない。接続回復を実証できるまでは復旧未完了と報告する。
+
 ## Component responsibilities
 
 | Component | Responsibility |
