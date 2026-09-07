@@ -225,8 +225,26 @@
           "監査書込みなどテナント所有資源を変更する経路は署名済みテナント境界を維持する。",
           "実MCPから管理ビューを読み戻し、HTTP 400 TENANT_CONTEXT_INVALIDが解消したことを確認する。"
         ]
+      },
+      {
+        "story_id": "story-resolver-event-binding",
+        "title": "継続依頼のResolver結果を同一ターンへ確実に記録する",
+        "acceptance_criteria": [
+          "同一ターンの正規needs_classification契約を保存し、Resolver実施済みと分類完了を区別する。",
+          "有効契約と所有者向け監査は実際の不足理由を使い、初期のmodel_interpretation_missingへ戻さない。",
+          "別ターン・入力不一致・不正形状は受理せず、分類保留を実行許可へ昇格しない。",
+          "実サービスの返却契約からHook記録・監査・Stopまで結合テストで検証する。"
+        ],
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-admin-read-tenant-boundary-repair"
+    "current_story_id": "story-resolver-event-binding"
   }
 }
