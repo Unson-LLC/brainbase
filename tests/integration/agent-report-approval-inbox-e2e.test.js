@@ -37,14 +37,23 @@ function makeStack() {
         runner,
         configParser: {
             async getProjects() {
-                return { projects: [{ id: 'brainbase', session_select: true }] };
+                return {
+                    source: { status: 'loaded', mode: 'registry_scoped' },
+                    projects: [{ id: 'brainbase', session_select: true }]
+                };
             }
         }
     });
     return { repository, ingestService, workflowService };
 }
 
-const ACTOR = { person_id: 'sato_keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' };
+const ACTOR = {
+    person_id: 'sato_keigo',
+    organizationId: 'unson',
+    projectCodes: ['brainbase'],
+    role: 'member',
+    authSource: 'test'
+};
 
 describe('C2 in-process E2E: agent report → approval inbox → approve → close', () => {
     it('ingested agent_report surfaces in the approval inbox, then closes on approval and leaves no orphan run', async () => {

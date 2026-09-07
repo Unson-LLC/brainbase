@@ -184,7 +184,8 @@ describe('human action authority provisioning', () => {
             membership_principal_type: null,
             expected_project_codes: ['brainbase', 'mana']
         });
-        expect(normalized.humans[0].bindings).toEqual([expect.objectContaining({
+        expect(normalized.humans[0].bindings).toHaveLength(3);
+        expect(normalized.humans[0].bindings).toEqual(expect.arrayContaining([expect.objectContaining({
             resource_ref: 'project:prj_01KGCS8CAJKKDWACPNK1E5WX8H',
             capability_id: 'runtime.execute',
             decision: 'auto',
@@ -199,7 +200,21 @@ describe('human action authority provisioning', () => {
             stop_conditions: [],
             valid_from: '2026-09-05T00:00:00.000Z',
             valid_until: null
-        })]);
+        }), expect.objectContaining({
+            resource_ref: 'personal://per_01KGYC7NNS0VXADK7NP48W4VR5/notes',
+            capability_id: 'personal_read',
+            decision: 'auto',
+            allowed_effects: ['read'],
+            responsible_person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
+            accountable_person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5'
+        }), expect.objectContaining({
+            resource_ref: 'personal://per_01KGYC7NNS0VXADK7NP48W4VR5/notes',
+            capability_id: 'personal_write',
+            decision: 'auto',
+            allowed_effects: ['write'],
+            responsible_person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
+            accountable_person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5'
+        })]));
         expect(normalized.humans.some((human) => human.slack_user_id === 'U0BKP8D3KPD')).toBe(false);
         expect(normalized.humans.some((human) => human.person_id === 'per_01KGYC7NPPE3FTW6SF3K5MCVWK')).toBe(false);
     });

@@ -254,6 +254,40 @@ describe('CompanyAuthorityContextProducer', () => {
         });
     });
 
+    it('records a safe internal failure code without logging request content', async () => {
+        const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const routeRepository = {
+            resolveObservedRoute: vi.fn(async () => {
+                throw new ContractError('COMPANY_AUTHORITY_UNRESOLVED', { status: 503 });
+            })
+        };
+        const input = observed({
+            requested_action: {
+                ...observed().requested_action,
+                resource_ref: 'project:sensitive-project'
+            }
+        });
+        const { producer } = createProducer({ routeRepository });
+
+        await producer.resolve(input);
+
+        expect(log).toHaveBeenCalledOnce();
+        const entry = JSON.parse(log.mock.calls[0][0]);
+        expect(entry).toEqual({
+            event: 'company_authority_resolution_failed',
+            correlation_id: input.correlation_id,
+            provider: 'slack',
+            capability_id: 'task.read',
+            desired_effect: 'read',
+            project_hint: 'unson-backoffice',
+            resource_ref_digest: '5da8944e0eaa27d2',
+            internal_code: 'COMPANY_AUTHORITY_UNRESOLVED',
+            error_name: 'ContractError'
+        });
+        expect(log.mock.calls[0][0]).not.toContain('sensitive-project');
+        log.mockRestore();
+    });
+
     it('allows a missing delivery only for a fail-closed diagnostic response', async () => {
         const routeRepository = {
             resolveObservedRoute: vi.fn(async () => {

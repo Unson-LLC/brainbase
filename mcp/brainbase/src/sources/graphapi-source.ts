@@ -143,7 +143,6 @@ function createDeadlineSignal(
   const timer = setTimeout(() => {
     controller.abort(new Error(`${operation} timed out after ${timeoutMs}ms`));
   }, timeoutMs);
-  timer.unref?.();
 
   return {
     signal: controller.signal,

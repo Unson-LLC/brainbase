@@ -40,6 +40,11 @@ function canonicalErrorCode(error) {
     return ERROR_MAP[error?.code] ?? 'AUTHORITY_UNAVAILABLE';
 }
 
+function diagnosticResourceDigest(resourceRef) {
+    const { lookupResourceRef } = parseCompanyAuthorityResourceRef(resourceRef);
+    return createHash('sha256').update(lookupResourceRef).digest('hex').slice(0, 16);
+}
+
 function errorResponse(correlationId, error) {
     const code = canonicalErrorCode(error);
     return {
@@ -190,6 +195,17 @@ export class CompanyAuthorityContextProducer {
                 error: null
             };
         } catch (error) {
+            console.error(JSON.stringify({
+                event: 'company_authority_resolution_failed',
+                correlation_id: correlationId,
+                provider: input.provider_identity.provider,
+                capability_id: input.requested_action.capability_id,
+                desired_effect: input.requested_action.desired_effect,
+                project_hint: input.requested_action.project_hint ?? null,
+                resource_ref_digest: diagnosticResourceDigest(input.requested_action.resource_ref),
+                internal_code: typeof error?.code === 'string' ? error.code : 'UNCLASSIFIED',
+                error_name: error instanceof Error ? error.name : 'UnknownError'
+            }));
             return errorResponse(correlationId, error);
         }
     }

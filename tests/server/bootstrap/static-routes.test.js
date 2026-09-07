@@ -1,5 +1,7 @@
 // @ts-check
 import express from 'express';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import request from 'supertest';
@@ -80,5 +82,23 @@ describe('static routes', () => {
         await request(app).get('/setup').expect(404);
         await request(app).get('/setup.html').expect(404);
         await request(app).get('/modules/setup/setup-controller.js').expect(404);
+    });
+
+    it('does not serve a retired surface even if a stale public file remains', async () => {
+        const publicDir = await mkdtemp(path.join(os.tmpdir(), 'brainbase-static-routes-'));
+
+        try {
+            await writeFile(path.join(publicDir, 'sns-growth.html'), 'retired surface', 'utf-8');
+
+            const app = express();
+            registerStaticRoutes(app, {
+                publicDir,
+                log: { error: () => {} }
+            });
+
+            await request(app).get('/sns-growth.html').expect(404);
+        } finally {
+            await rm(publicDir, { recursive: true, force: true });
+        }
     });
 });

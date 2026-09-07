@@ -581,6 +581,13 @@ export function createTenantRuntimeRouter({
     }));
 
     router.use((error, req, res, _next) => {
+        console.error(JSON.stringify({
+            event: 'tenant_runtime_request_failed',
+            path: req.path,
+            code: typeof error?.code === 'string' ? error.code : 'INTERNAL_ERROR',
+            message: typeof error?.message === 'string' ? error.message : 'Unknown error',
+            stack: typeof error?.stack === 'string' ? error.stack : null
+        }));
         const problem = toProblem(error, req.body?.correlation_id ?? null);
         res.status(problem.status).type('application/problem+json').json(problem);
     });

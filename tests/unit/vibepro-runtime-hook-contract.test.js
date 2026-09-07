@@ -28,9 +28,9 @@ function trustedIdentity(overrides = {}) {
 
 describe("VibePro canonical runtime hook contract", () => {
   it("pins the currently published canonical runtime identity", () => {
-    expect(EXPECTED_VIBEPRO_VERSION).toBe("0.2.0-beta.21");
+    expect(EXPECTED_VIBEPRO_VERSION).toBe("0.2.0-beta.22");
     expect(EXPECTED_VIBEPRO_SOURCE_COMMIT)
-      .toBe("c3446c227873fc01c0223b3334cf5544903693a7");
+      .toBe("b5b6e6742652caba9cb5e6402e848e57321576d8");
   });
 
   it("accepts only the pinned immutable npm identity", () => {

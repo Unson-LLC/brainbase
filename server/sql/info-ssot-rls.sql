@@ -607,16 +607,17 @@ CREATE POLICY info_graph_edges_select ON graph_edges
         AND lifecycle_status = 'active'
       )
     )
-    AND (
-      rel_type = 'member_of'
-      OR app_graph_edge_scope_visible(from_id, to_id, rel_type, payload, role_min, sensitivity)
-      -- Graph maintenance loads only rows whose own project passed the
-      -- preceding project-code check. This bounded forensic exception lets
-      -- the service count and redact inaccessible endpoints instead of
-      -- silently dropping them. It never relaxes INSERT/UPDATE checks, and
-      -- ordinary Graph reads never set this transaction-local flag.
-      OR current_setting('app.graph_maintenance_mode', true) = 'true'
-    )
+    AND CASE
+      -- CASE is intentional: PostgreSQL may evaluate every branch of a plain
+      -- OR expression. Large maintenance snapshots must not run the expensive
+      -- endpoint visibility function once per edge when this bounded forensic
+      -- mode has already authorized the row's own project above.
+      WHEN current_setting('app.graph_maintenance_mode', true) = 'true' THEN TRUE
+      ELSE (
+        rel_type = 'member_of'
+        OR app_graph_edge_scope_visible(from_id, to_id, rel_type, payload, role_min, sensitivity)
+      )
+    END
   );
 
 DROP POLICY IF EXISTS info_graph_edges_insert ON graph_edges;

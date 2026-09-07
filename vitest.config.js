@@ -3,6 +3,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const dockerIntegrationTests = [
+  'tests/integration/onboarding-postgres-rls.integration.test.js',
+  'tests/integration/project-provisioning-full-flow.test.js',
+  'tests/server/scripts/company-authority-schema-migration.integration.test.js',
+  'tests/server/scripts/tenant-production-provisioning-migration.integration.test.js',
+  'tests/server/services/multitenant/human-company-authority-provisioner.integration.test.js',
+  'tests/server/services/multitenant/postgres-migration-adapter.integration.test.js',
+  'tests/server/services/multitenant/schema-migration-runner.integration.test.js',
+  'tests/server/services/multitenant/slack-installation-control-plane.integration.test.js',
+  'tests/server/services/multitenant/tenant-two-phase-provisioning.integration.test.js',
+];
 
 export default defineConfig({
   resolve: {
@@ -12,6 +23,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom', // デフォルトはjsdom（フロントエンド）
+    exclude: process.env.BRAINBASE_RUN_DOCKER_INTEGRATION === '1' ? [] : dockerIntegrationTests,
+    maxWorkers: 4,
     include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js', 'tests/mesh/**/*.test.js', 'tests/security/**/*.test.js', 'tests/access-contracts/**/*.test.js', 'tests/candidate-store/**/*.test.js', 'tests/account/**/*.test.js', 'tests/sns/**/*.test.js', 'tests/settings/phase0/**/*.test.js', 'tests/settings/provider-contract/**/*.test.js', 'tests/ai-session-adapter/**/*.test.js'],
     setupFiles: ['tests/setup/test-setup.js'],
     environmentMatchGlobs: [

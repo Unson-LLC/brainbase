@@ -149,6 +149,23 @@ describe('CompanyAuthorityResolver', () => {
         expect(resolved.authorization.data_scopes).toContain('company_authority:policy:8');
     });
 
+    it('marks owner-bound personal resources with the personal data scope', async () => {
+        const repository = canonicalRepository();
+        const resolver = new CompanyAuthorityResolver({ repository });
+        const input = observed({
+            requested_action: {
+                capability_id: 'task.read',
+                resource_ref: 'personal://person-umeda/notes',
+                project_hint: 'unson-backoffice',
+                desired_effect: 'read'
+            }
+        });
+
+        const resolved = await resolver.resolve(input, canonicalRuntime());
+
+        expect(resolved.authorization.data_scopes).toContain('personal');
+    });
+
     it.each([
         ['canonical project id', 'project-unson-backoffice', 'unson-backoffice'],
         ['canonical project code', 'unson-backoffice', 'project-unson-backoffice']
@@ -173,7 +190,7 @@ describe('CompanyAuthorityResolver', () => {
 
         expect(repository.resolveCanonicalAuthority).toHaveBeenCalledWith(expect.objectContaining({
             project_id: 'project-unson-backoffice',
-            resource_ref: `project:${projectRef}`
+            resource_ref: 'project:project-unson-backoffice'
         }));
         expect(resolved.company_authority.resource_ref).toBe(resourceRef);
         expect(resolved.authorization.data_scopes).toContain(

@@ -293,6 +293,8 @@ describe('remote judgment Hook HTTP boundary', () => {
   for (const [field, toolName] of [
     ['tool_name', 'mcp__brainbase__brainbase_judgment_state_record'],
     ['toolName', 'mcp__brainbase__brainbase_judgment_state_record'],
+    ['tool_name', 'mcp__brainbase__brainbase_judgment_audit_read'],
+    ['toolName', 'mcp__brainbase__brainbase_judgment_audit_read'],
   ] as const) {
     it(`accepts an empty audit result for the canonical internal judgment state tool form ${field}:${toolName}`, async () => {
       const result = await handleRemoteJudgmentHookRequest(request({
@@ -317,6 +319,8 @@ describe('remote judgment Hook HTTP boundary', () => {
     'brainbase_judgment_state_record',
     'prefix_brainbase_judgment_state_record',
     'brainbase_judgment_state_record_suffix',
+    'brainbase_judgment_audit_read',
+    'mcp__brainbase__brainbase_judgment_audit_read_suffix',
   ]) {
     it(`rejects an empty audit result for a near-match internal tool name ${toolName}`, async () => {
       const result = await handleRemoteJudgmentHookRequest(request({

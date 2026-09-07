@@ -43,7 +43,7 @@ describe('Brainbase Routine Runner', () => {
             name: 'brainbase-ohayo'
         });
         expect(receipt.run.project_id).toBe('brainbase');
-        expect(receipt.run.external_run_id).toBe('brainbase-ohayo:thread-123');
+        expect(receipt.run.external_run_id).toBe(`brainbase-ohayo:thread-123:${finishedAt}`);
         expect(receipt.run.status).toBe('success');
         expect(receipt.run.observation_kind).not.toBe('connector_observation');
     });

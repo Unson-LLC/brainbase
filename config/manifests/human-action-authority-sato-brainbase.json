@@ -44,6 +44,42 @@
           "stop_conditions": [],
           "valid_from": "2026-09-05T00:00:00.000Z",
           "valid_until": null
+        },
+        {
+          "resource_ref": "personal://per_01KGYC7NNS0VXADK7NP48W4VR5/notes",
+          "capability_id": "personal_read",
+          "decision": "auto",
+          "allowed_effects": [
+            "read"
+          ],
+          "responsible_person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+          "accountable_person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+          "approver_person_id": null,
+          "delegated_by_person_id": null,
+          "resource_revision": "1",
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "stop_conditions": [],
+          "valid_from": "2026-09-07T00:00:00.000Z",
+          "valid_until": null
+        },
+        {
+          "resource_ref": "personal://per_01KGYC7NNS0VXADK7NP48W4VR5/notes",
+          "capability_id": "personal_write",
+          "decision": "auto",
+          "allowed_effects": [
+            "write"
+          ],
+          "responsible_person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+          "accountable_person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+          "approver_person_id": null,
+          "delegated_by_person_id": null,
+          "resource_revision": "1",
+          "policy_revision": "1",
+          "raci_revision": "1",
+          "stop_conditions": [],
+          "valid_from": "2026-09-07T00:00:00.000Z",
+          "valid_until": null
         }
       ]
     }
