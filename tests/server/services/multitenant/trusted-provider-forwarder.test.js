@@ -796,6 +796,41 @@ describe('trusted provider HTTP forwarder', () => {
         }
     );
 
+    it('P0-1: judgment state recordをproject非依存の引数のまま転送する', async () => {
+        const fetchImpl = vi.fn(async () => ({
+            status: 200,
+            headers: { get: () => 'application/json' },
+            json: async () => ({ jsonrpc: '2.0', id: 14, result: { status: 'ok' } })
+        }));
+        const forwarder = createTrustedProviderForwardersFromEnv({
+            BRAINBASE_MCP_URL: 'https://brainbase.example/mcp',
+            BRAINBASE_MCP_SERVICE_TOKEN: 'brainbase-service-token'
+        }, { fetchImpl }).get('brainbase');
+
+        await forwarder.forward({
+            credential: Buffer.from('brainbase-service-token'),
+            operation: 'brainbase.authority_mcp.post',
+            authority_project_binding: { project_id: 'project-1', project_code: 'mana' },
+            request: {
+                body: {
+                    jsonrpc: '2.0', id: 14, method: 'tools/call',
+                    params: {
+                        name: 'brainbase_judgment_state_record',
+                        arguments: {
+                            status: 'completed', pending_safe_work: false, runtime_reason_code: null,
+                            project_code: 'spoofed'
+                        }
+                    }
+                }
+            }
+        });
+
+        const forwarded = JSON.parse(fetchImpl.mock.calls[0][1].body);
+        expect(forwarded.params.arguments).toEqual({
+            status: 'completed', pending_safe_work: false, runtime_reason_code: null
+        });
+    });
+
     it.each(['initialize', 'notifications/initialized', 'ping', 'tools/list'])(
         'authority MCPはMCP lifecycleの%sをproject overrideなしで転送する',
         async (method) => {
