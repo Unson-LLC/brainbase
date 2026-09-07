@@ -4174,13 +4174,15 @@ export function successOutput(
             typeof turnRef === 'string'
                 ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input (if the tool rejects a missing turn_input, pass turn_input as {"turn_ref": ${JSON.stringify(turnRef)}}). ${MODEL_INTERPRETATION_SHAPE}`
                 : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
-            'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
+            'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.'
+        ]),
+        ...bootstrapHostAutonomyInstructions,
+        ...contractInstructions,
+        ...(surfaceDegraded ? [] : [
             typeof turnRef === 'string'
                 ? `After that call succeeds, the PostToolUse system message confirms the judgment contract. The final user-facing response must start with the complete Host-generated 🧠/📚/⚠️ audit block in journal order. Before answering, call ${JUDGMENT_AUDIT_READ_TOOL_NAME} with turn_ref=${JSON.stringify(turnRef)} and put the returned prefix at the top unchanged. For implementation or operation turns, make that call immediately before the final ${JUDGMENT_STATE_TOOL_NAME} after all business tools and value proof are complete; if another Brainbase business tool runs afterward, read the current prefix again. Preserve the original business body after that prefix.`
                 : 'After that call succeeds, the PostToolUse system message confirms the judgment contract. The final user-facing response must start with the complete Host-generated 🧠/📚/⚠️ audit block in journal order. Before answering, call brainbase_judgment_audit_read with the Host-issued turn_ref and put the returned prefix at the top unchanged. For implementation or operation turns, call it immediately before the final brainbase_judgment_state_record after all business tools and value proof are complete. Preserve the original business body after that prefix.'
         ]),
-        ...bootstrapHostAutonomyInstructions,
-        ...contractInstructions,
         `The full route receipt stays in the per-session judgment journal and is never printed into model context.`
     ].join('\n');
     return {

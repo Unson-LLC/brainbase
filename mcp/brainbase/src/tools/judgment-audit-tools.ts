@@ -1,11 +1,11 @@
 import { execFile as execFileCallback, type ExecFileOptions } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { URL as NodeURL, fileURLToPath } from 'node:url';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 const JUDGMENT_AUDIT_TOOL_NAME = 'brainbase_judgment_audit_read';
 const OWNER_AUDIT_SCHEMA_VERSION = 'brainbase-owner-audit-v1';
 const TURN_REF_PATTERN = /^[a-f0-9]{64}\/[a-f0-9]{64}$/u;
-const HOST_SCRIPT_PATH = fileURLToPath(new URL(
+const HOST_SCRIPT_PATH = fileURLToPath(new NodeURL(
   '../../../../scripts/codex-hooks/judgment-resolver-host.mjs',
   import.meta.url,
 ));
