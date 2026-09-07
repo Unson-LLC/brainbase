@@ -901,7 +901,10 @@ const tools: Tool[] = [
  * Handle tool calls
  */
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
-  if (name === 'search' || name === 'resolve_entity' || name === 'list_entities' || name === 'list_extension_entities') {
+  // Every index consumer must await a fresh, complete snapshot. Metadata and
+  // Resolver calls do not depend on the full Graph index.
+  if (['search', 'resolve_entity', 'list_entities', 'list_extension_entities', 'get_context', 'get_entity'].includes(name)
+    || (name === 'search_personal_kg' && typeof args.person_entity_id === 'string' && args.person_entity_id.trim())) {
     await refreshEntityIndex();
   }
   if (name === 'resolve_entity' || name === 'list_extension_entities') {
@@ -963,11 +966,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const id = args.id as string;
       const entity = getEntity(entityIndex, type, id);
 
-      if (!entity) {
-        return `Entity not found: ${type}/${id}`;
-      }
-
-      return prependPhilosophyContext(formatEntity(entity), args, {
+      return prependPhilosophyContext(entity ? formatEntity(entity) : `Entity not found: ${type}/${id}`, args, {
         scope: 'graph',
         objectType: type,
         operation: 'read',
@@ -1176,7 +1175,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   }
 }
 
-const publishedTools = annotateToolCapabilities([
+export const publishedTools = annotateToolCapabilities([
   ...tools,
   ...controlPlaneTools,
   ...onboardingTools,
@@ -1281,25 +1280,11 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   configuredProjectCodes = config.projectCodes;
   console.error('[brainbase] Using Graph API source');
 
-  // Keep wiki resources/tools available even when the graph API is down.
-  console.error(`[brainbase] Building index...`);
-  try {
-    entityIndex = await buildIndex(source);
-
-    console.error(`[brainbase] Index built:`);
-    console.error(`  - Projects: ${entityIndex.projects.size}`);
-    console.error(`  - People: ${entityIndex.people.size}`);
-    console.error(`  - Orgs: ${entityIndex.orgs.size}`);
-    console.error(`  - RACI: ${entityIndex.raci.size}`);
-    console.error(`  - Apps: ${entityIndex.apps.size}`);
-    console.error(`  - Customers: ${entityIndex.customers.size}`);
-    console.error(`  - Decisions: ${entityIndex.decisions.size}`);
-    console.error(`  - Person aliases: ${entityIndex.aliasToPersonId.size}`);
-    console.error(`  - Org aliases: ${entityIndex.aliasToOrgId.size}`);
-  } catch (error) {
-    console.error('[brainbase] Index build failed, continuing with empty graph index:', error);
-    entityIndex = createEmptyIndex();
-  }
+  // The full Graph projection is loaded on demand by index consumers. Do not
+  // hold the transport or Resolver hostage to it, or turn a failed load into
+  // a successful empty result. refreshEntityIndex atomically publishes only
+  // a complete snapshot and shares concurrent loads.
+  entityIndex = createEmptyIndex();
 
   // Create the MCP server.
   // Factory (not a singleton) so the stateless Streamable HTTP transport can
