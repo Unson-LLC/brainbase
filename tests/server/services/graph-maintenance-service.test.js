@@ -162,6 +162,164 @@ describe('GraphMaintenanceService authorization', () => {
         expect(JSON.stringify(result.required_relation_scope_summary)).not.toContain('app_external');
     });
 
+    it('認可済み別projectの必須relation evidenceだけを検証入力へ追加しsnapshot hashを変えない', async () => {
+        const snapshot = {
+            project_code: 'vibepro',
+            entities: [{
+                id: 'decision_oss', entity_type: 'decision', project_code: 'vibepro',
+                lifecycle_status: 'active', payload: { status: 'decided' },
+                role_min: 'member', sensitivity: 'internal', version: 1
+            }, {
+                id: 'vibepro', entity_type: 'project', project_code: 'vibepro',
+                lifecycle_status: 'active', payload: {},
+                role_min: 'member', sensitivity: 'internal', version: 1
+            }],
+            edges: [{
+                id: 'edge_scope', from_id: 'decision_oss', to_id: 'vibepro',
+                rel_type: 'belongs_to_project', project_code: 'vibepro', lifecycle_status: 'active',
+                payload: {}, role_min: 'member', sensitivity: 'internal', version: 1
+            }],
+            suppression_summary: { edge_count: 0, reasons: {} }
+        };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const validateOntology = vi.fn(({ snapshot: ontologySnapshot }) => ({
+            valid: ontologySnapshot.edges.some((edge) => edge.from_id === 'decision_oss'
+                && edge.to_id === 'person_sato' && edge.relation === 'owned_by'),
+            violations: []
+        }));
+        const validatingService = new GraphMaintenanceService({
+            infoSSOTService: {
+                withAccessContext: async (_access, callback) => callback({}),
+                validateOntology
+            }
+        });
+        validatingService.loadSnapshot = vi.fn(async () => ({ snapshot }));
+        validatingService.loadRequiredRelationEvidence = vi.fn(async () => ({
+            edges: [{
+                id: 'edge_decider', from_id: 'decision_oss', to_id: 'person_sato',
+                rel_type: 'owned_by', project_code: 'brainbase', lifecycle_status: 'active'
+            }],
+            externalEntities: [{
+                id: 'person_sato', entity_type: 'person', project_code: 'brainbase',
+                reference_scope: 'same_organization', lifecycle_status: 'active'
+            }],
+            suppressedEdgeCount: 0
+        }));
+
+        const result = await validatingService.validate({
+            organizationId: 'org_unson', projectCodes: ['brainbase', 'vibepro'], role: 'ceo'
+        }, { projectCode: 'vibepro', strictCollection: true });
+
+        expect(result).toMatchObject({
+            valid: true,
+            collection_complete: true,
+            snapshot_hash: snapshot.hash,
+            required_relation_evidence_summary: {
+                included: { cross_project_edges: 1, metadata_entities: 1 },
+                excluded: { inaccessible_edges: 0 }
+            }
+        });
+        expect(snapshot.edges).toEqual([expect.objectContaining({ id: 'edge_scope' })]);
+        expect(snapshot.external_entities).toBeUndefined();
+        expect(validateOntology).toHaveBeenCalledWith({ snapshot: expect.objectContaining({
+            entities: expect.arrayContaining([expect.objectContaining({ id: 'person_sato', type: 'person' })]),
+            edges: expect.arrayContaining([expect.objectContaining({ id: 'edge_decider', relation: 'owned_by' })])
+        }) });
+    });
+
+    it('未認可projectの必須relation evidenceを採用しない', async () => {
+        const snapshot = {
+            project_code: 'vibepro',
+            entities: [{
+                id: 'decision_oss', entity_type: 'decision', project_code: 'vibepro',
+                lifecycle_status: 'active', payload: { status: 'decided' }
+            }],
+            edges: []
+        };
+        snapshot.hash = hashGraphSnapshot(snapshot);
+        const validatingService = new GraphMaintenanceService({
+            infoSSOTService: {
+                withAccessContext: async (_access, callback) => callback({}),
+                validateOntology: vi.fn(({ snapshot: ontologySnapshot }) => ({
+                    valid: ontologySnapshot.edges.length > 0,
+                    violations: ontologySnapshot.edges.length ? [] : [{
+                        rule_id: 'CON-DECISION-DECIDER-001', entity_id: 'decision_oss'
+                    }]
+                }))
+            }
+        });
+        validatingService.loadSnapshot = vi.fn(async () => ({ snapshot }));
+        validatingService.loadRequiredRelationEvidence = vi.fn(async () => ({
+            edges: [], externalEntities: [], suppressedEdgeCount: 0
+        }));
+
+        const result = await validatingService.validate({
+            organizationId: 'org_unson', projectCodes: ['vibepro'], role: 'ceo'
+        }, { projectCode: 'vibepro', strictCollection: true });
+
+        expect(result.valid).toBe(false);
+        expect(result.ontology.violations).toEqual([
+            { rule_id: 'CON-DECISION-DECIDER-001', entity_id: 'decision_oss' }
+        ]);
+        expect(result.snapshot_hash).toBe(snapshot.hash);
+    });
+
+    it('必須relation evidenceのSQLをorganization・project・role・clearanceへ限定する', async () => {
+        const client = { query: vi.fn()
+            .mockResolvedValueOnce({ rows: [{
+                id: 'edge_decider', from_id: 'decision_oss', to_id: 'person_sato',
+                rel_type: 'owned_by', project_code: 'brainbase', payload: {}, role_min: 'member',
+                sensitivity: 'internal', lifecycle_status: 'active', version: 1
+            }] })
+            .mockResolvedValueOnce({ rows: [{
+                id: 'person_sato', entity_type: 'person', project_code: 'brainbase',
+                organization_id: 'org_unson', role_min: 'member', sensitivity: 'internal',
+                lifecycle_status: 'active', version: 1
+            }] }) };
+        const evidenceService = new GraphMaintenanceService({ infoSSOTService: {
+            resolveOntology: () => ({ kernel: { manifest: { constraints: [{
+                kind: 'required_relation_when', relation: 'owned_by'
+            }] } } })
+        } });
+
+        const evidence = await evidenceService.loadRequiredRelationEvidence(client, {
+            organizationId: 'org_unson', projectCodes: ['brainbase', 'vibepro'],
+            role: 'ceo', clearance: ['internal', 'restricted']
+        }, ['decision_oss']);
+
+        expect(client.query).toHaveBeenNthCalledWith(1, expect.stringContaining('p.organization_id=$3'), [
+            ['decision_oss'], ['owned_by'], 'org_unson', ['brainbase', 'vibepro'],
+            ['internal', 'restricted'], 'ceo'
+        ]);
+        expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining('membership_project.organization_id=$2'), [
+            ['person_sato'], 'org_unson', ['brainbase', 'vibepro'], ['internal', 'restricted'], 'ceo'
+        ]);
+        expect(evidence).toMatchObject({
+            edges: [expect.objectContaining({ id: 'edge_decider' })],
+            externalEntities: [expect.objectContaining({
+                id: 'person_sato', reference_scope: 'same_organization'
+            })],
+            suppressedEdgeCount: 0
+        });
+    });
+
+    it('必須relation evidence取得失敗を0件へ縮退せずtyped incompleteで閉じる', async () => {
+        const evidenceService = new GraphMaintenanceService({ infoSSOTService: {
+            resolveOntology: () => ({ kernel: { manifest: { constraints: [{
+                kind: 'required_relation', relation: 'owned_by'
+            }] } } })
+        } });
+
+        await expect(evidenceService.loadRequiredRelationEvidence({
+            query: vi.fn(async () => { throw new Error('database unavailable'); })
+        }, {
+            organizationId: 'org_unson', projectCodes: ['brainbase', 'vibepro'],
+            role: 'ceo', clearance: ['internal']
+        }, ['decision_oss'])).rejects.toMatchObject({
+            code: 'GRAPH_REQUIRED_RELATION_EVIDENCE_INCOMPLETE', status: 503
+        });
+    });
+
     it('Plan差分はvalidatorのorphan categoryを孤立件数へ集計する', () => {
         const snapshot = {
             project_code: 'brainbase',
