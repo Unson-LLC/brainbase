@@ -45,6 +45,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { requirePersonalKnowledgeAccess } from '../middleware/personal-knowledge-access.js';
 import { requirePersonalKnowledgeCompanyAuthority } from '../middleware/personal-knowledge-company-authority.js';
 import { requireRoutineCompanyAuthority } from '../middleware/routine-company-authority.js';
+import { requireJudgmentCompanyAuthority } from '../middleware/judgment-company-authority.js';
 import {
     createPersonalKnowledgePromotionAuthorityGuard,
     createUnavailablePersonalKnowledgePromotionAuthorityGuard
@@ -124,6 +125,7 @@ export function registerJudgmentResolutionApiRoute(app, {
     app.use(
         '/api/judgment',
         requireAuth(authService, { allowInsecureHeaders: false }),
+        requireJudgmentCompanyAuthority({ now }),
         createJudgmentResolutionRouter({
             service, bindingSecret, now, maxAgeMs, maxFutureSkewMs, receiptWriter,
             resolveReceiptAccess: createJudgmentReceiptAccessResolver({ authService })
