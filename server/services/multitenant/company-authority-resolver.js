@@ -249,6 +249,9 @@ export class CompanyAuthorityResolver {
             project_hint: request.requested_action.project_hint
         });
         assertResolvedIdentity(identity, request, resourceRefBinding);
+        const authorityResourceRef = resourceRefBinding.projectRef === null
+            ? resourceRefBinding.lookupResourceRef
+            : `project:${identity.project_id}`;
         const authority = await this.repository.resolveCanonicalAuthority({
             tenant_id: request.tenant_id,
             canonical_person_id: identity.canonical_person_id,
@@ -256,7 +259,7 @@ export class CompanyAuthorityResolver {
             membership_revision: identity.membership_revision,
             organization_id: identity.organization_id,
             project_id: identity.project_id,
-            resource_ref: resourceRefBinding.lookupResourceRef,
+            resource_ref: authorityResourceRef,
             capability_id: request.requested_action.capability_id,
             desired_effect: request.requested_action.desired_effect
         });

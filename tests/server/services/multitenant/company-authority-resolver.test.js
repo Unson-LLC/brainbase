@@ -173,7 +173,7 @@ describe('CompanyAuthorityResolver', () => {
 
         expect(repository.resolveCanonicalAuthority).toHaveBeenCalledWith(expect.objectContaining({
             project_id: 'project-unson-backoffice',
-            resource_ref: `project:${projectRef}`
+            resource_ref: 'project:project-unson-backoffice'
         }));
         expect(resolved.company_authority.resource_ref).toBe(resourceRef);
         expect(resolved.authorization.data_scopes).toContain(
