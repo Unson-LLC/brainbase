@@ -152,7 +152,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         const additionalContext = JSON.parse(first.stdout).hookSpecificOutput.additionalContext;
         expect(additionalContext).toContain('The final user-facing response must start with the complete Host-generated 🧠/📚/⚠️ audit block');
-        expect(additionalContext).toContain('Stop will reject the first answer once and provide the complete exact block');
+        expect(additionalContext).toContain('brainbase_judgment_audit_read');
+        expect(additionalContext).not.toContain('Stop will reject the first answer once');
         expect(additionalContext).toContain('opened one unresolved judgment episode');
         expect(additionalContext).toContain('there is no one-call-per-turn limit');
         expect(additionalContext).toContain(
@@ -2045,7 +2046,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
     }, 20_000);
 
-    it('必要なknowledge/stateが揃い監査行だけ欠けた初回Stopを差し戻し修復後のStopで確定する', async () => {
+    it.each([false, true])('監査行の事前取得=%sで初回確定または既存の有限修復を行う', async (preflight) => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const hostUrl = await listen((request, response) => {
@@ -2114,6 +2115,35 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const routeLine = JSON.parse(route.stdout).systemMessage;
         expect(routeLine).toMatch(/^📚 Brainbase参照先:/u);
 
+        let auditPrefix;
+        if (preflight) {
+            const turnRef = `${hash(identity.session_id)}/${hash(identity.turn_id)}`;
+            const eventsPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.events`);
+            const eventFilesBefore = readdirSync(eventsPath).sort();
+            const audit = await run(process.execPath, [
+                '--import', 'tsx', '--input-type=module', '-e',
+                `import { handleJudgmentAuditToolCall } from './mcp/brainbase/src/tools/judgment-audit-tools.ts';
+                 process.stdout.write(JSON.stringify(await handleJudgmentAuditToolCall('brainbase_judgment_audit_read', { turn_ref: process.argv[1] })));`,
+                turnRef
+            ], { env });
+            expect(audit.code).toBe(0);
+            const auditResponse = JSON.parse(audit.stdout);
+            expect(auditResponse.status).toBe('ok');
+            expect(readdirSync(eventsPath).sort()).toEqual(eventFilesBefore);
+            const recordedAudit = await run('bash', [wrapper], { env, input: JSON.stringify({
+                hook_event_name: 'PostToolUse', ...identity,
+                tool_name: 'mcp__brainbase__brainbase_judgment_audit_read', tool_use_id: 'tool-audit-read',
+                tool_input: { turn_ref: turnRef }, tool_response: auditResponse
+            }) });
+            expect(recordedAudit).toMatchObject({ code: 0, stderr: '' });
+            expect(JSON.parse(recordedAudit.stdout)).toEqual({});
+            const auditEvent = JSON.parse(readFileSync(join(eventsPath, `${hash('tool-audit-read')}.json`), 'utf8'));
+            expect(auditEvent).toMatchObject({ event_kind: 'ignored', satisfies: [] });
+            auditPrefix = auditResponse.data.prefix;
+            expect(auditPrefix.split('\n')).toEqual([
+                expect.stringMatching(/^🧠 判断参照:/u), routeLine
+            ]);
+        }
         const state = await run('bash', [wrapper], {
             env,
             input: JSON.stringify({
@@ -2133,11 +2163,24 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             env,
             input: JSON.stringify({
                 hook_event_name: 'Stop', ...identity, stop_hook_active: false,
-                last_assistant_message: '正本を確認し、修正と検証を完了しました。'
+                last_assistant_message: `${preflight ? `${auditPrefix}\n\n` : ''}正本を確認し、修正と検証を完了しました。`
             })
         });
         expect(firstStop).toMatchObject({ code: 0, stderr: '' });
         const firstStopOutput = JSON.parse(firstStop.stdout);
+        if (preflight) {
+            expect(firstStopOutput.decision).toBeUndefined();
+            const directory = join(journal, hash(identity.session_id));
+            const ref = hash(identity.turn_id);
+            expect(existsSync(join(directory, `${ref}.continuation.json`))).toBe(false);
+            expect(JSON.parse(readFileSync(join(directory, `${ref}.final.json`), 'utf8'))).toMatchObject({
+                completion_status: 'complete', owner_audit_complete: true,
+                owner_audit_source: 'assistant_answer', owner_audit_line_count: 2,
+                answer_digest: hash(`${auditPrefix}\n\n正本を確認し、修正と検証を完了しました。`),
+                stop_state: { status: 'completed', evidence_event_count: 1, source: 'journal' }
+            });
+            return;
+        }
         expect(firstStopOutput).toMatchObject({ decision: 'block' });
         const auditBlock = auditBlockFromStopOutput(firstStopOutput);
         expect(auditBlock.split('\n')).toEqual([

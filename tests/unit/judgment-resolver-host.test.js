@@ -14,6 +14,7 @@ import {
     finalizeEpisode,
     processHookPayload,
     recordBrainbaseToolUse,
+    readEpisodeAudit,
     resolveAndAdopt,
     startEpisode,
     successOutput
@@ -101,6 +102,15 @@ function validReceipt(args) {
         active_node_definitions: [{ id: 'entry', kind: 'common', instruction: 'Judge first.' }],
         autonomy_policy_ids: []
     };
+}
+
+function eventJournalSnapshot(root, sessionId, turnId) {
+    const directory = join(root, 'journal', hash(sessionId), `${hash(turnId)}.events`);
+    if (!existsSync(directory)) return [];
+    return readdirSync(directory).sort().map((name) => ({
+        name,
+        contents: readFileSync(join(directory, name), 'utf8')
+    }));
 }
 
 afterEach(() => {
@@ -333,8 +343,9 @@ describe('Codex Judgment Resolver Host', () => {
         const context = output.hookSpecificOutput.additionalContext;
 
         expect(context).toContain('The final user-facing response must start with the complete Host-generated');
-        expect(context).toContain('Stop will reject the first answer once');
-        expect(context).toContain('preserve the original business body');
+        expect(context).toContain('brainbase_judgment_audit_read');
+        expect(context).not.toContain('Stop will reject the first answer once');
+        expect(context).toContain('Preserve the original business body after that prefix.');
         expect(context).not.toContain('Stop always renders the complete owner-visible audit block itself as its own systemMessage');
     });
 
@@ -1918,7 +1929,7 @@ describe('Codex Judgment Resolver Host', () => {
             brainbase_projects: 'retrieve', brainbase_bootstrap_config: 'retrieve', brainbase_admin_read: 'retrieve',
             brainbase_run_receipt_inbox: 'retrieve', brainbase_run_receipt_history: 'retrieve', brainbase_run_receipt_diagnosis: 'retrieve',
             brainbase_automation_run_detail: 'retrieve', brainbase_meeting_automation_diagnosis: 'retrieve', brainbase_onboarding_get: 'retrieve',
-            brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'retrieve', authorize_tenant_resource: 'retrieve',
+            brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_judgment_audit_read: 'ignored', brainbase_get_meeting_minutes_context: 'retrieve', authorize_tenant_resource: 'retrieve',
             mesh_peers: 'retrieve', graph_get_plan_receipt: 'retrieve', graph_validate: 'retrieve',
             brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
             brainbase_automation_human_step_resolve: 'write', brainbase_onboarding_start: 'write', brainbase_onboarding_ingest: 'write',
@@ -4711,8 +4722,9 @@ describe('turn_input handoff and resolved judgment line', () => {
         expect(context).not.toContain(turnInputPath);
         expect(context).toContain('the PostToolUse system message confirms the judgment contract');
         expect(context).toContain('The final user-facing response must start with the complete Host-generated');
-        expect(context).toContain('Stop will reject the first answer once');
-        expect(context).toContain('preserve the original business body');
+        expect(context).toContain('brainbase_judgment_audit_read');
+        expect(context).not.toContain('Stop will reject the first answer once');
+        expect(context).toContain('Preserve the original business body after that prefix.');
         expect(context).not.toContain('Stop always renders the complete owner-visible audit block itself as its own systemMessage');
         expect(context).not.toContain('Autonomy decision: escalate.');
         expect(context).not.toContain('⚠️ 確認が必要[classification_missing]:');
@@ -5509,4 +5521,242 @@ describe('resolved prior episode continuity', () => {
             }
         }
     );
+});
+
+describe('owner-audit preflight read', () => {
+    it('監査行を事前取得すると初回Stopで本文をそのまま確定し修復markerを作らない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-audit-preflight',
+            turn_id: 'turn-audit-preflight', prompt: '回答して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+            selected_dag_ids: ['general.v1']
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        const turnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
+        const audit = readEpisodeAudit(turnRef, { env });
+        const body = '回答本文を一度だけ残します。\n改行もそのまま保持します。';
+        const answer = `${audit.prefix}\n\n${body}`;
+
+        expect(audit).toMatchObject({
+            schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+            lines: [episode.owner_audit.display_line, episode.audit_contract.zero_call_display_line]
+        });
+        expect(audit.prefix).toBe(audit.lines.join('\n'));
+
+        const result = finalizeEpisode({
+            ...payload, hook_event_name: 'Stop', stop_hook_active: false,
+            last_assistant_message: answer
+        }, { env });
+
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output.systemMessage).toBe(audit.prefix);
+        expect(result.final).toMatchObject({
+            completion_status: 'complete', owner_audit_complete: true,
+            owner_audit_source: 'assistant_answer', owner_audit_line_count: audit.lines.length,
+            answer_digest: hash(answer)
+        });
+        expect(result.final.stop_repair).toBeUndefined();
+        expect(existsSync(join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.continuation.json`))).toBe(false);
+        expect(answer.slice(`${audit.prefix}\n\n`.length)).toBe(body);
+    });
+
+    it('valid readEpisodeAuditはevent集合を変更せず、invalid・traversal・unknown turn_refを拒否する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-audit-read-boundary',
+            turn_id: 'turn-audit-read-boundary', prompt: 'Brainbaseを確認して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'investigate', action_kind: 'read', domains: ['knowledge'] },
+            selected_dag_ids: ['knowledge.v1']
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        const business = recordBrainbaseToolUse({
+            ...payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_admin_read',
+            tool_use_id: 'audit-read-business-tool',
+            tool_input: { view: 'overview', project: 'brainbase', limit: 100 },
+            tool_response: withRetrievalAudit('brainbase_admin_read', { status: 'ok', data: { candidates: [] } })
+        }, { env });
+        expect(business).toMatchObject({ event_kind: 'retrieve', success: true });
+        const before = eventJournalSnapshot(root, payload.session_id, payload.turn_id);
+        const turnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
+
+        const audit = readEpisodeAudit(turnRef, { env });
+        expect(audit.lines).toContain(business.display_line);
+        expect(eventJournalSnapshot(root, payload.session_id, payload.turn_id)).toEqual(before);
+
+        expect(() => readEpisodeAudit('invalid', { env })).toThrow();
+        expect(() => readEpisodeAudit(`${hash(payload.session_id)}/../${hash(payload.turn_id)}`, { env })).toThrow();
+        expect(() => readEpisodeAudit(`${hash('unknown-session')}/${hash('unknown-turn')}`, { env })).toThrow();
+        expect(eventJournalSnapshot(root, payload.session_id, payload.turn_id)).toEqual(before);
+    });
+
+    it('runtime 2.4の未完了stateは正しい事前取得prefixでも初回Stopを継続させる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-audit-preflight-pending',
+            turn_id: 'turn-audit-preflight-pending', prompt: '修正して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse', tool_name: 'apply_patch',
+            tool_use_id: 'audit-preflight-pending-apply', tool_input: {}, tool_response: { success: true }
+        }, { env });
+        recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
+            tool_use_id: 'audit-preflight-pending-state',
+            tool_input: { status: 'pending', pending_safe_work: true, runtime_reason_code: null },
+            tool_response: {
+                status: 'ok',
+                data: { schema_version: 'brainbase-stop-state-v1', status: 'pending', pending_safe_work: true, runtime_reason_code: null }
+            }
+        }, { env });
+        const turnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
+        const audit = readEpisodeAudit(turnRef, { env });
+        const result = finalizeEpisode({
+            ...payload, hook_event_name: 'Stop', stop_hook_active: false,
+            last_assistant_message: `${audit.prefix}\n\n安全な作業を続けます。`
+        }, { env });
+
+        expect(audit.lines).toEqual([episode.owner_audit.display_line, episode.audit_contract.zero_call_display_line]);
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.output.reason).toContain('journal状態が未完了');
+        expect(result.continuation).toMatchObject({
+            autonomy_continuation: { trigger_code: 'unfinished_safe_work', status: 'requested' }
+        });
+        expect(result.final).toBeNull();
+    });
+
+    it('runtime 2.4のstate欠落は正しい事前取得prefixでも初回Stopを継続させる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-audit-preflight-missing',
+            turn_id: 'turn-audit-preflight-missing', prompt: '修正して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+            classification: { intent: 'implement', action_kind: 'write', risk: 'medium', domains: ['engineering'] },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse', tool_name: 'apply_patch',
+            tool_use_id: 'audit-preflight-missing-apply', tool_input: {}, tool_response: { success: true }
+        }, { env });
+        const turnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
+        const audit = readEpisodeAudit(turnRef, { env });
+        const result = finalizeEpisode({
+            ...payload, hook_event_name: 'Stop', stop_hook_active: false,
+            last_assistant_message: `${audit.prefix}\n\n安全な作業を完了しました。`
+        }, { env });
+
+        expect(audit.lines).toEqual([episode.owner_audit.display_line, episode.audit_contract.zero_call_display_line]);
+        expect(result.output).toMatchObject({ decision: 'block' });
+        expect(result.output.reason).toContain('brainbase_judgment_state_record');
+        expect(result.continuation.autonomy_continuation).toBeUndefined();
+        expect(result.final).toBeNull();
+    });
+
+    it('business tool後の古い事前取得prefixはStopで拒否し、再取得すると最新行を含む', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-audit-preflight-stale',
+            turn_id: 'turn-audit-preflight-stale', prompt: '確認して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+            selected_dag_ids: ['general.v1']
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        const turnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
+        const stale = readEpisodeAudit(turnRef, { env });
+        const business = recordBrainbaseToolUse({
+            ...payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_admin_read',
+            tool_use_id: 'audit-preflight-stale-business-tool',
+            tool_input: { view: 'overview', project: 'brainbase', limit: 100 },
+            tool_response: withRetrievalAudit('brainbase_admin_read', { status: 'ok', data: { candidates: [] } })
+        }, { env });
+        const answer = `${stale.prefix}\n\n業務結果を確認しました。`;
+        const blocked = finalizeEpisode({
+            ...payload, hook_event_name: 'Stop', stop_hook_active: false,
+            last_assistant_message: answer
+        }, { env });
+        const fresh = readEpisodeAudit(turnRef, { env });
+
+        expect(business).toMatchObject({ success: true });
+        expect(stale.prefix).not.toContain(business.display_line);
+        expect(fresh.prefix).toContain(business.display_line);
+        expect(blocked.output).toMatchObject({ decision: 'block' });
+        expect(blocked.output.reason).toContain(business.display_line);
+        expect(blocked.continuation.missing_capabilities).toContain('owner.audit.display');
+        expect(blocked.final).toBeNull();
+    });
 });

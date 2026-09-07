@@ -106,13 +106,15 @@ const AUTONOMY_QUESTION_PATTERN = /^⚠️ 確認が必要\[([a-z_]+)\]:\s*(.+)$
 const STRUCTURED_STOP_STATE_PATTERN = /^<!-- brainbase-stop-state:(\{.*\}) -->$/u;
 const JUDGMENT_STATE_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_state_record';
 const JUDGMENT_VALUE_PROOF_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_value_proof_record';
+const JUDGMENT_AUDIT_READ_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_audit_read';
 const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'get_context', 'list_entities', 'get_entity', 'list_extension_types', 'list_extension_entities',
     'search', 'resolve_entity', 'search_wiki', 'get_wiki_page', 'search_personal_kg',
     'brainbase_projects', 'brainbase_bootstrap_config', 'brainbase_admin_read',
     'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
     'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
-    'brainbase_resolve_turn', 'brainbase_knowledge_resolve', 'brainbase_get_meeting_minutes_context', 'authorize_tenant_resource',
+    'brainbase_resolve_turn', 'brainbase_knowledge_resolve', 'brainbase_judgment_audit_read',
+    'brainbase_get_meeting_minutes_context', 'authorize_tenant_resource',
     'mesh_peers', 'graph_get_plan_receipt', 'graph_validate'
 ]);
 const BRAINBASE_WRITE_TOOL_NAMES = Object.freeze([
@@ -130,6 +132,7 @@ export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
     ['search_personal_kg', 'search'],
     ['brainbase_resolve_turn', 'turn_resolution'],
     ['brainbase_knowledge_resolve', 'route'],
+    ['brainbase_judgment_audit_read', 'ignored'],
     ['brainbase_judgment_state_record', 'state'],
     ['brainbase_judgment_value_proof_record', 'value_proof']
 ]));
@@ -141,6 +144,7 @@ export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
     brainbase_run_receipt_inbox: 'control_plane', brainbase_run_receipt_history: 'control_plane', brainbase_run_receipt_diagnosis: 'published_contract',
     brainbase_automation_run_detail: 'published_contract', brainbase_meeting_automation_diagnosis: 'published_contract', brainbase_onboarding_get: 'published_contract',
     brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', authorize_tenant_resource: 'tenant_authorization',
+    brainbase_judgment_audit_read: 'ignored',
     mesh_peers: 'mesh_peers', graph_get_plan_receipt: 'graph_contract', graph_validate: 'graph_contract',
     brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
     brainbase_automation_human_step_resolve: 'published_contract', brainbase_onboarding_start: 'published_contract', brainbase_onboarding_ingest: 'published_contract',
@@ -1879,6 +1883,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const brainbaseTool = /^mcp__brainbase__/u.test(toolName);
     const judgmentStateTool = toolName === JUDGMENT_STATE_TOOL_NAME;
     const judgmentValueProofTool = toolName === JUDGMENT_VALUE_PROOF_TOOL_NAME;
+    const judgmentAuditReadTool = toolName === JUDGMENT_AUDIT_READ_TOOL_NAME;
     if (!toolName) return null;
     if (!identity) {
         if (brainbaseTool) throw new Error('judgment_episode_identity_missing');
@@ -1948,22 +1953,24 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const retrievalSemanticSuccess = BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME[toolName.replace(/^mcp__brainbase__/u, '')] === 'owner_audit'
         ? Boolean(retrieval)
         : Boolean(retrieval && semanticResult);
-    const responseSuccess = Boolean(desktopEvidence) || responseSucceeded(responseValue, {
-        allowTransportSuccess: brainbaseTool && ['search', 'retrieve'].includes(kind) && retrievalSemanticSuccess,
-        allowExplicitSuccess: !brainbaseTool,
-        allowImplicitSuccess: !brainbaseTool,
-        semanticSuccess: kind === 'turn_resolution'
-            ? Boolean(turnResolution)
-            : ['search', 'retrieve'].includes(kind)
-                ? retrievalSemanticSuccess
-            : kind === 'value_proof'
-            ? Boolean(valueProofInput)
-            : kind === 'route'
-                ? resolution?.status === 'resolved'
-            : kind === 'state'
-                    ? Boolean(stopState && canonicalJson(stopState) === canonicalJson(requestedStopState))
-                    : Boolean(taskResult || controlPlaneRead || publishedToolResult)
-    });
+    const responseSuccess = judgmentAuditReadTool
+        ? responseSucceeded(responseValue, { allowExplicitSuccess: true })
+        : Boolean(desktopEvidence) || responseSucceeded(responseValue, {
+            allowTransportSuccess: brainbaseTool && ['search', 'retrieve'].includes(kind) && retrievalSemanticSuccess,
+            allowExplicitSuccess: !brainbaseTool,
+            allowImplicitSuccess: !brainbaseTool,
+            semanticSuccess: kind === 'turn_resolution'
+                ? Boolean(turnResolution)
+                : ['search', 'retrieve'].includes(kind)
+                    ? retrievalSemanticSuccess
+                : kind === 'value_proof'
+                ? Boolean(valueProofInput)
+                : kind === 'route'
+                    ? resolution?.status === 'resolved'
+                : kind === 'state'
+                        ? Boolean(stopState && canonicalJson(stopState) === canonicalJson(requestedStopState))
+                        : Boolean(taskResult || controlPlaneRead || publishedToolResult)
+        });
     const satisfiesKnowledgeExecution = kind === 'route';
     const auditResponseSuccess = !postToolUseFailure && responseSuccess;
     const retrievalResult = auditResponseSuccess && ['search', 'retrieve'].includes(kind)
@@ -2011,7 +2018,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                 : '呼出';
     const displayLine = turnResolutionUnavailable
         ? '⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（brainbase_api_unavailable）'
-        : !brainbaseTool || judgmentStateTool || judgmentValueProofTool || kind === 'turn_resolution'
+        : !brainbaseTool || judgmentStateTool || judgmentValueProofTool || judgmentAuditReadTool || kind === 'turn_resolution'
         ? null
         : kind === 'route'
         ? routeDisplayLine(inputValue, resolution, auditResponseSuccess)
@@ -2093,9 +2100,10 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                 throw new Error('judgment_turn_resolution_binding_invalid');
             }
         }
+        const auditTurnRef = `${identity.sessionRef}/${paths.turnRef}`;
         const turnResolutionMessage = kind === 'turn_resolution' && responseSuccess && turnResolution
             ? [
-                `🧠 判断契約を確定しました。最終回答の先頭にHost監査行をそのまま表示してください（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）。正確な全行が不明な場合は、最初のStopが一度だけ完全な監査ブロックを返します。`,
+                `🧠 判断契約を確定しました（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）。回答前に${JUDGMENT_AUDIT_READ_TOOL_NAME}をturn_ref=${JSON.stringify(auditTurnRef)}で呼び、返却されたprefixをそのまま回答の冒頭へ置いてください。実装・操作turnでは全業務toolとvalue proofを完了した後、${JUDGMENT_STATE_TOOL_NAME}の直前に同じ監査読取を行ってください。`,
                 'この確定済み判断行が、直前のStop修復指示に含まれた未分類の判断行を置き換えます。古い判断行とclassification_missing確認質問は最終回答へ残さないでください。',
                 ...turnContractExecutionInstructions(turnResolution, env, { hostAutonomy: episode.host_autonomy ?? null })
             ].join('\n')
@@ -2690,7 +2698,7 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
             }
             return { status: 'runtime_escalated', violation: null, stopState: state, stateSource: 'journal' };
         }
-        const successfulEvidence = events.filter((event) => !['state', 'value_proof'].includes(event.event_kind) && event.success);
+        const successfulEvidence = events.filter((event) => !['state', 'value_proof', 'ignored'].includes(event.event_kind) && event.success);
         if (state.runtime_reason_code !== null || successfulEvidence.length === 0) {
             return {
                 status: null,
@@ -2739,7 +2747,7 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
             }
             return { status: 'runtime_escalated', violation: null, stopState: state };
         }
-        const successfulEvidence = events.filter((event) => !['state', 'value_proof'].includes(event.event_kind) && event.success);
+        const successfulEvidence = events.filter((event) => !['state', 'value_proof', 'ignored'].includes(event.event_kind) && event.success);
         if (state.runtime_reason_code !== null || successfulEvidence.length === 0) {
             return {
                 status: null,
@@ -2847,6 +2855,64 @@ function verifyExistingJudgmentValueProofAttention(paths, finalized = null) {
         if (error?.code === 'ENOENT') throw new Error('judgment_value_proof_attention_missing');
         throw error;
     }
+}
+
+// Read the exact Stop prefix before drafting; never finalize or add execution evidence.
+export function readEpisodeAudit(turnRef, { env = process.env } = {}) {
+    if (typeof turnRef !== 'string' || !/^[a-f0-9]{64}\/[a-f0-9]{64}$/u.test(turnRef)) {
+        throw new Error('judgment_audit_turn_ref_invalid');
+    }
+    const [sessionRef, reference] = turnRef.split('/');
+    const root = realpathSync(journalRoot(env));
+    const contained = (path) => {
+        const location = relative(root, realpathSync(path));
+        if (location === '..' || location.startsWith(`..${sep}`) || isAbsolute(location)) {
+            throw new Error('judgment_audit_path_outside_journal');
+        }
+    };
+    const episodePath = join(root, sessionRef, `${reference}.episode.json`);
+    let initial;
+    try {
+        contained(episodePath);
+        initial = verifyEpisode(readJson(episodePath));
+    } catch (error) {
+        if (error?.code === 'ENOENT') throw new Error('judgment_episode_not_found');
+        throw error;
+    }
+    const turnId = initial.turn_input?.turn_id;
+    if (typeof turnId !== 'string' || sha256(turnId) !== reference
+        || initial.turn_input?.conversation_context?.session_ref !== sessionRef) {
+        throw new Error('judgment_audit_turn_binding_invalid');
+    }
+    const paths = journalPaths(sessionRef, turnId, { ...env, BRAINBASE_JUDGMENT_JOURNAL_DIR: root });
+    // Check every existing input before following it, including SQLite's lock path.
+    const checkPaths = () => {
+        for (const path of Object.values(paths)) {
+            if (typeof path === 'string' && isAbsolute(path) && existsSync(path)) contained(path);
+        }
+        if (existsSync(paths.events)) {
+            for (const name of readdirSync(paths.events)) contained(join(paths.events, name));
+        }
+        for (let attempt = 2; attempt <= MAX_CONTINUATION_ATTEMPTS; attempt += 1) {
+            const path = continuationRetryPath(paths, attempt);
+            if (existsSync(path)) contained(path);
+        }
+    };
+    checkPaths();
+    return withEpisodeTransitionLock(paths, () => {
+        checkPaths();
+        const bootstrap = verifyEpisode(readJson(paths.episode));
+        if (canonicalJson(bootstrap) !== canonicalJson(initial)) throw new Error('judgment_episode_start_conflict');
+        const events = episodeEvents(paths);
+        if (turnResolutionRequired(bootstrap)
+            && !events.some((event) => event.success && event.satisfies.includes('judgment.resolve_turn'))) {
+            throw new Error('judgment_turn_resolution_missing');
+        }
+        const episode = effectiveEpisode(bootstrap, events);
+        const continuation = effectiveContinuationMarker(latestContinuation(paths), episode);
+        const lines = requiredAuditLines(episode, events, continuation);
+        return { schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef, lines, prefix: lines.join('\n') };
+    }, env);
 }
 
 export function finalizeEpisode(payload, {
@@ -3327,7 +3393,7 @@ function latestContinuation(paths) {
     return marker;
 }
 
-const NON_BUSINESS_EVENT_KINDS = new Set(['state', 'value_proof', 'turn_resolution', 'route']);
+const NON_BUSINESS_EVENT_KINDS = new Set(['state', 'value_proof', 'turn_resolution', 'route', 'ignored']);
 const NON_BUSINESS_TOOL_PATTERN = /(?:^|__)(?:get_goal|update_goal|create_goal|search_tools|list_tools|list_mcp_resources|list_mcp_resource_templates|curr_time|sleep)$/u;
 
 function isSuccessfulBusinessExecutionEvent(event) {
@@ -4109,7 +4175,9 @@ export function successOutput(
                 ? `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once with turn_ref set to ${JSON.stringify(turnRef)} and model_interpretation containing your semantic classification of the user request. The Host saved turn_input in its journal under that reference and the server loads it itself; do not read, print, rebuild, or inline any file, and do not pass turn_input (if the tool rejects a missing turn_input, pass turn_input as {"turn_ref": ${JSON.stringify(turnRef)}}). ${MODEL_INTERPRETATION_SHAPE}`
                 : `Before answering or using any other tool, call ${TURN_RESOLUTION_TOOL_NAME} exactly once. Pass turn_input unchanged as ${canonicalJson(args)} and add model_interpretation containing your semantic classification of the user request. ${MODEL_INTERPRETATION_SHAPE}`,
             'Use the returned TurnContract as the immutable route and capability contract for this episode. UserPromptSubmit does not decide whether Brainbase is needed. Keyword signals are safety floors only: they may add obligations or risk, but their absence never removes requirements inferred by the model.',
-            'After that call succeeds, the PostToolUse system message confirms the judgment contract. The final user-facing response must start with the complete Host-generated 🧠/📚/⚠️ audit block in journal order. If an exact line is unavailable during generation, Stop will reject the first answer once and provide the complete exact block; preserve the original business body after that block.'
+            typeof turnRef === 'string'
+                ? `After that call succeeds, the PostToolUse system message confirms the judgment contract. The final user-facing response must start with the complete Host-generated 🧠/📚/⚠️ audit block in journal order. Before answering, call ${JUDGMENT_AUDIT_READ_TOOL_NAME} with turn_ref=${JSON.stringify(turnRef)} and put the returned prefix at the top unchanged. For implementation or operation turns, make that call immediately before the final ${JUDGMENT_STATE_TOOL_NAME} after all business tools and value proof are complete; if another Brainbase business tool runs afterward, read the current prefix again. Preserve the original business body after that prefix.`
+                : 'After that call succeeds, the PostToolUse system message confirms the judgment contract. The final user-facing response must start with the complete Host-generated 🧠/📚/⚠️ audit block in journal order. Before answering, call brainbase_judgment_audit_read with the Host-issued turn_ref and put the returned prefix at the top unchanged. For implementation or operation turns, call it immediately before the final brainbase_judgment_state_record after all business tools and value proof are complete. Preserve the original business body after that prefix.'
         ]),
         ...bootstrapHostAutonomyInstructions,
         ...contractInstructions,
@@ -4210,6 +4278,16 @@ export async function processHookPayload(payload, dependencies = {}) {
 }
 
 async function main() {
+    if (process.argv[2] === '--read-audit') {
+        try {
+            if (process.argv.length !== 4) throw new Error('judgment_audit_arguments_invalid');
+            process.stdout.write(`${JSON.stringify(readEpisodeAudit(process.argv[3]))}\n`);
+        } catch {
+            process.stderr.write('judgment_audit_read_failed\n');
+            process.exitCode = 1;
+        }
+        return;
+    }
     const input = readFileSync(0, 'utf8');
     let payload;
     try { payload = JSON.parse(input || '{}'); } catch { process.stdout.write(`${JSON.stringify(blockedOutput('hook_payload_invalid'))}\n`); return; }

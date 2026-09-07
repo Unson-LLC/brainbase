@@ -28,6 +28,13 @@ description: Brainbase管理対象turnを1つのjudgment episodeとして扱い�
 
 差し戻し済みruntime 2.4 continuationで必須value proofより先に`completed` state PostToolUseが来た場合、そのPostToolUseは`decision:block`を弱めずに返してfinalを作らない。value proofと新しい最後のstateをjournalへ記録した後も、後続Stopが実際のassistant回答を検証した場合だけ判断レシートを確定する。
 
+## 回答前の監査行取得
+
+- 最終回答を生成する直前に `brainbase_judgment_audit_read({ turn_ref })` を呼び、返された `data.prefix` を回答の先頭へそのまま一度だけ付ける。監査行の文言を推測せず、監査行を得るためだけに最初のStopを発火させない。
+- 実装・操作turnでは、業務toolとvalue proofを完了した後に監査行を取得し、その後 `brainbase_judgment_state_record` を最後のtool callとして実行する。取得後にBrainbaseの業務toolを追加実行した場合は、最新の監査行を取得し直す。
+- この読み取りは参照・検索・業務実行の証拠を増やさず、episodeを完了しない。Stopは引き続き実回答・必須能力・未完了作業を検証する。事前取得を省略した場合や古い監査行を使った場合の、既存の有限修復は維持する。
+- Codex DesktopのStop `systemMessage` は最終assistant回答への追記機能ではない。Hostだけが出力した監査行を表示成功としない。
+
 ## Activation readiness
 
 - Hookファイル、`hooks.json`、`config.toml`のtrust sectionが存在するだけではactiveの証明にならない。`npm run check:judgment-hook-readiness -- --cwd <canonical-checkout>`でCodex Hostの`hooks/list`を照会し、3つのHookが`ready_for_fresh_task`であることを確認する。
