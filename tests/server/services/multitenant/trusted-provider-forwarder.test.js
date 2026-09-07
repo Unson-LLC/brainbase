@@ -667,7 +667,7 @@ describe('trusted provider HTTP forwarder', () => {
         expect(request.body.project_code).toBe('caller-code');
     });
 
-    it('authority MCPは正規resolve_turnのturn_refを維持しcanonical project_codeを注入する', async () => {
+    it('authority MCPは正規resolve_turnのturn_refとdigest対象入力を維持する', async () => {
         const fetchImpl = vi.fn(async () => ({
             status: 200,
             headers: { get: () => 'application/json' },
@@ -713,10 +713,10 @@ describe('trusted provider HTTP forwarder', () => {
             name: 'brainbase_resolve_turn',
             arguments: {
                 turn_ref: `${'a'.repeat(64)}/${'b'.repeat(64)}`,
-                project_code: 'unson',
                 model_interpretation: { intent: 'answer' }
             }
         });
+        expect(forwardedBody.params.arguments).not.toHaveProperty('project_code');
         expect(forwardedBody).not.toHaveProperty('project_code');
         expect(forwardedBody.params).not.toHaveProperty('project_code');
         expect(JSON.stringify(forwardedBody)).not.toContain('caller-code');
