@@ -802,15 +802,24 @@ describe('trusted provider HTTP forwarder', () => {
             headers: { get: () => 'application/json' },
             json: async () => ({ jsonrpc: '2.0', id: 14, result: { status: 'ok' } })
         }));
-        const forwarder = createTrustedProviderForwardersFromEnv({
-            BRAINBASE_MCP_URL: 'https://brainbase.example/mcp',
-            BRAINBASE_MCP_SERVICE_TOKEN: 'brainbase-service-token'
-        }, { fetchImpl }).get('brainbase');
+        const forwarder = createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://brainbase.example/mcp',
+            operations: {
+                'brainbase.authority_mcp.post': {
+                    method: 'POST', path: '', body_encoding: 'json', response_encoding: 'json',
+                    credential_placement: 'none', allow_binding_provider_mismatch: true
+                }
+            },
+            fetchImpl
+        });
 
         await forwarder.forward({
             credential: Buffer.from('brainbase-service-token'),
             operation: 'brainbase.authority_mcp.post',
-            authority_project_binding: { project_id: 'project-1', project_code: 'mana' },
+            binding: {
+                authority_project_binding: { project_id: 'project-1', project_code: 'mana' }
+            },
             request: {
                 body: {
                     jsonrpc: '2.0', id: 14, method: 'tools/call',
