@@ -209,6 +209,11 @@ function isInjectedHostEnvelope(text) {
 
 const TURN_RESOLUTION_TOOL_NAME = 'mcp__brainbase__brainbase_resolve_turn';
 const TURN_RESOLUTION_UNAVAILABLE_CODE = 'brainbase_api_unavailable';
+const TURN_RESOLUTION_RECEIPT_STATUSES = new Set([
+    'resolved',
+    'needs_classification',
+    'needs_policy_resolution'
+]);
 // Mirrors the brainbase_resolve_turn inputSchema; exec-mode models do not
 // reliably read tool schemas, so the exact shape is stated in the context.
 const MODEL_INTERPRETATION_SHAPE = 'model_interpretation must contain exactly these keys and nothing else: '
@@ -1719,19 +1724,45 @@ function eventKind(toolName) {
 }
 
 function judgmentTurnResolutionData(response) {
-    return nestedRecords(response).find((item) => (
-        typeof item.resolution_id === 'string'
-        && item.status === 'resolved'
-        && record(item.classification)
-        && Array.isArray(item.required_capabilities)
-    )) ?? null;
+    const items = nestedRecords(response);
+    const receiptStatuses = new Set(items
+        .map((item) => item.status)
+        .filter((status) => TURN_RESOLUTION_RECEIPT_STATUSES.has(status)));
+    // A response containing two managed receipt statuses is ambiguous. Do not
+    // select one record and let the other status alter the effective contract.
+    if (receiptStatuses.size > 1) return null;
+    return items.find((item) => {
+        const status = item.status;
+        const classificationValid = status === 'needs_classification'
+            ? item.classification === null
+            : record(item.classification);
+        const reconciliationReasonsValid = status === 'resolved'
+            ? true
+            : Array.isArray(item.reconciliation_reasons)
+                && item.reconciliation_reasons.length > (status === 'needs_classification' ? 0 : -1)
+                && item.reconciliation_reasons.every((reason) => nonEmptyString(reason));
+        const valid = nonEmptyString(item.resolution_id)
+            && TURN_RESOLUTION_RECEIPT_STATUSES.has(status)
+            && classificationValid
+            && reconciliationReasonsValid
+            && Array.isArray(item.required_capabilities);
+        if (!valid || status === 'resolved') return valid;
+        try {
+            verifyAutonomyContract(item, { required: true });
+            return true;
+        } catch {
+            // Keep transcript/history inspection total: an invalid pending
+            // candidate is not a successful wrapper or an unavailable result.
+            return false;
+        }
+    }) ?? null;
 }
 
 function judgmentTurnResolutionUnavailableData(response) {
     const items = nestedRecords(response);
     // Conflicting or malformed success claims must pass contract validation;
     // an embedded unavailable result cannot turn them into a failure bypass.
-    if (items.some((item) => item.status === 'resolved')) return null;
+    if (items.some((item) => TURN_RESOLUTION_RECEIPT_STATUSES.has(item.status))) return null;
     return items.find((item) => (
         item.status === 'unavailable'
         && record(item.error)?.code === TURN_RESOLUTION_UNAVAILABLE_CODE
@@ -2104,7 +2135,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         const turnResolutionMessage = kind === 'turn_resolution' && responseSuccess && turnResolution
             ? [
                 `🧠 判断契約を確定しました（判断行: ${buildOwnerAudit(episode.turn_input, turnResolution, { hostAutonomy: episode.host_autonomy ?? null }).display_line}）。回答前に${JUDGMENT_AUDIT_READ_TOOL_NAME}をturn_ref=${JSON.stringify(auditTurnRef)}で呼び、返却されたprefixをそのまま回答の冒頭へ置いてください。実装・操作turnでは全業務toolとvalue proofを完了した後、${JUDGMENT_STATE_TOOL_NAME}の直前に同じ監査読取を行ってください。`,
-                'この確定済み判断行が、直前のStop修復指示に含まれた未分類の判断行を置き換えます。古い判断行とclassification_missing確認質問は最終回答へ残さないでください。',
+                turnResolution.status === 'resolved'
+                    ? 'この確定済み判断行が、直前のStop修復指示に含まれた未分類の判断行を置き換えます。古い判断行とclassification_missing確認質問は最終回答へ残さないでください。'
+                    : 'この確定済み判断行で古い判断行を置き換えてください。現在の判断契約が求める確認質問は保持し、実際の不足情報・方針衝突について確認してください。',
                 ...turnContractExecutionInstructions(turnResolution, env, { hostAutonomy: episode.host_autonomy ?? null })
             ].join('\n')
             : null;
