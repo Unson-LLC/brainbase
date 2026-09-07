@@ -278,6 +278,9 @@ describe('CompanyAuthorityContextProducer', () => {
             correlation_id: input.correlation_id,
             provider: 'slack',
             capability_id: 'task.read',
+            desired_effect: 'read',
+            project_hint: 'unson-backoffice',
+            resource_ref_digest: '5da8944e0eaa27d2',
             internal_code: 'COMPANY_AUTHORITY_UNRESOLVED',
             error_name: 'ContractError'
         });
