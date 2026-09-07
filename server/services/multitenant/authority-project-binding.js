@@ -10,9 +10,10 @@ export const AUTHORITY_PROJECT_BOUND_MCP_TOOLS = new Set([
     'brainbase_knowledge_resolve',
     'brainbase_resolve_turn'
 ]);
-const AUTHORITY_PERSONAL_KG_MCP_TOOLS = new Set([
+const AUTHORITY_PROJECT_INDEPENDENT_MCP_TOOLS = new Set([
     'search_personal_kg',
-    'register_personal_kg'
+    'register_personal_kg',
+    'brainbase_judgment_state_record'
 ]);
 const AUTHORITY_MCP_LIFECYCLE_METHODS = new Set([
     'initialize',
@@ -138,7 +139,7 @@ export function injectAuthorityProject(request, projectBinding) {
         stripDirectProjectOverrides(params.arguments),
         params.name
     );
-    if (AUTHORITY_PERSONAL_KG_MCP_TOOLS.has(params.name)) {
+    if (AUTHORITY_PROJECT_INDEPENDENT_MCP_TOOLS.has(params.name)) {
         return {
             ...structuredClone(request),
             body: {
