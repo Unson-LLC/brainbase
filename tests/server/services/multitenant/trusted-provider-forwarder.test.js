@@ -804,10 +804,10 @@ describe('trusted provider HTTP forwarder', () => {
         }));
         const forwarder = createTrustedHttpProviderForwarder({
             provider: 'brainbase',
-            baseUrl: 'https://brainbase.example/mcp',
+            baseUrl: 'https://brainbase.example',
             operations: {
                 'brainbase.authority_mcp.post': {
-                    method: 'POST', path: '', body_encoding: 'json', response_encoding: 'json',
+                    method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
                     credential_placement: 'none', allow_binding_provider_mismatch: true
                 }
             },
