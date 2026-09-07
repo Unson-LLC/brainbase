@@ -4,12 +4,24 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTAINER_NAME="brainbase-project-provisioning-it-$$"
 
+run_docker() {
+  local timeout_ms="$1"
+  shift
+  node "$REPO_ROOT/scripts/run-command-with-timeout.mjs" \
+    --timeout-ms "$timeout_ms" -- docker "$@"
+}
+
+if ! run_docker 10000 version --format '{{.Server.Version}}' >/dev/null; then
+  echo 'Docker Server did not respond within 10 seconds; project provisioning integration was not started' >&2
+  exit 1
+fi
+
 cleanup() {
-  docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+  run_docker 15000 rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-docker run -d --rm \
+run_docker 180000 run -d --rm \
   --name "$CONTAINER_NAME" \
   -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=brainbase \
@@ -17,14 +29,14 @@ docker run -d --rm \
   postgres:16 >/dev/null
 
 for _ in {1..30}; do
-  if docker exec "$CONTAINER_NAME" psql -X -Atq -U postgres -d brainbase -c 'SELECT 1' >/dev/null 2>&1; then
+  if run_docker 15000 exec "$CONTAINER_NAME" psql -X -Atq -U postgres -d brainbase -c 'SELECT 1' >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
-docker exec "$CONTAINER_NAME" psql -X -Atq -U postgres -d brainbase -c 'SELECT 1' >/dev/null
+run_docker 15000 exec "$CONTAINER_NAME" psql -X -Atq -U postgres -d brainbase -c 'SELECT 1' >/dev/null
 
-PSQL=(docker exec -i "$CONTAINER_NAME" psql -X -Atq -v ON_ERROR_STOP=1 -U postgres -d brainbase)
+PSQL=(run_docker 120000 exec -i "$CONTAINER_NAME" psql -X -Atq -v ON_ERROR_STOP=1 -U postgres -d brainbase)
 "${PSQL[@]}" -c 'CREATE ROLE brainbase_app NOLOGIN;' >/dev/null
 "${PSQL[@]}" -f /workspace/server/sql/info-ssot-schema.sql >/dev/null
 "${PSQL[@]}" -c "INSERT INTO projects(id,code,name,organization_id) VALUES ('it_a','it-a','IT A','org_a'),('it_b','it-b','IT B','org_b') ON CONFLICT DO NOTHING; INSERT INTO graph_entities(id,entity_type,project_id,payload,role_min,sensitivity,lifecycle_status,version) VALUES ('integration-graph-same','project','it_a','{\"name\":\"Same Project\",\"catalog_project_id\":\"integration-graph-same\",\"catalog_version\":1,\"source_ref\":\"project-catalog:integration-graph-same@1\"}','member','internal','active',2), ('integration-graph-other','project','it_b','{\"name\":\"Other Secret\",\"catalog_project_id\":\"integration-graph-other\",\"catalog_version\":1,\"source_ref\":\"project-catalog:integration-graph-other@1\"}','member','internal','active',3)" >/dev/null

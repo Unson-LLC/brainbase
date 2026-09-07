@@ -2,6 +2,41 @@ import { beforeEach, vi } from 'vitest';
 
 const originalFetch = globalThis.fetch;
 
+function createMemoryStorage() {
+    const values = new Map();
+
+    return {
+        get length() {
+            return values.size;
+        },
+        clear() {
+            values.clear();
+        },
+        getItem(key) {
+            const normalizedKey = String(key);
+            return values.has(normalizedKey) ? values.get(normalizedKey) : null;
+        },
+        key(index) {
+            return Array.from(values.keys())[index] ?? null;
+        },
+        removeItem(key) {
+            values.delete(String(key));
+        },
+        setItem(key, value) {
+            values.set(String(key), String(value));
+        }
+    };
+}
+
+// Node 26 exposes an experimental global localStorage whose value is undefined
+// unless --localstorage-file is supplied. Vitest then preserves that value while
+// populating jsdom globals, so browser tests lose jsdom's in-memory Storage.
+if (typeof window !== 'undefined' && !window.localStorage) {
+    const storage = createMemoryStorage();
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
+}
+
 const TEST_PROJECTS = [
     { id: 'unson', name: 'unson' },
     { id: 'tech-knight', name: 'tech-knight' },

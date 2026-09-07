@@ -27,7 +27,10 @@
     "brainbase": "./cli/index.js"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.0.0 <23.0.0"
+  },
+  "volta": {
+    "node": "22.23.2"
   },
   "scripts": {
     "prestart": "bash scripts/check-worktree.sh",
@@ -37,20 +40,20 @@
     "auth-setup": "node scripts/auth-setup.mjs",
     "meeting-source:mcp-login": "node scripts/meeting-source-mcp-oauth-login.mjs",
     "test:server": "INTERNAL_API_SECRET=${BRAINBASE_E2E_INTERNAL_API_SECRET:-brainbase-e2e-internal-api-secret} BRAINBASE_TEST_MODE=true BRAINBASE_VAR_DIR=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime} BRAINBASE_STATE_PATH=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime}/state.json BRAINBASE_ALLOW_DIRECT_SERVER=1 node server.js",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:tenant-production-provisioning": "vitest run --maxWorkers=1 tests/server/bootstrap/tenant-runtime-internal-server.test.js tests/server/bootstrap/slack-installation-control-plane-auth-order.test.js tests/server/bootstrap/slack-installation-control-plane.test.js tests/server/cloudflare/tenant-runtime-bridge.test.js tests/server/cloudflare/slack-installation-control-plane-bridge.test.js tests/server/routes/tenant-runtime-bootstrap.test.js tests/server/routes/tenant-runtime-contract.test.js tests/server/routes/slack-installation-control-plane.test.js tests/server/scripts/multitenant-platform-schema-migration.test.js tests/server/scripts/provision-tenant.test.js tests/server/scripts/tenant-production-provisioning-migration.integration.test.js tests/server/scripts/tenant-production-provisioning-migration.test.js tests/server/services/multitenant",
-    "test:conformance:mana-brainbase": "vitest run --config vitest.conformance.config.js",
-    "test:knowledge-resolution": "vitest run tests/unit/knowledge-resolution-service.test.js tests/integration/knowledge-resolution-routes.test.js tests/server/bootstrap/knowledge-resolution-registration.test.js && npm --prefix mcp/brainbase test",
-    "test:judgment-resolution": "vitest run tests/unit/codex-owner-visible-readback.test.js tests/unit/judgment-resolver-host-value-proof.test.js tests/unit/judgment-value-proof-adapter.test.js tests/unit/judgment-autonomy.test.js tests/unit/judgment-resolution-service.test.js tests/unit/judgment-resolution-publication.test.js tests/unit/judgment-resolver-host.test.js tests/unit/codex-judgment-hook-readiness.test.js tests/unit/preflight-judgment-binding.test.js tests/unit/knowledge-resolution-service.test.js tests/integration/judgment-resolution-routes.test.js tests/integration/judgment-managed-turn-e2e.test.js tests/integration/judgment-launcher-process.test.js tests/integration/judgment-resolver-host-entrypoint.test.js tests/integration/j0-organization-pinned-artifact-consumer.test.js tests/integration/knowledge-resolution-routes.test.js tests/server/bootstrap/judgment-resolution-registration.test.js tests/server/bootstrap/knowledge-resolution-registration.test.js && npm run typecheck && npm --prefix mcp/brainbase run typecheck && npm --prefix mcp/brainbase test",
+    "test": "node scripts/run-vitest.mjs",
+    "test:run": "node scripts/run-vitest.mjs run",
+    "test:tenant-production-provisioning": "BRAINBASE_RUN_DOCKER_INTEGRATION=1 npm run test:run -- --maxWorkers=1 tests/server/bootstrap/tenant-runtime-internal-server.test.js tests/server/bootstrap/slack-installation-control-plane-auth-order.test.js tests/server/bootstrap/slack-installation-control-plane.test.js tests/server/cloudflare/tenant-runtime-bridge.test.js tests/server/cloudflare/slack-installation-control-plane-bridge.test.js tests/server/routes/tenant-runtime-bootstrap.test.js tests/server/routes/tenant-runtime-contract.test.js tests/server/routes/slack-installation-control-plane.test.js tests/server/scripts/multitenant-platform-schema-migration.test.js tests/server/scripts/provision-tenant.test.js tests/server/scripts/tenant-production-provisioning-migration.integration.test.js tests/server/scripts/tenant-production-provisioning-migration.test.js tests/server/services/multitenant",
+    "test:conformance:mana-brainbase": "npm run test:run -- --config vitest.conformance.config.js",
+    "test:knowledge-resolution": "npm run test:run -- tests/unit/knowledge-resolution-service.test.js tests/integration/knowledge-resolution-routes.test.js tests/server/bootstrap/knowledge-resolution-registration.test.js && npm --prefix mcp/brainbase test",
+    "test:judgment-resolution": "npm run test:run -- tests/unit/codex-owner-visible-readback.test.js tests/unit/judgment-resolver-host-value-proof.test.js tests/unit/judgment-value-proof-adapter.test.js tests/unit/judgment-autonomy.test.js tests/unit/judgment-resolution-service.test.js tests/unit/judgment-resolution-publication.test.js tests/unit/judgment-resolver-host.test.js tests/unit/codex-judgment-hook-readiness.test.js tests/unit/preflight-judgment-binding.test.js tests/unit/knowledge-resolution-service.test.js tests/integration/judgment-resolution-routes.test.js tests/integration/judgment-managed-turn-e2e.test.js tests/integration/judgment-launcher-process.test.js tests/integration/judgment-resolver-host-entrypoint.test.js tests/integration/j0-organization-pinned-artifact-consumer.test.js tests/integration/knowledge-resolution-routes.test.js tests/server/bootstrap/judgment-resolution-registration.test.js tests/server/bootstrap/knowledge-resolution-registration.test.js && npm run typecheck && npm --prefix mcp/brainbase run typecheck && npm --prefix mcp/brainbase test",
     "check:judgment-hook-readiness": "node scripts/check-codex-judgment-hook-readiness.mjs",
-    "test:integration:ontology": "vitest run tests/server/controllers/ontology-controller.test.js tests/server/routes/info-ssot-context.test.js tests/server/services/ontology-api.test.js tests/server/services/ontology-mcp-projection.test.js tests/server/scripts/ontology-release-verify.test.js tests/server/services/ontology-postgres-concurrency.test.js",
-    "test:integration:graph-maintenance": "vitest run tests/server/services/graph-maintenance-postgres.integration.test.js",
+    "test:integration:ontology": "npm run test:run -- tests/server/controllers/ontology-controller.test.js tests/server/routes/info-ssot-context.test.js tests/server/services/ontology-api.test.js tests/server/services/ontology-mcp-projection.test.js tests/server/scripts/ontology-release-verify.test.js tests/server/services/ontology-postgres-concurrency.test.js",
+    "test:integration:graph-maintenance": "npm run test:run -- tests/server/services/graph-maintenance-postgres.integration.test.js",
     "test:integration:outcome-case": "bash scripts/verify-outcome-case-postgres-rls-integration.sh",
-    "test:integration:onboarding-rls": "vitest run tests/integration/onboarding-postgres-rls.integration.test.js",
+    "test:integration:onboarding-rls": "BRAINBASE_RUN_DOCKER_INTEGRATION=1 npm run test:run -- tests/integration/onboarding-postgres-rls.integration.test.js",
     "test:integration:project-provisioning:control-plane": "node --import tsx --test mcp/brainbase/tests/tools/control-plane-tools.test.ts",
-    "test:integration:project-provisioning": "bash scripts/verify-project-provisioning-postgres-integration.sh && vitest run tests/integration/project-provisioning-full-flow.test.js && npm run test:integration:project-provisioning:control-plane",
-    "test:coverage": "vitest run --coverage",
+    "test:integration:project-provisioning": "bash scripts/verify-project-provisioning-postgres-integration.sh && BRAINBASE_RUN_DOCKER_INTEGRATION=1 npm run test:run -- tests/integration/project-provisioning-full-flow.test.js && npm run test:integration:project-provisioning:control-plane",
+    "test:coverage": "npm run test:run -- --coverage",
     "typecheck": "tsc --noEmit -p public/jsconfig.json",
     "test:mobile": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js",
     "test:mobile:iphone": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='iPhone 13 Pro - Emulated'",
@@ -61,7 +64,7 @@
     "test:admin-personal-kg-smoke": "node scripts/admin-personal-kg-smoke.mjs",
     "test:personal-kg:production-smoke": "node scripts/personal-knowledge-promotion-production-smoke.mjs",
     "personal-kg:issue-production-smoke-fixture": "node scripts/issue-personal-knowledge-promotion-smoke-fixture.mjs",
-    "test:active-indicator": "vitest run tests/server/session-activity-state-machine-contract.test.js tests/server/session-manager.test.js tests/unit/session-activity-state.test.js tests/unit/session-indicators-ws.test.js tests/ui/views/session-view.test.js",
+    "test:active-indicator": "npm run test:run -- tests/server/session-activity-state-machine-contract.test.js tests/server/session-manager.test.js tests/unit/session-activity-state.test.js tests/unit/session-indicators-ws.test.js tests/ui/views/session-view.test.js",
     "vibepro:graph-ssot": "node scripts/vibepro-graph-ssot-check.mjs",
     "ontology:publish": "node scripts/ontology-release-publish.js",
     "ontology:verify": "node scripts/ontology-release-verify.js",

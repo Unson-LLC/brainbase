@@ -14,12 +14,20 @@ describe('Brainbase routine outcome contract', () => {
     const spec = read('docs/specs/brainbase-memory-routine-cycle-spec.md');
     const story = read('docs/stories/brainbase-memory-routine-cycle-story.md');
 
-    it('three commands remain thin runner entrypoints', () => {
-        for (const name of ['oyasumi', 'ohayo', 'retro']) {
+    it('daily commands remain thin runner entrypoints', () => {
+        for (const name of ['oyasumi', 'ohayo']) {
             const command = read(`.claude/commands/${name}.md`);
             expect(command).toContain(`node scripts/routines/run.mjs ${name}`);
             expect(command.split('\n').filter((line) => line.trim())).toHaveLength(3);
         }
+    });
+
+    it('retro keeps its evidence collection contract next to the runner entrypoint', () => {
+        const command = read('.claude/commands/retro.md');
+        expect(command).toContain('node scripts/routines/run.mjs retro');
+        expect(command).toContain('判断episode、実行、Outcome、Run Receipt');
+        expect(command).toContain('自動承認・自動昇格しない');
+        expect(command).toContain('受信側で読み戻す');
     });
 
     it('status and coverage remain separate and unavailable sources are not empty results', () => {

@@ -532,7 +532,9 @@ function observeProductionSharedClient(service) {
     return { transactionClients, graphClients };
 }
 
-describe.sequential('Project Provisioning acceptance E2E', () => {
+const runDockerIntegration = process.env.BRAINBASE_RUN_DOCKER_INTEGRATION === '1';
+
+describe.skipIf(!runDockerIntegration).sequential('Project Provisioning acceptance E2E', () => {
     beforeAll(async () => {
         vi.stubEnv('NODE_ENV', 'production');
         await setupDatabase();
