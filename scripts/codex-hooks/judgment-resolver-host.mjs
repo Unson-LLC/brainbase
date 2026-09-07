@@ -2238,11 +2238,14 @@ function effectiveEpisode(episode, events) {
     };
 }
 
-function turnResolutionRequired(episode) {
-    const receipt = record(episode?.initial_route_receipt);
+function isResolverBootstrapReceipt(receipt) {
     return receipt?.status === 'needs_classification'
         && Array.isArray(receipt.reconciliation_reasons)
         && receipt.reconciliation_reasons.includes('model_interpretation_missing');
+}
+
+function turnResolutionRequired(episode) {
+    return isResolverBootstrapReceipt(record(episode?.initial_route_receipt));
 }
 
 function buildAuditContract(receipt) {
@@ -3555,7 +3558,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         || unauthorizedStopRepairAudit;
     let autonomyCompliance = surfaceUnavailable
         ? { status: 'turn_resolution_unavailable', violation: null }
-        : autonomyAnswerCompliance(
+        : missingTurnResolution
+            ? { status: 'awaiting_turn_resolution', violation: null }
+            : autonomyAnswerCompliance(
             answer,
             expectedAuditLines,
             episode.initial_route_receipt,
@@ -4036,6 +4041,9 @@ export function buildOwnerAudit(args, receipt, { historicalExact = true, hostSur
             ? '判断契約は未確定・呼び出し失敗を記録'
             : '過去の呼出し失敗を検出・接続回復は未確認';
         displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」→ ${decision}（${detail}）`;
+    } else if (isResolverBootstrapReceipt(receipt)) {
+        decision = 'Resolver判断契約未確定';
+        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」→ ${decision}（モデルの意味解釈入力待ち）`;
     } else if (receipt?.status === 'needs_classification' || dagIds.includes('clarification.v1')) {
         decision = '確認質問';
         const reasons = Array.isArray(receipt?.reconciliation_reasons)

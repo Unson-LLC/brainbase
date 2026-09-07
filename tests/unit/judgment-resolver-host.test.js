@@ -4333,6 +4333,26 @@ describe('turn-resolution surface degradation', () => {
         return { root, transcript, env, payload, episode };
     };
 
+    it('モデル解釈未提出は利用者への確認にせずResolver実行を要求し続ける', async () => {
+        const sessionId = 'session-bootstrap-not-ambiguity';
+        const { env, episode, transcript } = await startDegradedEpisode({
+            sessionId, turnId: 'turn-bootstrap', prompt: 'Resolverを修正して',
+            transcriptLines: [event('session_meta', { id: sessionId }), userMessage('Resolverを修正して', 'turn-bootstrap')]
+        });
+        expect(episode.owner_audit.display_line).toContain('Resolver判断契約未確定');
+        expect(episode.owner_audit.display_line).not.toContain('対象を特定できず');
+        expect(episode.owner_audit.display_line).not.toContain('確認質問');
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: 'turn-bootstrap',
+            transcript_path: transcript, stop_hook_active: false,
+            last_assistant_message: `${episode.owner_audit.display_line}\n${episode.audit_contract.zero_call_display_line}\nResolverの復旧は未完了です。`
+        }, { env });
+        expect(stopped.output.decision).toBe('block');
+        expect(stopped.output.reason).toContain('mcp__brainbase__brainbase_resolve_turn');
+        expect(stopped.output.reason).not.toContain('確認が必要[classification_missing]');
+        expect(stopped.final).toBeNull();
+    });
+
     it('resolve_turnを呼べないCodexスレッドではclassification_missing確認ループへ落とさず縮退して継続する', async () => {
         const sessionId = 'session-stale-surface';
         const { env, episode, transcript } = await startDegradedEpisode({
@@ -4393,7 +4413,7 @@ describe('turn-resolution surface degradation', () => {
             ]
         });
         expect(episode.host_surface).toBeUndefined();
-        expect(episode.owner_audit.display_line).toContain('対象を特定できず');
+        expect(episode.owner_audit.display_line).toContain('Resolver判断契約未確定');
 
         writeFileSync(transcript, `${readFileSync(transcript, 'utf8')}\n${wrappedAttempt('call-first', 'turn-first').join('\n')}`);
 
@@ -4470,7 +4490,7 @@ describe('turn-resolution surface degradation', () => {
         });
 
         expect(episode.host_surface).toBeUndefined();
-        expect(episode.owner_audit.display_line).toContain('対象を特定できず');
+        expect(episode.owner_audit.display_line).toContain('Resolver判断契約未確定');
 
         const stopped = finalizeEpisode({
             hook_event_name: 'Stop', session_id: sessionId, turn_id: 'turn-recovered',
@@ -4648,7 +4668,7 @@ describe('structured Resolver unavailable failures', () => {
             degradation_reason: 'turn_resolution_unavailable',
             qualifying_event_count: 0
         });
-        expect(episode.owner_audit.display_line).toContain('対象を特定できず');
+        expect(episode.owner_audit.display_line).toContain('Resolver判断契約未確定');
     });
 
     it.each([
