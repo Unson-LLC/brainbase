@@ -10,6 +10,10 @@ export const AUTHORITY_PROJECT_BOUND_MCP_TOOLS = new Set([
     'brainbase_knowledge_resolve',
     'brainbase_resolve_turn'
 ]);
+const AUTHORITY_PERSONAL_KG_MCP_TOOLS = new Set([
+    'search_personal_kg',
+    'register_personal_kg'
+]);
 const AUTHORITY_MCP_LIFECYCLE_METHODS = new Set([
     'initialize',
     'notifications/initialized',
@@ -125,7 +129,6 @@ export function injectAuthorityProject(request, projectBinding) {
     }
     if (request.body.method !== 'tools/call'
         || !isObject(request.body.params)
-        || !AUTHORITY_PROJECT_BOUND_MCP_TOOLS.has(request.body.params.name)
         || !isObject(request.body.params.arguments)) {
         throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
     }
@@ -135,6 +138,18 @@ export function injectAuthorityProject(request, projectBinding) {
         stripDirectProjectOverrides(params.arguments),
         params.name
     );
+    if (AUTHORITY_PERSONAL_KG_MCP_TOOLS.has(params.name)) {
+        return {
+            ...structuredClone(request),
+            body: {
+                ...body,
+                params: { ...params, arguments: args }
+            }
+        };
+    }
+    if (!AUTHORITY_PROJECT_BOUND_MCP_TOOLS.has(params.name)) {
+        throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
     return {
         ...structuredClone(request),
         body: {
