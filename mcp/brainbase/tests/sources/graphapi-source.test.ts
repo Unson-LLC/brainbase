@@ -172,6 +172,209 @@ describe('GraphAPISource', () => {
       assert.strictEqual(options.headers['x-brainbase-clearance'], 'internal,restricted,finance,hr,contract');
     });
 
+    it('should reject an incomplete snapshot and recover without publishing partial data', async () => {
+      const mockTokenManager = {
+        getToken: mock.fn(async () => 'mock-token'),
+        refresh: mock.fn(async () => {}),
+      } as unknown as TokenManager;
+      let unavailable = true;
+      const mockFetch = mock.fn(async (url: string) => {
+        const type = new URL(url).searchParams.get('type');
+        if (unavailable && type === 'person') {
+          return { ok: false, status: 503, statusText: 'Service Unavailable' };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            entities: type === 'project' ? [{
+              entity_id: 'project_brainbase',
+              entity_type: 'project',
+              project_code: 'brainbase',
+              payload: { code: 'brainbase', name: 'Brainbase' },
+            }] : [],
+          }),
+        };
+      });
+      global.fetch = mockFetch as any;
+
+      const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+      await assert.rejects(
+        source.initialize(),
+        (error: any) => {
+          assert.strictEqual(error.code, 'graph_source_unavailable');
+          assert.strictEqual(error.entityType, 'person');
+          assert.strictEqual(error.status, 503);
+          assert.match(error.message, /snapshot incomplete: failed to fetch person \(503 Service Unavailable\)/);
+          return true;
+        },
+      );
+      assert.deepStrictEqual(await source.getProjects(), []);
+
+      unavailable = false;
+      await source.initialize();
+      assert.strictEqual((await source.getProjects()).length, 1);
+    });
+
+    it('should reject a successful response with a missing entities array', async () => {
+      const mockTokenManager = {
+        getToken: mock.fn(async () => 'mock-token'),
+        refresh: mock.fn(async () => {}),
+      } as unknown as TokenManager;
+      const mockFetch = mock.fn(async (url: string) => {
+        const type = new URL(url).searchParams.get('type');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => type === 'person' ? {} : { entities: [] },
+        };
+      });
+      global.fetch = mockFetch as any;
+
+      const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+      await assert.rejects(
+        source.initialize(),
+        (error: any) => {
+          assert.strictEqual(error.code, 'graph_source_unavailable');
+          assert.strictEqual(error.entityType, 'person');
+          assert.match(error.message, /snapshot incomplete: person response did not include an entities array/);
+          return true;
+        },
+      );
+      assert.deepStrictEqual(await source.getProjects(), []);
+    });
+
+    it('should reject a record without a non-empty entity_id or id', async () => {
+      const mockTokenManager = {
+        getToken: mock.fn(async () => 'mock-token'),
+        refresh: mock.fn(async () => {}),
+      } as unknown as TokenManager;
+      const mockFetch = mock.fn(async (url: string) => {
+        const type = new URL(url).searchParams.get('type');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => type === 'person'
+            ? { entities: [{ entity_type: 'person', payload: { name: 'Unknown' } }] }
+            : { entities: [] },
+        };
+      });
+      global.fetch = mockFetch as any;
+
+      const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+      await assert.rejects(
+        source.initialize(),
+        (error: any) => {
+          assert.strictEqual(error.code, 'graph_source_unavailable');
+          assert.strictEqual(error.entityType, 'person');
+          assert.match(error.message, /record at index 0 did not include a non-empty entity_id or id/);
+          return true;
+        },
+      );
+      assert.deepStrictEqual(await source.getPeople(), []);
+    });
+
+    it('should reject a record whose payload is not an object', async () => {
+      const mockTokenManager = {
+        getToken: mock.fn(async () => 'mock-token'),
+        refresh: mock.fn(async () => {}),
+      } as unknown as TokenManager;
+      const mockFetch = mock.fn(async (url: string) => {
+        const type = new URL(url).searchParams.get('type');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => type === 'person'
+            ? { entities: [{ entity_id: 'person_invalid_payload', payload: [] }] }
+            : { entities: [] },
+        };
+      });
+      global.fetch = mockFetch as any;
+
+      const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+      await assert.rejects(
+        source.initialize(),
+        (error: any) => {
+          assert.strictEqual(error.code, 'graph_source_unavailable');
+          assert.strictEqual(error.entityType, 'person');
+          assert.match(error.message, /record at index 0 did not include an object payload/);
+          return true;
+        },
+      );
+      assert.deepStrictEqual(await source.getPeople(), []);
+    });
+
+    it('should abort an in-flight request when total initialization exceeds its deadline', async () => {
+      const mockTokenManager = {
+        getToken: mock.fn(async () => 'mock-token'),
+        refresh: mock.fn(async () => {}),
+      } as unknown as TokenManager;
+      const signals: AbortSignal[] = [];
+      const mockFetch = mock.fn(async (_url: string, options: RequestInit) => {
+        const signal = options.signal as AbortSignal;
+        signals.push(signal);
+        await new Promise<never>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+        });
+        throw new Error('unreachable');
+      });
+      global.fetch = mockFetch as any;
+
+      const source = new GraphAPISource(
+        'http://localhost:31013',
+        mockTokenManager,
+        undefined,
+        { initializeTimeoutMs: 20, fetchTimeoutMs: 1_000 },
+      );
+      await assert.rejects(
+        source.initialize(),
+        (error: any) => {
+          assert.strictEqual(error.code, 'graph_source_timeout');
+          assert.match(error.message, /Graph index initialization timed out after 20ms/);
+          return true;
+        },
+      );
+      assert.strictEqual(signals.length, 1);
+      assert.strictEqual(signals[0].aborted, true);
+    });
+
+    it('should abort response consumption when an individual request exceeds its deadline', async () => {
+      const mockTokenManager = {
+        getToken: mock.fn(async () => 'mock-token'),
+        refresh: mock.fn(async () => {}),
+      } as unknown as TokenManager;
+      const signals: AbortSignal[] = [];
+      const mockFetch = mock.fn(async (_url: string, options: RequestInit) => {
+        const signal = options.signal as AbortSignal;
+        signals.push(signal);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => await new Promise<never>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+          }),
+        };
+      });
+      global.fetch = mockFetch as any;
+
+      const source = new GraphAPISource(
+        'http://localhost:31013',
+        mockTokenManager,
+        undefined,
+        { initializeTimeoutMs: 1_000, fetchTimeoutMs: 20 },
+      );
+      await assert.rejects(
+        source.initialize(),
+        (error: any) => {
+          assert.strictEqual(error.code, 'graph_source_timeout');
+          assert.match(error.message, /Graph API request timed out after 20ms/);
+          return true;
+        },
+      );
+      assert.strictEqual(signals.length, 1);
+      assert.strictEqual(signals[0].aborted, true);
+    });
+
     it('should handle 401 and refresh token', async () => {
       let tokenCallCount = 0;
       const mockTokenManager = {

@@ -1381,3 +1381,17 @@ The Gate preserves a clarification selected by the accepted route receipt and fa
 Runtime 2.4以降の実装・操作turnでは、日本語の質問表現、「完了しました」という語、回答内HTMLコメントを判定材料にしない。モデルは最後のtool callとして`brainbase_judgment_state_record`を1回実行し、PostToolUse Hostが同一episodeのjournalへ状態を保存する。Stopはjournalのschema・許可理由・event順序を検証し、`pending`や古い状態を差し戻す。`completed`は状態eventより前に成功した実行証跡がある場合だけ受理する。状態の欠落・不正形式は旧判定へ戻さずfail-closedとする。Runtime 2.3だけは回答内marker、Runtime 2.2以前は自然文検出をrollout互換として使う。これは実行証跡の存在を検証する契約であり、`content_verification_status: not_evaluated`の通り、変更内容の意味的な正しさを自動証明するものではない。
 
 Autonomy continuation and owner-audit repair have separate bounded retries. Resolver Provider decisions, when injected by a Host adapter, must be bound to the case ID, include non-empty Brainbase basis, and cannot expand action authority.
+
+### MCPの接続と依存先の準備を分離する
+
+stdioの接続受付・ツール一覧はローカルの公開定義から返す。接続成立は認証成功、Graph参照成功、判断契約の確定を意味しない。Infisical取得と既存のtask API・judgment binding検査はバックエンド準備として実施し、その完了前に業務呼び出しを転送しない。
+
+Graphの全件インデックスはGraph検索・取得時に読み込む。Resolverは全件インデックスを待たないが、Resolver自身の認証・ポリシー・必要な参照は従来どおり適用する。インデックスの取得失敗を空の正常結果へ変換しない。並行する取得は共有し、完全に取得できたスナップショットだけを公開する。思想参照の失敗も正常結果へ変換しない。
+
+受入確認では次を分けて検証する。
+
+- 外部依存先が遅延・停止していてもinitializeとtools/listが成功する。
+- 準備中・失敗時の業務呼び出しは明示的なエラーとなり、判断契約・検索結果・書き込み成功を生成しない。
+- 依存先の復旧後、同じMCP接続から再試行できる。送信済みの業務呼び出しを自動再実行しない。
+- Graphの部分取得失敗は不完全として扱い、成功した参照には従来のPhilosophy Contextが含まれる。
+- 独立したクライアントの接続成功と、既存Codexタスクのツール公開復旧は別の証拠として扱う。

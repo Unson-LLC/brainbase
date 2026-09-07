@@ -16,4 +16,22 @@ unset INFISICAL_TOKEN
 unset INFISICAL_UNIVERSAL_AUTH_CLIENT_ID INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET
 unset INFISICAL_CLIENT_ID INFISICAL_CLIENT_SECRET
 
-exec "$SCRIPT_DIR/run-brainbase-mcp.sh" "$@"
+REPO_ROOT="${BRAINBASE_REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+export BRAINBASE_REPO_ROOT="$REPO_ROOT"
+
+if [ "${1:-}" = "--check" ]; then
+  # Preserve the existing readiness check contract.  The check is an
+  # operator-facing preflight and must continue to exercise the authenticated
+  # backend launcher directly.
+  exec "$SCRIPT_DIR/run-brainbase-mcp.sh" "$@"
+fi
+
+FACADE_ENTRY="${BRAINBASE_MCP_FACADE_ENTRY:-$REPO_ROOT/mcp/brainbase/dist/stdio-facade.js}"
+NODE_BIN="${NODE_BIN:-node}"
+
+if [ ! -f "$FACADE_ENTRY" ]; then
+  echo "BRAINBASE_MCP_UNAVAILABLE: stdio facade entry not found: $FACADE_ENTRY (run 'cd $REPO_ROOT/mcp/brainbase && npm run build')" >&2
+  exit 78
+fi
+
+exec "$NODE_BIN" "$FACADE_ENTRY" "$@"
