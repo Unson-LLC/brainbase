@@ -3,6 +3,8 @@ name: Judgment value proof consumer
 on:
   pull_request:
     paths:
+      - 'scripts/check-codex-judgment-hook-readiness.mjs'
+      - 'tests/unit/codex-judgment-hook-readiness.test.js'
       - 'scripts/codex-hooks/**'
       - 'server/services/routine-runtime/judgment-value-proof-adapter.js'
       - 'mcp/brainbase/**'
@@ -14,6 +16,8 @@ on:
   push:
     branches: [develop]
     paths:
+      - 'scripts/check-codex-judgment-hook-readiness.mjs'
+      - 'tests/unit/codex-judgment-hook-readiness.test.js'
       - 'scripts/codex-hooks/**'
       - 'server/services/routine-runtime/judgment-value-proof-adapter.js'
       - 'mcp/brainbase/**'

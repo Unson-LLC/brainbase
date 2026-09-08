@@ -33,6 +33,11 @@ Stopの説明専用分岐は同turnの失敗診断が存在する場合か読取
 通信、SQLite、episode作成、tool許可、Stop差し戻しは行わない。成功でも監査は`not_evaluated`。
 保存不能や不正入力は安全なstderr診断を残すが、会話を止めない。
 
+設定確認は、無効化済みglobal定義と有効なproject定義の併存を二重実行としない。
+有効な定義が複数ある場合は従来どおり拒否する。`record_only`が有効な場合は
+`observation_only` / `ready=false`を返し、通常監査の開始準備完了と混同しない。
+別app-serverの設定確認は、既存会話へ読み込み済みである証拠ではない。
+
 Graphifyは本worktreeにグラフがなく影響範囲はunknown。Host呼出し経路と既存unit/integrationを直接確認して補う。
 
 ## CIと戻し方
