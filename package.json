@@ -84,6 +84,7 @@
     "migrate:project-graph-ssot": "node scripts/reconcile-project-graph-ssot.js",
     "provision:tenant": "node scripts/provision-tenant.js",
     "provision:tenant-project-access": "node scripts/provision-tenant-project-access.js",
+    "provision:tenant-project-identity": "node scripts/provision-tenant-project-identity.js",
     "provision:human-action-authority": "node scripts/provision-human-action-authority.js",
     "provision:outcome-case-control-plane": "node scripts/provision-outcome-case-control-plane.js",
     "canonical-task:readiness": "node scripts/set-canonical-task-readiness.js",

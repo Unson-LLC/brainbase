@@ -5,6 +5,7 @@ import {
     provisionServiceCompanyAuthority,
     ServiceCompanyAuthorityProvisioningError
 } from '../../../../server/services/multitenant/service-company-authority-provisioner.js';
+import { runProvisionServiceCompanyAuthority } from '../../../../scripts/provision-service-company-authority.js';
 
 const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
 
@@ -196,6 +197,22 @@ describe('service company authority provisioning', () => {
             ...manifest(),
             client_secret: 'must-not-enter-control-plane'
         })).toThrowError(expect.objectContaining({ code: 'MANIFEST_SECRET_FORBIDDEN' }));
+    });
+
+    it('accepts omitted stop conditions through the CLI double-normalization path', async () => {
+        const rawManifest = manifest();
+        rawManifest.service_actor.bindings.forEach((binding) => delete binding.stop_conditions);
+        const client = fakeClient();
+        const result = await runProvisionServiceCompanyAuthority({
+            argv: ['--dry-run', '--manifest', 'service-authority.json'],
+            env: {},
+            pool: { connect: async () => ({ ...client, release: () => {} }) },
+            readManifest: async () => JSON.stringify(rawManifest)
+        });
+        expect(result).toMatchObject({ ok: true, mode: 'dry-run', persisted: false });
+        expect(client.state.membership).toHaveLength(0);
+        expect(client.state.identities).toHaveLength(0);
+        expect(client.state.bindings).toHaveLength(0);
     });
 
     it('proves the full mutation and readback in a transaction, then rolls it back for dry-run', async () => {

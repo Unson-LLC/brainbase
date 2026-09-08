@@ -129,6 +129,7 @@ function normalizeBinding(value, index) {
         fail('MANIFEST_INVALID', `${field}.approver_person_id is required for approval`);
     }
     const stopConditions = value.stop_conditions === undefined
+        || (Array.isArray(value.stop_conditions) && value.stop_conditions.length === 0)
         ? []
         : stringArray(value.stop_conditions, `${field}.stop_conditions`, { max: 32 });
     return {
