@@ -2117,8 +2117,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                     ? episode.turn_input
                     : suppliedTurnInput;
             const interpretation = record(turnToolInput?.model_interpretation);
+            const failedAttemptWithoutContract = postToolUseFailure && !turnResolution;
             const bindingValid = turnInput
-                && interpretation
+                && (interpretation || failedAttemptWithoutContract)
                 && canonicalJson(turnInput) === canonicalJson(episode.turn_input)
                 && (turnResolution
                     ? turnResolution.turn_id === episode.initial_route_receipt.turn_id
