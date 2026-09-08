@@ -268,6 +268,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             `${hash('turn-symlink-entrypoint')}.continuation.json`,
             `${hash('turn-symlink-entrypoint')}.episode.json`,
             `${hash('turn-symlink-entrypoint')}.events`,
+            `${hash('turn-symlink-entrypoint')}.execution-outcome.json`,
             `${hash('turn-symlink-entrypoint')}.final.json`,
             `${hash('turn-symlink-entrypoint')}.transition.sqlite`,
             `${hash('turn-symlink-entrypoint')}.turn-input.json`

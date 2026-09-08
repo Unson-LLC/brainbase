@@ -63,7 +63,7 @@ function input(request, classificationProposal = proposal(), overrides = {}) {
             ],
             prior_receipts: [],
             runtime: {
-                host: 'codex', model: 'gpt-5', permission_mode: 'workspace-write',
+                host: overrides.runtime_host || 'codex', model: 'gpt-5', permission_mode: 'workspace-write',
                 project_binding: projectCode ?? null
             },
             instruction_bindings: [],
@@ -72,7 +72,7 @@ function input(request, classificationProposal = proposal(), overrides = {}) {
     const conversationContext = legacyContext?.schema_version
         ? legacyContext
         : { ...contextWithoutDigest, source_digest: sha256Hex(canonicalJson(contextWithoutDigest)) };
-    const { conversation_context: _context, knowledge_context: _knowledgeContext, project_code: _projectCode, ...rest } = overrides;
+    const { conversation_context: _context, knowledge_context: _knowledgeContext, project_code: _projectCode, runtime_host: _runtimeHost, ...rest } = overrides;
     return {
         request,
         turn_id: 'host-turn-1',
@@ -218,6 +218,15 @@ describe('JudgmentResolutionService', () => {
         id: () => 'jr_test',
         personalOwnerPersonId: 'person_owner',
         personalOwnerAliasIds: ['person_alias']
+    });
+
+    it.each(['codex', 'claude-code'])('%sの正規化済み会話文脈を同じResolver契約で受理する', (runtimeHost) => {
+        const receipt = service.resolve(input('現在の構成を確認', proposal(), {
+            runtime_host: runtimeHost
+        }), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification).toEqual(proposal());
     });
 
     it('小さな実装でも観測後・仮説前にGraphify参照を選ぶ', () => {

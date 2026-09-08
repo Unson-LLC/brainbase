@@ -2493,8 +2493,34 @@ describe('Codex Judgment Resolver Host', () => {
         ].join('\n'));
         expect(result.final).toMatchObject({
             schema_version: 'brainbase-judgment-episode-final-v2',
-            completion_status: 'complete', event_count: 1, qualifying_event_count: 0
+            completion_status: 'complete', event_count: 1, qualifying_event_count: 0,
+            execution_outcome: {
+                schema_version: 'judgment_execution_outcome.v1',
+                host: { type: 'codex', adapter_id: 'codex-hooks' },
+                scope: 'host_turn', status: 'completed', stage: 'finalize',
+                evidence: { state: 'confirmed', refs: expect.any(Array) }
+            }
         });
+        const executionOutcomePath = join(
+            root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.execution-outcome.json`
+        );
+        expect(JSON.parse(readFileSync(executionOutcomePath, 'utf8'))).toEqual(result.final.execution_outcome);
+
+        // finalのimmutable保存後、sidecar保存前にHostが中断した状態を再現する。
+        // 現行finalのmarkerから同一outcomeを決定的に復旧できなければならない。
+        rmSync(executionOutcomePath);
+        const recovered = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                routed.display_line,
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
+                '参照先が未確定だと説明'
+            ].join('\n')
+        }, { env });
+        expect(recovered.final.execution_outcome).toEqual(result.final.execution_outcome);
+        expect(JSON.parse(readFileSync(executionOutcomePath, 'utf8'))).toEqual(result.final.execution_outcome);
         expect(recordBrainbaseToolUse(routePayload, { env })).toEqual(routed);
         expect(() => recordBrainbaseToolUse({
             ...routePayload,
