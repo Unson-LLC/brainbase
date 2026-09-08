@@ -81,7 +81,31 @@ const OUTCOME_CONTINUATION_PROGRESS_LINE = '🔁 未完了と判定しました�
 const OUTCOME_CONTINUATION_COMPLETE_LINE = '🔁 実行継続: 安全な残作業の再開要求を記録';
 const MAX_CONTINUATION_ATTEMPTS = 3;
 const STOP_REPAIR_COMPLETE_LINE = '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓';
-const ORPHAN_AUDIT_WARNING = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。';
+const ORPHAN_AUDIT_WARNING = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。';
+const START_FAILURE_WARNING = '⚠️ Brainbase監査未完了: 開始処理を確認できないため、このturnでは説明のみ返します。';
+const failureStages = new WeakMap();
+const SAFE_FAILURE_REASONS = new Set([
+    'judgment_host_transport_failed', 'judgment_host_response_invalid', 'judgment_host_invalid_response',
+    'judgment_host_bridge_failed', 'brainbase_api_unavailable', 'brainbase_api_error',
+    'judgment_receipt_turn_mismatch', 'judgment_receipt_request_mismatch',
+    'judgment_receipt_context_mismatch', 'judgment_receipt_binding_unmanaged',
+    'judgment_receipt_active_nodes_missing', 'judgment_receipt_autonomy_invalid',
+    'judgment_receipt_autonomy_mismatch', 'judgment_episode_start_timeout',
+    'judgment_episode_transition_failed', 'judgment_episode_existing_read_failed',
+    'judgment_episode_request_build_failed', 'judgment_episode_route_resolve_failed',
+    'judgment_episode_surface_detect_failed', 'judgment_episode_autonomy_detect_failed',
+    'judgment_episode_audit_build_failed', 'judgment_episode_persist_failed',
+    'judgment_turn_input_persist_failed', 'judgment_episode_start_conflict',
+    'judgment_host_payload_too_large', 'judgment_orphan_tool_event_start_conflict',
+    'judgment_orphan_audit_start_conflict',
+    'judgment_audit_degraded_start_conflict'
+]);
+const SAFE_ERROR_CODES = new Set([
+    'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN',
+    'EACCES', 'EPERM', 'ENOSPC', 'EROFS', 'ENOTDIR', 'EISDIR', 'ENOENT', 'EEXIST',
+    'SQLITE_BUSY', 'SQLITE_LOCKED', 'SQLITE_CANTOPEN', 'SQLITE_READONLY',
+    'ERR_SQLITE_ERROR', 'ERR_DLOPEN_FAILED', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET'
+]);
 const ORPHAN_TOOL_EVENT_WARNING = '⚠️ Brainbase監査未完了: Brainbase tool eventを開始episodeへ結合できませんでした。';
 const CAPABILITY_ACTION_CONTRACTS = Object.freeze({
     'knowledge.resolve': Object.freeze({
@@ -1026,9 +1050,14 @@ async function fetchAttempt(args, { env, fetchImpl }) {
             throw error;
         }
         let payload;
-        try { payload = await response.json(); } catch { throw new Error('judgment_host_transport_failed'); }
-        if (response.ok && payload.management_status === 'managed') return payload.receipt;
-        const error = new Error(typeof payload.reason === 'string' ? payload.reason : `judgment_host_http_${response.status}`);
+        try { payload = await response.json(); } catch (cause) {
+            const error = new Error('judgment_host_response_invalid', { cause });
+            error.httpStatus = response.status;
+            throw error;
+        }
+        if (response.ok && payload?.management_status === 'managed') return payload.receipt;
+        const error = new Error(typeof payload?.reason === 'string' ? payload.reason : 'judgment_host_response_invalid');
+        error.httpStatus = response.status;
         error.transient = [429, 502, 503, 504].includes(response.status) && TRANSIENT_REASONS.has(error.message);
         throw error;
     } finally {
@@ -1059,8 +1088,10 @@ export async function resolveAndAdopt(args, dependencies = {}) {
 
 function withJudgmentStage(reason, callback) {
     const wrap = (error) => {
-        if (error instanceof Error && /^judgment_[a-z0-9_]{1,80}$/u.test(error.message)) throw error;
-        throw new Error(reason, { cause: error });
+        const wrapped = error instanceof Error && /^judgment_[a-z0-9_]{1,80}$/u.test(error.message)
+            ? error : new Error(reason, { cause: error });
+        if (!failureStages.has(wrapped)) failureStages.set(wrapped, reason);
+        throw wrapped;
     };
     try {
         const result = callback();
@@ -4241,15 +4272,134 @@ function blockedOutput(reason) {
     };
 }
 
+function diagnosticContinueEnabled(env, payload) {
+    return env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue'
+        && typeof env.BRAINBASE_JUDGMENT_CANARY_CWD === 'string'
+        && isAbsolute(env.BRAINBASE_JUDGMENT_CANARY_CWD)
+        && typeof payload?.cwd === 'string' && isAbsolute(payload.cwd)
+        && samePath(env.BRAINBASE_JUDGMENT_CANARY_CWD, payload.cwd);
+}
+
+function safeFailureReason(error) {
+    return SAFE_FAILURE_REASONS.has(error?.message) ? error.message : 'judgment_start_failure_unknown';
+}
+
+function recordStartFailure(payload, error, startedAt, env) {
+    const identity = payloadIdentity(payload);
+    const chain = [];
+    const visited = new Set();
+    let current = error;
+    while (current && chain.length < 6 && !visited.has(current)) {
+        visited.add(current);
+        chain.push({
+            name: ['Error', 'TypeError', 'SyntaxError', 'RangeError', 'AbortError', 'AggregateError', 'SqliteError'].includes(current.name)
+                ? current.name : 'Error',
+            code: SAFE_ERROR_CODES.has(current.code) ? current.code : 'unknown',
+            reason: safeFailureReason(current),
+            ...(Number.isInteger(current.httpStatus) && current.httpStatus >= 100 && current.httpStatus <= 599
+                ? { http_status: current.httpStatus } : {})
+        });
+        current = current.cause;
+    }
+    if (chain.length === 0) chain.push({ name: 'Error', code: 'unknown', reason: 'judgment_start_failure_unknown' });
+    const diagnostic = {
+        schema_version: 'brainbase-judgment-start-failure-v1',
+        recorded_at: new Date().toISOString(),
+        session_ref: identity?.sessionRef ?? null,
+        turn_ref: identity ? sha256(identity.turnId) : null,
+        failed_stage: failureStages.get(error) ?? 'judgment_episode_start_failed',
+        reason: safeFailureReason(error),
+        error_chain: chain,
+        elapsed_ms: Math.max(0, Date.now() - startedAt),
+        input_shape: {
+            prompt_present: typeof payload?.prompt === 'string',
+            prompt_nonempty: typeof payload?.prompt === 'string' && payload.prompt.trim().length > 0,
+            session_id_present: typeof payload?.session_id === 'string' && payload.session_id.length > 0,
+            turn_id_present: typeof payload?.turn_id === 'string' && payload.turn_id.trim().length > 0,
+            transcript_path_present: typeof payload?.transcript_path === 'string' && payload.transcript_path.length > 0
+        },
+        audit_status: 'incomplete',
+        action_authorized: false
+    };
+    try {
+        if (!identity) throw new Error('judgment_identity_missing');
+        const path = join(journalRoot(env), 'diagnostics', identity.sessionRef, `${sha256(identity.turnId)}.start-failure.json`);
+        // Preserve the first failure. No episode transaction or successful
+        // bootstrap is needed to retain this diagnostic.
+        try { readJson(path); return diagnostic; } catch (readError) {
+            if (readError?.code !== 'ENOENT') throw readError;
+        }
+        createImmutableJson(path, diagnostic, 'judgment_start_diagnostic_conflict');
+    } catch {
+        process.stderr.write(`${JSON.stringify({ ...diagnostic, diagnostic_persisted: false })}\n`);
+    }
+    return diagnostic;
+}
+
+function diagnosticContinueOutput(diagnostic) {
+    const context = [
+        START_FAILURE_WARNING,
+        `失敗段階: ${diagnostic.failed_stage}。理由: ${diagnostic.reason}。`,
+        '権限の追加なし。このturnは説明のみ返してください。読み取りを含むtool実行はPreToolUseで拒否します。',
+        '完全監査・修復完了・作業完了を主張せず、確認済みと未確認を分けて説明してください。',
+        `最終回答の先頭に次の行を1回置いてください: ${START_FAILURE_WARNING}`
+    ].join('\n');
+    return {
+        continue: true,
+        suppressOutput: false,
+        systemMessage: context,
+        hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context }
+    };
+}
+
+function hasStartFailureOrUnreadableDiagnostic(payload, env) {
+    const identity = payloadIdentity(payload);
+    if (!identity) return false;
+    const path = join(journalRoot(env), 'diagnostics', identity.sessionRef, `${sha256(identity.turnId)}.start-failure.json`);
+    try { readFileSync(path); return true; } catch (error) {
+        return error?.code !== 'ENOENT';
+    }
+}
+
+function hasVerifiedStart(payload, env) {
+    try {
+        const identity = payloadIdentity(payload);
+        if (!identity) return false;
+        if (hasStartFailureOrUnreadableDiagnostic(payload, env)) return false;
+        const episode = existingEpisode(payload, env);
+        if (!episode || episode.episode_origin !== 'user_prompt_submit'
+            || episode.route_application !== 'pre_generation') return false;
+        const input = readJson(journalPaths(identity.sessionRef, identity.turnId, env).turnInput);
+        return input.conversation_context?.session_ref === identity.sessionRef && input.turn_id === identity.turnId
+            && canonicalJson(input) === canonicalJson(episode.turn_input);
+    } catch { return false; }
+}
+
 function stopFailureMessage(reason) {
     if (reason === 'judgment_episode_not_found') {
         return `${ORPHAN_AUDIT_WARNING}（詳細: ${reason}）`;
     }
-    return `⚠️ Brainbase監査を確定できませんでした。新しいCodex taskで同じ依頼を再送してください。再発する場合は、Settings → HooksでBrainbaseのユーザーHookを信頼し直してください。（詳細: ${reason}）`;
+    return `⚠️ Brainbase監査を確定できませんでした。原因と必要な復旧操作は未確認です。（詳細: ${reason}）`;
 }
 
 export async function processHookPayload(payload, dependencies = {}) {
     const eventName = payload?.hook_event_name || payload?.hookEventName;
+    const env = dependencies.env ?? process.env;
+    if (env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue' && eventName === 'PreToolUse') {
+        return diagnosticContinueEnabled(env, payload) && hasVerifiedStart(payload, env) ? {} : {
+            hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                permissionDecision: 'deny',
+                permissionDecisionReason: START_FAILURE_WARNING
+            }
+        };
+    }
+    if (diagnosticContinueEnabled(env, payload) && eventName === 'Stop'
+        && hasStartFailureOrUnreadableDiagnostic(payload, env)) {
+        // Do not bootstrap a post-generation episode or repeatedly regenerate
+        // an explanation-only answer. This is not a complete final receipt.
+        return { systemMessage: START_FAILURE_WARNING };
+    }
     if (eventName === 'UserPromptSubmit') {
         const episode = await startEpisode(payload, dependencies);
         await dependencies.onEpisodeStarted?.(episode);
@@ -4331,6 +4481,7 @@ async function main() {
         }
         return;
     }
+    const startedAt = Date.now();
     const input = readFileSync(0, 'utf8');
     let payload;
     try { payload = JSON.parse(input || '{}'); } catch { process.stdout.write(`${JSON.stringify(blockedOutput('hook_payload_invalid'))}\n`); return; }
@@ -4340,7 +4491,9 @@ async function main() {
     } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         if (eventName === 'UserPromptSubmit') {
-            process.stdout.write(`${JSON.stringify(blockedOutput(reason))}\n`);
+            const diagnostic = recordStartFailure(payload, error, startedAt, process.env);
+            process.stdout.write(`${JSON.stringify(diagnosticContinueEnabled(process.env, payload)
+                ? diagnosticContinueOutput(diagnostic) : blockedOutput(diagnostic.reason))}\n`);
         } else if (eventName === 'PostToolUse' || eventName === 'PostToolUseFailure') {
             process.stderr.write(`⚠️ Brainbase監査記録に失敗: ${reason}\n`);
             process.exitCode = 1;

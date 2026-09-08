@@ -7,6 +7,9 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 host_script="$script_dir/judgment-resolver-host.mjs"
+if [ "${BRAINBASE_JUDGMENT_HOOK_MODE:-}" = "record_only" ]; then
+  host_script="$script_dir/judgment-hook-observe.mjs"
+fi
 
 if [ "$#" -gt 0 ] && [ -n "$1" ]; then
   node --no-warnings "$host_script" <<<"$1"

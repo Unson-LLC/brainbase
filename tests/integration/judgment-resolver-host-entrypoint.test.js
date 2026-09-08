@@ -597,7 +597,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const env = { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
         const orphanIdentity = { session_id: 'session-orphan-stop', turn_id: 'turn-orphan-stop' };
         const originalBody = '長時間taskの作業結果';
-        const warning = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。';
+        const warning = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。';
 
         const orphanFirst = await run('bash', [wrapper], {
             env,
@@ -614,6 +614,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(JSON.parse(orphanFirst.stdout).reason).toContain(warning);
         expect(JSON.parse(orphanFirst.stdout).reason).toContain('元の回答本文を削除・要約・置換せず');
         expect(JSON.parse(orphanFirst.stdout).reason).not.toContain('新しいCodex task');
+        expect(JSON.parse(orphanFirst.stdout).reason).not.toContain('新しいtask');
+        expect(JSON.parse(orphanFirst.stdout).reason).not.toContain('新規task');
+        expect(JSON.parse(orphanFirst.stdout).reason).not.toContain('Hook操作');
 
         const orphanDirectory = join(journal, hash(orphanIdentity.session_id));
         const diagnosticPath = join(orphanDirectory, `${hash(orphanIdentity.turn_id)}.audit-failure.json`);
@@ -816,7 +819,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(invalidActive.code).not.toBe(0);
         expect(invalidActive.stdout).toBe('');
         expect(invalidActive.stderr).toContain('judgment_episode_identity_missing');
-        expect(invalidActive.stderr).toContain('Settings → Hooks');
+        expect(invalidActive.stderr).toContain('原因と必要な復旧操作は未確認');
+        expect(invalidActive.stderr).not.toContain('Settings → Hooks');
 
         const activeFirstIdentity = { session_id: 'session-orphan-active-first', turn_id: 'turn-orphan-active-first' };
         const activeFirst = await run('bash', [wrapper], {
