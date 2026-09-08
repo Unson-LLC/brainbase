@@ -26,6 +26,7 @@ const PROHIBITED_FIXED_HEADERS = new Set([
     'authorization', 'x-api-key', 'xc-token', 'cookie', 'host', 'content-length',
     'transfer-encoding', 'connection', 'proxy-authorization', 'idempotency-key'
 ]);
+const MCP_ACCEPT = 'application/json, text/event-stream';
 
 function failSchema() {
     throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
@@ -474,6 +475,7 @@ export function createTrustedHttpProviderForwarder({
             });
             const headers = {
                 ...definition.fixed_headers,
+                ...(operation === AUTHORITY_MCP_OPERATION ? { accept: MCP_ACCEPT } : {}),
                 'brainbase-provider-operation': operation
             };
             if (forwardedRequest.idempotency_key !== undefined) {

@@ -643,6 +643,8 @@ describe('trusted provider HTTP forwarder', () => {
         });
 
         const forwardedBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
+        const forwardedHeaders = new Headers(fetchImpl.mock.calls[0][1].headers);
+        expect(forwardedHeaders.get('accept')).toBe('application/json, text/event-stream');
         expect(forwardedBody).toMatchObject({
             jsonrpc: '2.0',
             method: 'tools/call',
