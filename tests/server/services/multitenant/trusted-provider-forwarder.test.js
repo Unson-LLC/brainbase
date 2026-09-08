@@ -798,7 +798,13 @@ describe('trusted provider HTTP forwarder', () => {
         }
     );
 
-    it('P0-1: judgment state recordをproject非依存の引数のまま転送する', async () => {
+    it.each([
+        ['brainbase_judgment_audit_read', { turn_ref: 'turn-1', project_code: 'spoofed' }, { turn_ref: 'turn-1' }],
+        ['brainbase_judgment_state_record', {
+            status: 'completed', pending_safe_work: false, runtime_reason_code: null,
+            project_code: 'spoofed'
+        }, { status: 'completed', pending_safe_work: false, runtime_reason_code: null }]
+    ])('P0-1: %sをproject非依存の引数のまま転送する', async (name, arguments_, expected) => {
         const fetchImpl = vi.fn(async () => ({
             status: 200,
             headers: { get: () => 'application/json' },
@@ -826,20 +832,15 @@ describe('trusted provider HTTP forwarder', () => {
                 body: {
                     jsonrpc: '2.0', id: 14, method: 'tools/call',
                     params: {
-                        name: 'brainbase_judgment_state_record',
-                        arguments: {
-                            status: 'completed', pending_safe_work: false, runtime_reason_code: null,
-                            project_code: 'spoofed'
-                        }
+                        name,
+                        arguments: arguments_
                     }
                 }
             }
         });
 
         const forwarded = JSON.parse(fetchImpl.mock.calls[0][1].body);
-        expect(forwarded.params.arguments).toEqual({
-            status: 'completed', pending_safe_work: false, runtime_reason_code: null
-        });
+        expect(forwarded.params.arguments).toEqual(expected);
     });
 
     it.each(['initialize', 'notifications/initialized', 'ping', 'tools/list'])(

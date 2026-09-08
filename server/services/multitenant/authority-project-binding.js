@@ -13,6 +13,7 @@ const AUTHORITY_PROJECT_INDEPENDENT_MCP_TOOLS = new Set([
     'brainbase_resolve_turn',
     'search_personal_kg',
     'register_personal_kg',
+    'brainbase_judgment_audit_read',
     'brainbase_judgment_state_record'
 ]);
 const AUTHORITY_MCP_LIFECYCLE_METHODS = new Set([
