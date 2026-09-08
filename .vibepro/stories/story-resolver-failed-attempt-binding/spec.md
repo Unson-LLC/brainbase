@@ -8,6 +8,8 @@ model_interpretationの省略を許可するのは、PostToolUseFailureで成功
 
 Manaのtranscript再送はerror項目を持たず、tool_response.contentへ失敗本文を渡す。この形式を同じ失敗として記録する。失敗かどうかはHookイベント種別に従い、任意の本文やコードで成功へ変更しない。
 
+監査読取のMCP応答は`content[0].text`にJSON化された`{status:'ok',data}`を含む実形状として検証する。Hostは、入力と現在ターンの同一`turn_ref`、`brainbase-owner-audit-v1`、監査データの厳密な4キー、空でない`lines`、`prefix`と`lines`を改行で連結した値の一致をすべて満たす場合だけ意味的成功として記録する。`status:error`や`isError:true`は既存の共通失敗判定で拒否し、汎用`status:'ok'`だけの応答、別ターン、スキーマ不正、prefix不一致も受理しない。通常の外側explicit成功の受理は維持する。
+
 ## 失敗束縛の診断
 
 束縛拒否の条件を変更せず、入力欠落・解釈欠落・入力不一致・成功契約の各digest不一致・失敗Hook以外の契約欠落を固定のcauseコードで区別する。公開エラーは従来通りとし、既存MCPの安全なcauseReasonCodeログに接続する。入力本文や値は含めない。

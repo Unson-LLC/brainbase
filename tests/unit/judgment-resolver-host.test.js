@@ -5924,6 +5924,105 @@ describe('owner-audit preflight read', () => {
         expect(eventJournalSnapshot(root, payload.session_id, payload.turn_id)).toEqual(before);
     });
 
+    it.each([
+        ['valid MCP content envelope', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['🧠 判断参照: 「回答して」を参照 → 回答として処理 ✓'],
+                prefix: '🧠 判断参照: 「回答して」を参照 → 回答として処理 ✓'
+            } }) }]
+        }), undefined, true],
+        ['different data turn_ref', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: `${hash('other-session')}/${hash('other-turn')}`,
+                lines: ['監査行'], prefix: '監査行'
+            } }) }]
+        }), undefined, false],
+        ['different input turn_ref', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行'
+            } }) }]
+        }), `${hash('other-session')}/${hash('other-turn')}`, false],
+        ['invalid schema version', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'wrong-schema', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行'
+            } }) }]
+        }), undefined, false],
+        ['extra audit data key', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行', extra: '拒否'
+            } }) }]
+        }), undefined, false],
+        ['empty lines', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: [], prefix: ''
+            } }) }]
+        }), undefined, false],
+        ['prefix mismatch', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '改変された監査行'
+            } }) }]
+        }), undefined, false],
+        ['generic status ok only', () => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok' }) }]
+        }), undefined, false],
+        ['error status with audit data', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'error', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行'
+            } }) }]
+        }), undefined, false],
+        ['isError true with valid content', (turnRef) => ({
+            isError: true,
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行'
+            } }) }]
+        }), undefined, false],
+        ['outer explicit success remains accepted', (turnRef) => ({
+            status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行'
+            }
+        }), undefined, true]
+    ])('MCP監査読取の意味的成功を%sに限定する', async (_caseName, buildResponse, inputTurnRef, expectedSuccess) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: `session-audit-mcp-${hash(_caseName).slice(0, 12)}`,
+            turn_id: `turn-audit-mcp-${hash(_caseName).slice(0, 12)}`, prompt: '回答して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+            selected_dag_ids: ['general.v1']
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        const turnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
+        const recorded = recordBrainbaseToolUse({
+            ...payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_audit_read',
+            tool_use_id: `audit-read-mcp-${hash(_caseName).slice(0, 12)}`,
+            tool_input: { turn_ref: inputTurnRef ?? turnRef },
+            tool_response: buildResponse(turnRef)
+        }, { env });
+
+        expect(recorded).toMatchObject({ event_kind: 'ignored', success: expectedSuccess, satisfies: [] });
+    });
+
     it('runtime 2.4の未完了stateは正しい事前取得prefixでも初回Stopを継続させる', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
