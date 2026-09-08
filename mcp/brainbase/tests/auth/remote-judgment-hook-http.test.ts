@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -225,6 +225,66 @@ describe('remote judgment Hook HTTP boundary', () => {
         output: { systemMessage: '⚠️ Brainbase検索: search「対象」→ 失敗または結果不明' },
       },
     });
+  });
+
+  it('records a failed Resolver through the real Host without treating HTTP acceptance as tool success', async () => {
+    const journalRoot = await mkdtemp(join(tmpdir(), 'remote-resolver-failure-'));
+    try {
+      const host = await import('../../../../scripts/codex-hooks/judgment-resolver-host.mjs');
+      const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journalRoot };
+      const start = {
+        hook_event_name: 'UserPromptSubmit', session_id: 'failed-resolver-session',
+        turn_id: 'failed-resolver-turn', prompt: '個人KGの検証メモを検索して', cwd: process.cwd(),
+      };
+      const args = host.buildJudgmentRequest(start, { env });
+      await host.startEpisode(start, {
+        env,
+        fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({
+          management_status: 'managed', receipt: {
+            resolution_id: 'failed-resolver-bootstrap', turn_id: args.turn_id,
+            request_digest: sha256(host.canonicalJson(args)),
+            context_digest: sha256(host.canonicalJson(args.conversation_context)),
+            status: 'resolved', host_binding: { status: 'managed' },
+            classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+            active_node_definitions: [{ id: 'entry', kind: 'common', instruction: 'Judge first.' }],
+          },
+        }) }),
+      });
+      const payload = {
+        hook_event_name: 'PostToolUseFailure', session_id: start.session_id, turn_id: start.turn_id,
+        tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'failed-resolver-call',
+        tool_input: { turn_ref: `${sha256(start.session_id)}/${sha256(start.turn_id)}` },
+        tool_response: null, error: { code: 'tool_unavailable', message: 'private connection details' },
+      };
+      const dispatch = async (hookPayload: Record<string, unknown>) => ({
+        output: await host.processHookPayload(hookPayload, { env }),
+      });
+      const send = (body = payload) => handleRemoteJudgmentHookRequest(request({
+        body: Buffer.from(JSON.stringify(body)), dispatch,
+      }));
+      const accepted = await send();
+      assert.equal(accepted?.status, 200);
+      assert.equal(accepted?.body.accepted, true);
+      assert.match(String((accepted?.body.output as Record<string, unknown>)?.systemMessage),
+        /^⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗/);
+      const eventDir = join(journalRoot, sha256(start.session_id), `${sha256(start.turn_id)}.events`);
+      const files = await readdir(eventDir);
+      assert.equal(files.length, 1);
+      const eventText = await readFile(join(eventDir, files[0]), 'utf8');
+      const event = JSON.parse(eventText);
+      assert.equal(event.success, false);
+      assert.equal(event.event_kind, 'turn_resolution');
+      assert.equal(event.safe_metadata.turn_contract, undefined);
+      assert.equal(event.safe_metadata.tool_failure.failure_code, 'tool_execution_failed');
+      assert.equal(eventText.includes('private connection details'), false);
+      assert.deepEqual(await send(), accepted);
+      assert.equal((await readdir(eventDir)).length, 1);
+      const conflict = await send({ ...payload, error: { code: 'tool_unavailable', message: 'different error' } });
+      assert.equal(conflict?.status, 503);
+      assert.equal(conflict?.body.error, 'judgment_tool_event_conflict');
+    } finally {
+      await rm(journalRoot, { recursive: true, force: true });
+    }
   });
 
   it('dispatches remote toolName through the Host and returns its journal audit', async () => {

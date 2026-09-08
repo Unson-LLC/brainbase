@@ -2260,6 +2260,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                 : '呼出';
     const displayLine = turnResolutionUnavailable
         ? '⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（brainbase_api_unavailable）'
+        : postToolUseFailure && kind === 'turn_resolution' && !turnResolution
+        ? '⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（tool_execution_failed）'
         : !brainbaseTool || judgmentStateTool || judgmentValueProofTool || judgmentAuditReadTool || kind === 'turn_resolution'
         ? null
         : kind === 'route'

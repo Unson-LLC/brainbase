@@ -4732,12 +4732,13 @@ describe('structured Resolver unavailable failures', () => {
             tool_response: response,
             ...(error ? { error } : {})
         };
-        await expect(processHookPayload(failure, { env })).resolves.toBeDefined();
+        const failureOutput = await processHookPayload(failure, { env });
+        expect(failureOutput.systemMessage).toMatch(/^⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗/);
         const [entry] = eventEntries(root, sessionId, 'turn-structured-unavailable');
         expect(entry).toMatchObject({ event_kind: 'turn_resolution', success: false });
         expect(entry.safe_metadata.turn_contract).toBeUndefined();
         expect(JSON.stringify(entry)).not.toContain('private connection details');
-        await expect(processHookPayload(failure, { env })).resolves.toBeDefined();
+        await expect(processHookPayload(failure, { env })).resolves.toEqual(failureOutput);
         expect(eventEntries(root, sessionId, 'turn-structured-unavailable')).toHaveLength(1);
         await expect(processHookPayload({ ...failure,
             error: { code: 'tool_unavailable', message: 'different failure' }
@@ -4778,6 +4779,10 @@ describe('structured Resolver unavailable failures', () => {
         expect(entries.filter((event) => event.success)).toEqual([
             expect.objectContaining({ safe_metadata: expect.objectContaining({ turn_contract: receipt }) })
         ]);
+        await expect(processHookPayload(failure, { env })).resolves.toEqual(failureOutput);
+        expect(eventEntries(root, sessionId, 'turn-structured-unavailable')).toEqual(entries);
+        expect(entries.filter((event) => ['search', 'retrieve'].includes(event.event_kind))).toEqual([]);
+        expect(existsSync(join(root, 'journal', hash(sessionId), `${hash('turn-structured-unavailable')}.final.json`))).toBe(false);
     });
 
     it.each([

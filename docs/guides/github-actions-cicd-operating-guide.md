@@ -65,7 +65,7 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 
 | ジョブ名 | トリガー | 目的 | ワークフロー | ランナー |
 |---|---|---|---|---|
-| Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、Personal Knowledge署名境界、実PostgreSQL migration、顧客データを使わないスモーク証跡契約を検証する | `.github/workflows/graph-writer-contract.yml` | `self-hosted`（Linux / WSL） |
+| Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、Personal Knowledge署名境界、実PostgreSQL migration、顧客データを使わないスモーク証跡契約を検証する | `.github/workflows/graph-writer-contract.yml` | `ubuntu-latest` |
 | Project Provisioning契約 | `develop`・`main`へのPull Requestとpush | 型検査、使い捨てPostgreSQLでのRLS・migration、API・CLI・MCP統合、Workspace Setup互換ブラウザ契約を検証する | `.github/workflows/project-provisioning-contract.yml` | `ubuntu-latest` |
 | VibePro Graphify影響ゲート | `develop`・`main`へのPull Request | Graph影響を伴う変更にGraphify証跡を要求する | `.github/workflows/vibepro-graphify-impact.yml` | `self-hosted`（Linux / WSL） |
 | VibePro Graph SSOT（マージ前） | `develop`・`main`へのPull Request | チェッカーの単体テスト、Ontology履歴、外部Graph SSOTを検証する | `.github/workflows/vibepro-graph-ssot.yml` | `self-hosted`（Linux / WSL） |
@@ -74,6 +74,8 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 | VibePro Score Evidence（マージ前） | `develop`・`main`へのPull Request | 変更されたscore証跡、開発DAG、Story・Architecture・Specの追跡関係を検証する | `.github/workflows/vibepro-score-run.yml` | `self-hosted`（Linux / WSL） |
 | VibePro Score Evidence（push後） | `develop`・`main`・`session/**`へのpush | `before..sha`の全変更を使い、直接pushとマージ後のscore証跡を再検証する | `.github/workflows/vibepro-score-run.yml` | `self-hosted`（Linux / WSL） |
 | VibePro Score Evidence（手動） | 手動実行 | 単体テストとワークフロー疎通を確認する。変更ファイル集合は空として扱うため、score成果物・DAG・文書追跡の検証証跡には使わない | `.github/workflows/vibepro-score-run.yml` | `self-hosted`（Linux / WSL） |
+
+Graph書き込み契約はBrainbase保守担当が管理し、GitHub管理の実行機で動かす。WSL実行機のDocker応答停止による検査停止を避け、同じテストと実PostgreSQLの検証を維持する。権限は`contents: read`、上限10分、同じrefの古い実行は中止する。失敗時はログで段階を確認してから再実行し、実行先の切り戻しはDocker疎通を確認したうえで該当runner行を戻す。利用枠・費用はGitHub Actionsの組織設定に従う。
 
 Graph書き込み契約ジョブに秘密情報は不要。テスト用のローカルHTTPサーバーとCI内の使い捨てPostgreSQLだけを使い、本番Graphへの書き込みは行わない。Personal Knowledge本番スモークは、別途署名済みsynthetic fixtureと明示的な実行環境を必要とし、CIの契約ジョブからはfixture検証だけを実行する。
 
