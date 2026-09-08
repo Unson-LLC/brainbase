@@ -4605,7 +4605,17 @@ describe('structured Resolver unavailable failures', () => {
         }, tool_use_id: 'cross-turn-attempt' }, { env })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
         await expect(processHookPayload({ ...failure, tool_input: {
             turn_ref: ownTurnRef
-        }, tool_use_id: 'missing-interpretation-attempt' }, { env })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        }, tool_use_id: 'missing-interpretation-attempt' }, { env })).resolves.toBeDefined();
+        expect(eventEntries(root, sessionId, 'turn-structured-unavailable')).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                tool_use_id: 'missing-interpretation-attempt',
+                event_kind: 'turn_resolution',
+                success: false,
+                safe_metadata: expect.objectContaining({
+                    tool_failure: expect.objectContaining({ failure_code: 'tool_execution_failed' })
+                })
+            })
+        ]));
         const receipt = {
             ...validReceipt({ ...episode.turn_input, model_interpretation: modelInterpretation }),
             classification: modelInterpretation,
@@ -4619,7 +4629,7 @@ describe('structured Resolver unavailable failures', () => {
         };
         await expect(invoke({ status: 'ok', data: receipt })).resolves.toBeDefined();
         const entries = eventEntries(root, sessionId, 'turn-structured-unavailable');
-        expect(entries).toHaveLength(2);
+        expect(entries).toHaveLength(3);
         expect(entries.filter((event) => event.success)).toEqual([
             expect.objectContaining({ safe_metadata: expect.objectContaining({ turn_contract: receipt }) })
         ]);
@@ -4628,7 +4638,7 @@ describe('structured Resolver unavailable failures', () => {
     it.each([
         ['missing_input', null, 'PostToolUseFailure', 'judgment_binding_turn_input_missing'],
         ['wrong_ref', { turn_ref: 'other/turn', model_interpretation: {} }, 'PostToolUseFailure', 'judgment_binding_turn_ref_mismatch'],
-        ['missing_interpretation', 'own_ref_only', 'PostToolUseFailure', 'judgment_binding_interpretation_missing'],
+        ['missing_interpretation', 'own_ref_only', 'PostToolUse', 'judgment_binding_interpretation_missing'],
         ['wrong_input', { turn_input: { changed: true }, model_interpretation: {} }, 'PostToolUseFailure', 'judgment_binding_turn_input_mismatch'],
         ['missing_contract', 'valid_input', 'PostToolUse', 'judgment_binding_contract_missing']
     ])('束縛拒否の%sを値を含まないcauseで区別する', async (name, input, hookEventName, cause) => {
@@ -4641,6 +4651,44 @@ describe('structured Resolver unavailable failures', () => {
         }, { env })).rejects.toMatchObject({
             message: 'judgment_turn_resolution_binding_invalid', cause: { message: cause }
         });
+    });
+
+    it.each([
+        ['PostToolUse success contract', 'PostToolUse', { status: 'ok' }],
+        ['PostToolUse structured unavailable', 'PostToolUse', unavailableResponse],
+        ['PostToolUseFailure success contract', 'PostToolUseFailure', { status: 'ok' }]
+    ])('%sはmodel_interpretation欠落を受け入れない', async (label, hookEventName, response) => {
+        const sessionId = `binding-interpretation-required-${label.replaceAll(' ', '-')}`;
+        const setup = await startUnavailableEpisode({ sessionId });
+        const resolved = {
+            ...validReceipt(setup.episode.turn_input),
+            request_digest: hash(canonicalJson({
+                ...setup.episode.turn_input,
+                model_interpretation: modelInterpretation
+            })),
+            classification: modelInterpretation,
+            required_capabilities: [],
+            selected_dag_ids: [],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const toolResponse = response.status === 'ok' ? { ...response, data: resolved } : response;
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: hookEventName,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: `interpretation-required-${label.replaceAll(' ', '-')}`,
+            tool_input: { turn_ref: setup.ownTurnRef },
+            tool_response: toolResponse
+        }, { env: setup.env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid',
+            cause: { message: 'judgment_binding_interpretation_missing' }
+        });
+        expect(existsSync(join(setup.root, 'journal', hash(sessionId), `${hash('turn-structured-unavailable')}.events`))).toBe(false);
     });
 
     it('directの構造化503を失敗イベントとして保存し、成功契約には昇格しない', async () => {
