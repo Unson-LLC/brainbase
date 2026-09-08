@@ -389,6 +389,129 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         expect(readJsonOutput(preToolUse.stdout)).toEqual({});
     }, 10_000);
 
+    it('明示opt-in時に検証済みStop委任復旧episodeのResolver PreToolUseをdenyしない', async () => {
+        const root = temporaryDirectory();
+        const sessionId = 'session-start-failure-stop-recovery-pretool';
+        const turnId = 'turn-start-failure-stop-recovery-pretool';
+        const transcript = join(root, 'delegated.jsonl');
+        writeFileSync(transcript, [
+            JSON.stringify({ type: 'session_meta', payload: { id: sessionId } }),
+            JSON.stringify({
+                type: 'response_item',
+                payload: {
+                    type: 'function_call_output',
+                    namespace: 'codex_app',
+                    name: 'create_thread',
+                    output: '<codex_delegation><source_thread_id>source-thread</source_thread_id><input>Stop復旧後のResolver検証</input></codex_delegation>',
+                    internal_chat_message_metadata_passthrough: { turn_id: turnId }
+                }
+            })
+        ].join('\n') + '\n');
+        const stopPayload = {
+            hook_event_name: 'Stop',
+            session_id: sessionId,
+            turn_id: turnId,
+            cwd: REPO_ROOT,
+            transcript_path: transcript,
+            stop_hook_active: false,
+            last_assistant_message: '委任された処理の応答'
+        };
+        const setup = await failureCase('Host成功', root, stopPayload);
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${setup.hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS: '100',
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: setup.journal,
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_START_FAILURE_MODE: 'diagnostic_continue',
+            BRAINBASE_JUDGMENT_CANARY_CWD: REPO_ROOT
+        };
+
+        const stop = await runEntrypoint({ env, payload: stopPayload });
+        expect(stop).toMatchObject({ code: 0, signal: null, stderr: '' });
+        readJsonOutput(stop.stdout);
+
+        const sessionRef = hash(sessionId);
+        const turnRef = hash(turnId);
+        const episodePath = join(setup.journal, sessionRef, `${turnRef}.episode.json`);
+        const turnInputPath = join(setup.journal, sessionRef, `${turnRef}.turn-input.json`);
+        expect(JSON.parse(readFileSync(episodePath, 'utf8'))).toMatchObject({
+            state: 'open',
+            episode_origin: 'stop_delegation_recovery',
+            route_application: 'post_generation_recovery'
+        });
+        expect(JSON.parse(readFileSync(turnInputPath, 'utf8'))).toMatchObject({
+            turn_id: turnId,
+            conversation_context: { session_ref: sessionRef }
+        });
+
+        const preToolUse = await runEntrypoint({
+            env,
+            payload: {
+                ...stopPayload,
+                hook_event_name: 'PreToolUse',
+                tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+                tool_use_id: 'tool-stop-recovery-resolver'
+            }
+        });
+        expect(preToolUse).toMatchObject({ code: 0, signal: null, stderr: '' });
+        expect(readJsonOutput(preToolUse.stdout)).toEqual({});
+    }, 10_000);
+
+    it.each(['lifecycle不一致', 'turn-input不一致'])('明示opt-in時に%sのepisodeはPreToolUseをdenyする', async (tamper) => {
+        const root = temporaryDirectory();
+        const payload = startPayload(
+            `session-start-failure-pretool-tampered-${tamper}`,
+            `turn-start-failure-pretool-tampered-${tamper}`,
+            `PreToolUse整合性検証-${tamper}`
+        );
+        const setup = await failureCase('Host成功', root, payload);
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${setup.hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS: '100',
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: setup.journal,
+            BRAINBASE_JUDGMENT_START_FAILURE_MODE: 'diagnostic_continue',
+            BRAINBASE_JUDGMENT_CANARY_CWD: REPO_ROOT
+        };
+        const started = await runEntrypoint({ env, payload });
+        expect(started).toMatchObject({ code: 0, signal: null, stderr: '' });
+        expect(readJsonOutput(started.stdout)).toMatchObject({ continue: true, suppressOutput: true });
+
+        const sessionRef = hash(payload.session_id);
+        const turnRef = hash(payload.turn_id);
+        const episodePath = join(setup.journal, sessionRef, `${turnRef}.episode.json`);
+        const turnInputPath = join(setup.journal, sessionRef, `${turnRef}.turn-input.json`);
+        if (tamper === 'lifecycle不一致') {
+            const episode = JSON.parse(readFileSync(episodePath, 'utf8'));
+            episode.episode_origin = 'stop_delegation_recovery';
+            episode.route_application = 'pre_generation';
+            writeFileSync(episodePath, JSON.stringify(episode) + '\n');
+        } else {
+            const turnInput = JSON.parse(readFileSync(turnInputPath, 'utf8'));
+            turnInput.request = `${turnInput.request}-改変`;
+            writeFileSync(turnInputPath, JSON.stringify(turnInput) + '\n');
+        }
+
+        const preToolUse = await runEntrypoint({
+            env,
+            payload: {
+                ...payload,
+                hook_event_name: 'PreToolUse',
+                tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+                tool_use_id: `tool-pretool-tampered-${tamper}`
+            }
+        });
+        expect(preToolUse).toMatchObject({ code: 0, signal: null, stderr: '' });
+        expect(readJsonOutput(preToolUse.stdout)).toMatchObject({
+            hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                permissionDecision: 'deny',
+                permissionDecisionReason: expect.stringContaining('開始処理を確認できない')
+            }
+        });
+    }, 10_000);
+
     it('正常Start後でも同turnの空または壊れたstart-failure markerを優先してPreToolUseをdenyし、Stopは警告だけ返す', async () => {
         const root = temporaryDirectory();
         const payload = startPayload(

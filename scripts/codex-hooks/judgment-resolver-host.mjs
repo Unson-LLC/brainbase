@@ -4367,8 +4367,18 @@ function hasVerifiedStart(payload, env) {
         if (!identity) return false;
         if (hasStartFailureOrUnreadableDiagnostic(payload, env)) return false;
         const episode = existingEpisode(payload, env);
-        if (!episode || episode.episode_origin !== 'user_prompt_submit'
-            || episode.route_application !== 'pre_generation') return false;
+        // A diagnostic-continue turn may reach PreToolUse after Stop has
+        // recovered a delegated turn that never emitted UserPromptSubmit.
+        // That recovery is safe only when the immutable lifecycle and the
+        // persisted canonical turn input are both verified below. Invalid,
+        // legacy, or partially initialized episodes remain denied.
+        const verifiedLifecycle = episode && (
+            (episode.episode_origin === 'user_prompt_submit'
+                && episode.route_application === 'pre_generation')
+            || (episode.episode_origin === 'stop_delegation_recovery'
+                && episode.route_application === 'post_generation_recovery')
+        );
+        if (!verifiedLifecycle) return false;
         const input = readJson(journalPaths(identity.sessionRef, identity.turnId, env).turnInput);
         return input.conversation_context?.session_ref === identity.sessionRef && input.turn_id === identity.turnId
             && canonicalJson(input) === canonicalJson(episode.turn_input);
