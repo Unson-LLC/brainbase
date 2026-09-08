@@ -67,6 +67,21 @@ afterEach(() => {
 });
 
 describe('Codex Judgment Hook readiness', () => {
+    it.each(['missing', 'disabled', 'modified', 'ready'])(
+        '説明継続モードは操作防止guardの%s状態も検証する', (state) => {
+            const scopedCommand = `BRAINBASE_JUDGMENT_START_FAILURE_MODE="diagnostic_continue" ${command}`;
+            const hooks = ['userPromptSubmit', 'postToolUse', 'stop'].map((event) => hook(event, { command: scopedCommand }));
+            if (state !== 'missing') hooks.push(hook('preToolUse', {
+                command: scopedCommand, matcher: '*', enabled: state !== 'disabled',
+                trustStatus: state === 'modified' ? 'modified' : 'trusted'
+            }));
+            expect(evaluateHookReadiness(result(hooks), { cwd })).toMatchObject({
+                ready: state === 'ready',
+                status: state === 'ready' ? 'ready_for_fresh_task'
+                    : state === 'disabled' ? 'configuration_error' : 'trust_required'
+            });
+        }
+    );
     it('無効化済みglobalと有効projectの併存を二重実行と誤判定しない', () => {
         const hooks = ['userPromptSubmit', 'postToolUse', 'stop'].flatMap((event) => [
             hook(event, { enabled: false, key: `global:${event}` }),

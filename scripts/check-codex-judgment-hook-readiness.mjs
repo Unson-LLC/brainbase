@@ -122,6 +122,15 @@ export function evaluateHookReadiness(hooksListResult, { cwd = process.cwd() } =
         required,
         hooks.filter((hook) => hook?.eventName === required.eventName && canonicalResolverHook(hook))
     ));
+    const diagnosticContinue = events.some((event) =>
+        /(?:^|\s)BRAINBASE_JUDGMENT_START_FAILURE_MODE=(?:diagnostic_continue|"diagnostic_continue"|'diagnostic_continue')(?=\s|$)/.test(event.command ?? '')
+    );
+    if (diagnosticContinue) {
+        events.push(eventResult(
+            { eventName: 'preToolUse', matcher: '*', required: true },
+            hooks.filter((hook) => hook?.eventName === 'preToolUse' && canonicalResolverHook(hook))
+        ));
+    }
     const compatibilityGaps = events.some((event) => (
         event.event_name === 'postToolUseFailure' && event.status === 'not_enumerated'
     )) ? ['postToolUseFailure_not_enumerated_by_host'] : [];

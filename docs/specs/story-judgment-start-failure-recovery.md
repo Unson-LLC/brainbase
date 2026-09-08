@@ -37,6 +37,8 @@ Stopの説明専用分岐は同turnの失敗診断が存在する場合か読取
 有効な定義が複数ある場合は従来どおり拒否する。`record_only`が有効な場合は
 `observation_only` / `ready=false`を返し、通常監査の開始準備完了と混同しない。
 別app-serverの設定確認は、既存会話へ読み込み済みである証拠ではない。
+説明継続モードでは、同じ入口コマンドのPreToolUse guardも有効・信頼済み・全tool対象で
+あることを設定確認の必須条件にする。guardなしでlifecycleだけを準備完了としない。
 
 Graphifyは本worktreeにグラフがなく影響範囲はunknown。Host呼出し経路と既存unit/integrationを直接確認して補う。
 
