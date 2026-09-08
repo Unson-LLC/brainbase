@@ -38,6 +38,85 @@ class FakeTransport implements Transport {
   }
 }
 
+test('diagnostics distinguish timeout from failure without exposing error details', async () => {
+  for (const timeout of [false, true]) {
+    const events: Array<Record<string, unknown>> = [];
+    const state = { connectCalls: 0, closeCalls: 0, callToolCalls: 0 };
+    const session = new BackendSession({
+      startupTimeoutMs: 20,
+      onDiagnostic: (event) => events.push(event),
+      transportFactory: () => new FakeTransport(),
+      clientFactory: () => makeFakeClient(state, async () => {
+        if (timeout) await new Promise(() => {});
+        else throw new Error('SECRET_TOKEN_DO_NOT_LOG');
+      }),
+    });
+    try {
+      session.kickoff();
+      await waitUntil(() => session.state === 'failed');
+      assert.ok(events.some((e) => e.event === (timeout ? 'startup_timeout' : 'startup_failed')));
+      assert.equal(events[0].attempt, 1);
+      assert.equal(events[0].facade_pid, process.pid);
+      assert.ok(events.every((e) => typeof e.elapsed_ms === 'number'));
+      assert.ok(!JSON.stringify(events).includes('SECRET_TOKEN'));
+    } finally { await session.close(); }
+  }
+});
+
+test('slow cleanup does not reclassify an immediate failure as a timeout', async () => {
+  const events: Array<Record<string, unknown>> = [];
+  let now = 0;
+  const transport = new FakeTransport();
+  transport.close = async () => { now = 100; };
+  const session = new BackendSession({
+    now: () => now,
+    startupTimeoutMs: 20,
+    onDiagnostic: (event) => events.push(event),
+    transportFactory: () => transport,
+    clientFactory: () => makeFakeClient(
+      { connectCalls: 0, closeCalls: 0, callToolCalls: 0 },
+      async () => { throw new Error('connect failed'); },
+    ),
+  });
+  try {
+    session.kickoff();
+    await waitUntil(() => session.state === 'failed');
+    assert.ok(events.some((event) => event.event === 'startup_failed'));
+    assert.ok(!events.some((event) => event.event === 'startup_timeout'));
+  } finally { await session.close(); }
+});
+
+test('diagnostics retain real child exit code but discard stderr', async () => {
+  const events: Array<Record<string, unknown>> = [];
+  const session = new BackendSession({
+    backendLauncher: process.execPath,
+    backendArgs: ['-e', 'process.stderr.write("SECRET_TOKEN_DO_NOT_LOG"); process.exit(78)'],
+    startupTimeoutMs: 1_000,
+    onDiagnostic: (event) => events.push(event),
+  });
+  try {
+    session.kickoff();
+    await waitUntil(() => session.state === 'failed');
+    const exit = events.find((e) => e.event === 'process_exit');
+    assert.equal(exit?.exit_code, 78);
+    assert.equal(typeof exit?.child_pid, 'number');
+    assert.ok(!JSON.stringify(events).includes('SECRET_TOKEN'));
+  } finally { await session.close(); }
+});
+
+test('diagnostic sink failures do not break readiness or cleanup', async () => {
+  const state = { connectCalls: 0, closeCalls: 0, callToolCalls: 0 };
+  const session = new BackendSession({
+    onDiagnostic: () => { throw new Error('sink failed'); },
+    transportFactory: () => new FakeTransport(),
+    clientFactory: () => makeFakeClient(state, async () => {}),
+  });
+  session.kickoff();
+  await waitUntil(() => session.state === 'ready');
+  await session.close();
+  assert.equal(session.state, 'closed');
+});
+
 interface FakeClientState {
   connectCalls: number;
   closeCalls: number;

@@ -58,6 +58,22 @@ const BACKEND_REQUEST_MESSAGE = 'Brainbase backend request failed.';
 const BACKEND_PROCESS_ERROR = 'Brainbase backend process is unavailable.';
 const BACKEND_PROTOCOL_ERROR = 'Brainbase backend returned an invalid protocol message.';
 
+type DiagnosticEvent = 'startup_started' | 'startup_ready' | 'startup_failed'
+  | 'startup_timeout' | 'backend_disconnected' | 'process_spawned'
+  | 'process_spawn_failed' | 'process_exit';
+type ProcessDiagnostic = {
+  event: DiagnosticEvent;
+  child_pid?: number;
+  exit_code?: number | null;
+  signaled?: boolean;
+};
+export type BackendDiagnostic = ProcessDiagnostic & {
+  facade_pid: number;
+  timestamp: string;
+  attempt: number;
+  elapsed_ms: number;
+};
+
 /** This is intentionally duplicated from the backend's static resource catalog. */
 export const WIKI_RESOURCE_TEMPLATE: ResourceTemplate = {
   uriTemplate: 'brainbase://wiki/page/{path}',
@@ -155,6 +171,7 @@ export interface BackendProcessParameters {
   args: string[];
   cwd?: string;
   env?: NodeJS.ProcessEnv;
+  onDiagnostic?: (event: ProcessDiagnostic) => void;
 }
 
 export class ChildProcessTransport implements Transport {
@@ -170,6 +187,10 @@ export class ChildProcessTransport implements Transport {
   onmessage?: (message: JSONRPCMessage) => void;
 
   constructor(private readonly parameters: BackendProcessParameters) {}
+
+  private diagnose(event: ProcessDiagnostic): void {
+    try { this.parameters.onDiagnostic?.(event); } catch { /* Diagnostics never affect transport. */ }
+  }
 
   get pid(): number | undefined {
     return this.child?.pid ?? this.processGroupId;
@@ -199,6 +220,7 @@ export class ChildProcessTransport implements Transport {
       this.processGroupId = child.pid;
 
       child.once('spawn', () => {
+        this.diagnose({ event: 'process_spawned', child_pid: child.pid });
         spawned = true;
         if (!settled) {
           settled = true;
@@ -207,6 +229,7 @@ export class ChildProcessTransport implements Transport {
       });
 
       child.once('error', () => {
+        this.diagnose({ event: 'process_spawn_failed', child_pid: child.pid });
         this.emitError(BACKEND_PROCESS_ERROR);
         if (!settled) {
           settled = true;
@@ -214,7 +237,8 @@ export class ChildProcessTransport implements Transport {
         }
       });
 
-      child.once('exit', () => {
+      child.once('exit', (code, signal) => {
+        this.diagnose({ event: 'process_exit', child_pid: child.pid, exit_code: code, signaled: signal !== null });
         // `close` waits for inherited stdio handles. A detached descendant can
         // keep those handles open after the direct child exits, so clean the
         // process group at `exit` as well as at `close`.
@@ -399,11 +423,13 @@ export interface BackendSessionOptions {
   maxAttempts?: number;
   retryBackoffMs?: number;
   now?: () => number;
+  onDiagnostic?: (event: BackendDiagnostic) => void;
   transportFactory?: (parameters: BackendProcessParameters) => Transport;
   clientFactory?: () => BackendClient;
 }
 
 export class BackendSession {
+  private readonly onDiagnostic: ((event: BackendDiagnostic) => void) | undefined;
   private readonly backendLauncher: string;
   private readonly backendArgs: string[];
   private readonly backendCwd: string | undefined;
@@ -425,6 +451,10 @@ export class BackendSession {
   private closePromise: Promise<void> | undefined;
 
   constructor(options: BackendSessionOptions = {}) {
+    // Opt-in only. Raw errors, launcher arguments, env and stderr are never logged.
+    this.onDiagnostic = options.onDiagnostic ?? (process.env.BRAINBASE_MCP_DIAGNOSTICS === '1'
+      ? (event) => { process.stderr.write(`${JSON.stringify({ schema: 'brainbase-mcp-lifecycle-v1', ...event })}\n`); }
+      : undefined);
     this.backendLauncher = options.backendLauncher ?? defaultBackendLauncher();
     this.backendArgs = options.backendArgs ?? [];
     this.backendCwd = options.backendCwd;
@@ -554,12 +584,23 @@ export class BackendSession {
   private async startAttempt(): Promise<void> {
     let transport: Transport | undefined;
     let client: BackendClient | undefined;
+    const startedAt = this.now();
+    const attempt = this.attempts;
+    const diagnose = (event: ProcessDiagnostic): void => {
+      try {
+        this.onDiagnostic?.({ ...event, facade_pid: process.pid, timestamp: new Date().toISOString(),
+          attempt, elapsed_ms: Math.max(0, this.now() - startedAt) });
+      } catch { /* A broken diagnostic sink must not break MCP. */ }
+    };
+    let timedOut = false;
+    diagnose({ event: 'startup_started' });
     try {
       transport = this.transportFactory({
         command: this.backendLauncher,
         args: [...this.backendArgs],
         cwd: this.backendCwd,
         env: { ...this.backendEnv },
+        onDiagnostic: diagnose,
       });
       client = this.clientFactory();
       this.startingTransport = transport;
@@ -571,6 +612,7 @@ export class BackendSession {
       await Promise.race([
         connectPromise,
         waitFor(this.startupTimeoutMs).then(() => {
+          timedOut = true;
           throw new Error(BACKEND_PROCESS_ERROR);
         }),
       ]);
@@ -588,6 +630,7 @@ export class BackendSession {
       this.currentTransport = transport;
       this.currentClient = client;
       this.stateValue = 'ready';
+      diagnose({ event: 'startup_ready' });
       const previousOnClose = transport.onclose;
       let closeHandled = false;
       transport.onclose = () => {
@@ -601,6 +644,7 @@ export class BackendSession {
             this.currentClient = undefined;
             if (this.stateValue !== 'closed') {
               this.stateValue = 'failed';
+              diagnose({ event: 'backend_disconnected' });
               this.nextRetryAt = this.now() + this.retryBackoffMs;
             }
           }
@@ -613,12 +657,16 @@ export class BackendSession {
     } catch {
       // Keep the original error private.  The frontend reports the fixed
       // readiness message above and never forwards launcher stderr.
+      // Classify before cleanup: closing a failed child can itself take time.
+      const failureEvent = timedOut || this.now() - startedAt >= this.startupTimeoutMs
+        ? 'startup_timeout' : 'startup_failed';
       await closeQuietly(client);
       await closeQuietly(transport);
       if (this.startingClient === client) this.startingClient = undefined;
       if (this.startingTransport === transport) this.startingTransport = undefined;
       if (this.stateValue !== 'closed') {
         this.stateValue = 'failed';
+        diagnose({ event: failureEvent });
         this.nextRetryAt = this.now() + this.retryBackoffMs;
       }
     }
