@@ -4571,7 +4571,11 @@ describe('structured Resolver unavailable failures', () => {
         return readdirSync(directory).map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')));
     };
 
-    it('同一turnのtool_unavailableを失敗として保存し、生のエラーを残さない', async () => {
+    it.each([
+        { name: 'structured tool_unavailable', response: null, error: { code: 'tool_unavailable', message: 'private connection details' } },
+        { name: 'Mana transcript replay', response: { content: [{ type: 'text', text: 'private connection details' }] } },
+        { name: 'other execution failure', response: null, error: { code: 'unknown_failure', message: 'private connection details' } }
+    ])('同一turnの$nameを失敗として保存し、生のエラーを残さない', async ({ response, error }) => {
         const sessionId = 'session-resolver-tool-unavailable';
         const { root, env, payload, ownTurnRef, episode, invoke } = await startUnavailableEpisode({ sessionId });
         const failure = {
@@ -4580,8 +4584,8 @@ describe('structured Resolver unavailable failures', () => {
             tool_name: 'mcp__brainbase__brainbase_resolve_turn',
             tool_use_id: 'resolver-unavailable-attempt',
             tool_input: { turn_ref: ownTurnRef, model_interpretation: modelInterpretation },
-            tool_response: null,
-            error: { code: 'tool_unavailable', message: 'private connection details' }
+            tool_response: response,
+            ...(error ? { error } : {})
         };
         await expect(processHookPayload(failure, { env })).resolves.toBeDefined();
         const [entry] = eventEntries(root, sessionId, 'turn-structured-unavailable');
@@ -4593,8 +4597,8 @@ describe('structured Resolver unavailable failures', () => {
         await expect(processHookPayload({ ...failure,
             error: { code: 'tool_unavailable', message: 'different failure' }
         }, { env })).rejects.toThrow('judgment_tool_event_conflict');
-        await expect(processHookPayload({ ...failure, tool_use_id: 'unknown-failure-attempt',
-            error: { code: 'unknown_failure' }
+        await expect(processHookPayload({ ...failure, tool_use_id: 'non-failure-attempt',
+            hook_event_name: 'PostToolUse'
         }, { env })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
         await expect(processHookPayload({ ...failure, tool_input: {
             ...failure.tool_input, turn_ref: 'another-session/another-turn'
