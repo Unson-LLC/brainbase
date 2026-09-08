@@ -4679,6 +4679,160 @@ describe('structured Resolver unavailable failures', () => {
         });
     });
 
+    it('contract_missingのPostToolUseだけ固定3項目を診断し、本文・未知コードを出さない', async () => {
+        const setup = await startUnavailableEpisode({ sessionId: 'binding-diagnostic-safe-log' });
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const response = {
+            status: 'error',
+            error: {
+                code: 'brainbase_api_response_invalid',
+                message: 'secret response body must not be logged',
+                private_token: 'sk-secret-diagnostic'
+            },
+            unexpected_key: 'free-form value must not be logged'
+        };
+
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-safe-log',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: response
+        }, { env: setup.env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid',
+            cause: { message: 'judgment_binding_contract_missing' }
+        });
+
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+        const [line] = errorSpy.mock.calls[0];
+        expect(JSON.parse(line)).toEqual({
+            event: 'brainbase_judgment_binding_diagnostic',
+            wrapper_shape: 'record',
+            receipt_present: false,
+            inner_error_code: 'brainbase_api_response_invalid'
+        });
+        expect(line).not.toContain('secret response body');
+        expect(line).not.toContain('sk-secret-diagnostic');
+        expect(line).not.toContain('unexpected_key');
+    });
+
+    it('MCP JSON-RPC wrapperの固定診断はreceipt有無と許可コードだけを示し、未知コードはnullにする', async () => {
+        const setup = await startUnavailableEpisode({ sessionId: 'binding-diagnostic-jsonrpc' });
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const response = {
+            jsonrpc: '2.0',
+            id: 7,
+            result: {
+                content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                        status: 'error',
+                        receipt: { resolution_id: 'jr-secret-value' },
+                        error: {
+                            code: 'upstream_private_error_code',
+                            message: 'private upstream body'
+                        }
+                    })
+                }]
+            }
+        };
+
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-jsonrpc',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: response
+        }, { env: setup.env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid',
+            cause: { message: 'judgment_binding_contract_missing' }
+        });
+
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+        const [line] = errorSpy.mock.calls[0];
+        expect(JSON.parse(line)).toEqual({
+            event: 'brainbase_judgment_binding_diagnostic',
+            wrapper_shape: 'jsonrpc_result_record',
+            receipt_present: true,
+            inner_error_code: null
+        });
+        expect(line).not.toContain('jr-secret-value');
+        expect(line).not.toContain('private upstream body');
+    });
+
+    it('成功契約・PostToolUseFailure・別causeでは固定診断を出さない', async () => {
+        const setup = await startUnavailableEpisode({ sessionId: 'binding-diagnostic-boundary' });
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const resolved = {
+            ...validReceipt({ ...setup.episode.turn_input, model_interpretation: modelInterpretation }),
+            request_digest: hash(canonicalJson({
+                ...setup.episode.turn_input,
+                model_interpretation: modelInterpretation
+            })),
+            classification: modelInterpretation,
+            required_capabilities: [],
+            selected_dag_ids: [],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUseFailure',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-failure-boundary',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: {
+                status: 'error',
+                error: { code: 'brainbase_api_response_invalid', message: 'private' }
+            }
+        }, { env: setup.env })).resolves.toBeDefined();
+        expect(errorSpy).not.toHaveBeenCalled();
+
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-other-cause',
+            tool_input: { turn_ref: 'other/turn', model_interpretation: modelInterpretation },
+            tool_response: { status: 'error', error: { code: 'brainbase_api_response_invalid' } }
+        }, { env: setup.env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid',
+            cause: { message: 'judgment_binding_turn_ref_mismatch' }
+        });
+        expect(errorSpy).not.toHaveBeenCalled();
+
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-success-boundary',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: { status: 'ok', data: resolved }
+        }, { env: setup.env })).resolves.toBeDefined();
+        expect(errorSpy).not.toHaveBeenCalled();
+
+        errorSpy.mockImplementation(() => {
+            throw new Error('diagnostic logger unavailable');
+        });
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-logger-failure',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: null
+        }, { env: setup.env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid',
+            cause: { message: 'judgment_binding_contract_missing' }
+        });
+    });
+
     it.each([
         ['PostToolUse success contract', 'PostToolUse', { status: 'ok' }],
         ['PostToolUse structured unavailable', 'PostToolUse', unavailableResponse],
