@@ -279,9 +279,15 @@ async function setTransactionOrganizationContext(client, organizationId, project
 }
 
 async function readAuthorityState(client, entry, project) {
+    // Google Workspace tenants do not require the legacy Slack permission
+    // catalog (`organizations`).  The organization boundary is canonical on
+    // the project, auth grant, and Graph organization entity instead.
     const organizationResult = await client.query(
-        'SELECT id FROM organizations WHERE id=$1',
-        [entry.organization_id]
+        `SELECT organization_id
+           FROM projects
+          WHERE id=$2
+            AND (organization_id=$1 OR COALESCE(BTRIM(organization_id),'')='')`,
+        [entry.organization_id, project.id]
     );
     const ownerResult = await client.query(
         "SELECT id FROM people WHERE id=$1 AND COALESCE(status,'active')='active'",
@@ -294,18 +300,16 @@ async function readAuthorityState(client, entry, project) {
         `SELECT ge.id
            FROM graph_entities ge
            JOIN projects p ON p.id=ge.project_id
-           JOIN organizations o ON o.id=$2
           WHERE ge.id=$1
             AND ge.entity_type='org'
             AND ge.lifecycle_status='active'
             AND (p.organization_id=$2
-              OR (p.id=$3 AND COALESCE(BTRIM(p.organization_id),'')=''))
-            AND o.id=$2`,
+              OR (p.id=$3 AND COALESCE(BTRIM(p.organization_id),'')=''))`,
         [entry.organization_entity_id, entry.organization_id, project.id]
     );
     const grantResult = await client.query(
-        `SELECT ag.id FROM auth_grants ag JOIN organizations o ON o.workspace_id=ag.slack_workspace_id
-         WHERE ag.person_id=$1 AND o.id=$2 AND ag.active=true LIMIT 1`,
+        `SELECT ag.id FROM auth_grants ag
+         WHERE ag.person_id=$1 AND ag.organization_id=$2 AND ag.active=true LIMIT 1`,
         [entry.owner_person_id, entry.organization_id]
     );
     return {

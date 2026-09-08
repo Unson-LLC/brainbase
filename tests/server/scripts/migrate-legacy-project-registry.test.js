@@ -55,7 +55,7 @@ function createPool({
         if (sql.startsWith("SELECT set_config('app.project_codes'")) return { rows: [] };
         if (sql.startsWith("SELECT set_config('app.clearance'")) return { rows: [] };
         if (sql === "SELECT set_config('app.organization_id',$1,true)") return { rows: [{ set_config: values[0] }] };
-        if (sql.startsWith('SELECT id FROM organizations WHERE id=')) {
+        if (sql.startsWith('SELECT organization_id FROM projects')) {
             return { rows: missingAuthority.has('organization') ? [] : [{ id: values[0] }] };
         }
         if (sql.startsWith("SELECT id FROM people WHERE id=")) {
@@ -64,7 +64,7 @@ function createPool({
         if (sql.startsWith('SELECT ge.id FROM graph_entities ge JOIN projects p')) {
             return { rows: missingAuthority.has('organization_entity') ? [] : [{ id: values[0] }] };
         }
-        if (sql.startsWith('SELECT ag.id FROM auth_grants ag JOIN organizations o')) {
+        if (sql.startsWith('SELECT ag.id FROM auth_grants ag')) {
             return { rows: missingAuthority.has('grant') ? [] : [{ id: 'grant_1' }] };
         }
         if (sql.startsWith('SELECT id, code, name, organization_id FROM projects')) {
@@ -298,5 +298,18 @@ describe('legacy project registry migration', () => {
             });
         expect(queries.map(({ sql }) => sql)).toContain('ROLLBACK');
         expect(queries.every(({ sql }) => !sql.startsWith('INSERT INTO project_registry'))).toBe(true);
+    });
+
+    it('validates Google Workspace authority without the legacy organizations table', async () => {
+        const { pool, queries } = createPool({
+            projects: [{ id: 'project_legacy_app', code: 'legacy-app', name: 'Legacy App', organization_id: 'unson' }],
+            claims: [{ project_code: 'legacy-app', organization_id: 'unson' }]
+        });
+
+        const result = await runLegacyProjectRegistryMigration({ entries: [entry()], pool });
+
+        expect(result.planned_count).toBe(1);
+        expect(queries.some(({ sql }) => sql.includes('FROM organizations'))).toBe(false);
+        expect(queries.some(({ sql }) => sql.includes('ag.organization_id=$2'))).toBe(true);
     });
 });

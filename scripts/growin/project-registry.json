@@ -1,0 +1,26 @@
+[
+  {
+    "project_code": "growin",
+    "organization_id": "org_growin",
+    "display_name": "Growin",
+    "kind": "client",
+    "session_select": true,
+    "organization_entity_id": "org_growin_partners",
+    "owner_person_id": "person_sano_tetsuya",
+    "repository": {
+      "mode": "none"
+    }
+  },
+  {
+    "project_code": "brainbase",
+    "organization_id": "org_growin",
+    "display_name": "Brainbase共通コンテキスト",
+    "kind": "internal",
+    "session_select": true,
+    "organization_entity_id": "org_growin_partners",
+    "owner_person_id": "person_sano_tetsuya",
+    "repository": {
+      "mode": "none"
+    }
+  }
+]

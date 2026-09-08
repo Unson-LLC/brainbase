@@ -16,7 +16,24 @@ describe('Growin auth bootstrap', () => {
             schema.indexOf('CREATE TABLE IF NOT EXISTS auth_identities')
         );
 
-        expect(authGrantBackfill).toContain("IF to_regclass('organizations') IS NOT NULL THEN");
+        expect(authGrantBackfill).toContain("WHERE attrelid = to_regclass('organizations')");
+        expect(authGrantBackfill).toContain("IF to_regclass('organizations') IS NOT NULL AND NOT EXISTS");
+    });
+
+    it('requires the Graph-bound project catalog with the two Growin runtime scopes', () => {
+        const terraform = fs.readFileSync(path.resolve('infra/gcp/growin/main.tf'), 'utf8');
+        const registry = JSON.parse(fs.readFileSync(
+            path.resolve('scripts/growin/project-registry.json'),
+            'utf8'
+        ));
+
+        expect(terraform).toContain('name  = "BRAINBASE_PROJECT_CATALOG_MODE"\n        value = "required"');
+        expect(registry.map(({ project_code }) => project_code)).toEqual(['growin', 'brainbase']);
+        expect(registry.every(({ organization_id, organization_entity_id, owner_person_id }) => (
+            organization_id === 'org_growin'
+            && organization_entity_id === 'org_growin_partners'
+            && owner_person_id === 'person_sano_tetsuya'
+        ))).toBe(true);
     });
 
     it('does not move an existing Workspace identity to another person', () => {

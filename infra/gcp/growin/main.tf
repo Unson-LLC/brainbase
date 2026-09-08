@@ -513,7 +513,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
       env {
         name  = "BRAINBASE_PROJECT_CATALOG_MODE"
-        value = "disabled"
+        value = "required"
       }
       env {
         name  = "CANONICAL_TASK_BACKEND"
