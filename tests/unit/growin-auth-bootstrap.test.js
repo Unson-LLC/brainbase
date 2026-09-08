@@ -103,25 +103,25 @@ describe('Growin auth bootstrap', () => {
                 personId: 'person_kato_shintaro',
                 personName: '加藤 真太郎',
                 email: 's.kato@growin.jp',
-                role: 'member'
+                role: 'gm'
             },
             {
                 personId: 'person_kawamura_tatsumi',
                 personName: '川村 達見',
                 email: 't.kawamura@growin.jp',
-                role: 'member'
+                role: 'gm'
             },
             {
                 personId: 'person_inoue_nozomi',
                 personName: '井上 希望',
                 email: 'no.inoue@growin.jp',
-                role: 'member'
+                role: 'gm'
             },
             {
                 personId: 'person_sano_tetsuya',
                 personName: '佐野 哲哉',
                 email: 't.sano@growin.jp',
-                role: 'member'
+                role: 'ceo'
             }
         ]);
     });
@@ -134,6 +134,12 @@ describe('Growin auth bootstrap', () => {
         expect(plan.every((entry) => entry.provider === 'google-workspace')).toBe(true);
         expect(plan.every((entry) => entry.providerTenant === 'growin.jp')).toBe(true);
         expect(plan.every((entry) => entry.projectCodes.join(',') === 'growin')).toBe(true);
+        expect(Object.fromEntries(plan.map((entry) => [entry.email, entry.role]))).toEqual({
+            's.kato@growin.jp': 'gm',
+            't.kawamura@growin.jp': 'gm',
+            'no.inoue@growin.jp': 'gm',
+            't.sano@growin.jp': 'ceo'
+        });
         expect(new Set(plan.map((entry) => entry.identityId)).size).toBe(4);
     });
 });
