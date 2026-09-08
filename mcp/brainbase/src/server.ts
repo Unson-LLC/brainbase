@@ -869,7 +869,7 @@ const tools: Tool[] = [
   {
     name: 'search_personal_kg',
     description:
-      "Search Keigo Sato's personal knowledge graph (owner-visible memory_candidates) by keyword over the full body text. Returns his accumulated judgment axes / decision principles / claims / insights (oyasumi 蓄積) with cognitive_type and confidence. Use this when a task needs Keigo's own stance, values, sales/content philosophy, or how he would decide — beyond the SessionStart preamble snapshot. Owner-only, non-redacted content.",
+      "Search the authenticated user's personal knowledge graph (owner-visible memory_candidates) by keyword over the full body text. Returns that user's accumulated judgment axes / decision principles / claims / insights (oyasumi 蓄積) with cognitive_type and confidence. Use this when a task needs the authenticated user's own stance, values, sales/content philosophy, or how they would decide — beyond the SessionStart preamble snapshot. Owner-only, non-redacted content.",
     inputSchema: {
       type: 'object',
       properties: {
