@@ -605,6 +605,14 @@ resource "google_cloud_run_v2_service" "mcp" {
         value = google_cloud_run_v2_service.api.uri
       }
       env {
+        name  = "BRAINBASE_PERSONAL_KG_STORAGE_MODE"
+        value = "managed_cloud"
+      }
+      env {
+        name  = "BRAINBASE_PERSONAL_KG_MANAGED_CLOUD_API_URL"
+        value = google_cloud_run_v2_service.api.uri
+      }
+      env {
         name  = "BRAINBASE_PROJECT_CODES"
         value = "growin"
       }
@@ -698,6 +706,53 @@ resource "google_cloud_run_v2_job" "migrate" {
         env {
           name  = "INFO_SSOT_ROLLBACK_SHA"
           value = var.rollback_git_sha
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    google_project_iam_member.migration_roles,
+    google_secret_manager_secret_iam_member.migration_database_access,
+  ]
+}
+
+# Candidate StoreとPersonal KGのPostgreSQLスキーマを、Info SSOTとは
+# 独立した前進マイグレーションとして適用する。
+resource "google_cloud_run_v2_job" "personal_kg_migrate" {
+  name                = "brainbase-migrate-personal-kg"
+  project             = var.project_id
+  location            = var.region
+  deletion_protection = true
+  labels              = var.labels
+
+  template {
+    template {
+      service_account = google_service_account.migration.email
+      timeout         = "1800s"
+      max_retries     = 0
+
+      vpc_access {
+        egress = "PRIVATE_RANGES_ONLY"
+        network_interfaces {
+          network    = google_compute_network.brainbase.name
+          subnetwork = google_compute_subnetwork.apps.name
+        }
+      }
+
+      containers {
+        image   = var.migrate_image
+        command = ["node"]
+        args    = ["scripts/migrate-m5a-production-schema.js", "--only=personal-knowledge"]
+
+        env {
+          name = "INFO_SSOT_DATABASE_URL"
+          value_source {
+            secret_key_ref {
+              secret  = "brainbase-database-url"
+              version = "latest"
+            }
+          }
         }
       }
     }
