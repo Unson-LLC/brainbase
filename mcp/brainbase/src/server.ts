@@ -66,7 +66,10 @@ import { judgmentAuditTools, handleJudgmentAuditToolCall } from './tools/judgmen
 import { judgmentStateTools, handleJudgmentStateToolCall } from './tools/judgment-state-tools.js';
 import { judgmentValueProofTools, handleJudgmentValueProofToolCall } from './tools/judgment-value-proof-tools.js';
 import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
-import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
+import {
+  normalizeJudgmentHostResult,
+  type JudgmentManagementResult,
+} from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
 import { annotateToolCapabilities } from './tools/tool-annotations.js';
 import {
@@ -112,6 +115,7 @@ function resolveWikiApiBaseUrl(
 type OnboardingDispatchDependencies = Parameters<typeof handleOnboardingToolCall>[2];
 type KnowledgeResolutionDispatchDependencies = Parameters<typeof handleKnowledgeResolutionToolCall>[2];
 type JudgmentResolutionDispatchDependencies = Parameters<typeof resolveJudgmentBeforeModel>[1];
+type JudgmentResolutionDispatchOptions = { signal?: AbortSignal };
 
 function createDefaultJudgmentResolutionDependencies(): JudgmentResolutionDispatchDependencies {
   return {
@@ -151,9 +155,24 @@ async function dispatchKnowledgeResolutionToolCall(
 async function dispatchJudgmentResolutionBeforeModel(
   args: Record<string, unknown>,
   dependencies?: JudgmentResolutionDispatchDependencies,
+  options: JudgmentResolutionDispatchOptions = {},
 ) {
+  const resolvedDependencies = dependencies ?? createDefaultJudgmentResolutionDependencies();
+  const callbackSignal = options.signal;
+  const dependenciesWithSignal = callbackSignal
+    ? (() => {
+      const fetchImpl = resolvedDependencies.fetch ?? globalThis.fetch;
+      const fetchWithSignal: typeof globalThis.fetch = (input, init) => fetchImpl(input, {
+        ...(init ?? {}),
+        signal: init?.signal
+          ? AbortSignal.any([init.signal, callbackSignal])
+          : callbackSignal,
+      });
+      return { ...resolvedDependencies, fetch: fetchWithSignal };
+    })()
+    : resolvedDependencies;
   const result = await resolveJudgmentBeforeModel(
-    args, dependencies ?? createDefaultJudgmentResolutionDependencies(),
+    args, dependenciesWithSignal,
   );
   return normalizeJudgmentHostResult(result);
 }
@@ -290,6 +309,10 @@ async function dispatchRemoteJudgmentHook(
       dependencies?: {
         env?: NodeJS.ProcessEnv;
         onEpisodeStarted?: (episode: Record<string, unknown>) => void;
+        resolveBeforeModel?: (
+          args: Record<string, unknown>,
+          options: { signal: AbortSignal },
+        ) => Promise<JudgmentManagementResult>;
       },
     ) => Promise<Record<string, unknown>>;
   };
@@ -300,6 +323,8 @@ async function dispatchRemoteJudgmentHook(
       ...process.env,
       BRAINBASE_JUDGMENT_PROJECT_CODE: projectCode,
     },
+    resolveBeforeModel: (args, options) =>
+      dispatchJudgmentResolutionBeforeModel(args, undefined, options),
     onEpisodeStarted: (episode) => {
       const receipt = episode.initial_route_receipt;
       if (receipt && typeof receipt === 'object' && !Array.isArray(receipt)) {
@@ -1244,6 +1269,7 @@ export const __testing = {
   formatEntity,
   dispatchOnboardingToolCall,
   dispatchJudgmentResolutionBeforeModel,
+  dispatchRemoteJudgmentHook,
   dispatchKnowledgeResolutionToolCall,
   dispatchExtensionToolCall,
   buildToolResponseContent,
