@@ -107,6 +107,7 @@ const STRUCTURED_STOP_STATE_PATTERN = /^<!-- brainbase-stop-state:(\{.*\}) -->$/
 const JUDGMENT_STATE_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_state_record';
 const JUDGMENT_VALUE_PROOF_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_value_proof_record';
 const JUDGMENT_AUDIT_READ_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_audit_read';
+const OWNER_AUDIT_SCHEMA_VERSION = 'brainbase-owner-audit-v1';
 const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'get_context', 'list_entities', 'get_entity', 'list_extension_types', 'list_extension_entities',
     'search', 'resolve_entity', 'search_wiki', 'get_wiki_page', 'search_personal_kg',
@@ -1461,6 +1462,30 @@ function responseSucceeded(response, {
     )) || (allowTransportSuccess && !Array.isArray(response) && validCallToolResultEnvelope(response));
 }
 
+function judgmentAuditReadSemanticSuccess(response, { currentTurnRef, inputTurnRef } = {}) {
+    if (typeof currentTurnRef !== 'string' || typeof inputTurnRef !== 'string' || inputTurnRef !== currentTurnRef) return false;
+    const expectedKeys = ['lines', 'prefix', 'schema_version', 'turn_ref'];
+    return nestedRecords(response).some((item) => {
+        if (item.status !== 'ok') return false;
+        const data = record(item.data);
+        if (!data
+            || Object.keys(data).length !== expectedKeys.length
+            || expectedKeys.some((key) => !Object.hasOwn(data, key))
+            || data.schema_version !== OWNER_AUDIT_SCHEMA_VERSION
+            || data.turn_ref !== currentTurnRef
+            || data.turn_ref !== inputTurnRef
+            || !Array.isArray(data.lines)
+            || data.lines.length === 0
+            || !data.lines.every((line) => typeof line === 'string' && line.length > 0)
+            || typeof data.prefix !== 'string'
+            || data.prefix.length === 0
+            || data.prefix !== data.lines.join('\n')) {
+            return false;
+        }
+        return true;
+    });
+}
+
 function responseCount(response) {
     return nestedRecords(response)
         .map((item) => item.count)
@@ -1984,8 +2009,17 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const retrievalSemanticSuccess = BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME[toolName.replace(/^mcp__brainbase__/u, '')] === 'owner_audit'
         ? Boolean(retrieval)
         : Boolean(retrieval && semanticResult);
+    const auditReadSemanticSuccess = judgmentAuditReadTool
+        ? judgmentAuditReadSemanticSuccess(responseValue, {
+            currentTurnRef: `${identity.sessionRef}/${paths.turnRef}`,
+            inputTurnRef: record(inputValue)?.turn_ref
+        })
+        : false;
     const responseSuccess = judgmentAuditReadTool
-        ? responseSucceeded(responseValue, { allowExplicitSuccess: true })
+        ? responseSucceeded(responseValue, {
+            allowExplicitSuccess: true,
+            semanticSuccess: auditReadSemanticSuccess
+        })
         : Boolean(desktopEvidence) || responseSucceeded(responseValue, {
             allowTransportSuccess: brainbaseTool && ['search', 'retrieve'].includes(kind) && retrievalSemanticSuccess,
             allowExplicitSuccess: !brainbaseTool,

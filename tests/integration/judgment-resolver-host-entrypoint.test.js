@@ -2133,12 +2133,13 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             const recordedAudit = await run('bash', [wrapper], { env, input: JSON.stringify({
                 hook_event_name: 'PostToolUse', ...identity,
                 tool_name: 'mcp__brainbase__brainbase_judgment_audit_read', tool_use_id: 'tool-audit-read',
-                tool_input: { turn_ref: turnRef }, tool_response: auditResponse
+                tool_input: { turn_ref: turnRef },
+                tool_response: { content: [{ type: 'text', text: JSON.stringify(auditResponse) }] }
             }) });
             expect(recordedAudit).toMatchObject({ code: 0, stderr: '' });
             expect(JSON.parse(recordedAudit.stdout)).toEqual({});
             const auditEvent = JSON.parse(readFileSync(join(eventsPath, `${hash('tool-audit-read')}.json`), 'utf8'));
-            expect(auditEvent).toMatchObject({ event_kind: 'ignored', satisfies: [] });
+            expect(auditEvent).toMatchObject({ event_kind: 'ignored', success: true, satisfies: [] });
             auditPrefix = auditResponse.data.prefix;
             expect(auditPrefix.split('\n')).toEqual([
                 expect.stringMatching(/^🧠 判断参照:/u), routeLine

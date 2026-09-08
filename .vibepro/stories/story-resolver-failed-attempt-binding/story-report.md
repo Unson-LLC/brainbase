@@ -22,3 +22,7 @@ Graphifyの対象グラフはなく、影響範囲はコードと関連テスト
 MCP常駐プロセスの反映漏れを修正してもfresh1336で束縛拒否が再発した。拒否条件は変更せず、固定causeコードを既存の安全なMCP診断ログへ接続し、入力値を出さず失敗条件を区別する。追加4件のREDを確認し、別turn参照の区別も加えHostテスト163件が成功した。
 
 実機causeReasonCodeで失敗再送がmodel_interpretation欠落として特定されたため、PostToolUseFailureの失敗試行だけはHost保存入力と同一turnへ束縛できれば解釈欠落を許可する。通常のPostToolUse（構造化unavailableを含む）、成功契約付き失敗再送は従来どおり解釈を必須とし、回帰テストで固定する。
+
+監査読取の追加検証では、MCP実形状である`content[0].text`内のJSONをHostが読み取る境界を対象にする。監査データの厳密なキー、schema・現在ターン・入力turnの一致、空でないlines、prefixの改行結合を意味的成功の条件とし、別ターン・スキーマ不正・prefix不一致・汎用statusだけを受理しない。共通の失敗応答判定と外側explicit成功の受理は維持する。
+
+REDでは既存のentrypoint統合テストへMCPのcontent wrapperを渡し、監査eventが`success:false`になる再現を確認した。Hostの監査読取へ専用の意味的成功判定を追加した後、Node.js 22.23.2でHost unit 177件、entrypoint統合23件が成功した。回帰には別data turn・別input turn・schema version不正・余分な監査キー・空lines・prefix不一致・content内の汎用status・status error・isError trueを含め、すべて失敗扱いを維持し、外側explicit成功は受理した。
