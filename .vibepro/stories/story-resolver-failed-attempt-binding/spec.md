@@ -5,3 +5,7 @@ Hostが発行した同じturn_refと保存入力に対応するmodel_interpretat
 別turn_ref、保存入力と異なるlegacy入力、同一tool_use_idの矛盾する再送は拒否する。失敗情報は固定コードとdigestだけを保持する。通常の成功応答と構造化されたAPI unavailable応答の既存の束縛検証は維持する。
 
 Manaのtranscript再送はerror項目を持たず、tool_response.contentへ失敗本文を渡す。この形式を同じ失敗として記録する。失敗かどうかはHookイベント種別に従い、任意の本文やコードで成功へ変更しない。
+
+## 失敗束縛の診断
+
+束縛拒否の条件を変更せず、入力欠落・解釈欠落・入力不一致・成功契約の各digest不一致・失敗Hook以外の契約欠落を固定のcauseコードで区別する。公開エラーは従来通りとし、既存MCPの安全なcauseReasonCodeログに接続する。入力本文や値は含めない。
