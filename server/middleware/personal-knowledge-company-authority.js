@@ -1,10 +1,34 @@
-import { acceptCompanyAuthorityResponse } from '../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
+import {
+    acceptCompanyAuthorityResponse,
+    CANONICAL_ERROR_CODES
+} from '../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
 import { authorityProjectBinding } from '../services/multitenant/authority-project-binding.js';
 
 const OPERATIONS = {
     '/search': { capability: 'personal_read', effect: 'read' },
     '/events': { capability: 'personal_write', effect: 'write' }
 };
+const SAFE_REASON = /^[a-z0-9_:-]+$/u;
+
+function parsePublicJwk(value, missingReason) {
+    const source = typeof value === 'string' ? value.trim() : '';
+    if (!source) throw new Error(missingReason);
+    return JSON.parse(source);
+}
+
+function rejectionReason(error) {
+    try {
+        if (typeof error?.code === 'string' && CANONICAL_ERROR_CODES.includes(error.code)) {
+            return error.code;
+        }
+        if (error instanceof Error && SAFE_REASON.test(error.message)) {
+            return error.message;
+        }
+    } catch {
+        // Keep diagnostics from replacing the original fail-closed response.
+    }
+    return 'contract_validation_failed';
+}
 
 /** A service token authenticates transport, never the human Personal KG owner. */
 export function requirePersonalKnowledgeCompanyAuthority({
@@ -28,9 +52,16 @@ export function requirePersonalKnowledgeCompanyAuthority({
             return res.status(403).json({ error: 'personal_knowledge_service_proxy_denied' });
         }
         try {
-            const publicJwk = JSON.parse(env.BRAINBASE_COMPANY_AUTHORITY_PUBLIC_JWK_JSON);
+            const publicJwk = parsePublicJwk(
+                env.BRAINBASE_COMPANY_AUTHORITY_PUBLIC_JWK_JSON,
+                'company_authority_public_jwk_missing'
+            );
             const tenantContextPublicJwk = env.BRAINBASE_TENANT_CONTEXT_PUBLIC_JWK_JSON
-                ? JSON.parse(env.BRAINBASE_TENANT_CONTEXT_PUBLIC_JWK_JSON) : publicJwk;
+                ? parsePublicJwk(
+                    env.BRAINBASE_TENANT_CONTEXT_PUBLIC_JWK_JSON,
+                    'tenant_context_public_jwk_missing'
+                )
+                : publicJwk;
             const expectedDeploymentId = env.BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID?.trim();
             if (!expectedDeploymentId) throw new Error('deployment_required');
             const { context } = acceptCompanyAuthorityResponse(response, {
@@ -83,9 +114,7 @@ export function requirePersonalKnowledgeCompanyAuthority({
             req.body = input;
             return next();
         } catch (error) {
-            const reason = error instanceof Error && /^[a-z0-9_:-]+$/.test(error.message)
-                ? error.message
-                : 'contract_validation_failed';
+            const reason = rejectionReason(error);
             console.error(JSON.stringify({
                 event: 'personal_knowledge_company_authority_rejected',
                 reason
