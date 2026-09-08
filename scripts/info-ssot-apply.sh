@@ -96,6 +96,7 @@ if ! run_psql \
   -f "$JUDGMENT_RECEIPT_SCHEMA_SQL" \
   -f "$READBACK_SQL" \
   -f "$NEGATIVE_SMOKE_SQL" >"$MIGRATION_OUTPUT" 2>&1; then
+  tail -n 40 "$MIGRATION_OUTPUT" >&2
   echo "Info SSOT schema/RLS transaction failed; do not restart or switch API/MCP, and verify the current service state" >&2
   exit 1
 fi
@@ -172,3 +173,5 @@ mv -f -- "$RECEIPT_TMP" "$RECEIPT_PATH"
 RECEIPT_TMP=""
 
 echo "Info SSOT schema + RLS applied; receipt=${RECEIPT_PATH#"$REPO_ROOT/"}"
+# Cloud Run Jobではローカルファイルが終了時に消えるため、同じreceiptをCloud Loggingへ残す。
+echo "INFO_SSOT_APPLY_RECEIPT=$(tr -d '\n' < "$RECEIPT_PATH")"

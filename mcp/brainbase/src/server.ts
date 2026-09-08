@@ -45,6 +45,8 @@ import {
 import { GraphAPISource } from './sources/graphapi-source.js';
 import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager, createConnectionTokenManager } from './auth/token-manager.js';
+import { authenticateMcpHttpRequest, type McpHttpAuthMode } from './auth/http-auth.js';
+import { RequestTokenContext, type TokenProvider } from './auth/request-token-context.js';
 import { filterWikiPages } from './tools/wiki-search.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
 import {
@@ -91,8 +93,8 @@ const taskApiToken = process.env.BRAINBASE_TASK_API_TOKEN;
 
 // Global refs for wiki API calls
 let wikiApiBaseUrl: string;
-let globalTokenManager: TokenManager;
-let globalOwnerTokenManager: TokenManager;
+let globalTokenManager: TokenProvider;
+let globalOwnerTokenManager: TokenProvider;
 let personalKgStorageMode: PersonalKgStorageMode | undefined;
 let personalKgApiUrl: string | undefined;
 let personalKnowledgeClient: PersonalKnowledgeClient | null = null;
@@ -219,6 +221,31 @@ export function isAuthorizedMcpHttpRequest(authorization: string | undefined, ex
   const actual = Buffer.from(authorization.slice('Bearer '.length));
   const expected = Buffer.from(expectedToken);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export function isPublicMcpHttpEndpoint(method: string | undefined, url: string | undefined): boolean {
+  return method === 'GET' && url === '/health';
+}
+
+/**
+ * The HTTP endpoint is intentionally stateless: every MCP request gets its own
+ * server and transport, and there is no session for a server-sent event GET to
+ * attach to. Rejecting GET explicitly also prevents an open stream from
+ * occupying the personal-auth request queue indefinitely.
+ */
+export function statelessMcpHttpMethodNotAllowed(
+  method: string | undefined,
+  url: string | undefined,
+): { status: 405; headers: Record<string, string>; body: string } | null {
+  if (method !== 'GET' || !url?.startsWith('/mcp')) return null;
+  return {
+    status: 405,
+    headers: {
+      'Allow': 'POST',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ error: 'Method Not Allowed', message: 'The stateless MCP endpoint accepts POST requests only.' }),
+  };
 }
 
 export function handleHealthVersionRequest(
@@ -842,7 +869,7 @@ const tools: Tool[] = [
   {
     name: 'search_personal_kg',
     description:
-      "Search Keigo Sato's personal knowledge graph (owner-visible memory_candidates) by keyword over the full body text. Returns his accumulated judgment axes / decision principles / claims / insights (oyasumi 蓄積) with cognitive_type and confidence. Use this when a task needs Keigo's own stance, values, sales/content philosophy, or how he would decide — beyond the SessionStart preamble snapshot. Owner-only, non-redacted content.",
+      "Search the authenticated user's personal knowledge graph (owner-visible memory_candidates) by keyword over the full body text. Returns that user's accumulated judgment axes / decision principles / claims / insights (oyasumi 蓄積) with cognitive_type and confidence. Use this when a task needs the authenticated user's own stance, values, sales/content philosophy, or how they would decide — beyond the SessionStart preamble snapshot. Owner-only, non-redacted content.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -1220,11 +1247,11 @@ export const __testing = {
     indexRefreshEnabled = enabled;
   },
   setTokenManager(manager: { getToken(): Promise<string> }): void {
-    globalTokenManager = manager as TokenManager;
-    globalOwnerTokenManager = manager as TokenManager;
+    globalTokenManager = manager;
+    globalOwnerTokenManager = manager;
   },
   setOwnerTokenManager(manager: { getToken(): Promise<string> }): void {
-    globalOwnerTokenManager = manager as TokenManager;
+    globalOwnerTokenManager = manager;
   },
   setWikiApiBaseUrl(url: string): void {
     wikiApiBaseUrl = url;
@@ -1266,16 +1293,17 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     console.error(`  - Project codes: ${config.projectCodes.join(', ')}`);
   }
 
-  const { mode: authMode, tokenManager } = createConnectionTokenManager(config.graphApiUrl);
-  console.error(`[brainbase] Authentication mode: ${authMode}`);
-  globalTokenManager = tokenManager;
+  const { mode: connectionAuthMode, tokenManager } = createConnectionTokenManager(config.graphApiUrl);
+  console.error(`[brainbase] Authentication mode: ${connectionAuthMode}`);
+  const requestTokenContext = new RequestTokenContext(tokenManager);
+  globalTokenManager = requestTokenContext;
   // All routes share the connection actor. Personal APIs still enforce owner authorization.
-  globalOwnerTokenManager = tokenManager;
+  globalOwnerTokenManager = requestTokenContext;
   personalKgStorageMode = config.personalKgStorageMode;
   personalKgApiUrl = config.personalKgApiUrl;
   personalKnowledgeClient = null;
   wikiApiBaseUrl = resolveWikiApiBaseUrl(config.graphApiUrl);
-  const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
+  const source = new GraphAPISource(config.graphApiUrl, requestTokenContext, config.projectCodes);
   globalGraphSource = source;
   indexRefreshEnabled = true;
   defaultProjectCode = config.projectCodes?.[0] || 'brainbase';
@@ -1423,27 +1451,69 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   const httpPort = process.env.MCP_HTTP_PORT ? Number(process.env.MCP_HTTP_PORT) : null;
   if (httpPort && Number.isFinite(httpPort)) {
     const bearerToken = process.env.MCP_HTTP_BEARER_TOKEN || '';
-    if (!bearerToken) throw new Error('MCP_HTTP_BEARER_TOKEN is required when MCP_HTTP_PORT is set');
+    const authMode = (process.env.MCP_HTTP_AUTH_MODE || 'shared-bearer') as McpHttpAuthMode;
+    if (!['shared-bearer', 'brainbase-jwt', 'hybrid'].includes(authMode)) {
+      throw new Error(`Unsupported MCP_HTTP_AUTH_MODE: ${authMode}`);
+    }
+    if (authMode === 'shared-bearer' && !bearerToken) {
+      throw new Error('MCP_HTTP_BEARER_TOKEN is required in shared-bearer mode');
+    }
+    const authVerifyUrl = process.env.MCP_HTTP_AUTH_VERIFY_URL
+      || `${config.graphApiUrl.replace(/\/$/, '')}/api/auth/verify`;
+    const requiredOrganizationId = process.env.MCP_HTTP_REQUIRED_ORGANIZATION_ID || undefined;
     const http = await import('node:http');
     const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
     const host = process.env.MCP_HTTP_HOST || '127.0.0.1';
+    // The entity index is process-global. In personal-auth modes, serialize MCP
+    // requests and rebuild it with the caller's token so one user's snapshot is
+    // never observed by another user with different permissions.
+    let authenticatedRequestQueue: Promise<void> = Promise.resolve();
+    async function runAuthenticatedRequest<T>(callback: () => Promise<T>): Promise<T> {
+      if (authMode === 'shared-bearer') return callback();
+      const previous = authenticatedRequestQueue;
+      let release!: () => void;
+      authenticatedRequestQueue = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await previous;
+      try {
+        return await callback();
+      } finally {
+        release();
+      }
+    }
 
     const httpServer = http.createServer(async (req, res) => {
-      if (req.method === 'GET' && req.url === '/health') {
+      if (isPublicMcpHttpEndpoint(req.method, req.url)) {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('ok');
         return;
       }
       if (handleHealthVersionRequest(req, res)) return;
+      const auth = await authenticateMcpHttpRequest(req.headers.authorization, {
+        mode: authMode,
+        sharedBearerToken: bearerToken,
+        verifyUrl: authVerifyUrl,
+        requiredOrganizationId,
+      });
+      if (!auth.ok) {
+        res.writeHead(401, {
+          'Content-Type': 'application/json',
+          'WWW-Authenticate': 'Bearer',
+        });
+        res.end(JSON.stringify({ error: 'unauthorized' }));
+        return;
+      }
+      // Stateless MCP has no session to associate with an SSE GET. Reject it
+      // after authentication but before the personal-auth request queue so a
+      // long-lived GET can never block subsequent POST requests.
+      const methodNotAllowed = statelessMcpHttpMethodNotAllowed(req.method, req.url);
+      if (methodNotAllowed) {
+        res.writeHead(methodNotAllowed.status, methodNotAllowed.headers);
+        res.end(methodNotAllowed.body);
+        return;
+      }
       if (req.method === 'POST' && req.url === REMOTE_JUDGMENT_HOOK_PATH) {
-        if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
-          res.writeHead(401, {
-            'Content-Type': 'application/json',
-            'WWW-Authenticate': 'Bearer',
-          });
-          res.end(JSON.stringify({ error: 'unauthorized' }));
-          return;
-        }
         const chunks: Buffer[] = [];
         let size = 0;
         for await (const chunk of req) {
@@ -1463,7 +1533,8 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           projectCode: Array.isArray(req.headers['x-brainbase-project-code'])
             ? req.headers['x-brainbase-project-code'][0]
             : req.headers['x-brainbase-project-code'],
-          isAuthorized: isAuthorizedMcpHttpRequest,
+          // The request has already passed the configured shared/JWT strategy above.
+          isAuthorized: () => true,
           dispatch: dispatchRemoteJudgmentHook,
           onDispatchError: (details) => {
             console.error(JSON.stringify({
@@ -1513,12 +1584,6 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         res.end();
         return;
       }
-      if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
-        res.writeHead(401, { 'Content-Type': 'application/json', 'WWW-Authenticate': 'Bearer' });
-        res.end(JSON.stringify({ error: 'unauthorized' }));
-        return;
-      }
-
       let body: unknown;
       if (req.method === 'POST') {
         const chunks: Buffer[] = [];
@@ -1545,8 +1610,20 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         void transport.close();
         void server.close();
       });
-      await server.connect(transport);
-      await transport.handleRequest(req, res, body);
+      const handleMcpRequest = async () => {
+        await refreshEntityIndex();
+        await server.connect(transport);
+        await transport.handleRequest(req, res, body);
+      };
+      await runAuthenticatedRequest(async () => {
+        if (auth.kind === 'brainbase-jwt') {
+          await requestTokenContext.run({ token: auth.token }, handleMcpRequest);
+          return;
+        }
+        // A shared MCP bearer authenticates only the MCP edge. It must never be
+        // forwarded to Graph API; the fallback service token remains the caller.
+        await handleMcpRequest();
+      });
     });
 
     await new Promise<void>((resolve) => {

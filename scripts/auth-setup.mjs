@@ -24,12 +24,19 @@ function generateCodeVerifier() {
 }
 
 function getTokenFilePath() {
+    if (process.env.BRAINBASE_TOKEN_FILE) {
+        return path.resolve(process.env.BRAINBASE_TOKEN_FILE);
+    }
     const homeDir = os.homedir();
     const brainbaseDir = path.join(homeDir, '.brainbase');
     return path.join(brainbaseDir, 'tokens.json');
 }
 
 function ensureBrainbaseDir() {
+    if (process.env.BRAINBASE_TOKEN_FILE) {
+        fs.mkdirSync(path.dirname(path.resolve(process.env.BRAINBASE_TOKEN_FILE)), { recursive: true, mode: 0o700 });
+        return;
+    }
     const homeDir = os.homedir();
     const brainbaseDir = path.join(homeDir, '.brainbase');
     if (!fs.existsSync(brainbaseDir)) {

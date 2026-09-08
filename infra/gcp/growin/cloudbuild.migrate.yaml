@@ -1,0 +1,13 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=infra/gcp/growin/Dockerfile.migrate
+      - --tag=${_IMAGE}
+      - .
+images:
+  - ${_IMAGE}
+substitutions:
+  _IMAGE: asia-northeast1-docker.pkg.dev/brainbase-505912/brainbase/migrate:bootstrap
+options:
+  logging: CLOUD_LOGGING_ONLY

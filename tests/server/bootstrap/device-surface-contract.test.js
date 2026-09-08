@@ -31,10 +31,12 @@ describe('minimal device web surface', () => {
         const html = fs.readFileSync(path.join(repoRoot, 'public/device.html'), 'utf8');
         const stepIds = [...html.matchAll(/id="step-([^"]+)"/g)].map((match) => match[1]);
 
-        expect(stepIds).toEqual(['input', 'slack', 'approve', 'success', 'error']);
+        expect(stepIds).toEqual(['input', 'login', 'approve', 'success', 'error']);
+        expect(html).toContain('Google Workspaceでログイン');
+        expect(html).not.toContain('Slackでログイン');
         expect(html).toContain('/modules/device/device-auth-controller.js');
         expect(html).not.toMatch(/href="\/(?:admin|setup|workflows|sns-growth)/);
-        expect(html).not.toMatch(/dashboard|settings|workspace|project list/i);
+        expect(html).not.toMatch(/dashboard|settings|project list/i);
     });
 
     it('uses a bearer token and never sends caller-provided Slack identity', () => {
@@ -47,5 +49,18 @@ describe('minimal device web surface', () => {
         expect(controller).not.toContain('slack_user_id');
         expect(controller).not.toContain('slack_workspace_id');
         expect(controller).not.toContain("addEventListener('message'");
+    });
+
+    it('refreshes the isolated Growin launcher before falling back to interactive authentication', () => {
+        const launcher = fs.readFileSync(
+            path.join(repoRoot, 'scripts/growin/run-claude-isolated.sh'),
+            'utf8'
+        );
+
+        expect(launcher).toContain('token_is_current');
+        expect(launcher).toContain('(.issued_at // 0) + (.expires_in // 0) > (now + 60)');
+        expect(launcher).toContain('token_can_refresh');
+        expect(launcher).toContain('node "$repo_root/scripts/refresh-auth-token.mjs" || true');
+        expect(launcher).toContain('BRAINBASE_TOKEN_FILE="$token_file" node "$repo_root/scripts/auth-setup.mjs"');
     });
 });

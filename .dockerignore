@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+.codebase-memory
+.terraform
+node_modules
+**/node_modules
+var
+coverage
+*.log
+*.tfplan
+*.tfstate*

@@ -10,6 +10,28 @@ function response(value: unknown, status = 200): Response {
 }
 
 describe('Personal KG MCP server wiring', () => {
+  it('describes the personal KG for the authenticated user, not a fixed operator', () => {
+    const tool = __testing.tools.find(({ name }) => name === 'search_personal_kg');
+
+    assert.ok(tool);
+    assert.match(tool.description ?? '', /authenticated user/);
+    assert.doesNotMatch(tool.description ?? '', /Keigo Sato|佐藤圭吾/);
+  });
+
+  it('falls back to the Graph API base when the legacy wiki base is unset', () => {
+    assert.equal(
+      __testing.resolveWikiApiBaseUrl('https://graph.example.test/', {} as NodeJS.ProcessEnv),
+      'https://graph.example.test',
+    );
+    assert.equal(
+      __testing.resolveWikiApiBaseUrl(
+        'https://graph.example.test',
+        { BRAINBASE_WIKI_API_URL: 'https://legacy.example.test/' } as NodeJS.ProcessEnv,
+      ),
+      'https://legacy.example.test',
+    );
+  });
+
   it('uses canonical POST search only when an explicit storage mode is configured', async () => {
     __testing.setPersonalKgStorage('managed_cloud', 'https://bb.unson.jp');
     __testing.setOwnerTokenManager({ getToken: async () => 'owner-token' });

@@ -1,0 +1,28 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=infra/gcp/growin/Dockerfile.api
+      - --tag=${_REGISTRY}/api:${_TAG}
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=infra/gcp/growin/Dockerfile.mcp
+      - --tag=${_REGISTRY}/mcp:${_TAG}
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=infra/gcp/growin/Dockerfile.migrate
+      - --tag=${_REGISTRY}/migrate:${_TAG}
+      - .
+images:
+  - ${_REGISTRY}/api:${_TAG}
+  - ${_REGISTRY}/mcp:${_TAG}
+  - ${_REGISTRY}/migrate:${_TAG}
+substitutions:
+  _REGISTRY: asia-northeast1-docker.pkg.dev/brainbase-505912/brainbase
+  _TAG: bootstrap
+options:
+  logging: CLOUD_LOGGING_ONLY

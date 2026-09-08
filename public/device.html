@@ -254,15 +254,15 @@
             <div id="verify-error" class="error-message" style="display: none;"></div>
         </div>
 
-        <!-- Step 2: Slack Login -->
-        <div class="step" id="step-slack">
-            <h2 class="step-title">Slackでログイン</h2>
-            <p class="step-desc">Slackアカウントで認証してください</p>
+        <!-- Step 2: Organization Login -->
+        <div class="step" id="step-login">
+            <h2 class="step-title">Google Workspaceでログイン</h2>
+            <p class="step-desc">GrowinのGoogle Workspaceアカウントで認証してください</p>
             <div class="code-display">
                 <div class="label">認証コード</div>
                 <p class="code" id="user-code-display">XXXX-XXXX</p>
             </div>
-            <button class="btn" id="slack-login-btn">Slackでログイン</button>
+            <button class="btn" id="organization-login-btn">Google Workspaceでログイン</button>
             <button class="btn btn-secondary" id="back-to-input-btn">戻る</button>
         </div>
 
@@ -296,7 +296,7 @@
     </div>
 
     <script type="module">
-        import { DeviceAuthController } from '/modules/device/device-auth-controller.js?v=6';
+        import { DeviceAuthController } from '/modules/device/device-auth-controller.js?v=7';
 
         const controller = new DeviceAuthController();
         controller.init();
