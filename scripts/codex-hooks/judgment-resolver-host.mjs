@@ -2129,7 +2129,18 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                         ? suppliedTurnRef === null || suppliedTurnRef === expectedTurnRef
                         : false);
             if (!bindingValid) {
-                throw new Error('judgment_turn_resolution_binding_invalid');
+                // Fixed codes only: the existing MCP error sink can report the
+                // failed boundary without exposing input or contract contents.
+                const causeCode = suppliedTurnRef !== null && suppliedTurnRef !== expectedTurnRef ? 'judgment_binding_turn_ref_mismatch'
+                    : !turnInput ? 'judgment_binding_turn_input_missing'
+                    : !interpretation ? 'judgment_binding_interpretation_missing'
+                    : canonicalJson(turnInput) !== canonicalJson(episode.turn_input) ? 'judgment_binding_turn_input_mismatch'
+                    : turnResolution?.turn_id !== undefined && turnResolution.turn_id !== episode.initial_route_receipt.turn_id ? 'judgment_binding_contract_turn_mismatch'
+                    : turnResolution?.context_digest !== undefined && turnResolution.context_digest !== episode.initial_route_receipt.context_digest ? 'judgment_binding_context_digest_mismatch'
+                    : turnResolution ? 'judgment_binding_request_digest_mismatch'
+
+                    : 'judgment_binding_contract_missing';
+                throw new Error('judgment_turn_resolution_binding_invalid', { cause: new Error(causeCode) });
             }
         }
         const auditTurnRef = `${identity.sessionRef}/${paths.turnRef}`;

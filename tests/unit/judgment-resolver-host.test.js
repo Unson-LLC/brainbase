@@ -4625,6 +4625,24 @@ describe('structured Resolver unavailable failures', () => {
         ]);
     });
 
+    it.each([
+        ['missing_input', null, 'PostToolUseFailure', 'judgment_binding_turn_input_missing'],
+        ['wrong_ref', { turn_ref: 'other/turn', model_interpretation: {} }, 'PostToolUseFailure', 'judgment_binding_turn_ref_mismatch'],
+        ['missing_interpretation', 'own_ref_only', 'PostToolUseFailure', 'judgment_binding_interpretation_missing'],
+        ['wrong_input', { turn_input: { changed: true }, model_interpretation: {} }, 'PostToolUseFailure', 'judgment_binding_turn_input_mismatch'],
+        ['missing_contract', 'valid_input', 'PostToolUse', 'judgment_binding_contract_missing']
+    ])('束縛拒否の%sを値を含まないcauseで区別する', async (name, input, hookEventName, cause) => {
+        const { env, payload, ownTurnRef } = await startUnavailableEpisode({ sessionId: `binding-diagnostic-${name}` });
+        const toolInput = input === 'valid_input' ? { turn_ref: ownTurnRef, model_interpretation: modelInterpretation }
+            : input === 'own_ref_only' ? { turn_ref: ownTurnRef } : input;
+        await expect(processHookPayload({ ...payload, hook_event_name: hookEventName,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'diagnostic-attempt',
+            tool_input: toolInput, tool_response: null
+        }, { env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid', cause: { message: cause }
+        });
+    });
+
     it('directの構造化503を失敗イベントとして保存し、成功契約には昇格しない', async () => {
         const sessionId = 'session-structured-unavailable-direct';
         const { root, episode, invoke } = await startUnavailableEpisode({ sessionId });
