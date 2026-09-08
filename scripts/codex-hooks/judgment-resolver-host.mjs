@@ -216,6 +216,19 @@ const TURN_RESOLUTION_RECEIPT_STATUSES = new Set([
     'needs_classification',
     'needs_policy_resolution'
 ]);
+const JUDGMENT_BINDING_DIAGNOSTIC_EVENT = 'brainbase_judgment_binding_diagnostic';
+// Keep this list finite and local to the MCP implementation. Upstream API
+// error.code values are not an allowlist and must never be copied to logs.
+const JUDGMENT_BINDING_DIAGNOSTIC_ERROR_CODES = new Set([
+    'brainbase_auth_unavailable',
+    'brainbase_auth_context_invalid',
+    'brainbase_project_not_accessible',
+    'brainbase_judgment_binding_unavailable',
+    'brainbase_api_unavailable',
+    'brainbase_api_error',
+    'brainbase_api_response_invalid',
+    'judgment_resolution_input_invalid'
+]);
 // Mirrors the brainbase_resolve_turn inputSchema; exec-mode models do not
 // reliably read tool schemas, so the exact shape is stated in the context.
 const MODEL_INTERPRETATION_SHAPE = 'model_interpretation must contain exactly these keys and nothing else: '
@@ -1389,6 +1402,69 @@ function isJsonContainerText(value) {
     return text.startsWith('{') || text.startsWith('[');
 }
 
+function judgmentBindingDiagnosticWrapperShape(response) {
+    if (response === null) return 'null';
+    if (Array.isArray(response)) return 'array';
+    if (typeof response === 'string') return isJsonContainerText(response) ? 'json_string' : 'string';
+    const item = record(response);
+    if (!item) return 'other';
+    if (item.type === 'tool_result') return 'tool_result_block';
+    if (item.jsonrpc === '2.0' && Object.hasOwn(item, 'result')) {
+        if (record(item.result)) return 'jsonrpc_result_record';
+        if (typeof item.result === 'string') return 'jsonrpc_result_string';
+        return 'jsonrpc_result_other';
+    }
+    if (Array.isArray(item.content)) return 'content_array';
+    if (typeof item.content === 'string') return 'content_string';
+    if (Object.hasOwn(item, 'result')) {
+        if (record(item.result)) return 'result_record';
+        if (typeof item.result === 'string') return 'result_string';
+        return 'result_other';
+    }
+    if (Object.hasOwn(item, 'data')) {
+        if (record(item.data)) return 'data_record';
+        if (typeof item.data === 'string') return 'data_string';
+        return 'data_other';
+    }
+    return 'record';
+}
+
+function judgmentBindingDiagnosticReceiptPresent(response) {
+    return nestedRecords(response).some((item) => (
+        typeof item.resolution_id === 'string' && item.resolution_id.trim().length > 0
+    ) || Boolean(record(item.receipt)));
+}
+
+function judgmentBindingDiagnosticInnerErrorCode(response) {
+    const codes = new Set();
+    for (const item of nestedRecords(response)) {
+        const nestedCode = record(item.error)?.code;
+        if (JUDGMENT_BINDING_DIAGNOSTIC_ERROR_CODES.has(nestedCode)) codes.add(nestedCode);
+        const status = String(item.status ?? '').toLowerCase();
+        if (['error', 'unavailable', 'failed', 'failure'].includes(status)
+            && JUDGMENT_BINDING_DIAGNOSTIC_ERROR_CODES.has(item.code)) {
+            codes.add(item.code);
+        }
+    }
+    return codes.size === 1 ? [...codes][0] : null;
+}
+
+function logJudgmentBindingDiagnostic(response) {
+    try {
+        const diagnostic = {
+            event: JUDGMENT_BINDING_DIAGNOSTIC_EVENT,
+            wrapper_shape: judgmentBindingDiagnosticWrapperShape(response),
+            receipt_present: judgmentBindingDiagnosticReceiptPresent(response),
+            inner_error_code: judgmentBindingDiagnosticInnerErrorCode(response)
+        };
+        // Best-effort diagnostics must not change the fail-closed binding
+        // result if a host-provided stderr logger is unavailable.
+        console.error(JSON.stringify(diagnostic));
+    } catch {
+        // Keep the original binding error as the only control-flow result.
+    }
+}
+
 function nestedRecords(value, depth = 0, { parseContent = true } = {}) {
     if (depth > 5) return [];
     if (Array.isArray(value)) {
@@ -2177,6 +2253,12 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                     : turnResolution ? 'judgment_binding_request_digest_mismatch'
 
                     : 'judgment_binding_contract_missing';
+                if (hookEventName === 'PostToolUse'
+                    && toolName === TURN_RESOLUTION_TOOL_NAME
+                    && !turnResolution
+                    && causeCode === 'judgment_binding_contract_missing') {
+                    logJudgmentBindingDiagnostic(responseValue);
+                }
                 throw new Error('judgment_turn_resolution_binding_invalid', { cause: new Error(causeCode) });
             }
         }
